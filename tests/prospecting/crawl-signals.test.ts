@@ -61,6 +61,44 @@ describe('extractCrawlSignals', () => {
   })
 })
 
+describe('brand capture', () => {
+  it('captures theme-color (normalized), the apple-touch-icon, and og:site_name', () => {
+    const s = page(`<html><head>
+      <meta name="theme-color" content="#1D4ED8">
+      <meta property="og:site_name" content="Smile Dental">
+      <meta property="og:image" content="/photos/team.jpg">
+      <link rel="icon" href="/favicon.ico">
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+      </head><body></body></html>`)
+    expect(s.themeColor).toBe('#1d4ed8')
+    // Precedence: apple-touch-icon beats favicon beats og:image; relative
+    // hrefs absolutize against the crawled URL.
+    expect(s.iconUrl).toBe('https://smiledental.com/apple-touch-icon.png')
+    expect(s.siteName).toBe('Smile Dental')
+  })
+
+  it('normalizes 3-digit hex and rejects non-hex theme-colors', () => {
+    expect(page('<html><head><meta name="theme-color" content="#abc"></head></html>').themeColor).toBe('#aabbcc')
+    expect(page('<html><head><meta name="theme-color" content="rebeccapurple"></head></html>').themeColor).toBeNull()
+    expect(page('<html><head></head></html>').themeColor).toBeNull()
+  })
+
+  it('falls through icon precedence and drops http-only icons', () => {
+    const favicon = page('<html><head><link rel="shortcut icon" href="https://cdn.smiledental.com/fav.png"></head></html>')
+    expect(favicon.iconUrl).toBe('https://cdn.smiledental.com/fav.png')
+    const og = page('<html><head><meta property="og:image" content="https://smiledental.com/og.jpg"></head></html>')
+    expect(og.iconUrl).toBe('https://smiledental.com/og.jpg')
+    // Crawled over http → relative icon resolves to http → rejected.
+    const insecure = extractCrawlSignals({
+      html: '<html><head><link rel="icon" href="/fav.ico"></head></html>',
+      finalUrl: 'http://drsmithdds.com',
+      bytes: 100,
+      fetchedAt: FETCHED,
+    })
+    expect(insecure.iconUrl).toBeNull()
+  })
+})
+
 describe('extractEmails', () => {
   it('collects real mailtos, lowercased + deduped, and skips junk', () => {
     const emails = extractEmails(`

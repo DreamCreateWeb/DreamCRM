@@ -7,6 +7,7 @@ import {
   enrollProspectAction,
   stopEnrollmentAction,
   startBrandedDemoAction,
+  reEnrichProspectAction,
 } from './admin-actions'
 
 /**
@@ -82,6 +83,27 @@ export default function DrawerActions({
           }
         >
           🎬 Branded demo
+        </ActionButton>
+        <ActionButton
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          title="Recrawl their site (brand color, logo, booking signals), refresh Google data, and rescore"
+          onClick={() =>
+            startTransition(async () => {
+              setError(null)
+              const r = await reEnrichProspectAction(prospectId)
+              if (!r.ok) {
+                setError(
+                  r.reason === 'budget'
+                    ? 'Monthly enrichment budget is used up — try next month or raise it in Settings.'
+                    : `Re-enrich failed (${r.reason ?? 'unknown'}).`,
+                )
+              }
+            })
+          }
+        >
+          ↻ Re-enrich
         </ActionButton>
         {confirming ? (
           <>

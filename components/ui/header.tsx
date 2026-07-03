@@ -13,6 +13,7 @@ import DropdownHelp from '@/components/dropdown-help'
 import ThemeToggle from '@/components/theme-toggle'
 import QuickCreateMenu from './quick-create-menu'
 import DemoExitChip from './demo-exit-chip'
+import PresentingChip from './presenting-chip'
 import TrailBack from './trail-back'
 
 /**
@@ -27,6 +28,7 @@ export default function Header({
   variant = 'default',
   moduleIds = [],
   isDemo = false,
+  presentingTo,
   title,
 }: {
   variant?: 'default' | 'v2' | 'v3'
@@ -34,6 +36,9 @@ export default function Header({
   moduleIds?: string[]
   /** Platform-admin demo mode — shows the "Exit demo" chip. */
   isDemo?: boolean
+  /** Prospect-branded demo: the practice being presented to — swaps the
+   *  Exit-demo chip for the "🎬 Presenting to X" end-demo control. */
+  presentingTo?: string
   /** Optional page title shown on the left (Settings subpages use it). */
   title?: string
 }) {
@@ -123,7 +128,7 @@ export default function Header({
             </div>
 
             <Notifications align="right" />
-            {isDemo && <DemoExitChip />}
+            {isDemo && (presentingTo ? <PresentingChip clinicName={presentingTo} /> : <DemoExitChip />)}
             <DropdownHelp align="right" />
             <ThemeToggle />
           </div>

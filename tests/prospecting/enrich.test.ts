@@ -74,7 +74,7 @@ vi.mock('@/lib/ai', () => ({
   aiConfigured: aiConfiguredMock,
 }))
 
-import { runEnrichment } from '@/lib/services/prospect-enrich'
+import { runEnrichment, reEnrichProspect } from '@/lib/services/prospect-enrich'
 import { PROSPECTING_DEFAULTS } from '@/lib/types/prospecting'
 
 const LIVE = { ...PROSPECTING_DEFAULTS, killSwitch: false, enabledStates: ['GA'] }
@@ -212,5 +212,32 @@ describe('runEnrichment happy path', () => {
     expect(r.errors).toBe(1)
     const final = state.updates.at(-1)!
     expect(final.values).toMatchObject({ status: 'discovered' })
+  })
+})
+
+describe('reEnrichProspect (manual refresh)', () => {
+  it('refreshes an already-forward prospect WITHOUT demoting its status', async () => {
+    state.selectQueue.push([{ ...PROSPECT, status: 'contacted' }])
+    placeMock.mockResolvedValue(PLACE)
+    mockPageFetches()
+    aiMock.mockResolvedValue({
+      websiteQuality: 25, websiteReasons: [], socialPresence: 0,
+      onlineBooking: false, weaknesses: ['no online booking'], summary: 'x',
+    })
+    const r = await reEnrichProspect('pros_1')
+    expect(r).toEqual({ ok: true })
+    const final = state.updates.at(-1)!
+    // Fresh enrichment written, pipeline status preserved.
+    expect(final.values).toMatchObject({ status: 'contacted', websiteUrl: 'https://smiledental.com' })
+  })
+
+  it('fails soft on budget exhaustion and unknown ids', async () => {
+    counterMock.mockResolvedValue(LIVE.budgets.placesPerMonth)
+    state.selectQueue.push([PROSPECT])
+    expect(await reEnrichProspect('pros_1')).toEqual({ ok: false, reason: 'budget' })
+
+    counterMock.mockResolvedValue(0)
+    state.selectQueue.push([])
+    expect(await reEnrichProspect('pros_missing')).toEqual({ ok: false, reason: 'not_found' })
   })
 })

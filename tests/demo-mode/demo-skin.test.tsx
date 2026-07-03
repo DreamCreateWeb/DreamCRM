@@ -58,6 +58,28 @@ describe('readDemoSkin guards', () => {
     expect(skin!.brandColor).toBeUndefined()
     expect(skin!.logoUrl).toBeUndefined()
   })
+
+  it('parses the presenter-depth fields (websiteUrl, weaknesses, officialFirstName)', () => {
+    const skin = parseDemoSkin(
+      JSON.stringify({
+        prospectId: 'pros_1',
+        clinicName: 'Smile Co',
+        websiteUrl: 'https://smileco.com',
+        weaknesses: ['No online booking today', '', 42, 'x'.repeat(120), 'a', 'b', 'c'],
+        officialFirstName: '  Maria  ',
+      }),
+    )
+    expect(skin!.websiteUrl).toBe('https://smileco.com')
+    expect(skin!.weaknesses).toHaveLength(4) // capped, junk filtered
+    expect(skin!.weaknesses![1]).toHaveLength(80) // long entries truncated
+    expect(skin!.officialFirstName).toBe('Maria')
+    // http website dropped
+    expect(
+      parseDemoSkin(
+        JSON.stringify({ prospectId: 'p', clinicName: 'X', websiteUrl: 'http://x.com' }),
+      )!.websiteUrl,
+    ).toBeUndefined()
+  })
 })
 
 describe('demo script registry', () => {

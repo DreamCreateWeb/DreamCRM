@@ -9,6 +9,7 @@ import { db, schema } from '@/lib/db'
 import { requireTenant } from '@/lib/auth/context'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 import { DEMO_SKIN_COOKIE, type DemoSkin } from '@/lib/types/demo-skin'
+import { buildDemoSkin } from '@/lib/demo-skin-build'
 import {
   getProspectingConfig,
   updateProspectingConfig,
@@ -67,6 +68,21 @@ export async function updateWarmupAction(input: unknown): Promise<void> {
   const config = await getProspectingConfig()
   await updateProspectingConfig({ warmup: { ...config.warmup, ...parsed } })
   revalidatePath('/platform/prospecting/settings')
+}
+
+/**
+ * Manual per-prospect enrichment refresh — recrawls their site (picking up
+ * the new brand-capture signals on rows enriched before it existed),
+ * refreshes Places data, and rescores. Budget-gated like the cron.
+ */
+export async function reEnrichProspectAction(
+  prospectId: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  await requirePlatformAdmin()
+  const { reEnrichProspect } = await import('@/lib/services/prospect-enrich')
+  const r = await reEnrichProspect(z.string().min(1).parse(prospectId))
+  revalidatePath('/platform/prospecting')
+  return r.ok ? { ok: true } : { ok: false, reason: r.reason }
 }
 
 /** Manually suppress a prospect (permanent; stops any live enrollment). */
@@ -178,6 +194,12 @@ export async function startBrandedDemoAction(prospectId: string): Promise<void> 
       id: schema.prospect.id,
       name: schema.prospect.name,
       city: schema.prospect.city,
+      websiteUrl: schema.prospect.websiteUrl,
+      authorizedOfficialName: schema.prospect.authorizedOfficialName,
+      googleRatingTenths: schema.prospect.googleRatingTenths,
+      reviewCount: schema.prospect.reviewCount,
+      enrichment: schema.prospect.enrichment,
+      aiVerdict: schema.prospect.aiVerdict,
     })
     .from(schema.prospect)
     .where(eq(schema.prospect.id, id))
@@ -198,7 +220,22 @@ export async function startBrandedDemoAction(prospectId: string): Promise<void> 
   const orgId = demoOrg?.id ?? demo.organizationId
   await seedDemoNotificationsForUser(ctx.userId, orgId)
 
-  const skin: DemoSkin = { prospectId: p.id, clinicName: p.name, ...(p.city ? { city: p.city } : {}) }
+  // Full brand composition: their theme-color, their favicon logo, their
+  // verified gaps as beat ammunition, the doctor's first name — all pure,
+  // all size-capped for the cookie.
+  const skin: DemoSkin = buildDemoSkin({
+    prospect: {
+      id: p.id,
+      name: p.name,
+      city: p.city,
+      websiteUrl: p.websiteUrl,
+      authorizedOfficialName: p.authorizedOfficialName,
+      googleRatingTenths: p.googleRatingTenths,
+      reviewCount: p.reviewCount,
+    },
+    signals: (p.enrichment ?? null) as import('@/lib/types/prospecting').ProspectCrawlSignals | null,
+    verdict: (p.aiVerdict ?? null) as import('@/lib/types/prospecting').ProspectAiVerdict | null,
+  })
   const cookieStore = await cookies()
   const cookieOpts = {
     httpOnly: true,

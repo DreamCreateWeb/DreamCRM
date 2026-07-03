@@ -86,6 +86,36 @@ export async function exitDemoMode() {
 }
 
 /**
+ * End a PROSPECT-BRANDED demo (the header "Presenting to X" chip + the
+ * presenter panel's End-demo button): same cookie lifecycle as
+ * exitDemoMode, but lands the presenter on the call list with the freshly
+ * demoed prospect pinned for outcome logging — a demo should always end in
+ * a logged outcome, not a dead drop back to the dashboard.
+ */
+export async function endBrandedDemoAction() {
+  const cookieStore = await cookies()
+  let prospectId: string | null = null
+  try {
+    const raw = cookieStore.get('demo_skin')?.value
+    if (raw) {
+      const parsed = JSON.parse(raw) as { prospectId?: unknown }
+      if (typeof parsed.prospectId === 'string' && parsed.prospectId) {
+        prospectId = parsed.prospectId
+      }
+    }
+  } catch {
+    /* malformed skin — plain exit below */
+  }
+  cookieStore.delete(DEMO_COOKIE)
+  cookieStore.delete('demo_skin')
+  redirect(
+    prospectId
+      ? `/platform/prospecting/call-list?highlight=${encodeURIComponent(prospectId)}`
+      : '/',
+  )
+}
+
+/**
  * Seeds Acme Dental Demo clinic with sample patients + appointments + tasks
  * so the demo experience actually shows real data. Idempotent — calling
  * twice returns the existing clinic the second time.

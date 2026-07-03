@@ -2240,7 +2240,30 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-03 (latest) — Prospecting engine (Dream Create's own outbound growth)
+## 2026-07-03 (latest) — Demo system all-in (the demo is a MIRROR)
+
+Going deep on presenter mode: the prospect spends the demo looking at THEIR
+OWN practice running better. Three slices.
+
+1. **Phase 1 — Brand capture + chrome depth**: the crawler now also captures
+   `theme-color` (normalized hex, raw honest value), the best square brand
+   mark (apple-touch-icon > link rel=icon > og:image, absolutized, https
+   only) and og:site_name (ProspectCrawlSignals — jsonb, no migration).
+   New pure modules: `lib/demo-gaps.ts` (beat↔gap keyword router +
+   deterministic signal triggers — demo ammunition) and
+   `lib/demo-skin-build.ts` (buildDemoSkin composition w/ usableBrandColor
+   white/black rejection, officialFirstName, 2KB cookie cap w/ fixed drop
+   order; buildDemoCompareUrl same-origin). DemoSkin grew websiteUrl/
+   weaknesses/officialFirstName (parse-validated). Chrome: prospect logo in
+   the sidebar org tile (onError → initial fallback), demo hairline in the
+   prospect's brand color (`--demo-accent`, amber fallback), header
+   "🎬 Presenting to X" chip REPLACES Exit-demo during branded demos and
+   ends the demo → call list w/ the prospect pinned for outcome logging
+   (endBrandedDemoAction). Manual "↻ Re-enrich" per prospect
+   (reEnrichProspect — any status, never demotes pipeline-forward rows,
+   budget-gated).
+
+## 2026-07-03 — Prospecting engine (Dream Create's own outbound growth)
 
 The platform org gets a lead-generation system: every US dental clinic is
 publicly findable (NPPES NPI registry) with rich quality signals, so the

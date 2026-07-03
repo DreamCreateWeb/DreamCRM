@@ -53,6 +53,16 @@ export interface ProspectCrawlSignals {
   emails: string[] // mailto/contact-page discoveries (never guessed)
   fetchedAt: string // ISO
   error?: string
+  // Brand capture (added for presenter mode — optional, older crawls lack
+  // them; jsonb tolerates absence, re-enrich backfills).
+  /** <meta name="theme-color"> when a valid hex — the RAW captured value
+   *  (often #ffffff; usableBrandColor() decides if it's demo-worthy). */
+  themeColor?: string | null
+  /** Best square brand mark: apple-touch-icon > <link rel~=icon> > og:image.
+   *  Absolute https URL. */
+  iconUrl?: string | null
+  /** og:site_name — how they brand themselves. */
+  siteName?: string | null
 }
 
 // ── AI verdict (prospect.ai_verdict jsonb) ─────────────────────────────────

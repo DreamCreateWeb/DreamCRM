@@ -84,6 +84,10 @@ export function extractCrawlSignals(input: {
     pageWeightKb: Math.round(input.bytes / 1024),
     emails: extractEmails(html),
     fetchedAt: input.fetchedAt.toISOString(),
+    // Brand capture for presenter mode.
+    themeColor: normalizeHexColor(metaContent(head, 'theme-color')),
+    iconUrl: extractBrandIcon(head, input.finalUrl),
+    siteName: metaContent(head, 'og:site_name')?.slice(0, 120) ?? null,
   }
 }
 
@@ -91,4 +95,56 @@ export function extractCrawlSignals(input: {
 export function findContactPath(html: string): string | null {
   const m = html.match(/href=["'](\/[^"']*contact[^"']*)["']/i)
   return m ? m[1].slice(0, 200) : null
+}
+
+// ── Brand capture (presenter mode) ─────────────────────────────────────────
+
+/** Attribute-order-agnostic <meta name=X content=Y> reader. */
+function metaContent(head: string, name: string): string | null {
+  const pattern1 = new RegExp(`<meta[^>]+(?:name|property)=["']${name}["'][^>]*content=["']([^"']{1,300})["']`, 'i')
+  const pattern2 = new RegExp(`<meta[^>]+content=["']([^"']{1,300})["'][^>]*(?:name|property)=["']${name}["']`, 'i')
+  const m = head.match(pattern1) ?? head.match(pattern2)
+  return m ? m[1].trim() : null
+}
+
+/** '#abc' → '#aabbcc'; null unless a clean 3/6-digit hex. Raw honest value —
+ *  whether it's USABLE as a demo brand (not white/black) is a separate call
+ *  (usableBrandColor in lib/demo-skin-build.ts). */
+export function normalizeHexColor(v: string | null): string | null {
+  if (!v) return null
+  const m = v.trim().match(/^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/)
+  if (!m) return null
+  const hex = m[1].toLowerCase()
+  return `#${hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex}`
+}
+
+/** Absolutize an href against the crawled page; https-only; length-capped. */
+function absoluteHttpsUrl(href: string | null, baseUrl: string): string | null {
+  if (!href) return null
+  try {
+    const url = new URL(href, baseUrl).toString()
+    return url.startsWith('https://') && url.length <= 300 ? url : null
+  } catch {
+    return null
+  }
+}
+
+function linkHref(head: string, relPattern: string): string | null {
+  const p1 = new RegExp(`<link[^>]+rel=["'][^"']*${relPattern}[^"']*["'][^>]*href=["']([^"']{1,300})["']`, 'i')
+  const p2 = new RegExp(`<link[^>]+href=["']([^"']{1,300})["'][^>]*rel=["'][^"']*${relPattern}[^"']*["']`, 'i')
+  const m = head.match(p1) ?? head.match(p2)
+  return m ? m[1] : null
+}
+
+/**
+ * The best square brand mark, in confidence order: apple-touch-icon (nearly
+ * always the real logo at usable size) > any <link rel~=icon> (often tiny)
+ * > og:image (often a photo — last resort).
+ */
+export function extractBrandIcon(head: string, finalUrl: string): string | null {
+  return (
+    absoluteHttpsUrl(linkHref(head, 'apple-touch-icon'), finalUrl) ??
+    absoluteHttpsUrl(linkHref(head, 'icon'), finalUrl) ??
+    absoluteHttpsUrl(metaContent(head, 'og:image'), finalUrl)
+  )
 }

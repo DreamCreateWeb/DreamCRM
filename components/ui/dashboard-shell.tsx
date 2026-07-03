@@ -108,6 +108,7 @@ export default async function DashboardShell({
         variant={sidebarVariant}
         tenantType={ctx.tenantType}
         isDemo={ctx.isDemo}
+        logoUrl={demoSkin?.logoUrl}
       />
       {/* TrailProvider records the per-tab journey-trail so the header's
           back chip can offer effortless, filter-preserving, multi-step return
@@ -116,11 +117,22 @@ export default async function DashboardShell({
           patient name (PHI), so it must never carry across clinics/users in a tab. */}
       <TrailProvider scope={`${ctx.userId}:${ctx.organizationId}`} modules={modules.map((m) => ({ path: m.path, label: m.label }))}>
         <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-          {/* Demo mode: amber 3px top hairline on the canvas (replaces the strip). */}
+          {/* Demo mode: 3px top hairline on the canvas — the prospect's brand
+              color during a branded demo, amber otherwise. */}
           {ctx.isDemo && (
-            <div className="h-[3px] shrink-0 bg-amber-500" aria-hidden="true" data-testid="demo-hairline" />
+            <div
+              className="h-[3px] shrink-0 bg-amber-500"
+              style={{ background: 'var(--demo-accent, #f59e0b)' }}
+              aria-hidden="true"
+              data-testid="demo-hairline"
+            />
           )}
-          <Header variant={headerVariant} moduleIds={moduleIds} isDemo={ctx.isDemo} />
+          <Header
+            variant={headerVariant}
+            moduleIds={moduleIds}
+            isDemo={ctx.isDemo}
+            presentingTo={demoSkin?.clinicName}
+          />
           {/* Slim billing chip-row (compact skins of the same banners/logic). */}
           <BillingDunningBanner ctx={ctx} />
           <TrialBanner ctx={ctx} />

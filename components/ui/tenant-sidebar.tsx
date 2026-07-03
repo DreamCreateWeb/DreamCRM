@@ -24,6 +24,9 @@ interface TenantSidebarProps {
   tenantType?: TenantType
   /** Amber "Demo" pill in the org switcher; governs nothing else here. */
   isDemo?: boolean
+  /** Prospect-branded demo: their logo replaces the initial tile
+   *  (https-only, validated upstream; onError falls back to the initial). */
+  logoUrl?: string
 }
 
 /** Live "needs attention" counts shown as pills next to nav entries. */
@@ -104,6 +107,7 @@ export default function TenantSidebar({
   badge,
   tenantType,
   isDemo = false,
+  logoUrl,
 }: TenantSidebarProps) {
   const sidebar = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
@@ -289,6 +293,7 @@ export default function TenantSidebar({
           orgName={orgName}
           badge={badge}
           isDemo={isDemo}
+          logoUrl={logoUrl}
           rail={railCollapsed}
         />
 
@@ -354,17 +359,23 @@ function OrgSwitcher({
   orgName,
   badge,
   isDemo,
+  logoUrl,
   rail,
 }: {
   orgName?: string
   badge?: string
   isDemo: boolean
+  logoUrl?: string
   rail: boolean
 }) {
   // Static identity block: the clinic name + plan + Demo pill. The old chevron
   // dropdown (Clinic settings / Plan & billing) is gone — Settings is reached
   // from the single "Settings" button in the nav, which opens the settings home.
   const initial = (orgName ?? 'D').trim().charAt(0).toUpperCase()
+  // Prospect logos hotlink from their site — 403s/404s are common, so a
+  // failed load falls back to the initial tile instead of a broken image.
+  const [logoFailed, setLogoFailed] = useState(false)
+  const showLogo = Boolean(logoUrl) && !logoFailed
 
   return (
     <div className="relative z-20 mb-4 px-0.5" data-testid="org-switcher">
@@ -374,9 +385,20 @@ function OrgSwitcher({
           rail ? 'lg:justify-center lg:px-0 px-2' : 'px-2'
         }`}
       >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300 text-xs font-bold">
-          {initial}
-        </span>
+        {showLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt=""
+            className="h-7 w-7 shrink-0 rounded-md object-cover"
+            onError={() => setLogoFailed(true)}
+            data-testid="org-logo"
+          />
+        ) : (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300 text-xs font-bold">
+            {initial}
+          </span>
+        )}
         {!rail && (
           <span className="min-w-0 grow lg:block">
             <span className="flex items-center gap-1.5">

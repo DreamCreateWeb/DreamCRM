@@ -42,7 +42,20 @@ export function parseDemoSkin(raw: string): DemoSkin | null {
       skin.city = parsed.city.trim().slice(0, 60)
     }
     if (typeof parsed.logoUrl === 'string' && /^https:\/\//.test(parsed.logoUrl)) {
-      skin.logoUrl = parsed.logoUrl.slice(0, 500)
+      skin.logoUrl = parsed.logoUrl.slice(0, 300)
+    }
+    if (typeof parsed.websiteUrl === 'string' && /^https:\/\//.test(parsed.websiteUrl)) {
+      skin.websiteUrl = parsed.websiteUrl.slice(0, 200)
+    }
+    if (Array.isArray(parsed.weaknesses)) {
+      const weaknesses = parsed.weaknesses
+        .filter((w): w is string => typeof w === 'string' && w.trim().length > 0)
+        .map((w) => w.trim().slice(0, 80))
+        .slice(0, 4)
+      if (weaknesses.length > 0) skin.weaknesses = weaknesses
+    }
+    if (typeof parsed.officialFirstName === 'string' && parsed.officialFirstName.trim()) {
+      skin.officialFirstName = parsed.officialFirstName.trim().slice(0, 40)
     }
     return skin
   } catch {
