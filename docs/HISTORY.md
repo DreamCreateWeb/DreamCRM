@@ -2261,7 +2261,21 @@ via requirePlatformAdmin actions + CRON_SECRET crons). Naming rule:
    `prospect-discovery` cron (6h); `/platform/prospecting` (funnel KPIs,
    filterable table) + `/settings` (kill switch, dry-run, state rollout
    grid, budget meters, env-readiness cards). Ships OFF: killSwitch +
-   dryRun both default true.
+   dryRun both default true. (`baf0342`)
+2. **Phase 2 — Enrichment + scoring**: `lib/google-places.ts` (Places API
+   New, lazy key, tight field mask = cheap SKU, null on any error);
+   `lib/prospect-signals.ts` (pure regex extractor: SSL/viewport/copyright/
+   booking markers/social links/builder fingerprints/mailto discovery — an
+   email only ever comes from the clinic's own site, never guessed);
+   `lib/prospect-scoring.ts` (deterministic ladder: no website 90–100 hot ·
+   bad site 65–89 · decent-site gaps 40–64 · dialed-in <40; AI judges the
+   website, pure math decides the score) + heuristicVerdict AI fallback;
+   `prospect-enrich.ts` orchestrator (Places → robots-respecting crawl +
+   contact-page email hop → haiku verdict via runClaudeJson → score; budget
+   soft-pause, CLOSED_PERMANENTLY → disqualified, errors → back to pool);
+   `prospect-enrich` cron (30m); server-rendered prospect drawer
+   (?prospect=<id>: enrichment, verdict, score reasons, outreach history,
+   call log, suppress action).
 
 ## 2026-07-03 — Billing adjustments: Stripe Tax + 1% platform fee + reprice
 

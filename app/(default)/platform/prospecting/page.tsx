@@ -12,7 +12,9 @@ import {
   listProspects,
   getFunnelStats,
   getProspectingConfig,
+  getProspectDetail,
 } from '@/lib/services/prospecting'
+import ProspectDrawer from './prospect-drawer'
 import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
@@ -57,7 +59,12 @@ function buildQuery(
   base: Record<string, string | undefined>,
   patch: Record<string, string | undefined>,
 ): string {
-  const merged: Record<string, string | undefined> = { ...base, ...patch, page: undefined }
+  const merged: Record<string, string | undefined> = {
+    ...base,
+    ...patch,
+    page: undefined,
+    prospect: undefined,
+  }
   const params = new URLSearchParams()
   for (const [k, v] of Object.entries(merged)) if (v) params.set(k, v)
   const qs = params.toString()
@@ -86,10 +93,11 @@ export default async function ProspectingPage({
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list] = await Promise.all([
+  const [config, funnel, list, detail] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
+    params.prospect ? getProspectDetail(params.prospect) : Promise.resolve(null),
   ])
   const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize))
   const activeStates = config.enabledStates as UsState[]
@@ -228,7 +236,12 @@ export default async function ProspectingPage({
                   className="border-b border-[color:var(--color-hairline)] last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/40"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                    {p.name}
+                    <Link
+                      href={`${buildQuery(params, {})}${buildQuery(params, {}).includes('?') ? '&' : '?'}prospect=${p.id}`}
+                      className="hover:text-teal-600 dark:hover:text-teal-400"
+                    >
+                      {p.name}
+                    </Link>
                     {p.phone && (
                       <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                         ({p.phone.slice(0, 3)}) {p.phone.slice(3, 6)}-{p.phone.slice(6)}
@@ -281,6 +294,8 @@ export default async function ProspectingPage({
           </table>
         </div>
       )}
+
+      {detail && <ProspectDrawer detail={detail} closeHref={buildQuery(params, {})} />}
 
       {/* Pagination */}
       {totalPages > 1 && (

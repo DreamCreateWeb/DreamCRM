@@ -265,16 +265,17 @@ sitemap/robots/OG.
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 14 routes, all `Authorization: Bearer $CRON_SECRET`:**
+- **Crons — 15 routes, all `Authorization: Bearer $CRON_SECRET`:**
   `pms-sync` (hourly) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
   `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
-  (daily) · `trial-reminders` (daily) · `prospect-discovery` (6h) — 12
-  EventBridge rules managed by `scripts/setup-cron-schedules.sh` (re-run it
-  when adding a job) + 2 pre-existing out-of-band rules
-  (`publish-scheduled-posts`, `gmail-watch-renew`).
+  (daily) · `trial-reminders` (daily) · `prospect-discovery` (6h) ·
+  `prospect-enrich` (30m) — 13 EventBridge rules managed by
+  `scripts/setup-cron-schedules.sh` (re-run it when adding a job) + 2
+  pre-existing out-of-band rules (`publish-scheduled-posts`,
+  `gmail-watch-renew`).
 
 ## Conventions
 

@@ -220,6 +220,60 @@ export async function getDiscoveryProgress(): Promise<
   return Array.from(byState.values()).sort((a, b) => a.state.localeCompare(b.state))
 }
 
+export interface ProspectDetail {
+  prospect: typeof schema.prospect.$inferSelect
+  touches: Array<{
+    id: string
+    stepNumber: number
+    subject: string
+    channel: string
+    status: string
+    sentAt: Date
+  }>
+  events: Array<{ type: string; occurredAt: Date }>
+  calls: Array<{ outcome: string; note: string | null; createdAt: Date }>
+}
+
+/** Everything the drawer shows: the row + outreach history + call log. */
+export async function getProspectDetail(prospectId: string): Promise<ProspectDetail | null> {
+  const [row] = await db
+    .select()
+    .from(schema.prospect)
+    .where(eq(schema.prospect.id, prospectId))
+    .limit(1)
+  if (!row) return null
+  const touches = await db
+    .select({
+      id: schema.outreachTouchLog.id,
+      stepNumber: schema.outreachTouchLog.stepNumber,
+      subject: schema.outreachTouchLog.subject,
+      channel: schema.outreachTouchLog.channel,
+      status: schema.outreachTouchLog.status,
+      sentAt: schema.outreachTouchLog.sentAt,
+    })
+    .from(schema.outreachTouchLog)
+    .where(eq(schema.outreachTouchLog.prospectId, prospectId))
+    .orderBy(desc(schema.outreachTouchLog.sentAt))
+    .limit(20)
+  const events = await db
+    .select({ type: schema.outreachEvent.type, occurredAt: schema.outreachEvent.occurredAt })
+    .from(schema.outreachEvent)
+    .where(eq(schema.outreachEvent.prospectId, prospectId))
+    .orderBy(desc(schema.outreachEvent.occurredAt))
+    .limit(30)
+  const calls = await db
+    .select({
+      outcome: schema.prospectCallLog.outcome,
+      note: schema.prospectCallLog.note,
+      createdAt: schema.prospectCallLog.createdAt,
+    })
+    .from(schema.prospectCallLog)
+    .where(eq(schema.prospectCallLog.prospectId, prospectId))
+    .orderBy(desc(schema.prospectCallLog.createdAt))
+    .limit(20)
+  return { prospect: row, touches, events, calls }
+}
+
 // ── Mutations (platform admin actions) ─────────────────────────────────────
 
 export async function suppressProspect(
