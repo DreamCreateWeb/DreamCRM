@@ -19,6 +19,13 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
 }))
 
+// The panel's End-demo form posts this server action — stub the whole
+// module so the test never drags in db/auth.
+vi.mock('@/app/(default)/ecommerce/customers/admin-actions', () => ({
+  endBrandedDemoAction: vi.fn(),
+  exitDemoMode: vi.fn(),
+}))
+
 import { readDemoSkin, parseDemoSkin } from '@/lib/demo-skin'
 import { DEMO_BEATS, renderTalkTrack } from '@/lib/types/demo-script'
 import PresenterPanel from '@/components/demo/presenter-panel'
@@ -99,23 +106,36 @@ describe('demo script registry', () => {
   })
 })
 
-describe('PresenterPanel', () => {
-  it('shows the branded header + first beat, and Next advances via router.push', () => {
-    render(<PresenterPanel skin={{ prospectId: 'pros_1', clinicName: 'Lone Star Dental', city: 'Dallas' }} />)
-    expect(screen.getByText(/Presenting as Lone Star Dental/)).toBeTruthy()
+const FULL_SKIN = {
+  prospectId: 'pros_1',
+  clinicName: 'Lone Star Dental',
+  city: 'Dallas',
+  officialFirstName: 'Maria',
+  websiteUrl: 'https://lonestardental.com',
+  weaknesses: ['No online booking today', 'Footer says 2019'],
+}
+
+describe('PresenterPanel v2', () => {
+  it('shows the branded header, group label, first beat; Next advances via router.push', () => {
+    render(<PresenterPanel skin={FULL_SKIN} />)
+    expect(screen.getByText(/Presenting to Lone Star Dental/)).toBeTruthy()
     expect(screen.getByText(`1. ${DEMO_BEATS[0].title}`)).toBeTruthy()
+    expect(screen.getByText(/Open · beat 1 of/)).toBeTruthy()
 
     fireEvent.click(screen.getByText('Next →'))
     expect(pushMock).toHaveBeenCalledWith(DEMO_BEATS[1].href)
     expect(screen.getByText(`2. ${DEMO_BEATS[1].title}`)).toBeTruthy()
   })
 
-  it('keyboard drive: n advances, ArrowLeft goes back, Esc collapses', () => {
+  it('keyboard drive: n advances, ArrowLeft back, digits jump, Esc collapses (timer pill stays)', () => {
     render(<PresenterPanel skin={null} />)
     fireEvent.keyDown(window, { key: 'n' })
     expect(pushMock).toHaveBeenLastCalledWith(DEMO_BEATS[1].href)
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
     expect(pushMock).toHaveBeenLastCalledWith(DEMO_BEATS[0].href)
+    // Digit jump — straight to the last beat.
+    fireEvent.keyDown(window, { key: String(DEMO_BEATS.length) })
+    expect(pushMock).toHaveBeenLastCalledWith(DEMO_BEATS[DEMO_BEATS.length - 1].href)
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByTestId('presenter-panel')).toBeNull()
     expect(screen.getByText(/🎬/)).toBeTruthy() // collapsed pill remains
@@ -130,13 +150,50 @@ describe('PresenterPanel', () => {
     )
     const input = screen.getByLabelText('field')
     fireEvent.keyDown(input, { key: 'n' })
+    fireEvent.keyDown(input, { key: '3' })
     expect(pushMock).not.toHaveBeenCalled()
   })
 
-  it('visited beats persist to sessionStorage (no DB anywhere)', () => {
+  it('visited beats + current index persist to sessionStorage (no DB anywhere)', () => {
     render(<PresenterPanel skin={null} />)
     fireEvent.click(screen.getByText('Next →'))
     const stored = JSON.parse(sessionStorage.getItem('dc.demo-visited-beats') ?? '[]') as string[]
     expect(stored).toContain(DEMO_BEATS[1].id)
+    expect(sessionStorage.getItem('dc.demo-beat-index')).toBe('1')
+  })
+
+  it('gap callouts inline only on the beat they map to', () => {
+    render(<PresenterPanel skin={FULL_SKIN} />)
+    // Beat 1 (huddle): no gaps mapped there.
+    expect(screen.queryByText(/No online booking today/)).toBeNull()
+    // Jump to the appointments beat — its gap appears.
+    const apptIndex = DEMO_BEATS.findIndex((b) => b.id === 'appointments')
+    fireEvent.keyDown(window, { key: String(apptIndex + 1) })
+    expect(screen.getByText(/No online booking today/)).toBeTruthy()
+    expect(screen.queryByText(/Footer says 2019/)).toBeNull() // website gap stays on website
+  })
+
+  it('talk tracks substitute {firstName} and the compare beat exists', () => {
+    render(<PresenterPanel skin={FULL_SKIN} />)
+    const compareIndex = DEMO_BEATS.findIndex((b) => b.id === 'compare')
+    expect(compareIndex).toBeGreaterThan(0)
+    fireEvent.keyDown(window, { key: String(compareIndex + 1) })
+    expect(pushMock).toHaveBeenLastCalledWith('/demo/compare')
+    expect(screen.getByText(/Maria, this is Lone Star Dental/)).toBeTruthy()
+  })
+
+  it('per-beat notes persist to sessionStorage', () => {
+    render(<PresenterPanel skin={null} />)
+    fireEvent.click(screen.getByText(/Notes/))
+    const textarea = screen.getByPlaceholderText(/What they said/)
+    fireEvent.change(textarea, { target: { value: 'They loved the huddle.' } })
+    expect(sessionStorage.getItem(`dc.demo-notes.${DEMO_BEATS[0].id}`)).toBe('They loved the huddle.')
+  })
+
+  it('shows the ↗ their-current-site link only with a websiteUrl, and the End-demo form', () => {
+    render(<PresenterPanel skin={FULL_SKIN} />)
+    const link = screen.getByText(/their current site/)
+    expect(link.closest('a')!.getAttribute('href')).toBe('https://lonestardental.com')
+    expect(screen.getByText(/End demo/)).toBeTruthy()
   })
 })

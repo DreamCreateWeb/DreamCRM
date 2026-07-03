@@ -203,9 +203,14 @@ Sidebar groups: **Daily** / **Growth** / **Website** / **Business** + a pinned
 provisioning + demo entry), client messaging, MRR/subscriptions (`/ecommerce/
 invoices`), **partners** (`/partners`), sales pipeline, **prospecting**
 (`/platform/prospecting` — Dream Create's own outbound engine: NPPES dental-
-clinic discovery → enrichment/scoring → AI outreach → call list; schema
-`lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
-design; ships behind kill switch + dry-run; say "prospect", never "lead"),
+clinic discovery → enrichment/scoring (incl. brand capture: theme-color,
+icon, site name) → AI outreach → call list → AI demo prep brief
+(`/platform/prospecting/demo/[id]`) → prospect-branded presenter mode
+(demo_skin cookie overlay, zero DB writes: chrome branding, 8-beat keyboard
+panel w/ per-prospect gap callouts, `/demo/compare` their-site-vs-ours in
+their brand color); schema `lib/db/schema/prospecting.ts` is
+platform-global, NO organizationId by design; ships behind kill switch +
+dry-run; say "prospect", never "lead"),
 service library (`/platform/service-library`), platform blog, developer,
 settings.
 

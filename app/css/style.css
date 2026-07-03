@@ -577,6 +577,19 @@
   }
 }
 
+/* Presenter panel: one quick fade+lift when a demo beat advances. Used via
+   motion-safe: only; reduced-motion renders instantly. */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* --------------------------------------------------------------------
    Accessibility: honor prefers-reduced-motion. Kill transforms, shimmer,
    breath, and count-up — KEEP opacity/color fades (per DESIGN-SYSTEM Part 3).

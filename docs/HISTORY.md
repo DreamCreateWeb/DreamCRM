@@ -2275,7 +2275,25 @@ OWN practice running better. Three slices.
    swatch + crawl age), AI one-pager (opening line blockquote, beat
    emphasis w/ exactly-one-LEAD pills, land-these-points, objections +
    one-breath responses, the ask). Entry links from the drawer + call
-   cards; "🎬 Start branded demo" is the page's primary action.
+   cards; "🎬 Start branded demo" is the page's primary action. (`551e0b3`)
+3. **Phase 3 — Presenter panel v2 + the compare moment**: beats gained
+   narrative groups (Open/Run/Grow/Close) + an 8th `compare` beat +
+   {firstName} substitution. Panel rewrite (components/demo/): glassy dark
+   w-96 w/ accent top trim, group label ("Grow · beat 6 of 8"), segmented
+   click-to-jump beat progress (accent fill, visited mix), demo timer
+   (sessionStorage epoch), per-beat notes (sessionStorage), ⚠ gap callouts
+   (groupGapsByBeat over skin.weaknesses — THIS prospect's gaps inline
+   under the talk track of the beat they land on), "↗ their current site",
+   digit-key 1-N jump (derived from registry length), motion-safe beat
+   transition, End-demo form; beat index persists so a mid-demo reload
+   resumes. Compare moment: `/demo/compare` ((preview) chrome-less
+   pattern, triple-gated) — LEFT their real site (server-side XFO/CSP
+   pre-check via pure lib/frame-embed.ts; blocked/unreachable → the
+   "indictment card": gap chips + anti-shame copy + open-in-new-tab),
+   RIGHT the demo site re-themed in their brand via
+   `/site/[slug]/demo-brand?brand=rrggbb` (demo slug only, strict hex,
+   noindex, page-level clinicPaletteCss overrides the layout's :root —
+   same-origin path-based iframe so the global XFO passes untouched).
 
 ## 2026-07-03 — Prospecting engine (Dream Create's own outbound growth)
 
