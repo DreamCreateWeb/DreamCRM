@@ -81,7 +81,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0114 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0116 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -201,8 +201,13 @@ Sidebar groups: **Daily** / **Growth** / **Website** / **Business** + a pinned
 
 **Platform tenant** (`lib/modules/platform.ts`): overview, clinics (+ managed
 provisioning + demo entry), client messaging, MRR/subscriptions (`/ecommerce/
-invoices`), **partners** (`/partners`), sales pipeline, service library
-(`/platform/service-library`), platform blog, developer, settings.
+invoices`), **partners** (`/partners`), sales pipeline, **prospecting**
+(`/platform/prospecting` — Dream Create's own outbound engine: NPPES dental-
+clinic discovery → enrichment/scoring → AI outreach → call list; schema
+`lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
+design; ships behind kill switch + dry-run; say "prospect", never "lead"),
+service library (`/platform/service-library`), platform blog, developer,
+settings.
 
 **Patient tenant**: the clinic-branded portal (`app/(portal)/patient/*`) —
 next-visit card, reschedule/cancel w/ notice windows, booking, forms, billing
@@ -260,14 +265,15 @@ sitemap/robots/OG.
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 13 routes, all `Authorization: Bearer $CRON_SECRET`:**
+- **Crons — 14 routes, all `Authorization: Bearer $CRON_SECRET`:**
   `pms-sync` (hourly) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
   `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
-  (daily) · `trial-reminders` (daily) — 11 EventBridge rules managed by
-  `scripts/setup-cron-schedules.sh` + 2 pre-existing out-of-band rules
+  (daily) · `trial-reminders` (daily) · `prospect-discovery` (6h) — 12
+  EventBridge rules managed by `scripts/setup-cron-schedules.sh` (re-run it
+  when adding a job) + 2 pre-existing out-of-band rules
   (`publish-scheduled-posts`, `gmail-watch-renew`).
 
 ## Conventions

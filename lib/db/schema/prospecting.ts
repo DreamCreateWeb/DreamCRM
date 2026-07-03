@@ -1,0 +1,355 @@
+import { pgTable, text, timestamp, integer, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { organization } from './auth'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Prospecting — Dream Create's OWN outbound growth engine (platform tenant).
+//
+// These tables are PLATFORM-GLOBAL and deliberately carry no organization_id
+// (precedent: service_library). Prospects are external dental clinics that
+// exist BEFORE any org does; the platform org is a singleton; every access
+// path is a requirePlatformAdmin() server action or a CRON_SECRET-gated cron.
+// The one org linkage that matters is prospect.converted_organization_id —
+// set when a won prospect becomes a real clinic via createManagedClinic().
+//
+// NAMING: always "prospect", never "lead" — `lead` is the clinic-scoped
+// patient-lead table (a dental patient inquiring at a clinic's website).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const PROSPECT_STATUSES = [
+  'discovered', // imported from NPPES, not yet enriched
+  'enriching', // claimed by the enrich cron
+  'enriched', // signals + score present
+  'queued', // enrolled in a sequence, first touch not yet sent
+  'contacted', // at least one outreach touch sent
+  'engaged', // opened 3+ / clicked — warm but no reply yet
+  'call_list', // intent signal! the owner calls these
+  'converted', // became a real clinic org
+  'not_interested', // said no (reply or call outcome)
+  'suppressed', // unsubscribed / bounced / complained / manual
+  'disqualified', // wrong person, closed practice, bad data
+] as const
+export type ProspectStatus = (typeof PROSPECT_STATUSES)[number]
+
+export const PROSPECT_SCORE_BANDS = ['hot', 'warm', 'cool', 'low'] as const
+export type ProspectScoreBand = (typeof PROSPECT_SCORE_BANDS)[number]
+
+export const PROSPECT_INTENT_SIGNALS = [
+  'reply_interested',
+  'reply_question',
+  'clicked',
+  'opens',
+  'demo_request',
+] as const
+export type ProspectIntentSignal = (typeof PROSPECT_INTENT_SIGNALS)[number]
+
+export const prospect = pgTable(
+  'prospect',
+  {
+    id: text('id').primaryKey(), // pros_…
+    // NPPES NPI (entity type 2, organizational provider). The natural upsert
+    // key for discovery re-runs.
+    npiNumber: text('npi_number'),
+    name: text('name').notNull(),
+    addressLine1: text('address_line1'),
+    city: text('city'),
+    state: text('state'), // 2-letter
+    postalCode: text('postal_code'),
+    phone: text('phone'), // normalized to digits
+    // sha256(normalizedPhone + '|' + normalizedAddress) — second-pass dedupe
+    // for multi-NPI practices sharing one front desk.
+    dedupeHash: text('dedupe_hash'),
+    taxonomyCode: text('taxonomy_code'), // 1223…X family
+    // NPPES "authorized official" — usually the owner dentist. Gold for
+    // personalization + the call itself.
+    authorizedOfficialName: text('authorized_official_name'),
+    authorizedOfficialTitle: text('authorized_official_title'),
+    // IANA tz derived from state (send-window gating). Coarse but sufficient.
+    timezone: text('timezone'),
+    status: text('status').notNull().default('discovered'),
+
+    // Contact discovery — email only ever comes from the clinic's own site
+    // (mailto/contact page) or manual entry. We NEVER guess info@ addresses.
+    email: text('email'),
+    emailSource: text('email_source'), // 'crawl_mailto'|'crawl_contact'|'manual'
+
+    // Enrichment: Google Places
+    websiteUrl: text('website_url'),
+    googlePlaceId: text('google_place_id'),
+    googleRatingTenths: integer('google_rating_tenths'), // 4.7 → 47 (no float drift)
+    reviewCount: integer('review_count'),
+    businessStatus: text('business_status'), // OPERATIONAL / CLOSED_*
+    googleMapsUri: text('google_maps_uri'),
+
+    // Enrichment: website crawl signals. Shape: ProspectCrawlSignals in
+    // lib/types/prospecting.ts (ssl, mobileViewport, copyrightYear, booking
+    // widget, social links, builder fingerprint, pageWeightKb, fetchedAt).
+    enrichment: jsonb('enrichment'),
+    // AI verdict over the crawl+Places summary. Shape: ProspectAiVerdict —
+    // { hasWebsite, websiteQuality 0-100, websiteReasons[], socialPresence
+    //   0-100, onlineBooking, weaknesses[], summary }. The weaknesses feed
+    // personalized outreach copy.
+    aiVerdict: jsonb('ai_verdict'),
+    // Deterministic composite (computeOpportunityScore — pure, unit-tested).
+    // No website = hottest: Dream Create sells websites + CRM.
+    opportunityScore: integer('opportunity_score'),
+    scoreBand: text('score_band'), // hot|warm|cool|low
+    scoreReasons: jsonb('score_reasons'), // string[]
+    enrichedAt: timestamp('enriched_at', { withTimezone: true }),
+    scoredAt: timestamp('scored_at', { withTimezone: true }),
+
+    // Intent — what put this prospect on the call list.
+    intentSignal: text('intent_signal'),
+    intentAt: timestamp('intent_at', { withTimezone: true }), // call-list sort key
+    intentSummary: text('intent_summary'), // AI summary of the reply
+    talkingPoints: jsonb('talking_points'), // string[] for the call
+
+    suppressedReason: text('suppressed_reason'),
+    suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
+
+    // Conversion linkage.
+    convertedOrganizationId: text('converted_organization_id').references(
+      () => organization.id,
+      { onDelete: 'set null' },
+    ),
+    // Soft pointer into the agency_project pipeline (no FK — same pattern as
+    // clinic_profile.referral_partner_id).
+    agencyProjectId: text('agency_project_id'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    npi: uniqueIndex('idx_prospect_npi').on(t.npiNumber),
+    dedupe: uniqueIndex('idx_prospect_dedupe').on(t.dedupeHash),
+    state: index('idx_prospect_state').on(t.state),
+    status: index('idx_prospect_status').on(t.status),
+    band: index('idx_prospect_band').on(t.scoreBand),
+    callList: index('idx_prospect_call_list').on(t.status, t.intentAt),
+  }),
+)
+export type Prospect = typeof prospect.$inferSelect
+export type NewProspect = typeof prospect.$inferInsert
+
+// Resumable NPPES pagination cursor. NPPES caps skip at 1200 (max 1,400 rows
+// per query at 200/page), so the unit of iteration is state × 3-digit ZIP
+// prefix; a zip3 that still hits the cap splits into zip5 child tasks.
+export const prospectDiscoveryTask = pgTable(
+  'prospect_discovery_task',
+  {
+    id: text('id').primaryKey(), // pdt_…
+    state: text('state').notNull(),
+    // '300' = zip3 prefix task; '30030' = zip5 split child.
+    zipPrefix: text('zip_prefix').notNull(),
+    skip: integer('skip').notNull().default(0),
+    status: text('status').notNull().default('pending'), // pending|in_progress|done|error
+    found: integer('found').notNull().default(0), // rows NPPES returned
+    imported: integer('imported').notNull().default(0), // new prospects created
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    stateZip: uniqueIndex('idx_pdt_state_zip').on(t.state, t.zipPrefix),
+    status: index('idx_pdt_status').on(t.status),
+  }),
+)
+export type ProspectDiscoveryTask = typeof prospectDiscoveryTask.$inferSelect
+
+export const outreachSequence = pgTable('outreach_sequence', {
+  id: text('id').primaryKey(), // oseq_…
+  name: text('name').notNull(),
+  status: text('status').notNull().default('active'), // active|paused
+  description: text('description'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+export type OutreachSequence = typeof outreachSequence.$inferSelect
+
+export const outreachTouchTemplate = pgTable(
+  'outreach_touch_template',
+  {
+    id: text('id').primaryKey(), // otpl_…
+    sequenceId: text('sequence_id')
+      .notNull()
+      .references(() => outreachSequence.id, { onDelete: 'cascade' }),
+    stepNumber: integer('step_number').notNull(), // 1-based
+    dayOffset: integer('day_offset').notNull(), // days after enrollment (0/3/8/15)
+    // Merge tokens: {{firstName}} {{clinicName}} {{city}}. When aiPersonalize
+    // is on, the template is the skeleton the AI writes around.
+    subjectTemplate: text('subject_template').notNull(),
+    bodyTemplate: text('body_template').notNull(),
+    aiPersonalize: integer('ai_personalize').notNull().default(1), // 1|0
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    seqStep: uniqueIndex('idx_otpl_seq_step').on(t.sequenceId, t.stepNumber),
+  }),
+)
+export type OutreachTouchTemplate = typeof outreachTouchTemplate.$inferSelect
+
+export const OUTREACH_ENROLLMENT_STATUSES = [
+  'active',
+  'completed', // sequence exhausted, no reply
+  'stopped_reply',
+  'stopped_unsub',
+  'stopped_bounce',
+  'stopped_manual',
+  'paused_ooo', // out-of-office — auto-resumes
+] as const
+export type OutreachEnrollmentStatus = (typeof OUTREACH_ENROLLMENT_STATUSES)[number]
+
+export const outreachEnrollment = pgTable(
+  'outreach_enrollment',
+  {
+    id: text('id').primaryKey(), // oenr_…
+    prospectId: text('prospect_id')
+      .notNull()
+      .references(() => prospect.id, { onDelete: 'cascade' }),
+    sequenceId: text('sequence_id')
+      .notNull()
+      .references(() => outreachSequence.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('active'),
+    currentStep: integer('current_step').notNull().default(0), // last SENT step
+    nextSendAt: timestamp('next_send_at', { withTimezone: true }),
+    enrolledAt: timestamp('enrolled_at', { withTimezone: true }).notNull().defaultNow(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }),
+    stopReason: text('stop_reason'),
+  },
+  (t) => ({
+    // One LIVE enrollment per prospect (history rows keep their stopped status).
+    liveProspect: uniqueIndex('idx_oenr_live_prospect')
+      .on(t.prospectId)
+      .where(sql`${t.status} IN ('active', 'paused_ooo')`),
+    due: index('idx_oenr_due').on(t.status, t.nextSendAt),
+  }),
+)
+export type OutreachEnrollment = typeof outreachEnrollment.$inferSelect
+
+// Per-touch idempotency + history. unique(enrollmentId, stepNumber) is the
+// atomic send claim: INSERT … ON CONFLICT DO NOTHING — a concurrent/retried
+// cron run can never double-send a touch (the appointment_reminder_log
+// pattern).
+export const outreachTouchLog = pgTable(
+  'outreach_touch_log',
+  {
+    id: text('id').primaryKey(), // otch_…
+    enrollmentId: text('enrollment_id')
+      .notNull()
+      .references(() => outreachEnrollment.id, { onDelete: 'cascade' }),
+    prospectId: text('prospect_id').notNull(),
+    stepNumber: integer('step_number').notNull(),
+    templateId: text('template_id'),
+    // The personalized render, kept for the history drawer.
+    subject: text('subject').notNull(),
+    bodyHtml: text('body_html').notNull(),
+    channel: text('channel').notNull(), // resend|gmail|dry_run
+    resendEmailId: text('resend_email_id'),
+    status: text('status').notNull().default('sent'), // sent|failed
+    error: text('error'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    claim: uniqueIndex('idx_otch_claim').on(t.enrollmentId, t.stepNumber),
+    prospect: index('idx_otch_prospect').on(t.prospectId),
+  }),
+)
+export type OutreachTouchLog = typeof outreachTouchLog.$inferSelect
+
+export const outreachEvent = pgTable(
+  'outreach_event',
+  {
+    id: text('id').primaryKey(), // oevt_…
+    prospectId: text('prospect_id')
+      .notNull()
+      .references(() => prospect.id, { onDelete: 'cascade' }),
+    touchLogId: text('touch_log_id').references(() => outreachTouchLog.id, {
+      onDelete: 'set null',
+    }),
+    // delivered|open|click|bounce|complaint|unsub|reply|failed
+    type: text('type').notNull(),
+    meta: jsonb('meta'),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    prospectTime: index('idx_oevt_prospect_time').on(t.prospectId, t.occurredAt),
+  }),
+)
+export type OutreachEvent = typeof outreachEvent.$inferSelect
+
+// Honored FOREVER, checked at send time (not just enrollment).
+export const prospectSuppression = pgTable(
+  'prospect_suppression',
+  {
+    id: text('id').primaryKey(), // psup_…
+    email: text('email').notNull(), // lowercased
+    domain: text('domain'), // lowercased, for domain-level checks
+    // unsub|bounce|complaint|manual|existing_customer|reply_not_interested
+    reason: text('reason').notNull(),
+    prospectId: text('prospect_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    email: uniqueIndex('idx_psup_email').on(t.email),
+    domain: index('idx_psup_domain').on(t.domain),
+  }),
+)
+export type ProspectSuppression = typeof prospectSuppression.$inferSelect
+
+export const PROSPECT_CALL_OUTCOMES = [
+  'no_answer',
+  'voicemail',
+  'callback',
+  'demo_booked',
+  'not_interested',
+  'won',
+] as const
+export type ProspectCallOutcome = (typeof PROSPECT_CALL_OUTCOMES)[number]
+
+export const prospectCallLog = pgTable(
+  'prospect_call_log',
+  {
+    id: text('id').primaryKey(), // pcall_…
+    prospectId: text('prospect_id')
+      .notNull()
+      .references(() => prospect.id, { onDelete: 'cascade' }),
+    outcome: text('outcome').notNull(),
+    note: text('note'),
+    calledByUserId: text('called_by_user_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    prospect: index('idx_pcall_prospect').on(t.prospectId),
+  }),
+)
+export type ProspectCallLog = typeof prospectCallLog.$inferSelect
+
+// Singleton config row (id='default'). Resolved with defaults by
+// resolveProspectingConfig() in lib/types/prospecting.ts so new knobs never
+// need a backfill. Ships with killSwitch=true + dryRun=true (system OFF).
+export const prospectingConfig = pgTable('prospecting_config', {
+  id: text('id').primaryKey(), // 'default'
+  config: jsonb('config'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+export type ProspectingConfigRow = typeof prospectingConfig.$inferSelect
+
+// Platform-global metering (the ai_usage_counter shape minus org). period is
+// 'YYYY-MM' for monthly budgets (places_lookup|crawl|ai_score|ai_email|
+// ai_classify) and 'YYYY-MM-DD' for the daily send cap (outreach_send).
+// unique(period, kind) → atomic INSERT … ON CONFLICT DO UPDATE count+1.
+export const prospectingCounter = pgTable(
+  'prospecting_counter',
+  {
+    id: text('id').primaryKey(), // pctr_…
+    period: text('period').notNull(),
+    kind: text('kind').notNull(),
+    count: integer('count').notNull().default(0),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    periodKind: uniqueIndex('idx_pctr_period_kind').on(t.period, t.kind),
+  }),
+)
+export type ProspectingCounter = typeof prospectingCounter.$inferSelect

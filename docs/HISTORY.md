@@ -2240,7 +2240,30 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-03 (latest) — Billing adjustments: Stripe Tax + 1% platform fee + reprice
+## 2026-07-03 (latest) — Prospecting engine (Dream Create's own outbound growth)
+
+The platform org gets a lead-generation system: every US dental clinic is
+publicly findable (NPPES NPI registry) with rich quality signals, so the
+loop is discover → enrich/score → AI outreach → intent → the owner's call
+list → convert via createManagedClinic. Plan: 5 phases, each a deployed
+slice. Schema `lib/db/schema/prospecting.ts` (migration 0116) is
+PLATFORM-GLOBAL (no organizationId — precedent service_library; access only
+via requirePlatformAdmin actions + CRON_SECRET crons). Naming rule:
+"prospect" everywhere ("lead" = clinic patient-leads).
+
+1. **Phase 1 — Discovery + browse**: all prospecting tables in one migration
+   (prospect, discovery tasks, outreach sequence/enrollment/touch-log/event,
+   suppression, call log, config singleton, counters); `lib/nppes.ts` (free
+   CMS API, defensive parse, dental-taxonomy 1223* enforcement, dedupe hash
+   phone+address); `lib/types/us-geo.ts` (state→zip3 grid — NPPES caps
+   skip at 1200 so tasks iterate state × zip3 and split to zip5 at the cap —
+   + state→IANA tz); `prospect-discovery.ts` resumable task engine;
+   `prospect-discovery` cron (6h); `/platform/prospecting` (funnel KPIs,
+   filterable table) + `/settings` (kill switch, dry-run, state rollout
+   grid, budget meters, env-readiness cards). Ships OFF: killSwitch +
+   dryRun both default true.
+
+## 2026-07-03 — Billing adjustments: Stripe Tax + 1% platform fee + reprice
 
 Three user-directed billing changes in one slice (migration 0115):
 
