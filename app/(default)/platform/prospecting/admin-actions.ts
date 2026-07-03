@@ -85,6 +85,18 @@ export async function reEnrichProspectAction(
   return r.ok ? { ok: true } : { ok: false, reason: r.reason }
 }
 
+/** Generate (or force-regenerate) the AI pre-demo brief for a prospect. */
+export async function generateDemoBriefAction(
+  prospectId: string,
+  force = false,
+): Promise<{ ok: boolean }> {
+  await requirePlatformAdmin()
+  const { generateDemoBrief } = await import('@/lib/services/demo-brief')
+  const brief = await generateDemoBrief(z.string().min(1).parse(prospectId), { force })
+  revalidatePath(`/platform/prospecting/demo/${prospectId}`)
+  return { ok: brief !== null }
+}
+
 /** Manually suppress a prospect (permanent; stops any live enrollment). */
 export async function suppressProspectAction(prospectId: string, reason?: string): Promise<void> {
   await requirePlatformAdmin()

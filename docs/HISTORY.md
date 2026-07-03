@@ -2261,7 +2261,21 @@ OWN practice running better. Three slices.
    ends the demo → call list w/ the prospect pinned for outcome logging
    (endBrandedDemoAction). Manual "↻ Re-enrich" per prospect
    (reEnrichProspect — any status, never demotes pipeline-forward rows,
-   budget-gated).
+   budget-gated). (`56c6ee6`)
+2. **Phase 2 — AI demo prep brief**: `prospect.demo_brief` jsonb (migration
+   0117); `lib/demo-brief-prompt.ts` (pure {system,user} builder — verified
+   signals + benchmarks + the real beat-id list); `lib/services/
+   demo-brief.ts` (SONNET one-pager, owner-initiated, cached forever,
+   regenerate overwrites; zod-validated, invented beat ids filtered, AI
+   failure → null + zero writes; metered `ai_brief`);
+   `lib/types/demo-brief.ts` parseDemoBrief junk-tolerant reader.
+   Printable prep page `/platform/prospecting/demo/[id]`: numbers vs
+   typical (rating/reviews/score KpiStats), demo ammunition grouped by the
+   beat where each gap lands, walk-up story (crawl chips + captured brand
+   swatch + crawl age), AI one-pager (opening line blockquote, beat
+   emphasis w/ exactly-one-LEAD pills, land-these-points, objections +
+   one-breath responses, the ask). Entry links from the drawer + call
+   cards; "🎬 Start branded demo" is the page's primary action.
 
 ## 2026-07-03 — Prospecting engine (Dream Create's own outbound growth)
 

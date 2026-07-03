@@ -104,6 +104,13 @@ export const prospect = pgTable(
     intentSummary: text('intent_summary'), // AI summary of the reply
     talkingPoints: jsonb('talking_points'), // string[] for the call
 
+    // Cached AI pre-demo brief (DemoBrief in lib/types/demo-brief.ts):
+    // opening line, walk-up story, beat emphasis, objections + responses,
+    // closing ask. Owner-initiated (sonnet), regenerate overwrites wholesale.
+    // Distinct from talking_points (call-list reply intent) and ai_verdict
+    // (scoring input). Migration 0117.
+    demoBrief: jsonb('demo_brief'),
+
     suppressedReason: text('suppressed_reason'),
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
 

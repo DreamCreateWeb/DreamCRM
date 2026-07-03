@@ -71,6 +71,14 @@ export default function DrawerActions({
         <ActionButton
           size="sm"
           variant="secondary"
+          href={`/platform/prospecting/demo/${prospectId}`}
+          title="The pre-call briefing: gaps as demo ammunition, walk-up story, AI objection prep"
+        >
+          📋 Demo prep
+        </ActionButton>
+        <ActionButton
+          size="sm"
+          variant="secondary"
           disabled={pending}
           title="Enter the demo clinic with this practice's name on it — their practice, running on DreamCRM"
           onClick={() =>

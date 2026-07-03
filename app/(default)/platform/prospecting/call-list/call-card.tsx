@@ -215,6 +215,14 @@ export default function CallCard({ row }: { row: CallListRow }) {
         >
           {converting ? 'Close' : '🏥 Convert to clinic'}
         </ActionButton>
+        <ActionButton
+          size="sm"
+          variant="ghost"
+          href={`/platform/prospecting/demo/${row.id}`}
+          title="Pre-call briefing + branded demo launcher"
+        >
+          📋 Demo prep
+        </ActionButton>
         <input
           type="text"
           placeholder="Call note (optional)"
