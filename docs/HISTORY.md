@@ -2292,7 +2292,25 @@ via requirePlatformAdmin actions + CRON_SECRET crons). Naming rule:
    OUTREACH_EMAIL_FROM / OUTREACH_GMAIL_ACCOUNT_ID exist AND dryRun is
    off — never sends from dreamcreatestudio.com; `prospect-outreach` cron
    (30m); sequence manager UI (edit touches, pause-all) + drawer
-   enroll/stop.
+   enroll/stop. (`badf1c8`)
+4. **Phase 4 — Intent + call list + convert**
+   (`lib/services/prospect-intent.ts`): inbound mail on the outreach Gmail
+   account matches prospects by sender email (only outreach-touched ones) →
+   haiku triage {interested/question → stop sequence + call_list w/ AI
+   summary + talking points · not_interested/unsubscribe → stop + permanent
+   suppression · out_of_office → paused_ooo +7d w/ auto-resume ·
+   wrong_person → disqualified}; per-message idempotency via
+   outreach_event.meta.emailMessageId; wired as a best-effort hook in
+   mailbox processHistoryEvent AND a sweep in the outreach cron (intent
+   runs BEFORE sends so an overnight reply stops today's touch);
+   engagement rollup (click, or 3+ opens → engaged; never overrides reply
+   states); promoteProspectByEmail('demo_request') helper for future warm
+   signals (no marketing-site demo form exists today). Call-list UI
+   (/platform/prospecting/call-list): freshest signal first, tel: links,
+   AI summary + talking points inline, one-tap outcomes (not_interested
+   retires the prospect), inline convert form → createManagedClinic
+   (reserved plan + negotiated coupon + owner invite) + markConverted
+   linkage.
 
 ## 2026-07-03 — Billing adjustments: Stripe Tax + 1% platform fee + reprice
 

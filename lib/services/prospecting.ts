@@ -318,6 +318,114 @@ export async function suppressProspect(
     )
 }
 
+export interface CallListRow {
+  id: string
+  name: string
+  city: string | null
+  state: string | null
+  phone: string | null
+  email: string | null
+  authorizedOfficialName: string | null
+  intentSignal: string | null
+  intentAt: Date | null
+  intentSummary: string | null
+  talkingPoints: string[]
+  opportunityScore: number | null
+  scoreBand: string | null
+  lastCallOutcome: string | null
+}
+
+/** The owner's call list — intent-signaled prospects, freshest signal first. */
+export async function getCallList(): Promise<CallListRow[]> {
+  const rows = await db
+    .select()
+    .from(schema.prospect)
+    .where(eq(schema.prospect.status, 'call_list'))
+    .orderBy(desc(schema.prospect.intentAt))
+    .limit(200)
+  const out: CallListRow[] = []
+  for (const p of rows) {
+    const [lastCall] = await db
+      .select({ outcome: schema.prospectCallLog.outcome })
+      .from(schema.prospectCallLog)
+      .where(eq(schema.prospectCallLog.prospectId, p.id))
+      .orderBy(desc(schema.prospectCallLog.createdAt))
+      .limit(1)
+    out.push({
+      id: p.id,
+      name: p.name,
+      city: p.city,
+      state: p.state,
+      phone: p.phone,
+      email: p.email,
+      authorizedOfficialName: p.authorizedOfficialName,
+      intentSignal: p.intentSignal,
+      intentAt: p.intentAt,
+      intentSummary: p.intentSummary,
+      talkingPoints: Array.isArray(p.talkingPoints) ? (p.talkingPoints as string[]) : [],
+      opportunityScore: p.opportunityScore,
+      scoreBand: p.scoreBand,
+      lastCallOutcome: lastCall?.outcome ?? null,
+    })
+  }
+  return out
+}
+
+/**
+ * Record a call outcome. 'not_interested' also retires the prospect (call
+ * refusal = same respect as a reply refusal); 'won' leaves status alone —
+ * markConverted flips it when the clinic org actually exists.
+ */
+export async function logCallOutcome(input: {
+  prospectId: string
+  outcome: string
+  note?: string | null
+  calledByUserId?: string | null
+}): Promise<void> {
+  await db.insert(schema.prospectCallLog).values({
+    id: newId('pcall'),
+    prospectId: input.prospectId,
+    outcome: input.outcome,
+    note: input.note ?? null,
+    calledByUserId: input.calledByUserId ?? null,
+  })
+  if (input.outcome === 'not_interested') {
+    await db
+      .update(schema.prospect)
+      .set({ status: 'not_interested', updatedAt: new Date() })
+      .where(eq(schema.prospect.id, input.prospectId))
+    await db
+      .update(schema.outreachEnrollment)
+      .set({ status: 'stopped_manual', stoppedAt: new Date(), stopReason: 'call_not_interested' })
+      .where(
+        and(
+          eq(schema.outreachEnrollment.prospectId, input.prospectId),
+          inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
+        ),
+      )
+  }
+}
+
+/** Link a won prospect to its brand-new clinic org. */
+export async function markConverted(
+  prospectId: string,
+  organizationId: string,
+): Promise<void> {
+  await db
+    .update(schema.prospect)
+    .set({ status: 'converted', convertedOrganizationId: organizationId, updatedAt: new Date() })
+    .where(eq(schema.prospect.id, prospectId))
+  await db
+    .update(schema.outreachEnrollment)
+    .set({ status: 'stopped_manual', stoppedAt: new Date(), stopReason: 'converted' })
+    .where(
+      and(
+        eq(schema.outreachEnrollment.prospectId, prospectId),
+        inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
+      ),
+    )
+}
+
 /**
  * Fail-closed dedupe gate: is this contact already a customer, a known org,
  * or suppressed? ANY match = never enroll / never send.

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { runOutreach } from '@/lib/services/prospect-outreach'
+import {
+  processInboundForOutreach,
+  rollupEngagementSignals,
+} from '@/lib/services/prospect-intent'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,8 +24,15 @@ async function run(request: Request) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
   try {
+    // Intent first (a reply that arrived overnight must stop today's touch),
+    // then engagement rollup, then the send pass.
+    const intent = await processInboundForOutreach().catch((err) => {
+      console.warn('[prospect-outreach] intent sweep failed', err)
+      return null
+    })
+    const engagement = await rollupEngagementSignals().catch(() => ({ promoted: 0 }))
     const result = await runOutreach()
-    return NextResponse.json({ ok: true, ...result })
+    return NextResponse.json({ ok: true, ...result, intent, engagement })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'unknown' },

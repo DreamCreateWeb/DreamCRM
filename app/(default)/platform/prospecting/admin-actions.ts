@@ -122,3 +122,73 @@ export async function setSequenceStatusAction(
   )
   revalidatePath('/platform/prospecting/sequences')
 }
+
+const callOutcomeSchema = z.object({
+  prospectId: z.string().min(1),
+  outcome: z.enum(['no_answer', 'voicemail', 'callback', 'demo_booked', 'not_interested', 'won']),
+  note: z.string().max(500).optional(),
+})
+
+/** Log a call outcome from the call list / drawer. */
+export async function logCallOutcomeAction(input: unknown): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  const parsed = callOutcomeSchema.parse(input)
+  const { logCallOutcome } = await import('@/lib/services/prospecting')
+  await logCallOutcome({ ...parsed, calledByUserId: ctx.userId })
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+}
+
+const convertSchema = z.object({
+  prospectId: z.string().min(1),
+  name: z.string().min(2).max(120),
+  ownerEmail: z.string().email(),
+  ownerName: z.string().min(2).max(120),
+  planId: z.enum(['basic', 'pro', 'premium']),
+  interval: z.enum(['monthly', 'annual']),
+  pricing: z.union([
+    z.object({ kind: z.literal('standard') }),
+    z.object({
+      kind: z.literal('percent_off'),
+      percentOff: z.number().int().min(1).max(100),
+      durationMonths: z.number().int().min(1).max(60).optional(),
+    }),
+    z.object({ kind: z.literal('comped') }),
+  ]),
+})
+
+/**
+ * Won prospect → real clinic org via the managed-provisioning rails
+ * (reserved plan + coupon + owner invite), then linked back to the prospect.
+ */
+export async function convertProspectAction(
+  input: unknown,
+): Promise<{ ok: boolean; slug?: string; error?: string }> {
+  const ctx = await requirePlatformAdmin()
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Forbidden: platform owner or admin only')
+  }
+  const parsed = convertSchema.parse(input)
+  try {
+    const { createManagedClinic } = await import('@/lib/services/clinic-provisioning')
+    const { markConverted } = await import('@/lib/services/prospecting')
+    const result = await createManagedClinic({
+      name: parsed.name,
+      ownerEmail: parsed.ownerEmail,
+      ownerName: parsed.ownerName,
+      planId: parsed.planId,
+      interval: parsed.interval,
+      pricing: parsed.pricing,
+      note: `Converted from prospecting (${parsed.prospectId})`,
+      inviterUserId: ctx.userId,
+      inviterName: ctx.userName,
+    })
+    await markConverted(parsed.prospectId, result.organizationId)
+    revalidatePath('/platform/prospecting')
+    revalidatePath('/platform/prospecting/call-list')
+    revalidatePath('/ecommerce/customers')
+    return { ok: true, slug: result.slug }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Conversion failed.' }
+  }
+}

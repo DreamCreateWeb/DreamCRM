@@ -1811,6 +1811,13 @@ export async function processHistoryEvent(opts: {
   // Best-effort intent classification for any newly-ingested messages.
   if (ingested > 0) {
     await classifyPendingIntents(account.organizationId, { limit: 25 }).catch(() => {})
+    // If this is the platform's cold-outreach mailbox, sweep the new mail
+    // for prospect replies (interested → call list, unsub → suppress, …).
+    // Fully best-effort — inbox ingest must never fail on prospecting.
+    if (account.id === process.env.OUTREACH_GMAIL_ACCOUNT_ID?.trim()) {
+      const { processInboundForOutreach } = await import('./prospect-intent')
+      await processInboundForOutreach({ sinceHours: 24 }).catch(() => {})
+    }
   }
 
   return { ingested }
