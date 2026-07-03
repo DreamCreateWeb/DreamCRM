@@ -10,6 +10,58 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     return htmlResponse('Invalid link', 'This unsubscribe link is invalid or has expired.', 400)
   }
 
+  // Prospect (platform cold-outreach) unsubscribe: permanent suppression +
+  // stop the live enrollment + mark the prospect. Separate early path — the
+  // campaign fallbacks below never apply to prospects.
+  if (payload.pr) {
+    try {
+      const { newId } = await import('@/lib/utils')
+      const { inArray } = await import('drizzle-orm')
+      await db
+        .insert(schema.prospectSuppression)
+        .values({
+          id: newId('psup'),
+          email: payload.e.toLowerCase(),
+          domain: payload.e.split('@')[1]?.toLowerCase() ?? null,
+          reason: 'unsub',
+          prospectId: payload.pr,
+        })
+        .onConflictDoNothing()
+      await db
+        .update(schema.outreachEnrollment)
+        .set({ status: 'stopped_unsub', stoppedAt: new Date(), stopReason: 'unsubscribed' })
+        .where(
+          and(
+            eq(schema.outreachEnrollment.prospectId, payload.pr),
+            inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
+          ),
+        )
+      await db
+        .update(schema.prospect)
+        .set({
+          status: 'suppressed',
+          suppressedReason: 'unsub',
+          suppressedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.prospect.id, payload.pr))
+      await db.insert(schema.outreachEvent).values({
+        id: newId('oevt'),
+        prospectId: payload.pr,
+        touchLogId: payload.tl ?? null,
+        type: 'unsub',
+        meta: { ua: req.headers.get('user-agent') ?? null },
+      })
+    } catch (err) {
+      console.warn('[unsub.prospect]', err)
+    }
+    return htmlResponse(
+      'Unsubscribed',
+      `${payload.e} will never hear from us again. Sorry for the interruption — and if you ever want to talk dental marketing, we're at dreamcreatestudio.com.`,
+      200,
+    )
+  }
+
   try {
     // Patient-source unsubscribe: flip the patient's marketingEmailOptIn=0
     // and stamp the opt-out time. We do NOT touch marketingSmsOptIn — SMS
@@ -29,7 +81,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
         .update(schema.customers)
         .set({ optedOut: true, updatedAt: new Date() })
         .where(eq(schema.customers.id, payload.i))
-    } else {
+    } else if (payload.c != null) {
       // Fall back: match all customers with this email across the same org
       // as the campaign. Best-effort — patient-source rows without payload.pi
       // (e.g. very old tokens) won't be touched here, but the explicit-pi
@@ -65,14 +117,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       }
     }
 
-    await db.insert(schema.campaignEvents).values({
-      campaignId: payload.c,
-      recipientEmail: payload.e,
-      customerId: payload.i ?? null,
-      patientId: payload.pi ?? null,
-      type: 'unsubscribe',
-      meta: { ua: req.headers.get('user-agent') ?? null },
-    })
+    if (payload.c != null) {
+      await db.insert(schema.campaignEvents).values({
+        campaignId: payload.c,
+        recipientEmail: payload.e,
+        customerId: payload.i ?? null,
+        patientId: payload.pi ?? null,
+        type: 'unsubscribe',
+        meta: { ua: req.headers.get('user-agent') ?? null },
+      })
+    }
   } catch (err) {
     console.warn('[unsub]', err)
   }

@@ -10,9 +10,9 @@ import crypto from 'crypto'
  * Tokens are opaque short strings safe to embed in URLs.
  */
 
-interface TokenPayload {
-  /** campaign id */
-  c: number
+export interface TokenPayload {
+  /** campaign id. Optional since prospecting: exactly one of c/pr per token. */
+  c?: number
   /** recipient email (lowercased) */
   e: string
   /** customer id (one-off / platform-tenant lead pipeline). Optional. */
@@ -20,6 +20,11 @@ interface TokenPayload {
   /** patient id (clinic-tenant Recall & Outreach). Optional. Only one of i/pi
    * is set per send — the source discriminator. */
   pi?: string
+  /** prospect id (platform cold outreach). Routes events to outreach_event
+   * instead of campaign_events. */
+  pr?: string
+  /** outreach touch-log id (which send the event belongs to). */
+  tl?: string
   /** token purpose: 'o'=open 'k'=click 'u'=unsub */
   p: 'o' | 'k' | 'u'
   /** for click tokens: original target URL */

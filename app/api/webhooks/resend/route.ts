@@ -42,7 +42,6 @@ export async function POST(req: NextRequest) {
   const campaignId = Number(tags.campaignId)
   const customerId = tags.customerId ? Number(tags.customerId) : null
   const patientId = tags.patientId ?? null
-  if (!campaignId) return NextResponse.json({ ok: true, ignored: 'no campaignId tag' })
 
   const toList = Array.isArray(evt.data?.to) ? evt.data?.to : evt.data?.to ? [evt.data?.to] : []
   const recipient = (toList?.[0] ?? '').toLowerCase()
@@ -56,6 +55,62 @@ export async function POST(req: NextRequest) {
   }
   const evtType = typeMap[evt.type]
   if (!evtType) return NextResponse.json({ ok: true, ignored: evt.type })
+
+  // Prospect (platform cold-outreach) sends tag prospectId/touchLogId
+  // instead of campaignId. Bounce/complaint = permanent suppression + stop
+  // the enrollment — deliverability discipline is non-negotiable there.
+  if (tags.prospectId) {
+    try {
+      const { newId } = await import('@/lib/utils')
+      const { inArray } = await import('drizzle-orm')
+      await db.insert(schema.outreachEvent).values({
+        id: newId('oevt'),
+        prospectId: tags.prospectId,
+        touchLogId: tags.touchLogId ?? null,
+        type: evtType,
+        meta: { resendEmailId: evt.data?.email_id, bounceType: evt.data?.bounce?.type },
+      })
+      const shouldSuppress =
+        (evtType === 'bounce' && evt.data?.bounce?.type !== 'soft') || evtType === 'complaint'
+      if (shouldSuppress) {
+        if (recipient) {
+          await db
+            .insert(schema.prospectSuppression)
+            .values({
+              id: newId('psup'),
+              email: recipient,
+              domain: recipient.split('@')[1] ?? null,
+              reason: evtType === 'complaint' ? 'complaint' : 'bounce',
+              prospectId: tags.prospectId,
+            })
+            .onConflictDoNothing()
+        }
+        await db
+          .update(schema.outreachEnrollment)
+          .set({ status: 'stopped_bounce', stoppedAt: new Date(), stopReason: evtType })
+          .where(
+            and(
+              eq(schema.outreachEnrollment.prospectId, tags.prospectId),
+              inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
+            ),
+          )
+        await db
+          .update(schema.prospect)
+          .set({
+            status: 'suppressed',
+            suppressedReason: evtType,
+            suppressedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.prospect.id, tags.prospectId))
+      }
+    } catch (err) {
+      console.warn('[webhook.resend.prospect]', err)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  if (!campaignId) return NextResponse.json({ ok: true, ignored: 'no campaignId tag' })
 
   try {
     await db.insert(schema.campaignEvents).values({

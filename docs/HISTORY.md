@@ -2275,7 +2275,24 @@ via requirePlatformAdmin actions + CRON_SECRET crons). Naming rule:
    soft-pause, CLOSED_PERMANENTLY → disqualified, errors → back to pool);
    `prospect-enrich` cron (30m); server-rendered prospect drawer
    (?prospect=<id>: enrichment, verdict, score reasons, outreach history,
-   call log, suppress action).
+   call log, suppress action). (`3355e73`)
+3. **Phase 3 — Outreach engine (dry-run-safe)**: the compliance-critical
+   drip (`lib/services/prospect-outreach.ts`): default 4-touch sequence
+   (day 0/3/8/15, deterministic-id seed), AI personalization (haiku
+   rewrites the skeleton around the prospect's VERIFIED gaps, <130 words,
+   template-merge fallback never blocks), personal-looking render (no
+   marketing shell) w/ tracked links + pixel + CAN-SPAM postal footer +
+   one-click unsub; tokens.ts extended (pr/tl payloads, c optional) with
+   track/unsub routes + Resend webhook branching to outreach_event +
+   permanent suppression; send-time guards (suppression + isKnownContact
+   fail-closed), prospect-local business-hours weekday window, warm-up
+   daily cap (start→+increment/week→ceiling), atomic per-touch claim
+   (unique enrollmentId+stepNumber), paused sequences hold in place;
+   engine runs FULLY in dry-run (channel='dry_run' log rows) until
+   OUTREACH_EMAIL_FROM / OUTREACH_GMAIL_ACCOUNT_ID exist AND dryRun is
+   off — never sends from dreamcreatestudio.com; `prospect-outreach` cron
+   (30m); sequence manager UI (edit touches, pause-all) + drawer
+   enroll/stop.
 
 ## 2026-07-03 — Billing adjustments: Stripe Tax + 1% platform fee + reprice
 

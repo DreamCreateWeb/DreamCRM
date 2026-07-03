@@ -13,14 +13,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     return NextResponse.json({ error: 'invalid target' }, { status: 400 })
   }
   try {
-    await db.insert(schema.campaignEvents).values({
-      campaignId: payload.c,
-      recipientEmail: payload.e,
-      customerId: payload.i ?? null,
-      patientId: payload.pi ?? null,
-      type: 'click',
-      meta: { url: payload.u, ua: req.headers.get('user-agent') ?? null },
-    })
+    if (payload.pr) {
+      // Prospect (platform cold-outreach) click → outreach_event.
+      const { newId } = await import('@/lib/utils')
+      await db.insert(schema.outreachEvent).values({
+        id: newId('oevt'),
+        prospectId: payload.pr,
+        touchLogId: payload.tl ?? null,
+        type: 'click',
+        meta: { url: payload.u, ua: req.headers.get('user-agent') ?? null },
+      })
+    } else if (payload.c != null) {
+      await db.insert(schema.campaignEvents).values({
+        campaignId: payload.c,
+        recipientEmail: payload.e,
+        customerId: payload.i ?? null,
+        patientId: payload.pi ?? null,
+        type: 'click',
+        meta: { url: payload.u, ua: req.headers.get('user-agent') ?? null },
+      })
+    }
   } catch (err) {
     console.warn('[track.click]', err)
   }

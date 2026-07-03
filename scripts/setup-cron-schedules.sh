@@ -75,6 +75,7 @@ JOBS=(
   "trial-reminders|trial-reminders|rate(6 hours)"
   "prospect-discovery|prospect-discovery|rate(6 hours)"
   "prospect-enrich|prospect-enrich|rate(30 minutes)"
+  "prospect-outreach|prospect-outreach|rate(30 minutes)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

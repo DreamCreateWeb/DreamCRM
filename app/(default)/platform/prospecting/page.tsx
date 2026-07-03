@@ -110,6 +110,9 @@ export default async function ProspectingPage({
         subtitle="Every dental clinic we can find, scored by how much they need us. Hot prospects get outreach; intent lands them on your call list."
         actions={
           <div className="flex items-center gap-2">
+            <ActionButton href="/platform/prospecting/sequences" variant="secondary">
+              ✉️ Sequences
+            </ActionButton>
             <ActionButton href="/platform/prospecting/settings" variant="secondary">
               ⚙️ Settings
             </ActionButton>

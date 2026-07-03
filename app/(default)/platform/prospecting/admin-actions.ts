@@ -69,3 +69,56 @@ export async function suppressProspectAction(prospectId: string, reason?: string
   await suppressProspect(z.string().min(1).parse(prospectId), reason?.slice(0, 200) || 'manual')
   revalidatePath('/platform/prospecting')
 }
+
+/** Enroll a prospect in the outreach sequence (fail-closed guards inside). */
+export async function enrollProspectAction(
+  prospectId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await requirePlatformAdmin()
+  const { enrollProspect, ensureDefaultSequence } = await import(
+    '@/lib/services/prospect-outreach'
+  )
+  await ensureDefaultSequence()
+  const r = await enrollProspect(z.string().min(1).parse(prospectId))
+  revalidatePath('/platform/prospecting')
+  return r.ok ? { ok: true } : { ok: false, error: r.error }
+}
+
+/** Stop a prospect's live enrollment (prospect stays contactable later). */
+export async function stopEnrollmentAction(prospectId: string): Promise<void> {
+  await requirePlatformAdmin()
+  const { stopEnrollment } = await import('@/lib/services/prospect-outreach')
+  await stopEnrollment(z.string().min(1).parse(prospectId))
+  revalidatePath('/platform/prospecting')
+}
+
+const touchPatchSchema = z.object({
+  templateId: z.string().min(1),
+  subjectTemplate: z.string().min(3).max(200),
+  bodyTemplate: z.string().min(10).max(4000),
+  aiPersonalize: z.boolean(),
+  dayOffset: z.number().int().min(0).max(60),
+})
+
+/** Edit one sequence touch (subject/body/AI toggle/day offset). */
+export async function updateTouchTemplateAction(input: unknown): Promise<void> {
+  await requirePlatformAdmin()
+  const parsed = touchPatchSchema.parse(input)
+  const { updateTouchTemplate } = await import('@/lib/services/prospect-outreach')
+  await updateTouchTemplate(parsed.templateId, parsed)
+  revalidatePath('/platform/prospecting/sequences')
+}
+
+/** Pause/resume a whole sequence (enrollments hold in place while paused). */
+export async function setSequenceStatusAction(
+  sequenceId: string,
+  status: 'active' | 'paused',
+): Promise<void> {
+  await requirePlatformAdmin()
+  const { setSequenceStatus } = await import('@/lib/services/prospect-outreach')
+  await setSequenceStatus(
+    z.string().min(1).parse(sequenceId),
+    z.enum(['active', 'paused']).parse(status),
+  )
+  revalidatePath('/platform/prospecting/sequences')
+}

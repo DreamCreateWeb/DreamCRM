@@ -13,14 +13,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   const payload = decodeToken(token)
   if (payload && payload.p === 'o') {
     try {
-      await db.insert(schema.campaignEvents).values({
-        campaignId: payload.c,
-        recipientEmail: payload.e,
-        customerId: payload.i ?? null,
-        patientId: payload.pi ?? null,
-        type: 'open',
-        meta: { ua: req.headers.get('user-agent') ?? null },
-      })
+      if (payload.pr) {
+        // Prospect (platform cold-outreach) open → outreach_event.
+        const { newId } = await import('@/lib/utils')
+        await db.insert(schema.outreachEvent).values({
+          id: newId('oevt'),
+          prospectId: payload.pr,
+          touchLogId: payload.tl ?? null,
+          type: 'open',
+          meta: { ua: req.headers.get('user-agent') ?? null },
+        })
+      } else if (payload.c != null) {
+        await db.insert(schema.campaignEvents).values({
+          campaignId: payload.c,
+          recipientEmail: payload.e,
+          customerId: payload.i ?? null,
+          patientId: payload.pi ?? null,
+          type: 'open',
+          meta: { ua: req.headers.get('user-agent') ?? null },
+        })
+      }
     } catch (err) {
       // Don't ever fail the pixel — opens are best-effort
       console.warn('[track.open]', err)
