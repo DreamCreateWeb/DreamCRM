@@ -6,6 +6,7 @@ import {
   suppressProspectAction,
   enrollProspectAction,
   stopEnrollmentAction,
+  startBrandedDemoAction,
 } from './admin-actions'
 
 /**
@@ -66,6 +67,22 @@ export default function DrawerActions({
             ⏹ Stop sequence
           </ActionButton>
         )}
+        <ActionButton
+          size="sm"
+          variant="secondary"
+          disabled={pending}
+          title="Enter the demo clinic with this practice's name on it — their practice, running on DreamCRM"
+          onClick={() =>
+            startTransition(async () => {
+              await startBrandedDemoAction(prospectId)
+              // Server action redirects; hard-assign as a fallback so the
+              // new demo cookies are seen by middleware + tenant context.
+              window.location.assign('/')
+            })
+          }
+        >
+          🎬 Branded demo
+        </ActionButton>
         {confirming ? (
           <>
             <span className="text-sm text-gray-600 dark:text-gray-400">

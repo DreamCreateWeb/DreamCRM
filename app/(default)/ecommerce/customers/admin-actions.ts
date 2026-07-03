@@ -79,6 +79,9 @@ export async function exitDemoMode() {
   // mid-demo for some reason).
   const cookieStore = await cookies()
   cookieStore.delete(DEMO_COOKIE)
+  // The presenter-mode skin (prospect-branded demo) rides the demo cookie's
+  // lifecycle — leaving demo mode always removes the branding overlay too.
+  cookieStore.delete('demo_skin')
   redirect('/')
 }
 

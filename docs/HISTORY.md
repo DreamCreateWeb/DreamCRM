@@ -2310,7 +2310,20 @@ via requirePlatformAdmin actions + CRON_SECRET crons). Naming rule:
    AI summary + talking points inline, one-tap outcomes (not_interested
    retires the prospect), inline convert form → createManagedClinic
    (reserved plan + negotiated coupon + owner invite) + markConverted
-   linkage.
+   linkage. (`f0cc7d6`)
+5. **Phase 5 — Presenter mode** (zero DB writes; the demo seeder is
+   untouched): `demo_skin` cookie ({prospectId, clinicName, city,
+   brandColor?, logoUrl?}) set by "🎬 Branded demo" in the prospect drawer
+   (rides enterDemoMode's self-heal; exitDemoMode clears it);
+   `readDemoSkin(ctx)` (lib/demo-skin.ts) returns it ONLY for
+   platformAdmin + isDemo w/ defensive parse — a stale cookie can never
+   brand a real clinic; dashboard-shell overrides the sidebar org name +
+   sets a --demo-accent var, Overview huddle title shows the prospect's
+   name; presenter panel (components/demo/presenter-panel.tsx) — floating
+   keyboard-driven script (→/n/←/Esc) over a typed 7-beat registry
+   (lib/types/demo-script.ts) w/ {clinicName}/{city} substitution +
+   sessionStorage visited checkmarks. Post-signup activation checklist
+   already existed (GettingStarted) — no work needed.
 
 ## 2026-07-03 — Billing adjustments: Stripe Tax + 1% platform fee + reprice
 

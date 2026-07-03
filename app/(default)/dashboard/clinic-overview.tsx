@@ -4,6 +4,7 @@ import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff
 import WelcomeModal from '@/components/onboarding/welcome-modal'
 import GettingStarted from '@/components/onboarding/getting-started'
 import type { TenantContext } from '@/lib/auth/context'
+import { readDemoSkin } from '@/lib/demo-skin'
 import { formatRelativeDate } from '@/lib/utils/format'
 import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
@@ -90,7 +91,11 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
   const checklist = onboarding.checklistDismissed
     ? null
     : await getActivationChecklist(ctx.organizationId, ctx.planTier)
-  const name = ctx.organizationName
+  // Presenter mode: a prospect-branded demo shows THEIR practice name on
+  // the huddle title (cosmetic overlay; null for everyone but a platform
+  // admin inside demo mode).
+  const demoSkin = await readDemoSkin(ctx)
+  const name = demoSkin?.clinicName ?? ctx.organizationName
   const mtdDelta = data.trends.newPatientsMTD - data.trends.newPatientsLastMTD
 
   return (

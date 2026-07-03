@@ -1,8 +1,14 @@
 'use server'
 
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { db, schema } from '@/lib/db'
 import { requireTenant } from '@/lib/auth/context'
+import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
+import { DEMO_SKIN_COOKIE, type DemoSkin } from '@/lib/types/demo-skin'
 import {
   getProspectingConfig,
   updateProspectingConfig,
@@ -156,6 +162,59 @@ const convertSchema = z.object({
     z.object({ kind: z.literal('comped') }),
   ]),
 })
+
+/**
+ * Prospect-branded live demo: drop the demo_skin cookie (cosmetic overlay —
+ * the prospect's name/brand/city over the seeded Dream Dental org, ZERO DB
+ * writes) and enter demo mode as owner. The skin only ever renders for a
+ * platform admin inside demo mode (readDemoSkin guards), and exitDemoMode
+ * clears it with the demo cookie.
+ */
+export async function startBrandedDemoAction(prospectId: string): Promise<void> {
+  const ctx = await requirePlatformAdmin()
+  const id = z.string().min(1).parse(prospectId)
+  const [p] = await db
+    .select({
+      id: schema.prospect.id,
+      name: schema.prospect.name,
+      city: schema.prospect.city,
+    })
+    .from(schema.prospect)
+    .where(eq(schema.prospect.id, id))
+    .limit(1)
+  if (!p) throw new Error('Prospect not found')
+
+  const [demoOrg] = await db
+    .select({ id: schema.organization.id })
+    .from(schema.organization)
+    .where(eq(schema.organization.slug, DEMO_CLINIC_SLUG))
+    .limit(1)
+
+  // Self-heal + notification seed exactly like the Clinics "View as" path.
+  const { createDemoClinic, seedDemoNotificationsForUser } = await import(
+    '@/lib/services/demo-clinic'
+  )
+  const demo = await createDemoClinic()
+  const orgId = demoOrg?.id ?? demo.organizationId
+  await seedDemoNotificationsForUser(ctx.userId, orgId)
+
+  const skin: DemoSkin = { prospectId: p.id, clinicName: p.name, ...(p.city ? { city: p.city } : {}) }
+  const cookieStore = await cookies()
+  const cookieOpts = {
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 24, // one day — a demo, not a residency
+  }
+  cookieStore.set(DEMO_SKIN_COOKIE, JSON.stringify(skin), cookieOpts)
+  cookieStore.set(
+    'demo_context',
+    JSON.stringify({ orgId, role: 'owner' }),
+    { ...cookieOpts, maxAge: 60 * 60 * 24 * 7 },
+  )
+  redirect('/')
+}
 
 /**
  * Won prospect → real clinic org via the managed-provisioning rails

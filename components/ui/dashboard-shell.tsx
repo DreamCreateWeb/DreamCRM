@@ -11,6 +11,8 @@ import { ConfirmProvider } from '@/components/ui/confirm-dialog'
 import { ToastProvider } from '@/components/ui/toast'
 import { SkipToContent } from '@/components/ui/skip-to-content'
 import { getTenantContext } from '@/lib/auth/context'
+import { readDemoSkin } from '@/lib/demo-skin'
+import PresenterPanel from '@/components/demo/presenter-panel'
 import { getServerSession } from '@/lib/session'
 import { trialDaysLeft } from '@/lib/trial'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
@@ -68,6 +70,9 @@ export default async function DashboardShell({
     ctx.tenantType === 'clinic' ? await getActiveBundlesForSidebar(ctx.organizationId) : new Set<BundleId>()
   const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role), activeBundles)
   const moduleIds = modules.map((m) => m.id)
+  // Prospect-branded presenter overlay (platform admin + demo mode only —
+  // readDemoSkin returns null for everyone else, stale cookies included).
+  const demoSkin = await readDemoSkin(ctx)
   // ⌘1/⌘2/⌘3 targets — the resolved hrefs of the pinned cockpit modules.
   const cockpitPaths = modules.filter((m) => m.pinned).map((m) => m.path)
   const badge =
@@ -87,13 +92,18 @@ export default async function DashboardShell({
   return (
     // `v2-app` scopes the Geist Sans dashboard UI font to the authenticated
     // shell only (public site / portal / marketing keep their own families).
-    <div className="v2-app flex h-[100dvh] overflow-hidden bg-canvas text-ink-600">
+    <div
+      className="v2-app flex h-[100dvh] overflow-hidden bg-canvas text-ink-600"
+      // Prospect-branded presenter mode: the skin's brand color becomes an
+      // accent custom property chrome surfaces can pick up. Cosmetic only.
+      style={demoSkin?.brandColor ? ({ '--demo-accent': demoSkin.brandColor } as React.CSSProperties) : undefined}
+    >
       {/* Keyboard a11y: the first focusable element lets keyboard/AT users jump
           past the whole sidebar straight to the page content. Hidden until focused. */}
       <SkipToContent />
       <TenantSidebar
         modules={modules}
-        orgName={ctx.organizationName}
+        orgName={demoSkin?.clinicName ?? ctx.organizationName}
         badge={badge}
         variant={sidebarVariant}
         tenantType={ctx.tenantType}
@@ -153,6 +163,10 @@ export default async function DashboardShell({
       </TrailProvider>
       {/* Global keyboard map ( [ · ⌘1/2/3 · C · G→P/A/L ). */}
       <KeyboardShortcuts cockpitPaths={cockpitPaths} />
+      {/* Presenter script — the platform admin's floating demo beats. Only
+          mounts for platformAdmin inside demo mode; the audience never sees
+          it on a shared screen unless the presenter wants it visible. */}
+      {ctx.isDemo && ctx.platformAdmin && <PresenterPanel skin={demoSkin} />}
     </div>
   )
 }
