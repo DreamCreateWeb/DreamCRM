@@ -96,7 +96,10 @@ export default async function PortalLayout({ children }: { children: React.React
   const portalBookLabel = clinic?.selfBookingEnabled === false ? 'Request a visit' : 'Book a visit'
 
   const todayHours = clinic?.hours
-    ? todaysHoursLabel(clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>)
+    ? todaysHoursLabel(
+        clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>,
+        clinic.timezone,
+      )
     : null
 
   return (

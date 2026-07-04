@@ -89,16 +89,34 @@ export function resolveCopyList<T extends { title: string; body: string }>(
   }))
 }
 
+/** The clinic-local weekday key ('sun'…'sat'). Pass the clinic timezone so
+ *  "today" is the clinic's today, not the UTC server's — a Pacific clinic at
+ *  5 PM Friday is still Friday, but `new Date().getDay()` on the UTC prod box
+ *  already reads Saturday. Falls back to the runtime's local day only when no
+ *  tz is given (dev/tests). */
+function clinicWeekdayKey(timeZone?: string | null): string {
+  const KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+  if (!timeZone) return KEY[new Date().getDay()]
+  // en-US 'short' weekday → 'Mon' etc.; lowercase the first three chars to
+  // match KEY. Wrapped defensively so a bad tz string never throws.
+  try {
+    const wd = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(new Date())
+    return wd.slice(0, 3).toLowerCase()
+  } catch {
+    return KEY[new Date().getDay()]
+  }
+}
+
 /** "Open today · 8:00 AM – 5:00 PM" or "Closed today" — the footer's
- *  at-a-glance availability blurb. */
+ *  at-a-glance availability blurb. Pass the clinic timezone so the day is
+ *  clinic-local (patient-facing surfaces run on the UTC prod server). */
 export function todaysHoursLabel(
   hours: Record<string, { open?: string; close?: string; closed?: boolean }> | null | undefined,
+  timeZone?: string | null,
 ): string {
   // Defensive: a fresh clinic can have null hours and some callers don't guard.
   if (!hours || typeof hours !== 'object') return 'Closed today'
-  const KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-  const todayKey = KEY[new Date().getDay()]
-  const entry = hours[todayKey]
+  const entry = hours[clinicWeekdayKey(timeZone)]
   if (!entry || entry.closed) return 'Closed today'
   if (!entry.open || !entry.close) return 'Hours by appointment'
   return `Open today · ${fmt12(entry.open)} – ${fmt12(entry.close)}`

@@ -251,7 +251,7 @@ export default async function PortalHome() {
           </p>
           {clinic?.hours && (
             <p className="mt-1 text-[0.85rem]" style={{ color: PORTAL_MUTED }}>
-              {todaysHoursLabel(clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>)}
+              {todaysHoursLabel(clinic.hours as Record<string, { open?: string; close?: string; closed?: boolean }>, timeZone)}
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">

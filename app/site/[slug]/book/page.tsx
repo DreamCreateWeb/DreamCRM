@@ -17,6 +17,7 @@ import {
   isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
+import { readableInk } from '@/lib/clinic-site-theme'
 import { hasBookableSlotsInWindow } from '@/lib/services/booking'
 import {
   canTakeBookingDeposits,
@@ -156,6 +157,10 @@ export default async function BookPage({ params, searchParams }: Props) {
 
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
+  // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
+  // ground — same treatment every other site page uses. Raw `brand` still
+  // paints backgrounds, pill tints, and decorative SVG strokes.
+  const headingInk = readableInk(brand)
   const copyOverrides = (data.profile.copyOverrides as Record<string, string> | null) ?? null
   const basePath = await resolveSiteBasePath(slug)
   // Whether ANY day in the bookable window has an opening, so we can surface a
@@ -231,7 +236,7 @@ export default async function BookPage({ params, searchParams }: Props) {
             <ScrollReveal>
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-5"
-                style={{ color: brand }}
+                style={{ color: headingInk }}
                 data-edit-field="copy:book.heroEyebrow"
                 data-edit-kind="text"
                 data-edit-label="eyebrow"
@@ -240,7 +245,7 @@ export default async function BookPage({ params, searchParams }: Props) {
               </p>
               <h1
                 className="text-[32px] sm:text-[48px] lg:text-[68px] font-semibold leading-[1.04] tracking-[-0.02em] mb-6"
-                style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:book.heroTitle"
                 data-edit-kind="text"
                 data-edit-label="headline"
@@ -284,13 +289,13 @@ export default async function BookPage({ params, searchParams }: Props) {
                 <div className="lg:sticky lg:top-32">
                   <p
                     className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
-                    style={{ color: brand }}
+                    style={{ color: headingInk }}
                   >
                     What to expect
                   </p>
                   <h2
                     className="text-2xl sm:text-3xl font-semibold leading-[1.15] tracking-[-0.015em] mb-7"
-                    style={{ color: brand, fontFamily: 'var(--font-display, Georgia, serif)' }}
+                    style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                   >
                     A calm, welcoming visit.
                   </h2>
@@ -305,7 +310,7 @@ export default async function BookPage({ params, searchParams }: Props) {
                       >
                         <span
                           className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: `${brand}1A`, color: brand }}
+                          style={{ backgroundColor: `${brand}1A`, color: headingInk }}
                         >
                           {r.icon}
                         </span>

@@ -342,7 +342,12 @@ export function clinicJsonLd(
     ...(description ? { description } : {}),
     ...(phone ? { telephone: phone } : {}),
     ...(profile.email ? { email: profile.email } : {}),
-    ...(profile.logoUrl ? { logo: profile.logoUrl, image: profile.logoUrl } : {}),
+    ...(profile.logoUrl ? { logo: profile.logoUrl } : {}),
+    // `image` powers rich-result thumbnails; fall back to the hero photo when
+    // the clinic hasn't uploaded a logo (the OG card already uses the hero).
+    ...(profile.logoUrl || profile.heroImageUrl
+      ? { image: profile.logoUrl ?? profile.heroImageUrl }
+      : {}),
     ...(streetAddress || addressLocality
       ? {
           address: {

@@ -719,7 +719,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
       })
       // Mirror the booking confirmation into OD's CommLog (best-effort).
       queueCommLogWriteBack(orgId, patientId, {
-        note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${startTime.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+        note: `Booking confirmation sent for ${appointmentType.replace(/_/g, ' ')} on ${formatClinicDateTime(startTime, sender.timeZone)}.`,
         mode: 'Email',
       }).catch(() => {})
     }

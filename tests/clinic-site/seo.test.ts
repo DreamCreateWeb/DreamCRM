@@ -194,6 +194,18 @@ describe('clinicJsonLd', () => {
     expect(ld.image).toBe('https://blob/logo.png')
   })
 
+  it('falls back to the hero photo for image when no logo is set', () => {
+    const ld = clinicJsonLd(makeData({ logoUrl: null, heroImageUrl: 'https://blob/hero.jpg' }))
+    expect(ld.logo).toBeUndefined() // logo stays logo-only
+    expect(ld.image).toBe('https://blob/hero.jpg')
+  })
+
+  it('emits no image when neither logo nor hero is set', () => {
+    const ld = clinicJsonLd(makeData({ logoUrl: null, heroImageUrl: null }))
+    expect(ld.logo).toBeUndefined()
+    expect(ld.image).toBeUndefined()
+  })
+
   it('uses tagline as description, falls back to about excerpt', () => {
     const ld1 = clinicJsonLd(makeData())
     expect(ld1.description).toBe('Caring for smiles')

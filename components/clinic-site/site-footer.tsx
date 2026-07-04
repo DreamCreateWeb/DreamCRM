@@ -60,10 +60,9 @@ export default function SiteFooter({
   const FOOTER_BORDER = 'rgba(255,255,255,0.16)'
 
   // About column links — page paths first, blog/careers appended only if
-  // we know they exist (deduplicated against the nav). The nav links
-  // already cover the main pages so we lift those + add the universal
-  // ones that always live in the footer (Privacy, Accessibility) further
-  // down in the legal row, not here.
+  // we know they exist (deduplicated against the nav). The nav links already
+  // cover the main pages so we lift those here; the legal row below carries
+  // staff login + back-to-top.
   const aboutLinks = navLinks.filter((l) => l.label !== 'Contact')
 
   const services: ClinicService[] =

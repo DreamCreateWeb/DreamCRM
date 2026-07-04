@@ -40,7 +40,14 @@ export async function generateMetadata({ params }: Props) {
 
 function fmtDate(d: Date | null): string {
   if (!d) return ''
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  // Format in UTC so a publish date is stable regardless of the (UTC) server
+  // clock — a date-only display shouldn't drift by a day near midnight.
+  return d.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 }
 
 export default async function ClinicBlogIndexPage({ params, searchParams }: Props) {
