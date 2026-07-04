@@ -2240,7 +2240,29 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-03 (latest) — Demo system all-in (the demo is a MIRROR)
+## 2026-07-04 (latest) — Prospecting all-in: The Hunter
+
+Closing every human-in-the-loop gap so the engine hunts autonomously and the
+owner only does the call + the close. Migration 0118 (segment/replyDraft/
+entityPhase — all three ship in P1). 3 phases.
+
+1. **Phase 1 — Release the hunter**: `autoEnroll`/`watchdog`/`digest` added
+   to ProspectingConfig (junk-tolerant resolver + a pct() variant so the 0.3%
+   complaint threshold isn't rounded away; ships autoEnroll OFF, watchdog +
+   digest ON). `lib/prospect-segment.ts` (pure router: no website →
+   no_website, quality<40 → weak_website, else weak_presence). Two new seeded
+   sequences (oseq_no_website, oseq_weak_presence) alongside the default,
+   which self-heals to segment 'weak_website'; `ensureAllSequences` replaces
+   the bare default seed everywhere. enrollProspect routes to the
+   segment-matched sequence when no id is passed (active-or-paused, default
+   fallback) and returns {ok, sequenceId}. `runAutoEnroll` in the outreach
+   cron (after intent+rollup, before sends): enrolls enriched+emailed
+   prospects in the configured score bands, hottest-first, daily-capped
+   ('auto_enroll' counter), runs even in dry-run; known-contact enroll
+   failures disqualify (drain the pool). Settings hunter card (toggle/bands/
+   cap + today's count); sequence segment badges.
+
+## 2026-07-03 — Demo system all-in (the demo is a MIRROR)
 
 Going deep on presenter mode: the prospect spends the demo looking at THEIR
 OWN practice running better. Three slices.

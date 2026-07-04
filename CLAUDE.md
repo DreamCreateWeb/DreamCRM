@@ -81,7 +81,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0117 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0118 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per

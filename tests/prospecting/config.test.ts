@@ -43,7 +43,38 @@ describe('resolveProspectingConfig', () => {
   it('never returns shared mutable defaults', () => {
     const a = resolveProspectingConfig(null)
     a.warmup.startPerDay = 999
+    a.autoEnroll.bands.push('cool')
     expect(resolveProspectingConfig(null).warmup.startPerDay).toBe(20)
+    expect(resolveProspectingConfig(null).autoEnroll.bands).toEqual(['hot', 'warm'])
     expect(PROSPECTING_DEFAULTS.warmup.startPerDay).toBe(20)
+  })
+
+  it('hunter keys ship safe: autoEnroll off, watchdog on, digest on', () => {
+    const c = resolveProspectingConfig(null)
+    expect(c.autoEnroll).toEqual({ enabled: false, bands: ['hot', 'warm'], perDay: 50 })
+    expect(c.watchdog.enabled).toBe(true)
+    expect(c.watchdog.maxComplaintPct).toBe(0.3)
+    expect(c.digest.enabled).toBe(true)
+  })
+
+  it('preserves fractional watchdog percentages (num() would round them away)', () => {
+    const c = resolveProspectingConfig({ watchdog: { maxComplaintPct: 0.25, maxBouncePct: 3.5 } })
+    expect(c.watchdog.maxComplaintPct).toBe(0.25)
+    expect(c.watchdog.maxBouncePct).toBe(3.5)
+  })
+
+  it('filters junk auto-enroll bands, keeps a nonempty set, defaults when emptied', () => {
+    expect(resolveProspectingConfig({ autoEnroll: { bands: ['hot', 'nonsense', 'low'] } }).autoEnroll.bands)
+      .toEqual(['hot', 'low'])
+    // All-junk bands fall back to the default rather than an empty set.
+    expect(resolveProspectingConfig({ autoEnroll: { bands: ['nope'] } }).autoEnroll.bands)
+      .toEqual(['hot', 'warm'])
+  })
+
+  it('merges partial hunter blobs over defaults', () => {
+    const c = resolveProspectingConfig({ autoEnroll: { enabled: true }, digest: { enabled: false } })
+    expect(c.autoEnroll.enabled).toBe(true)
+    expect(c.autoEnroll.perDay).toBe(50) // untouched default
+    expect(c.digest.enabled).toBe(false)
   })
 })

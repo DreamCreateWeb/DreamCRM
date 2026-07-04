@@ -1,12 +1,18 @@
 import 'server-only'
 import { Resend } from 'resend'
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { encodeToken } from '@/lib/marketing/tokens'
 import { z } from 'zod'
-import type { ProspectAiVerdict, ProspectingConfig } from '@/lib/types/prospecting'
+import type {
+  OutreachSegment,
+  ProspectAiVerdict,
+  ProspectCrawlSignals,
+  ProspectingConfig,
+} from '@/lib/types/prospecting'
+import { segmentForProspect } from '@/lib/prospect-segment'
 import {
   getProspectingConfig,
   updateProspectingConfig,
@@ -92,14 +98,17 @@ Wishing you and the team a great rest of the year.`,
   },
 ]
 
-/** Seed the default 4-touch sequence (idempotent, safe on every boot). */
+/** Seed the default 4-touch sequence (idempotent, safe on every boot). The
+ *  default IS the weak-website pitch — self-healed to segment 'weak_website'
+ *  + a clearer name by ensureAllSequences. */
 export async function ensureDefaultSequence(): Promise<void> {
   await db
     .insert(schema.outreachSequence)
     .values({
       id: DEFAULT_SEQUENCE_ID,
-      name: 'Default cold outreach',
+      name: 'Weak website — rebuild pitch',
       status: 'active',
+      segment: 'weak_website',
       description: 'Intro → follow-up → case study → breakup (days 0/3/8/15).',
     })
     .onConflictDoNothing()
@@ -117,6 +126,160 @@ export async function ensureDefaultSequence(): Promise<void> {
       })
       .onConflictDoNothing()
   }
+}
+
+// ── Segment sequences — one pitch per prospect reality ─────────────────────
+
+interface SequenceSeed {
+  id: string
+  name: string
+  segment: string
+  description: string
+  touches: Array<{ stepNumber: number; dayOffset: number; subject: string; body: string }>
+}
+
+const SEGMENT_SEEDS: SequenceSeed[] = [
+  {
+    id: 'oseq_no_website',
+    name: 'No website — full pitch',
+    segment: 'no_website',
+    description: 'No site at all — patients cannot find them. Days 0/3/8/15.',
+    touches: [
+      {
+        stepNumber: 1,
+        dayOffset: 0,
+        subject: "Patients can't find {{clinicName}} online",
+        body: `Hi {{firstName}},
+
+I run Dream Create — websites and patient software built just for dental practices.
+
+I went looking for {{clinicName}} online the way a new patient in {{city}} would, and couldn't find a website. Most people pick a dentist from a search now; without a site, they call whoever shows up instead.
+
+We build the site and run everything behind it. Two-minute look: ${MARKETING_SITE}`,
+      },
+      {
+        stepNumber: 2,
+        dayOffset: 3,
+        subject: "Re: patients can't find {{clinicName}} online",
+        body: `Hi {{firstName}},
+
+The short version of my last note: every practice around you with a site and online booking is quietly picking up the patients who searched for you first.
+
+We handle the whole thing — site, booking, reminders, reviews — so nothing lands on your front desk. Happy to send a free mockup of what {{clinicName}}'s site would look like.`,
+      },
+      {
+        stepNumber: 3,
+        dayOffset: 8,
+        subject: 'We build it — you keep doing dentistry',
+        body: `Hi {{firstName}},
+
+The usual worry is "I don't have time to deal with a website." That's the point of us: we design it, write it, host it, keep it current, and wire it to automatic reminders and a Google-review loop.
+
+You do dentistry; the site does the finding. ${MARKETING_SITE}`,
+      },
+      {
+        stepNumber: 4,
+        dayOffset: 15,
+        subject: 'Last note from me',
+        body: `Hi {{firstName}},
+
+I'll stop here. If getting {{clinicName}} findable online ever makes the list, just hit reply — the offer of a free mockup stands.
+
+Wishing you and the team a great rest of the year.`,
+      },
+    ],
+  },
+  {
+    id: 'oseq_weak_presence',
+    name: 'Weak presence — reviews & social',
+    segment: 'weak_presence',
+    description: 'Decent site, quiet reviews/social — reviews on autopilot. Days 0/3/8/15.',
+    touches: [
+      {
+        stepNumber: 1,
+        dayOffset: 0,
+        subject: "{{clinicName}}'s reviews vs. the practice down the street",
+        body: `Hi {{firstName}},
+
+Your website does its job. But when patients in {{city}} compare practices, they read reviews and check who looks active, and right now that side of {{clinicName}}'s presence is quiet. Quiet reads as "not sure."
+
+We fix exactly that, automatically. ${MARKETING_SITE}`,
+      },
+      {
+        stepNumber: 2,
+        dayOffset: 3,
+        subject: 'Reviews on autopilot',
+        body: `Hi {{firstName}},
+
+How it works with us: a patient finishes a visit, they get one friendly text or email, happy patients land on Google. No front-desk scripts, no chasing.
+
+Practices running this loop add fresh reviews every week without thinking about it.`,
+      },
+      {
+        stepNumber: 3,
+        dayOffset: 8,
+        subject: 'What a month of this looks like',
+        body: `Hi {{firstName}},
+
+A month in: steady new Google reviews, social posts going out on schedule, and your front desk doing nothing extra. That's the compounding part — every review makes the next patient's decision easier.
+
+Worth a look at how it'd run for {{clinicName}}: ${MARKETING_SITE}`,
+      },
+      {
+        stepNumber: 4,
+        dayOffset: 15,
+        subject: 'Last one from me',
+        body: `Hi {{firstName}},
+
+I'll leave it here. If keeping {{clinicName}}'s reviews and social alive ever becomes the project, my inbox is open — reply any time.`,
+      },
+    ],
+  },
+]
+
+/** Seed the segment sequences (idempotent, deterministic ids). */
+export async function ensureSegmentSequences(): Promise<void> {
+  for (const seed of SEGMENT_SEEDS) {
+    await db
+      .insert(schema.outreachSequence)
+      .values({
+        id: seed.id,
+        name: seed.name,
+        status: 'active',
+        segment: seed.segment,
+        description: seed.description,
+      })
+      .onConflictDoNothing()
+    for (const t of seed.touches) {
+      await db
+        .insert(schema.outreachTouchTemplate)
+        .values({
+          id: `otpl_${seed.segment}_${t.stepNumber}`,
+          sequenceId: seed.id,
+          stepNumber: t.stepNumber,
+          dayOffset: t.dayOffset,
+          subjectTemplate: t.subject,
+          bodyTemplate: t.body,
+          aiPersonalize: 1,
+        })
+        .onConflictDoNothing()
+    }
+  }
+}
+
+/**
+ * Seed the full sequence set (default + segments) and self-heal the legacy
+ * default row onto segment 'weak_website' + its clearer name. Idempotent;
+ * replaces the bare ensureDefaultSequence() call at every site.
+ */
+export async function ensureAllSequences(): Promise<void> {
+  await ensureDefaultSequence()
+  await ensureSegmentSequences()
+  // Self-heal: the default predates the segment column — stamp it once.
+  await db
+    .update(schema.outreachSequence)
+    .set({ segment: 'weak_website', name: 'Weak website — rebuild pitch', updatedAt: new Date() })
+    .where(and(eq(schema.outreachSequence.id, DEFAULT_SEQUENCE_ID), isNull(schema.outreachSequence.segment)))
 }
 
 // ── Pure helpers (exported for tests) ───────────────────────────────────────
@@ -264,10 +427,25 @@ async function personalizeTouch(input: {
 
 // ── Enrollment ──────────────────────────────────────────────────────────────
 
+/**
+ * Resolve the active-or-paused sequence for a segment (paused = a hold, not
+ * a rejection — the send engine already holds paused sequences). Falls back
+ * to the default when no segment sequence exists.
+ */
+async function sequenceForSegment(segment: OutreachSegment): Promise<string> {
+  const [row] = await db
+    .select({ id: schema.outreachSequence.id })
+    .from(schema.outreachSequence)
+    .where(eq(schema.outreachSequence.segment, segment))
+    .orderBy(asc(schema.outreachSequence.createdAt))
+    .limit(1)
+  return row?.id ?? DEFAULT_SEQUENCE_ID
+}
+
 export async function enrollProspect(
   prospectId: string,
-  sequenceId = DEFAULT_SEQUENCE_ID,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  sequenceId?: string,
+): Promise<{ ok: true; sequenceId: string } | { ok: false; error: string }> {
   const [p] = await db
     .select()
     .from(schema.prospect)
@@ -286,13 +464,22 @@ export async function enrollProspect(
       websiteDomain: p.websiteUrl ? new URL(p.websiteUrl).hostname : null,
     })
   ) {
-    return { ok: false, error: 'Known contact (customer, clinic, or suppressed) — not enrolling.' }
+    return { ok: false, error: 'known_contact' }
   }
+  // Route to the segment-matched pitch unless the caller forced a sequence.
+  const chosenSequenceId =
+    sequenceId ??
+    (await sequenceForSegment(
+      segmentForProspect(
+        (p.aiVerdict ?? null) as ProspectAiVerdict | null,
+        (p.enrichment ?? null) as ProspectCrawlSignals | null,
+      ),
+    ))
   try {
     await db.insert(schema.outreachEnrollment).values({
       id: newId('oenr'),
       prospectId,
-      sequenceId,
+      sequenceId: chosenSequenceId,
       status: 'active',
       currentStep: 0,
       nextSendAt: new Date(),
@@ -304,7 +491,7 @@ export async function enrollProspect(
     .update(schema.prospect)
     .set({ status: 'queued', updatedAt: new Date() })
     .where(eq(schema.prospect.id, prospectId))
-  return { ok: true }
+  return { ok: true, sequenceId: chosenSequenceId }
 }
 
 export async function stopEnrollment(prospectId: string): Promise<void> {
@@ -326,6 +513,7 @@ export interface SequenceWithTouches {
   name: string
   status: string
   description: string | null
+  segment: OutreachSegment | null
   touches: Array<{
     id: string
     stepNumber: number
@@ -339,7 +527,7 @@ export interface SequenceWithTouches {
 }
 
 export async function listSequencesWithStats(): Promise<SequenceWithTouches[]> {
-  await ensureDefaultSequence()
+  await ensureAllSequences()
   const sequences = await db
     .select()
     .from(schema.outreachSequence)
@@ -373,6 +561,7 @@ export async function listSequencesWithStats(): Promise<SequenceWithTouches[]> {
       name: seq.name,
       status: seq.status,
       description: seq.description,
+      segment: (seq.segment ?? null) as OutreachSegment | null,
       touches: touches.map((t) => ({
         id: t.id,
         stepNumber: t.stepNumber,
@@ -448,6 +637,79 @@ function resolveOutreachSender(config: ProspectingConfig): OutreachSender {
   return { kind: 'resend', from }
 }
 
+// ── The hunter: auto-enrollment ─────────────────────────────────────────────
+
+export interface AutoEnrollResult {
+  scanned: number
+  enrolled: number
+  guardSkipped: number
+  skipped?: string
+}
+
+/**
+ * The autonomous hunter — routes enriched, emailed, in-band prospects into
+ * their segment-matched sequence without a human clicking Enroll. Runs even
+ * in dry-run (enrollments are DB-only and reversible; the send pass stays
+ * dry until dryRun flips), so the owner can watch it work before going live.
+ * Every existing guard (isKnownContact, retired-status, live-enrollment
+ * uniqueness) stays fail-closed. Metered daily via the 'auto_enroll' counter.
+ */
+export async function runAutoEnroll(opts?: { now?: Date }): Promise<AutoEnrollResult> {
+  const now = opts?.now ?? new Date()
+  const config = await getProspectingConfig()
+  const out: AutoEnrollResult = { scanned: 0, enrolled: 0, guardSkipped: 0 }
+  if (config.killSwitch) return { ...out, skipped: 'kill_switch' }
+  if (!config.autoEnroll.enabled) return { ...out, skipped: 'disabled' }
+  if (config.autoEnroll.bands.length === 0) return { ...out, skipped: 'no_bands' }
+
+  await ensureAllSequences()
+
+  const day = counterDay(now)
+  const used = await getProspectingCounter(day, 'auto_enroll')
+  const allowance = Math.min(BATCH_CEILING, Math.max(0, config.autoEnroll.perDay - used))
+  if (allowance === 0) return { ...out, skipped: 'daily_cap' }
+
+  const pool = await db
+    .select({ id: schema.prospect.id })
+    .from(schema.prospect)
+    .where(
+      and(
+        eq(schema.prospect.status, 'enriched'),
+        isNotNull(schema.prospect.email),
+        inArray(schema.prospect.scoreBand, config.autoEnroll.bands),
+      ),
+    )
+    .orderBy(sql`${schema.prospect.opportunityScore} DESC NULLS LAST`, asc(schema.prospect.enrichedAt))
+    .limit(allowance)
+
+  for (const row of pool) {
+    out.scanned++
+    const r = await enrollProspect(row.id)
+    if (r.ok) {
+      out.enrolled++
+      await bumpProspectingCounter(day, 'auto_enroll')
+    } else if (r.error === 'known_contact') {
+      // Drain the pool: a known contact would otherwise re-surface every run
+      // and burn nothing but scans. Disqualify (auto-enroll only).
+      out.guardSkipped++
+      await db
+        .update(schema.prospect)
+        .set({
+          status: 'disqualified',
+          suppressedReason: 'known_contact',
+          suppressedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(schema.prospect.id, row.id))
+    } else {
+      // No-email/retired/already-enrolled — the query excludes these, so this
+      // is a benign race; count it and move on (no counter burn).
+      out.guardSkipped++
+    }
+  }
+  return out
+}
+
 export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunResult> {
   const now = opts?.now ?? new Date()
   const config = await getProspectingConfig()
@@ -456,7 +718,7 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
   }
   if (config.killSwitch) return { ...out, skipped: 'kill_switch' }
 
-  await ensureDefaultSequence()
+  await ensureAllSequences()
   const sender = resolveOutreachSender(config)
   out.dryRun = sender.kind === 'dry_run'
 

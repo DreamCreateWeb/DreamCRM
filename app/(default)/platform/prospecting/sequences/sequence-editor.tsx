@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import type { SequenceWithTouches } from '@/lib/services/prospect-outreach'
+import { SEGMENT_LABELS } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { updateTouchTemplateAction, setSequenceStatusAction } from '../admin-actions'
@@ -123,6 +124,13 @@ export default function SequenceEditor({ sequence }: { sequence: SequenceWithTou
             tone={status === 'active' ? 'ok' : 'warn'}
             label={status === 'active' ? 'Active' : 'Paused'}
           />
+          {sequence.segment && (
+            <StatusPill
+              tone="info"
+              label={SEGMENT_LABELS[sequence.segment]}
+              title="The prospect segment the auto-enroller routes to this pitch"
+            />
+          )}
         </div>
         <ActionButton
           size="sm"

@@ -2,12 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import type { ProspectingConfig } from '@/lib/types/prospecting'
+import { PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospecting'
+import { SCORE_BAND_LABELS, type ProspectScoreBand } from '@/lib/types/prospecting'
 import { US_STATES, US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
 import { StatusPill } from '@/components/ui/status-pill'
 import {
   setKillSwitchAction,
   setDryRunAction,
   toggleStateAction,
+  updateAutoEnrollAction,
 } from '../admin-actions'
 
 const SECTION = 'v2-card p-5 mb-5'
@@ -54,19 +57,27 @@ export default function SettingsPanel({
   progress,
   usage,
   env,
+  autoEnrolledToday,
 }: {
   config: ProspectingConfig
   progress: Array<{ state: string; pending: number; done: number; error: number; imported: number }>
   usage: { placesUsed: number; crawlsUsed: number; aiUsed: number }
   env: { senderConfigured: boolean; gmailConfigured: boolean; placesConfigured: boolean }
+  autoEnrolledToday: number
 }) {
   const [pending, startTransition] = useTransition()
   // Optimistic mirrors so the switches feel instant.
   const [killSwitch, setKillSwitch] = useState(config.killSwitch)
   const [dryRun, setDryRun] = useState(config.dryRun)
   const [states, setStates] = useState(new Set(config.enabledStates))
+  const [autoEnroll, setAutoEnroll] = useState(config.autoEnroll)
 
   const progressByState = new Map(progress.map((p) => [p.state, p]))
+
+  const saveAutoEnroll = (next: typeof autoEnroll) => {
+    setAutoEnroll(next)
+    startTransition(() => updateAutoEnrollAction(next))
+  }
 
   return (
     <div>
@@ -98,6 +109,73 @@ export default function SettingsPanel({
             labelOn="Dry-run (no real sends)"
             labelOff="Live sending"
           />
+        </div>
+      </section>
+
+      {/* The hunter — auto-enrollment */}
+      <section className={SECTION}>
+        <div className={SECTION_TITLE}>Auto-enrollment — the hunter</div>
+        <p className={SECTION_SUB}>
+          When on, freshly enriched prospects in the chosen score bands are automatically routed
+          into their segment-matched sequence — no clicking Enroll. It runs even in dry-run (the
+          enrollment happens; sending still waits for live mode), so you can watch it work first.
+          Every dedupe + suppression guard still applies.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Toggle
+            on={autoEnroll.enabled}
+            disabled={pending}
+            onChange={(next) => saveAutoEnroll({ ...autoEnroll, enabled: next })}
+            labelOn="Hunter ON"
+            labelOff="Hunter off (manual enroll only)"
+          />
+          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+            {autoEnrolledToday} enrolled today / {autoEnroll.perDay} cap
+          </span>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Enroll bands:</span>
+          {PROSPECT_SCORE_BANDS.map((band) => {
+            const on = autoEnroll.bands.includes(band)
+            return (
+              <button
+                key={band}
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  const set = new Set(autoEnroll.bands)
+                  if (on) set.delete(band)
+                  else set.add(band)
+                  const bands = PROSPECT_SCORE_BANDS.filter((b) => set.has(b)) as ProspectScoreBand[]
+                  if (bands.length > 0) saveAutoEnroll({ ...autoEnroll, bands })
+                }}
+                className={`rounded-[var(--r-xs)] px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60 ${
+                  on
+                    ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+                    : 'bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {SCORE_BAND_LABELS[band]}
+              </button>
+            )
+          })}
+          <label className="ml-auto flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+            Daily cap
+            <input
+              type="number"
+              min={1}
+              max={500}
+              disabled={pending}
+              className="form-input w-20 text-sm"
+              value={autoEnroll.perDay}
+              onChange={(e) =>
+                saveAutoEnroll({
+                  ...autoEnroll,
+                  perDay: Math.max(1, Math.min(500, Number(e.target.value) || 1)),
+                })
+              }
+            />
+          </label>
         </div>
       </section>
 

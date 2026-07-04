@@ -104,18 +104,39 @@ export async function suppressProspectAction(prospectId: string, reason?: string
   revalidatePath('/platform/prospecting')
 }
 
-/** Enroll a prospect in the outreach sequence (fail-closed guards inside). */
+/** Enroll a prospect in the segment-matched outreach sequence (fail-closed
+ *  guards inside; the segment router picks the pitch). */
 export async function enrollProspectAction(
   prospectId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   await requirePlatformAdmin()
-  const { enrollProspect, ensureDefaultSequence } = await import(
+  const { enrollProspect, ensureAllSequences } = await import(
     '@/lib/services/prospect-outreach'
   )
-  await ensureDefaultSequence()
+  await ensureAllSequences()
   const r = await enrollProspect(z.string().min(1).parse(prospectId))
   revalidatePath('/platform/prospecting')
-  return r.ok ? { ok: true } : { ok: false, error: r.error }
+  // 'known_contact' is the fail-closed dedupe error — humanize it for the UI.
+  if (r.ok) return { ok: true }
+  return {
+    ok: false,
+    error: r.error === 'known_contact' ? 'Known contact (customer/clinic/suppressed) — not enrolling.' : r.error,
+  }
+}
+
+const autoEnrollSchema = z.object({
+  enabled: z.boolean(),
+  bands: z.array(z.enum(['hot', 'warm', 'cool', 'low'])).min(1),
+  perDay: z.number().int().min(1).max(500),
+})
+
+/** Configure the hunter: auto-enroll toggle, score bands, daily cap. */
+export async function updateAutoEnrollAction(input: unknown): Promise<void> {
+  await requirePlatformAdmin()
+  const parsed = autoEnrollSchema.parse(input)
+  await updateProspectingConfig({ autoEnroll: parsed })
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/settings')
 }
 
 /** Stop a prospect's live enrollment (prospect stays contactable later). */

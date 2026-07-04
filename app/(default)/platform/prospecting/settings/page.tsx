@@ -12,6 +12,7 @@ import {
   getDiscoveryProgress,
   getProspectingCounter,
   counterMonth,
+  counterDay,
 } from '@/lib/services/prospecting'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -22,12 +23,14 @@ export default async function ProspectingSettingsPage() {
   if (ctx.tenantType !== 'platform' || !ctx.platformAdmin) redirect('/')
 
   const month = counterMonth()
-  const [config, progress, placesUsed, crawlsUsed, aiUsed] = await Promise.all([
+  const day = counterDay()
+  const [config, progress, placesUsed, crawlsUsed, aiUsed, autoEnrolledToday] = await Promise.all([
     getProspectingConfig(),
     getDiscoveryProgress(),
     getProspectingCounter(month, 'places_lookup'),
     getProspectingCounter(month, 'crawl'),
     getProspectingCounter(month, 'ai_score'),
+    getProspectingCounter(day, 'auto_enroll'),
   ])
 
   // Outreach sender wiring is env-driven — surface its readiness honestly so
@@ -53,6 +56,7 @@ export default async function ProspectingSettingsPage() {
         progress={progress}
         usage={{ placesUsed, crawlsUsed, aiUsed }}
         env={{ senderConfigured, gmailConfigured, placesConfigured }}
+        autoEnrolledToday={autoEnrolledToday}
       />
     </div>
   )

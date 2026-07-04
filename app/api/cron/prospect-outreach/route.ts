@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { runOutreach } from '@/lib/services/prospect-outreach'
+import { runOutreach, runAutoEnroll } from '@/lib/services/prospect-outreach'
 import {
   processInboundForOutreach,
   rollupEngagementSignals,
@@ -25,14 +25,20 @@ async function run(request: Request) {
   }
   try {
     // Intent first (a reply that arrived overnight must stop today's touch),
-    // then engagement rollup, then the send pass.
+    // then engagement rollup, then the hunter auto-enrolls fresh prospects,
+    // then the send pass (auto-enrolled get nextSendAt=now → same tick can
+    // send them, closing discovery→outreach in one run).
     const intent = await processInboundForOutreach().catch((err) => {
       console.warn('[prospect-outreach] intent sweep failed', err)
       return null
     })
     const engagement = await rollupEngagementSignals().catch(() => ({ promoted: 0 }))
+    const autoEnroll = await runAutoEnroll().catch((err) => {
+      console.warn('[prospect-outreach] auto-enroll failed', err)
+      return null
+    })
     const result = await runOutreach()
-    return NextResponse.json({ ok: true, ...result, intent, engagement })
+    return NextResponse.json({ ok: true, ...result, intent, engagement, autoEnroll })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'unknown' },

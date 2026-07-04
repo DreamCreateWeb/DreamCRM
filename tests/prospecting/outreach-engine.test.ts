@@ -76,6 +76,8 @@ vi.mock('drizzle-orm', () => ({
   asc: vi.fn(() => ({})),
   eq: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
+  isNotNull: vi.fn(() => ({})),
+  isNull: vi.fn(() => ({})),
   lte: vi.fn(() => ({})),
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))

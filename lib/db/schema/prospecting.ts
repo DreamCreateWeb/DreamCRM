@@ -104,6 +104,12 @@ export const prospect = pgTable(
     intentSummary: text('intent_summary'), // AI summary of the reply
     talkingPoints: jsonb('talking_points'), // string[] for the call
 
+    // AI-suggested reply for a 'question' classification — shown on the
+    // call card with a copy button (the owner sends it from his own inbox;
+    // we NEVER auto-send). Cleared when a call outcome is logged.
+    // Migration 0118.
+    replyDraft: text('reply_draft'),
+
     // Cached AI pre-demo brief (DemoBrief in lib/types/demo-brief.ts):
     // opening line, walk-up story, beat emphasis, objections + responses,
     // closing ask. Owner-initiated (sonnet), regenerate overwrites wholesale.
@@ -148,6 +154,10 @@ export const prospectDiscoveryTask = pgTable(
     state: text('state').notNull(),
     // '300' = zip3 prefix task; '30030' = zip5 split child.
     zipPrefix: text('zip_prefix').notNull(),
+    // Two-phase cursor: each task pages NPPES orgs (NPI-2) first, then flips
+    // to 'individual' (NPI-1, solo dentists) with skip reset — 'done' only
+    // after the individual pass exhausts. Migration 0118.
+    entityPhase: text('entity_phase').notNull().default('org'), // org|individual
     skip: integer('skip').notNull().default(0),
     status: text('status').notNull().default('pending'), // pending|in_progress|done|error
     found: integer('found').notNull().default(0), // rows NPPES returned
@@ -168,6 +178,10 @@ export const outreachSequence = pgTable('outreach_sequence', {
   name: text('name').notNull(),
   status: text('status').notNull().default('active'), // active|paused
   description: text('description'),
+  // Which prospect segment this pitch targets — the auto-enroll router
+  // matches segmentForProspect() to this. 'no_website'|'weak_website'|
+  // 'weak_presence'; null = general/unsegmented. Migration 0118.
+  segment: text('segment'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

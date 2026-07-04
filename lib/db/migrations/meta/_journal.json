@@ -827,6 +827,13 @@
       "when": 1783116346587,
       "tag": "0117_true_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1783128885135,
+      "tag": "0118_burly_emma_frost",
+      "breakpoints": true
     }
   ]
 }

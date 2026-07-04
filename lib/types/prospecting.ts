@@ -76,6 +76,16 @@ export interface ProspectAiVerdict {
   summary: string
 }
 
+// ── Outreach segments (sequence ↔ prospect matching) ───────────────────────
+export const OUTREACH_SEGMENTS = ['no_website', 'weak_website', 'weak_presence'] as const
+export type OutreachSegment = (typeof OUTREACH_SEGMENTS)[number]
+
+export const SEGMENT_LABELS: Record<OutreachSegment, string> = {
+  no_website: 'No website',
+  weak_website: 'Weak website',
+  weak_presence: 'Weak presence',
+}
+
 // ── Config (prospecting_config singleton jsonb) ────────────────────────────
 export interface ProspectingConfig {
   /** Master OFF switch — ships true (system off). Nothing runs while true. */
@@ -98,6 +108,29 @@ export interface ProspectingConfig {
     crawlsPerMonth: number
     aiPerMonth: number
   }
+  /** The hunter: auto-enroll enriched prospects into segment sequences.
+   *  Ships OFF. Runs even in dry-run (enrollments are DB-only/reversible —
+   *  sends stay dry until dryRun flips). */
+  autoEnroll: {
+    enabled: boolean
+    bands: ProspectScoreBand[]
+    perDay: number
+  }
+  /** Deliverability watchdog — auto-pauses LIVE sending (dryRun=true) when
+   *  the trailing bounce/complaint rates breach. trippedAt/reason are set
+   *  by the engine; flipping dry-run off clears them. */
+  watchdog: {
+    enabled: boolean
+    windowHours: number
+    /** Sample floor — never trip below this many live sends in-window. */
+    minSends: number
+    maxBouncePct: number
+    maxComplaintPct: number
+    trippedAt: string | null
+    reason: string | null
+  }
+  /** The daily hunt digest email to platform owner/admins. */
+  digest: { enabled: boolean }
 }
 
 export const PROSPECTING_DEFAULTS: ProspectingConfig = {
@@ -107,6 +140,17 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
   warmup: { startPerDay: 20, incrementPerWeek: 10, ceilingPerDay: 150, startedAt: null },
   sendWindow: { startHour: 8, endHour: 17 },
   budgets: { placesPerMonth: 2000, crawlsPerMonth: 3000, aiPerMonth: 3000 },
+  autoEnroll: { enabled: false, bands: ['hot', 'warm'], perDay: 50 },
+  watchdog: {
+    enabled: true,
+    windowHours: 72,
+    minSends: 20,
+    maxBouncePct: 5,
+    maxComplaintPct: 0.3,
+    trippedAt: null,
+    reason: null,
+  },
+  digest: { enabled: true },
 }
 
 /**
@@ -115,16 +159,39 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
  */
 export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
   const d = PROSPECTING_DEFAULTS
-  if (!raw || typeof raw !== 'object') return { ...d, warmup: { ...d.warmup }, sendWindow: { ...d.sendWindow }, budgets: { ...d.budgets } }
+  if (!raw || typeof raw !== 'object') {
+    return {
+      ...d,
+      warmup: { ...d.warmup },
+      sendWindow: { ...d.sendWindow },
+      budgets: { ...d.budgets },
+      autoEnroll: { ...d.autoEnroll, bands: [...d.autoEnroll.bands] },
+      watchdog: { ...d.watchdog },
+      digest: { ...d.digest },
+    }
+  }
   const r = raw as Record<string, unknown>
   const warmup = (r.warmup ?? {}) as Record<string, unknown>
   const win = (r.sendWindow ?? {}) as Record<string, unknown>
   const budgets = (r.budgets ?? {}) as Record<string, unknown>
+  const auto = (r.autoEnroll ?? {}) as Record<string, unknown>
+  const dog = (r.watchdog ?? {}) as Record<string, unknown>
+  const digest = (r.digest ?? {}) as Record<string, unknown>
   const num = (v: unknown, fallback: number) =>
     typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback
+  // Percentages keep fractions (0.3% complaint threshold) — num() would
+  // round them into uselessness.
+  const pct = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback
+  const bool = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
+  const bands = Array.isArray(auto.bands)
+    ? auto.bands.filter((b): b is ProspectScoreBand =>
+        (['hot', 'warm', 'cool', 'low'] as const).includes(b as ProspectScoreBand),
+      )
+    : d.autoEnroll.bands
   return {
-    killSwitch: typeof r.killSwitch === 'boolean' ? r.killSwitch : d.killSwitch,
-    dryRun: typeof r.dryRun === 'boolean' ? r.dryRun : d.dryRun,
+    killSwitch: bool(r.killSwitch, d.killSwitch),
+    dryRun: bool(r.dryRun, d.dryRun),
     enabledStates: Array.isArray(r.enabledStates)
       ? r.enabledStates.filter((s): s is string => typeof s === 'string' && /^[A-Z]{2}$/.test(s))
       : d.enabledStates,
@@ -143,6 +210,21 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       crawlsPerMonth: num(budgets.crawlsPerMonth, d.budgets.crawlsPerMonth),
       aiPerMonth: num(budgets.aiPerMonth, d.budgets.aiPerMonth),
     },
+    autoEnroll: {
+      enabled: bool(auto.enabled, d.autoEnroll.enabled),
+      bands: bands.length > 0 ? bands : [...d.autoEnroll.bands],
+      perDay: num(auto.perDay, d.autoEnroll.perDay),
+    },
+    watchdog: {
+      enabled: bool(dog.enabled, d.watchdog.enabled),
+      windowHours: num(dog.windowHours, d.watchdog.windowHours),
+      minSends: num(dog.minSends, d.watchdog.minSends),
+      maxBouncePct: pct(dog.maxBouncePct, d.watchdog.maxBouncePct),
+      maxComplaintPct: pct(dog.maxComplaintPct, d.watchdog.maxComplaintPct),
+      trippedAt: typeof dog.trippedAt === 'string' ? dog.trippedAt : null,
+      reason: typeof dog.reason === 'string' ? dog.reason : null,
+    },
+    digest: { enabled: bool(digest.enabled, d.digest.enabled) },
   }
 }
 
