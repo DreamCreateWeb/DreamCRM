@@ -52,6 +52,7 @@ export default function ProspectDrawer({
           </div>
           <Link
             href={closeHref}
+            scroll={false}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none"
             aria-label="Close"
           >

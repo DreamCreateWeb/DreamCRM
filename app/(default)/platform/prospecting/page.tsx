@@ -253,6 +253,7 @@ export default async function ProspectingPage({
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                     <Link
                       href={`${buildQuery(params, {})}${buildQuery(params, {}).includes('?') ? '&' : '?'}prospect=${p.id}`}
+                      scroll={false}
                       className="hover:text-teal-600 dark:hover:text-teal-400"
                     >
                       {p.name}
