@@ -908,6 +908,10 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
 
   const postalAddress = process.env.MARKETING_POSTAL_ADDRESS || ''
   const senderName = process.env.OUTREACH_SENDER_NAME || 'Dustin'
+  // Reply-To routes replies to a monitored inbox (e.g. a Gmail you watch)
+  // even when the From lives on an isolated sending subdomain. Without this,
+  // replies on the Resend path land nowhere the reply loop can see.
+  const replyTo = process.env.OUTREACH_REPLY_TO?.trim() || undefined
 
   for (const enrollment of due) {
     out.scanned++
@@ -1025,6 +1029,7 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
           const res = await resend.emails.send({
             from: sender.from!,
             to: p.email,
+            replyTo,
             subject: personalized.subject,
             html: rendered.html,
             text: rendered.text,

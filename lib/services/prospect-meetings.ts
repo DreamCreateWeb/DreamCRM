@@ -25,6 +25,7 @@ import {
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || 'https://www.dreamcreatestudio.com'
 const OUTREACH_FROM = process.env.OUTREACH_EMAIL_FROM?.trim() || undefined
+const OUTREACH_REPLY_TO = process.env.OUTREACH_REPLY_TO?.trim() || OUTREACH_FROM
 const DEMO_TITLE = 'Dream Create demo'
 
 function slotCfg(booking: Awaited<ReturnType<typeof getProspectingConfig>>['booking']): DemoSlotConfig {
@@ -204,7 +205,7 @@ async function sendBookingEmails(view: BookingView, slot: Date, attendeeEmail: s
         subject: `Your Dream Create demo — ${whenForProspect}`,
         html,
         from: OUTREACH_FROM,
-        replyTo: OUTREACH_FROM,
+        replyTo: OUTREACH_REPLY_TO,
       })
     } catch (err) {
       console.warn('[prospect-meetings] prospect confirmation failed', err instanceof Error ? err.message : err)
