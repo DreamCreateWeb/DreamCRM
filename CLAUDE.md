@@ -81,7 +81,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0119 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0120 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -214,7 +214,11 @@ AUTO-ENROLLMENT (`lib/prospect-segment.ts`: no-website / weak-website /
 weak-presence → three pitch sequences; hottest-first, daily-capped, runs in
 dry-run) → AI drip outreach → reply intent classification → CALL LIST with
 instant bell+forced-email alerts + AI reply drafts (`prospect.reply_draft`)
-→ AI demo prep brief (`/platform/prospecting/demo/[id]`) → prospect-branded
+→ SELF-BOOKING demo close (`prospect_meeting` + public `/d/[token]`,
+token-IS-auth; prospect picks a slot from the owner's availability in their
+OWN tz, both sides get an add-to-calendar link; reminders 24h out;
+`lib/prospect-booking.ts` pure slot math, `lib/services/prospect-meetings.ts`;
+ships booking OFF) → AI demo prep brief (`/platform/prospecting/demo/[id]`) → prospect-branded
 presenter mode (demo_skin cookie overlay, zero DB writes: chrome branding,
 8-beat keyboard panel w/ per-prospect gap callouts, `/demo/compare`
 their-site-vs-ours in their brand color). A deliverability WATCHDOG
@@ -335,7 +339,7 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0119**. Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0120**. Workflow: `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime

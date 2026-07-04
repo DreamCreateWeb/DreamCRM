@@ -13,6 +13,7 @@ import {
   updateAutoEnrollAction,
   setDigestEnabledAction,
   setWatchdogEnabledAction,
+  setBookingEnabledAction,
 } from '../admin-actions'
 
 const SECTION = 'v2-card p-5 mb-5'
@@ -75,6 +76,7 @@ export default function SettingsPanel({
   const [autoEnroll, setAutoEnroll] = useState(config.autoEnroll)
   const [watchdog, setWatchdog] = useState(config.watchdog.enabled)
   const [digest, setDigest] = useState(config.digest.enabled)
+  const [booking, setBooking] = useState(config.booking.enabled)
 
   const progressByState = new Map(progress.map((p) => [p.state, p]))
 
@@ -225,7 +227,25 @@ export default function SettingsPanel({
             labelOn="Daily hunt digest ON"
             labelOff="Digest off"
           />
+          <Toggle
+            on={booking}
+            disabled={pending}
+            onChange={(next) => {
+              setBooking(next)
+              startTransition(() => setBookingEnabledAction(next))
+            }}
+            labelOn="Self-booking demos ON"
+            labelOff="Self-booking off"
+          />
         </div>
+        {booking && (
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Interested prospects can pick a demo time themselves at{' '}
+            <code className="text-xs">/d/&lt;token&gt;</code> ({config.booking.hostTimeZone}, weekdays{' '}
+            {config.booking.startHour}:00–{config.booking.endHour}:00). Grab a prospect&apos;s link from
+            the &ldquo;📅 Booking link&rdquo; button on the call list.
+          </p>
+        )}
       </section>
 
       {/* Sender / integration readiness */}

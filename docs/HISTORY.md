@@ -2240,7 +2240,39 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-04 (latest) — Prospecting revolutionary pass P1: the reachability engine
+## 2026-07-04 (latest) — Prospecting revolutionary pass P2: the self-booking close
+
+The Hunter's other big leak was the interested→booked drop-off: a reply that
+said "interested" handed off to a human call list and stopped — there was no
+way for a prospect to book the demo (`demo_booked` was just a note logged
+afterward). P2 lets an interested prospect book the meeting THEMSELVES.
+Migration 0120 (`prospect_meeting`).
+
+- **Pure availability** (`lib/prospect-booking.ts`, fully tested):
+  `generateDemoSlots` builds weekday business-hour slots in the host's
+  timezone (DST-correct via clinicDayStart), `days` out, at a cadence,
+  excluding anything inside the lead time or already booked (no double-
+  booking, owner-wide). Plus `isSlotAvailable` (the server-side booking
+  guard), `groupSlotsByDay`, and `googleCalendarLink` (a universal add-to-
+  calendar template URL — no OAuth).
+- **The public booking page** (`/d/<token>`, token-IS-auth — the /r /w /c /b
+  pattern, added to middleware PUBLIC_PATHS): a Dream Create-branded page
+  where the prospect picks a slot shown in THEIR OWN timezone, enters name +
+  email, and books — or sees their confirmed time with reschedule/cancel.
+- **The service** (`lib/services/prospect-meetings.ts`): `getOrCreateBooking
+  Link` (stable per-prospect link the owner pastes into a reply),
+  `listAvailableSlots`, `bookMeeting` (re-validates the slot is still on offer
+  + unbooked, so two prospects can't grab the same time), `cancelMeeting`,
+  `getUpcomingMeetings`, and `runDemoReminders` (24h-out reminder, wired into
+  the outreach cron). Booking emails both sides a confirmation with the
+  add-to-calendar link; the owner also gets a bell + forced email.
+- **Owner surfaces:** a "📅 Booking link" button on every call card (mints +
+  copies the prospect's link), a "📅 Booked demos" panel on the call list
+  (upcoming meetings in the host tz), and a Settings toggle (ships OFF —
+  booking a demo emails the owner). Config `booking` block (hostTimeZone,
+  window, cadence, lead time) resolves with defaults, no backfill.
+
+## 2026-07-04 — Prospecting revolutionary pass P1: the reachability engine
 
 The Hunter's #1 leak was reachability: email came from a single homepage
 `mailto:`, was never verified, and the highest-value segment (no-website

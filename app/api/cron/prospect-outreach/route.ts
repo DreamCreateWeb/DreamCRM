@@ -4,6 +4,7 @@ import {
   processInboundForOutreach,
   rollupEngagementSignals,
 } from '@/lib/services/prospect-intent'
+import { runDemoReminders } from '@/lib/services/prospect-meetings'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -38,7 +39,9 @@ async function run(request: Request) {
       return null
     })
     const result = await runOutreach()
-    return NextResponse.json({ ok: true, ...result, intent, engagement, autoEnroll })
+    // Remind prospects with a demo ~24h out (best-effort, bounded).
+    const reminders = await runDemoReminders().catch(() => ({ sent: 0 }))
+    return NextResponse.json({ ok: true, ...result, intent, engagement, autoEnroll, demoReminders: reminders.sent })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'unknown' },

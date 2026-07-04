@@ -5,7 +5,7 @@ import type { CallListRow } from '@/lib/services/prospecting'
 import { INTENT_SIGNAL_LABELS } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
-import { logCallOutcomeAction, convertProspectAction } from '../admin-actions'
+import { logCallOutcomeAction, convertProspectAction, getBookingLinkAction } from '../admin-actions'
 
 const OUTCOMES: Array<{ value: string; label: string }> = [
   { value: 'no_answer', label: 'No answer' },
@@ -167,6 +167,59 @@ function SuggestedReply({ draft }: { draft: string }) {
   )
 }
 
+function BookingLink({ prospectId }: { prospectId: string }) {
+  const [pending, startTransition] = useTransition()
+  const [url, setUrl] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const fetchLink = () =>
+    startTransition(async () => {
+      const res = await getBookingLinkAction(prospectId)
+      if (res.ok) {
+        setUrl(res.url)
+        navigator.clipboard?.writeText(res.url).then(
+          () => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+          },
+          () => {},
+        )
+      } else {
+        setMsg('Turn on self-booking in Settings first.')
+        setTimeout(() => setMsg(null), 3000)
+      }
+    })
+
+  if (url) {
+    return (
+      <span className="inline-flex items-center gap-2 text-xs">
+        <code className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-1 text-gray-700 dark:text-gray-200">{url}</code>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard?.writeText(url).then(() => {
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            })
+          }}
+          className="text-teal-600 dark:text-teal-400 hover:underline"
+        >
+          {copied ? 'Copied ✓' : 'Copy'}
+        </button>
+      </span>
+    )
+  }
+  return (
+    <>
+      <ActionButton size="sm" variant="secondary" disabled={pending} onClick={fetchLink}>
+        📅 Booking link
+      </ActionButton>
+      {msg && <span className="text-xs text-amber-600 dark:text-amber-400">{msg}</span>}
+    </>
+  )
+}
+
 export default function CallCard({ row }: { row: CallListRow }) {
   const [pending, startTransition] = useTransition()
   const [note, setNote] = useState('')
@@ -266,6 +319,7 @@ export default function CallCard({ row }: { row: CallListRow }) {
         >
           📋 Demo prep
         </ActionButton>
+        <BookingLink prospectId={row.id} />
         <input
           type="text"
           placeholder="Call note (optional)"

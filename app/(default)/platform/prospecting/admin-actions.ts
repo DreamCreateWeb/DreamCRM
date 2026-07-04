@@ -399,3 +399,25 @@ export async function reverifyContactsAction(prospectId: string): Promise<{ veri
   revalidatePath('/platform/prospecting/call-list')
   return res
 }
+
+// ── Demo self-booking ──────────────────────────────────────────────────────
+
+/** Mint (or reuse) the prospect's /d/<token> booking link to paste into a
+ *  reply. Null url when booking is disabled in settings. */
+export async function getBookingLinkAction(
+  prospectId: string,
+): Promise<{ ok: true; url: string } | { ok: false; reason: string }> {
+  const ctx = await requirePlatformAdmin()
+  const { getOrCreateBookingLink } = await import('@/lib/services/prospect-meetings')
+  const link = await getOrCreateBookingLink(prospectId, ctx.userId)
+  if (!link) return { ok: false, reason: 'booking_disabled' }
+  return { ok: true, url: link.url }
+}
+
+/** Toggle self-booking on/off (preserving the rest of the booking config). */
+export async function setBookingEnabledAction(on: boolean): Promise<void> {
+  await requirePlatformAdmin()
+  const config = await getProspectingConfig()
+  await updateProspectingConfig({ booking: { ...config.booking, enabled: Boolean(on) } })
+  revalidatePath('/platform/prospecting/settings')
+}

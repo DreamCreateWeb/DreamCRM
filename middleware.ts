@@ -114,6 +114,9 @@ const PUBLIC_PATHS = [
   // Public post-visit NPS survey landing — same token-IS-auth pattern;
   // patient lands from the "one quick question" email.
   '/n',
+  // Public prospect demo self-booking — same token-IS-auth pattern; a
+  // prospect lands from the outreach link to pick a demo time.
+  '/d',
   // Subscribable .ics calendar feed (/api/calendar/<token>). Calendar apps
   // (Google/Apple/Outlook) fetch it with no session — the opaque token in the
   // URL is the auth. Must be public or the fetch 302s to /signin.

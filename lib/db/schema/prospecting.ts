@@ -386,6 +386,50 @@ export const prospectCallLog = pgTable(
 )
 export type ProspectCallLog = typeof prospectCallLog.$inferSelect
 
+export const PROSPECT_MEETING_STATUSES = [
+  'proposed', // link generated, no time picked yet
+  'booked', // prospect chose a slot
+  'canceled',
+  'completed',
+  'no_show',
+] as const
+export type ProspectMeetingStatus = (typeof PROSPECT_MEETING_STATUSES)[number]
+
+// Self-booked demos — the close accelerator. The owner generates a link; the
+// prospect lands on /d/<token> (token IS the auth, the /r /w /c /b pattern)
+// and picks a slot from the owner's availability, shown in the prospect's own
+// timezone. Booking emails both sides an add-to-calendar link. Migration 0120.
+export const prospectMeeting = pgTable(
+  'prospect_meeting',
+  {
+    id: text('id').primaryKey(), // pmtg_…
+    prospectId: text('prospect_id')
+      .notNull()
+      .references(() => prospect.id, { onDelete: 'cascade' }),
+    token: text('token').notNull(), // opaque URL auth
+    status: text('status').notNull().default('proposed'),
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }), // null until booked
+    durationMin: integer('duration_min').notNull().default(30),
+    hostTimeZone: text('host_time_zone').notNull(),
+    attendeeName: text('attendee_name'),
+    attendeeEmail: text('attendee_email'),
+    note: text('note'),
+    remindedAt: timestamp('reminded_at', { withTimezone: true }),
+    createdByUserId: text('created_by_user_id'),
+    bookedAt: timestamp('booked_at', { withTimezone: true }),
+    canceledAt: timestamp('canceled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    token: uniqueIndex('idx_pmtg_token').on(t.token),
+    prospect: index('idx_pmtg_prospect').on(t.prospectId),
+    schedule: index('idx_pmtg_schedule').on(t.status, t.scheduledAt),
+  }),
+)
+export type ProspectMeeting = typeof prospectMeeting.$inferSelect
+export type NewProspectMeeting = typeof prospectMeeting.$inferInsert
+
 // Singleton config row (id='default'). Resolved with defaults by
 // resolveProspectingConfig() in lib/types/prospecting.ts so new knobs never
 // need a backfill. Ships with killSwitch=true + dryRun=true (system OFF).

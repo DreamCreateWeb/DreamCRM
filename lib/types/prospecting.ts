@@ -131,6 +131,22 @@ export interface ProspectingConfig {
   }
   /** The daily hunt digest email to platform owner/admins. */
   digest: { enabled: boolean }
+  /** Self-booking demos — an interested prospect picks a time from the
+   *  owner's availability. Ships OFF (booking a demo emails the owner). Slots
+   *  are generated in hostTimeZone weekday business hours and shown to the
+   *  prospect in their own timezone. */
+  booking: {
+    enabled: boolean
+    hostTimeZone: string
+    durationMin: number
+    /** How many days out the calendar offers. */
+    days: number
+    startHour: number
+    endHour: number
+    slotMinutes: number
+    /** Minimum lead time before the earliest offered slot. */
+    leadHours: number
+  }
 }
 
 export const PROSPECTING_DEFAULTS: ProspectingConfig = {
@@ -151,6 +167,16 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
     reason: null,
   },
   digest: { enabled: true },
+  booking: {
+    enabled: false,
+    hostTimeZone: 'America/New_York',
+    durationMin: 30,
+    days: 10,
+    startHour: 9,
+    endHour: 17,
+    slotMinutes: 30,
+    leadHours: 12,
+  },
 }
 
 /**
@@ -168,6 +194,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       autoEnroll: { ...d.autoEnroll, bands: [...d.autoEnroll.bands] },
       watchdog: { ...d.watchdog },
       digest: { ...d.digest },
+      booking: { ...d.booking },
     }
   }
   const r = raw as Record<string, unknown>
@@ -177,6 +204,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
   const auto = (r.autoEnroll ?? {}) as Record<string, unknown>
   const dog = (r.watchdog ?? {}) as Record<string, unknown>
   const digest = (r.digest ?? {}) as Record<string, unknown>
+  const booking = (r.booking ?? {}) as Record<string, unknown>
   const num = (v: unknown, fallback: number) =>
     typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback
   // Percentages keep fractions (0.3% complaint threshold) — num() would
@@ -225,6 +253,16 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       reason: typeof dog.reason === 'string' ? dog.reason : null,
     },
     digest: { enabled: bool(digest.enabled, d.digest.enabled) },
+    booking: {
+      enabled: bool(booking.enabled, d.booking.enabled),
+      hostTimeZone: typeof booking.hostTimeZone === 'string' ? booking.hostTimeZone : d.booking.hostTimeZone,
+      durationMin: num(booking.durationMin, d.booking.durationMin),
+      days: Math.min(60, num(booking.days, d.booking.days)),
+      startHour: Math.min(23, num(booking.startHour, d.booking.startHour)),
+      endHour: Math.min(24, num(booking.endHour, d.booking.endHour)),
+      slotMinutes: Math.max(5, num(booking.slotMinutes, d.booking.slotMinutes)),
+      leadHours: num(booking.leadHours, d.booking.leadHours),
+    },
   }
 }
 

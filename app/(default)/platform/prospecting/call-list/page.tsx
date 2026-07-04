@@ -5,9 +5,11 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getCallList, getPhoneQueue, getProspectDetail, type CallListRow } from '@/lib/services/prospecting'
+import { getUpcomingMeetings, formatMeetingTime } from '@/lib/services/prospect-meetings'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -23,7 +25,11 @@ export default async function CallListPage({
   if (ctx.tenantType !== 'platform' || !ctx.platformAdmin) redirect('/')
 
   const { highlight } = await searchParams
-  const [rows, phoneQueue] = await Promise.all([getCallList(), getPhoneQueue()])
+  const [rows, phoneQueue, meetings] = await Promise.all([
+    getCallList(),
+    getPhoneQueue(),
+    getUpcomingMeetings(),
+  ])
 
   // Just-demoed prospect (the End-demo redirect): pin them at the top for
   // outcome logging even when no intent signal has put them on the list yet.
@@ -64,6 +70,27 @@ export default async function CallListPage({
           </ActionButton>
         }
       />
+      {meetings.length > 0 && (
+        <div className="mb-6 rounded-xl border border-teal-500/30 bg-teal-500/5 p-4">
+          <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">📅 Booked demos</div>
+          <ul className="space-y-1.5">
+            {meetings.map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <Link
+                  href={`/platform/prospecting?prospect=${m.prospectId}`}
+                  className="font-medium text-gray-900 dark:text-gray-100 hover:text-teal-600 dark:hover:text-teal-400"
+                >
+                  {m.prospectName}
+                </Link>
+                <span className="tabular-nums text-gray-600 dark:text-gray-300">
+                  {formatMeetingTime(m.scheduledAt, m.hostTimeZone)}
+                  {m.attendeeEmail ? ` · ${m.attendeeEmail}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {pinned && (
         <div
           className="mb-6 rounded-xl ring-2 p-0.5"
