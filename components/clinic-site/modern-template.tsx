@@ -23,6 +23,7 @@ import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel
 import ServicePills from '@/components/clinic-site/service-pills'
 import TeamGallery from '@/components/clinic-site/team-gallery'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
+import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-site/google-rating-badge'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 
 /**
@@ -89,6 +90,10 @@ interface Props {
    *  loads these from the synced `platform_review` rows so Google stays the live
    *  source of truth (no copying into clinic_profile). Defaults to none. */
   featuredGoogleReviews?: ClinicTestimonial[]
+  /** The clinic's live Google rating (synced average + count) — the same
+   *  numbers that feed the JSON-LD AggregateRating. Surfaced as a star badge in
+   *  the hero when there are enough real reviews. Null/absent → no badge. */
+  googleRating?: { average: number | null; count: number } | null
 }
 
 /**
@@ -108,7 +113,7 @@ export function formatReviewCount(n: number): string {
   return `${Math.floor(n / 1000)}k+`
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false, featuredGoogleReviews = [] }: Props) {
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false, featuredGoogleReviews = [], googleRating = null }: Props) {
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -116,6 +121,12 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   // on the warm ground. Raw `brand` stays on backgrounds, borders, pills, and
   // SVG icon strokes (decorative accents); only text fills route through this.
   const headingInk = readableInk(brand)
+  // Live Google rating for the hero trust badge — shown only when the synced
+  // average exists AND there are enough real reviews to headline honestly.
+  const showGoogleRating =
+    googleRating != null &&
+    googleRating.average != null &&
+    googleRating.count >= GOOGLE_RATING_MIN_COUNT
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const heroImageUrl = profile.heroImageUrl ?? null
   // Full service list (drives the nav dropdowns); `services` stays capped at 6
@@ -409,6 +420,18 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   </a>
                 )}
               </div>
+              {/* Live Google rating — real synced stars right under the primary
+                  CTA, the conversion-critical trust moment. Honest-gated. */}
+              {showGoogleRating && (
+                <div className="mb-8 -mt-2">
+                  <GoogleRatingBadge
+                    average={googleRating!.average!}
+                    count={googleRating!.count}
+                    headingInk={headingInk}
+                    variant="hero"
+                  />
+                </div>
+              )}
               {/* Tertiary link — surfaces the "save my intake to my account"
                   flow without crowding the primary Book CTA. Always points
                   at the apex `www.` host (not `basePath`) because the rest

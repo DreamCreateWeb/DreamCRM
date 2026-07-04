@@ -120,6 +120,7 @@ export default async function ClinicSitePage({ params }: Props) {
         hasCareers={openJobs.length > 0}
         hasTeam={hasTeam}
         featuredGoogleReviews={featuredGoogleReviews}
+        googleRating={{ average: googleReviewStats.averageRating, count: googleReviewStats.count }}
       />
     </>
   )
