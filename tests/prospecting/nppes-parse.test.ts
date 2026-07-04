@@ -82,6 +82,70 @@ describe('normalizeNppesResult', () => {
   })
 })
 
+const RAW_NPI1 = {
+  number: 1987654320,
+  enumeration_type: 'NPI-1',
+  basic: {
+    first_name: 'JANE',
+    last_name: 'ROE',
+    credential: 'DDS',
+    status: 'A',
+  },
+  addresses: [
+    {
+      address_purpose: 'LOCATION',
+      address_1: '9 Elm St',
+      city: 'austin',
+      state: 'TX',
+      postal_code: '78701',
+      telephone_number: '(512) 555-9000',
+    },
+  ],
+  taxonomies: [{ code: '1223G0001X', desc: 'General Practice', primary: true }],
+}
+
+describe('normalizeNppesResult — NPI-1 solo dentists', () => {
+  it('names the individual "Dr. First Last, CRED" and makes them their own official', () => {
+    const r = normalizeNppesResult(RAW_NPI1)
+    expect(r).toMatchObject({
+      npiNumber: '1987654320',
+      name: 'Dr. Jane Roe, DDS',
+      city: 'austin',
+      state: 'TX',
+      phone: '5125559000',
+      taxonomyCode: '1223G0001X',
+      authorizedOfficialName: 'Jane Roe',
+      authorizedOfficialTitle: 'DDS',
+    })
+  })
+
+  it('title-cases names and defaults the title to DDS when no credential', () => {
+    const r = normalizeNppesResult({
+      ...RAW_NPI1,
+      basic: { first_name: 'bob', last_name: 'mcKAY', status: 'A' },
+    })
+    expect(r?.name).toBe('Dr. Bob Mckay')
+    expect(r?.authorizedOfficialTitle).toBe('DDS')
+  })
+
+  it('skips an individual with no first or last name', () => {
+    expect(
+      normalizeNppesResult({ ...RAW_NPI1, basic: { credential: 'DDS', status: 'A' } }),
+    ).toBeNull()
+  })
+
+  it('still requires a dental taxonomy for individuals', () => {
+    expect(
+      normalizeNppesResult({ ...RAW_NPI1, taxonomies: [{ code: '207Q00000X' }] }),
+    ).toBeNull()
+  })
+
+  it('treats a missing enumeration_type as an organization (default NPI-2 path)', () => {
+    // RAW has no enumeration_type — the org branch must still resolve org name.
+    expect(normalizeNppesResult(RAW)?.name).toBe('SMILE DENTAL PC')
+  })
+})
+
 describe('normalizePhone', () => {
   it('strips formatting and a leading country 1; rejects short numbers', () => {
     expect(normalizePhone('(404) 555-1212')).toBe('4045551212')

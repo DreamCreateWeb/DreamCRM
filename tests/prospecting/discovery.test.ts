@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
  * NPPES discovery engine — kill-switch/no-states gating, the page loop
- * (short page → task done), the zip3 → zip5 split at the NPPES skip cap,
- * error capture (task marked, run continues), and conflict-safe imports.
+ * (short page → phase flip → done), the two-phase org→individual (NPI-1)
+ * cursor, the zip3 → zip5 split at the NPPES skip cap, the idle-run
+ * self-heal that backfills the solo-dentist pass, error capture (task
+ * marked, run continues), and conflict-safe imports.
  */
 
 const state = {
@@ -54,6 +56,7 @@ vi.mock('@/lib/db', () => {
         _n: 'prospect_discovery_task',
         id: 'id', state: 'state', zipPrefix: 'zip', skip: 'skip',
         status: 'status', found: 'found', imported: 'imported', updatedAt: 'u',
+        entityPhase: 'entity_phase', error: 'error',
       },
     },
   }
@@ -86,7 +89,7 @@ const LIVE_CONFIG = {
 
 const TASK = {
   id: 'pdt_1', state: 'GA', zipPrefix: '303', skip: 0,
-  status: 'pending', found: 0, imported: 0, error: null,
+  status: 'pending', found: 0, imported: 0, error: null, entityPhase: 'org',
   createdAt: new Date(), updatedAt: new Date(),
 }
 
@@ -129,14 +132,17 @@ describe('runDiscovery gating', () => {
 })
 
 describe('runDiscovery paging', () => {
-  it('a short page finishes the task and imports its prospects', async () => {
+  it('a short page in the org phase flips to the individual (NPI-1) pass, not done', async () => {
     state.selectQueue.push([TASK]) // claimable tasks
     searchMock.mockResolvedValueOnce({ results: [org(1), org(2)], resultCount: 2 })
 
     const r = await runDiscovery()
     expect(r).toMatchObject({ tasksWorked: 1, found: 2, imported: 2, split: 0, errors: 0 })
     expect(searchMock).toHaveBeenCalledTimes(1)
-    expect(searchMock).toHaveBeenCalledWith({ state: 'GA', zipPrefix: '303', skip: 0 })
+    // The org pass queries NPI-2.
+    expect(searchMock).toHaveBeenCalledWith({
+      state: 'GA', zipPrefix: '303', skip: 0, enumerationType: 'NPI-2',
+    })
     // Prospect rows carry identity + tz.
     const prospectInsert = state.inserts.find((i) => i.table === 'prospect')
     expect(prospectInsert!.values[0]).toMatchObject({
@@ -145,12 +151,28 @@ describe('runDiscovery paging', () => {
       timezone: 'America/New_York',
       status: 'discovered',
     })
-    // Task closed out.
-    const done = state.updates.filter((u) => u.table === 'prospect_discovery_task').at(-1)
-    expect(done!.values).toMatchObject({ status: 'done', found: 2, imported: 2 })
+    // Org well dry → flip to the solo-dentist pass with a fresh cursor.
+    const last = state.updates.filter((u) => u.table === 'prospect_discovery_task').at(-1)
+    expect(last!.values).toMatchObject({
+      status: 'in_progress', entityPhase: 'individual', skip: 0, found: 2, imported: 2,
+    })
   })
 
-  it('splits a zip3 task into zip5-prefix children when the skip cap looms', async () => {
+  it('a short page in the individual phase finishes the task', async () => {
+    state.selectQueue.push([{ ...TASK, entityPhase: 'individual' }])
+    searchMock.mockResolvedValueOnce({ results: [org(3)], resultCount: 1 })
+
+    const r = await runDiscovery()
+    expect(r).toMatchObject({ tasksWorked: 1, imported: 1 })
+    // The individual pass queries NPI-1.
+    expect(searchMock).toHaveBeenCalledWith({
+      state: 'GA', zipPrefix: '303', skip: 0, enumerationType: 'NPI-1',
+    })
+    const last = state.updates.filter((u) => u.table === 'prospect_discovery_task').at(-1)
+    expect(last!.values).toMatchObject({ status: 'done', entityPhase: 'individual' })
+  })
+
+  it('splits a zip3 task into zip5-prefix children inheriting the current phase', async () => {
     state.selectQueue.push([{ ...TASK, skip: 1200 }])
     // Full page at skip=1200 → next skip 1400 > cap → split.
     searchMock.mockResolvedValueOnce({
@@ -166,8 +188,11 @@ describe('runDiscovery paging', () => {
     expect(children!.values.map((v) => v.zipPrefix)).toEqual([
       '3030', '3031', '3032', '3033', '3034', '3035', '3036', '3037', '3038', '3039',
     ])
-    const done = state.updates.filter((u) => u.table === 'prospect_discovery_task').at(-1)
-    expect(done!.values).toMatchObject({ status: 'done' })
+    // Children inherit the parent's org phase.
+    expect(children!.values.every((v) => v.entityPhase === 'org')).toBe(true)
+    // Parent org well is dry after the split → flip to the individual pass.
+    const last = state.updates.filter((u) => u.table === 'prospect_discovery_task').at(-1)
+    expect(last!.values).toMatchObject({ status: 'in_progress', entityPhase: 'individual' })
   })
 
   it('captures a task error without failing the run', async () => {
@@ -179,5 +204,25 @@ describe('runDiscovery paging', () => {
     expect(r).toMatchObject({ tasksWorked: 2, errors: 1, imported: 1 })
     const errored = state.updates.find((u) => u.values.status === 'error')
     expect(errored!.values.error).toContain('NPPES 503')
+  })
+})
+
+describe('runDiscovery idle-run self-heal', () => {
+  it('on an idle run, backfills the solo-dentist pass on already-done org tasks', async () => {
+    state.selectQueue.push([]) // no claimable tasks → idle run
+    searchMock.mockClear()
+
+    const r = await runDiscovery()
+    expect(r.tasksWorked).toBe(0)
+    expect(searchMock).not.toHaveBeenCalled()
+    // The idle block flips done/org tasks back to a pending individual pass.
+    const heal = state.updates.find(
+      (u) =>
+        u.table === 'prospect_discovery_task' &&
+        u.values.status === 'pending' &&
+        u.values.entityPhase === 'individual',
+    )
+    expect(heal).toBeTruthy()
+    expect(heal!.values).toMatchObject({ skip: 0 })
   })
 })

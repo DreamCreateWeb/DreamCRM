@@ -2276,6 +2276,33 @@ entityPhase — all three ship in P1). 3 phases.
    metered ai_reply_draft, cleared on outcome) surfaced as a copy-to-clipboard
    "✉️ Suggested reply" block on the call card ("you send from your own inbox
    — we never auto-send"). Settings watchdog tripped banner.
+3. **Phase 3 — More prey, full instruments**: NPI-1 solo-dentist discovery —
+   `normalizeNppesResult` is now mode-aware (an NPI-1 record has no org name;
+   the provider IS the practice → name "Dr. First Last, DDS", self as
+   authorized official), and `searchNppesOrgs` takes an `enumerationType`.
+   Discovery runs a single-row two-phase cursor on
+   `prospect_discovery_task.entity_phase`: the org pass (NPI-2) exhausts →
+   flip to the individual pass (NPI-1) with a fresh cursor (NOT done);
+   individual exhaustion → done; `splitTask` seeds zip5 children with the
+   current phase; the idle-run block self-heals states discovered before
+   NPI-1 by flipping done/org tasks back to pending/individual — so the whole
+   backlog gets the solo-dentist sweep with no migration. Roughly 3-4× the
+   discoverable universe. `getHuntStats` (shared by the digest + the cockpit):
+   last-24h sends/dry-run drafts, opens/clicks/replies, new call-list
+   arrivals, today's auto-enrolls, and the 3 hottest prospects. The daily hunt
+   DIGEST (`lib/services/prospecting-digest.ts`, pure builder + runner wired
+   into the daily-digest cron): one email to platform owner/admins —
+   "The hunt: 42 sent · 3 replies · 2 for your call list" — with the outreach
+   line, new call-list names + intent, auto-enroll count, a deliverability
+   health line, and the funnel snapshot; daily_digest_log idempotency; skips
+   quietly when nothing happened; toggle in Settings. Per-touch sequence stats
+   (`listSequencesWithStats`: each step gains sent/uniqueOpens/uniqueClicks,
+   the sequence gains replies + reply-rate) rendered in the editor
+   ("Touch 2 · day 3 — 120 sent · 38% open · 6% click", raw counts below 10
+   sent). And the hunt COCKPIT (`hunt-panel.tsx` above the funnel): last-24h
+   tiles + engine-status pills (engine on/off, dry-run vs LIVE, watchdog
+   healthy/TRIPPED, sender, hunter on) + a "hottest right now" list linking
+   straight to the call card.
 
 ## 2026-07-03 — Demo system all-in (the demo is a MIRROR)
 

@@ -13,8 +13,10 @@ import {
   getFunnelStats,
   getProspectingConfig,
   getProspectDetail,
+  getHuntStats,
 } from '@/lib/services/prospecting'
 import ProspectDrawer from './prospect-drawer'
+import HuntPanel from './hunt-panel'
 import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
@@ -93,14 +95,19 @@ export default async function ProspectingPage({
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list, detail] = await Promise.all([
+  const [config, funnel, list, detail, huntStats] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
     params.prospect ? getProspectDetail(params.prospect) : Promise.resolve(null),
+    getHuntStats(),
   ])
   const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize))
   const activeStates = config.enabledStates as UsState[]
+  const huntEnv = {
+    senderConfigured: Boolean(process.env.OUTREACH_EMAIL_FROM?.trim()),
+    gmailConfigured: Boolean(process.env.OUTREACH_GMAIL_ACCOUNT_ID?.trim()),
+  }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -132,6 +139,8 @@ export default async function ProspectingPage({
           </Link>
         </div>
       )}
+
+      {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} />}
 
       {/* Funnel */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">

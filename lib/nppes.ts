@@ -84,8 +84,30 @@ export function normalizeNppesResult(raw: unknown): NppesOrgResult | null {
   const basic = (r.basic ?? {}) as Record<string, unknown>
   // 'A' = active. Deactivated NPIs still appear in some queries — skip.
   if (str(basic.status) && basic.status !== 'A') return null
-  const name = str(basic.organization_name)
-  if (!name) return null
+
+  const isIndividual = (r.enumeration_type ?? '') === 'NPI-1'
+  // Individual (NPI-1) providers have first/last name, no organization_name.
+  // The provider IS the practice ("Dr. Jane Roe") and their own official.
+  let name: string | null
+  let authorizedOfficialName: string | null
+  let authorizedOfficialTitle: string | null
+  if (isIndividual) {
+    const first = titleCase(str(basic.first_name))
+    const last = titleCase(str(basic.last_name))
+    if (!first && !last) return null
+    const full = [first, last].filter(Boolean).join(' ')
+    const cred = str(basic.credential)?.replace(/\.$/, '')
+    name = `Dr. ${full}${cred ? `, ${cred}` : ''}`
+    authorizedOfficialName = full
+    authorizedOfficialTitle = cred ?? 'DDS'
+  } else {
+    name = str(basic.organization_name)
+    if (!name) return null
+    const first = str(basic.authorized_official_first_name)
+    const last = str(basic.authorized_official_last_name)
+    authorizedOfficialName = first || last ? [first, last].filter(Boolean).join(' ') : null
+    authorizedOfficialTitle = str(basic.authorized_official_title_or_position)
+  }
 
   const addresses = Array.isArray(r.addresses) ? (r.addresses as Array<Record<string, unknown>>) : []
   const location =
@@ -94,9 +116,6 @@ export function normalizeNppesResult(raw: unknown): NppesOrgResult | null {
   const taxonomies = Array.isArray(r.taxonomies) ? (r.taxonomies as Array<Record<string, unknown>>) : []
   const dental = taxonomies.find((t) => isDentalTaxonomy(t?.code))
   if (!dental) return null // API filter is fuzzy-text; enforce the code family
-
-  const first = str(basic.authorized_official_first_name)
-  const last = str(basic.authorized_official_last_name)
 
   return {
     npiNumber,
@@ -107,9 +126,19 @@ export function normalizeNppesResult(raw: unknown): NppesOrgResult | null {
     postalCode: str(location.postal_code)?.slice(0, 5) ?? null,
     phone: normalizePhone(location.telephone_number),
     taxonomyCode: str(dental.code),
-    authorizedOfficialName: first || last ? [first, last].filter(Boolean).join(' ') : null,
-    authorizedOfficialTitle: str(basic.authorized_official_title_or_position),
+    authorizedOfficialName,
+    authorizedOfficialTitle,
   }
+}
+
+/** "JANE" / "jane" → "Jane"; multi-token safe. */
+function titleCase(v: string | null): string | null {
+  if (!v) return null
+  return v
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 /**
@@ -122,10 +151,12 @@ export async function searchNppesOrgs(input: {
   state: string
   zipPrefix: string
   skip: number
+  /** 'NPI-2' orgs (default) or 'NPI-1' individual solo dentists. */
+  enumerationType?: 'NPI-2' | 'NPI-1'
 }): Promise<NppesSearchPage> {
   const params = new URLSearchParams({
     version: '2.1',
-    enumeration_type: 'NPI-2',
+    enumeration_type: input.enumerationType ?? 'NPI-2',
     taxonomy_description: 'Dentist',
     state: input.state,
     postal_code: input.zipPrefix.length >= 5 ? input.zipPrefix : `${input.zipPrefix}*`,

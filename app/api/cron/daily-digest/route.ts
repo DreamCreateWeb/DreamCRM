@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { runDailyDigest } from '@/lib/services/daily-digest'
+import { runProspectingDigest } from '@/lib/services/prospecting-digest'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,14 @@ async function run(request: Request) {
   }
   try {
     const result = await runDailyDigest()
-    return NextResponse.json({ ok: true, ...result })
+    // The platform's own hunt digest rides the same daily tick (separate
+    // recipients + content; best-effort so a clinic-digest hiccup and this
+    // never take each other down).
+    const prospecting = await runProspectingDigest().catch((err) => {
+      console.warn('[daily-digest] prospecting digest failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, prospecting })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

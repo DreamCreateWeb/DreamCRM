@@ -150,6 +150,21 @@ export async function updateAutoEnrollAction(input: unknown): Promise<void> {
   revalidatePath('/platform/prospecting/settings')
 }
 
+/** Toggle the daily hunt digest email. */
+export async function setDigestEnabledAction(on: boolean): Promise<void> {
+  await requirePlatformAdmin()
+  await updateProspectingConfig({ digest: { enabled: Boolean(on) } })
+  revalidatePath('/platform/prospecting/settings')
+}
+
+/** Toggle the deliverability watchdog. */
+export async function setWatchdogEnabledAction(on: boolean): Promise<void> {
+  await requirePlatformAdmin()
+  const config = await getProspectingConfig()
+  await updateProspectingConfig({ watchdog: { ...config.watchdog, enabled: Boolean(on) } })
+  revalidatePath('/platform/prospecting/settings')
+}
+
 /** Stop a prospect's live enrollment (prospect stays contactable later). */
 export async function stopEnrollmentAction(prospectId: string): Promise<void> {
   await requirePlatformAdmin()

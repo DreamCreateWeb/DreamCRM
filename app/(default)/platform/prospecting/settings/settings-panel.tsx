@@ -11,6 +11,8 @@ import {
   setDryRunAction,
   toggleStateAction,
   updateAutoEnrollAction,
+  setDigestEnabledAction,
+  setWatchdogEnabledAction,
 } from '../admin-actions'
 
 const SECTION = 'v2-card p-5 mb-5'
@@ -71,6 +73,8 @@ export default function SettingsPanel({
   const [dryRun, setDryRun] = useState(config.dryRun)
   const [states, setStates] = useState(new Set(config.enabledStates))
   const [autoEnroll, setAutoEnroll] = useState(config.autoEnroll)
+  const [watchdog, setWatchdog] = useState(config.watchdog.enabled)
+  const [digest, setDigest] = useState(config.digest.enabled)
 
   const progressByState = new Map(progress.map((p) => [p.state, p]))
 
@@ -189,6 +193,38 @@ export default function SettingsPanel({
               }
             />
           </label>
+        </div>
+      </section>
+
+      {/* Alerts & guard rails */}
+      <section className={SECTION}>
+        <div className={SECTION_TITLE}>Alerts &amp; guard rails</div>
+        <p className={SECTION_SUB}>
+          The watchdog auto-pauses live sending if bounces or complaints spike (protecting the
+          sending domain). The daily digest emails you a hunt summary — sends, replies, new call-list
+          entries — once a day.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Toggle
+            on={watchdog}
+            disabled={pending}
+            onChange={(next) => {
+              setWatchdog(next)
+              startTransition(() => setWatchdogEnabledAction(next))
+            }}
+            labelOn="Deliverability watchdog ON"
+            labelOff="Watchdog off"
+          />
+          <Toggle
+            on={digest}
+            disabled={pending}
+            onChange={(next) => {
+              setDigest(next)
+              startTransition(() => setDigestEnabledAction(next))
+            }}
+            labelOn="Daily hunt digest ON"
+            labelOff="Digest off"
+          />
         </div>
       </section>
 

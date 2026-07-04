@@ -73,11 +73,21 @@ async function insertProspects(results: NppesOrgResult[]): Promise<number> {
  *  '3030x' tasks are still prefixes: '30300'…'30309' would be full zip5s, so
  *  we use 4-digit prefixes '3030'…'3039' — NPPES wildcards allow any ≥2-char
  *  prefix). */
-async function splitTask(task: { id: string; state: string; zipPrefix: string }): Promise<number> {
+async function splitTask(task: {
+  id: string
+  state: string
+  zipPrefix: string
+  entityPhase: string
+}): Promise<number> {
   const children = Array.from({ length: 10 }, (_, i) => ({
     id: newId('pdt'),
     state: task.state,
     zipPrefix: `${task.zipPrefix}${i}`,
+    // Children inherit the CURRENT phase — a zip3 split mid-org-pass gives
+    // org children (which then run their own org→individual cycle); a split
+    // during the individual pass gives individual children (that zip space
+    // already finished its org pass at the parent level).
+    entityPhase: task.entityPhase,
     status: 'pending' as const,
   }))
   await db.insert(schema.prospectDiscoveryTask).values(children).onConflictDoNothing()
@@ -118,39 +128,56 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
       let skip = task.skip
       let found = task.found
       let imported = task.imported
-      let finished = false
+      let phaseExhausted = false // this phase's well is dry
+      const enumerationType = task.entityPhase === 'individual' ? 'NPI-1' : 'NPI-2'
 
       for (let page = 0; page < PAGES_PER_TASK; page++) {
         const { results, resultCount } = await searchNppesOrgs({
           state: task.state,
           zipPrefix: task.zipPrefix,
           skip,
+          enumerationType,
         })
         found += resultCount
         imported += await insertProspects(results)
         skip += NPPES_PAGE_SIZE
 
         if (resultCount < NPPES_PAGE_SIZE) {
-          finished = true // short page = the well is dry
+          phaseExhausted = true // short page = this phase is dry
           break
         }
         if (skip > NPPES_MAX_SKIP) {
           // Can't page further — split into zip5-prefix children (only
           // meaningful for zip3 tasks; a capped child just stops, which at
-          // 1,400 dental orgs per zip4 prefix would be unheard of).
+          // 1,400 dental providers per zip4 prefix would be unheard of).
           if (task.zipPrefix.length === 3) out.split += await splitTask(task)
-          finished = true
+          phaseExhausted = true
           break
+        }
+      }
+
+      // Phase transition: org exhausted → flip to the individual (solo
+      // dentist) pass with a fresh cursor; individual exhausted → done.
+      let nextPhase = task.entityPhase
+      let nextStatus: 'in_progress' | 'done' = 'in_progress'
+      let nextSkip = skip
+      if (phaseExhausted) {
+        if (task.entityPhase === 'org') {
+          nextPhase = 'individual'
+          nextSkip = 0
+        } else {
+          nextStatus = 'done'
         }
       }
 
       await db
         .update(schema.prospectDiscoveryTask)
         .set({
-          skip,
+          skip: nextSkip,
           found,
           imported,
-          status: finished ? 'done' : 'in_progress',
+          entityPhase: nextPhase,
+          status: nextStatus,
           error: null,
           updatedAt: new Date(),
         })
@@ -170,7 +197,10 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
     }
   }
 
-  // Errored tasks re-queue after the healthy backlog drains.
+  // Idle run (no workable tasks): re-queue errored tasks, and backfill the
+  // solo-dentist pass on states discovered before NPI-1 existed — flip any
+  // org-phase 'done' task back to a pending individual pass. Idempotent
+  // (flipped rows are 'individual' and never re-match).
   if (out.tasksWorked === 0) {
     await db
       .update(schema.prospectDiscoveryTask)
@@ -178,6 +208,16 @@ export async function runDiscovery(opts?: { maxTasks?: number }): Promise<Discov
       .where(
         and(
           eq(schema.prospectDiscoveryTask.status, 'error'),
+          inArray(schema.prospectDiscoveryTask.state, config.enabledStates),
+        ),
+      )
+    await db
+      .update(schema.prospectDiscoveryTask)
+      .set({ status: 'pending', entityPhase: 'individual', skip: 0, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.prospectDiscoveryTask.status, 'done'),
+          eq(schema.prospectDiscoveryTask.entityPhase, 'org'),
           inArray(schema.prospectDiscoveryTask.state, config.enabledStates),
         ),
       )

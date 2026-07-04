@@ -522,9 +522,12 @@ export interface SequenceWithTouches {
     subjectTemplate: string
     bodyTemplate: string
     aiPersonalize: boolean
+    stats: { sent: number; uniqueOpens: number; uniqueClicks: number }
   }>
   liveEnrollments: number
   totalSent: number
+  replies: number
+  replyRatePct: number | null
 }
 
 export async function listSequencesWithStats(): Promise<SequenceWithTouches[]> {
@@ -549,14 +552,74 @@ export async function listSequencesWithStats(): Promise<SequenceWithTouches[]> {
           inArray(schema.outreachEnrollment.status, ['active', 'paused_ooo']),
         ),
       )
-    const [sent] = await db
-      .select({ n: sqlCount() })
+    // Sent per step.
+    const sentByStep = await db
+      .select({ step: schema.outreachTouchLog.stepNumber, n: sqlCount() })
       .from(schema.outreachTouchLog)
       .innerJoin(
         schema.outreachEnrollment,
         eq(schema.outreachEnrollment.id, schema.outreachTouchLog.enrollmentId),
       )
-      .where(eq(schema.outreachEnrollment.sequenceId, seq.id))
+      .where(
+        and(
+          eq(schema.outreachEnrollment.sequenceId, seq.id),
+          eq(schema.outreachTouchLog.status, 'sent'),
+        ),
+      )
+      .groupBy(schema.outreachTouchLog.stepNumber)
+    // Unique opens/clicks per step (DISTINCT touch_log_id — 6 opens of one
+    // email count once).
+    const engByStep = await db
+      .select({
+        step: schema.outreachTouchLog.stepNumber,
+        type: schema.outreachEvent.type,
+        n: sql<number>`count(distinct ${schema.outreachEvent.touchLogId})::int`,
+      })
+      .from(schema.outreachEvent)
+      .innerJoin(
+        schema.outreachTouchLog,
+        eq(schema.outreachTouchLog.id, schema.outreachEvent.touchLogId),
+      )
+      .innerJoin(
+        schema.outreachEnrollment,
+        eq(schema.outreachEnrollment.id, schema.outreachTouchLog.enrollmentId),
+      )
+      .where(
+        and(
+          eq(schema.outreachEnrollment.sequenceId, seq.id),
+          inArray(schema.outreachEvent.type, ['open', 'click']),
+        ),
+      )
+      .groupBy(schema.outreachTouchLog.stepNumber, schema.outreachEvent.type)
+
+    const sentMap = new Map(sentByStep.map((r) => [r.step, r.n]))
+    const openMap = new Map(engByStep.filter((r) => r.type === 'open').map((r) => [r.step, r.n]))
+    const clickMap = new Map(engByStep.filter((r) => r.type === 'click').map((r) => [r.step, r.n]))
+    const totalSent = sentByStep.reduce((a, r) => a + r.n, 0)
+
+    // Sequence-level replies (reply events carry no step) + reply rate over
+    // enrollments that got at least one send.
+    const [replies] = await db
+      .select({ n: sql<number>`count(distinct ${schema.outreachEvent.prospectId})::int` })
+      .from(schema.outreachEvent)
+      .innerJoin(schema.outreachEnrollment, eq(schema.outreachEnrollment.prospectId, schema.outreachEvent.prospectId))
+      .where(
+        and(
+          eq(schema.outreachEnrollment.sequenceId, seq.id),
+          eq(schema.outreachEvent.type, 'reply'),
+        ),
+      )
+    const [enrolledWithSend] = await db
+      .select({ n: sql<number>`count(distinct ${schema.outreachTouchLog.enrollmentId})::int` })
+      .from(schema.outreachTouchLog)
+      .innerJoin(
+        schema.outreachEnrollment,
+        eq(schema.outreachEnrollment.id, schema.outreachTouchLog.enrollmentId),
+      )
+      .where(and(eq(schema.outreachEnrollment.sequenceId, seq.id), eq(schema.outreachTouchLog.status, 'sent')))
+    const denom = enrolledWithSend?.n ?? 0
+    const replyCount = replies?.n ?? 0
+
     out.push({
       id: seq.id,
       name: seq.name,
@@ -570,9 +633,16 @@ export async function listSequencesWithStats(): Promise<SequenceWithTouches[]> {
         subjectTemplate: t.subjectTemplate,
         bodyTemplate: t.bodyTemplate,
         aiPersonalize: t.aiPersonalize === 1,
+        stats: {
+          sent: sentMap.get(t.stepNumber) ?? 0,
+          uniqueOpens: openMap.get(t.stepNumber) ?? 0,
+          uniqueClicks: clickMap.get(t.stepNumber) ?? 0,
+        },
       })),
       liveEnrollments: live?.n ?? 0,
-      totalSent: sent?.n ?? 0,
+      totalSent,
+      replies: replyCount,
+      replyRatePct: denom > 0 ? Math.round((replyCount / denom) * 1000) / 10 : null,
     })
   }
   return out

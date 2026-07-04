@@ -202,15 +202,25 @@ Sidebar groups: **Daily** / **Growth** / **Website** / **Business** + a pinned
 **Platform tenant** (`lib/modules/platform.ts`): overview, clinics (+ managed
 provisioning + demo entry), client messaging, MRR/subscriptions (`/ecommerce/
 invoices`), **partners** (`/partners`), sales pipeline, **prospecting**
-(`/platform/prospecting` — Dream Create's own outbound engine: NPPES dental-
-clinic discovery → enrichment/scoring (incl. brand capture: theme-color,
-icon, site name) → AI outreach → call list → AI demo prep brief
-(`/platform/prospecting/demo/[id]`) → prospect-branded presenter mode
-(demo_skin cookie overlay, zero DB writes: chrome branding, 8-beat keyboard
-panel w/ per-prospect gap callouts, `/demo/compare` their-site-vs-ours in
-their brand color); schema `lib/db/schema/prospecting.ts` is
-platform-global, NO organizationId by design; ships behind kill switch +
-dry-run; say "prospect", never "lead"),
+(`/platform/prospecting` — Dream Create's own outbound engine, "The
+Hunter": NPPES discovery (two-phase org NPI-2 → solo-dentist NPI-1 cursor
+via `prospect_discovery_task.entity_phase`) → enrichment/scoring (incl.
+brand capture: theme-color, icon, site name) → segment-matched
+AUTO-ENROLLMENT (`lib/prospect-segment.ts`: no-website / weak-website /
+weak-presence → three pitch sequences; hottest-first, daily-capped, runs in
+dry-run) → AI drip outreach → reply intent classification → CALL LIST with
+instant bell+forced-email alerts + AI reply drafts (`prospect.reply_draft`)
+→ AI demo prep brief (`/platform/prospecting/demo/[id]`) → prospect-branded
+presenter mode (demo_skin cookie overlay, zero DB writes: chrome branding,
+8-beat keyboard panel w/ per-prospect gap callouts, `/demo/compare`
+their-site-vs-ours in their brand color). A deliverability WATCHDOG
+(`lib/prospect-deliverability.ts`, trailing-72h bounce/complaint) auto-pauses
+live sending to dry-run on a breach; a daily hunt DIGEST
+(`lib/services/prospecting-digest.ts`) + a hunt COCKPIT (`hunt-panel.tsx`,
+last-24h activity + engine status) surface the machine. Schema
+`lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
+design; ships behind kill switch + dry-run + auto-enroll-off; say
+"prospect", never "lead"),
 service library (`/platform/service-library`), platform blog, developer,
 settings.
 
@@ -321,7 +331,7 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0114**. Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0118**. Workflow: `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime

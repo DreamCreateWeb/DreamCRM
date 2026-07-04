@@ -43,6 +43,23 @@ function TouchCard({ touch }: { touch: SequenceWithTouches['touches'][number] })
               ✨ AI-personalized
             </span>
           )}
+          {touch.stats.sent > 0 && (
+            <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400 tabular-nums">
+              · {touch.stats.sent} sent
+              {touch.stats.sent >= 10 ? (
+                <>
+                  {' '}
+                  · {Math.round((touch.stats.uniqueOpens / touch.stats.sent) * 100)}% open ·{' '}
+                  {Math.round((touch.stats.uniqueClicks / touch.stats.sent) * 100)}% click
+                </>
+              ) : (
+                <>
+                  {' '}
+                  · {touch.stats.uniqueOpens} opens · {touch.stats.uniqueClicks} clicks
+                </>
+              )}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {saved && <span className="text-xs text-teal-600 dark:text-teal-400">Saved</span>}
@@ -149,7 +166,9 @@ export default function SequenceEditor({ sequence }: { sequence: SequenceWithTou
         {sequence.description}
         {' · '}
         <span className="tabular-nums">{sequence.liveEnrollments}</span> live ·{' '}
-        <span className="tabular-nums">{sequence.totalSent}</span> touches sent
+        <span className="tabular-nums">{sequence.totalSent}</span> touches sent ·{' '}
+        <span className="tabular-nums">{sequence.replies}</span> replies
+        {sequence.replyRatePct != null && ` (${sequence.replyRatePct}%)`}
         {status === 'paused' &&
           ' — paused: enrollments hold in place and resume exactly where they stood.'}
       </p>

@@ -318,6 +318,90 @@ export async function suppressProspect(
     )
 }
 
+export interface HuntStats {
+  sinceIso: string
+  sent24h: number
+  dryRun24h: number
+  opens24h: number
+  clicks24h: number
+  replies24h: number
+  newCallList24h: number
+  autoEnrolledToday: number
+  hottest: Array<{
+    id: string
+    name: string
+    status: string
+    intentSignal: string | null
+    intentSummary: string | null
+    intentAt: Date | null
+  }>
+}
+
+/** Last-24h hunt activity for the cockpit panel + the daily digest. */
+export async function getHuntStats(opts?: { now?: Date }): Promise<HuntStats> {
+  const now = opts?.now ?? new Date()
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+  const touchRows = await db
+    .select({ channel: schema.outreachTouchLog.channel, n: sql<number>`count(*)::int` })
+    .from(schema.outreachTouchLog)
+    .where(sql`${schema.outreachTouchLog.sentAt} >= ${since}`)
+    .groupBy(schema.outreachTouchLog.channel)
+  const sent24h = touchRows
+    .filter((r) => r.channel === 'resend' || r.channel === 'gmail')
+    .reduce((a, r) => a + r.n, 0)
+  const dryRun24h = touchRows.filter((r) => r.channel === 'dry_run').reduce((a, r) => a + r.n, 0)
+
+  const eventRows = await db
+    .select({ type: schema.outreachEvent.type, n: sql<number>`count(*)::int` })
+    .from(schema.outreachEvent)
+    .where(sql`${schema.outreachEvent.occurredAt} >= ${since}`)
+    .groupBy(schema.outreachEvent.type)
+  const ev = (t: string) => eventRows.find((r) => r.type === t)?.n ?? 0
+
+  const [callListRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(
+      and(
+        eq(schema.prospect.status, 'call_list'),
+        sql`${schema.prospect.intentAt} >= ${since}`,
+      ),
+    )
+
+  const autoEnrolledToday = await getProspectingCounter(counterDay(now), 'auto_enroll')
+
+  const hottest = await db
+    .select({
+      id: schema.prospect.id,
+      name: schema.prospect.name,
+      status: schema.prospect.status,
+      intentSignal: schema.prospect.intentSignal,
+      intentSummary: schema.prospect.intentSummary,
+      intentAt: schema.prospect.intentAt,
+    })
+    .from(schema.prospect)
+    .where(inArray(schema.prospect.status, ['call_list', 'engaged']))
+    // call_list first (a reply beats an open), then freshest intent.
+    .orderBy(
+      sql`CASE WHEN ${schema.prospect.status} = 'call_list' THEN 0 ELSE 1 END`,
+      desc(schema.prospect.intentAt),
+    )
+    .limit(3)
+
+  return {
+    sinceIso: since.toISOString(),
+    sent24h,
+    dryRun24h,
+    opens24h: ev('open'),
+    clicks24h: ev('click'),
+    replies24h: ev('reply'),
+    newCallList24h: callListRow?.n ?? 0,
+    autoEnrolledToday,
+    hottest,
+  }
+}
+
 export interface CallListRow {
   id: string
   name: string
