@@ -2240,7 +2240,18 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-04 (latest) — Prospecting daily workspace F1: the morning briefing
+## 2026-07-04 (latest) — Prospecting daily workspace F6: never-drop-a-lead follow-ups
+
+A logged call outcome that isn't terminal now schedules the next nudge:
+callback → +1 day, voicemail/no-answer → +2 days (pure `followUpForOutcome`,
+migration 0121 adds `prospect.next_follow_up_at` + `follow_up_reason`);
+terminal outcomes (demo_booked/won/not_interested) clear it. `getDueFollowUps`
+surfaces what's now due, and the daily briefing gives it a prominent amber
+strip + moves it high in the next-action ladder (a promised callback beats
+fresh hand-raisers). So a warm prospect can't go cold because a follow-up
+slipped. Cadence + due-label + the ladder branch are unit-tested.
+
+## 2026-07-04 — Prospecting daily workspace F1: the morning briefing
 
 Turning the prospecting home into a daily sales cockpit. `getDailyBriefing`
 (a thin aggregator over the existing call-list / meetings / phone-queue reads

@@ -117,6 +117,13 @@ export const prospect = pgTable(
     // (scoring input). Migration 0117.
     demoBrief: jsonb('demo_brief'),
 
+    // Never-drop-a-lead follow-up: a call outcome that isn't terminal
+    // (callback/voicemail/no answer) schedules the next nudge here; it surfaces
+    // as "due" in the briefing + call list and clears on the next outcome or a
+    // conversion. Migration 0121.
+    nextFollowUpAt: timestamp('next_follow_up_at', { withTimezone: true }),
+    followUpReason: text('follow_up_reason'),
+
     suppressedReason: text('suppressed_reason'),
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
 

@@ -14,6 +14,8 @@ export interface BriefingSignals {
   demosToday: number
   firstDemoName: string | null
   firstDemoWhen: string | null
+  dueFollowUpCount: number
+  topFollowUpName: string | null
   callFirstCount: number
   topCallName: string | null
   phoneQueueCount: number
@@ -45,6 +47,16 @@ export function chooseNextAction(s: BriefingSignals): NextAction {
       sub: s.firstDemoName
         ? `First up: ${s.firstDemoName}${s.firstDemoWhen ? ` at ${s.firstDemoWhen}` : ''}. Open the prep brief before the call.`
         : 'Open the prep brief before the call.',
+      href: '/platform/prospecting/call-list',
+    }
+  }
+  if (s.dueFollowUpCount > 0) {
+    return {
+      icon: '⏰',
+      headline: `${s.dueFollowUpCount} follow-up${s.dueFollowUpCount === 1 ? '' : 's'} due`,
+      sub: s.topFollowUpName
+        ? `You said you'd circle back with ${s.topFollowUpName}. Don't let it drop.`
+        : 'You committed to circle back on these — keep the promise while they’re warm.',
       href: '/platform/prospecting/call-list',
     }
   }

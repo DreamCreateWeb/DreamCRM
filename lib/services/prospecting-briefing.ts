@@ -6,8 +6,10 @@ import {
   getCallList,
   getPhoneQueue,
   getRecentHotArrivals,
+  getDueFollowUps,
   type CallListRow,
   type PhoneQueueRow,
+  type DueFollowUpRow,
 } from './prospecting'
 import { getUpcomingMeetings, formatMeetingTime } from './prospect-meetings'
 
@@ -28,6 +30,8 @@ export interface BriefingDemo {
 export interface DailyBriefing {
   nextAction: NextAction
   todaysDemos: BriefingDemo[]
+  dueFollowUps: DueFollowUpRow[]
+  dueFollowUpTotal: number
   callFirst: CallListRow[]
   callListTotal: number
   phoneQueueTop: PhoneQueueRow[]
@@ -39,11 +43,12 @@ export interface DailyBriefing {
 export async function getDailyBriefing(opts?: { now?: Date }): Promise<DailyBriefing> {
   const now = opts?.now ?? new Date()
   const config = await getProspectingConfig()
-  const [callList, meetings, phoneQueue, overnightHot] = await Promise.all([
+  const [callList, meetings, phoneQueue, overnightHot, dueFollowUps] = await Promise.all([
     getCallList(),
     getUpcomingMeetings(20, now),
     getPhoneQueue(50),
     getRecentHotArrivals({ now, sinceHours: 24, limit: 5 }),
+    getDueFollowUps({ now, limit: 50 }),
   ])
 
   const hostTz = config.booking.hostTimeZone
@@ -69,6 +74,8 @@ export async function getDailyBriefing(opts?: { now?: Date }): Promise<DailyBrie
     demosToday: todaysDemos.length,
     firstDemoName: todaysDemos[0]?.name ?? null,
     firstDemoWhen: todaysDemos[0]?.when ?? null,
+    dueFollowUpCount: dueFollowUps.length,
+    topFollowUpName: dueFollowUps[0]?.name ?? null,
     callFirstCount: callList.length,
     topCallName: callFirst[0]?.name ?? null,
     phoneQueueCount: phoneQueue.length,
@@ -81,6 +88,8 @@ export async function getDailyBriefing(opts?: { now?: Date }): Promise<DailyBrie
   return {
     nextAction,
     todaysDemos,
+    dueFollowUps: dueFollowUps.slice(0, 5),
+    dueFollowUpTotal: dueFollowUps.length,
     callFirst,
     callListTotal: callList.length,
     phoneQueueTop: phoneQueue.slice(0, 3),

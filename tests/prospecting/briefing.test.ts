@@ -11,6 +11,8 @@ const base: BriefingSignals = {
   demosToday: 0,
   firstDemoName: null,
   firstDemoWhen: null,
+  dueFollowUpCount: 0,
+  topFollowUpName: null,
   callFirstCount: 0,
   topCallName: null,
   phoneQueueCount: 0,
@@ -32,6 +34,13 @@ describe('chooseNextAction', () => {
     expect(a.headline).toMatch(/demo today/i)
     expect(a.sub).toContain('Bright Smiles')
     expect(a.sub).toContain('2:00 PM')
+  })
+
+  it('a due follow-up (a promise) beats fresh hand-raisers', () => {
+    const a = chooseNextAction({ ...base, dueFollowUpCount: 2, topFollowUpName: 'Dr. Kim', callFirstCount: 5 })
+    expect(a.headline).toMatch(/follow-up/i)
+    expect(a.sub).toContain('Dr. Kim')
+    expect(a.icon).toBe('⏰')
   })
 
   it('warm hand-raisers beat cold calls', () => {

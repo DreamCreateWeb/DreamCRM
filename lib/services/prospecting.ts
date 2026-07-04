@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
@@ -10,6 +10,7 @@ import {
   type ProspectListRow,
 } from '@/lib/types/prospecting'
 import { stateZip3Prefixes } from '@/lib/types/us-geo'
+import { followUpForOutcome } from '@/lib/prospect-followup'
 
 /**
  * Prospecting core — Dream Create's own outbound growth engine. Queries,
@@ -513,6 +514,48 @@ export async function getPhoneQueue(limit = 100): Promise<PhoneQueueRow[]> {
   }))
 }
 
+export interface DueFollowUpRow {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  reason: string | null
+  nextFollowUpAt: Date
+  status: string
+  intentSummary: string | null
+}
+
+/**
+ * Prospects whose scheduled follow-up is now due — a callback promised, a
+ * voicemail to circle back on. Excludes terminal states so a converted/dead
+ * prospect never nags. Freshest-due first (most overdue at the top).
+ */
+export async function getDueFollowUps(opts?: { now?: Date; limit?: number }): Promise<DueFollowUpRow[]> {
+  const now = opts?.now ?? new Date()
+  const rows = await db
+    .select()
+    .from(schema.prospect)
+    .where(
+      and(
+        isNotNull(schema.prospect.nextFollowUpAt),
+        sql`${schema.prospect.nextFollowUpAt} <= ${now}`,
+        inArray(schema.prospect.status, ['contacted', 'engaged', 'call_list', 'enriched', 'queued']),
+      ),
+    )
+    .orderBy(asc(schema.prospect.nextFollowUpAt))
+    .limit(opts?.limit ?? 50)
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    phone: p.phone,
+    email: p.email,
+    reason: p.followUpReason,
+    nextFollowUpAt: p.nextFollowUpAt as Date,
+    status: p.status,
+    intentSummary: p.intentSummary,
+  }))
+}
+
 /** New hot prospects that got enriched in the trailing window — the
  *  "entered overnight" line in the daily briefing. */
 export async function getRecentHotArrivals(
@@ -557,10 +600,18 @@ export async function logCallOutcome(input: {
     calledByUserId: input.calledByUserId ?? null,
   })
   // A logged call means the owner has handled the thread — the AI reply
-  // draft is stale, clear it.
+  // draft is stale, clear it. Non-terminal outcomes (callback/voicemail/
+  // no-answer) also schedule the next follow-up so the lead never drops;
+  // terminal ones clear it.
+  const plan = followUpForOutcome(input.outcome, new Date())
   await db
     .update(schema.prospect)
-    .set({ replyDraft: null, updatedAt: new Date() })
+    .set({
+      replyDraft: null,
+      nextFollowUpAt: plan.at,
+      followUpReason: plan.reason,
+      updatedAt: new Date(),
+    })
     .where(eq(schema.prospect.id, input.prospectId))
   if (input.outcome === 'not_interested') {
     await db
