@@ -16,6 +16,7 @@ import {
   suppressProspect,
 } from '@/lib/services/prospecting'
 import { US_STATES } from '@/lib/types/us-geo'
+import type { CopilotResponse } from '@/lib/prospect-copilot'
 
 async function requirePlatformAdmin() {
   const ctx = await requireTenant()
@@ -176,10 +177,29 @@ export async function updateBrainAction(input: unknown): Promise<void> {
   revalidatePath('/platform/prospecting/settings')
 }
 
+/** The hunt copilot: answer a natural-language question about the engine and
+ *  suggest (never run) fitting actions. Read-only + budget-metered. */
+export async function copilotAction(query: unknown): Promise<CopilotResponse> {
+  await requirePlatformAdmin()
+  const q = typeof query === 'string' ? query.slice(0, 2000) : ''
+  const { runCopilot } = await import('@/lib/services/prospect-copilot')
+  return runCopilot(q)
+}
+
 /** Toggle the daily hunt digest email. */
 export async function setDigestEnabledAction(on: boolean): Promise<void> {
   await requirePlatformAdmin()
   await updateProspectingConfig({ digest: { enabled: Boolean(on) } })
+  revalidatePath('/platform/prospecting/settings')
+}
+
+/** Flip auto-enroll on/off while preserving the chosen bands + daily cap —
+ *  the one-click form the copilot's suggested action uses. */
+export async function setHunterEnabledAction(on: boolean): Promise<void> {
+  await requirePlatformAdmin()
+  const config = await getProspectingConfig()
+  await updateProspectingConfig({ autoEnroll: { ...config.autoEnroll, enabled: Boolean(on) } })
+  revalidatePath('/platform/prospecting')
   revalidatePath('/platform/prospecting/settings')
 }
 

@@ -7,6 +7,27 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Prospecting workspace F2 — the hunt copilot (natural-language command bar)
+  (2026-07-04).** A ⌘J command bar on `/platform/prospecting` that answers
+  free-text questions about the hunt ("how's today going", "who to call first",
+  "why isn't anything sending", "how many hot prospects") grounded in a live
+  snapshot, and SUGGESTS engine actions the owner clicks to run. Safety spine:
+  the AI never mutates from free text — it returns an answer + up to 3 suggested
+  actions drawn from a closed registry (`COPILOT_ACTIONS`: engine on/off, live/
+  dry-run, hunter on/off, and four navigations); the higher-stakes flips
+  (engine-off, go-live) confirm before running. Pure `lib/prospect-copilot.ts`
+  owns the contract, the action registry, the snapshot renderer, the prompt
+  builder, and a tolerant `parseCopilotResponse` (drops unknown/duplicate kinds,
+  caps at 3, falls back to the registry label). Server `lib/services/prospect-
+  copilot.ts#runCopilot` assembles the snapshot from existing reads (config +
+  `getFunnelStats` + `getHuntStats` + new `getBandCounts` + `getDailyBriefing` +
+  env wiring), calls haiku (budget-metered as `ai_copilot`), and degrades to a
+  plain honest fallback on any failure. `copilotAction` (platform-admin-gated,
+  read-only) + `setHunterEnabledAction` back the bar; `copilot-bar.tsx` is the
+  modal (⌘J / click, suggestion chips, action buttons, "never sends on its own"
+  footer). No migration. Tests cover the snapshot render, prompt assembly, and
+  the tolerant parser's drop/cap/fallback paths.
+
 - **Prospecting workspace F3 — the editable "brain" + competitor battle cards
   (2026-07-04).** The whole outbound engine's product knowledge was hard-coded in
   `lib/prospect-product-knowledge.ts` (`PRODUCT_KNOWLEDGE` / `_SHORT`). This makes

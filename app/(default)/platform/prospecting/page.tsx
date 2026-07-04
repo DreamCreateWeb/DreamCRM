@@ -19,6 +19,7 @@ import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
 import ProspectDrawer from './prospect-drawer'
 import HuntPanel from './hunt-panel'
 import DailyBriefing from './daily-briefing'
+import CopilotBar from './copilot-bar'
 import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
@@ -120,6 +121,7 @@ export default async function ProspectingPage({
         subtitle="Every dental clinic we can find, scored by how much they need us. Hot prospects get outreach; intent lands them on your call list."
         actions={
           <div className="flex items-center gap-2">
+            <CopilotBar />
             <ActionButton href="/platform/prospecting/call-list" variant={funnel.callList > 0 ? 'primary' : 'secondary'}>
               📞 Call list{funnel.callList > 0 ? ` (${funnel.callList - funnel.converted})` : ''}
             </ActionButton>

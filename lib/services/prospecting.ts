@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
@@ -191,6 +191,25 @@ export async function getFunnelStats(): Promise<ProspectFunnelStats> {
   const enriched = sum(['enriched', 'queued']) + contacted
   const discovered = sum(['discovered', 'enriching', 'disqualified']) + enriched
   return { discovered, enriched, contacted, engaged, callList, converted }
+}
+
+/** Live-pool score-band counts (enriched-and-later prospects) — grounds the
+ *  copilot's "how many hot prospects" answers. Excludes discovered/enriching
+ *  (unscored) and terminal statuses. */
+export async function getBandCounts(): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ band: schema.prospect.scoreBand, n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(
+      and(
+        isNotNull(schema.prospect.scoreBand),
+        notInArray(schema.prospect.status, ['discovered', 'enriching', 'disqualified', 'suppressed']),
+      ),
+    )
+    .groupBy(schema.prospect.scoreBand)
+  const out: Record<string, number> = { hot: 0, warm: 0, cool: 0, low: 0 }
+  for (const r of rows) if (r.band) out[r.band] = r.n
+  return out
 }
 
 export async function getDiscoveryProgress(): Promise<
