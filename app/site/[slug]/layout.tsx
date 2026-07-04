@@ -105,6 +105,13 @@ export default async function ClinicSiteLayout({
            automatically via UA stylesheet. Scoped to the public clinic
            layout — won't leak into the authenticated dashboard. */
         html { scroll-behavior: smooth; }
+        /* Studio-only affordances ("+ Add a photo", "+ Add your services")
+           are hidden for every public visitor. This rule MUST live here in
+           the always-served layout — the Website Studio's EditBridge, which
+           flips them visible via .dc-edit-mode, only mounts for an editing
+           owner/admin, so relying on its copy of this rule leaked the
+           prompts to real patients on day-0 sites. */
+        .dc-edit-only { display: none; }
       `}</style>
       {children}
       {orgId && <SiteViewBeacon orgId={orgId} slug={slug} />}

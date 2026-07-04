@@ -218,7 +218,7 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
         type="submit"
         disabled={status === 'pending'}
         className="w-full px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-60"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
       >
         {status === 'pending' ? 'Sending…' : 'Check insurance'}
       </button>

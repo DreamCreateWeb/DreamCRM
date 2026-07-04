@@ -7,6 +7,31 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Clinic site enhancement 1 — hero elevation + brand-strong CTAs + the
+  dc-edit-only public leak (2026-07-04).** First slice of the public-template
+  polish push, driven by a new visual-QA loop (render the template with demo
+  data + built Tailwind CSS → headless-Chromium screenshots — the harness stays
+  uncommitted). **Hero:** CSS-only load choreography (staggered fade-rise on
+  eyebrow/lead/CTAs/rating/intake/H2; TRANSFORM-ONLY settle on the H1 + oval
+  portraits so LCP paints at full opacity from frame one; all gated behind
+  prefers-reduced-motion: no-preference), a ~8%-alpha radial brand wash bleeding
+  from the top edge, a hairline inner ring on every OvalPortrait (photos no
+  longer bleed into the cream ground), and the primary Book CTA gained a
+  brand-tinted glow + hover-lift/press states. **Copy seam:** the hero lead-in
+  composed "…unhurried. with no judgment, ever." (firstSentence keeps its
+  period) — now strips terminal punctuation and joins with an em dash.
+  **brandStrong (systemic):** new palette role — the brand darkened ONLY until
+  white clears AA 4.5 (dark brands pass through verbatim; the sage default
+  deepens) — and ~35 white-text-on-raw-brand fills across the template, header,
+  footer monogram, chat widget, mobile actions, closing CTA, book/membership/
+  services/blog/insurance surfaces now paint `var(--c-brand-strong, brand)`;
+  `darkenUntilWhiteReadable` iteration cap raised 24→48 so a near-white brand
+  can descend far enough. **Leak fix:** `.dc-edit-only{display:none}` lived only
+  in the Studio's EditBridge bundle, which never mounts publicly — day-0 sites
+  showed "+ Add a photo"/"+ Add your services" prompts to real patients; the
+  rule now ships in the always-served site layout. Tests: brandStrong AA floor
+  across the full brand matrix + pass-through/deepen cases.
+
 - **Prospecting copilot v2 — whole-workspace awareness + per-prospect answers
   (2026-07-04).** The ⌘J hunt copilot now sees the features that landed after
   it. Its snapshot gained a WIN/LOSS block (won/lost/win-rate, top loss reason,

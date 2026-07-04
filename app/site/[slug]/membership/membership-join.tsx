@@ -140,7 +140,7 @@ export default function MembershipJoin({ slug, brand, plans }: { slug: string; b
           <input type="tel" inputMode="tel" autoComplete="tel" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className={FIELD} style={fieldStyle} />
         </div>
         {error && <p className="text-[14px] text-rose-600 mt-3">{error}</p>}
-        <button disabled={busy} onClick={join} className="w-full mt-4 text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60 transition hover:opacity-95" style={{ backgroundColor: brand }}>
+        <button disabled={busy} onClick={join} className="w-full mt-4 text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60 transition hover:opacity-95" style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}>
           {busy ? 'Redirecting to secure checkout…' : 'Join & set up payment'}
         </button>
         <p className="text-[12px] text-center mt-3" style={{ color: INK_MUTED }}>

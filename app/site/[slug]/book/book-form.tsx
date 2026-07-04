@@ -204,7 +204,7 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
     <div className="text-center py-12 sm:py-14">
       <div
         className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-        style={{ backgroundColor: brand + '22' }}
+        style={{ backgroundColor: `var(--c-brand-strong, ${brand})` + '22' }}
       >
         <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -279,7 +279,7 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
           <a
             href={c.intakeFormUrl}
             className="w-full min-h-[48px] inline-flex items-center justify-center px-5 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95"
-            style={{ backgroundColor: brand }}
+            style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
           >
             Fill out your intake form now
           </a>
@@ -466,7 +466,7 @@ export default function BookForm({
       {!windowHasAvailability && clinicPhone && (
         <section
           className="rounded-2xl p-5 sm:p-6 text-center"
-          style={{ backgroundColor: brand + '12', border: `1px solid ${brand}40` }}
+          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` + '12', border: `1px solid ${brand}40` }}
         >
           <p className="text-base font-semibold mb-1" style={{ color: INK }}>
             No online openings right now.
@@ -479,7 +479,7 @@ export default function BookForm({
           <a
             href={`tel:${clinicPhone}`}
             className="inline-flex items-center justify-center min-h-[48px] px-6 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95"
-            style={{ backgroundColor: brand }}
+            style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
           >
             Call us at {clinicPhone}
           </a>
@@ -756,7 +756,7 @@ export default function BookForm({
           type="submit"
           disabled={submitState === 'pending' || submitState === 'redirecting' || !selectedSlotIso}
           className="w-full py-4 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: brand }}
+          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
         >
           {submitState === 'redirecting'
             ? 'Taking you to secure payment…'

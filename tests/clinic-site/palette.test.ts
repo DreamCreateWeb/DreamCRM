@@ -64,8 +64,23 @@ describe('buildClinicPalette — readability floor (every brand a clinic can pic
       expect(contrast(p.stripInk, p.strip), 'ink on strip').toBeGreaterThanOrEqual(4.5)
       expect(contrast(p.brandInk, p.brand), 'label on brand').toBeGreaterThanOrEqual(4.5)
       expect(contrast(p.brandSoftInk, p.brandSoft), 'ink on soft wash').toBeGreaterThanOrEqual(4.5)
+      // Solid CTA fill: WHITE must clear AA on brandStrong for every brand —
+      // this is the role every "Book a Visit" button paints.
+      expect(contrast('#FFFFFF', p.brandStrong), 'white on brandStrong').toBeGreaterThanOrEqual(4.5)
     })
   }
+})
+
+describe('buildClinicPalette — brandStrong (solid CTA fill)', () => {
+  it('passes an already-dark brand through verbatim', () => {
+    // Forest teal: white on it already clears 4.5 → no drift.
+    expect(buildClinicPalette('#36514c').brandStrong).toBe('#36514c')
+  })
+  it('deepens a pale brand (the sage default) until white is readable', () => {
+    const p = buildClinicPalette('#9CAF9F')
+    expect(p.brandStrong).not.toBe('#9CAF9F')
+    expect(contrast('#FFFFFF', p.brandStrong)).toBeGreaterThanOrEqual(4.5)
+  })
 })
 
 describe('buildClinicPalette — roles preserved across brands', () => {

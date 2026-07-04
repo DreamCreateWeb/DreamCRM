@@ -286,7 +286,7 @@ export default async function StaffDetailPage({ params }: Props) {
                   <a
                     href={bookHref}
                     className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                    style={{ backgroundColor: brand }}
+                    style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
                   >
                     {bookLabel}
                   </a>

@@ -64,7 +64,7 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
       <div className="text-center py-12 sm:py-14">
         <div
           className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-          style={{ backgroundColor: brand + '22' }}
+          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` + '22' }}
         >
           <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -182,7 +182,7 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
         type="submit"
         disabled={status === 'pending'}
         className="w-full py-4 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
       >
         {status === 'pending' ? 'Sending…' : 'Send request'}
       </button>

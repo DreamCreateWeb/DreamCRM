@@ -334,6 +334,49 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           Mobile collapses to a centered single column; a horizontal
           photo scroll appears below the text instead. */}
       <section className="relative overflow-hidden pt-12 pb-16 sm:pt-16 sm:pb-20 lg:pt-20 lg:pb-24">
+        {/* Load-time hero choreography — CSS-only so it stays a server render.
+            LCP-safe by construction: the H1 and the portrait photos animate
+            TRANSFORM ONLY (painted at full opacity from the first frame); the
+            opacity fades live on the small supporting elements. Everything is
+            gated behind prefers-reduced-motion: no-preference, so reduced-
+            motion users get the static hero. */}
+        <style>{`
+          @media (prefers-reduced-motion: no-preference) {
+            @keyframes dc-hero-rise {
+              from { opacity: 0; transform: translate3d(0, 14px, 0); }
+              to   { opacity: 1; transform: translate3d(0, 0, 0); }
+            }
+            @keyframes dc-hero-settle {
+              from { transform: translate3d(0, 12px, 0); }
+              to   { transform: translate3d(0, 0, 0); }
+            }
+            @keyframes dc-hero-photo-in {
+              from { transform: translate3d(0, 16px, 0) scale(0.975); }
+              to   { transform: translate3d(0, 0, 0) scale(1); }
+            }
+            .dc-hr { animation: dc-hero-rise 640ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+            .dc-hr-1 { animation-delay: 60ms; }
+            .dc-hr-2 { animation-delay: 140ms; }
+            .dc-hr-3 { animation-delay: 220ms; }
+            .dc-hr-4 { animation-delay: 300ms; }
+            .dc-hr-5 { animation-delay: 360ms; }
+            .dc-hr-6 { animation-delay: 430ms; }
+            .dc-hr-t { animation: dc-hero-settle 720ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+            .dc-hero-photo { animation: dc-hero-photo-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+            .dc-hero-photo-r { animation-delay: 120ms; }
+          }
+        `}</style>
+        {/* Soft brand wash behind the hero — a whisper of the clinic's color
+            bleeding down from the top edge so the opening feels lit, not flat.
+            ~8% alpha over the cream ground: decorative only, zero contrast
+            impact on the text that sits over it. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-[520px] pointer-events-none"
+          style={{
+            background: `radial-gradient(62% 62% at 50% 0%, ${brand}14 0%, transparent 72%)`,
+          }}
+        />
         <div className="relative max-w-[1400px] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-[1fr_minmax(0,640px)_1fr] gap-6 lg:gap-10 items-center">
             {/* LEFT photo — breakout to ~35% viewport, soft asymmetric oval */}
@@ -346,6 +389,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 editField="heroImageUrl"
                 position={imagePositions['heroImageUrl']}
                 priority
+                className="dc-hero-photo"
               />
             </div>
 
@@ -353,7 +397,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 breathing room. */}
             <div className="text-center max-w-[640px] mx-auto">
               <p
-                className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.22em] mb-5 sm:mb-6 flex items-center justify-center gap-2 flex-wrap"
+                className="dc-hr dc-hr-1 text-[12px] sm:text-[13px] font-semibold uppercase tracking-[0.22em] mb-5 sm:mb-6 flex items-center justify-center gap-2 flex-wrap"
                 style={{ color: INK_MUTED }}
               >
                 <span>{name}</span>
@@ -369,7 +413,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 )}
               </p>
               <h1
-                className="text-[34px] sm:text-[56px] lg:text-[80px] font-semibold leading-[1.05] tracking-[-0.02em] mb-5 sm:mb-6"
+                className="dc-hr-t text-[34px] sm:text-[56px] lg:text-[80px] font-semibold leading-[1.05] tracking-[-0.02em] mb-5 sm:mb-6"
                 style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-section="hero"
                 data-edit-field="tagline"
@@ -379,13 +423,16 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </h1>
               {profile.about ? (
                 <p
-                  className="text-base sm:text-lg leading-[1.55] mb-8 max-w-[460px] mx-auto"
+                  className="dc-hr dc-hr-2 text-base sm:text-lg leading-[1.55] mb-8 max-w-[460px] mx-auto"
                   style={{ color: INK }}
                   data-edit-field="about"
                   data-edit-kind="modal"
                   data-edit-label="intro"
                 >
-                  {firstSentence(profile.about)} with{' '}
+                  {/* firstSentence keeps its terminal punctuation — strip it so
+                      the appended clause reads as ONE sentence ("…unhurried —
+                      with no judgment, ever."), never "…unhurried. with…". */}
+                  {firstSentence(profile.about).replace(/[.!?]+$/, '')} — with{' '}
                   <strong className="font-semibold">no judgment, ever.</strong>
                 </p>
               ) : (
@@ -399,18 +446,23 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   Add a sentence about your practice…
                 </p>
               )}
-              <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
+              <div className="dc-hr dc-hr-3 flex flex-wrap items-center justify-center gap-3 mb-4">
                 <a
                   href={bookHref}
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                  style={{ backgroundColor: brand }}
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
+                  style={{
+                    backgroundColor: `var(--c-brand-strong, ${brand})`,
+                    // Brand-tinted glow instead of a generic gray drop — reads
+                    // as light coming through the button's own color.
+                    boxShadow: `0 10px 24px -10px ${brand}99, 0 2px 6px -2px ${brand}66`,
+                  }}
                 >
                   {bookLabel}
                 </a>
                 {profile.phone && (
                   <a
                     href={`tel:${profile.phone}`}
-                    className="inline-flex items-center px-6 py-3.5 rounded-full text-base font-semibold bg-white transition hover:bg-[var(--c-bg,#FAF7F2)]"
+                    className="inline-flex items-center px-6 py-3.5 rounded-full text-base font-semibold bg-white transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 hover:shadow-sm"
                     style={{
                       color: headingInk,
                       border: `1.5px solid ${brand}`,
@@ -423,7 +475,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               {/* Live Google rating — real synced stars right under the primary
                   CTA, the conversion-critical trust moment. Honest-gated. */}
               {showGoogleRating && (
-                <div className="mb-8 -mt-2">
+                <div className="dc-hr dc-hr-4 mb-8 -mt-2">
                   <GoogleRatingBadge
                     average={googleRating!.average!}
                     count={googleRating!.count}
@@ -444,7 +496,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   all share one origin. */}
               <a
                 href={`${appBaseUrl()}/site/${data.slug}/intake-start`}
-                className="inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
+                className="dc-hr dc-hr-5 inline-flex items-center gap-1 text-sm font-semibold mb-12 transition hover:gap-2"
                 style={{ color: headingInk }}
               >
                 New patient? Start your intake
@@ -454,7 +506,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   "A full range of care for all your needs" with bold (not
                   italic) emphasis on the last phrase. */}
               <h2
-                className="text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.15] tracking-[-0.01em]"
+                className="dc-hr dc-hr-6 text-2xl sm:text-3xl lg:text-[40px] font-semibold leading-[1.15] tracking-[-0.01em]"
                 style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                 data-edit-field="copy:home.differenceHeadline"
                 data-edit-kind="text"
@@ -480,6 +532,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 editKind="image"
                 editLabel="second hero image"
                 position={imagePositions['heroImageUrl2']}
+                className="dc-hero-photo dc-hero-photo-r"
               />
             </div>
           </div>
@@ -783,7 +836,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <a
                 href={bookHref}
                 className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95 mb-8"
-                style={{ backgroundColor: brand }}
+                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
               >
                 {bookLabel}
               </a>
@@ -949,7 +1002,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                  style={{ backgroundColor: brand }}
+                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
                 >
                   Get directions
                   <svg
@@ -1272,7 +1325,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <a
                 href={`${basePath}/blog`}
                 className="inline-flex items-center px-5 py-3 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
-                style={{ backgroundColor: brand }}
+                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
               >
                 View all posts
               </a>
@@ -1401,7 +1454,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <a
                   href={bookHref}
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                  style={{ backgroundColor: brand }}
+                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
                 >
                   {bookLabel}
                 </a>
@@ -1609,6 +1662,7 @@ function OvalPortrait({
   editLabel,
   position,
   priority = false,
+  className,
 }: {
   src: string | null
   bg: string
@@ -1626,6 +1680,8 @@ function OvalPortrait({
   position?: string
   /** The hero LCP image — eager + high fetch priority; others stay lazy. */
   priority?: boolean
+  /** Extra classes on the wrapper (e.g. the hero entrance choreography). */
+  className?: string
 }) {
   // Only the EMPTY state gets the brand abstract; a present photo covers the
   // box entirely, so the with-photo render stays pixel-identical to before.
@@ -1633,7 +1689,7 @@ function OvalPortrait({
   const brandPlaceholder = empty && brand
   return (
     <div
-      className="relative overflow-hidden w-full aspect-[4/5]"
+      className={`relative overflow-hidden w-full aspect-[4/5]${className ? ` ${className}` : ''}`}
       style={
         brandPlaceholder
           ? { borderRadius: '50%', ...heroPlaceholderStyle(brand, bg) }
@@ -1687,6 +1743,14 @@ function OvalPortrait({
           ) : null}
         </>
       )}
+      {/* Hairline inner ring — a whisper of edge so a light photo never bleeds
+          into the cream ground. Painted above the photo (inset shadows on the
+          wrapper would hide under the absolutely-positioned img). */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none"
+        style={{ borderRadius: '50%', boxShadow: 'inset 0 0 0 1px rgba(28,26,23,0.07)' }}
+      />
     </div>
   )
 }

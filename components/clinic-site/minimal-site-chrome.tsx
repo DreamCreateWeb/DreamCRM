@@ -61,7 +61,7 @@ export default function MinimalSiteChrome({
         <span
           aria-hidden="true"
           className="flex items-center justify-center w-9 h-9 rounded-full text-white text-base font-bold shrink-0"
-          style={{ backgroundColor: accent }}
+          style={{ backgroundColor: `var(--c-brand-strong, ${accent})` }}
         >
           {letter}
         </span>

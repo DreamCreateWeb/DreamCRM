@@ -35,8 +35,11 @@ export default function ClosingCTA({
   editKeyPrefix,
 }: Props) {
   // 'teal' now means the brand-DERIVED deep band (var --c-deep); 'brand' is the
-  // raw brand. Both carry white text. (Prop name kept for call-site stability.)
-  const bgColor = variant === 'teal' ? 'var(--c-deep, #36514c)' : brand
+  // contrast-guaranteed brand (--c-brand-strong: pale brands deepen just enough
+  // for the white text; dark brands pass through). Prop name kept for
+  // call-site stability.
+  const bgColor =
+    variant === 'teal' ? 'var(--c-deep, #36514c)' : `var(--c-brand-strong, ${brand})`
 
   return (
     <section className="py-14 sm:py-24" style={{ backgroundColor: bgColor }}>

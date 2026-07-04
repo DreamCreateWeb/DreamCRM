@@ -112,7 +112,7 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
         <div
           aria-hidden="true"
           className="absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full opacity-[0.18] blur-3xl"
-          style={{ backgroundColor: brand }}
+          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
         />
         <div className="relative max-w-[1100px] mx-auto px-5 sm:px-8 text-center">
           <ScrollReveal>
@@ -233,7 +233,11 @@ function CategoryChip({
       className="text-[13px] font-medium px-4 py-2 rounded-full border transition hover:shadow-sm"
       style={
         active
-          ? { backgroundColor: brand, color: '#fff', borderColor: brand }
+          ? {
+              backgroundColor: `var(--c-brand-strong, ${brand})`,
+              color: '#fff',
+              borderColor: `var(--c-brand-strong, ${brand})`,
+            }
           : { color: INK_MUTED, borderColor: BORDER, backgroundColor: 'var(--c-surface, #FFFFFF)' }
       }
     >

@@ -189,7 +189,10 @@ function inkOn(bgHex: string, darkHex: string): string {
 function darkenUntilWhiteReadable(hsl: Hsl, minRatio = 4.8): Hsl {
   const out = { ...hsl }
   const white = { r: 255, g: 255, b: 255 }
-  for (let i = 0; i < 24; i++) {
+  // 48 steps × 2L covers the full descent from a near-white start (L≈96) down
+  // to the L=8 floor — the deep-band caller (seeded at L=25) converges in a
+  // handful; brandStrong can start from ANY brand a clinic picks.
+  for (let i = 0; i < 48; i++) {
     const rgb = parseHex(hslToHex(out))!
     if (contrastRatio(white, rgb) >= minRatio) break
     out.l = Math.max(8, out.l - 2)
@@ -216,6 +219,10 @@ function lightenUntilReadable(hsl: Hsl, onHex: string, minRatio = 4.5): Hsl {
 export interface ClinicPalette {
   brand: string
   brandInk: string // readable text ON a brand-filled surface (button labels)
+  /** Solid CTA fill: the brand, darkened ONLY as far as needed for white text
+   *  to clear AA (4.5:1). Dark brands pass through verbatim; a pale brand
+   *  (sage, powder blue) deepens so "Book a Visit" never washes out. */
+  brandStrong: string
   brandSoft: string // light brand wash (chip / pill backgrounds)
   brandSoftInk: string // readable text on brandSoft
   heading: string // brand-as-text on the ground (Fraunces H1/H2) — contrast-safe
@@ -244,6 +251,7 @@ export function buildClinicPalette(brandHex: string | null | undefined): ClinicP
     return {
       brand: CLINIC_THEME.INK,
       brandInk: '#FFFFFF',
+      brandStrong: CLINIC_THEME.INK,
       brandSoft: '#EFEAE1',
       brandSoftInk: CLINIC_THEME.INK,
       heading: CLINIC_THEME.INK,
@@ -274,6 +282,14 @@ export function buildClinicPalette(brandHex: string | null | undefined): ClinicP
 
   // Brand surfaces.
   const brandInk = inkOn(brand, ink)
+  // Solid-CTA fill: pass the brand through untouched when white already clears
+  // AA on it; otherwise darken the brand's own hue just far enough. Keeps
+  // primary buttons bold on pale brands without shifting good dark brands.
+  const white = { r: 255, g: 255, b: 255 }
+  const brandStrong =
+    contrastRatio(white, rgb) >= 4.5
+      ? brand
+      : hslToHex(darkenUntilWhiteReadable(rgbToHsl(rgb), 4.5))
   const brandSoft = hslToHex({ h, s: clamp(s, 28, 62), l: 93 })
   const brandSoftInk = readableInk(brand, brandSoft, 4.5)
   const heading = readableInk(brand, bg, 4.5)
@@ -291,6 +307,7 @@ export function buildClinicPalette(brandHex: string | null | undefined): ClinicP
   return {
     brand,
     brandInk,
+    brandStrong,
     brandSoft,
     brandSoftInk,
     heading,
@@ -313,6 +330,7 @@ export function buildClinicPalette(brandHex: string | null | undefined): ClinicP
 export const PALETTE_VARS: Record<keyof ClinicPalette, string> = {
   brand: '--c-brand',
   brandInk: '--c-brand-ink',
+  brandStrong: '--c-brand-strong',
   brandSoft: '--c-brand-soft',
   brandSoftInk: '--c-brand-soft-ink',
   heading: '--c-heading',

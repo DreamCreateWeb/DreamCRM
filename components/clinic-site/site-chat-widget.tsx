@@ -56,7 +56,7 @@ export default function SiteChatWidget({
           role="dialog"
           aria-label={`Message ${clinicName}`}
         >
-          <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: brand }}>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}>
             <p className="text-sm font-semibold text-white">Message {clinicName}</p>
             <button
               type="button"
@@ -123,7 +123,7 @@ export default function SiteChatWidget({
                 type="submit"
                 disabled={state === 'pending'}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-                style={{ backgroundColor: brand }}
+                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
               >
                 {state === 'pending' ? 'Sending…' : 'Send message'}
               </button>
@@ -138,7 +138,7 @@ export default function SiteChatWidget({
         aria-expanded={open}
         aria-label={open ? 'Close the message widget' : `Message ${clinicName}`}
         className="inline-flex items-center gap-2 rounded-full pl-3.5 pr-4 py-3 shadow-lg transition hover:shadow-xl"
-        style={{ backgroundColor: brand, color: '#FFFFFF' }}
+        style={{ backgroundColor: `var(--c-brand-strong, ${brand})`, color: '#FFFFFF' }}
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
           <path

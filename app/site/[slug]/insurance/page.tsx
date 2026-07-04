@@ -314,7 +314,7 @@ export default async function InsurancePage({ params }: Props) {
               <a
                 href={bookHref}
                 className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: brand }}
+                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
               >
                 {bookLabel}
               </a>

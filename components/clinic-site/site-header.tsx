@@ -391,7 +391,7 @@ export default function SiteHeader({
                 <a
                   href={bookHref}
                   className="inline-flex items-center px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-full text-[13px] sm:text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
-                  style={{ backgroundColor: brand }}
+                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
                 >
                   {bookLabel}
                 </a>
@@ -534,7 +534,7 @@ export default function SiteHeader({
                 href={bookHref}
                 onClick={() => setMobileOpen(false)}
                 className="block w-full text-center px-5 py-3 rounded-full text-base font-semibold text-white shadow-sm transition hover:shadow-md"
-                style={{ backgroundColor: brand }}
+                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
               >
                 {bookLabel}
               </a>

@@ -100,7 +100,7 @@ export default function SiteFooter({
                 <span
                   aria-hidden="true"
                   className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0"
-                  style={{ backgroundColor: brand }}
+                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
                 >
                   {name.charAt(0).toUpperCase()}
                 </span>
