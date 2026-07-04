@@ -151,6 +151,14 @@ export interface ProspectingConfig {
     /** Minimum lead time before the earliest offered slot. */
     leadHours: number
   }
+  /** The editable "brain": an owner override of the canonical product
+   *  knowledge (empty = use the built-in default) + per-competitor battle
+   *  cards, both fed into every prospecting AI surface. */
+  brain: {
+    /** Full product-knowledge override; '' falls back to PRODUCT_KNOWLEDGE. */
+    productOverride: string
+    battleCards: Array<{ competitor: string; angle: string }>
+  }
 }
 
 export const PROSPECTING_DEFAULTS: ProspectingConfig = {
@@ -181,6 +189,7 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
     slotMinutes: 30,
     leadHours: 12,
   },
+  brain: { productOverride: '', battleCards: [] },
 }
 
 /**
@@ -199,6 +208,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       watchdog: { ...d.watchdog },
       digest: { ...d.digest },
       booking: { ...d.booking },
+      brain: { productOverride: '', battleCards: [] },
     }
   }
   const r = raw as Record<string, unknown>
@@ -209,6 +219,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
   const dog = (r.watchdog ?? {}) as Record<string, unknown>
   const digest = (r.digest ?? {}) as Record<string, unknown>
   const booking = (r.booking ?? {}) as Record<string, unknown>
+  const brain = (r.brain ?? {}) as Record<string, unknown>
   const num = (v: unknown, fallback: number) =>
     typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback
   // Percentages keep fractions (0.3% complaint threshold) — num() would
@@ -266,6 +277,23 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       endHour: Math.min(24, num(booking.endHour, d.booking.endHour)),
       slotMinutes: Math.max(5, num(booking.slotMinutes, d.booking.slotMinutes)),
       leadHours: num(booking.leadHours, d.booking.leadHours),
+    },
+    brain: {
+      productOverride:
+        typeof brain.productOverride === 'string' ? brain.productOverride.slice(0, 12000) : '',
+      battleCards: Array.isArray(brain.battleCards)
+        ? brain.battleCards
+            .filter(
+              (c): c is { competitor: string; angle: string } =>
+                !!c &&
+                typeof c === 'object' &&
+                typeof (c as Record<string, unknown>).competitor === 'string' &&
+                typeof (c as Record<string, unknown>).angle === 'string',
+            )
+            .map((c) => ({ competitor: c.competitor.slice(0, 80), angle: c.angle.slice(0, 600) }))
+            .filter((c) => c.competitor.trim().length > 0 && c.angle.trim().length > 0)
+            .slice(0, 20)
+        : [],
     },
   }
 }

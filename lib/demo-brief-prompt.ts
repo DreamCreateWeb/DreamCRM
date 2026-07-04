@@ -1,6 +1,6 @@
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { DEMO_BEATS } from '@/lib/types/demo-script'
-import { PRODUCT_KNOWLEDGE } from '@/lib/prospect-product-knowledge'
+import { effectiveProductKnowledge, type ProspectBrain } from '@/lib/prospect-product-knowledge'
 
 /**
  * Pure prompt builder for the pre-demo brief — deterministic, unit-testable,
@@ -20,6 +20,9 @@ export interface DemoBriefPromptInput {
   scoreReasons: string[]
   signals: ProspectCrawlSignals | null
   verdict: ProspectAiVerdict | null
+  /** Owner-editable product override + battle cards; null falls back to the
+   *  canonical PRODUCT_KNOWLEDGE. */
+  brain?: ProspectBrain | null
 }
 
 export function buildDemoBriefPrompt(input: DemoBriefPromptInput): {
@@ -46,7 +49,7 @@ export function buildDemoBriefPrompt(input: DemoBriefPromptInput): {
   ]
   return {
     system:
-      PRODUCT_KNOWLEDGE +
+      effectiveProductKnowledge(input.brain ?? null) +
       "\n\nYou are the sales strategist for Dream Create. The platform owner is about to run a 20-minute live screen-share demo for this practice. The demo is a MIRROR — the prospect watches their own practice running better. Judge ONLY from the provided verified signals; never invent facts, numbers, or history. Voice: warm, plain, anti-shame (their site 'hasn't had help', never 'is terrible'). openingLine: one quotable sentence the owner can say verbatim to open the call. walkUpStory: 2-4 sentences narrating what their online presence says today, built strictly from the signals. beatEmphasis: one entry per relevant beat using ONLY the provided beatId values, with EXACTLY ONE 'lead' (the beat this practice most needs to see) and honest 'skim' marks for beats their profile doesn't need. objections: the 3-5 most likely from THIS practice's profile, each with a one-breath response. ammunition: up to 6 specific verified gaps, each mapped to the beatId where the owner should land it. closingAsk: the natural next-step sentence. Keep every field tight — this is read aloud on a call, not an essay: opening line one sentence, walk-up story 2-4 sentences, each response a single breath.",
     user: lines.join('\n'),
   }

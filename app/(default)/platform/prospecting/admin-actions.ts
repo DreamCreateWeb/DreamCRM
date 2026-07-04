@@ -150,6 +150,32 @@ export async function updateAutoEnrollAction(input: unknown): Promise<void> {
   revalidatePath('/platform/prospecting/settings')
 }
 
+const brainSchema = z.object({
+  productOverride: z.string().max(12000),
+  battleCards: z
+    .array(
+      z.object({
+        competitor: z.string().max(80),
+        angle: z.string().max(600),
+      }),
+    )
+    .max(20),
+})
+
+/** Save the editable "brain": product-knowledge override + battle cards. */
+export async function updateBrainAction(input: unknown): Promise<void> {
+  await requirePlatformAdmin()
+  const parsed = brainSchema.parse(input)
+  // Drop empty rows so a half-filled card never poisons a prompt.
+  const battleCards = parsed.battleCards
+    .map((c) => ({ competitor: c.competitor.trim(), angle: c.angle.trim() }))
+    .filter((c) => c.competitor.length > 0 && c.angle.length > 0)
+  await updateProspectingConfig({
+    brain: { productOverride: parsed.productOverride.trim(), battleCards },
+  })
+  revalidatePath('/platform/prospecting/settings')
+}
+
 /** Toggle the daily hunt digest email. */
 export async function setDigestEnabledAction(on: boolean): Promise<void> {
   await requirePlatformAdmin()

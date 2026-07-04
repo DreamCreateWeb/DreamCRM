@@ -6,7 +6,7 @@ import { buildDemoBriefPrompt } from '@/lib/demo-brief-prompt'
 import { parseDemoBrief, type DemoBrief } from '@/lib/types/demo-brief'
 import { DEMO_BEATS } from '@/lib/types/demo-script'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
-import { bumpProspectingCounter, counterMonth } from './prospecting'
+import { bumpProspectingCounter, counterMonth, getProspectingConfig } from './prospecting'
 
 /**
  * The AI pre-demo brief — one owner-initiated sonnet call per prospect,
@@ -48,6 +48,7 @@ export async function generateDemoBrief(
   }
   if (!aiConfigured()) return null
 
+  const config = await getProspectingConfig().catch(() => null)
   const prompt = buildDemoBriefPrompt({
     name: p.name,
     city: p.city,
@@ -59,6 +60,7 @@ export async function generateDemoBrief(
     scoreReasons: Array.isArray(p.scoreReasons) ? (p.scoreReasons as string[]) : [],
     signals: (p.enrichment ?? null) as ProspectCrawlSignals | null,
     verdict: (p.aiVerdict ?? null) as ProspectAiVerdict | null,
+    brain: config?.brain ?? null,
   })
 
   try {

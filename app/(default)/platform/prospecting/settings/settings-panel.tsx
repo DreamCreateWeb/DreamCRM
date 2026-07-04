@@ -14,6 +14,7 @@ import {
   setDigestEnabledAction,
   setWatchdogEnabledAction,
   setBookingEnabledAction,
+  updateBrainAction,
 } from '../admin-actions'
 
 const SECTION = 'v2-card p-5 mb-5'
@@ -52,6 +53,154 @@ function Toggle({
       />
       {on ? labelOn : labelOff}
     </button>
+  )
+}
+
+type BattleCard = { competitor: string; angle: string }
+
+function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
+  const [pending, startTransition] = useTransition()
+  const [productOverride, setProductOverride] = useState(brain.productOverride)
+  const [cards, setCards] = useState<BattleCard[]>(brain.battleCards)
+  const [saved, setSaved] = useState(false)
+
+  // Dirty vs the last-saved snapshot (so the Save button + "Saved" note are honest).
+  const [baseline, setBaseline] = useState({
+    productOverride: brain.productOverride,
+    cards: brain.battleCards,
+  })
+  const dirty =
+    productOverride !== baseline.productOverride ||
+    JSON.stringify(cards) !== JSON.stringify(baseline.cards)
+
+  const save = () => {
+    const cleaned = cards
+      .map((c) => ({ competitor: c.competitor.trim(), angle: c.angle.trim() }))
+      .filter((c) => c.competitor.length > 0 && c.angle.length > 0)
+      .slice(0, 20)
+    startTransition(async () => {
+      await updateBrainAction({ productOverride: productOverride.trim(), battleCards: cleaned })
+      setBaseline({ productOverride: productOverride.trim(), cards: cleaned })
+      setCards(cleaned)
+      setProductOverride(productOverride.trim())
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    })
+  }
+
+  return (
+    <section className={SECTION}>
+      <div className={SECTION_TITLE}>The brain — product knowledge &amp; battle cards</div>
+      <p className={SECTION_SUB}>
+        This is the source of truth every prospecting AI reads — the cold email, the reply drafts,
+        and the pre-demo brief. Leave the override blank to use the built-in product knowledge; write
+        your own to reshape the whole engine&apos;s pitch at once. Battle cards give the AI a specific
+        counter for a named competitor (it only uses the matching one, and never name-drops a rival
+        unprompted).
+      </p>
+
+      <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">
+        Product-knowledge override{' '}
+        <span className="font-normal text-gray-400">(blank = use the built-in default)</span>
+      </label>
+      <textarea
+        className="form-textarea w-full text-sm font-mono leading-relaxed"
+        rows={productOverride ? 14 : 4}
+        maxLength={12000}
+        placeholder="Leave blank to use the canonical product knowledge. Anything you write here fully replaces it in every prospecting AI prompt — so include pricing, positioning, and honest limits."
+        value={productOverride}
+        onChange={(e) => setProductOverride(e.target.value)}
+        disabled={pending}
+      />
+      <div className="mt-1 text-right text-[11px] tabular-nums text-gray-400">
+        {productOverride.length.toLocaleString()} / 12,000
+      </div>
+
+      <div className="mt-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+            Competitor battle cards{' '}
+            <span className="font-normal text-gray-400">({cards.length}/20)</span>
+          </label>
+          {cards.length < 20 && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setCards([...cards, { competitor: '', angle: '' }])}
+              className="text-xs font-medium text-teal-700 dark:text-teal-300 hover:underline disabled:opacity-60"
+            >
+              + Add card
+            </button>
+          )}
+        </div>
+        {cards.length === 0 && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+            No battle cards yet — add one for a competitor you keep running into.
+          </p>
+        )}
+        <div className="space-y-2">
+          {cards.map((c, i) => (
+            <div
+              key={i}
+              className="flex flex-col sm:flex-row gap-2 rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-2"
+            >
+              <input
+                type="text"
+                maxLength={80}
+                placeholder="Competitor (e.g. Weave)"
+                className="form-input text-sm sm:w-44"
+                value={c.competitor}
+                disabled={pending}
+                onChange={(e) => {
+                  const next = [...cards]
+                  next[i] = { ...next[i], competitor: e.target.value }
+                  setCards(next)
+                }}
+              />
+              <input
+                type="text"
+                maxLength={600}
+                placeholder="How we win against them (one line)"
+                className="form-input text-sm flex-1"
+                value={c.angle}
+                disabled={pending}
+                onChange={(e) => {
+                  const next = [...cards]
+                  next[i] = { ...next[i], angle: e.target.value }
+                  setCards(next)
+                }}
+              />
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => setCards(cards.filter((_, j) => j !== i))}
+                className="shrink-0 rounded-[var(--r-xs)] px-2 py-1.5 text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-60"
+                aria-label="Remove card"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <button
+          type="button"
+          disabled={pending || !dirty}
+          onClick={save}
+          className="rounded-[var(--r-xs)] bg-teal-600 px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
+        >
+          {pending ? 'Saving…' : 'Save the brain'}
+        </button>
+        {saved && !dirty && (
+          <span className="text-xs text-teal-700 dark:text-teal-300">Saved ✓</span>
+        )}
+        {dirty && !pending && (
+          <span className="text-xs text-gray-400">Unsaved changes</span>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -130,6 +279,9 @@ export default function SettingsPanel({
           />
         </div>
       </section>
+
+      {/* The brain — editable product knowledge + battle cards */}
+      <BrainEditor brain={config.brain} />
 
       {/* The hunter — auto-enrollment */}
       <section className={SECTION}>

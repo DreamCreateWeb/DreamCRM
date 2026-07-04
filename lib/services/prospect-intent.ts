@@ -5,7 +5,7 @@ import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { bumpProspectingCounter, counterMonth, getProspectingConfig } from './prospecting'
-import { PRODUCT_KNOWLEDGE_SHORT } from '@/lib/prospect-product-knowledge'
+import { effectiveProductKnowledge, type ProspectBrain } from '@/lib/prospect-product-knowledge'
 
 /**
  * Intent detection — the moment cold outreach turns into a phone call.
@@ -154,6 +154,7 @@ async function draftReply(
   prospect: ClassifiableProspect,
   summary: string,
   replyBody: string,
+  brain: ProspectBrain | null,
 ): Promise<string | null> {
   if (!aiConfigured()) return null
   const verdict = (prospect.aiVerdict ?? null) as { weaknesses?: string[] } | null
@@ -163,7 +164,7 @@ async function draftReply(
       model: 'haiku',
       maxTokens: 500,
       system:
-        PRODUCT_KNOWLEDGE_SHORT +
+        effectiveProductKnowledge(brain, { short: true }) +
         "\n\nYou draft a short reply from Dustin at Dream Create to a dental practice that answered his cold email with a question. Answer their question directly and honestly using the product knowledge above plus the provided facts. Warm, plain, conversational — no hype, no exclamation marks, no pressure. Under 120 words. End by offering a quick call. A greeting line is fine; do NOT include a sign-off (added later). Never fabricate pricing, clients, or capabilities beyond the product knowledge — if they ask about something it doesn't do (e.g. SMS texting), say so honestly.",
       messages: [
         {
@@ -221,18 +222,18 @@ async function applyClassification(
     case 'interested':
     case 'question': {
       await stopLiveEnrollment(prospect.id, 'stopped_reply', verdict.classification)
+      const config = await getProspectingConfig().catch(() => null)
       // Question replies get an AI-drafted response waiting on the call card
       // (the owner sends it from his own inbox — we never auto-send).
       const aiDraft =
         verdict.classification === 'question'
-          ? await draftReply(prospect, verdict.summary, replyBody)
+          ? await draftReply(prospect, verdict.summary, replyBody, config?.brain ?? null)
           : null
       // When self-booking is on, weave the prospect's own booking link into
       // the draft so a single reply the owner sends moves them straight to a
       // booked demo (we still never auto-send — the owner sends it).
       let bookingUrl: string | null = null
-      const bookingConfig = await getProspectingConfig().catch(() => null)
-      if (bookingConfig?.booking.enabled) {
+      if (config?.booking.enabled) {
         const { getOrCreateBookingLink } = await import('./prospect-meetings')
         const link = await getOrCreateBookingLink(prospect.id).catch(() => null)
         bookingUrl = link?.url ?? null

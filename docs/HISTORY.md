@@ -7,6 +7,28 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Prospecting workspace F3 — the editable "brain" + competitor battle cards
+  (2026-07-04).** The whole outbound engine's product knowledge was hard-coded in
+  `lib/prospect-product-knowledge.ts` (`PRODUCT_KNOWLEDGE` / `_SHORT`). This makes
+  it owner-editable from Settings without a deploy. New config bag
+  `ProspectingConfig.brain = { productOverride: string; battleCards: Array<{
+  competitor; angle }> }` (junk-tolerant resolver: string override clamped to 12k,
+  cards filtered for non-empty both-fields, competitor≤80/angle≤600, ≤20 cards; no
+  migration — rides the `prospecting_config` jsonb). New pure accessor
+  `effectiveProductKnowledge(brain, { short? })` — returns the owner's override when
+  set (else the canonical default), with a "COMPETITIVE BATTLE CARDS" block appended
+  (AI told to use only the matching card, never name-drop a rival unprompted). Wired
+  into all three AI surfaces: the sonnet demo brief (`lib/demo-brief-prompt.ts` +
+  `demo-brief.ts` now loads config), the haiku cold-email personalizer
+  (`prospect-outreach.ts`, `brain` threaded through `personalizeTouch`), and the
+  haiku reply draft (`prospect-intent.ts`, config fetched once and reused for the
+  booking-link weave too). Settings UI: a "The brain" card at the top of
+  `settings/settings-panel.tsx` — a monospace override textarea (blank = built-in
+  default) + a repeatable competitor/angle battle-card editor with a dirty-state
+  Save button (`updateBrainAction`, zod-validated). Tests: resolver defaults +
+  clamp/filter/cap, `effectiveProductKnowledge` fallback/override/card-append, and
+  demo-brief-prompt honoring the brain.
+
 - **Settings overhaul — `/settings` home + retired cross-page rail + all 14 pages
   deepened (2026-07-02, PRs #481 + `85cb5f0`/`f11ffe3`).** `/settings` is now a
   **card-grid home** that IS the settings navigation

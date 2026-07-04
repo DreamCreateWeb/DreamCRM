@@ -46,6 +46,8 @@ vi.mock('@/lib/ai', () => ({ runClaudeJson: aiMock, aiConfigured: () => true }))
 vi.mock('@/lib/services/prospecting', () => ({
   bumpProspectingCounter: bumpMock,
   counterMonth: () => '2026-07',
+  getProspectingConfig: () =>
+    Promise.resolve({ brain: { productOverride: '', battleCards: [] } }),
 }))
 
 import { generateDemoBrief, getDemoBrief } from '@/lib/services/demo-brief'

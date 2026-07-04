@@ -77,4 +77,43 @@ describe('resolveProspectingConfig', () => {
     expect(c.autoEnroll.perDay).toBe(50) // untouched default
     expect(c.digest.enabled).toBe(false)
   })
+
+  it('brain defaults to empty override + no battle cards', () => {
+    expect(resolveProspectingConfig(null).brain).toEqual({ productOverride: '', battleCards: [] })
+  })
+
+  it('resolves the brain: keeps a string override, filters + clamps battle cards', () => {
+    const c = resolveProspectingConfig({
+      brain: {
+        productOverride: 'my custom pitch',
+        battleCards: [
+          { competitor: 'Weave', angle: 'cheaper + dental-only' },
+          { competitor: '', angle: 'orphan' }, // dropped (blank competitor)
+          { competitor: 'X', angle: '' }, // dropped (blank angle)
+          { competitor: 123, angle: 'bad type' }, // dropped (non-string)
+        ],
+      },
+    })
+    expect(c.brain.productOverride).toBe('my custom pitch')
+    expect(c.brain.battleCards).toEqual([{ competitor: 'Weave', angle: 'cheaper + dental-only' }])
+  })
+
+  it('tolerates junk brain shapes', () => {
+    expect(resolveProspectingConfig({ brain: 'nope' }).brain).toEqual({
+      productOverride: '',
+      battleCards: [],
+    })
+    expect(resolveProspectingConfig({ brain: { battleCards: 'nope' } }).brain.battleCards).toEqual([])
+  })
+
+  it('caps battle cards at 20 and clamps field lengths', () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      competitor: 'C'.repeat(200),
+      angle: `angle ${i} ${'z'.repeat(1000)}`,
+    }))
+    const c = resolveProspectingConfig({ brain: { battleCards: many } })
+    expect(c.brain.battleCards.length).toBe(20)
+    expect(c.brain.battleCards[0].competitor.length).toBe(80)
+    expect(c.brain.battleCards[0].angle.length).toBe(600)
+  })
 })

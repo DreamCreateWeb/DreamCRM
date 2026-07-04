@@ -49,6 +49,37 @@ OBJECTIONS → HONEST RESPONSES
 /** Condensed knowledge — for the token-conscious haiku cold email + reply draft. */
 export const PRODUCT_KNOWLEDGE_SHORT = `ABOUT THE PRODUCT (source of truth — never exceed or contradict): DreamCRM (by Dream Create) is a dental-only, all-in-one patient-relationship platform — clinic website + online booking + patient CRM + automated Google reviews + recall/marketing + intake forms + branded patient portal + online shop/memberships + analytics — that WRAPS a practice's existing PMS (two-way Open Dental), it does NOT replace it. It consolidates the 5-6 separate tools a practice pays $800-2,000/mo for into one at $150-500/mo (Basic $150 / Pro $250 / Premium $500; 7-day free trial, no card; annual = 2 months free), typically saving ~$1,000/mo. Edge: dental-only; the website is the trunk (booking/forms/portal live on their own branded site); Google-first reviews auto-loop; we build the site for them. HONEST LIMITS — never overpromise: it's NOT a PMS (no charts, claims, or clinical notes); SMS texting is NOT live yet (email + portal today).`
 
+/** The owner-editable "brain": a product-knowledge override + battle cards.
+ *  Mirrors ProspectingConfig['brain'] but declared here so this pure module
+ *  stays import-free of the config types. */
+export interface ProspectBrain {
+  productOverride: string
+  battleCards: Array<{ competitor: string; angle: string }>
+}
+
+/** Render battle cards as a promptable block (empty string when none). */
+function battleCardBlock(cards: ProspectBrain['battleCards']): string {
+  const clean = cards.filter((c) => c.competitor.trim() && c.angle.trim())
+  if (clean.length === 0) return ''
+  const lines = clean.map((c) => `- vs ${c.competitor.trim()}: ${c.angle.trim()}`).join('\n')
+  return `\n\nCOMPETITIVE BATTLE CARDS (how we win against specific rivals — use the matching one only when that competitor comes up; never name a rival unprompted):\n${lines}`
+}
+
+/**
+ * The product knowledge to actually feed a prompt: the owner's override when
+ * they've written one (else the canonical default), with their battle cards
+ * appended. This is THE accessor every prospecting AI surface should call so a
+ * single Settings edit reshapes the whole outbound engine's pitch.
+ */
+export function effectiveProductKnowledge(
+  brain: ProspectBrain | null | undefined,
+  opts: { short?: boolean } = {},
+): string {
+  const override = brain?.productOverride?.trim() ?? ''
+  const base = override || (opts.short ? PRODUCT_KNOWLEDGE_SHORT : PRODUCT_KNOWLEDGE)
+  return base + battleCardBlock(brain?.battleCards ?? [])
+}
+
 export type OutreachSegmentKey = 'no_website' | 'weak_website' | 'weak_presence'
 
 /** The angle to lead with for a given prospect segment. */
