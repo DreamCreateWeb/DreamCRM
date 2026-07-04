@@ -45,6 +45,13 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn(() => ({})),
 }))
 
+// Contact sync (MX verification) is exercised in contacts.test.ts; stub it
+// here so enrichment stays focused and never touches DNS.
+const { syncContactsMock } = vi.hoisted(() => ({
+  syncContactsMock: vi.fn(async () => ({ upserted: 0, verified: 0 })),
+}))
+vi.mock('@/lib/services/prospect-contacts', () => ({ syncProspectContacts: syncContactsMock }))
+
 const { configMock, counterMock, bumpMock, placeMock, placesConfiguredMock, aiMock, aiConfiguredMock, fetchMock } =
   vi.hoisted(() => ({
     configMock: vi.fn(),
@@ -163,10 +170,14 @@ describe('runEnrichment happy path', () => {
       googleRatingTenths: 47,
       reviewCount: 22,
       scoreBand: 'hot', // quality 25 + no booking + no social ⇒ 65+8+5+4 = 82
-      email: 'hello@smiledental.com',
-      emailSource: 'crawl_mailto',
     })
     expect(final.values.opportunityScore).toBeGreaterThanOrEqual(80)
+    // The crawled address is now handed to the reachability layer (which
+    // classifies/verifies/ranks it and sets prospect.email), not written inline.
+    expect(syncContactsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: PROSPECT.id }),
+      expect.arrayContaining(['hello@smiledental.com']),
+    )
   })
 
   it('no website found → hot without spending a crawl or AI call', async () => {

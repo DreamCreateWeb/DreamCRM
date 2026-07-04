@@ -6,7 +6,14 @@ import { describe, it, expect } from 'vitest'
  * builder fingerprints, and mailto discovery (never guessed addresses).
  */
 
-import { extractCrawlSignals, extractEmails, findContactPath } from '@/lib/prospect-signals'
+import {
+  extractCrawlSignals,
+  extractEmails,
+  extractTextEmails,
+  extractSiteEmails,
+  findContactPath,
+  findTeamPaths,
+} from '@/lib/prospect-signals'
 
 const FETCHED = new Date('2026-07-03T12:00:00Z')
 
@@ -115,5 +122,43 @@ describe('findContactPath', () => {
     expect(findContactPath('<a href="/contact-us/">Contact</a>')).toBe('/contact-us/')
     expect(findContactPath('<a href="https://other.com/contact">x</a>')).toBeNull()
     expect(findContactPath('<a href="/about">About</a>')).toBeNull()
+  })
+})
+
+describe('extractTextEmails', () => {
+  it('finds addresses printed as plain text, not just mailto links', () => {
+    const emails = extractTextEmails('<footer>Reach us at Office@SmileDental.com or drjane@smiledental.com</footer>')
+    expect(emails).toContain('office@smiledental.com')
+    expect(emails).toContain('drjane@smiledental.com')
+  })
+  it('rejects mis-parsed asset references and junk', () => {
+    expect(extractTextEmails('<img src="logo@2x.png"> hero@image.svg noreply@x.com')).toEqual([])
+    expect(extractTextEmails('you@example.com is a placeholder')).toEqual([])
+  })
+})
+
+describe('extractSiteEmails', () => {
+  it('unions mailto + text addresses, deduped and junk-filtered', () => {
+    const emails = extractSiteEmails(`
+      <a href="mailto:info@smiledental.com">email</a>
+      <p>Dr. Jane: drjane@smiledental.com</p>
+      <img src="sprite@2x.png">
+      <a href="mailto:test@example.com">junk</a>`)
+    expect(emails.sort()).toEqual(['drjane@smiledental.com', 'info@smiledental.com'])
+  })
+})
+
+describe('findTeamPaths', () => {
+  it('surfaces meet-the-team / about paths (where a dentist’s email lives)', () => {
+    const html = `
+      <a href="/our-team">Team</a>
+      <a href="/about-us">About</a>
+      <a href="/meet-the-doctor">Doctor</a>
+      <a href="/contact">Contact</a>
+      <a href="/services">Services</a>`
+    const paths = findTeamPaths(html, 2)
+    expect(paths).toEqual(['/our-team', '/about-us'])
+    expect(paths).not.toContain('/contact') // contact is a separate hop
+    expect(paths).not.toContain('/services')
   })
 })

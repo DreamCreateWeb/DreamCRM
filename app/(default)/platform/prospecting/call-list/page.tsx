@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getCallList, getProspectDetail, type CallListRow } from '@/lib/services/prospecting'
+import { getCallList, getPhoneQueue, getProspectDetail, type CallListRow } from '@/lib/services/prospecting'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import CallCard from './call-card'
+import PhoneQueue from './phone-queue'
 
 export default async function CallListPage({
   searchParams,
@@ -22,7 +23,7 @@ export default async function CallListPage({
   if (ctx.tenantType !== 'platform' || !ctx.platformAdmin) redirect('/')
 
   const { highlight } = await searchParams
-  const rows = await getCallList()
+  const [rows, phoneQueue] = await Promise.all([getCallList(), getPhoneQueue()])
 
   // Just-demoed prospect (the End-demo redirect): pin them at the top for
   // outcome logging even when no intent signal has put them on the list yet.
@@ -74,7 +75,7 @@ export default async function CallListPage({
           <CallCard row={pinned} />
         </div>
       )}
-      {rows.length === 0 && !pinned ? (
+      {rows.length === 0 && !pinned && phoneQueue.length === 0 ? (
         <EmptyState
           icon="📞"
           title="No one on the list yet"
@@ -86,26 +87,29 @@ export default async function CallListPage({
           }
         />
       ) : (
-        <div className="space-y-4">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className={row.id === highlight ? 'rounded-xl ring-2 p-0.5' : undefined}
-              style={
-                row.id === highlight
-                  ? { ['--tw-ring-color' as string]: 'var(--demo-accent, #f59e0b)' }
-                  : undefined
-              }
-            >
-              {row.id === highlight && (
-                <div className="px-4 pt-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  🎬 You just demoed {row.name} — log the outcome while it&apos;s fresh
-                </div>
-              )}
-              <CallCard row={row} />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="space-y-4">
+            {rows.map((row) => (
+              <div
+                key={row.id}
+                className={row.id === highlight ? 'rounded-xl ring-2 p-0.5' : undefined}
+                style={
+                  row.id === highlight
+                    ? { ['--tw-ring-color' as string]: 'var(--demo-accent, #f59e0b)' }
+                    : undefined
+                }
+              >
+                {row.id === highlight && (
+                  <div className="px-4 pt-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    🎬 You just demoed {row.name} — log the outcome while it&apos;s fresh
+                  </div>
+                )}
+                <CallCard row={row} />
+              </div>
+            ))}
+          </div>
+          <PhoneQueue rows={phoneQueue} />
+        </>
       )}
     </div>
   )

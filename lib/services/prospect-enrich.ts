@@ -4,8 +4,9 @@ import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { findDentalPlace, placesConfigured } from '@/lib/google-places'
-import { extractCrawlSignals, findContactPath } from '@/lib/prospect-signals'
+import { extractCrawlSignals, extractSiteEmails, findContactPath, findTeamPaths } from '@/lib/prospect-signals'
 import { computeOpportunityScore, heuristicVerdict } from '@/lib/prospect-scoring'
+import { syncProspectContacts } from './prospect-contacts'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import {
   getProspectingConfig,
@@ -92,20 +93,27 @@ export async function crawlProspectSite(url: string): Promise<ProspectCrawlSigna
     if (!page) return null
     const signals = extractCrawlSignals({ ...page, fetchedAt: new Date() })
 
-    if (signals.emails.length === 0) {
-      const contactPath = findContactPath(page.html)
-      if (contactPath) {
-        try {
-          const contact = await fetchPage(`${new URL(page.finalUrl).origin}${contactPath}`)
-          if (contact) {
-            const extra = extractCrawlSignals({ ...contact, fetchedAt: new Date() })
-            signals.emails = extra.emails
-          }
-        } catch {
-          /* contact hop is a bonus, never a failure */
-        }
+    // Email-discovery hops: the contact page, then up to two team/about
+    // pages (where a named dentist's personal address often lives). Each hop
+    // MERGES into the set — we want every real address, not just the first,
+    // so the contact ranker can prefer drjane@ over info@. Cap the hops so a
+    // sprawling site can't balloon the crawl.
+    const pageOrigin = new URL(page.finalUrl).origin
+    const emails = new Set(signals.emails)
+    const hops: string[] = []
+    const contactPath = findContactPath(page.html)
+    if (contactPath) hops.push(contactPath)
+    for (const p of findTeamPaths(page.html, 2)) hops.push(p)
+    for (const path of hops.slice(0, 3)) {
+      if (emails.size >= 6) break
+      try {
+        const sub = await fetchPage(`${pageOrigin}${path}`)
+        if (sub) for (const e of extractSiteEmails(sub.html)) emails.add(e)
+      } catch {
+        /* a discovery hop is a bonus, never a failure */
       }
     }
+    signals.emails = Array.from(emails).slice(0, 10)
     return signals
   } catch (err) {
     console.warn('[prospect-enrich] crawl failed', url, err instanceof Error ? err.message : err)
@@ -211,7 +219,7 @@ type ProspectRow = typeof schema.prospect.$inferSelect
 async function enrichOneProspect(
   p: Pick<
     ProspectRow,
-    'id' | 'name' | 'addressLine1' | 'city' | 'state' | 'email' | 'status'
+    'id' | 'name' | 'addressLine1' | 'city' | 'state' | 'email' | 'emailSource' | 'authorizedOfficialName' | 'status'
   >,
   budget: EnrichBudgetCtx,
   out: EnrichRunResult,
@@ -287,7 +295,6 @@ async function enrichOneProspect(
       ratingTenths: place?.ratingTenths ?? null,
     })
 
-    const crawledEmail = signals?.emails[0] ?? null
     // A manual re-enrich must never demote a prospect the pipeline has
     // already moved forward (contacted/engaged/call_list keep their status).
     const enrichedStatus =
@@ -308,17 +315,25 @@ async function enrichOneProspect(
         opportunityScore: scored.score,
         scoreBand: scored.band,
         scoreReasons: scored.reasons,
-        // Email only ever from the clinic's own site; never overwrite a
-        // manually-entered address.
-        ...(crawledEmail && !p.email
-          ? { email: crawledEmail, emailSource: 'crawl_mailto' }
-          : {}),
         status: enrichedStatus,
         enrichedAt: new Date(),
         scoredAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(schema.prospect.id, p.id))
+
+    // Reachability: classify + MX-verify + rank every discovered address into
+    // prospect_contact, and point prospect.email at the best deliverable one
+    // (a named dentist over a shared desk). Best-effort — never fails the
+    // enrich. Also verifies a legacy prospect.email that isn't re-crawled.
+    try {
+      await syncProspectContacts(
+        { id: p.id, authorizedOfficialName: p.authorizedOfficialName, email: p.email, emailSource: p.emailSource },
+        signals?.emails ?? [],
+      )
+    } catch (err) {
+      console.warn('[prospect-enrich] contact sync failed', p.id, err instanceof Error ? err.message : err)
+    }
     out.enriched++
   } catch (err) {
     out.errors++

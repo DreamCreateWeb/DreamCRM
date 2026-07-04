@@ -222,6 +222,7 @@ export async function getDiscoveryProgress(): Promise<
 
 export interface ProspectDetail {
   prospect: typeof schema.prospect.$inferSelect
+  contacts: import('./prospect-contacts').ProspectContactRow[]
   touches: Array<{
     id: string
     stepNumber: number
@@ -271,7 +272,9 @@ export async function getProspectDetail(prospectId: string): Promise<ProspectDet
     .where(eq(schema.prospectCallLog.prospectId, prospectId))
     .orderBy(desc(schema.prospectCallLog.createdAt))
     .limit(20)
-  return { prospect: row, touches, events, calls }
+  const { listProspectContacts } = await import('./prospect-contacts')
+  const contacts = await listProspectContacts(prospectId)
+  return { prospect: row, contacts, touches, events, calls }
 }
 
 // ── Mutations (platform admin actions) ─────────────────────────────────────
@@ -455,6 +458,59 @@ export async function getCallList(): Promise<CallListRow[]> {
     })
   }
   return out
+}
+
+export interface PhoneQueueRow {
+  id: string
+  name: string
+  city: string | null
+  state: string | null
+  phone: string | null
+  authorizedOfficialName: string | null
+  opportunityScore: number | null
+  scoreBand: string | null
+  reviewCount: number | null
+  googleRatingTenths: number | null
+  websiteUrl: string | null
+  reasons: string[] // why they're worth the call (scoreReasons)
+}
+
+/**
+ * The phone queue — enriched, high-value prospects with NO deliverable email
+ * (no website, contact form only, or every crawled address failed MX). The
+ * hottest segment (no-website practices) is un-emailable by construction, so
+ * instead of letting them rot they surface here as a call-first list with the
+ * reasons they scored. prospect.email is null precisely because the contact
+ * sync found nothing sendable, so that's the gate.
+ */
+export async function getPhoneQueue(limit = 100): Promise<PhoneQueueRow[]> {
+  const rows = await db
+    .select()
+    .from(schema.prospect)
+    .where(
+      and(
+        eq(schema.prospect.status, 'enriched'),
+        isNull(schema.prospect.email),
+        isNotNull(schema.prospect.phone),
+        inArray(schema.prospect.scoreBand, ['hot', 'warm']),
+      ),
+    )
+    .orderBy(desc(schema.prospect.opportunityScore), desc(schema.prospect.enrichedAt))
+    .limit(limit)
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    city: p.city,
+    state: p.state,
+    phone: p.phone,
+    authorizedOfficialName: p.authorizedOfficialName,
+    opportunityScore: p.opportunityScore,
+    scoreBand: p.scoreBand,
+    reviewCount: p.reviewCount,
+    googleRatingTenths: p.googleRatingTenths,
+    websiteUrl: p.websiteUrl,
+    reasons: Array.isArray(p.scoreReasons) ? (p.scoreReasons as string[]).slice(0, 4) : [],
+  }))
 }
 
 /**

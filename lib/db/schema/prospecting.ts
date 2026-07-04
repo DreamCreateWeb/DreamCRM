@@ -144,6 +144,46 @@ export const prospect = pgTable(
 export type Prospect = typeof prospect.$inferSelect
 export type NewProspect = typeof prospect.$inferInsert
 
+// Multiple discovered/verified addresses per prospect — the reachability
+// layer. A practice's site often exposes several (info@, drjane@, office@);
+// we keep them ALL, classify the role, MX-verify deliverability, and rank so
+// the engine reaches out on the most personal deliverable address (mirrored
+// to prospect.email as the send target). The named owner's own inbox beats a
+// shared desk; an address that fails MX is kept but never becomes primary.
+// Migration 0119. Never fabricated — every row came from the crawl or a
+// human (source), honoring the no-guessing doctrine.
+export const prospectContact = pgTable(
+  'prospect_contact',
+  {
+    id: text('id').primaryKey(), // pcon_…
+    prospectId: text('prospect_id')
+      .notNull()
+      .references(() => prospect.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(), // lowercased
+    name: text('name'), // person name when known
+    // owner|personal|front_desk|billing|generic|unknown (contactRoleFor)
+    role: text('role').notNull().default('unknown'),
+    // crawl_mailto|crawl_text|crawl_contact|crawl_team|manual|nppes_official
+    source: text('source').notNull().default('crawl_mailto'),
+    // valid|risky|invalid|unknown — from the live MX check.
+    verifyStatus: text('verify_status').notNull().default('unknown'),
+    verifyReason: text('verify_reason'), // mx_ok|no_mx|role_address|disposable|syntax|dns_error
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    // Send-preference (rankContactEmail); higher = reach out here first.
+    rank: integer('rank').notNull().default(0),
+    // 1 = the chosen send target, mirrored to prospect.email. At most one.
+    isPrimary: integer('is_primary').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    prospectEmail: uniqueIndex('idx_pcon_prospect_email').on(t.prospectId, t.email),
+    prospect: index('idx_pcon_prospect').on(t.prospectId),
+  }),
+)
+export type ProspectContact = typeof prospectContact.$inferSelect
+export type NewProspectContact = typeof prospectContact.$inferInsert
+
 // Resumable NPPES pagination cursor. NPPES caps skip at 1200 (max 1,400 rows
 // per query at 200/page), so the unit of iteration is state × 3-digit ZIP
 // prefix; a zip3 that still hits the cap splits into zip5 child tasks.

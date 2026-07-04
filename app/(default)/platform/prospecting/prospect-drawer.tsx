@@ -10,6 +10,7 @@ import {
 } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import DrawerActions from './drawer-actions'
+import ContactsPanel from './contacts-panel'
 
 /**
  * Server-rendered prospect drawer — opens via ?prospect=<id> so it deep-links
@@ -98,18 +99,14 @@ export default function ProspectDrawer({
             </span>
           </div>
           <div className={ROW}>
-            <span className={KEY}>Email</span>
-            <span className={VAL}>
-              {p.email ?? '—'}
-              {p.email && p.emailSource && (
-                <span className="ml-1 text-xs text-gray-400">via {p.emailSource.replace(/_/g, ' ')}</span>
-              )}
-            </span>
-          </div>
-          <div className={ROW}>
             <span className={KEY}>NPI</span>
             <span className={`${VAL} tabular-nums`}>{p.npiNumber ?? '—'}</span>
           </div>
+        </div>
+
+        {/* Reachability — every discovered/entered address, ranked + verified */}
+        <div className={SECTION}>
+          <ContactsPanel prospectId={p.id} contacts={detail.contacts} />
         </div>
 
         {/* Online presence */}

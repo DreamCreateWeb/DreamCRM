@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { runEnrichment } from '@/lib/services/prospect-enrich'
+import { backfillProspectContacts } from '@/lib/services/prospect-contacts'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,10 @@ async function run(request: Request) {
   }
   try {
     const result = await runEnrichment()
-    return NextResponse.json({ ok: true, ...result })
+    // Self-heal: backfill contacts for prospects enriched before the
+    // reachability layer existed (best-effort, never fails the run).
+    const contacts = await backfillProspectContacts().catch(() => ({ scanned: 0, synced: 0 }))
+    return NextResponse.json({ ok: true, ...result, contactsBackfilled: contacts.synced })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'unknown' },

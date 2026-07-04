@@ -347,3 +347,55 @@ export async function convertProspectAction(
     return { ok: false, error: err instanceof Error ? err.message : 'Conversion failed.' }
   }
 }
+
+// ── Contacts (the reachability layer) ──────────────────────────────────────
+
+const addContactSchema = z.object({
+  prospectId: z.string().min(1),
+  email: z.string().email().max(200),
+  name: z.string().max(120).optional(),
+})
+
+/** Add an address you found (on the call, in the chart) — verified + pinned. */
+export async function addProspectContactAction(
+  input: z.infer<typeof addContactSchema>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const parsed = addContactSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'Enter a valid email.' }
+  const { addManualContact } = await import('@/lib/services/prospect-contacts')
+  const res = await addManualContact(parsed.data.prospectId, { email: parsed.data.email, name: parsed.data.name })
+  if (!res.ok) {
+    return { ok: false, error: res.reason === 'invalid_email' ? 'That email is not valid.' : 'Could not add the contact.' }
+  }
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  return { ok: true }
+}
+
+/** Pin a contact as the send target (sticky human override). */
+export async function setPrimaryContactAction(prospectId: string, contactId: string): Promise<void> {
+  await requirePlatformAdmin()
+  const { setPrimaryContact } = await import('@/lib/services/prospect-contacts')
+  await setPrimaryContact(prospectId, contactId)
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+}
+
+export async function deleteProspectContactAction(prospectId: string, contactId: string): Promise<void> {
+  await requirePlatformAdmin()
+  const { deleteProspectContact } = await import('@/lib/services/prospect-contacts')
+  await deleteProspectContact(prospectId, contactId)
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+}
+
+/** Re-run MX verification across a prospect's contacts. */
+export async function reverifyContactsAction(prospectId: string): Promise<{ verified: number }> {
+  await requirePlatformAdmin()
+  const { reverifyProspectContacts } = await import('@/lib/services/prospect-contacts')
+  const res = await reverifyProspectContacts(prospectId)
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  return res
+}

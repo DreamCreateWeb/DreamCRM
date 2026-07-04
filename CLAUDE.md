@@ -81,7 +81,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0118 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0119 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -205,7 +205,11 @@ invoices`), **partners** (`/partners`), sales pipeline, **prospecting**
 (`/platform/prospecting` — Dream Create's own outbound engine, "The
 Hunter": NPPES discovery (two-phase org NPI-2 → solo-dentist NPI-1 cursor
 via `prospect_discovery_task.entity_phase`) → enrichment/scoring (incl.
-brand capture: theme-color, icon, site name) → segment-matched
+brand capture: theme-color, icon, site name) → REACHABILITY
+(`prospect_contact`: crawl finds every address on the site incl. team/about
+pages, `lib/prospect-email.ts` classifies role + `prospect-email-verify.ts`
+MX-verifies, best deliverable one mirrored to `prospect.email`; un-emailable
+hot prospects surface in a phone-first queue) → segment-matched
 AUTO-ENROLLMENT (`lib/prospect-segment.ts`: no-website / weak-website /
 weak-presence → three pitch sequences; hottest-first, daily-capped, runs in
 dry-run) → AI drip outreach → reply intent classification → CALL LIST with
@@ -331,7 +335,7 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0118**. Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0119**. Workflow: `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime

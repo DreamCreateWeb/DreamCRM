@@ -2240,7 +2240,50 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-04 (latest) — Prospecting all-in: The Hunter
+## 2026-07-04 (latest) — Prospecting revolutionary pass P1: the reachability engine
+
+The Hunter's #1 leak was reachability: email came from a single homepage
+`mailto:`, was never verified, and the highest-value segment (no-website
+practices) was un-emailable by construction — the hottest leads rotted as
+dead rows. P1 closes that. Migration 0119 (`prospect_contact`).
+
+- **Multi-contact model.** `prospect_contact` keeps EVERY address a practice
+  exposes (info@, drjane@, office@) — role, source, MX status, rank, primary
+  flag — instead of the old write-once single email. `prospect.email` stays
+  the one send target the outreach engine reads; the sync just keeps it
+  pointed at the best deliverable contact.
+- **Deeper extraction.** `lib/prospect-signals.ts` now scrapes page-text
+  addresses (not just `mailto:` links — many sites print info@ next to a
+  contact form) with an asset-false-positive gate (`logo@2x.png`), and the
+  crawl hops the contact page PLUS up to two team/about pages (where a named
+  dentist's personal address lives), merging every find.
+- **Email intelligence** (`lib/prospect-email.ts`, pure + fully tested):
+  syntax/junk/disposable gating, role inference (owner-name match → office →
+  billing → generic), and a deterministic send-preference rank so a verified
+  drjane@ beats a verified info@, and invalid/disposable are floored so they
+  can never become primary.
+- **Deliverability pre-check** (`lib/services/prospect-email-verify.ts`): a
+  live MX lookup (`node:dns`) — MX present → valid, none → invalid (won't
+  deliver), DNS error → unknown (fail-open; the bounce watchdog is the
+  backstop). No SMTP probe. Per-domain cached across a batch. This kills dead
+  addresses BEFORE the first send instead of after the watchdog trips.
+- **The orchestrator** (`lib/services/prospect-contacts.ts`):
+  `syncProspectContacts` classifies + verifies + ranks + upserts every
+  discovered address and re-points `prospect.email` at the best deliverable
+  one — never stomping a human-pinned (manual) address. Enrichment calls it
+  after the crawl; a bounded self-heal backfill in the enrich cron gives
+  pre-existing prospects contact rows without a re-crawl.
+- **The phone queue** (`getPhoneQueue` → call-list `📵 Phone-first queue`):
+  enriched hot/warm prospects with no deliverable email surface as a
+  call-first list with the reasons they scored and a one-tap dial — the
+  un-emailable hottest segment turned into live cold calls instead of dead
+  rows.
+- **UI:** the drawer's single Email line became a full Contacts panel (verify
+  badges, role, ★ send target, pin/remove/re-verify, "add the email you found
+  on the call"). Pure layers (email intel, signal extraction, contact sync)
+  tested; suite green but for the pre-existing my-day flake.
+
+## 2026-07-04 — Prospecting all-in: The Hunter
 
 Closing every human-in-the-loop gap so the engine hunts autonomously and the
 owner only does the call + the close. Migration 0118 (segment/replyDraft/

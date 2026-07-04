@@ -1,4 +1,5 @@
 import type { ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { isJunkEmail, parseEmail } from '@/lib/prospect-email'
 
 /**
  * Pure crawl-signal extraction — regex over raw homepage HTML (the repo has
@@ -35,6 +36,29 @@ export function extractEmails(html: string): string[] {
     }
   }
   return Array.from(out).slice(0, 5)
+}
+
+/**
+ * Raw addresses printed in the page body/footer (not just mailto: links) —
+ * many dental sites render "info@…" as plain text with a contact form. Runs
+ * the same junk gate as parseEmail (rejects asset false-positives like
+ * logo@2x.png) so text scraping stays safe.
+ */
+export function extractTextEmails(html: string): string[] {
+  const out = new Set<string>()
+  for (const m of Array.from(html.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi))) {
+    const parsed = parseEmail(m[0])
+    if (parsed && !isJunkEmail(parsed.email)) out.add(parsed.email)
+  }
+  return Array.from(out).slice(0, 10)
+}
+
+/** Union of mailto + page-text addresses (deduped, junk-filtered, capped). */
+export function extractSiteEmails(html: string): string[] {
+  const out = new Set<string>()
+  for (const e of extractEmails(html)) if (!isJunkEmail(e)) out.add(e)
+  for (const e of extractTextEmails(html)) out.add(e)
+  return Array.from(out).slice(0, 10)
 }
 
 export function extractCrawlSignals(input: {
@@ -82,7 +106,7 @@ export function extractCrawlSignals(input: {
     },
     builder,
     pageWeightKb: Math.round(input.bytes / 1024),
-    emails: extractEmails(html),
+    emails: extractSiteEmails(html),
     fetchedAt: input.fetchedAt.toISOString(),
     // Brand capture for presenter mode.
     themeColor: normalizeHexColor(metaContent(head, 'theme-color')),
@@ -95,6 +119,31 @@ export function extractCrawlSignals(input: {
 export function findContactPath(html: string): string | null {
   const m = html.match(/href=["'](\/[^"']*contact[^"']*)["']/i)
   return m ? m[1].slice(0, 200) : null
+}
+
+const TEAM_PATH_MARKERS =
+  /(team|about|our-?team|meet-?(the-?)?(team|doctor|dentist)|staff|providers?|doctors?|dentists?|our-?practice)/i
+
+/**
+ * Same-site "meet the team / about" page paths — where a named dentist's
+ * personal email often lives (drjane@…) when the homepage only shows a
+ * generic desk address. Returns up to `limit` distinct relative paths,
+ * contact pages excluded (findContactPath already covers those).
+ */
+export function findTeamPaths(html: string, limit = 2): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const m of Array.from(html.matchAll(/href=["'](\/[^"'#?]{1,180})["']/gi))) {
+    const path = m[1]
+    if (/contact/i.test(path)) continue
+    if (!TEAM_PATH_MARKERS.test(path)) continue
+    const key = path.toLowerCase().replace(/\/$/, '')
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(path)
+    if (out.length >= limit) break
+  }
+  return out
 }
 
 // ── Brand capture (presenter mode) ─────────────────────────────────────────
