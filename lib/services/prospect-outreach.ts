@@ -13,6 +13,7 @@ import type {
   ProspectingConfig,
 } from '@/lib/types/prospecting'
 import { segmentForProspect } from '@/lib/prospect-segment'
+import { assessDeliverability } from '@/lib/prospect-deliverability'
 import {
   getProspectingConfig,
   updateProspectingConfig,
@@ -710,6 +711,72 @@ export async function runAutoEnroll(opts?: { now?: Date }): Promise<AutoEnrollRe
   return out
 }
 
+/**
+ * Trailing-window deliverability check. Counts real (non-dry-run) sends and
+ * bounce/complaint events over watchdog.windowHours; on a breach, flips
+ * dryRun on + stamps the trip + alerts platform admins. Returns true when it
+ * tripped (caller skips this run's sends).
+ */
+async function checkWatchdog(config: ProspectingConfig, now: Date): Promise<boolean> {
+  const since = new Date(now.getTime() - config.watchdog.windowHours * 60 * 60 * 1000)
+  const [sentRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.outreachTouchLog)
+    .where(
+      and(
+        inArray(schema.outreachTouchLog.channel, ['resend', 'gmail']),
+        eq(schema.outreachTouchLog.status, 'sent'),
+        sql`${schema.outreachTouchLog.sentAt} >= ${since}`,
+      ),
+    )
+  const events = await db
+    .select({ type: schema.outreachEvent.type, n: sql<number>`count(*)::int` })
+    .from(schema.outreachEvent)
+    .where(
+      and(
+        inArray(schema.outreachEvent.type, ['bounce', 'complaint']),
+        sql`${schema.outreachEvent.occurredAt} >= ${since}`,
+      ),
+    )
+    .groupBy(schema.outreachEvent.type)
+
+  const counts = {
+    sent: sentRow?.n ?? 0,
+    bounces: events.find((e) => e.type === 'bounce')?.n ?? 0,
+    complaints: events.find((e) => e.type === 'complaint')?.n ?? 0,
+  }
+  const verdict = assessDeliverability(counts, config.watchdog)
+  if (!verdict.tripped) return false
+
+  await updateProspectingConfig({
+    dryRun: true,
+    watchdog: { ...config.watchdog, trippedAt: now.toISOString(), reason: verdict.reason },
+  })
+  // Best-effort alert — a paused send engine must not depend on the bell.
+  try {
+    const { getPlatformOrgId } = await import('./gsc')
+    const { notifyOrgMembers } = await import('./notifications')
+    const orgId = await getPlatformOrgId()
+    if (orgId) {
+      await notifyOrgMembers(
+        orgId,
+        {
+          bucket: 'comments',
+          type: 'prospect_watchdog',
+          title: 'Outreach auto-paused — deliverability alarm',
+          body: `${verdict.reason}. Sending is back in dry-run until you review and flip it live again in Prospecting Settings.`,
+          linkPath: '/platform/prospecting/settings',
+          forceEmail: true,
+        },
+        { roles: ['owner', 'admin'] },
+      )
+    }
+  } catch (err) {
+    console.warn('[prospect-outreach] watchdog alert failed', err)
+  }
+  return true
+}
+
 export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunResult> {
   const now = opts?.now ?? new Date()
   const config = await getProspectingConfig()
@@ -721,6 +788,14 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
   await ensureAllSequences()
   const sender = resolveOutreachSender(config)
   out.dryRun = sender.kind === 'dry_run'
+
+  // Deliverability watchdog — only when actually sending (dry-run has no real
+  // sends to judge) and not already tripped. A breach auto-pauses LIVE
+  // sending and alerts; the owner clears it by flipping dry-run back off.
+  if (!out.dryRun && config.watchdog.enabled && !config.watchdog.trippedAt) {
+    const tripped = await checkWatchdog(config, now)
+    if (tripped) return { ...out, skipped: 'watchdog_tripped' }
+  }
 
   // Live sending starts the warm-up clock exactly once.
   if (!out.dryRun && !config.warmup.startedAt) {

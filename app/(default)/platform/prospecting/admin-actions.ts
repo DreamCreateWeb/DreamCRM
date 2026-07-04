@@ -31,10 +31,21 @@ export async function setKillSwitchAction(on: boolean): Promise<void> {
   revalidatePath('/platform/prospecting/settings')
 }
 
-/** Toggle dry-run (true = personalize + log, never send). */
+/** Toggle dry-run (true = personalize + log, never send). Flipping it OFF
+ *  (going live) also clears any watchdog trip — the owner has reviewed and is
+ *  choosing to resume. */
 export async function setDryRunAction(on: boolean): Promise<void> {
   await requirePlatformAdmin()
-  await updateProspectingConfig({ dryRun: Boolean(on) })
+  if (on) {
+    await updateProspectingConfig({ dryRun: true })
+  } else {
+    const config = await getProspectingConfig()
+    await updateProspectingConfig({
+      dryRun: false,
+      watchdog: { ...config.watchdog, trippedAt: null, reason: null },
+    })
+  }
+  revalidatePath('/platform/prospecting')
   revalidatePath('/platform/prospecting/settings')
 }
 

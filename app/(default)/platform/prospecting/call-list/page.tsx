@@ -43,6 +43,7 @@ export default async function CallListPage({
         intentAt: p.intentAt,
         intentSummary: p.intentSummary,
         talkingPoints: Array.isArray(p.talkingPoints) ? (p.talkingPoints as string[]) : [],
+        replyDraft: p.replyDraft ?? null,
         opportunityScore: p.opportunityScore,
         scoreBand: p.scoreBand,
         lastCallOutcome: detail.calls[0]?.outcome ?? null,

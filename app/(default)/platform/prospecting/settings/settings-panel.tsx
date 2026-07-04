@@ -81,6 +81,19 @@ export default function SettingsPanel({
 
   return (
     <div>
+      {config.watchdog.trippedAt && (
+        <div className="mb-5 rounded-lg border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-500/10 px-4 py-3">
+          <div className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+            🛡️ Deliverability watchdog tripped — sending auto-paused
+          </div>
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+            {config.watchdog.reason}. The engine dropped back to dry-run to protect the sending
+            domain. Review your bounces, then flip &ldquo;Live sending&rdquo; back on below to
+            resume (that also clears this alarm).
+          </p>
+        </div>
+      )}
+
       {/* Master switches */}
       <section className={SECTION}>
         <div className={SECTION_TITLE}>Engine</div>

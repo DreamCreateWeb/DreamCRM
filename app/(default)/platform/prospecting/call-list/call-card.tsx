@@ -126,6 +126,47 @@ function ConvertForm({
   )
 }
 
+function SuggestedReply({ draft }: { draft: string }) {
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="mt-3 rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="text-sm font-medium text-teal-600 dark:text-teal-400"
+      >
+        {open ? '▾' : '▸'} ✉️ Suggested reply
+      </button>
+      {open && (
+        <div className="mt-2">
+          <p className="whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">{draft}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(draft).then(
+                  () => {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  },
+                  () => {},
+                )
+              }}
+              className="rounded-md bg-teal-500/10 px-2.5 py-1 text-xs font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-500/20"
+            >
+              {copied ? 'Copied ✓' : 'Copy to clipboard'}
+            </button>
+            <span className="text-xs text-gray-400">
+              You send this from your own inbox — we never auto-send.
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CallCard({ row }: { row: CallListRow }) {
   const [pending, startTransition] = useTransition()
   const [note, setNote] = useState('')
@@ -195,6 +236,8 @@ export default function CallCard({ row }: { row: CallListRow }) {
           ))}
         </ul>
       )}
+
+      {row.replyDraft && <SuggestedReply draft={row.replyDraft} />}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {OUTCOMES.map((o) => (

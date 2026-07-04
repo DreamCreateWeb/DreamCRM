@@ -25,6 +25,7 @@ vi.mock('@/lib/db', () => {
     obj.innerJoin = () => obj
     obj.where = () => obj
     obj.orderBy = () => obj
+    obj.groupBy = () => obj
     obj.limit = () => obj
     obj.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
@@ -66,11 +67,17 @@ vi.mock('@/lib/db', () => {
         _n: 'outreach_enrollment', id: 'id', prospectId: 'pid', sequenceId: 'sid',
         status: 'status', currentStep: 'cur', nextSendAt: 'next',
       },
-      outreachTouchLog: { _n: 'outreach_touch_log', id: 'id', enrollmentId: 'eid', stepNumber: 'step' },
+      outreachTouchLog: { _n: 'outreach_touch_log', id: 'id', enrollmentId: 'eid', stepNumber: 'step', channel: 'ch', status: 'st', sentAt: 'sa' },
+      outreachEvent: { _n: 'outreach_event', id: 'id', type: 'type', occurredAt: 'oa' },
       emailAccount: { _n: 'email_account', id: 'id', emailAddress: 'addr' },
     },
   }
 })
+
+// The watchdog alert dynamically imports these — stub so the trip path never
+// reaches the real platform-org lookup / bell.
+vi.mock('@/lib/services/gsc', () => ({ getPlatformOrgId: async () => 'org_platform' }))
+vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn(async () => {}) }))
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({})),
   asc: vi.fn(() => ({})),
@@ -138,6 +145,9 @@ const LIVE_CONFIG = {
   dryRun: false,
   enabledStates: ['TX'],
   warmup: { ...PROSPECTING_DEFAULTS.warmup, startedAt: '2026-07-01T00:00:00Z' },
+  // Watchdog off in the baseline config so the send-path tests don't have to
+  // queue its two count selects — the watchdog trip has its own test below.
+  watchdog: { ...PROSPECTING_DEFAULTS.watchdog, enabled: false },
 }
 const DRY_CONFIG = { ...LIVE_CONFIG, dryRun: true }
 
@@ -256,6 +266,34 @@ describe('runOutreach', () => {
     const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
     expect(r.skipped).toBe('kill_switch')
     expect(resendSendMock).not.toHaveBeenCalled()
+  })
+
+  it('the deliverability watchdog trips: flips dry-run, alerts, sends nothing', async () => {
+    configMock.mockResolvedValue({
+      ...LIVE_CONFIG,
+      watchdog: { ...PROSPECTING_DEFAULTS.watchdog, enabled: true },
+    })
+    // checkWatchdog: sent count, then bounce/complaint event group.
+    state.selectQueue.push([{ n: 100 }]) // 100 live sends in-window
+    state.selectQueue.push([{ type: 'bounce', n: 10 }]) // 10% bounces > 5%
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+    expect(r.skipped).toBe('watchdog_tripped')
+    expect(resendSendMock).not.toHaveBeenCalled()
+    // Auto-paused: dryRun flipped on + trip stamped.
+    const calls = updateConfigMock.mock.calls as unknown as Array<[Record<string, any>]>
+    const trip = calls.find((c) => c[0]?.dryRun === true)
+    expect(trip).toBeDefined()
+    expect(trip![0].watchdog.trippedAt).toBeTruthy()
+  })
+
+  it('the watchdog is never evaluated in dry-run (no real sends to judge)', async () => {
+    configMock.mockResolvedValue({
+      ...DRY_CONFIG,
+      watchdog: { ...PROSPECTING_DEFAULTS.watchdog, enabled: true },
+    })
+    queueHappyPath() // no watchdog selects queued — proves the check is skipped
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+    expect(r).toMatchObject({ sent: 1, dryRun: true })
   })
 
   it('dry-run: personalizes + logs channel=dry_run, never touches Resend, never burns the daily counter', async () => {

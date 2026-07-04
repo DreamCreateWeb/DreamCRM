@@ -67,15 +67,21 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
-const { aiMock, bumpMock } = vi.hoisted(() => ({
+const { aiMock, bumpMock, notifyMock, briefMock } = vi.hoisted(() => ({
   aiMock: vi.fn(),
   bumpMock: vi.fn(async () => {}),
+  notifyMock: vi.fn(async () => {}),
+  briefMock: vi.fn(async () => null),
 }))
 vi.mock('@/lib/ai', () => ({ runClaudeJson: aiMock, aiConfigured: () => true }))
 vi.mock('@/lib/services/prospecting', () => ({
   bumpProspectingCounter: bumpMock,
   counterMonth: () => '2026-07',
 }))
+// Dynamically imported by the alert + pre-warm path.
+vi.mock('@/lib/services/gsc', () => ({ getPlatformOrgId: async () => 'org_platform' }))
+vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyMock }))
+vi.mock('@/lib/services/demo-brief', () => ({ generateDemoBrief: briefMock }))
 
 import {
   processInboundForOutreach,
@@ -137,6 +143,33 @@ describe('processInboundForOutreach', () => {
     })
     const evt = state.inserts.find((i) => i.table === 'outreach_event')
     expect(evt!.values).toMatchObject({ type: 'reply' })
+    // Owner alerted (forced email) + demo brief pre-warmed.
+    expect(notifyMock).toHaveBeenCalledWith(
+      'org_platform',
+      expect.objectContaining({ type: 'prospect_call_list', forceEmail: true }),
+      { roles: ['owner', 'admin'] },
+    )
+    // The brief pre-warm is fire-and-forget — let its microtask settle.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(briefMock).toHaveBeenCalledWith('pros_1')
+  })
+
+  it('question reply stores an AI reply draft when the model returns one', async () => {
+    queueSweep()
+    // classify call, then draftReply call — return the draft on the 2nd.
+    aiMock
+      .mockResolvedValueOnce({ classification: 'question', summary: 'Asked cost.', talkingPoints: [] })
+      .mockResolvedValueOnce({ draft: 'Happy to explain — plans start at $150/mo. Want a quick call?' })
+    await processInboundForOutreach()
+    const flip = state.updates.find((u) => u.table === 'prospect')
+    expect(String(flip!.values.replyDraft)).toContain('$150')
+  })
+
+  it('not_interested fires NO owner alert', async () => {
+    queueSweep()
+    aiMock.mockResolvedValue({ classification: 'not_interested', summary: 'Not now.', talkingPoints: [] })
+    await processInboundForOutreach()
+    expect(notifyMock).not.toHaveBeenCalled()
   })
 
   it('unsubscribe reply → permanent suppression + suppressed status', async () => {
@@ -208,6 +241,25 @@ describe('rollupEngagementSignals', () => {
     expect(r.promoted).toBe(1)
     const flip = state.updates.find((u) => u.table === 'prospect')
     expect(flip!.values).toMatchObject({ intentSignal: 'opens' })
+  })
+
+  it('emits ONE aggregate bell for the whole rollup (no forceEmail)', async () => {
+    state.selectQueue.push([{ id: 'pros_1', name: 'Alpha' }, { id: 'pros_2', name: 'Beta' }])
+    state.selectQueue.push([{ type: 'click', n: 1 }]) // pros_1 promotes
+    state.selectQueue.push([{ type: 'click', n: 1 }]) // pros_2 promotes
+    await rollupEngagementSignals()
+    expect(notifyMock).toHaveBeenCalledTimes(1)
+    const payload = (notifyMock.mock.calls[0] as unknown[])[1] as Record<string, any>
+    expect(payload).toMatchObject({ type: 'prospect_engaged' })
+    expect(payload.forceEmail).toBeUndefined()
+    expect(payload.title).toContain('2 prospects')
+  })
+
+  it('no promotions → no aggregate bell', async () => {
+    state.selectQueue.push([{ id: 'pros_1', name: 'Alpha' }])
+    state.selectQueue.push([{ type: 'open', n: 1 }]) // below threshold
+    await rollupEngagementSignals()
+    expect(notifyMock).not.toHaveBeenCalled()
   })
 })
 

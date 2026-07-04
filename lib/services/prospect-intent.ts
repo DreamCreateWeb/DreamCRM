@@ -80,6 +80,102 @@ async function classifyReply(input: {
   }
 }
 
+function formatPhone(phone: string | null | undefined): string | null {
+  if (!phone || phone.length < 10) return null
+  return `(${phone.slice(0, 3)}) ${phone.slice(3, 6)}-${phone.slice(6)}`
+}
+
+/**
+ * Alert platform owner/admins that a prospect raised their hand — bell +
+ * forced email — and fire-and-forget pre-warm the demo brief so the prep
+ * page loads instantly. All best-effort: a failed alert never blocks the
+ * classification write.
+ */
+async function alertCallList(
+  prospect: ClassifiableProspect,
+  classification: 'interested' | 'question' | 'demo_request',
+  summary: string,
+): Promise<void> {
+  try {
+    const { getPlatformOrgId } = await import('./gsc')
+    const { notifyOrgMembers } = await import('./notifications')
+    const orgId = await getPlatformOrgId()
+    if (orgId) {
+      const name = prospect.name ?? 'A prospect'
+      const title =
+        classification === 'question'
+          ? `✉️ ${name} replied with a question`
+          : classification === 'demo_request'
+            ? `🔥 ${name} requested a demo`
+            : `🔥 ${name} replied — they're interested`
+      const phone = formatPhone(prospect.phone)
+      await notifyOrgMembers(
+        orgId,
+        {
+          bucket: 'comments',
+          type: 'prospect_call_list',
+          title,
+          body: `${summary}${phone ? `\n\nPhone: ${phone}` : ''}`,
+          linkPath: `/platform/prospecting/call-list?highlight=${prospect.id}`,
+          linkLabel: 'Open the call list →',
+          forceEmail: true,
+        },
+        { roles: ['owner', 'admin'] },
+      )
+    }
+  } catch (err) {
+    console.warn('[prospect-intent] call-list alert failed', err)
+  }
+  // Pre-warm the demo brief (cached on the prospect row) — non-blocking.
+  import('./demo-brief')
+    .then((m) => m.generateDemoBrief(prospect.id))
+    .catch(() => {})
+}
+
+const replyDraftSchema = z.object({ draft: z.string().min(20).max(1200) })
+
+/**
+ * Draft a reply to a prospect's question — warm, factual, sign-off-free
+ * (the owner sends it from his own inbox). Budget-gated; failure → null,
+ * never blocks the classification.
+ */
+async function draftReply(
+  prospect: ClassifiableProspect,
+  summary: string,
+  replyBody: string,
+): Promise<string | null> {
+  if (!aiConfigured()) return null
+  const verdict = (prospect.aiVerdict ?? null) as { weaknesses?: string[] } | null
+  const gaps = verdict?.weaknesses?.slice(0, 4) ?? []
+  try {
+    const raw = await runClaudeJson({
+      model: 'haiku',
+      maxTokens: 500,
+      system:
+        "You draft a short reply from Dustin at Dream Create (dental websites + patient-communication software) to a dental practice that answered his cold email with a question. Answer their question directly and honestly using ONLY the provided facts. Warm, plain, conversational — no hype, no exclamation marks, no pressure. Under 120 words. End by offering a quick call. A greeting line is fine; do NOT include a sign-off (added later). Never fabricate pricing, clients, or capabilities beyond the provided facts.",
+      messages: [
+        {
+          role: 'user',
+          content: `Practice: ${prospect.name ?? 'the practice'}\nTheir reply: ${replyBody.slice(0, 4000)}\nWhat they're asking (summary): ${summary}\nVerified gaps we can speak to: ${gaps.join('; ') || 'none recorded'}\nTheir Google review count: ${prospect.reviewCount ?? 'unknown'}`,
+        },
+      ],
+      toolName: 'write_reply_draft',
+      toolDescription: 'Emit the drafted reply body.',
+      inputSchema: {
+        type: 'object',
+        properties: { draft: { type: 'string' } },
+        required: ['draft'],
+      },
+    })
+    const parsed = replyDraftSchema.safeParse(raw)
+    if (!parsed.success) return null
+    await bumpProspectingCounter(counterMonth(), 'ai_reply_draft')
+    return parsed.data.draft
+  } catch {
+    return null
+  }
+}
+
 async function stopLiveEnrollment(prospectId: string, status: string, reason: string) {
   await db
     .update(schema.outreachEnrollment)
@@ -92,15 +188,31 @@ async function stopLiveEnrollment(prospectId: string, status: string, reason: st
     )
 }
 
+interface ClassifiableProspect {
+  id: string
+  name?: string
+  email: string | null
+  phone?: string | null
+  aiVerdict?: unknown
+  reviewCount?: number | null
+}
+
 async function applyClassification(
-  prospect: { id: string; email: string | null },
+  prospect: ClassifiableProspect,
   verdict: z.infer<typeof classificationSchema>,
+  replyBody = '',
 ): Promise<void> {
   const now = new Date()
   switch (verdict.classification) {
     case 'interested':
     case 'question': {
       await stopLiveEnrollment(prospect.id, 'stopped_reply', verdict.classification)
+      // Question replies get an AI-drafted response waiting on the call card
+      // (the owner sends it from his own inbox — we never auto-send).
+      const replyDraft =
+        verdict.classification === 'question'
+          ? await draftReply(prospect, verdict.summary, replyBody)
+          : null
       await db
         .update(schema.prospect)
         .set({
@@ -109,9 +221,13 @@ async function applyClassification(
           intentAt: now,
           intentSummary: verdict.summary,
           talkingPoints: verdict.talkingPoints,
+          ...(replyDraft ? { replyDraft } : {}),
           updatedAt: now,
         })
         .where(eq(schema.prospect.id, prospect.id))
+      // Alert the owner (bell + forced email) + pre-warm the demo brief so the
+      // prep page is instant when they click through. Both best-effort.
+      await alertCallList(prospect, verdict.classification, verdict.summary)
       break
     }
     case 'not_interested':
@@ -235,7 +351,10 @@ export async function processInboundForOutreach(opts?: {
         id: schema.prospect.id,
         name: schema.prospect.name,
         email: schema.prospect.email,
+        phone: schema.prospect.phone,
         status: schema.prospect.status,
+        aiVerdict: schema.prospect.aiVerdict,
+        reviewCount: schema.prospect.reviewCount,
       })
       .from(schema.prospect)
       .where(sql`lower(${schema.prospect.email}) = ${fromEmail}`)
@@ -278,7 +397,7 @@ export async function processInboundForOutreach(opts?: {
     if (!verdict) continue // AI down: recorded the reply, next sweep won't re-act
     out.classified++
     await bumpProspectingCounter(month, 'ai_classify')
-    await applyClassification(prospect, verdict)
+    await applyClassification(prospect, verdict, body)
     if (verdict.classification === 'interested' || verdict.classification === 'question') {
       out.callList++
     }
@@ -295,11 +414,12 @@ export async function processInboundForOutreach(opts?: {
  */
 export async function rollupEngagementSignals(): Promise<{ promoted: number }> {
   const candidates = await db
-    .select({ id: schema.prospect.id })
+    .select({ id: schema.prospect.id, name: schema.prospect.name })
     .from(schema.prospect)
     .where(eq(schema.prospect.status, 'contacted'))
     .limit(500)
   let promoted = 0
+  const names: string[] = []
   for (const p of candidates) {
     const events = await db
       .select({ type: schema.outreachEvent.type, n: sql<number>`count(*)::int` })
@@ -320,6 +440,31 @@ export async function rollupEngagementSignals(): Promise<{ promoted: number }> {
       .set({ status: 'engaged', intentSignal: signal, intentAt: new Date(), updatedAt: new Date() })
       .where(and(eq(schema.prospect.id, p.id), eq(schema.prospect.status, 'contacted')))
     promoted++
+    if (names.length < 3) names.push(p.name)
+  }
+  // ONE aggregate bell for the whole rollup (engaged is a soft signal — a
+  // per-prospect email here would flood the inbox). No forceEmail.
+  if (promoted > 0) {
+    try {
+      const { getPlatformOrgId } = await import('./gsc')
+      const { notifyOrgMembers } = await import('./notifications')
+      const orgId = await getPlatformOrgId()
+      if (orgId) {
+        await notifyOrgMembers(
+          orgId,
+          {
+            bucket: 'comments',
+            type: 'prospect_engaged',
+            title: `🔥 ${promoted} prospect${promoted === 1 ? '' : 's'} heating up`,
+            body: `${names.join(', ')}${promoted > names.length ? ` and ${promoted - names.length} more` : ''} opened or clicked your outreach.`,
+            linkPath: '/platform/prospecting?status=engaged',
+          },
+          { roles: ['owner', 'admin'] },
+        )
+      }
+    } catch (err) {
+      console.warn('[prospect-intent] engaged rollup alert failed', err)
+    }
   }
   return { promoted }
 }
@@ -333,7 +478,12 @@ export async function promoteProspectByEmail(
   signal: 'demo_request',
 ): Promise<boolean> {
   const [prospect] = await db
-    .select({ id: schema.prospect.id, status: schema.prospect.status })
+    .select({
+      id: schema.prospect.id,
+      name: schema.prospect.name,
+      phone: schema.prospect.phone,
+      status: schema.prospect.status,
+    })
     .from(schema.prospect)
     .where(sql`lower(${schema.prospect.email}) = ${email.toLowerCase()}`)
     .limit(1)
@@ -346,5 +496,10 @@ export async function promoteProspectByEmail(
     .update(schema.prospect)
     .set({ status: 'call_list', intentSignal: signal, intentAt: new Date(), updatedAt: new Date() })
     .where(eq(schema.prospect.id, prospect.id))
+  await alertCallList(
+    { id: prospect.id, name: prospect.name, email: email, phone: prospect.phone },
+    'demo_request',
+    'Requested a demo from the marketing site.',
+  )
   return true
 }

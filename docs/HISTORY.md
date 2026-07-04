@@ -2260,7 +2260,22 @@ entityPhase — all three ship in P1). 3 phases.
    prospects in the configured score bands, hottest-first, daily-capped
    ('auto_enroll' counter), runs even in dry-run; known-contact enroll
    failures disqualify (drain the pool). Settings hunter card (toggle/bands/
-   cap + today's count); sequence segment badges.
+   cap + today's count); sequence segment badges. (`2c66814`)
+2. **Phase 2 — Alarm bells + guard rails**: `lib/prospect-deliverability.ts`
+   (pure watchdog math: below minSends never trips, strict `>` at the
+   threshold, bounce + complaint paths). Watchdog hook in runOutreach (only
+   when the sender resolves live + not already tripped): counts real sends +
+   bounce/complaint events over a 72h window → assessDeliverability → on a
+   breach flips config.dryRun on, stamps watchdog.trippedAt/reason, and
+   forceEmail-alerts platform admins; setDryRunAction(false) clears the trip.
+   Call-list alerting in prospect-intent applyClassification: interested/
+   question replies notifyOrgMembers (bell + forced email, w/ phone) +
+   fire-and-forget demo-brief pre-warm; promoteProspectByEmail gets parity;
+   engagement rollup emits ONE aggregate bell per run (soft signal). AI reply
+   drafts for 'question' replies (haiku, stored on prospect.reply_draft,
+   metered ai_reply_draft, cleared on outcome) surfaced as a copy-to-clipboard
+   "✉️ Suggested reply" block on the call card ("you send from your own inbox
+   — we never auto-send"). Settings watchdog tripped banner.
 
 ## 2026-07-03 — Demo system all-in (the demo is a MIRROR)
 

@@ -330,6 +330,7 @@ export interface CallListRow {
   intentAt: Date | null
   intentSummary: string | null
   talkingPoints: string[]
+  replyDraft: string | null
   opportunityScore: number | null
   scoreBand: string | null
   lastCallOutcome: string | null
@@ -363,6 +364,7 @@ export async function getCallList(): Promise<CallListRow[]> {
       intentAt: p.intentAt,
       intentSummary: p.intentSummary,
       talkingPoints: Array.isArray(p.talkingPoints) ? (p.talkingPoints as string[]) : [],
+      replyDraft: p.replyDraft ?? null,
       opportunityScore: p.opportunityScore,
       scoreBand: p.scoreBand,
       lastCallOutcome: lastCall?.outcome ?? null,
@@ -389,6 +391,12 @@ export async function logCallOutcome(input: {
     note: input.note ?? null,
     calledByUserId: input.calledByUserId ?? null,
   })
+  // A logged call means the owner has handled the thread — the AI reply
+  // draft is stale, clear it.
+  await db
+    .update(schema.prospect)
+    .set({ replyDraft: null, updatedAt: new Date() })
+    .where(eq(schema.prospect.id, input.prospectId))
   if (input.outcome === 'not_interested') {
     await db
       .update(schema.prospect)
