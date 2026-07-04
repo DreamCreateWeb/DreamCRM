@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { findDentalPlace, placesConfigured } from '@/lib/google-places'
 import { extractCrawlSignals, extractSiteEmails, findContactPath, findTeamPaths } from '@/lib/prospect-signals'
+import { detectVendors, type DetectedVendor } from '@/lib/prospect-vendors'
 import { computeOpportunityScore, heuristicVerdict } from '@/lib/prospect-scoring'
 import { syncProspectContacts } from './prospect-contacts'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
@@ -100,20 +101,28 @@ export async function crawlProspectSite(url: string): Promise<ProspectCrawlSigna
     // sprawling site can't balloon the crawl.
     const pageOrigin = new URL(page.finalUrl).origin
     const emails = new Set(signals.emails)
+    // Vendor fingerprints (the deal room) — a booking widget or review tool
+    // often only appears on a subpage, so accumulate across the hops too.
+    const vendorByName = new Map<string, DetectedVendor>()
+    for (const v of detectVendors(page.html)) vendorByName.set(v.name, v)
     const hops: string[] = []
     const contactPath = findContactPath(page.html)
     if (contactPath) hops.push(contactPath)
     for (const p of findTeamPaths(page.html, 2)) hops.push(p)
     for (const path of hops.slice(0, 3)) {
-      if (emails.size >= 6) break
+      if (emails.size >= 6 && vendorByName.size >= 4) break
       try {
         const sub = await fetchPage(`${pageOrigin}${path}`)
-        if (sub) for (const e of extractSiteEmails(sub.html)) emails.add(e)
+        if (sub) {
+          for (const e of extractSiteEmails(sub.html)) emails.add(e)
+          for (const v of detectVendors(sub.html)) vendorByName.set(v.name, v)
+        }
       } catch {
         /* a discovery hop is a bonus, never a failure */
       }
     }
     signals.emails = Array.from(emails).slice(0, 10)
+    signals.vendors = Array.from(vendorByName.values())
     return signals
   } catch (err) {
     console.warn('[prospect-enrich] crawl failed', url, err instanceof Error ? err.message : err)

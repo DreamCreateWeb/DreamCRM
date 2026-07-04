@@ -2240,7 +2240,22 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-04 (latest) — Prospecting daily workspace F6: never-drop-a-lead follow-ups
+## 2026-07-04 (latest) — Prospecting daily workspace F4: the deal room
+
+Every prospect drawer now has a "💰 Deal room": the crawl fingerprints the
+orbital-layer tools the practice already runs (`lib/prospect-vendors.ts` — a
+registry of real dental vendors: NexHealth/LocalMed/Zocdoc booking,
+Podium/Birdeye/Weave reviews+messaging, RevenueWell/Solutionreach marketing,
+PBHS/ProSites site hosts, …), stored on `enrichment.vendors`. The pure
+`consolidationEstimate` turns detected tools into the pitch math — what they
+likely pay across them (~$X/mo), the DreamCRM plan tier that replaces the
+stack (marketing/recall or 3+ categories → Premium; booking/reviews/forms →
+Pro; site-only → Basic), and the monthly + annual savings (floored at 0,
+labelled an estimate not a quote). No competitor tools detected → the honest
+industry-context line. Re-enrich backfills vendors on existing prospects.
+Vendor detection + consolidation math are unit-tested.
+
+## 2026-07-04 — Prospecting daily workspace F6: never-drop-a-lead follow-ups
 
 A logged call outcome that isn't terminal now schedules the next nudge:
 callback → +1 day, voicemail/no-answer → +2 days (pure `followUpForOutcome`,

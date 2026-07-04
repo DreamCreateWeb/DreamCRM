@@ -63,6 +63,10 @@ export interface ProspectCrawlSignals {
   iconUrl?: string | null
   /** og:site_name — how they brand themselves. */
   siteName?: string | null
+  /** Competitor/vendor fingerprints from the site — who we'd displace (the
+   *  deal room). Shape: DetectedVendor from lib/prospect-vendors.ts. Optional;
+   *  older crawls lack it, re-enrich backfills. */
+  vendors?: Array<{ name: string; category: string; estMonthly: number }>
 }
 
 // ── AI verdict (prospect.ai_verdict jsonb) ─────────────────────────────────

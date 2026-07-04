@@ -9,6 +9,12 @@ import {
   type ProspectCrawlSignals,
 } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
+import {
+  consolidationEstimate,
+  VENDOR_CATEGORY_LABELS,
+  type DetectedVendor,
+  type VendorCategory,
+} from '@/lib/prospect-vendors'
 import DrawerActions from './drawer-actions'
 import ContactsPanel from './contacts-panel'
 
@@ -181,6 +187,12 @@ export default function ProspectDrawer({
           )}
         </div>
 
+        {/* Deal room — who we'd displace + the consolidation math */}
+        <div className={SECTION}>
+          <div className={SECTION_TITLE}>💰 Deal room</div>
+          <DealRoom vendors={(signals?.vendors ?? []) as DetectedVendor[]} crawled={Boolean(signals)} />
+        </div>
+
         {/* Why this score */}
         {verdict && p.scoreReasons != null && (
           <div className={SECTION}>
@@ -260,5 +272,63 @@ export default function ProspectDrawer({
         />
       </div>
     </aside>
+  )
+}
+
+function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: boolean }) {
+  if (vendors.length === 0) {
+    return (
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        {crawled
+          ? 'No competitor tools fingerprinted on their site. A typical practice still runs 5-10 separate tools ($800–$2,000/mo) we consolidate into one.'
+          : 'Not crawled yet — re-enrich to fingerprint the tools they run.'}
+      </p>
+    )
+  }
+  const est = consolidationEstimate(vendors)
+  return (
+    <div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+        Running {vendors.length} tool{vendors.length === 1 ? '' : 's'} we&apos;d replace:
+      </p>
+      <ul className="space-y-1 mb-3">
+        {vendors.map((v) => (
+          <li key={v.name} className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-gray-900 dark:text-gray-100">
+              {v.name}
+              <span className="ml-1.5 text-xs text-gray-400">
+                {VENDOR_CATEGORY_LABELS[v.category as VendorCategory] ?? v.category}
+              </span>
+            </span>
+            <span className="tabular-nums text-gray-500 dark:text-gray-400">~${v.estMonthly}/mo</span>
+          </li>
+        ))}
+      </ul>
+      <div className="rounded-[var(--r-xs)] bg-teal-500/5 border border-teal-500/20 p-3 space-y-1">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-600 dark:text-gray-300">They likely pay across these</span>
+          <span className="font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+            ~${est.detectedMonthly}/mo
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-600 dark:text-gray-300">DreamCRM {est.ourPlanName} replaces it</span>
+          <span className="font-semibold tabular-nums text-teal-700 dark:text-teal-300">
+            ${est.ourPlanPrice}/mo
+          </span>
+        </div>
+        {est.monthlySavings > 0 && (
+          <div className="flex items-center justify-between border-t border-teal-500/20 pt-1 text-sm">
+            <span className="font-medium text-gray-900 dark:text-gray-100">You&apos;d save them</span>
+            <span className="font-bold tabular-nums text-teal-700 dark:text-teal-300">
+              ~${est.monthlySavings}/mo · ${(est.monthlySavings * 12).toLocaleString()}/yr
+            </span>
+          </div>
+        )}
+      </div>
+      <p className="mt-1.5 text-[11px] text-gray-400">
+        Estimated from tools detected on their site — typical mid-range pricing, not a quote.
+      </p>
+    </div>
   )
 }
