@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { TerritoryRow } from '@/lib/types/prospecting'
 import {
@@ -32,7 +33,7 @@ export default function TerritoryTable({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const ranked = rankTerritories(rows)
-  const insights = summarizeTerritories(rows)
+  const insights = summarizeTerritories(rows, focusState)
 
   const setFocus = (state: string | null) =>
     startTransition(async () => {
@@ -50,6 +51,26 @@ export default function TerritoryTable({
         <Stat label="Won" value={insights.totalWon} tone="teal" />
       </div>
 
+      {insights.suggestedFocus && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-sm)] border border-teal-500/25 bg-teal-500/5 px-4 py-3">
+          <div className="text-sm text-gray-800 dark:text-gray-100">
+            <span aria-hidden="true">✨</span> <span className="font-semibold">
+              {insights.suggestedFocus.hot} hot
+            </span>{' '}
+            {insights.suggestedFocus.hot === 1 ? 'practice is' : 'practices are'} waiting in{' '}
+            {insights.suggestedFocus.stateName} — the fastest path to booked demos.
+          </div>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => setFocus(insights.suggestedFocus!.state)}
+            className="rounded-[var(--r-xs)] bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60"
+          >
+            Focus {insights.suggestedFocus.state}
+          </button>
+        </div>
+      )}
+
       {insights.underworked.length > 0 && (
         <div className="mb-5 rounded-[var(--r-sm)] border border-amber-500/20 bg-amber-500/5 px-4 py-3">
           <div className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
@@ -61,6 +82,17 @@ export default function TerritoryTable({
               .join(' · ')}{' '}
             — big pools you&apos;ve barely touched. Focus one and drive it.
           </p>
+        </div>
+      )}
+
+      {insights.enableMore && (
+        <div className="mb-5 rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-800/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+          Only {insights.enabledStates} state{insights.enabledStates === 1 ? '' : 's'} enabled — once
+          this pool is warm, widen the net in{' '}
+          <Link href="/platform/prospecting/settings" className="text-teal-700 dark:text-teal-300 hover:underline">
+            settings → state rollout
+          </Link>
+          .
         </div>
       )}
 

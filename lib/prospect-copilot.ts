@@ -117,6 +117,9 @@ export interface CopilotResponse {
   answer: string
   /** ≤3 suggested actions, all from the registry (unknown kinds dropped). */
   actions: CopilotSuggestedAction[]
+  /** When the query named a specific active prospect, the server attaches it so
+   *  the UI can offer "Open" / "Demo prep" buttons. Never set by the model. */
+  matched?: { id: string; name: string } | null
 }
 
 /** The compact, grounded snapshot the copilot reasons over — assembled
@@ -154,6 +157,33 @@ export interface CopilotSnapshot {
   todaysDemos: Array<{ name: string; when: string }>
   brainCustomized: boolean
   battleCards: number
+  /** Win/loss + learning-loop read (F5) so the copilot can answer "how are we
+   *  closing / why do we lose / what's the AI learning". */
+  winLoss: {
+    won: number
+    lost: number
+    winRatePct: number | null
+    topLossReason: string | null
+    bestSegment: { label: string; winRatePct: number } | null
+    learnings: string[]
+  }
+  /** Territory read (F7): top states by live opportunity + the current focus. */
+  territory: {
+    focusState: string | null
+    top: Array<{ state: string; total: number; hot: number; workedPct: number }>
+  }
+  /** A specific prospect the query named (resolved from the active set) — lets
+   *  the copilot answer about one practice. Null when the query is general. */
+  matched: {
+    name: string
+    state: string | null
+    status: string
+    scoreBand: string | null
+    summary: string | null
+    phone: string | null
+    hasDemoBrief: boolean
+    hasReplyDraft: boolean
+  } | null
 }
 
 function yn(b: boolean): string {
@@ -207,9 +237,42 @@ export function renderCopilotSnapshot(s: CopilotSnapshot): string {
     }
   }
   lines.push('')
+  lines.push('WIN / LOSS (last 90 days):')
+  lines.push(
+    `- won ${s.winLoss.won} · lost ${s.winLoss.lost} · win rate ${s.winLoss.winRatePct != null ? s.winLoss.winRatePct + '%' : 'n/a'}`,
+  )
+  if (s.winLoss.topLossReason) lines.push(`- most common loss reason: ${s.winLoss.topLossReason}`)
+  if (s.winLoss.bestSegment)
+    lines.push(
+      `- best-converting profile: ${s.winLoss.bestSegment.label} (${s.winLoss.bestSegment.winRatePct}%)`,
+    )
+  if (s.winLoss.learnings.length) {
+    lines.push('- learning loop is telling outreach:')
+    for (const l of s.winLoss.learnings.slice(0, 4)) lines.push(`  · ${l}`)
+  }
+  lines.push('')
+  lines.push('TERRITORY:')
+  lines.push(`- focus mode: ${s.territory.focusState ? `focused on ${s.territory.focusState}` : 'none set'}`)
+  if (s.territory.top.length) {
+    lines.push('- biggest live pools:')
+    for (const t of s.territory.top)
+      lines.push(`  · ${t.state}: ${t.total} found, ${t.hot} hot, ${t.workedPct}% worked`)
+  }
+  lines.push('')
   lines.push(
     `BRAIN: ${s.brainCustomized ? 'owner-customized product knowledge' : 'using the built-in product knowledge'}; ${s.battleCards} competitor battle card(s).`,
   )
+  if (s.matched) {
+    lines.push('')
+    lines.push(`PROSPECT THE OWNER NAMED — answer about this one specifically:`)
+    lines.push(
+      `- ${s.matched.name}${s.matched.state ? ` (${s.matched.state})` : ''} · status ${s.matched.status}${s.matched.scoreBand ? ` · ${s.matched.scoreBand}` : ''}${s.matched.phone ? ` · ${s.matched.phone}` : ''}`,
+    )
+    if (s.matched.summary) lines.push(`  what they said: ${s.matched.summary}`)
+    lines.push(
+      `  a pre-demo brief ${s.matched.hasDemoBrief ? 'is ready' : 'has not been generated'}; an AI reply draft ${s.matched.hasReplyDraft ? 'is waiting' : 'is not set'}. Point the owner to "Demo prep" for the full brief.`,
+    )
+  }
   return lines.join('\n')
 }
 
@@ -260,4 +323,42 @@ export function parseCopilotResponse(raw: unknown): CopilotResponse | null {
     }
   }
   return { answer: answer.slice(0, 1500), actions }
+}
+
+/**
+ * Resolve a prospect the owner named in free text against a BOUNDED set of
+ * currently-active prospects (call list + hot arrivals + phone queue). Bounded
+ * on purpose: matching only the handful of practices in play keeps false
+ * positives near zero (a query like "how many hot prospects" won't match a
+ * practice unless one is literally named that) without scanning the whole DB.
+ * Returns the longest name that appears as a whole-word-ish substring of the
+ * query (case-insensitive), or null.
+ */
+export function resolveNamedProspect<T extends { id: string; name: string }>(
+  query: string,
+  candidates: T[],
+): T | null {
+  const q = ` ${query.toLowerCase()} `
+  let best: T | null = null
+  for (const c of candidates) {
+    const name = c.name?.trim().toLowerCase()
+    if (!name || name.length < 4) continue
+    // Whole-token containment: the name appears bordered by non-word chars, so
+    // "acme" doesn't spuriously match inside "acmedental".
+    if (q.includes(` ${name} `) || q.includes(` ${name},`) || q.includes(` ${name}.`) || q.includes(` ${name}?`)) {
+      if (!best || name.length > best.name.trim().length) best = c
+    }
+  }
+  // Fallback: a plain substring match for a distinctive multi-word name (>=8
+  // chars) the owner may have punctuated differently.
+  if (!best) {
+    for (const c of candidates) {
+      const name = c.name?.trim().toLowerCase()
+      if (!name || name.length < 8) continue
+      if (query.toLowerCase().includes(name)) {
+        if (!best || name.length > best.name.trim().length) best = c
+      }
+    }
+  }
+  return best
 }

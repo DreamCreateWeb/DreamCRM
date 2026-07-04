@@ -5,6 +5,7 @@ import {
   buildCopilotPrompt,
   parseCopilotResponse,
   renderCopilotSnapshot,
+  resolveNamedProspect,
   type CopilotSnapshot,
 } from '@/lib/prospect-copilot'
 
@@ -26,6 +27,19 @@ const SNAP: CopilotSnapshot = {
   todaysDemos: [{ name: 'Cedar Dental', when: 'Fri 2:00 PM' }],
   brainCustomized: true,
   battleCards: 3,
+  winLoss: {
+    won: 6,
+    lost: 4,
+    winRatePct: 60,
+    topLossReason: 'Happy with a competitor',
+    bestSegment: { label: 'Weak presence', winRatePct: 80 },
+    learnings: ["You're closing 60% of decided prospects."],
+  },
+  territory: {
+    focusState: 'GA',
+    top: [{ state: 'GA', total: 200, hot: 40, workedPct: 55 }],
+  },
+  matched: null,
 }
 
 describe('renderCopilotSnapshot', () => {
@@ -38,6 +52,37 @@ describe('renderCopilotSnapshot', () => {
     expect(out).toContain('Bright Smiles')
     expect(out).toContain('Cedar Dental at Fri 2:00 PM')
     expect(out).toContain('owner-customized')
+  })
+
+  it('renders the win/loss, learning-loop, and territory sections (F5+F7 wired in)', () => {
+    const out = renderCopilotSnapshot(SNAP)
+    expect(out).toContain('WIN / LOSS')
+    expect(out).toContain('win rate 60%')
+    expect(out).toContain('Happy with a competitor')
+    expect(out).toContain('best-converting profile: Weak presence (80%)')
+    expect(out).toContain('TERRITORY')
+    expect(out).toContain('focused on GA')
+    expect(out).toContain('GA: 200 found, 40 hot')
+  })
+
+  it('renders a named-prospect block only when one was matched', () => {
+    expect(renderCopilotSnapshot(SNAP)).not.toContain('PROSPECT THE OWNER NAMED')
+    const withMatch = renderCopilotSnapshot({
+      ...SNAP,
+      matched: {
+        name: 'Bright Smiles',
+        state: 'GA',
+        status: 'call_list',
+        scoreBand: 'hot',
+        summary: 'Asked about pricing',
+        phone: '404-555-1000',
+        hasDemoBrief: true,
+        hasReplyDraft: false,
+      },
+    })
+    expect(withMatch).toContain('PROSPECT THE OWNER NAMED')
+    expect(withMatch).toContain('Bright Smiles')
+    expect(withMatch).toContain('a pre-demo brief is ready')
   })
 
   it('flags idle discovery + missing wiring honestly', () => {
@@ -109,5 +154,33 @@ describe('parseCopilotResponse', () => {
       if (def.mutation) expect(def.href).toBeUndefined()
       else expect(def.href).toMatch(/^\/platform\/prospecting/)
     }
+  })
+})
+
+describe('resolveNamedProspect', () => {
+  const candidates = [
+    { id: 'p1', name: 'Bright Smiles' },
+    { id: 'p2', name: 'Cedar Dental' },
+    { id: 'p3', name: 'Bright Smiles Family Dentistry' },
+  ]
+
+  it('matches a named practice in the query', () => {
+    expect(resolveNamedProspect('draft a reply to Cedar Dental', candidates)?.id).toBe('p2')
+  })
+
+  it('prefers the longest matching name', () => {
+    expect(
+      resolveNamedProspect('tell me about Bright Smiles Family Dentistry', candidates)?.id,
+    ).toBe('p3')
+  })
+
+  it('does not match generic queries with no practice named', () => {
+    expect(resolveNamedProspect('how many hot prospects do we have?', candidates)).toBeNull()
+    expect(resolveNamedProspect('are we live or in dry-run?', candidates)).toBeNull()
+  })
+
+  it('handles trailing punctuation and skips too-short names', () => {
+    expect(resolveNamedProspect('what did Cedar Dental say?', candidates)?.id).toBe('p2')
+    expect(resolveNamedProspect('who', [{ id: 'x', name: 'Ace' }])).toBeNull()
   })
 })

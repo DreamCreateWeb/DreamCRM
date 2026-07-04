@@ -7,6 +7,23 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Prospecting copilot v2 — whole-workspace awareness + per-prospect answers
+  (2026-07-04).** The ⌘J hunt copilot now sees the features that landed after
+  it. Its snapshot gained a WIN/LOSS block (won/lost/win-rate, top loss reason,
+  best-converting profile, the learning-loop callouts) and a TERRITORY block
+  (focus state + biggest live pools), so "how are we closing", "why do we lose",
+  and "which state should I focus" are answerable. It also resolves a **named
+  prospect**: pure `resolveNamedProspect` matches the query against a BOUNDED
+  active set (call list + hot arrivals + phone queue — near-zero false positives
+  vs a full-DB scan), and when one hits, the answer carries an "Open" + "Demo
+  prep" button pair (`response.matched`, set server-side, never by the model).
+  Also rounded out territory: `summarizeTerritories` now returns a
+  `suggestedFocus` (enabled state with the most hot prospects, skipping the
+  current focus) rendered as a one-click "Focus GA" callout, plus an
+  `enableMore` nudge when few states are on. No migration. Tests: the new
+  render sections, the named-prospect resolver (match/longest/generic-miss/
+  punctuation), and the focus-suggestion + enable-more logic.
+
 - **Prospecting workspace F7 — territory & coverage view + focus mode
   (2026-07-04).** The hunt had no map — no per-state read of how far discovery
   reached, how much of each pool was worked, or where the owner should

@@ -72,6 +72,25 @@ describe('summarizeTerritories', () => {
     expect(s.stillDiscovering).toEqual(['GA'])
     expect(s.totalProspects).toBe(740)
   })
+
+  it('suggests the enabled state with the most hot prospects, skipping the current focus', () => {
+    const rows = [
+      row({ state: 'GA', enabled: true, hot: 40 }),
+      row({ state: 'FL', enabled: true, hot: 12 }),
+      row({ state: 'TX', enabled: false, hot: 99 }), // disabled → ineligible
+    ]
+    expect(summarizeTerritories(rows).suggestedFocus?.state).toBe('GA')
+    // when GA is already the focus, move to the next best
+    expect(summarizeTerritories(rows, 'GA').suggestedFocus?.state).toBe('FL')
+    // no hot anywhere → no suggestion
+    expect(summarizeTerritories([row({ hot: 0 })]).suggestedFocus).toBeNull()
+  })
+
+  it('nudges to enable more when only a couple states are on', () => {
+    expect(summarizeTerritories([row({ state: 'GA', enabled: true })]).enableMore).toBe(true)
+    const many = ['GA', 'FL', 'TX', 'AL'].map((st) => row({ state: st, enabled: true }))
+    expect(summarizeTerritories(many).enableMore).toBe(false)
+  })
 })
 
 describe('config focus', () => {

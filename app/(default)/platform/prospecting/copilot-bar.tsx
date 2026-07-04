@@ -228,6 +228,31 @@ export default function CopilotBar() {
                       })}
                     </div>
                   )}
+                  {response.matched && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[color:var(--color-hairline)] pt-3">
+                      <span className="text-xs text-gray-400">{response.matched.name}:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false)
+                          router.push(`/platform/prospecting?prospect=${response.matched!.id}`)
+                        }}
+                        className="rounded-[var(--r-xs)] border border-[color:var(--color-hairline-strong)] px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      >
+                        Open
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false)
+                          router.push(`/platform/prospecting/demo/${response.matched!.id}`)
+                        }}
+                        className="rounded-[var(--r-xs)] border border-[color:var(--color-hairline-strong)] px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      >
+                        📋 Demo prep
+                      </button>
+                    </div>
+                  )}
                   {ranLabel && (
                     <p className="mt-3 text-xs text-teal-700 dark:text-teal-300">
                       Done: {ranLabel} ✓
