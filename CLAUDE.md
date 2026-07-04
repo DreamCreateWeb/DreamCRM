@@ -298,8 +298,11 @@ sitemap/robots/OG.
   `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
   (daily) · `trial-reminders` (daily) · `prospect-discovery` (6h) ·
   `prospect-enrich` (30m) · `prospect-outreach` (30m) — 14 EventBridge rules
-  managed by `scripts/setup-cron-schedules.sh` (re-run it when adding a job)
-  + 2 pre-existing out-of-band rules (`publish-scheduled-posts`,
+  managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
+  every merge** (idempotent self-heal — a new cron route can't ship un-fired,
+  the drift that once left prospecting + 4 other jobs silently dead); the
+  `tests/cron-schedule-parity.test.ts` guard fails CI if a route has no JOBS
+  entry. + 2 pre-existing out-of-band rules (`publish-scheduled-posts`,
   `gmail-watch-renew`).
 
 ## Conventions

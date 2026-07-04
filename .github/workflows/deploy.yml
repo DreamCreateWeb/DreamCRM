@@ -54,3 +54,12 @@ jobs:
             exit 1
           fi
           echo "Build succeeded — App Runner deployment triggered by the buildspec (start-deployment)."
+
+      # Self-heal the EventBridge cron schedules on every deploy. The script is
+      # idempotent (create-if-missing, update-if-different), so a newly-added
+      # cron route can never again ship with no schedule (the drift that left
+      # prospecting discovery + several other jobs silently un-fired). Runs
+      # after the deploy and never blocks it — a transient failure just warns.
+      - name: Sync EventBridge cron schedules
+        continue-on-error: true
+        run: bash scripts/setup-cron-schedules.sh
