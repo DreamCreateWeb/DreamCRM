@@ -132,14 +132,19 @@ export async function crawlProspectSite(url: string): Promise<ProspectCrawlSigna
 
 // ── AI verdict ──────────────────────────────────────────────────────────────
 
+// Tolerant shape — enforce TYPES, not lengths/ranges (the model occasionally
+// returns 7 reasons or a 105 score). We clamp the extras in code below rather
+// than reject a good verdict into the weaker heuristic fallback.
 const verdictSchema = z.object({
-  websiteQuality: z.number().min(0).max(100),
-  websiteReasons: z.array(z.string()).max(6),
-  socialPresence: z.number().min(0).max(100),
+  websiteQuality: z.number(),
+  websiteReasons: z.array(z.string()).default([]),
+  socialPresence: z.number(),
   onlineBooking: z.boolean(),
-  weaknesses: z.array(z.string()).max(6),
-  summary: z.string().max(400),
+  weaknesses: z.array(z.string()).default([]),
+  summary: z.string().default(''),
 })
+const clampScore = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
+const clampList = (xs: string[]) => xs.map((s) => s.slice(0, 160)).filter(Boolean).slice(0, 6)
 
 async function aiVerdictForSite(input: {
   name: string
@@ -190,7 +195,16 @@ async function aiVerdictForSite(input: {
     })
     const parsed = verdictSchema.safeParse(raw)
     if (!parsed.success) return null
-    return { hasWebsite: true, ...parsed.data }
+    const d = parsed.data
+    return {
+      hasWebsite: true,
+      websiteQuality: clampScore(d.websiteQuality),
+      websiteReasons: clampList(d.websiteReasons),
+      socialPresence: clampScore(d.socialPresence),
+      onlineBooking: d.onlineBooking,
+      weaknesses: clampList(d.weaknesses),
+      summary: d.summary.slice(0, 400),
+    }
   } catch (err) {
     console.warn('[prospect-enrich] AI verdict failed', err instanceof Error ? err.message : err)
     return null

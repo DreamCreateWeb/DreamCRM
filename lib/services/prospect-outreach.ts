@@ -373,9 +373,11 @@ Don&rsquo;t want these? <a href="${unsubUrl}" style="color:#a8a29e;">Unsubscribe
 
 // ── AI personalization ──────────────────────────────────────────────────────
 
+// Tolerant shape — clamp in code so a slightly-long AI email is trimmed, not
+// discarded back to the plain merge.
 const personalizedSchema = z.object({
-  subject: z.string().min(3).max(120),
-  paragraphs: z.array(z.string().min(1)).min(1).max(5),
+  subject: z.string(),
+  paragraphs: z.array(z.string()),
 })
 
 async function personalizeTouch(input: {
@@ -422,7 +424,10 @@ async function personalizeTouch(input: {
     })
     const parsed = personalizedSchema.safeParse(raw)
     if (!parsed.success) return fallback
-    return { ...parsed.data, aiUsed: true }
+    const subject = parsed.data.subject.trim().slice(0, 140) || mergedSubject
+    const paragraphs = parsed.data.paragraphs.map((p) => p.trim()).filter(Boolean).slice(0, 6)
+    if (paragraphs.length === 0) return fallback
+    return { subject, paragraphs, aiUsed: true }
   } catch {
     return fallback // AI never blocks a touch
   }

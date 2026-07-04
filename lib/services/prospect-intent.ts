@@ -38,10 +38,13 @@ export const REPLY_CLASSIFICATIONS = [
 ] as const
 export type ReplyClassification = (typeof REPLY_CLASSIFICATIONS)[number]
 
+// Keep the classification enum strict (it drives behavior) but the summary +
+// talking points TOLERANT — a 420-char summary must never reject the parse and
+// silently drop an interested reply off the call list. Clamped on success.
 const classificationSchema = z.object({
   classification: z.enum(REPLY_CLASSIFICATIONS),
-  summary: z.string().max(400),
-  talkingPoints: z.array(z.string()).max(5),
+  summary: z.string().default(''),
+  talkingPoints: z.array(z.string()).default([]),
 })
 
 async function classifyReply(input: {
@@ -75,7 +78,12 @@ async function classifyReply(input: {
       },
     })
     const parsed = classificationSchema.safeParse(raw)
-    return parsed.success ? parsed.data : null
+    if (!parsed.success) return null
+    return {
+      classification: parsed.data.classification,
+      summary: parsed.data.summary.slice(0, 400),
+      talkingPoints: parsed.data.talkingPoints.map((s) => s.slice(0, 160)).filter(Boolean).slice(0, 5),
+    }
   } catch {
     return null
   }
@@ -133,7 +141,9 @@ async function alertCallList(
     .catch(() => {})
 }
 
-const replyDraftSchema = z.object({ draft: z.string().min(20).max(1200) })
+// Tolerant: accept any non-trivial draft and clamp the length rather than
+// reject a good-but-slightly-long reply into no draft at all.
+const replyDraftSchema = z.object({ draft: z.string() })
 
 /**
  * Draft a reply to a prospect's question — warm, factual, sign-off-free
@@ -171,8 +181,10 @@ async function draftReply(
     })
     const parsed = replyDraftSchema.safeParse(raw)
     if (!parsed.success) return null
+    const draft = parsed.data.draft.trim()
+    if (draft.length < 10) return null // too short to be a usable reply
     await bumpProspectingCounter(counterMonth(), 'ai_reply_draft')
-    return parsed.data.draft
+    return draft.slice(0, 1200)
   } catch {
     return null
   }
