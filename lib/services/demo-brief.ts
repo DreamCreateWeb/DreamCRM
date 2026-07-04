@@ -1,6 +1,5 @@
 import 'server-only'
 import { eq } from 'drizzle-orm'
-import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { buildDemoBriefPrompt } from '@/lib/demo-brief-prompt'
@@ -15,27 +14,12 @@ import { bumpProspectingCounter, counterMonth } from './prospecting'
  * Quality dominates: this is sales language read aloud on a live call, and
  * volume is ~zero (haiku stays the per-crawl workhorse). No kill-switch
  * gate — this is the owner clicking a button, not the cron engine.
+ *
+ * We normalize the model's raw tool output through parseDemoBrief (the same
+ * tolerant clamp/slice parser the read path uses) rather than a strict schema
+ * — a model that writes an 1100-char walk-up story should get trimmed, not
+ * rejected into a silent "generation failed".
  */
-
-const briefSchema = z.object({
-  openingLine: z.string().min(10).max(300),
-  walkUpStory: z.string().min(20).max(800),
-  beatEmphasis: z
-    .array(
-      z.object({
-        beatId: z.string(),
-        weight: z.enum(['lead', 'standard', 'skim']),
-        why: z.string().max(200),
-      }),
-    )
-    .min(3)
-    .max(10),
-  objections: z
-    .array(z.object({ objection: z.string().max(200), response: z.string().max(400) }))
-    .max(5),
-  ammunition: z.array(z.object({ beatId: z.string(), point: z.string().max(200) })).max(6),
-  closingAsk: z.string().min(5).max(300),
-})
 
 export async function getDemoBrief(prospectId: string): Promise<DemoBrief | null> {
   const [row] = await db
@@ -80,45 +64,54 @@ export async function generateDemoBrief(
   try {
     const raw = await runClaudeJson({
       model: 'sonnet',
-      maxTokens: 1600,
+      maxTokens: 2600, // headroom so a rich brief never truncates mid-tool-call
       system: prompt.system,
       messages: [{ role: 'user', content: prompt.user }],
       toolName: 'record_demo_brief',
       toolDescription: 'Record the structured pre-demo brief for this practice.',
+      // maxLength / maxItems steer the model to concise, on-call-length copy —
+      // both so it reads well aloud AND so the output stays well within budget.
       inputSchema: {
         type: 'object',
         properties: {
-          openingLine: { type: 'string' },
-          walkUpStory: { type: 'string' },
+          openingLine: { type: 'string', maxLength: 280, description: 'One quotable sentence to open the call.' },
+          walkUpStory: { type: 'string', maxLength: 700, description: '2-4 sentences on what their online presence says today.' },
           beatEmphasis: {
             type: 'array',
+            maxItems: 10,
             items: {
               type: 'object',
               properties: {
                 beatId: { type: 'string' },
                 weight: { type: 'string', enum: ['lead', 'standard', 'skim'] },
-                why: { type: 'string' },
+                why: { type: 'string', maxLength: 180 },
               },
               required: ['beatId', 'weight', 'why'],
             },
           },
           objections: {
             type: 'array',
+            maxItems: 5,
+            description: 'The 3-5 most likely objections for this practice.',
             items: {
               type: 'object',
-              properties: { objection: { type: 'string' }, response: { type: 'string' } },
+              properties: {
+                objection: { type: 'string', maxLength: 180 },
+                response: { type: 'string', maxLength: 360, description: 'A one-breath response.' },
+              },
               required: ['objection', 'response'],
             },
           },
           ammunition: {
             type: 'array',
+            maxItems: 6,
             items: {
               type: 'object',
-              properties: { beatId: { type: 'string' }, point: { type: 'string' } },
+              properties: { beatId: { type: 'string' }, point: { type: 'string', maxLength: 180 } },
               required: ['beatId', 'point'],
             },
           },
-          closingAsk: { type: 'string' },
+          closingAsk: { type: 'string', maxLength: 280 },
         },
         required: [
           'openingLine',
@@ -130,18 +123,25 @@ export async function generateDemoBrief(
         ],
       },
     })
-    const parsed = briefSchema.safeParse(raw)
-    if (!parsed.success) return null
-
+    // Normalize through the tolerant parser (clamps over-long strings, slices
+    // arrays, coerces bad weights) instead of hard-rejecting. Only truly
+    // unusable output (missing the core lines) returns null.
+    const normalized = parseDemoBrief({
+      ...(raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}),
+      generatedAt: new Date().toISOString(),
+    })
+    if (!normalized) {
+      console.warn('[demo-brief] AI output missing core fields', {
+        keys: raw && typeof raw === 'object' ? Object.keys(raw as object) : typeof raw,
+      })
+      return null
+    }
     // Ground the beat references — anything the model invented is dropped.
     const validBeats = new Set(DEMO_BEATS.map((b) => b.id))
     const brief: DemoBrief = {
-      version: 1,
-      generatedAt: new Date().toISOString(),
-      model: 'sonnet',
-      ...parsed.data,
-      beatEmphasis: parsed.data.beatEmphasis.filter((e) => validBeats.has(e.beatId)),
-      ammunition: parsed.data.ammunition.filter((a) => validBeats.has(a.beatId)),
+      ...normalized,
+      beatEmphasis: normalized.beatEmphasis.filter((e) => validBeats.has(e.beatId)),
+      ammunition: normalized.ammunition.filter((a) => validBeats.has(a.beatId)),
     }
 
     await db

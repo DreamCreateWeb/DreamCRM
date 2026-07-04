@@ -97,6 +97,24 @@ describe('generateDemoBrief', () => {
     expect(bumpMock).toHaveBeenCalledWith('2026-07', 'ai_brief')
   })
 
+  it('CLAMPS an over-long / oversized model output instead of nulling (regression)', async () => {
+    // The model ignoring the length hints must never silently fail the brief:
+    // walk-up story way over 800, 7 objections, a 900-char response.
+    state.selectQueue.push([PROSPECT])
+    aiMock.mockResolvedValue({
+      ...GOOD_OUTPUT,
+      openingLine: 'x'.repeat(500),
+      walkUpStory: 'y'.repeat(1400),
+      objections: Array.from({ length: 7 }, (_, i) => ({ objection: `o${i}`, response: 'z'.repeat(900) })),
+    })
+    const brief = await generateDemoBrief('pros_1')
+    expect(brief).not.toBeNull()
+    expect(brief!.openingLine.length).toBeLessThanOrEqual(300)
+    expect(brief!.walkUpStory.length).toBeLessThanOrEqual(800)
+    expect(brief!.objections.length).toBeLessThanOrEqual(5)
+    expect(brief!.objections[0].response.length).toBeLessThanOrEqual(400)
+  })
+
   it('cache hit returns the stored brief WITHOUT touching the AI', async () => {
     const cached = { ...GOOD_OUTPUT, version: 1, generatedAt: '2026-07-01T00:00:00Z', model: 'sonnet' }
     state.selectQueue.push([{ ...PROSPECT, demoBrief: cached }])
