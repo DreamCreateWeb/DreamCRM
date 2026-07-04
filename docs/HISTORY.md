@@ -7,6 +7,28 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Prospecting workspace F5 — win/loss pipeline + learning loop (migration
+  0122, 2026-07-04).** The engine discovered/closed but never learned from its
+  own outcomes. Now every decided prospect is captured (won = converted; lost =
+  not-interested/suppressed) with a stamped `prospect.outcomeAt` + a coded
+  `prospect.lostReason` (`PROSPECT_LOSS_REASONS`), and it feeds back into the
+  pitch. **Capture:** `markConverted` stamps a win; `logCallOutcome` takes a
+  `lostReason` and the call card's "Not interested" now opens a loss-reason
+  picker (`MANUAL_LOSS_REASONS`); `suppressProspect` maps its reason via pure
+  `lossReasonForSuppression`; the reply-classifier's not-interested/unsubscribe
+  branch stamps `replied_no`/`unsubscribed`. **Report:** `getWinLossReport({
+  windowDays=90})` → won/lost/win-rate, loss-reason breakdown, per-segment
+  win/loss (segment from each prospect's latest enrollment), avg touches-to-win
+  (capped at 5k decided). **Pipeline panel** (`pipeline-panel.tsx`, above the
+  funnel): headline W/L/rate, "why we lose" bars, win-rate-by-profile, and the
+  learning callouts. **Learning loop:** pure `buildOutreachLearnings(report)`
+  (gated on `LEARNINGS_MIN_SAMPLE=8`) renders a "what's converting / top
+  objection" block that `runOutreach` computes once per tick and injects into
+  every personalized cold email — so the machine leans into the best-converting
+  profile and preempts the top objection automatically. Tests: suppression
+  mapping, learnings min-sample gate + actionable-only preempt, panel
+  summaries.
+
 - **Prospecting workspace F2 — the hunt copilot (natural-language command bar)
   (2026-07-04).** A ⌘J command bar on `/platform/prospecting` that answers
   free-text questions about the hunt ("how's today going", "who to call first",

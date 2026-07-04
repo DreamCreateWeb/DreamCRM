@@ -14,12 +14,14 @@ import {
   getProspectingConfig,
   getProspectDetail,
   getHuntStats,
+  getWinLossReport,
 } from '@/lib/services/prospecting'
 import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
 import ProspectDrawer from './prospect-drawer'
 import HuntPanel from './hunt-panel'
 import DailyBriefing from './daily-briefing'
 import CopilotBar from './copilot-bar'
+import PipelinePanel from './pipeline-panel'
 import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
@@ -98,13 +100,14 @@ export default async function ProspectingPage({
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list, detail, huntStats, briefing] = await Promise.all([
+  const [config, funnel, list, detail, huntStats, briefing, winLoss] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
     params.prospect ? getProspectDetail(params.prospect) : Promise.resolve(null),
     getHuntStats(),
     getDailyBriefing(),
+    getWinLossReport(),
   ])
   const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize))
   const activeStates = config.enabledStates as UsState[]
@@ -148,6 +151,8 @@ export default async function ProspectingPage({
       {!config.killSwitch && <DailyBriefing briefing={briefing} />}
 
       {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} />}
+
+      <PipelinePanel report={winLoss} />
 
       {/* Funnel */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">

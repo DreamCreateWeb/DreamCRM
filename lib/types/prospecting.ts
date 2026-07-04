@@ -90,6 +90,65 @@ export const SEGMENT_LABELS: Record<OutreachSegment, string> = {
   weak_presence: 'Weak presence',
 }
 
+// ── Win/loss (the pipeline + learning loop) ────────────────────────────────
+export const PROSPECT_LOSS_REASONS = [
+  'price',
+  'using_competitor',
+  'no_need',
+  'bad_timing',
+  'not_decision_maker',
+  'no_response',
+  'replied_no',
+  'unsubscribed',
+  'bounced',
+  'other',
+] as const
+export type ProspectLossReason = (typeof PROSPECT_LOSS_REASONS)[number]
+
+export const LOSS_REASON_LABELS: Record<ProspectLossReason, string> = {
+  price: 'Too expensive',
+  using_competitor: 'Happy with a competitor',
+  no_need: "Doesn't see the need",
+  bad_timing: 'Bad timing',
+  not_decision_maker: 'Not the decision maker',
+  no_response: 'Went quiet / no response',
+  replied_no: 'Replied — not interested',
+  unsubscribed: 'Unsubscribed',
+  bounced: 'Email bounced / undeliverable',
+  other: 'Other',
+}
+
+/** The loss reasons a human picks when logging a call (the rest are set by the
+ *  system — replied_no, unsubscribed, bounced, no_response). */
+export const MANUAL_LOSS_REASONS: ProspectLossReason[] = [
+  'price',
+  'using_competitor',
+  'no_need',
+  'bad_timing',
+  'not_decision_maker',
+  'other',
+]
+
+export interface WinLossReport {
+  windowDays: number
+  won: number
+  lost: number
+  /** won / (won + lost), rounded %. null when no decided outcomes. */
+  winRatePct: number | null
+  /** Loss reasons, most common first. */
+  lossReasons: Array<{ reason: ProspectLossReason; label: string; count: number }>
+  /** Per-segment win/loss (segment from the prospect's latest enrollment). */
+  segments: Array<{
+    segment: OutreachSegment | 'unsegmented'
+    label: string
+    won: number
+    lost: number
+    winRatePct: number | null
+  }>
+  /** Average outreach touches sent before a win (null if no wins had touches). */
+  avgTouchesToWin: number | null
+}
+
 // ── Config (prospecting_config singleton jsonb) ────────────────────────────
 export interface ProspectingConfig {
   /** Master OFF switch — ships true (system off). Nothing runs while true. */

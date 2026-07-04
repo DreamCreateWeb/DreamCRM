@@ -2,17 +2,23 @@
 
 import { useState, useTransition } from 'react'
 import type { CallListRow } from '@/lib/services/prospecting'
-import { INTENT_SIGNAL_LABELS } from '@/lib/types/prospecting'
+import {
+  INTENT_SIGNAL_LABELS,
+  MANUAL_LOSS_REASONS,
+  LOSS_REASON_LABELS,
+  type ProspectLossReason,
+} from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { logCallOutcomeAction, convertProspectAction, getBookingLinkAction } from '../admin-actions'
 
+// 'not_interested' is handled separately — it opens a loss-reason picker so
+// the pipeline learns WHY we lose, not just that we did.
 const OUTCOMES: Array<{ value: string; label: string }> = [
   { value: 'no_answer', label: 'No answer' },
   { value: 'voicemail', label: 'Voicemail' },
   { value: 'callback', label: 'Callback later' },
   { value: 'demo_booked', label: '🎉 Demo booked' },
-  { value: 'not_interested', label: 'Not interested' },
 ]
 
 function ConvertForm({
@@ -224,12 +230,14 @@ export default function CallCard({ row }: { row: CallListRow }) {
   const [pending, startTransition] = useTransition()
   const [note, setNote] = useState('')
   const [converting, setConverting] = useState(false)
+  const [losing, setLosing] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
-  const log = (outcome: string) =>
+  const log = (outcome: string, lostReason?: ProspectLossReason) =>
     startTransition(async () => {
-      await logCallOutcomeAction({ prospectId: row.id, outcome, note: note || undefined })
+      await logCallOutcomeAction({ prospectId: row.id, outcome, note: note || undefined, lostReason })
       setNote('')
+      setLosing(false)
       setFlash(outcome === 'not_interested' ? 'Logged — they drop off the list.' : 'Logged.')
       setTimeout(() => setFlash(null), 2500)
     })
@@ -306,6 +314,14 @@ export default function CallCard({ row }: { row: CallListRow }) {
         ))}
         <ActionButton
           size="sm"
+          variant={losing ? 'ghost' : 'secondary'}
+          disabled={pending}
+          onClick={() => setLosing((v) => !v)}
+        >
+          {losing ? 'Cancel' : 'Not interested'}
+        </ActionButton>
+        <ActionButton
+          size="sm"
           variant={converting ? 'ghost' : 'secondary'}
           onClick={() => setConverting(!converting)}
         >
@@ -328,6 +344,28 @@ export default function CallCard({ row }: { row: CallListRow }) {
           onChange={(e) => setNote(e.target.value)}
         />
       </div>
+
+      {losing && (
+        <div className="mt-3 rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-800/40 p-3">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
+            Why did we lose this one? (feeds the pipeline + sharpens outreach)
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {MANUAL_LOSS_REASONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                disabled={pending}
+                onClick={() => log('not_interested', r)}
+                className="rounded-full bg-white dark:bg-gray-900 border border-[color:var(--color-hairline-strong)] px-3 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:border-rose-300 disabled:opacity-60 transition-colors"
+              >
+                {LOSS_REASON_LABELS[r]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {flash && <p className="mt-2 text-xs text-teal-600 dark:text-teal-400">{flash}</p>}
       {converting && <ConvertForm row={row} onDone={(msg) => setFlash(msg)} />}
     </div>

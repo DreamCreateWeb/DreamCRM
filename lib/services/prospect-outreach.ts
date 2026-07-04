@@ -15,6 +15,7 @@ import type {
 import { segmentForProspect } from '@/lib/prospect-segment'
 import { assessDeliverability } from '@/lib/prospect-deliverability'
 import { effectiveProductKnowledge, type ProspectBrain } from '@/lib/prospect-product-knowledge'
+import { buildOutreachLearnings } from '@/lib/prospect-learnings'
 import {
   getProspectingConfig,
   updateProspectingConfig,
@@ -23,6 +24,7 @@ import {
   counterMonth,
   counterDay,
   isKnownContact,
+  getWinLossReport,
 } from './prospecting'
 
 /**
@@ -387,6 +389,8 @@ async function personalizeTouch(input: {
   reviewCount: number | null
   aiBudgetLeft: boolean
   brain: ProspectBrain
+  /** The learning-loop guidance (what's converting / top objection), or ''. */
+  learnings: string
 }): Promise<{ subject: string; paragraphs: string[]; aiUsed: boolean }> {
   const mergedSubject = mergeTemplate(input.template.subjectTemplate, input.fields)
   const mergedBody = mergeTemplate(input.template.bodyTemplate, input.fields)
@@ -405,6 +409,7 @@ async function personalizeTouch(input: {
       maxTokens: 800,
       system:
         effectiveProductKnowledge(input.brain, { short: true }) +
+        (input.learnings ? `\n\n${input.learnings}` : '') +
         "\n\nYou write short, warm, personal cold emails for Dream Create. Rewrite the skeleton email so it references 1-2 of the practice's SPECIFIC verified gaps (provided) and, where natural, ties them to what the product actually does. Rules: under 130 words total; plain conversational tone, no hype, no exclamation marks; never fabricate anything beyond the provided facts or claim capabilities the product knowledge doesn't list; keep any URL from the skeleton exactly as-is; keep the greeting line personal; sign-off is added later so do not include one.",
       messages: [
         {
@@ -914,6 +919,18 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
       .limit(allowance)
   ).filter((e) => !pausedIds.has(e.sequenceId))
 
+  // The learning loop: one report per tick feeds "what's converting / top
+  // objection" back into every personalized email this batch. Gated on a real
+  // sample inside buildOutreachLearnings (returns '' until enough decided
+  // outcomes). Best-effort — a failure just means no learnings this tick.
+  let learnings = ''
+  try {
+    const report = await getWinLossReport({ now })
+    learnings = buildOutreachLearnings(report)
+  } catch {
+    learnings = ''
+  }
+
   const postalAddress = process.env.MARKETING_POSTAL_ADDRESS || ''
   const senderName = process.env.OUTREACH_SENDER_NAME || 'Dustin'
   // Reply-To routes replies to a monitored inbox (e.g. a Gmail you watch)
@@ -989,6 +1006,7 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
         reviewCount: p.reviewCount,
         aiBudgetLeft: aiUsed < config.budgets.aiPerMonth,
         brain: config.brain,
+        learnings,
       })
       if (personalized.aiUsed) {
         aiUsed++

@@ -4,13 +4,18 @@ import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
   resolveProspectingConfig,
+  LOSS_REASON_LABELS,
   type ProspectingConfig,
   type ProspectFilters,
   type ProspectFunnelStats,
   type ProspectListRow,
+  type ProspectLossReason,
+  type WinLossReport,
 } from '@/lib/types/prospecting'
+import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes } from '@/lib/types/us-geo'
 import { followUpForOutcome } from '@/lib/prospect-followup'
+import { lossReasonForSuppression } from '@/lib/prospect-learnings'
 
 /**
  * Prospecting core — Dream Create's own outbound growth engine. Queries,
@@ -212,6 +217,121 @@ export async function getBandCounts(): Promise<Record<string, number>> {
   return out
 }
 
+const LOST_STATUSES = ['not_interested', 'suppressed'] as const
+
+/**
+ * Win/loss pipeline report over a trailing window — the numbers behind the
+ * pipeline panel and the learning loop. "Won" = converted; "lost" =
+ * not-interested or suppressed. Segments come from each decided prospect's
+ * most-recent enrollment; touches-to-win from the won prospects' send logs.
+ * Capped at 5,000 decided prospects (far above beta volume; logged nowhere
+ * because the pipeline is operator-facing and the cap can't be silently
+ * misleading at this scale).
+ */
+export async function getWinLossReport(opts?: {
+  windowDays?: number
+  now?: Date
+}): Promise<WinLossReport> {
+  const windowDays = opts?.windowDays ?? 90
+  const now = opts?.now ?? new Date()
+  const since = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000)
+
+  const decided = await db
+    .select({
+      id: schema.prospect.id,
+      status: schema.prospect.status,
+      lostReason: schema.prospect.lostReason,
+    })
+    .from(schema.prospect)
+    .where(
+      and(
+        inArray(schema.prospect.status, ['converted', ...LOST_STATUSES]),
+        isNotNull(schema.prospect.outcomeAt),
+        sql`${schema.prospect.outcomeAt} >= ${since}`,
+      ),
+    )
+    .limit(5000)
+
+  const wonRows = decided.filter((r) => r.status === 'converted')
+  const lostRows = decided.filter((r) => r.status !== 'converted')
+  const won = wonRows.length
+  const lost = lostRows.length
+  const winRatePct = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : null
+
+  // Loss-reason breakdown.
+  const reasonCounts = new Map<string, number>()
+  for (const r of lostRows) {
+    const key = r.lostReason ?? 'other'
+    reasonCounts.set(key, (reasonCounts.get(key) ?? 0) + 1)
+  }
+  const validReasons = new Set(Object.keys(LOSS_REASON_LABELS))
+  const lossReasons = Array.from(reasonCounts.entries())
+    .map(([reason, count]) => {
+      const r = (validReasons.has(reason) ? reason : 'other') as ProspectLossReason
+      return { reason: r, label: LOSS_REASON_LABELS[r], count }
+    })
+    .sort((a, b) => b.count - a.count)
+
+  // Segment attribution: the most-recent enrollment's sequence segment per
+  // decided prospect.
+  const decidedIds = decided.map((r) => r.id)
+  const segmentByProspect = new Map<string, OutreachSegment | 'unsegmented'>()
+  if (decidedIds.length > 0) {
+    const enrollments = await db
+      .select({
+        prospectId: schema.outreachEnrollment.prospectId,
+        segment: schema.outreachSequence.segment,
+        enrolledAt: schema.outreachEnrollment.enrolledAt,
+      })
+      .from(schema.outreachEnrollment)
+      .innerJoin(
+        schema.outreachSequence,
+        eq(schema.outreachEnrollment.sequenceId, schema.outreachSequence.id),
+      )
+      .where(inArray(schema.outreachEnrollment.prospectId, decidedIds))
+      .orderBy(asc(schema.outreachEnrollment.enrolledAt))
+    // asc order → the last write per prospect wins (most recent enrollment).
+    for (const e of enrollments) {
+      const seg = (e.segment ?? 'unsegmented') as OutreachSegment | 'unsegmented'
+      segmentByProspect.set(e.prospectId, seg)
+    }
+  }
+  const segAgg = new Map<string, { won: number; lost: number }>()
+  for (const r of decided) {
+    const seg = segmentByProspect.get(r.id) ?? 'unsegmented'
+    const entry = segAgg.get(seg) ?? { won: 0, lost: 0 }
+    if (r.status === 'converted') entry.won++
+    else entry.lost++
+    segAgg.set(seg, entry)
+  }
+  const segments = Array.from(segAgg.entries())
+    .map(([seg, v]) => {
+      const total = v.won + v.lost
+      return {
+        segment: seg as OutreachSegment | 'unsegmented',
+        label: seg === 'unsegmented' ? 'Unsegmented' : SEGMENT_LABELS[seg as OutreachSegment],
+        won: v.won,
+        lost: v.lost,
+        winRatePct: total > 0 ? Math.round((v.won / total) * 100) : null,
+      }
+    })
+    .sort((a, b) => b.won + b.lost - (a.won + a.lost))
+
+  // Average outreach touches before a win.
+  let avgTouchesToWin: number | null = null
+  if (wonRows.length > 0) {
+    const wonIds = wonRows.map((r) => r.id)
+    const [touchRow] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.outreachTouchLog)
+      .where(inArray(schema.outreachTouchLog.prospectId, wonIds))
+    const totalTouches = touchRow?.n ?? 0
+    avgTouchesToWin = totalTouches > 0 ? Math.round((totalTouches / wonRows.length) * 10) / 10 : null
+  }
+
+  return { windowDays, won, lost, winRatePct, lossReasons, segments, avgTouchesToWin }
+}
+
 export async function getDiscoveryProgress(): Promise<
   Array<{ state: string; pending: number; done: number; error: number; imported: number }>
 > {
@@ -314,6 +434,8 @@ export async function suppressProspect(
       status: 'suppressed',
       suppressedReason: reason,
       suppressedAt: new Date(),
+      outcomeAt: new Date(),
+      lostReason: lossReasonForSuppression(reason),
       updatedAt: new Date(),
     })
     .where(eq(schema.prospect.id, prospectId))
@@ -610,6 +732,8 @@ export async function logCallOutcome(input: {
   outcome: string
   note?: string | null
   calledByUserId?: string | null
+  /** Coded loss reason — only meaningful with outcome='not_interested'. */
+  lostReason?: string | null
 }): Promise<void> {
   await db.insert(schema.prospectCallLog).values({
     id: newId('pcall'),
@@ -635,7 +759,12 @@ export async function logCallOutcome(input: {
   if (input.outcome === 'not_interested') {
     await db
       .update(schema.prospect)
-      .set({ status: 'not_interested', updatedAt: new Date() })
+      .set({
+        status: 'not_interested',
+        outcomeAt: new Date(),
+        lostReason: input.lostReason ?? 'other',
+        updatedAt: new Date(),
+      })
       .where(eq(schema.prospect.id, input.prospectId))
     await db
       .update(schema.outreachEnrollment)
@@ -656,7 +785,12 @@ export async function markConverted(
 ): Promise<void> {
   await db
     .update(schema.prospect)
-    .set({ status: 'converted', convertedOrganizationId: organizationId, updatedAt: new Date() })
+    .set({
+      status: 'converted',
+      convertedOrganizationId: organizationId,
+      outcomeAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(schema.prospect.id, prospectId))
   await db
     .update(schema.outreachEnrollment)

@@ -127,6 +127,14 @@ export const prospect = pgTable(
     suppressedReason: text('suppressed_reason'),
     suppressedAt: timestamp('suppressed_at', { withTimezone: true }),
 
+    // Win/loss outcome (the pipeline + learning loop). outcomeAt is stamped
+    // when a prospect is won (converted) OR lost (not-interested/suppressed);
+    // lostReason is a coded reason on losses (PROSPECT_LOSS_REASONS) so the
+    // report can break down WHY we lose and the learning loop can preempt the
+    // top objection in outreach. Migration 0122.
+    outcomeAt: timestamp('outcome_at', { withTimezone: true }),
+    lostReason: text('lost_reason'),
+
     // Conversion linkage.
     convertedOrganizationId: text('converted_organization_id').references(
       () => organization.id,

@@ -254,6 +254,10 @@ const callOutcomeSchema = z.object({
   prospectId: z.string().min(1),
   outcome: z.enum(['no_answer', 'voicemail', 'callback', 'demo_booked', 'not_interested', 'won']),
   note: z.string().max(500).optional(),
+  // Only meaningful with outcome='not_interested' — why we lost this one.
+  lostReason: z
+    .enum(['price', 'using_competitor', 'no_need', 'bad_timing', 'not_decision_maker', 'other'])
+    .optional(),
 })
 
 /** Log a call outcome from the call list / drawer. */

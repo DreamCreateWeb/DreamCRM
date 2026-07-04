@@ -286,6 +286,8 @@ async function applyClassification(
           status: verdict.classification === 'unsubscribe' ? 'suppressed' : 'not_interested',
           suppressedReason: verdict.classification,
           suppressedAt: now,
+          outcomeAt: now,
+          lostReason: verdict.classification === 'unsubscribe' ? 'unsubscribed' : 'replied_no',
           intentSummary: verdict.summary,
           updatedAt: now,
         })
