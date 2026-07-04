@@ -1,0 +1,135 @@
+import Link from 'next/link'
+import type { DailyBriefing } from '@/lib/services/prospecting-briefing'
+import { INTENT_SIGNAL_LABELS, type ProspectIntentSignal } from '@/lib/types/prospecting'
+
+/**
+ * The morning cockpit hero — the first thing on the prospecting home. A single
+ * clear next action, then glanceable columns: today's demos, who to call
+ * first (with why), the phone-first queue, and what came in overnight. Built
+ * to answer "what do I do right now?" in one look.
+ */
+export default function DailyBriefing({ briefing }: { briefing: DailyBriefing }) {
+  const { nextAction, todaysDemos, callFirst, phoneQueueTop, overnightHot } = briefing
+
+  return (
+    <section className="mb-6">
+      {/* The one clear next action */}
+      <div className="v2-card p-5 mb-3 flex flex-wrap items-center gap-4 bg-gradient-to-br from-teal-50/60 to-transparent dark:from-teal-900/10">
+        <div className="text-3xl leading-none" aria-hidden="true">
+          {nextAction.icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-base font-bold text-gray-900 dark:text-gray-100">{nextAction.headline}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-300">{nextAction.sub}</div>
+        </div>
+        <Link
+          href={nextAction.href}
+          className="shrink-0 rounded-[var(--r-xs)] bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+        >
+          Let’s go →
+        </Link>
+      </div>
+
+      {/* Glanceable columns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <BriefColumn title="📅 Demos today" count={todaysDemos.length} href="/platform/prospecting/call-list">
+          {todaysDemos.length === 0 ? (
+            <Empty>Nothing booked today.</Empty>
+          ) : (
+            todaysDemos.map((d) => (
+              <Row key={d.prospectId} href={`/platform/prospecting?prospect=${d.prospectId}`} name={d.name} meta={d.when} />
+            ))
+          )}
+        </BriefColumn>
+
+        <BriefColumn title="🔥 Call first" count={briefing.callListTotal} href="/platform/prospecting/call-list">
+          {callFirst.length === 0 ? (
+            <Empty>No hand-raisers yet.</Empty>
+          ) : (
+            callFirst.map((c) => (
+              <Row
+                key={c.id}
+                href={`/platform/prospecting/call-list?highlight=${c.id}`}
+                name={c.name}
+                meta={
+                  c.intentSummary ??
+                  (c.intentSignal
+                    ? INTENT_SIGNAL_LABELS[c.intentSignal as ProspectIntentSignal] ?? c.intentSignal
+                    : c.scoreBand === 'hot'
+                      ? 'Hot prospect'
+                      : '')
+                }
+              />
+            ))
+          )}
+        </BriefColumn>
+
+        <BriefColumn title="📵 Phone-first" count={briefing.phoneQueueTotal} href="/platform/prospecting/call-list">
+          {phoneQueueTop.length === 0 ? (
+            <Empty>None right now.</Empty>
+          ) : (
+            phoneQueueTop.map((p) => (
+              <Row
+                key={p.id}
+                href={`/platform/prospecting?prospect=${p.id}`}
+                name={p.name}
+                meta={[p.city, p.state].filter(Boolean).join(', ') || 'No email — call them'}
+              />
+            ))
+          )}
+        </BriefColumn>
+
+        <BriefColumn title="🎯 New overnight" count={overnightHot.count} href="/platform/prospecting?band=hot">
+          {overnightHot.count === 0 ? (
+            <Empty>No new hot prospects.</Empty>
+          ) : (
+            overnightHot.names.map((n, i) => (
+              <div key={i} className="truncate py-1 text-sm text-gray-700 dark:text-gray-300">
+                {n}
+              </div>
+            ))
+          )}
+        </BriefColumn>
+      </div>
+    </section>
+  )
+}
+
+function BriefColumn({
+  title,
+  count,
+  href,
+  children,
+}: {
+  title: string
+  count: number
+  href: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="v2-card p-4">
+      <Link href={href} className="mb-2 flex items-center justify-between gap-2 group">
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</span>
+        <span className="text-xs tabular-nums text-gray-400 group-hover:text-teal-600 dark:group-hover:text-teal-400">
+          {count}
+        </span>
+      </Link>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  )
+}
+
+function Row({ href, name, meta }: { href: string; name: string; meta: string }) {
+  return (
+    <Link href={href} scroll={false} className="block py-1 group">
+      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-teal-600 dark:group-hover:text-teal-400">
+        {name}
+      </div>
+      {meta && <div className="truncate text-xs text-gray-500 dark:text-gray-400">{meta}</div>}
+    </Link>
+  )
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <div className="py-1 text-sm text-gray-400">{children}</div>
+}

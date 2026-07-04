@@ -2240,7 +2240,20 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-04 (latest) — Prospecting AI: product-knowledge grounding
+## 2026-07-04 (latest) — Prospecting daily workspace F1: the morning briefing
+
+Turning the prospecting home into a daily sales cockpit. `getDailyBriefing`
+(a thin aggregator over the existing call-list / meetings / phone-queue reads
++ a new `getRecentHotArrivals`) composes the owner's morning: today's booked
+demos, who to call first (with the "why" from intent), the phone-first queue,
+and what hot prospects entered overnight — then a pure `chooseNextAction`
+priority ladder (booked demo > warm hand-raiser > cold call > go-live nudge >
+"the machine is hunting") gives ONE clear next action. Rendered as a hero +
+four glanceable columns above the hunt panel. The ladder is unit-tested. Also
+fixed a papercut: opening/closing a prospect drawer no longer scrolls the list
+back to the top (scroll={false}).
+
+## 2026-07-04 — Prospecting AI: product-knowledge grounding
 
 Every prospecting AI surface (cold email, reply draft, pre-demo brief) was
 asked to SELL DreamCRM while knowing only a one-line description of it — so

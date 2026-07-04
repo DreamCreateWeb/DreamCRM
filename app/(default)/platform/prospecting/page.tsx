@@ -15,8 +15,10 @@ import {
   getProspectDetail,
   getHuntStats,
 } from '@/lib/services/prospecting'
+import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
 import ProspectDrawer from './prospect-drawer'
 import HuntPanel from './hunt-panel'
+import DailyBriefing from './daily-briefing'
 import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
@@ -95,12 +97,13 @@ export default async function ProspectingPage({
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list, detail, huntStats] = await Promise.all([
+  const [config, funnel, list, detail, huntStats, briefing] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
     params.prospect ? getProspectDetail(params.prospect) : Promise.resolve(null),
     getHuntStats(),
+    getDailyBriefing(),
   ])
   const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize))
   const activeStates = config.enabledStates as UsState[]
@@ -139,6 +142,8 @@ export default async function ProspectingPage({
           </Link>
         </div>
       )}
+
+      {!config.killSwitch && <DailyBriefing briefing={briefing} />}
 
       {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} />}
 

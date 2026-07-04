@@ -513,6 +513,31 @@ export async function getPhoneQueue(limit = 100): Promise<PhoneQueueRow[]> {
   }))
 }
 
+/** New hot prospects that got enriched in the trailing window — the
+ *  "entered overnight" line in the daily briefing. */
+export async function getRecentHotArrivals(
+  opts?: { now?: Date; sinceHours?: number; limit?: number },
+): Promise<{ count: number; names: string[] }> {
+  const now = opts?.now ?? new Date()
+  const since = new Date(now.getTime() - (opts?.sinceHours ?? 24) * 60 * 60 * 1000)
+  const where = and(
+    eq(schema.prospect.scoreBand, 'hot'),
+    eq(schema.prospect.status, 'enriched'),
+    sql`${schema.prospect.enrichedAt} >= ${since}`,
+  )
+  const [countRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.prospect)
+    .where(where)
+  const names = await db
+    .select({ name: schema.prospect.name })
+    .from(schema.prospect)
+    .where(where)
+    .orderBy(desc(schema.prospect.opportunityScore))
+    .limit(opts?.limit ?? 5)
+  return { count: countRow?.n ?? 0, names: names.map((r) => r.name) }
+}
+
 /**
  * Record a call outcome. 'not_interested' also retires the prospect (call
  * refusal = same respect as a reply refusal); 'won' leaves status alone —
