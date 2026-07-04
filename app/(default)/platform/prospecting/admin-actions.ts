@@ -327,6 +327,19 @@ export async function convertProspectAction(
   try {
     const { createManagedClinic } = await import('@/lib/services/clinic-provisioning')
     const { markConverted } = await import('@/lib/services/prospecting')
+    const { usableBrandColor } = await import('@/lib/demo-skin-build')
+    // Carry the prospect's captured brand into the new clinic — the same brand
+    // we themed the demo in. Best-effort; a bad/absent color just seeds null.
+    const [pros] = await db
+      .select({ enrichment: schema.prospect.enrichment })
+      .from(schema.prospect)
+      .where(eq(schema.prospect.id, parsed.prospectId))
+      .limit(1)
+    const signals = (pros?.enrichment ?? null) as { themeColor?: string | null; iconUrl?: string | null } | null
+    const brand = {
+      color: usableBrandColor(signals?.themeColor),
+      logoUrl: signals?.iconUrl ?? null,
+    }
     const result = await createManagedClinic({
       name: parsed.name,
       ownerEmail: parsed.ownerEmail,
@@ -337,6 +350,7 @@ export async function convertProspectAction(
       note: `Converted from prospecting (${parsed.prospectId})`,
       inviterUserId: ctx.userId,
       inviterName: ctx.userName,
+      brand,
     })
     await markConverted(parsed.prospectId, result.organizationId)
     revalidatePath('/platform/prospecting')

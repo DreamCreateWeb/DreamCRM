@@ -67,17 +67,23 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 
-const { aiMock, bumpMock, notifyMock, briefMock } = vi.hoisted(() => ({
+const { aiMock, bumpMock, notifyMock, briefMock, configMock, bookingLinkMock } = vi.hoisted(() => ({
   aiMock: vi.fn(),
   bumpMock: vi.fn(async () => {}),
   notifyMock: vi.fn(async () => {}),
   briefMock: vi.fn(async () => null),
+  // Booking-link-in-draft is gated on this; default OFF so existing draft
+  // assertions are unchanged.
+  configMock: vi.fn(async () => ({ booking: { enabled: false } })),
+  bookingLinkMock: vi.fn(async () => ({ token: 'tok', url: 'https://x/d/tok' })),
 }))
 vi.mock('@/lib/ai', () => ({ runClaudeJson: aiMock, aiConfigured: () => true }))
 vi.mock('@/lib/services/prospecting', () => ({
   bumpProspectingCounter: bumpMock,
   counterMonth: () => '2026-07',
+  getProspectingConfig: configMock,
 }))
+vi.mock('@/lib/services/prospect-meetings', () => ({ getOrCreateBookingLink: bookingLinkMock }))
 // Dynamically imported by the alert + pre-warm path.
 vi.mock('@/lib/services/gsc', () => ({ getPlatformOrgId: async () => 'org_platform' }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyMock }))
@@ -163,6 +169,18 @@ describe('processInboundForOutreach', () => {
     await processInboundForOutreach()
     const flip = state.updates.find((u) => u.table === 'prospect')
     expect(String(flip!.values.replyDraft)).toContain('$150')
+  })
+
+  it('weaves the booking link into the draft when self-booking is on', async () => {
+    configMock.mockResolvedValueOnce({ booking: { enabled: true } })
+    queueSweep()
+    aiMock
+      .mockResolvedValueOnce({ classification: 'question', summary: 'Asked cost.', talkingPoints: [] })
+      .mockResolvedValueOnce({ draft: 'Plans start at $150/mo.' })
+    await processInboundForOutreach()
+    const flip = state.updates.find((u) => u.table === 'prospect')
+    expect(String(flip!.values.replyDraft)).toContain('https://x/d/tok')
+    expect(bookingLinkMock).toHaveBeenCalledWith('pros_1')
   })
 
   it('not_interested fires NO owner alert', async () => {

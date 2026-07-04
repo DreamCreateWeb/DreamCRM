@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
-import { bumpProspectingCounter, counterMonth } from './prospecting'
+import { bumpProspectingCounter, counterMonth, getProspectingConfig } from './prospecting'
 
 /**
  * Intent detection — the moment cold outreach turns into a phone call.
@@ -209,10 +209,26 @@ async function applyClassification(
       await stopLiveEnrollment(prospect.id, 'stopped_reply', verdict.classification)
       // Question replies get an AI-drafted response waiting on the call card
       // (the owner sends it from his own inbox — we never auto-send).
-      const replyDraft =
+      const aiDraft =
         verdict.classification === 'question'
           ? await draftReply(prospect, verdict.summary, replyBody)
           : null
+      // When self-booking is on, weave the prospect's own booking link into
+      // the draft so a single reply the owner sends moves them straight to a
+      // booked demo (we still never auto-send — the owner sends it).
+      let bookingUrl: string | null = null
+      const bookingConfig = await getProspectingConfig().catch(() => null)
+      if (bookingConfig?.booking.enabled) {
+        const { getOrCreateBookingLink } = await import('./prospect-meetings')
+        const link = await getOrCreateBookingLink(prospect.id).catch(() => null)
+        bookingUrl = link?.url ?? null
+      }
+      const bookingLine = bookingUrl ? `Prefer to just grab a time? Pick one here: ${bookingUrl}` : null
+      const replyDraft = aiDraft
+        ? bookingLine
+          ? `${aiDraft}\n\n${bookingLine}`
+          : aiDraft
+        : bookingLine // interested replies get a ready one-liner with the link
       await db
         .update(schema.prospect)
         .set({

@@ -218,7 +218,9 @@ instant bell+forced-email alerts + AI reply drafts (`prospect.reply_draft`)
 token-IS-auth; prospect picks a slot from the owner's availability in their
 OWN tz, both sides get an add-to-calendar link; reminders 24h out;
 `lib/prospect-booking.ts` pure slot math, `lib/services/prospect-meetings.ts`;
-ships booking OFF) → AI demo prep brief (`/platform/prospecting/demo/[id]`) → prospect-branded
+ships booking OFF) → AI demo prep brief (`/platform/prospecting/demo/[id]`) → CONVERT to a
+managed clinic that BOOTS IN THEIR BRAND (captured theme-color/logo seeds
+`clinic_profile`) → prospect-branded
 presenter mode (demo_skin cookie overlay, zero DB writes: chrome branding,
 8-beat keyboard panel w/ per-prospect gap callouts, `/demo/compare`
 their-site-vs-ours in their brand color). A deliverability WATCHDOG

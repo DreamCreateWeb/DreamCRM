@@ -45,6 +45,9 @@ export interface CreateManagedClinicInput {
    *  an optional per-clinic % override (basis points). The term defaults to
    *  the partner's default when omitted. */
   referral?: { partnerId: string; percentBps?: number | null }
+  /** Optional brand seed — carried from a converted prospect so the new
+   *  clinic boots in the brand we showed off in the demo. */
+  brand?: { color?: string | null; logoUrl?: string | null }
 }
 
 export interface CreateManagedClinicResult {
@@ -150,6 +153,10 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     pendingBillingInterval: comped ? null : input.interval,
     stripeCouponId: couponId,
     managedNote: input.note?.trim() || null,
+    // Brand carry-over from a converted prospect: the clinic boots in the
+    // brand we showed in the demo (owner can change it anytime in Settings).
+    ...(input.brand?.color ? { brandColor: input.brand.color } : {}),
+    ...(input.brand?.logoUrl ? { logoUrl: input.brand.logoUrl } : {}),
   })
 
   // Referral attribution (optional): copy the partner's default rate/term and

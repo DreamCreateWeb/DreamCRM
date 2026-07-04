@@ -2240,7 +2240,34 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-04 (latest) — Prospecting revolutionary pass P2: the self-booking close
+## 2026-07-04 (latest) — Prospecting revolutionary pass P3: the branded close
+
+The close made seamless. Two safe, high-leverage wins (no new migration).
+
+- **Brand-carry on conversion.** The demo already themes the practice site in
+  the prospect's own brand color/logo; now when they convert, that captured
+  brand (`enrichment.themeColor` → `usableBrandColor`, `iconUrl`) seeds the
+  NEW clinic's `clinic_profile.brandColor` + `logoUrl` via `createManaged
+  Clinic`'s new optional `brand` input. The clinic boots in the brand we sold
+  them (owner can change it in Settings). Best-effort — a bad/absent color
+  just seeds null.
+- **Booking link woven into the AI reply draft.** When self-booking is on, an
+  interested/question reply's draft (the one the owner sends from his own
+  inbox — still never auto-sent) now carries the prospect's own
+  `/d/<token>` link, so a single reply moves them straight to a booked demo.
+  Interested replies (no AI draft) get a ready one-liner with the link.
+
+**Deliberately deferred: the auto-send AI SDR.** An engine that auto-answers
+question-replies itself (multi-turn, capped, off by default) is the natural
+next step, but auto-sending AI email to real dental practices is the single
+highest-risk action in the system and the send path (Resend/Gmail +
+List-Unsubscribe + CAN-SPAM footer via `renderOutreachEmail`) needs
+extracting into a shared `sendProspectEmail` helper first. Left as the clear
+next slice rather than shipped half-verified — the reply loop stays
+human-approved (the owner sends), which the booking-link draft already makes
+one-click.
+
+## 2026-07-04 — Prospecting revolutionary pass P2: the self-booking close
 
 The Hunter's other big leak was the interested→booked drop-off: a reply that
 said "interested" handed off to a human call list and stopped — there was no
