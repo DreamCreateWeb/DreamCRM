@@ -14,6 +14,7 @@ import type {
 } from '@/lib/types/prospecting'
 import { segmentForProspect } from '@/lib/prospect-segment'
 import { assessDeliverability } from '@/lib/prospect-deliverability'
+import { PRODUCT_KNOWLEDGE_SHORT } from '@/lib/prospect-product-knowledge'
 import {
   getProspectingConfig,
   updateProspectingConfig,
@@ -400,7 +401,8 @@ async function personalizeTouch(input: {
       model: 'haiku',
       maxTokens: 800,
       system:
-        "You write short, warm, personal cold emails for Dream Create, a company selling websites + patient-communication software to dental practices. Rewrite the skeleton email so it references 1-2 of the practice's SPECIFIC verified gaps (provided). Rules: under 130 words total; plain conversational tone, no hype, no exclamation marks; never fabricate anything beyond the provided facts; keep any URL from the skeleton exactly as-is; keep the greeting line personal; sign-off is added later so do not include one.",
+        PRODUCT_KNOWLEDGE_SHORT +
+        "\n\nYou write short, warm, personal cold emails for Dream Create. Rewrite the skeleton email so it references 1-2 of the practice's SPECIFIC verified gaps (provided) and, where natural, ties them to what the product actually does. Rules: under 130 words total; plain conversational tone, no hype, no exclamation marks; never fabricate anything beyond the provided facts or claim capabilities the product knowledge doesn't list; keep any URL from the skeleton exactly as-is; keep the greeting line personal; sign-off is added later so do not include one.",
       messages: [
         {
           role: 'user',

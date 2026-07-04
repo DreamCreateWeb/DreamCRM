@@ -31,7 +31,7 @@ function scheduledJobs(): string[] {
   const script = readFileSync(join(process.cwd(), 'scripts/setup-cron-schedules.sh'), 'utf8')
   // JOBS entries look like:  "name|route|rate(...)"  — capture the route (2nd field).
   const out: string[] = []
-  for (const m of script.matchAll(/"[a-z0-9-]+\|([a-z0-9-]+)\|[^"]+"/g)) out.push(m[1])
+  for (const m of Array.from(script.matchAll(/"[a-z0-9-]+\|([a-z0-9-]+)\|[^"]+"/g))) out.push(m[1])
   return out
 }
 

@@ -2240,7 +2240,25 @@ To-do in the AWS migration session (rough order):
 
 ---
 
-## 2026-07-04 (latest) — Prospecting revolutionary pass P3: the branded close
+## 2026-07-04 (latest) — Prospecting AI: product-knowledge grounding
+
+Every prospecting AI surface (cold email, reply draft, pre-demo brief) was
+asked to SELL DreamCRM while knowing only a one-line description of it — so
+objection responses and pitches stayed generic or invented facts. Added
+`lib/prospect-product-knowledge.ts`: one canonical, grounded source of product
+truth (what it is, the 5-6-vendor consolidation wedge, real per-plan pricing
+$150/$250/$500 + 7-day trial, differentiators, WHO it's for, and — critically
+— the honest limits: not a PMS, SMS not live yet, Open-Dental-only sync, plus
+an objection→response playbook). A full version feeds the sonnet demo brief; a
+condensed version feeds the haiku cold email + reply draft; a `segmentAngle`
+helper gives the per-segment lead. All three prompts now open with it and are
+told to never exceed it (so the AI says "no SMS yet" honestly instead of
+implying otherwise). Tests guard the pricing/positioning/honest-limits from
+drift + confirm injection. This one file is now THE place to update as the
+platform evolves. (Also fixed a latent `matchAll` tsc error in the
+cron-parity test.)
+
+## 2026-07-04 — Prospecting revolutionary pass P3: the branded close
 
 The close made seamless. Two safe, high-leverage wins (no new migration).
 

@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { bumpProspectingCounter, counterMonth, getProspectingConfig } from './prospecting'
+import { PRODUCT_KNOWLEDGE_SHORT } from '@/lib/prospect-product-knowledge'
 
 /**
  * Intent detection — the moment cold outreach turns into a phone call.
@@ -152,7 +153,8 @@ async function draftReply(
       model: 'haiku',
       maxTokens: 500,
       system:
-        "You draft a short reply from Dustin at Dream Create (dental websites + patient-communication software) to a dental practice that answered his cold email with a question. Answer their question directly and honestly using ONLY the provided facts. Warm, plain, conversational — no hype, no exclamation marks, no pressure. Under 120 words. End by offering a quick call. A greeting line is fine; do NOT include a sign-off (added later). Never fabricate pricing, clients, or capabilities beyond the provided facts.",
+        PRODUCT_KNOWLEDGE_SHORT +
+        "\n\nYou draft a short reply from Dustin at Dream Create to a dental practice that answered his cold email with a question. Answer their question directly and honestly using the product knowledge above plus the provided facts. Warm, plain, conversational — no hype, no exclamation marks, no pressure. Under 120 words. End by offering a quick call. A greeting line is fine; do NOT include a sign-off (added later). Never fabricate pricing, clients, or capabilities beyond the product knowledge — if they ask about something it doesn't do (e.g. SMS texting), say so honestly.",
       messages: [
         {
           role: 'user',
