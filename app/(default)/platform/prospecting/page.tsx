@@ -22,6 +22,7 @@ import HuntPanel from './hunt-panel'
 import DailyBriefing from './daily-briefing'
 import CopilotBar from './copilot-bar'
 import PipelinePanel from './pipeline-panel'
+import FocusBanner from './focus-banner'
 import {
   PROSPECT_STATUS_LABELS,
   SCORE_BAND_LABELS,
@@ -131,6 +132,9 @@ export default async function ProspectingPage({
             <ActionButton href="/platform/prospecting/sequences" variant="secondary">
               ✉️ Sequences
             </ActionButton>
+            <ActionButton href="/platform/prospecting/territory" variant="secondary">
+              🗺️ Territory
+            </ActionButton>
             <ActionButton href="/platform/prospecting/settings" variant="secondary">
               ⚙️ Settings
             </ActionButton>
@@ -147,6 +151,8 @@ export default async function ProspectingPage({
           </Link>
         </div>
       )}
+
+      {config.focus.state && <FocusBanner state={config.focus.state} />}
 
       {!config.killSwitch && <DailyBriefing briefing={briefing} />}
 

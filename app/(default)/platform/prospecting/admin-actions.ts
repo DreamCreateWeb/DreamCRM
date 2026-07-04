@@ -193,6 +193,16 @@ export async function setDigestEnabledAction(on: boolean): Promise<void> {
   revalidatePath('/platform/prospecting/settings')
 }
 
+/** Set (or clear) the focus-mode state — an operator lens, not an engine
+ *  change. Pass '' or an invalid code to clear. */
+export async function setFocusStateAction(state: string | null): Promise<void> {
+  await requirePlatformAdmin()
+  const clean = typeof state === 'string' && /^[A-Z]{2}$/.test(state) ? state : null
+  await updateProspectingConfig({ focus: { state: clean } })
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/territory')
+}
+
 /** Flip auto-enroll on/off while preserving the chosen bands + daily cap —
  *  the one-click form the copilot's suggested action uses. */
 export async function setHunterEnabledAction(on: boolean): Promise<void> {

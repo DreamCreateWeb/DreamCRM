@@ -227,8 +227,20 @@ their-site-vs-ours in their brand color). A deliverability WATCHDOG
 (`lib/prospect-deliverability.ts`, trailing-72h bounce/complaint) auto-pauses
 live sending to dry-run on a breach; a daily hunt DIGEST
 (`lib/services/prospecting-digest.ts`) + a hunt COCKPIT (`hunt-panel.tsx`,
-last-24h activity + engine status) surface the machine. Schema
-`lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
+last-24h activity + engine status) surface the machine. The DAILY WORKSPACE
+layer on top (the owner's cockpit for driving sign-ups): a morning DAILY
+BRIEFING (`daily-briefing.tsx`, next-best-action ladder), never-drop-a-lead
+FOLLOW-UPS (`prospect.next_follow_up_at`), a per-prospect DEAL ROOM
+(`lib/prospect-vendors.ts` — who we'd displace + consolidation ROI), the
+editable BRAIN (`config.brain` — owner product-knowledge override + competitor
+battle cards → `effectiveProductKnowledge`, fed into every prospecting AI), the
+hunt COPILOT (`copilot-bar.tsx`/`lib/prospect-copilot.ts` — ⌘J natural-language
+Q&A over a live snapshot; suggests engine actions, never auto-mutates), the
+WIN/LOSS pipeline + learning loop (`getWinLossReport` + `lib/prospect-
+learnings.ts` — captures why we lose, feeds "what's converting / top objection"
+back into outreach above a min sample), and the TERRITORY map + focus mode
+(`getTerritoryCoverage` + `lib/prospect-territory.ts` + `config.focus.state`).
+Schema `lib/db/schema/prospecting.ts` is platform-global, NO organizationId by
 design; ships behind kill switch + dry-run + auto-enroll-off; say
 "prospect", never "lead"),
 service library (`/platform/service-library`), platform blog, developer,

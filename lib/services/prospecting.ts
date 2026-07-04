@@ -360,6 +360,95 @@ export async function getDiscoveryProgress(): Promise<
   return Array.from(byState.values()).sort((a, b) => a.state.localeCompare(b.state))
 }
 
+/**
+ * Territory coverage — one row per US state that has any prospect or discovery
+ * task, merging prospect status/band counts with discovery-grid progress. The
+ * map view + focus mode read this. Pure ranking/gap logic lives in
+ * lib/prospect-territory.ts.
+ */
+export async function getTerritoryCoverage(
+  enabledStates: string[],
+): Promise<import('@/lib/types/prospecting').TerritoryRow[]> {
+  const enabled = new Set(enabledStates)
+
+  const statusRows = await db
+    .select({
+      state: schema.prospect.state,
+      status: schema.prospect.status,
+      band: schema.prospect.scoreBand,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(schema.prospect)
+    .where(isNotNull(schema.prospect.state))
+    .groupBy(schema.prospect.state, schema.prospect.status, schema.prospect.scoreBand)
+
+  const progress = await getDiscoveryProgress()
+  const progressByState = new Map(progress.map((p) => [p.state, p]))
+
+  type Acc = {
+    total: number
+    enriched: number
+    contacted: number
+    callList: number
+    won: number
+    hot: number
+    warm: number
+  }
+  const byState = new Map<string, Acc>()
+  const ENRICHED_PLUS = new Set([
+    'enriched', 'queued', 'contacted', 'engaged', 'call_list', 'converted',
+    'not_interested', 'suppressed',
+  ])
+  const CONTACTED_PLUS = new Set([
+    'contacted', 'engaged', 'call_list', 'converted', 'not_interested', 'suppressed',
+  ])
+  for (const r of statusRows) {
+    if (!r.state) continue
+    const a =
+      byState.get(r.state) ??
+      { total: 0, enriched: 0, contacted: 0, callList: 0, won: 0, hot: 0, warm: 0 }
+    a.total += r.n
+    if (ENRICHED_PLUS.has(r.status)) a.enriched += r.n
+    if (CONTACTED_PLUS.has(r.status)) a.contacted += r.n
+    if (r.status === 'call_list') a.callList += r.n
+    if (r.status === 'converted') a.won += r.n
+    if (r.band === 'hot') a.hot += r.n
+    if (r.band === 'warm') a.warm += r.n
+    byState.set(r.state, a)
+  }
+
+  // Union of states with prospects OR discovery tasks.
+  const allStates = new Set<string>([
+    ...Array.from(byState.keys()),
+    ...Array.from(progressByState.keys()),
+  ])
+  const { US_STATE_NAMES } = await import('@/lib/types/us-geo')
+  const rows: import('@/lib/types/prospecting').TerritoryRow[] = []
+  for (const state of Array.from(allStates)) {
+    const a =
+      byState.get(state) ??
+      { total: 0, enriched: 0, contacted: 0, callList: 0, won: 0, hot: 0, warm: 0 }
+    const prog = progressByState.get(state)
+    rows.push({
+      state,
+      stateName: (US_STATE_NAMES as Record<string, string>)[state] ?? state,
+      enabled: enabled.has(state),
+      total: a.total,
+      enriched: a.enriched,
+      contacted: a.contacted,
+      callList: a.callList,
+      won: a.won,
+      hot: a.hot,
+      warm: a.warm,
+      tasksPending: prog?.pending ?? 0,
+      imported: prog?.imported ?? 0,
+      workedPct: a.total > 0 ? Math.round((a.enriched / a.total) * 100) : 0,
+      convertPct: a.contacted > 0 ? Math.round((a.won / a.contacted) * 100) : null,
+    })
+  }
+  return rows
+}
+
 export interface ProspectDetail {
   prospect: typeof schema.prospect.$inferSelect
   contacts: import('./prospect-contacts').ProspectContactRow[]

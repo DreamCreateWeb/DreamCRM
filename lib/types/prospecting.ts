@@ -149,6 +149,28 @@ export interface WinLossReport {
   avgTouchesToWin: number | null
 }
 
+// ── Territory & coverage (the map view) ────────────────────────────────────
+export interface TerritoryRow {
+  state: string
+  stateName: string
+  enabled: boolean
+  /** Total prospects discovered in this state. */
+  total: number
+  enriched: number // enriched-and-beyond (scored)
+  contacted: number
+  callList: number
+  won: number
+  hot: number
+  warm: number
+  /** Discovery tasks still pending (grid not fully swept). */
+  tasksPending: number
+  imported: number
+  /** enriched / total, rounded % — how much of what we found we've worked. */
+  workedPct: number
+  /** won / contacted, rounded % — close rate where we've engaged. null at 0. */
+  convertPct: number | null
+}
+
 // ── Config (prospecting_config singleton jsonb) ────────────────────────────
 export interface ProspectingConfig {
   /** Master OFF switch — ships true (system off). Nothing runs while true. */
@@ -218,6 +240,10 @@ export interface ProspectingConfig {
     productOverride: string
     battleCards: Array<{ competitor: string; angle: string }>
   }
+  /** Focus mode — an operator lens on one state. Doesn't change the send
+   *  engine (that stays global); it pins the territory + prospect list to the
+   *  chosen state so the owner can concentrate. null = no focus. */
+  focus: { state: string | null }
 }
 
 export const PROSPECTING_DEFAULTS: ProspectingConfig = {
@@ -249,6 +275,7 @@ export const PROSPECTING_DEFAULTS: ProspectingConfig = {
     leadHours: 12,
   },
   brain: { productOverride: '', battleCards: [] },
+  focus: { state: null },
 }
 
 /**
@@ -268,6 +295,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
       digest: { ...d.digest },
       booking: { ...d.booking },
       brain: { productOverride: '', battleCards: [] },
+      focus: { state: null },
     }
   }
   const r = raw as Record<string, unknown>
@@ -279,6 +307,7 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
   const digest = (r.digest ?? {}) as Record<string, unknown>
   const booking = (r.booking ?? {}) as Record<string, unknown>
   const brain = (r.brain ?? {}) as Record<string, unknown>
+  const focus = (r.focus ?? {}) as Record<string, unknown>
   const num = (v: unknown, fallback: number) =>
     typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : fallback
   // Percentages keep fractions (0.3% complaint threshold) — num() would
@@ -353,6 +382,10 @@ export function resolveProspectingConfig(raw: unknown): ProspectingConfig {
             .filter((c) => c.competitor.trim().length > 0 && c.angle.trim().length > 0)
             .slice(0, 20)
         : [],
+    },
+    focus: {
+      state:
+        typeof focus.state === 'string' && /^[A-Z]{2}$/.test(focus.state) ? focus.state : null,
     },
   }
 }

@@ -7,6 +7,24 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Prospecting workspace F7 — territory & coverage view + focus mode
+  (2026-07-04).** The hunt had no map — no per-state read of how far discovery
+  reached, how much of each pool was worked, or where the owner should
+  concentrate. New `/platform/prospecting/territory` renders a coverage table:
+  per-state found / worked% / hot / call-list / won / convert%, a colour-coded
+  stage (`territoryStage`: idle → discovering → enriching → working → closing),
+  and an insights strip that flags underworked big pools + still-sweeping grids.
+  `getTerritoryCoverage(enabledStates)` merges prospect status/band counts with
+  the discovery-grid progress; pure ranking/gap logic in
+  `lib/prospect-territory.ts`. **Focus mode** (config `focus.state`, junk-
+  tolerant, no migration): each territory row has a Focus toggle
+  (`setFocusStateAction`); when set, a `FocusBanner` pins the main prospecting
+  surface with a link to the state-filtered list + a one-click clear. It's an
+  operator lens, not an engine change — the global send engine is untouched.
+  Header gains a 🗺️ Territory button. Tests: stage ladder, ranking order,
+  underworked/still-discovering gaps, and the config focus resolver. This
+  closes the workspace push (F1–F7).
+
 - **Prospecting workspace F5 — win/loss pipeline + learning loop (migration
   0122, 2026-07-04).** The engine discovered/closed but never learned from its
   own outcomes. Now every decided prospect is captured (won = converted; lost =
