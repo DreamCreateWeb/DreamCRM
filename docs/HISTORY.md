@@ -7,6 +7,36 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Website mega-pass W1–W6 (2026-07-05).** The "every feature surrounding the
+  live website" sweep — six slices, each shipped + deployed green:
+  **W1 — callouts + carry-through** (`4784127`): homepage care-callouts
+  redesigned (Fraunces titles, larger gradient icon blooms w/ hover scale) and
+  the signature decor (ArcDivider/Grain/Ripple) carried onto the insurance +
+  payment-financing subpage deep bands. **W2 — the return path** (`cbb5540`):
+  the site finally reports back — `getSitePerformance()` (30d visits + leads +
+  visit→lead conversion) powers a 📊 popover in the Studio top bar (delta,
+  sparkline, top pages), and the Overview trends row gains a Website-visits
+  tile (7d, clinic-tz, delta vs prior week; `siteTraffic` on the Overview
+  snapshot, best-effort). **W3 — Studio quick wins** (`7b72582`): a page
+  navigator dropdown (gated via the new pure `buildStudioPages`; tracks the
+  canvas; off-list paths read "Current page"), a desktop/phone preview toggle
+  (wrapper max-width only — the iframe never remounts, mid-edit state
+  survives), and a collapsible AI bar (folds to an "Ask AI" pill, persisted;
+  pending-Undo amber dot). **W4 — /new-patients** (`a7c69af`): the universal
+  first-visit guide (what to expect steps, bring checklist + skip-the-clipboard
+  intake card on the deep band, money cards reading REAL carriers/payment
+  methods, anti-shame "No judgment, ever.", first-visit FAQ + JSON-LD) — wired
+  into the Patients nav (parent now lands there), Studio navigator, sitemap,
+  copy-override + AI COPY_KEYS registries, and a new `new-patients` SEO key.
+  **W5 — Monday website digest** (`caf5612`): the morning digest gains a
+  clinic-local-Monday "Your website last week" block (visits + delta + leads +
+  top pages; `getWeeklySiteDigest` + pure `buildWebsiteWeekSection`; null on
+  zero-traffic day-0 clinics; fetched once per clinic, best-effort). **W6 — QR
+  share cards** (`f561fab`): /website/share prints QR cards (server-side SVG
+  via the new `qrcode` dep) for booking / site / Google review / patient
+  portal — card list gated by `buildShareCards` so nothing dead-ends; print
+  CSS keeps only the cards; linked from the Studio top bar.
+
 - **Clinic site enhancement 5 — the design signature pass (2026-07-05).** The
   "finished gorgeous" elevation: a site-wide visual DNA layered onto the Tend
   bones via new `components/clinic-site/decor.tsx` (all server-renderable,

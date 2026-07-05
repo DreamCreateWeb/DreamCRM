@@ -191,7 +191,7 @@ Sidebar groups: **Daily** / **Growth** / **Website** / **Business** + a pinned
 | Growth | Reviews | `/reviews` + `/received` | **Google-first auto-loop**: completed visit → auto review request → Google; synced Google reviews auto-feature at `feature_min_stars` (default 4★+); per-review hide; private-feedback path; Facebook reviews read-only. Reviews is the ONLY testimonial manager. 1–2★ escalation. |
 | Growth | Social Posts | `/social-posts` | Multi-platform composer (GBP + connected socials) w/ preview studio, video, calendar ⇄ list ⇄ showcase views, comment manager. Gated by what's connected, not plan. |
 | Growth | Analytics | `/analytics` | Premium. Scorecard hero + trends vs previous window + funnels + proof panels (retention/reputation/social) + GSC + GBP local actions + social performance. Honest PMS-deferral block. |
-| Website | Website Editor | `/website` | Full-screen in-place Studio (iframe of the real site, EditBridge, per-section modals, AI bar). `/settings/clinic` is the deep-edit fallback. |
+| Website | Website Editor | `/website` | Full-screen in-place Studio (iframe of the real site, EditBridge, per-section modals, collapsible AI bar, page navigator, phone-width preview, 📊 performance popover). Printable QR share cards at `/website/share`. `/settings/clinic` is the deep-edit fallback. |
 | Website | Blog Posts | `/posts` | Clinic blog manager (platform org authors the marketing blog through the same system). |
 | Website | SEO | `/seo` | Site health, GSC (shared platform Domain-property connection, per-clinic scoped reads), GBP local metrics + top keywords. |
 | Website | Careers | `/careers` | Premium. Roles + ATS pipeline; public postings w/ JobPosting JSON-LD + jobs.xml. |
@@ -252,10 +252,12 @@ next-visit card, reschedule/cancel w/ notice windows, booking, forms, billing
 family access, magic-link sign-in, per-clinic feature toggles + preview.
 
 **Public clinic sites** (`app/site/[slug]/`): Tend-style template — home,
-services (+AI-customized detail pages), insurance, payment-financing,
-dental-plans, about/team/blog/careers/faq, booking w/ slot picker, intake
-(+packets), shop, review landing `/r/[token]`. Brand-derived palette
-(`lib/clinic-site-theme.ts`, WCAG-checked), JSON-LD suite, per-clinic
+services (+AI-customized detail pages), new-patients (first-visit guide),
+insurance, payment-financing, dental-plans, about/team/blog/careers/faq,
+privacy/accessibility, booking w/ slot picker, intake (+packets), shop,
+review landing `/r/[token]`. Brand-derived palette
+(`lib/clinic-site-theme.ts`, WCAG-checked) + signature decor
+(`components/clinic-site/decor.tsx`), JSON-LD suite, per-clinic
 sitemap/robots/OG.
 
 ## Key subsystem reference
