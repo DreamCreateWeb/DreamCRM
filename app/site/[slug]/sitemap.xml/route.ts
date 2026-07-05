@@ -70,6 +70,9 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       changefreq: 'monthly',
       priority: '0.7',
     },
+    // Legal pages — always rendered (universal template copy), low priority.
+    { loc: `${base}/privacy`, lastmod, changefreq: 'yearly', priority: '0.3' },
+    { loc: `${base}/accessibility`, lastmod, changefreq: 'yearly', priority: '0.3' },
   ]
   if (isPro) {
     urls.push({ loc: `${base}/book`, lastmod, changefreq: 'monthly', priority: '0.8' })

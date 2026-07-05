@@ -24,6 +24,7 @@ import ServicePills from '@/components/clinic-site/service-pills'
 import TeamGallery from '@/components/clinic-site/team-gallery'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
 import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-site/google-rating-badge'
+import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 
 /**
@@ -640,8 +641,15 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 }`}
                 style={{ borderColor: BORDER }}
               >
-                {stats.map((s) => (
-                  <li key={s.id} className="text-center px-6 py-7 sm:py-9" style={{ borderColor: BORDER }}>
+                {stats.map((s, i) => (
+                  <ScrollReveal
+                    as="li"
+                    key={s.id}
+                    delay={i * 90}
+                    yOffset={14}
+                    className="text-center px-6 py-7 sm:py-9"
+                    style={{ borderColor: BORDER, listStyle: 'none' }}
+                  >
                     <div
                       className="text-[34px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
                       style={{ color: headingInk }}
@@ -654,7 +662,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     >
                       {s.label}
                     </div>
-                  </li>
+                  </ScrollReveal>
                 ))}
               </ul>
             </div>
@@ -746,7 +754,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 hero image (mirroring the hero here made every new upload look
                 like it had "also set the video field"). With no media the box
                 shows a designed bloom publicly + an add-prompt in the Studio. */}
-            <div>
+            <ScrollReveal>
               <div
                 className="overflow-hidden"
                 style={{
@@ -793,8 +801,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   </div>
                 )}
               </div>
-            </div>
-            <div>
+            </ScrollReveal>
+            <ScrollReveal delay={120}>
               <p
                 className="text-xs font-semibold uppercase tracking-[0.16em] mb-4"
                 style={{ color: headingInk }}
@@ -835,7 +843,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               )}
               <a
                 href={bookHref}
-                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95 mb-8"
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 mb-8"
                 style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
               >
                 {bookLabel}
@@ -847,7 +855,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 data-edit-label="“Why us” highlights"
               >
                 {differenceChips.map((chip, i) => (
-                  <li key={`${chip}-${i}`}>
+                  <ScrollReveal as="li" key={`${chip}-${i}`} delay={(i % 2) * 70 + Math.floor(i / 2) * 50} yOffset={12}>
                     <span
                       className="flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold"
                       style={{
@@ -861,10 +869,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                       </svg>
                       {chip}
                     </span>
-                  </li>
+                  </ScrollReveal>
                 ))}
               </ul>
-            </div>
+            </ScrollReveal>
           </div>
         </div>
       </section>
@@ -974,7 +982,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       {hasAddress && (
         <section id="location" className="scroll-mt-20 py-14 sm:py-24">
           <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-            <div className="text-center max-w-[760px] mx-auto mb-10">
+            <ScrollReveal className="text-center max-w-[760px] mx-auto mb-10">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
                 style={{ color: INK_MUTED }}
@@ -998,7 +1006,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   {addressOneLine}
                 </p>
               )}
-            </div>
+            </ScrollReveal>
             <div className="max-w-[1000px] mx-auto">
               <iframe
                 src={mapEmbedSrc}
@@ -1014,7 +1022,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   href={mapDirectionsHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
                   style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
                 >
                   Get directions
@@ -1054,7 +1062,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
         style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
-          <div className="text-center max-w-[700px] mx-auto mb-12">
+          <ScrollReveal className="text-center max-w-[700px] mx-auto mb-12">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
               style={{ color: 'rgba(250, 247, 242, 0.7)' }}
@@ -1084,7 +1092,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 </>
               )}
             </p>
-          </div>
+          </ScrollReveal>
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-12">
             {/* Left: carriers */}
             <div
@@ -1269,10 +1277,13 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           </div>
           <ul className="grid sm:grid-cols-2 gap-4 sm:gap-5 max-w-[860px] mx-auto text-left">
             {teamCallouts.map((c, i) => (
-              <li
+              <ScrollReveal
+                as="li"
                 key={c.title}
-                className="flex items-start gap-4 p-5 sm:p-6 rounded-2xl bg-white"
-                style={{ border: `1px solid ${BORDER}` }}
+                delay={(i % 2) * 80 + Math.floor(i / 2) * 60}
+                yOffset={16}
+                className="flex items-start gap-4 p-5 sm:p-6 rounded-2xl bg-white transition-shadow duration-300 hover:shadow-md"
+                style={{ border: `1px solid ${BORDER}`, listStyle: 'none' }}
               >
                 <span
                   className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
@@ -1301,16 +1312,17 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                           {copyOverride(copyOverrides, `home.callout.${i}.body`, c.copy)}
                         </p>
                       </div>
-                    </li>
+                    </ScrollReveal>
                   ))}
                 </ul>
           <div className="text-center mt-10">
             <a
               href={`${basePath}/about`}
-              className="inline-flex items-center gap-2 text-sm font-semibold hover:underline"
+              className="inline-flex items-center gap-1 text-sm font-semibold transition-all hover:gap-2"
               style={{ color: headingInk }}
             >
-              Meet our team →
+              Meet our team
+              <span aria-hidden="true">→</span>
             </a>
           </div>
         </div>
@@ -1337,7 +1349,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </h2>
               <a
                 href={`${basePath}/blog`}
-                className="inline-flex items-center px-5 py-3 rounded-full text-sm font-semibold text-white shadow-sm transition hover:shadow-md"
+                className="inline-flex items-center px-5 py-3 rounded-full text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
                 style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
               >
                 View all posts
@@ -1355,11 +1367,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               data-edit-kind="modal"
               data-edit-label="blog posts"
             >
-              {recentPosts.slice(0, 3).map((post) => (
+              {recentPosts.slice(0, 3).map((post, i) => (
+                <ScrollReveal as="article" key={post.id} delay={(i % 3) * 90} yOffset={18}>
                 <a
-                  key={post.id}
                   href={`${basePath}/blog/${post.slug}`}
-                  className="group flex flex-col rounded-2xl overflow-hidden transition-transform duration-300 hover:-translate-y-0.5"
+                  className="group flex h-full flex-col rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                   style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
                 >
                   <div className="aspect-[16/10] overflow-hidden" style={{ backgroundColor: `${brand}14` }}>
@@ -1404,6 +1416,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     </span>
                   </div>
                 </a>
+                </ScrollReveal>
               ))}
             </div>
           </div>
@@ -1466,7 +1479,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <div className="lg:col-span-4 lg:text-right">
                 <a
                   href={bookHref}
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
                   style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
                 >
                   {bookLabel}

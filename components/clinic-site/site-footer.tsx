@@ -299,6 +299,20 @@ export default function SiteFooter({
             style={{ color: FOOTER_MUTED }}
           >
             <li>
+              <a href={`${basePath}/privacy`} className="hover:underline" style={{ color: FOOTER_MUTED }}>
+                Privacy
+              </a>
+            </li>
+            <li>
+              <a
+                href={`${basePath}/accessibility`}
+                className="hover:underline"
+                style={{ color: FOOTER_MUTED }}
+              >
+                Accessibility
+              </a>
+            </li>
+            <li>
               <a href={staffSignInUrl} className="hover:underline" style={{ color: FOOTER_MUTED }}>
                 Staff login
               </a>

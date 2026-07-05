@@ -7,6 +7,25 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Clinic site enhancement 3 — homepage motion pass + legal pages
+  (2026-07-05).** The homepage below the fold was fully static (subpages used
+  ScrollReveal; the money page never did). Now: staggered reveals on the
+  trust-stat cells, both "difference" columns + checklist chips, the four
+  team callouts (plus a hover shadow), the three blog cards (reveal + lift +
+  shadow on the existing image zoom), and the Location/Insurance section
+  headers. One interaction language everywhere: every solid CTA now shares the
+  hover-lift/press treatment (replacing the old hover:opacity), and the
+  "Meet our team" link uses the same arrow-gap hover as the intake link. All
+  reveals ride the existing reduced-motion-safe ScrollReveal. Verified the
+  derived palette on a vivid violet brand end-to-end via the screenshot
+  harness. **Legal pages:** new `/privacy` + `/accessibility` on every clinic
+  site (full chrome, warm plain voice), footer legal-row links, sitemap
+  entries. Copy is strictly factual to what the platform does: essential
+  cookies only, no ad trackers, Stripe-processed payments, first-party
+  page-view counts — and the accessibility commitments (AA-checked palette,
+  reduced-motion support, keyboard/focus/skip-link, labeled controls) are all
+  true by construction. Tests: footer legal links (basePath-aware).
+
 - **Clinic site enhancement 2 — trust & reviews depth + the unreachable-pills
   fix (2026-07-05).** The testimonials section now opens with the AGGREGATE:
   the same live Google rating badge as the hero (section variant) sits under

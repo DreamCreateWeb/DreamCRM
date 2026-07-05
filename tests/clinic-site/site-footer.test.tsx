@@ -84,6 +84,27 @@ describe('SiteFooter', () => {
     expect(screen.queryByRole('link', { name: /See all hours/i })).not.toBeInTheDocument()
   })
 
+  it('links Privacy + Accessibility in the legal row (basePath-aware)', () => {
+    render(
+      <SiteFooter
+        data={makeData()}
+        basePath="/site/acme-dental"
+        navLinks={navLinks}
+        bookHref="/site/acme-dental/book"
+        bookLabel="Book a Visit"
+        signInUrl="https://app.example.com/signin"
+      />,
+    )
+    expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute(
+      'href',
+      '/site/acme-dental/privacy',
+    )
+    expect(screen.getByRole('link', { name: 'Accessibility' })).toHaveAttribute(
+      'href',
+      '/site/acme-dental/accessibility',
+    )
+  })
+
   it('renders "Closed" days in the footer weekly hours', () => {
     render(
       <SiteFooter
