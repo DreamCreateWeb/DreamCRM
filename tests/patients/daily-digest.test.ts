@@ -5,10 +5,13 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('@/lib/db', () => ({ db: {}, schema: {} }))
 vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))
 vi.mock('@/lib/services/my-day', () => ({ getMyDay: vi.fn() }))
+vi.mock('@/lib/services/site-analytics', () => ({ getWeeklySiteDigest: vi.fn() }))
+vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn() }))
 vi.mock('drizzle-orm', () => ({ and: vi.fn(), eq: vi.fn(), ne: vi.fn() }))
 
-import { buildDigestContent } from '@/lib/services/daily-digest'
+import { buildDigestContent, buildWebsiteWeekSection } from '@/lib/services/daily-digest'
 import type { MyDayData } from '@/lib/services/my-day'
+import type { SiteTraffic } from '@/lib/services/site-analytics'
 
 function data(over: Partial<MyDayData> = {}): MyDayData {
   return {
@@ -60,5 +63,63 @@ describe('buildDigestContent', () => {
   it('does not add a greeting (the email shell adds it)', () => {
     const c = buildDigestContent(data({ newLeadsCount: 2 }), 'Dream Dental')
     expect(c.body.startsWith('Hi ')).toBe(false)
+  })
+
+  it('appends the weekly website section and counts it as content on its own', () => {
+    const c = buildDigestContent(data(), 'Dream Dental', '🌐 Your website last week: 240 visits')
+    expect(c.hasContent).toBe(true)
+    expect(c.body).toContain('🌐 Your website last week: 240 visits')
+    expect(c.body).not.toContain('all caught up')
+  })
+
+  it('stays quiet when the website section is null and there is nothing else', () => {
+    const c = buildDigestContent(data(), 'Dream Dental', null)
+    expect(c.hasContent).toBe(false)
+  })
+})
+
+function traffic(over: Partial<SiteTraffic> = {}): SiteTraffic {
+  return {
+    windowDays: 7,
+    total: 240,
+    totalPrev: 200,
+    daily: [],
+    topPages: [
+      { path: '/', views: 120 },
+      { path: '/services', views: 48 },
+      { path: '/book', views: 30 },
+    ],
+    ...over,
+  }
+}
+
+describe('buildWebsiteWeekSection', () => {
+  it('renders visits + up-delta + leads + top-2 pages (Home label for /)', () => {
+    const s = buildWebsiteWeekSection(traffic(), 12)
+    expect(s).toContain('240 visits (up 20% vs the week before)')
+    expect(s).toContain('12 leads came in through the site')
+    expect(s).toContain('Most visited: Home (120) · /services (48)')
+    // Top-2 cap — the third page must not render.
+    expect(s).not.toContain('/book')
+  })
+
+  it('renders a down-delta', () => {
+    const s = buildWebsiteWeekSection(traffic({ total: 150, totalPrev: 200 }), 0)
+    expect(s).toContain('down 25% vs the week before')
+  })
+
+  it('omits the delta when there is no prior-week traffic', () => {
+    const s = buildWebsiteWeekSection(traffic({ totalPrev: 0 }), 0)
+    expect(s).toContain('240 visits')
+    expect(s).not.toContain('vs the week before')
+  })
+
+  it('omits the leads line at zero leads', () => {
+    const s = buildWebsiteWeekSection(traffic(), 0)
+    expect(s).not.toContain('came in through the site')
+  })
+
+  it('returns null when the site has no traffic in either window (day-0 quiet)', () => {
+    expect(buildWebsiteWeekSection(traffic({ total: 0, totalPrev: 0, topPages: [] }), 3)).toBeNull()
   })
 })

@@ -4,6 +4,8 @@ import { and, eq, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getMyDay, type MyDayData } from '@/lib/services/my-day'
 import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
+import { getWeeklySiteDigest, type SiteTraffic } from '@/lib/services/site-analytics'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { sendNotificationEmail } from '@/lib/email'
 import { formatDueLabel, todayYmd } from '@/lib/types/followups'
 
@@ -43,12 +45,48 @@ export interface DigestContent {
 }
 
 /**
+ * Render the Monday "your website last week" block from real traffic + lead
+ * counts — the weekly return path for the public site, riding the digest the
+ * staff already read instead of a separate email. Returns null when the site
+ * has NO recorded traffic in either window (a day-0 clinic shouldn't get a
+ * weekly "0 visits" line). Pure + exported for tests.
+ */
+export function buildWebsiteWeekSection(traffic: SiteTraffic, leads7d: number): string | null {
+  if (traffic.total === 0 && traffic.totalPrev === 0) return null
+  const lines: string[] = []
+  let delta = ''
+  if (traffic.totalPrev > 0) {
+    const pct = Math.round(((traffic.total - traffic.totalPrev) / traffic.totalPrev) * 100)
+    delta =
+      pct > 0 ? ` (up ${pct}% vs the week before)` : pct < 0 ? ` (down ${Math.abs(pct)}% vs the week before)` : ' (steady vs the week before)'
+  }
+  lines.push(`🌐 Your website last week: ${traffic.total.toLocaleString('en-US')} visit${traffic.total === 1 ? '' : 's'}${delta}`)
+  if (leads7d > 0) {
+    lines.push(`   • ${leads7d} lead${leads7d === 1 ? '' : 's'} came in through the site`)
+  }
+  if (traffic.topPages.length > 0) {
+    const tops = traffic.topPages
+      .slice(0, 2)
+      .map((p) => `${p.path === '/' ? 'Home' : p.path} (${p.views.toLocaleString('en-US')})`)
+      .join(' · ')
+    lines.push(`   • Most visited: ${tops}`)
+  }
+  return lines.join('\n')
+}
+
+/**
  * Render a staff member's My-Day data into the digest subject + plain-text body
  * (no greeting — the staff email shell adds "Hi {name},"). Pure + exported for
  * tests. "Unconfirmed today" is the slice of today's visits still on `scheduled`
  * (a text still needs to go out).
  */
-export function buildDigestContent(data: MyDayData, clinicName: string): DigestContent {
+export function buildDigestContent(
+  data: MyDayData,
+  clinicName: string,
+  /** Monday-only weekly website block (buildWebsiteWeekSection) — appended
+   *  after the to-dos and counted as content on its own. */
+  websiteSection?: string | null,
+): DigestContent {
   const followupsDue = data.followups.overdue + data.followups.today
   const unconfirmed = data.unconfirmedTodayCount
   const conversations = data.conversations.length
@@ -56,7 +94,8 @@ export function buildDigestContent(data: MyDayData, clinicName: string): DigestC
   const balanceCount = data.balances.count
   const auditItems = data.tomorrow?.items ?? []
   const hasContent =
-    followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0 || auditItems.length > 0
+    followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0 || auditItems.length > 0 ||
+    !!websiteSection
 
   const parts: string[] = []
   parts.push(`Here's what's waiting on you at ${clinicName} today.`)
@@ -93,6 +132,10 @@ export function buildDigestContent(data: MyDayData, clinicName: string): DigestC
       parts.push(`   • ${it.patientName} — ${it.flags.map((f) => f.label).join(' · ')}`)
     }
     if (auditItems.length > 6) parts.push(`   …and ${auditItems.length - 6} more on My Day`)
+  }
+  if (websiteSection) {
+    parts.push('')
+    parts.push(websiteSection)
   }
   if (!hasContent) {
     parts.push("You're all caught up — nothing needs you this morning. Have a great day.")
@@ -134,6 +177,21 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
   for (const clinic of clinics) {
     if (!clinic.organizationId || clinic.isDemo || clinic.enabled !== 1) continue
 
+    // Monday (clinic-local) → append the weekly website block. Fetched ONCE per
+    // clinic (not per staff member) and strictly best-effort: a traffic-read
+    // hiccup must never block the morning to-dos.
+    let websiteSection: string | null = null
+    try {
+      const tz = await getClinicTimeZone(clinic.organizationId)
+      const weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now)
+      if (weekday === 'Mon') {
+        const week = await getWeeklySiteDigest(clinic.organizationId)
+        websiteSection = buildWebsiteWeekSection(week.traffic, week.leads7d)
+      }
+    } catch {
+      websiteSection = null
+    }
+
     // Staff with an email (exclude patients) + the per-staff opt-out set.
     const [staff, optedOut] = await Promise.all([
       db
@@ -157,7 +215,7 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
         if (already) { result.skippedAlready++; continue }
 
         const data = await getMyDay(clinic.organizationId, s.userId)
-        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic')
+        const content = buildDigestContent(data, clinic.clinicName ?? 'your clinic', websiteSection)
         if (!content.hasContent) { result.skippedEmpty++; continue }
 
         // Claim the day first (unique index makes a concurrent run skip), then send.

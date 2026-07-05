@@ -231,3 +231,26 @@ export async function getSitePerformance(organizationId: string): Promise<SitePe
     traffic.total > 0 ? Math.round((leads30d / traffic.total) * 1000) / 10 : null
   return { traffic, leads30d, conversionPct }
 }
+
+export interface WeeklySiteDigest {
+  traffic: SiteTraffic
+  /** Website leads created in the same 7-day window (any status). */
+  leads7d: number
+}
+
+/**
+ * The Monday-digest read: last-7-days traffic + the leads the site produced in
+ * the same window. One call per clinic per Monday (the daily-digest cron), so
+ * it stays a single pair of scoped queries.
+ */
+export async function getWeeklySiteDigest(organizationId: string): Promise<WeeklySiteDigest> {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const [traffic, leadRows] = await Promise.all([
+    getSiteTraffic(organizationId, 7),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(lead)
+      .where(and(eq(lead.organizationId, organizationId), gte(lead.createdAt, since))),
+  ])
+  return { traffic, leads7d: leadRows[0]?.n ?? 0 }
+}
