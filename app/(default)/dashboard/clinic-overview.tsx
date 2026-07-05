@@ -97,6 +97,13 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
   const demoSkin = await readDemoSkin(ctx)
   const name = demoSkin?.clinicName ?? ctx.organizationName
   const mtdDelta = data.trends.newPatientsMTD - data.trends.newPatientsLastMTD
+  // Website visits, last 7 days — null (fetch failed / feature dark) hides the
+  // tile and keeps the classic 4-up trend row.
+  const site = data.siteTraffic
+  const siteDeltaPct =
+    site && site.totalPrev > 0
+      ? Math.round(((site.total - site.totalPrev) / site.totalPrev) * 100)
+      : null
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -362,7 +369,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       {/* The Overview's hero KPIs count up once on first session entry, in the
           same beat as the attention-card cascade (Part 3). */}
       <section className="mb-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className={site ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3' : 'grid grid-cols-2 lg:grid-cols-4 gap-3'}>
           <KpiStat
             label="Bookings today"
             value={data.trends.bookingsToday}
@@ -396,6 +403,20 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             href="/intake-forms"
             countUp
           />
+          {site && (
+            <KpiStat
+              label="Website visits"
+              value={site.total}
+              sub={
+                siteDeltaPct == null
+                  ? 'last 7 days'
+                  : `${siteDeltaPct >= 0 ? '+' : ''}${siteDeltaPct}% vs prior week`
+              }
+              tone={siteDeltaPct == null ? undefined : siteDeltaPct >= 0 ? 'ok' : 'urgent'}
+              href="/analytics"
+              countUp
+            />
+          )}
         </div>
       </section>
 

@@ -10,6 +10,7 @@ import type { PatientTagView } from '@/lib/types/patient-tags'
 import { isBirthdayThisWeek } from '@/lib/dates'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/services/analytics'
 import { clinicDayStart, clinicMonthStart } from '@/lib/clinic-timezone'
+import { getSiteTraffic, type SiteTraffic } from '@/lib/services/site-analytics'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
@@ -78,6 +79,10 @@ export interface ClinicOverviewData {
   }
   recentActivity: ActivityRow[]
   integrationsHealth: IntegrationsHealth | null
+  /** Website traffic, last 7 days (total + delta + top page) — the "is my
+   *  site working" signal on the morning-huddle screen. Best-effort: a
+   *  failure yields null and the card simply doesn't render. */
+  siteTraffic: SiteTraffic | null
   /** Open patient follow-ups + how many are overdue / due today (morning huddle). */
   followups: FollowupSummary
 }
@@ -524,7 +529,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups] = await Promise.all([
+  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic] = await Promise.all([
     getIntegrationsHealth(organizationId, now),
     // Paid shop orders still awaiting fulfillment (our move).
     db
@@ -541,6 +546,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     // currentUserId isn't used for the unread count (the service `void`s it).
     getInboxStats(organizationId, ''),
     getFollowupSummary(organizationId, now),
+    // Website visits are an enrichment, never a reason the huddle fails.
+    getSiteTraffic(organizationId, 7).catch(() => null),
   ])
 
   return {
@@ -558,5 +565,6 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     recentActivity,
     integrationsHealth,
     followups,
+    siteTraffic,
   }
 }

@@ -6,6 +6,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { getAiUsage } from '@/lib/services/ai-website'
+import { getSitePerformance } from '@/lib/services/site-analytics'
 import WebsiteStudio from './website-studio'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ActionButton } from '@/components/ui/action-button'
@@ -58,9 +59,11 @@ export default async function WebsiteEditorPage() {
 
   const slug = ctx.organizationSlug
   const siteUrl = publicSiteUrl({ slug, profile })
-  const [library, aiUsage] = await Promise.all([
+  const [library, aiUsage, performance] = await Promise.all([
     listLibraryForPicker(ctx.organizationId),
     getAiUsage(ctx.organizationId, profile.planTier),
+    // Best-effort — the Studio must open even if the stats read hiccups.
+    getSitePerformance(ctx.organizationId).catch(() => null),
   ])
 
   return (
@@ -71,6 +74,7 @@ export default async function WebsiteEditorPage() {
       orgId={ctx.organizationId}
       library={library}
       initialAiUsage={aiUsage}
+      performance={performance}
     />
   )
 }

@@ -58,6 +58,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     newLeads: { count: 0, preview: [] },
     paidOrdersUnfulfilled: 0,
     unreadMessages: 0,
+    siteTraffic: null,
     reviewsReceived: { completed30d: 0, sent30d: 0 },
     trends: {
       bookingsToday: 0,
@@ -546,5 +547,32 @@ describe('New attention cards (money + messages)', () => {
     expect(screen.getByText('Unanswered messages')).toBeInTheDocument()
     expect(screen.getByText('Orders to fulfill')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Fulfill orders/i })).toBeInTheDocument()
+  })
+})
+
+describe('website-visits trend tile', () => {
+  it('renders visits + delta when siteTraffic is present', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        siteTraffic: {
+          windowDays: 7,
+          total: 240,
+          totalPrev: 200,
+          daily: [],
+          topPages: [{ path: '/', views: 120 }],
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('Website visits')).toBeInTheDocument()
+    expect(screen.getByText('+20% vs prior week')).toBeInTheDocument()
+  })
+
+  it('hides the tile entirely when siteTraffic is null (fetch failed)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ siteTraffic: null }))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText('Website visits')).not.toBeInTheDocument()
   })
 })

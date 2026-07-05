@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq, gte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { sitePageview } from '@/lib/db/schema/domain'
+import { lead } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { resolveSeoMeta, compactSeoMeta, type PageSeoMeta } from '@/lib/types/seo-meta'
 
@@ -199,4 +200,34 @@ export async function updateSeoMeta(
     .set({ seoMeta: cleaned, updatedAt: new Date() })
     .where(eq(clinicProfile.organizationId, organizationId))
   return resolveSeoMeta(cleaned)
+}
+
+// ── Website performance (the Studio's glance panel) ────────────────────────
+
+export interface SitePerformance {
+  traffic: SiteTraffic
+  /** Website leads created in the same 30-day window (any status). */
+  leads30d: number
+  /** leads / visits as a whole-number percent; null until there's traffic. */
+  conversionPct: number | null
+}
+
+/**
+ * One read for "how is my website doing" — 30-day traffic + the leads it
+ * produced + a visit→lead conversion rate. Powers the Studio performance
+ * panel; the Overview tile uses getSiteTraffic(org, 7) directly.
+ */
+export async function getSitePerformance(organizationId: string): Promise<SitePerformance> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const [traffic, leadRows] = await Promise.all([
+    getSiteTraffic(organizationId, 30),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(lead)
+      .where(and(eq(lead.organizationId, organizationId), gte(lead.createdAt, since))),
+  ])
+  const leads30d = leadRows[0]?.n ?? 0
+  const conversionPct =
+    traffic.total > 0 ? Math.round((leads30d / traffic.total) * 1000) / 10 : null
+  return { traffic, leads30d, conversionPct }
 }
