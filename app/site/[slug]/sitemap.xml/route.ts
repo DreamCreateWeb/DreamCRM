@@ -59,10 +59,12 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     { loc: `${base}/`, lastmod, changefreq: 'weekly', priority: '1.0' },
     { loc: `${base}/about`, lastmod, changefreq: 'monthly', priority: '0.8' },
     { loc: `${base}/faq`, lastmod, changefreq: 'monthly', priority: '0.6' },
-    // Patients dropdown — Insurance + Payment & Financing always render (with
-    // universal fallbacks when the clinic hasn't customized), so both go in
-    // the sitemap unconditionally. /dental-plans is added below only when
-    // the clinic has ≥1 active membership plan.
+    // Patients dropdown — New Patients + Insurance + Payment & Financing
+    // always render (with universal fallbacks when the clinic hasn't
+    // customized), so all three go in the sitemap unconditionally.
+    // /dental-plans is added below only when the clinic has ≥1 active
+    // membership plan.
+    { loc: `${base}/new-patients`, lastmod, changefreq: 'monthly', priority: '0.7' },
     { loc: `${base}/insurance`, lastmod, changefreq: 'monthly', priority: '0.7' },
     {
       loc: `${base}/payment-financing`,

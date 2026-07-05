@@ -51,6 +51,7 @@ export default async function SearchAppearanceSettingsPage() {
   const pageExists: Record<SeoPageKey, boolean> = {
     home: true,
     about: true,
+    'new-patients': true,
     book: true,
     insurance: true,
     'payment-financing': true,

@@ -465,7 +465,7 @@ describe('SiteHeader — Patients dropdown', () => {
     })
     const patients = links.find((l) => l.label === 'Patients')
     const childLabels = (patients?.children ?? []).map((c) => c.label)
-    expect(childLabels).toEqual(['Insurance', 'Payment & Financing', 'Dental Plans'])
+    expect(childLabels).toEqual(['Your First Visit', 'Insurance', 'Payment & Financing', 'Dental Plans'])
   })
 
   it('child hrefs route under the given basePath', () => {

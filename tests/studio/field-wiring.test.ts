@@ -33,6 +33,7 @@ const TEMPLATE_FILES = [
   'app/site/[slug]/about/page.tsx',
   'app/site/[slug]/faq/page.tsx',
   'app/site/[slug]/insurance/page.tsx',
+  'app/site/[slug]/new-patients/page.tsx',
   'app/site/[slug]/payment-financing/page.tsx',
   'app/site/[slug]/team/page.tsx',
   'app/site/[slug]/team/[staffSlug]/page.tsx',

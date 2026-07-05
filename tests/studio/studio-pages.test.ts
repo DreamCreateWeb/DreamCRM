@@ -15,6 +15,7 @@ describe('buildStudioPages', () => {
     expect(labels).toEqual([
       'Home',
       'About',
+      'New patients',
       'Services',
       'FAQ',
       'Insurance',

@@ -20,6 +20,7 @@
 export const SEO_PAGE_KEYS = [
   'home',
   'about',
+  'new-patients',
   'book',
   'services',
   'team',
@@ -50,6 +51,7 @@ export type PageSeoMeta = Record<SeoPageKey, PageSeoOverride>
 export const SEO_PAGE_LABELS: Record<SeoPageKey, string> = {
   home: 'Home',
   about: 'About',
+  'new-patients': 'New Patients',
   book: 'Book a Visit',
   services: 'Services',
   team: 'Our Team',

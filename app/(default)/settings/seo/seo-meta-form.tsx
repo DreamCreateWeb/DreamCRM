@@ -47,6 +47,7 @@ interface Props {
 const PAGE_PATH: Record<SeoPageKey, string> = {
   home: '',
   about: '/about',
+  'new-patients': '/new-patients',
   book: '/book',
   services: '/services',
   team: '/team',
@@ -82,6 +83,11 @@ function derivedFor(
       return {
         title: `About — ${name}`,
         description: tagline ?? (about ? firstSentence(about) : `About ${name}.`),
+      }
+    case 'new-patients':
+      return {
+        title: `New Patients — ${name}`,
+        description: `Your first visit at ${name}: what to expect, what to bring, and how insurance and payment work. No surprises, no judgment.`,
       }
     case 'book':
       return {

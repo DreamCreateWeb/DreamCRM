@@ -222,14 +222,17 @@ export function buildClinicNavLinks(opts: {
         }
       : null
 
-  // Patients dropdown — always renders Insurance + Payment & Financing.
+  // Patients dropdown — always renders Your First Visit (the /new-patients
+  // guide, which the parent link also points at — it's the natural landing
+  // for "I'm a patient, now what?") + Insurance + Payment & Financing.
   // Dental Plans appears only when the clinic has ≥1 active membership plan
   // (gated by `hasDentalPlans`), so we don't surface a link that lands on a
   // notFound() page when the clinic hasn't enabled membership.
   const patientsLink: SiteNavLink = {
     label: 'Patients',
-    href: `${basePath}/insurance`,
+    href: `${basePath}/new-patients`,
     children: [
+      { label: 'Your First Visit', href: `${basePath}/new-patients` },
       { label: 'Insurance', href: `${basePath}/insurance` },
       { label: 'Payment & Financing', href: `${basePath}/payment-financing` },
       ...(hasDentalPlans
@@ -293,6 +296,7 @@ export function buildStudioPages(opts: {
   return [
     { label: 'Home', path: '' },
     { label: 'About', path: '/about' },
+    { label: 'New patients', path: '/new-patients' },
     ...(opts.hasTeam ? [{ label: 'Meet the team', path: '/team' }] : []),
     { label: 'Services', path: '/services' },
     { label: 'FAQ', path: '/faq' },
