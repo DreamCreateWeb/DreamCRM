@@ -25,6 +25,7 @@ import TeamGallery from '@/components/clinic-site/team-gallery'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
 import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-site/google-rating-badge'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import { RippleMotif, ArcDivider, GrainOverlay, SparkleGlyph } from '@/components/clinic-site/decor'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 
 /**
@@ -378,6 +379,14 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
             background: `radial-gradient(62% 62% at 50% 0%, ${brand}14 0%, transparent 72%)`,
           }}
         />
+        {/* Signature ripple — the calm concentric linework (born in the
+            empty-photo placeholder) now whispers behind the hero headline,
+            giving every page of the site one recognizable visual DNA. */}
+        <RippleMotif
+          tint={brand}
+          opacity={0.07}
+          className="absolute left-1/2 -translate-x-1/2 -top-40 w-[720px] h-[720px]"
+        />
         <div className="relative max-w-[1400px] mx-auto px-5 sm:px-8">
           <div className="grid lg:grid-cols-[1fr_minmax(0,640px)_1fr] gap-6 lg:gap-10 items-center">
             {/* LEFT photo — breakout to ~35% viewport, soft asymmetric oval */}
@@ -651,8 +660,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     style={{ borderColor: BORDER, listStyle: 'none' }}
                   >
                     <div
-                      className="text-[34px] sm:text-5xl font-bold leading-none mb-2 tracking-[-0.025em]"
-                      style={{ color: headingInk }}
+                      className="text-[34px] sm:text-5xl font-semibold leading-none mb-2 tracking-[-0.02em]"
+                      style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
                     >
                       {s.value}
                     </div>
@@ -1058,10 +1067,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
           a real eligibility check (no Eligible.com / payer-API hookup —
           we're explicit about that in the success message). */}
       <section
-        className="py-14 sm:py-24"
+        className="relative overflow-hidden pt-20 pb-14 sm:pt-32 sm:py-24"
         style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
       >
-        <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+        {/* The light ground dips gently INTO the deep band — an organic seam
+            instead of a hard horizontal cut. */}
+        <ArcDivider />
+        <GrainOverlay opacity={0.04} />
+        <RippleMotif
+          tint="#FFFFFF"
+          opacity={0.05}
+          className="absolute -right-40 -bottom-56 w-[560px] h-[560px]"
+        />
+        <div className="relative max-w-[1240px] mx-auto px-5 sm:px-8">
           <ScrollReveal className="text-center max-w-[700px] mx-auto mb-12">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
@@ -1318,7 +1336,11 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               >
                 <span
                   className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: `${brand}26`, color: headingInk }}
+                  style={{
+                    backgroundImage: `radial-gradient(120% 120% at 30% 25%, ${brand}33 0%, ${brand}17 70%)`,
+                    boxShadow: `inset 0 0 0 1px ${brand}40`,
+                    color: headingInk,
+                  }}
                   aria-hidden="true"
                 >
                         <TeamCalloutIcon kind={c.icon} />
@@ -1487,9 +1509,14 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               the chartreuse strip so they overlap, matching Tend's
               composition. */}
           <div
-            className="relative bg-white rounded-2xl sm:rounded-3xl px-6 sm:px-12 lg:px-16 py-8 sm:py-12 lg:py-14 -mb-12 sm:-mb-20"
+            className="relative overflow-hidden bg-white rounded-2xl sm:rounded-3xl px-6 sm:px-12 lg:px-16 py-8 sm:py-12 lg:py-14 -mb-12 sm:-mb-20"
             style={{ boxShadow: '0 24px 48px -16px rgba(28, 26, 23, 0.30)' }}
           >
+            <RippleMotif
+              tint={brand}
+              opacity={0.09}
+              className="absolute -right-24 -top-24 w-[340px] h-[340px]"
+            />
             <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 items-center">
               <div className="lg:col-span-8">
                 <h2
@@ -1546,11 +1573,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 className="inline-flex items-center gap-2 shrink-0"
                 style={{ color: 'var(--c-strip-ink, #1C1A17)' }}
               >
-                <span
-                  aria-hidden="true"
-                  className="inline-block w-1 h-1 rounded-full"
-                  style={{ backgroundColor: 'var(--c-strip-ink, #1C1A17)' }}
-                />
+                <SparkleGlyph className="shrink-0 opacity-60" color="var(--c-strip-ink, #1C1A17)" />
                 {chip}
               </li>
             ))}
@@ -1825,6 +1848,8 @@ function TeamCalloutIcon({ kind }: { kind: string }) {
     viewBox: '0 0 24 24',
     stroke: 'currentColor',
     strokeWidth: 1.75,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
   }
   switch (kind) {
     case 'experience':

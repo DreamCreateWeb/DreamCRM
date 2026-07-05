@@ -220,8 +220,13 @@ export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string })
         &ldquo;
       </div>
       <blockquote
-        className="text-base sm:text-lg lg:text-xl leading-[1.5] flex-1 mb-10 text-center"
-        style={{ color: 'var(--c-deep-ink, #FFFFFF)' }}
+        className="text-lg sm:text-xl lg:text-[24px] leading-[1.45] flex-1 mb-10 text-center"
+        style={{
+          color: 'var(--c-deep-ink, #FFFFFF)',
+          // The quote itself carries the display serif — an editorial voice
+          // for the words patients actually said.
+          fontFamily: 'var(--font-display, Georgia, serif)',
+        }}
       >
         {t.quote}
       </blockquote>

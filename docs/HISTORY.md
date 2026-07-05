@@ -7,6 +7,26 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Clinic site enhancement 5 — the design signature pass (2026-07-05).** The
+  "finished gorgeous" elevation: a site-wide visual DNA layered onto the Tend
+  bones via new `components/clinic-site/decor.tsx` (all server-renderable,
+  aria-hidden, pointer-events-none): **RippleMotif** — the concentric-arc
+  linework (born in the empty-hero placeholder) generalized into the site's
+  signature, whispering behind the hero headline, across the insurance deep
+  band, in the closing card's corner, and through the footer; **ArcDivider** —
+  a shallow asymmetric curve so the light ground dips organically INTO the
+  insurance deep band instead of a hard seam; **GrainOverlay** — feTurbulence
+  noise (data-URI, no asset) at 4% overlay blend for tactile, printed-paper
+  depth on the deep band + footer; **SparkleGlyph** — four-point sparkle
+  separators replacing the plain dots in both marquee strips. Editorial
+  typography: trust-stat numerals + testimonial quotes now carry the Fraunces
+  display serif. Callout icon circles became layered blooms (radial gradient +
+  hairline ring) and the icon set gained rounded caps/joins. **Forms:** one
+  focus language site-wide — `.dc-field:focus-visible` (2px brand-strong
+  outline, AA color) in the site layout, applied to the insurance verifier +
+  contact form, replacing Tailwind's default blue ring / the verifier's white
+  ring. All verified in the screenshot loop before shipping.
+
 - **Clinic site enhancement 4 — component-quality pass (2026-07-05).** A full
   screenshot-driven review of every homepage section/card (rich + day-0 +
   violet renders, sliced into bands and critiqued individually). Fixes:

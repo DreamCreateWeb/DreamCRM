@@ -107,7 +107,7 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
   }
 
   const inputClass =
-    'w-full px-5 py-3 rounded-full bg-[var(--c-surface,#FFFFFF)] text-[var(--c-ink,#1C1A17)] placeholder-gray-400 text-sm border-none focus:outline-none focus:ring-2 focus:ring-white/40 transition'
+    'dc-field w-full px-5 py-3 rounded-full bg-[var(--c-surface,#FFFFFF)] text-[var(--c-ink,#1C1A17)] placeholder-gray-400 text-sm border-none transition'
 
   function renderField(f: LeadFormField) {
     const optionalSuffix = f.required ? '' : ' (optional)'

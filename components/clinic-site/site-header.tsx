@@ -1,5 +1,7 @@
 'use client'
 
+import { SparkleGlyph } from '@/components/clinic-site/decor'
+
 import { useEffect, useRef, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { SiteNavLink } from '@/lib/clinic-site-helpers'
@@ -199,11 +201,7 @@ export default function SiteHeader({
                     className="inline-flex items-center gap-2 shrink-0"
                     style={{ color: STRIP_INK }}
                   >
-                    <span
-                      aria-hidden="true"
-                      className="inline-block w-1 h-1 rounded-full"
-                      style={{ backgroundColor: STRIP_INK }}
-                    />
+                    <SparkleGlyph className="shrink-0 opacity-60" color={STRIP_INK} />
                     {chip}
                   </li>
                 ))}

@@ -112,6 +112,13 @@ export default async function ClinicSiteLayout({
            owner/admin, so relying on its copy of this rule leaked the
            prompts to real patients on day-0 sites. */
         .dc-edit-only { display: none; }
+        /* One focus language for every form field on the site: a visible
+           2px brand-strong outline (AA-guaranteed color) with breathing
+           room, replacing the browser-default / Tailwind-blue rings. */
+        .dc-field:focus-visible {
+          outline: 2px solid var(--c-brand-strong, #36514c);
+          outline-offset: 2px;
+        }
       `}</style>
       {children}
       {orgId && <SiteViewBeacon orgId={orgId} slug={slug} />}

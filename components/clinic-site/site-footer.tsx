@@ -1,4 +1,5 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import { GrainOverlay, RippleMotif } from '@/components/clinic-site/decor'
 import { appBaseUrl } from '@/lib/services/clinic-site'
 import type { ClinicService } from '@/lib/types/clinic-content'
 import {
@@ -76,10 +77,18 @@ export default function SiteFooter({
   return (
     <footer
       id="site-footer-contact"
-      className="scroll-mt-20"
+      className="scroll-mt-20 relative overflow-hidden"
       style={{ backgroundColor: FOOTER_BG, color: FOOTER_INK }}
     >
-      <div className="max-w-[1400px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
+      {/* Tactile grain + a corner of the signature ripple — the same quiet
+          atmosphere as the insurance band, closing the page in one voice. */}
+      <GrainOverlay opacity={0.04} />
+      <RippleMotif
+        tint="#FFFFFF"
+        opacity={0.04}
+        className="absolute -left-48 -bottom-64 w-[620px] h-[620px]"
+      />
+      <div className="relative max-w-[1400px] mx-auto px-5 sm:px-8 py-16 sm:py-20">
         {/* Logo + clinic name lockup, full-width above columns. The logo region
             is the Website Studio's edit handle for `logoUrl` — instrumented in
             BOTH states so a clinic can replace an existing logo OR add one when

@@ -119,7 +119,7 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
   }
 
   const inputClass =
-    'w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:border-transparent transition'
+    'dc-field w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 text-sm transition'
 
   function renderField(f: LeadFormField) {
     const label = (
