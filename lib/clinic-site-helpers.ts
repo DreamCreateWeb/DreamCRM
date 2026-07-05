@@ -268,6 +268,43 @@ export function buildClinicNavLinks(opts: {
   ]
 }
 
+/** One entry in the Website Studio's page navigator — `path` is relative to
+ *  /site/<slug> ('' = homepage), matching the EditBridge's page convention. */
+export interface StudioPage {
+  label: string
+  path: string
+}
+
+/**
+ * The flat page list for the Website Studio's page navigator — every page the
+ * owner can visit + edit on the canvas, in reading order. Mirrors the same
+ * `has*` gating as `buildClinicNavLinks` (a link that lands on notFound() is
+ * worse than no link), plus Book — reachable from every page's CTA, so the
+ * owner should be able to preview it without hunting for a button. Pure +
+ * client-safe so the Studio (a client component) can receive it as a prop and
+ * tests can pin the gating truth table.
+ */
+export function buildStudioPages(opts: {
+  hasTeam: boolean
+  hasBlog: boolean
+  hasCareers: boolean
+  hasDentalPlans: boolean
+}): StudioPage[] {
+  return [
+    { label: 'Home', path: '' },
+    { label: 'About', path: '/about' },
+    ...(opts.hasTeam ? [{ label: 'Meet the team', path: '/team' }] : []),
+    { label: 'Services', path: '/services' },
+    { label: 'FAQ', path: '/faq' },
+    { label: 'Insurance', path: '/insurance' },
+    { label: 'Payment & financing', path: '/payment-financing' },
+    ...(opts.hasDentalPlans ? [{ label: 'Dental plans', path: '/dental-plans' }] : []),
+    ...(opts.hasBlog ? [{ label: 'Blog', path: '/blog' }] : []),
+    ...(opts.hasCareers ? [{ label: 'Careers', path: '/careers' }] : []),
+    { label: 'Book a visit', path: '/book' },
+  ]
+}
+
 // Slug map of the canonical seed → category, for client-safe category lookup
 // without a DB call (the server resolver `resolveClinicServices` is the
 // authoritative path; this mirrors it for sync server components like the

@@ -59,9 +59,13 @@ interface Props {
   /** 30-day website performance (visits, top pages, leads, conversion) —
    *  null when the read failed; the 📊 button simply doesn't render. */
   performance: SitePerformance | null
+  /** The page-navigator entries (gated server-side, same truth as the public
+   *  nav) — paths relative to /site/<slug>, '' = homepage. */
+  pages: StudioPage[]
 }
 
 import type { SitePerformance } from '@/lib/services/site-analytics'
+import type { StudioPage } from '@/lib/clinic-site-helpers'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
 // `stale` opens the refresh-to-edit fallback for an affordance this (older) tab
@@ -184,10 +188,18 @@ const btnSecondary =
  * half: it calls the server actions (persistence is always gated server-side),
  * reloads the canvas on success, and renders the image / section modals on top.
  */
-export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, performance }: Props) {
+export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, performance, pages }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [showPerf, setShowPerf] = useState(false)
+  // Desktop vs phone canvas width. Most patients see the site on a phone, so
+  // the owner should be able to check that view without leaving the Studio —
+  // toggling only changes the wrapper's max-width (the iframe never remounts,
+  // so in-progress inline edits survive the switch).
+  const [viewport, setViewport] = useState<'desktop' | 'mobile'>('desktop')
+  // Mirror of ownerPage.current as STATE so the page-navigator <select> tracks
+  // the canvas as the owner clicks around inside it (refs don't re-render).
+  const [canvasPage, setCanvasPage] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>(null)
   // AI usage + the one-click undo target are LIFTED here so the floating AI bar
@@ -217,6 +229,19 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       return m?.[1] ?? ''
     } catch {
       return ''
+    }
+  }
+
+  // Point the canvas at a page of the site (page-navigator + Home). Path is
+  // relative to /site/<slug> ('' = homepage), always in edit mode.
+  const goToPage = (path: string) => {
+    const f = iframeRef.current
+    if (!f) return
+    const url = `/site/${slug}${path}?edit=1`
+    try {
+      f.contentWindow!.location.assign(url)
+    } catch {
+      f.src = url
     }
   }
 
@@ -439,6 +464,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       if (d.type === 'ready') {
         // Track the owner's current page + release any tour waiter.
         ownerPage.current = currentCanvasPath()
+        setCanvasPage(ownerPage.current)
         readyResolve.current?.()
       } else if (d.type === 'save' && d.field) {
         const field = d.field
@@ -475,24 +501,46 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           <Link href="/dashboard" className="text-sm text-gray-300 hover:text-white whitespace-nowrap">
             ← Exit
           </Link>
-          <button
-            type="button"
-            onClick={() => {
-              const f = iframeRef.current
-              if (!f) return
-              const home = `/site/${slug}?edit=1`
-              try {
-                f.contentWindow!.location.assign(home)
-              } catch {
-                f.src = home
-              }
-            }}
-            className="text-sm text-gray-300 hover:text-white whitespace-nowrap"
-            title="Return to your homepage (the logo isn't clickable in edit mode)"
-          >
-            🏠 Home
-          </button>
-          <span className="text-sm font-semibold whitespace-nowrap">Editing your website</span>
+          {/* Page navigator — jump the canvas to any page of the site without
+              hunting for a link (the logo isn't clickable in edit mode). Tracks
+              the canvas as the owner clicks around inside it; a page NOT in the
+              list (e.g. a service detail page) shows as “Current page”. */}
+          <label className="relative inline-flex items-center">
+            <span className="sr-only">Go to page</span>
+            <select
+              value={pages.some((p) => p.path === canvasPage) ? canvasPage : '__other'}
+              onChange={(e) => {
+                if (e.target.value === '__other') return
+                goToPage(e.target.value)
+              }}
+              className="appearance-none rounded-md bg-gray-800 border border-gray-700 text-gray-100 text-sm font-medium pl-3 pr-8 py-1.5 cursor-pointer hover:border-gray-500 focus:outline-none focus:border-teal-400 transition-colors"
+              title="Jump to a page of your site"
+            >
+              {!pages.some((p) => p.path === canvasPage) && (
+                <option value="__other" disabled>
+                  Current page
+                </option>
+              )}
+              {pages.map((p) => (
+                <option key={p.path || '__home'} value={p.path}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute right-2.5 w-3.5 h-3.5 text-gray-400"
+              fill="none"
+              viewBox="0 0 20 20"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 8l4 4 4-4" />
+            </svg>
+          </label>
+          <span className="hidden md:inline text-sm font-semibold whitespace-nowrap">Editing your website</span>
           <span className="hidden sm:inline text-xs text-gray-300 truncate">
             Click text to edit it · hover a section for its “Edit” button · click the hero image to replace it.
           </span>
@@ -512,6 +560,36 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
             onUsage={setAiUsage}
             onSaved={() => reloadFrame()}
           />
+          {/* Desktop / phone canvas toggle — most patients are on a phone, so
+              checking that view should be one click, not devtools. */}
+          <div
+            className="hidden sm:flex items-center rounded-md border border-gray-700 overflow-hidden"
+            role="group"
+            aria-label="Preview width"
+          >
+            <button
+              type="button"
+              onClick={() => setViewport('desktop')}
+              aria-pressed={viewport === 'desktop'}
+              title="Desktop width"
+              className={`px-2.5 py-1 text-sm transition-colors ${
+                viewport === 'desktop' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              🖥
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewport('mobile')}
+              aria-pressed={viewport === 'mobile'}
+              title="Phone width — how most patients see your site"
+              className={`px-2.5 py-1 text-sm transition-colors ${
+                viewport === 'mobile' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              📱
+            </button>
+          </div>
           {performance && (
             <div className="relative">
               <button
@@ -621,12 +699,26 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         </div>
       </div>
 
-      <iframe
-        ref={iframeRef}
-        src={`/site/${slug}?edit=1`}
-        title="Your website — edit mode"
-        className="flex-1 w-full border-0 bg-white"
-      />
+      {/* Canvas. The width toggle only changes the WRAPPER's max-width — the
+          iframe itself never remounts, so a mid-edit inline field survives
+          switching views. At phone width the iframe's own viewport is ~390px,
+          so the site's real responsive breakpoints kick in. */}
+      <div className="flex-1 min-h-0">
+        <div
+          className={`h-full mx-auto transition-[max-width] duration-300 ease-out ${
+            viewport === 'mobile'
+              ? 'max-w-[390px] shadow-[0_0_0_1px_rgba(255,255,255,0.14),0_24px_64px_rgba(0,0,0,0.55)]'
+              : 'max-w-none'
+          }`}
+        >
+          <iframe
+            ref={iframeRef}
+            src={`/site/${slug}?edit=1`}
+            title="Your website — edit mode"
+            className="w-full h-full border-0 bg-white"
+          />
+        </div>
+      </div>
 
       {/* The AI command bar stays MOUNTED while a modal is open (CSS-hidden) so
           its done-panel + one-click Undo survive opening a section editor. */}

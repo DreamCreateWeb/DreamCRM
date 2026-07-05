@@ -98,3 +98,43 @@ describe('hero tagline AI affordance lives in the top bar', () => {
     expect(studio).toMatch(/<HeroTaglineRewrite/)
   })
 })
+
+describe('viewport toggle (desktop / phone canvas)', () => {
+  it('changes only the wrapper max-width — the iframe itself must not remount on toggle', () => {
+    // The width class lives on a wrapper div driven by `viewport`, and the
+    // iframe's own className must stay static (no viewport-conditional class),
+    // so switching views can't reload the canvas mid-edit.
+    expect(studio).toMatch(/viewport === 'mobile'\s*\?\s*'max-w-\[390px\]/)
+    expect(studio).toMatch(/<iframe[\s\S]{0,300}className="w-full h-full border-0 bg-white"/)
+  })
+  it('exposes both states as an accessible pressed-button group', () => {
+    expect(studio).toMatch(/aria-pressed=\{viewport === 'desktop'\}/)
+    expect(studio).toMatch(/aria-pressed=\{viewport === 'mobile'\}/)
+  })
+})
+
+describe('page navigator', () => {
+  it('tracks the canvas page via the bridge ready ping (state, not just the ref)', () => {
+    expect(studio).toMatch(/setCanvasPage\(ownerPage\.current\)/)
+  })
+  it('falls back to a disabled "Current page" option for paths not in the list', () => {
+    expect(studio).toMatch(/Current page/)
+    expect(studio).toMatch(/value="__other" disabled/)
+  })
+  it('navigates in edit mode', () => {
+    expect(studio).toMatch(/goToPage/)
+    expect(studio).toMatch(/`\/site\/\$\{slug\}\$\{path\}\?edit=1`/)
+  })
+})
+
+describe('collapsible AI bar', () => {
+  it('persists the collapsed state per browser', () => {
+    expect(aiBar).toMatch(/dc-studio-ai-min/)
+  })
+  it('keeps the pending-Undo cue visible while collapsed (amber dot on the pill)', () => {
+    expect(aiBar).toMatch(/undoData && !working[\s\S]{0,300}bg-amber-400/)
+  })
+  it('focuses the input on expand', () => {
+    expect(aiBar).toMatch(/requestAnimationFrame\(\(\) => inputRef\.current\?\.focus\(\)\)/)
+  })
+})

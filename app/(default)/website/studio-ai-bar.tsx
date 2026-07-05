@@ -15,6 +15,7 @@ type EditDetail = { label: string; preview: string; anchor: string | null; page:
 export type UndoData = { before: Record<string, unknown>; page: string; anchor: string | null }
 
 const FOLLOW_KEY = 'dc-studio-follow'
+const COLLAPSE_KEY = 'dc-studio-ai-min'
 
 /**
  * Plain-language starters so a non-technical front-desk person knows what they
@@ -77,13 +78,34 @@ export default function StudioAiBar({
   // closes if there's still an undoable edit pending.
   const showDonePanel = phase === 'done' || (!!undoData && phase === 'idle' && details.length > 0)
 
+  // Collapsed: the bar folds down to a small "Ask AI" pill so it never covers
+  // the bottom of the canvas while the owner is hand-editing. Sticky per
+  // browser — someone who never uses the AI shouldn't re-dismiss it every visit.
+  const [collapsed, setCollapsed] = useState(false)
+
   useEffect(() => {
     try {
       if (window.localStorage.getItem(FOLLOW_KEY) === '0') setFollow(false)
+      if (window.localStorage.getItem(COLLAPSE_KEY) === '1') setCollapsed(true)
     } catch {
       /* ignore */
     }
   }, [])
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      if (!next) {
+        // Expanding = they want to ask something — put the cursor in the box.
+        requestAnimationFrame(() => inputRef.current?.focus())
+      }
+      return next
+    })
+  }
   function toggleFollow() {
     setFollow((f) => {
       const next = !f
@@ -167,6 +189,35 @@ export default function StudioAiBar({
   }
 
   const working = phase === 'working'
+
+  // Folded down to a pill (bottom-right, off the canvas's center). State is
+  // preserved — an in-flight edit keeps running (pulsing sparkle), and a
+  // pending Undo survives to when the bar re-opens (amber dot as the cue).
+  if (collapsed) {
+    return (
+      <div
+        className={`pointer-events-none fixed bottom-5 right-5 z-[65] ${hidden ? 'invisible' : ''}`}
+        aria-hidden={hidden ? true : undefined}
+      >
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className="pointer-events-auto relative inline-flex items-center gap-2 rounded-full bg-gray-900/85 backdrop-blur-xl border border-white/10 pl-3.5 pr-4 py-2.5 text-sm font-medium text-gray-100 shadow-[var(--shadow-modal)] transition hover:border-teal-400/50 hover:text-white"
+          title="Open the AI editor"
+        >
+          <Sparkle className={`w-4 h-4 ${working ? 'text-teal-300 animate-pulse' : 'text-teal-200'}`} />
+          {working ? 'Updating your site…' : 'Ask AI'}
+          {undoData && !working && (
+            <span
+              aria-hidden="true"
+              title="An AI change is waiting — open to review or undo it"
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-gray-900"
+            />
+          )}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -345,6 +396,17 @@ export default function StudioAiBar({
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            title="Minimize — tuck the AI bar into the corner"
+            aria-label="Minimize the AI bar"
+            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 8l4 4 4-4" />
+            </svg>
           </button>
         </form>
       </div>
