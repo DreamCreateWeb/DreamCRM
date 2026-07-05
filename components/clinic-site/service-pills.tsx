@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
+import { readableInk } from '@/lib/clinic-site-theme'
 
 interface Pill {
   id: string
@@ -27,6 +28,8 @@ interface Props {
  */
 export default function ServicePills({ pills, brand, ink, href }: Props) {
   const trackRef = useRef<HTMLUListElement | null>(null)
+  // Contrast-safe glyph ink for the arrow controls (raw pale brands fail on white).
+  const accentInk = readableInk(brand)
 
   const scrollBy = useCallback((dir: 1 | -1) => {
     const el = trackRef.current
@@ -47,7 +50,7 @@ export default function ServicePills({ pills, brand, ink, href }: Props) {
         onClick={() => scrollBy(-1)}
         aria-label="Previous services"
         className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full items-center justify-center bg-white shadow-sm transition hover:shadow-md"
-        style={{ border: `1px solid ${brand}66`, color: brand }}
+        style={{ border: `1px solid ${brand}66`, color: accentInk }}
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -93,7 +96,7 @@ export default function ServicePills({ pills, brand, ink, href }: Props) {
         onClick={() => scrollBy(1)}
         aria-label="Next services"
         className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full items-center justify-center bg-white shadow-sm transition hover:shadow-md"
-        style={{ border: `1px solid ${brand}66`, color: brand }}
+        style={{ border: `1px solid ${brand}66`, color: accentInk }}
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />

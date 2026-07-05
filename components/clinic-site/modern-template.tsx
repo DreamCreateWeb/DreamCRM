@@ -859,9 +859,9 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     <span
                       className="flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold"
                       style={{
-                        backgroundColor: `${brand}14`,
+                        backgroundColor: `${brand}26`,
                         color: INK,
-                        border: `1px solid ${brand}30`,
+                        border: `1px solid ${brand}55`,
                       }}
                     >
                       <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: brand }}>
@@ -1138,13 +1138,44 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   </ul>
                 </>
               ) : (
-                <p
-                  className="text-base leading-[1.55]"
-                  style={{ color: 'rgba(255, 255, 255, 0.8)' }}
-                >
-                  Call us to verify your specific plan — we work with most major PPO
-                  carriers.
-                </p>
+                <>
+                  <p
+                    className="text-base leading-[1.55] mb-5"
+                    style={{ color: 'rgba(255, 255, 255, 0.8)' }}
+                  >
+                    Call us to verify your specific plan — we work with most major PPO
+                    carriers.
+                  </p>
+                  {/* Universal reassurance list (no fabricated carrier names) so the
+                      column doesn't sit empty against the tall form — the same
+                      universal-default precedent as the payment methods + billing FAQ. */}
+                  <ul className="space-y-2.5">
+                    {[
+                      'Most major PPO plans accepted',
+                      'We help verify your coverage before your visit',
+                      'We file insurance claims for you',
+                    ].map((line) => (
+                      <li
+                        key={line}
+                        className="flex items-start gap-2.5 text-[15px] leading-snug"
+                        style={{ color: 'var(--c-deep-ink, #FAF7F2)' }}
+                      >
+                        <svg
+                          className="w-5 h-5 shrink-0 mt-0.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          style={{ color: 'rgba(255, 255, 255, 0.7)' }}
+                          aria-hidden="true"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
 
@@ -1287,7 +1318,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               >
                 <span
                   className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: `${brand}1F`, color: headingInk }}
+                  style={{ backgroundColor: `${brand}26`, color: headingInk }}
                   aria-hidden="true"
                 >
                         <TeamCalloutIcon kind={c.icon} />

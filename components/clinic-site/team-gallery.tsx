@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { readableInk } from '@/lib/clinic-site-theme'
 
 interface Member {
   id: string
@@ -27,10 +28,31 @@ interface Props {
  * clinic's staff records (clinic_profile.staff[].photoUrl) so there's a single
  * source of truth — editing the team in the Studio updates this gallery too.
  *
- * Client component only for the arrow scroll handlers; SSR paints the cards.
+ * Client component only for the arrow scroll handlers + the overflow
+ * measurement; SSR paints the cards.
  */
 export default function TeamGallery({ members, brand, ink, surface }: Props) {
   const trackRef = useRef<HTMLUListElement | null>(null)
+  // Arrows only render when the track actually overflows — a 2-person team
+  // that fits doesn't need paging chrome floating at its edges.
+  const [overflowing, setOverflowing] = useState(false)
+  // Contrast-safe ink for the small member-title text + the arrow glyphs —
+  // raw pale brands (the sage default) fail on white surfaces.
+  const accentInk = readableInk(brand)
+
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    const measure = () => setOverflowing(el.scrollWidth > el.clientWidth + 4)
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    ro?.observe(el)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [members.length])
 
   const scrollBy = useCallback((dir: 1 | -1) => {
     const el = trackRef.current
@@ -46,21 +68,27 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
 
   return (
     <div className="relative">
-      <button
-        type="button"
-        onClick={() => scrollBy(-1)}
-        aria-label="Previous team members"
-        className={`${arrowCls} left-0`}
-        style={{ border: `1px solid ${brand}66`, color: brand }}
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-        </svg>
-      </button>
+      {overflowing && (
+        <button
+          type="button"
+          onClick={() => scrollBy(-1)}
+          aria-label="Previous team members"
+          className={`${arrowCls} left-0`}
+          style={{ border: `1px solid ${brand}66`, color: accentInk }}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+      )}
 
+      {/* Auto-margins on the first/last cards center the row when it fits and
+          degrade to a normal scrollable start when it overflows —
+          justify-center on an overflowing scroll container makes the start
+          edge unreachable (same fix as ServicePills). */}
       <ul
         ref={trackRef}
-        className="flex gap-6 sm:gap-7 overflow-x-auto pb-4 pt-2 snap-x snap-mandatory sm:px-14 lg:justify-center scroll-smooth"
+        className="flex gap-6 sm:gap-7 overflow-x-auto pb-4 pt-2 snap-x snap-mandatory sm:px-14 scroll-smooth [&>li:first-child]:lg:ml-auto [&>li:last-child]:lg:mr-auto"
         style={{ scrollbarWidth: 'none' }}
       >
         {members.map((m) => (
@@ -94,7 +122,7 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
                   {m.name}
                 </div>
                 {m.title && (
-                  <div className="text-[12.5px] mt-0.5 font-medium" style={{ color: brand }}>
+                  <div className="text-[12.5px] mt-0.5 font-medium" style={{ color: accentInk }}>
                     {m.title}
                   </div>
                 )}
@@ -104,17 +132,19 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
         ))}
       </ul>
 
-      <button
-        type="button"
-        onClick={() => scrollBy(1)}
-        aria-label="Next team members"
-        className={`${arrowCls} right-0`}
-        style={{ border: `1px solid ${brand}66`, color: brand }}
-      >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-        </svg>
-      </button>
+      {overflowing && (
+        <button
+          type="button"
+          onClick={() => scrollBy(1)}
+          aria-label="Next team members"
+          className={`${arrowCls} right-0`}
+          style={{ border: `1px solid ${brand}66`, color: accentInk }}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+      )}
 
       <style>{`ul::-webkit-scrollbar { display: none; }`}</style>
     </div>

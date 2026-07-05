@@ -97,10 +97,13 @@ export default function SiteFooter({
               <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" width={40} height={40} loading="lazy" decoding="async" />
             ) : (
               <>
+                {/* White tile + deep-colored letter: a brand-strong tile is
+                    nearly the same color as the deep footer band it sits on
+                    (they derive from the same dark hue), so it vanished. */}
                 <span
                   aria-hidden="true"
-                  className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0"
-                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                  className="flex items-center justify-center w-10 h-10 rounded-lg text-base font-bold shrink-0"
+                  style={{ backgroundColor: '#FFFFFF', color: 'var(--c-deep, #36514c)' }}
                 >
                   {name.charAt(0).toUpperCase()}
                 </span>

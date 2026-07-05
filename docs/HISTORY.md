@@ -7,6 +7,27 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Clinic site enhancement 4 — component-quality pass (2026-07-05).** A full
+  screenshot-driven review of every homepage section/card (rich + day-0 +
+  violet renders, sliced into bands and critiqued individually). Fixes:
+  **Insurance band** — the "Check insurance" submit painted brand-strong on
+  the deep band, i.e. nearly the SAME dark color as the band behind it, and
+  disappeared; it's now the white-with-ink primary (the ClosingCTA treatment,
+  strongest contrast on deep for every brand) + the carriers column no longer
+  sits empty against the tall form when no carriers are set (universal honest
+  reassurance list — PPO accepted / we help verify / we file claims — same
+  universal-default precedent as payment methods + billing FAQ). **Footer
+  monogram** — a brand-strong tile on the deep band vanished for dark brands
+  (same hue family); now a white tile with the deep-colored letter.
+  **TeamGallery** — same unreachable-centering bug ServicePills had
+  (justify-center on an overflowing scroll row) fixed with first/last auto
+  margins; prev/next arrows now render only when the row actually overflows
+  (ResizeObserver-measured — a 2-person team gets no orphan paging chrome);
+  member titles + arrow glyphs use readableInk (raw sage failed contrast at
+  12.5px). **ServicePills** arrows likewise readableInk. **Brand presence** —
+  difference-checklist chips unified to the hero-pill tint (brand26/55, were
+  a near-gray 14/30) and callout icon circles bumped to brand26.
+
 - **Clinic site enhancement 3 — homepage motion pass + legal pages
   (2026-07-05).** The homepage below the fold was fully static (subpages used
   ScrollReveal; the money page never did). Now: staggered reveals on the

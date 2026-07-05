@@ -214,11 +214,15 @@ export default function InsuranceVerifierForm({ slug, brand, carriers, services,
         </p>
       )}
 
+      {/* WHITE primary — this form always sits on the deep band, where a
+          brand-strong fill is nearly the SAME color as the band (dark brands)
+          and disappears. White-with-ink is the ClosingCTA treatment: the
+          strongest possible primary on deep, on every brand. */}
       <button
         type="submit"
         disabled={status === 'pending'}
-        className="w-full px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-60"
-        style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+        className="w-full px-7 py-3.5 rounded-full text-base font-semibold shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60"
+        style={{ backgroundColor: '#FFFFFF', color: 'var(--c-ink, #1C1A17)' }}
       >
         {status === 'pending' ? 'Sending…' : 'Check insurance'}
       </button>
