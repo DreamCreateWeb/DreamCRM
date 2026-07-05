@@ -690,6 +690,13 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
               )}
             </div>
           )}
+          <Link
+            href="/website/share"
+            className="hidden md:inline text-xs text-gray-300 hover:text-white"
+            title="Printable QR cards for the front desk — booking, reviews, portal"
+          >
+            🖨 QR cards
+          </Link>
           <Link href="/settings/clinic" className="hidden sm:inline text-xs text-gray-300 hover:text-white">
             Advanced edits
           </Link>
