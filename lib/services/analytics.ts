@@ -6,6 +6,7 @@ import { listPatients } from '@/lib/services/patients'
 import { getClinicSeoPerformance } from '@/lib/services/gsc'
 import { getGbpLocalMetrics } from '@/lib/services/gbp-metrics'
 import { tallyCampaignFunnel, emptyFunnel } from '@/lib/services/campaign-funnel'
+import { countLeadChannels, type LeadChannel } from '@/lib/lead-channel'
 
 /**
  * Clinic Analytics. The honest split: a CRM can measure the *relationship,
@@ -49,6 +50,9 @@ export interface ClinicAnalytics {
     trend: TrendPoint[]
     sourceMix: { source: string; count: number }[]
     websiteFunnel: { clicks: number | null; leads: number; contacted: number; converted: number }
+    /** Website leads bucketed by attribution channel (utm + referrer), ranked.
+     *  Empty when there are no leads in the window. */
+    leadChannels: { channel: LeadChannel; count: number }[]
     /** Google Business Profile local actions over the same window (null when no
      *  GBP is connected — the UI then shows a connect prompt instead of a tile).
      *  Pulled via the Zernio connection; demo-safe + best-effort. */
@@ -186,12 +190,20 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
 
   // ── Website funnel: leads in window + GSC clicks (optional) ─────────────
   const leadRows = await db
-    .select({ status: schema.lead.status, contactedAt: schema.lead.contactedAt, convertedAt: schema.lead.convertedAt })
+    .select({
+      status: schema.lead.status,
+      contactedAt: schema.lead.contactedAt,
+      convertedAt: schema.lead.convertedAt,
+      utmSource: schema.lead.utmSource,
+      utmMedium: schema.lead.utmMedium,
+      referrer: schema.lead.referrer,
+    })
     .from(schema.lead)
     .where(and(eq(schema.lead.organizationId, organizationId), gte(schema.lead.createdAt, since)))
 
   const leadsContacted = leadRows.filter((l) => l.contactedAt || l.status === 'contacted' || l.status === 'converted').length
   const leadsConverted = leadRows.filter((l) => l.status === 'converted' || l.convertedAt).length
+  const leadChannels = countLeadChannels(leadRows)
 
   // Clinics read the platform's shared Search Console connection, scoped to
   // their own pages — they connect nothing. (Matches the SEO tab.)
@@ -308,6 +320,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
         .map(([source, c]) => ({ source, count: c }))
         .sort((a, b) => b.count - a.count),
       websiteFunnel: { clicks: gscClicks, leads: leadRows.length, contacted: leadsContacted, converted: leadsConverted },
+      leadChannels,
       gbp,
     },
     schedule: {

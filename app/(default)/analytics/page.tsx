@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant, requirePlan } from '@/lib/auth/context'
 import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
+import { LEAD_CHANNEL_LABELS } from '@/lib/lead-channel'
 import { getSiteTraffic } from '@/lib/services/site-analytics'
 import { getSocialMetrics } from '@/lib/services/social-metrics'
 import { getPublishedPostCounts } from '@/lib/services/social-posts'
@@ -185,6 +186,26 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               },
             ]}
           />
+        </Card>
+        {/* Where website leads come from — utm + referrer attribution the
+            public forms already capture, bucketed into owner-language
+            channels. Answers "is the Instagram effort working?" without
+            requiring Google Analytics. */}
+        <Card className="mt-4">
+          <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">
+            Where website leads come from
+          </p>
+          {a.acquisition.leadChannels.length === 0 ? (
+            <Empty>No website leads in this window — this fills in as your forms get submissions.</Empty>
+          ) : (
+            <RankBars
+              rows={a.acquisition.leadChannels.map((c) => ({
+                label: LEAD_CHANNEL_LABELS[c.channel],
+                value: c.count,
+                href: '/leads',
+              }))}
+            />
+          )}
         </Card>
         {/* Google Business local actions — how the map-pack listing converts
             (calls / directions / bookings + impressions). Connect prompt when
