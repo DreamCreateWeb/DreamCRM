@@ -1331,14 +1331,18 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 key={c.title}
                 delay={(i % 2) * 80 + Math.floor(i / 2) * 60}
                 yOffset={16}
-                className="flex items-start gap-4 p-5 sm:p-6 rounded-2xl bg-white transition-shadow duration-300 hover:shadow-md"
-                style={{ border: `1px solid ${BORDER}`, listStyle: 'none' }}
+                className="group/callout flex items-start gap-5 p-6 sm:p-7 rounded-[20px] bg-white transition-all duration-300 hover:-translate-y-0.5"
+                style={{
+                  border: `1px solid ${BORDER}`,
+                  listStyle: 'none',
+                  boxShadow: '0 1px 2px rgba(28,26,23,0.04), 0 16px 40px -32px rgba(28,26,23,0.35)',
+                }}
               >
                 <span
-                  className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center shrink-0 transition-transform duration-300 group-hover/callout:scale-105"
                   style={{
-                    backgroundImage: `radial-gradient(120% 120% at 30% 25%, ${brand}33 0%, ${brand}17 70%)`,
-                    boxShadow: `inset 0 0 0 1px ${brand}40`,
+                    backgroundImage: `radial-gradient(120% 120% at 30% 25%, ${brand}40 0%, ${brand}1C 72%)`,
+                    boxShadow: `inset 0 0 0 1.5px ${brand}4D`,
                     color: headingInk,
                   }}
                   aria-hidden="true"
@@ -1347,8 +1351,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                       </span>
                       <div>
                         <h3
-                          className="text-[17px] font-semibold mb-1"
-                          style={{ color: INK }}
+                          className="text-[18px] font-semibold mb-1.5"
+                          style={{ color: INK, fontFamily: 'var(--font-display, Georgia, serif)' }}
                           data-edit-field={`copy:home.callout.${i}.title`}
                           data-edit-kind="text"
                           data-edit-label="title"
@@ -1356,7 +1360,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                           {copyOverride(copyOverrides, `home.callout.${i}.title`, c.title)}
                         </h3>
                         <p
-                          className="text-[14px] leading-[1.6]"
+                          className="text-[15px] leading-[1.65]"
                           style={{ color: INK_MUTED }}
                           data-edit-field={`copy:home.callout.${i}.body`}
                           data-edit-kind="text"
@@ -1843,7 +1847,7 @@ function OvalPortrait({
 
 function TeamCalloutIcon({ kind }: { kind: string }) {
   const props = {
-    className: 'w-5 h-5',
+    className: 'w-6 h-6',
     fill: 'none',
     viewBox: '0 0 24 24',
     stroke: 'currentColor',

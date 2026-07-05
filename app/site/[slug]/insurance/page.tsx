@@ -24,6 +24,7 @@ import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
+import { ArcDivider, GrainOverlay, RippleMotif } from '@/components/clinic-site/decor'
 import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
@@ -410,10 +411,17 @@ export default async function InsurancePage({ params }: Props) {
 
         {/* ── Carriers + verifier — forest-teal band (matches homepage) ──── */}
         <section
-          className="py-14 sm:py-24"
+          className="relative overflow-hidden pt-20 pb-14 sm:pt-32 sm:pb-24"
           style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
         >
-          <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
+          <ArcDivider fill="var(--c-surface, #FFFFFF)" />
+          <GrainOverlay opacity={0.04} />
+          <RippleMotif
+            tint="#FFFFFF"
+            opacity={0.05}
+            className="absolute -right-40 -bottom-56 w-[560px] h-[560px]"
+          />
+          <div className="relative max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="text-center max-w-[700px] mx-auto mb-12">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
@@ -666,10 +674,12 @@ export default async function InsurancePage({ params }: Props) {
         {/* ── "No dental insurance?" → /dental-plans (gated) ─────────────── */}
         {hasDentalPlans && (
           <section
-            className="py-16 sm:py-20"
+            className="relative overflow-hidden pt-24 pb-16 sm:pt-28 sm:pb-20"
             style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
           >
-            <div className="max-w-[900px] mx-auto px-5 sm:px-8 text-center">
+            <ArcDivider />
+            <GrainOverlay opacity={0.04} />
+            <div className="relative max-w-[900px] mx-auto px-5 sm:px-8 text-center">
               <p
                 className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
                 style={{ color: 'rgba(250, 247, 242, 0.7)' }}
