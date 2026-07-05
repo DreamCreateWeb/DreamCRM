@@ -58,16 +58,23 @@ export default function ServicePills({ pills, brand, ink, href }: Props) {
           when it overflows. Pills are large (Tend-scale): generous padding
           and slightly bigger text so each card reads as a real CTA, not a
           chip. */}
+      {/* Centering via auto-margins on the first/last pills, NOT
+          justify-center: a centered flex row that overflows its scroll
+          container makes the start-edge unreachable (scrollLeft can't go
+          negative), which clipped the first pill under the prev arrow and
+          made it impossible to scroll back to. Auto margins center the row
+          when it fits and degrade to a normal scrollable start when it
+          doesn't. */}
       <ul
         ref={trackRef}
-        className="flex gap-4 sm:gap-5 lg:gap-6 overflow-x-auto pb-2 snap-x snap-mandatory sm:px-14 lg:justify-center scroll-smooth"
+        className="flex gap-4 sm:gap-5 lg:gap-6 overflow-x-auto pb-2 snap-x snap-mandatory sm:px-14 scroll-smooth [&>li:first-child]:lg:ml-auto [&>li:last-child]:lg:mr-auto"
         style={{ scrollbarWidth: 'none' }}
       >
         {pills.map((p) => (
           <li key={p.id} className="snap-start shrink-0">
             <a
               href={href}
-              className="inline-flex items-center px-8 sm:px-10 lg:px-14 py-4 sm:py-5 rounded-full text-base sm:text-lg font-semibold transition hover:shadow-md"
+              className="inline-flex items-center px-8 sm:px-10 lg:px-14 py-4 sm:py-5 rounded-full text-base sm:text-lg font-semibold transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
               style={{
                 backgroundColor: `${brand}26`,
                 color: ink,

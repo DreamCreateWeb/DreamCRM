@@ -7,6 +7,19 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Clinic site enhancement 2 — trust & reviews depth + the unreachable-pills
+  fix (2026-07-05).** The testimonials section now opens with the AGGREGATE:
+  the same live Google rating badge as the hero (section variant) sits under
+  "Why people love {clinic}", tying the individual quotes to the real overall
+  number (same ≥3-review honest gate). Testimonial cards gained a decorative
+  opening-quote glyph (matching the Studio empty-state preview) and a soft
+  grounded shadow. **Service-pills bug:** the strip used `lg:justify-center` on
+  an `overflow-x-auto` track — a centered flex row that overflows makes its
+  start edge unreachable (scrollLeft can't go negative), so the first pill sat
+  clipped under the prev arrow and could never be scrolled back to. Replaced
+  with auto-margins on the first/last pills (centers when it fits, scrolls
+  normally when it doesn't) + a hover lift on the pills.
+
 - **Clinic site enhancement 1 — hero elevation + brand-strong CTAs + the
   dc-edit-only public leak (2026-07-04).** First slice of the public-template
   polish push, driven by a new visual-QA loop (render the template with demo

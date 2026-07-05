@@ -919,7 +919,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       >
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8">
           <h2
-            className="text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] mb-10"
+            className={`text-3xl sm:text-4xl lg:text-[48px] font-semibold leading-[1.08] tracking-[-0.015em] ${showGoogleRating ? 'mb-4' : 'mb-10'}`}
             style={{ color: headingInk, fontFamily: 'var(--font-display, Georgia, serif)' }}
             data-edit-field="copy:home.testimonialsTitle"
             data-edit-kind="text"
@@ -931,6 +931,19 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               </>
             )}
           </h2>
+          {/* The aggregate under the promise — the same live Google rating as
+              the hero badge, tying the individual quotes below to the real
+              overall number. Same honest gate. */}
+          {showGoogleRating && (
+            <div className="mb-10">
+              <GoogleRatingBadge
+                average={googleRating!.average!}
+                count={googleRating!.count}
+                headingInk={headingInk}
+                variant="section"
+              />
+            </div>
+          )}
           {testimonials.length > 0 ? (
             <TestimonialsCarousel testimonials={testimonials} brand={brand} />
           ) : (

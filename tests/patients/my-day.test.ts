@@ -44,9 +44,15 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import { getMyDay } from '@/lib/services/my-day'
-import { todayYmd, addDaysYmd } from '@/lib/types/followups'
+import { addDaysYmd } from '@/lib/types/followups'
+import { clinicDayKey } from '@/lib/format-datetime'
 
-const TODAY = todayYmd()
+// "Today" must be computed the way the SERVICE computes it — clinic-local via
+// clinicDayKey (the unmocked getClinicTimeZone resolves the default
+// America/New_York here). The previous todayYmd() used the runner's local
+// (UTC) date, which disagrees with New York every night 00:00–04:00 UTC and
+// made this suite flake in that window.
+const TODAY = clinicDayKey(new Date(), 'America/New_York')
 function fu(over: Record<string, unknown>) {
   return { id: 'f', patientId: 'p', patientName: 'X', title: 't', dueDate: null, assignedUserId: null, assigneeName: null, status: 'open', createdByName: null, completedAt: null, createdAt: new Date(), ...over }
 }

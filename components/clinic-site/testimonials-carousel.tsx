@@ -203,8 +203,22 @@ export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string })
   return (
     <figure
       className="rounded-2xl sm:rounded-3xl p-6 sm:p-10 lg:p-12 flex flex-col h-full"
-      style={{ backgroundColor: TESTIMONIAL_CARD_BG }}
+      style={{
+        backgroundColor: TESTIMONIAL_CARD_BG,
+        // Soft grounded depth so the dark card floats off the cream page
+        // instead of sitting flat on it.
+        boxShadow: '0 24px 48px -32px rgba(0, 0, 0, 0.45)',
+      }}
     >
+      {/* Decorative opening quote — same glyph treatment as the Studio's
+          empty-state preview card, so the two renders rhyme. */}
+      <div
+        aria-hidden="true"
+        className="text-5xl leading-none mb-3 text-center font-serif"
+        style={{ color: 'rgba(255,255,255,0.28)', fontFamily: 'var(--font-display, Georgia, serif)' }}
+      >
+        &ldquo;
+      </div>
       <blockquote
         className="text-base sm:text-lg lg:text-xl leading-[1.5] flex-1 mb-10 text-center"
         style={{ color: 'var(--c-deep-ink, #FFFFFF)' }}
