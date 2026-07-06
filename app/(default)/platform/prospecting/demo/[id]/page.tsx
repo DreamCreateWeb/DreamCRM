@@ -10,7 +10,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { getProspectDetail } from '@/lib/services/prospecting'
 import { getDemoBrief } from '@/lib/services/demo-brief'
 import { deriveDemoGaps } from '@/lib/demo-gaps'
-import { DEMO_BEATS } from '@/lib/types/demo-script'
+import { DEMO_BEATS, suggestDemoTrack, DEMO_TRACKS } from '@/lib/types/demo-script'
 import { ratingLabel } from '@/lib/types/prospecting'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
 import { PageHeader } from '@/components/ui/page-header'
@@ -18,6 +18,7 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
 import BriefPanel from './brief-panel'
 import PrepActions from './prep-actions'
+import TrackPicker from './track-picker'
 
 const SECTION = 'v2-panel p-5 mb-5'
 const SECTION_TITLE =
@@ -47,6 +48,10 @@ export default async function DemoPrepPage({
   const brief = await getDemoBrief(id)
 
   const gaps = deriveDemoGaps(signals, verdict, {
+    ratingTenths: p.googleRatingTenths,
+    reviewCount: p.reviewCount,
+  })
+  const suggestedTrack = suggestDemoTrack(verdict, signals, {
     ratingTenths: p.googleRatingTenths,
     reviewCount: p.reviewCount,
   })
@@ -96,6 +101,14 @@ export default async function DemoPrepPage({
           tone={p.scoreBand === 'hot' ? 'urgent' : p.scoreBand === 'warm' ? 'warn' : undefined}
         />
       </div>
+
+      {/* Which story this demo tells — preselected from their gaps */}
+      <section className={`${SECTION} no-print`}>
+        <div className={SECTION_TITLE}>
+          Choose the story — {DEMO_TRACKS[suggestedTrack].label.toLowerCase()} suggested from their gaps
+        </div>
+        <TrackPicker prospectId={p.id} suggested={suggestedTrack} />
+      </section>
 
       {/* Demo ammunition — gaps mapped to the beat where they land */}
       <section className={SECTION}>

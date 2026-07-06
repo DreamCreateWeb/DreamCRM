@@ -7,6 +7,41 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Demo v3 — interest-driven tracks + a real ending (2026-07-06).** The
+  branded demo was one hardcoded 8-beat script that never ended: the last
+  beat just disabled Next, presenter state (clock/beat/notes) was global
+  sessionStorage so demo #2 resumed demo #1, the skin cookie died after a
+  day while demo_context lived seven (leaving an unbranded demo running
+  with no prospect attached), and ending often dead-dropped on the platform
+  overview. Now: **(1) Demo TRACKS** (`lib/types/demo-script.ts` registry) —
+  five stories (🏛️ full platform · 🖥️ website · 📍 found-everywhere ·
+  📣 social suite · 🗓️ run-the-day), each a curated beat sequence reusing
+  shared beat ids so gap-ammunition callouts land in every story, each
+  CLOSING on an "And so much more" beat (→ /integrations) that lands on the
+  right plan-tier price (Basic $150 / Pro $250 / Premium $500);
+  `suggestDemoTrack(verdict, signals, places)` picks the lead story from
+  verified gaps (no/weak site → website; quiet social/reputation →
+  presence; else full). **(2) Selection everywhere** — prep page gains a
+  story picker (suggested preselected), `startBrandedDemoAction` takes an
+  optional track (defaults to the suggestion; drawer button inherits it),
+  the skin cookie carries `track`, and the presenter panel has a live
+  Story switcher (discovery changed the story → switch mid-call, beat 1).
+  **(3) A real ending** — past the last beat is the WRAP-UP view: elapsed +
+  beats covered + the track's plan pitch, outcome buttons (🏆 won ·
+  📞 follow up · not now + loss reason), note pre-filled from per-beat
+  notes, and "Log & end" runs `endBrandedDemoWithOutcomeAction` (logs the
+  call outcome, clears both demo cookies, hard-assigns to the call list
+  with the prospect pinned); the header "Presenting to X" chip now opens
+  the wrap-up instead of instantly nuking the session. **(4) Lifecycle
+  fixes** — presenter sessionStorage is scoped per prospect
+  (`components/demo/presenter-session.ts`; a new demo never resumes the
+  last one's clock), demo_context now matches the skin's 1-day lifetime
+  and carries prospectId so the end flow can never dead-end on `/`.
+  Tests: `tests/demo-mode/demo-tracks.test.ts` (registry integrity — every
+  story ends on "And so much more" with a price — + suggestion table) +
+  the panel suite reworked for v3 (wrap-up, chip event, mid-demo track
+  switch, scoped-session reset, outcome logging).
+
 - **Staff-alert misdirection fix (2026-07-06).** Demo-day bug: the owner
   booked a fake visit with his own email mid-demo and the FRONT-DESK ping
   ("New appointment request via the website") landed in the inbox he booked

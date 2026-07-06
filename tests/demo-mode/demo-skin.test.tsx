@@ -21,13 +21,17 @@ vi.mock('next/navigation', () => ({
 
 // The panel's End-demo form posts this server action — stub the whole
 // module so the test never drags in db/auth.
+const { endWithOutcomeMock } = vi.hoisted(() => ({
+  endWithOutcomeMock: vi.fn(async () => ({ ok: true, to: '/platform/prospecting/call-list?highlight=pros_1' })),
+}))
 vi.mock('@/app/(default)/ecommerce/customers/admin-actions', () => ({
   endBrandedDemoAction: vi.fn(),
+  endBrandedDemoWithOutcomeAction: endWithOutcomeMock,
   exitDemoMode: vi.fn(),
 }))
 
 import { readDemoSkin, parseDemoSkin } from '@/lib/demo-skin'
-import { DEMO_BEATS, renderTalkTrack } from '@/lib/types/demo-script'
+import { DEMO_BEATS, DEMO_TRACKS, renderTalkTrack } from '@/lib/types/demo-script'
 import PresenterPanel from '@/components/demo/presenter-panel'
 
 const SKIN = JSON.stringify({ prospectId: 'pros_1', clinicName: 'Lone Star Dental', city: 'Dallas' })
@@ -80,6 +84,13 @@ describe('readDemoSkin guards', () => {
     expect(skin!.weaknesses).toHaveLength(4) // capped, junk filtered
     expect(skin!.weaknesses![1]).toHaveLength(80) // long entries truncated
     expect(skin!.officialFirstName).toBe('Maria')
+    // track: valid ids survive, junk is dropped
+    expect(
+      parseDemoSkin(JSON.stringify({ prospectId: 'p', clinicName: 'X', track: 'website' }))!.track,
+    ).toBe('website')
+    expect(
+      parseDemoSkin(JSON.stringify({ prospectId: 'p', clinicName: 'X', track: 'nonsense' }))!.track,
+    ).toBeUndefined()
     // http website dropped
     expect(
       parseDemoSkin(
@@ -115,7 +126,7 @@ const FULL_SKIN = {
   weaknesses: ['No online booking today', 'Footer says 2019'],
 }
 
-describe('PresenterPanel v2', () => {
+describe('PresenterPanel v3', () => {
   it('shows the branded header, group label, first beat; Next advances via router.push', () => {
     render(<PresenterPanel skin={FULL_SKIN} />)
     expect(screen.getByText(/Presenting to Lone Star Dental/)).toBeTruthy()
@@ -190,10 +201,78 @@ describe('PresenterPanel v2', () => {
     expect(sessionStorage.getItem(`dc.demo-notes.${DEMO_BEATS[0].id}`)).toBe('They loved the huddle.')
   })
 
-  it('shows the ↗ their-current-site link only with a websiteUrl, and the End-demo form', () => {
+  it('shows the ↗ their-current-site link only with a websiteUrl, and the End-demo control', () => {
     render(<PresenterPanel skin={FULL_SKIN} />)
     const link = screen.getByText(/their current site/)
     expect(link.closest('a')!.getAttribute('href')).toBe('https://lonestardental.com')
     expect(screen.getByText(/End demo/)).toBeTruthy()
+  })
+
+  it('the demo ENDS: Next on the last beat opens the wrap-up (never a dead disabled button)', () => {
+    render(<PresenterPanel skin={FULL_SKIN} />)
+    fireEvent.keyDown(window, { key: String(DEMO_BEATS.length) }) // jump to last
+    fireEvent.click(screen.getByText('Wrap up →'))
+    expect(screen.getByTestId('demo-wrapup')).toBeTruthy()
+    expect(screen.getByText(/That’s the pitch for Lone Star Dental/)).toBeTruthy()
+    // Esc backs out of the wrap-up to the script (not straight to collapse).
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByTestId('demo-wrapup')).toBeNull()
+    expect(screen.getByTestId('presenter-panel')).toBeTruthy()
+  })
+
+  it('the header chip event opens the wrap-up even when collapsed', () => {
+    render(<PresenterPanel skin={FULL_SKIN} />)
+    fireEvent.keyDown(window, { key: 'Escape' }) // collapse
+    expect(screen.queryByTestId('presenter-panel')).toBeNull()
+    fireEvent(window, new CustomEvent('dc:demo-wrapup'))
+    expect(screen.getByTestId('demo-wrapup')).toBeTruthy()
+  })
+
+  it('logs the outcome and hard-assigns to the returned path', async () => {
+    const assign = vi.fn()
+    const original = window.location
+    Object.defineProperty(window, 'location', {
+      value: { ...original, assign },
+      writable: true,
+      configurable: true,
+    })
+    try {
+      render(<PresenterPanel skin={FULL_SKIN} />)
+      fireEvent.click(screen.getByText(/End demo/))
+      fireEvent.click(screen.getByText(/They’re in/))
+      fireEvent.click(screen.getByText('Log & end demo'))
+      await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('/platform/prospecting/call-list?highlight=pros_1'))
+      expect(endWithOutcomeMock).toHaveBeenCalledWith(
+        expect.objectContaining({ outcome: 'won' }),
+      )
+      // The presenter session is wiped — the NEXT demo starts fresh.
+      expect(sessionStorage.getItem('dc.demo-beat-index')).toBeNull()
+      expect(sessionStorage.getItem('dc.demo-started-at')).toBeNull()
+    } finally {
+      Object.defineProperty(window, 'location', { value: original, writable: true, configurable: true })
+    }
+  })
+
+  it('switches the story mid-demo: track select resets to the new first beat', () => {
+    render(<PresenterPanel skin={FULL_SKIN} />)
+    fireEvent.change(screen.getByLabelText('Story'), { target: { value: 'website' } })
+    expect(pushMock).toHaveBeenLastCalledWith(DEMO_TRACKS.website.beats[0].href)
+    expect(screen.getByText(`1. ${DEMO_TRACKS.website.beats[0].title}`)).toBeTruthy()
+    expect(sessionStorage.getItem('dc.demo-track')).toBe('website')
+  })
+
+  it('a NEW prospect never resumes the last demo (scoped session reset)', () => {
+    const first = render(<PresenterPanel skin={FULL_SKIN} />)
+    fireEvent.click(screen.getByText('Next →'))
+    expect(sessionStorage.getItem('dc.demo-beat-index')).toBe('1')
+    first.unmount()
+    render(<PresenterPanel skin={{ ...FULL_SKIN, prospectId: 'pros_2', clinicName: 'River Bend Dental' }} />)
+    expect(screen.getByText(`1. ${DEMO_BEATS[0].title}`)).toBeTruthy()
+    expect(sessionStorage.getItem('dc.demo-beat-index')).toBeNull()
+  })
+
+  it('a skin track leads the demo with that story', () => {
+    render(<PresenterPanel skin={{ ...FULL_SKIN, track: 'frontdesk' }} />)
+    expect(screen.getByText(`1. ${DEMO_TRACKS.frontdesk.beats[0].title}`)).toBeTruthy()
   })
 })

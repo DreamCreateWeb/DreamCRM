@@ -1,6 +1,7 @@
 import type { DemoSkin } from '@/lib/types/demo-skin'
 import { DEMO_SKIN_MAX_BYTES } from '@/lib/types/demo-skin'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import type { DemoTrackId } from '@/lib/types/demo-script'
 import { deriveDemoGaps } from '@/lib/demo-gaps'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 
@@ -52,6 +53,8 @@ export interface BuildDemoSkinInput {
   }
   signals: ProspectCrawlSignals | null
   verdict: ProspectAiVerdict | null
+  /** The demo story to lead with — validated upstream (demo-script ids). */
+  track?: DemoTrackId
 }
 
 /**
@@ -88,6 +91,8 @@ export function buildDemoSkin(input: BuildDemoSkinInput): DemoSkin {
 
   const first = officialFirstName(prospect.authorizedOfficialName)
   if (first) skin.officialFirstName = first
+
+  if (input.track) skin.track = input.track
 
   for (const drop of ['weaknesses', 'logoUrl', 'websiteUrl'] as const) {
     if (JSON.stringify(skin).length <= DEMO_SKIN_MAX_BYTES) break

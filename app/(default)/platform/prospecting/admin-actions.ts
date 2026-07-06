@@ -9,6 +9,7 @@ import { db, schema } from '@/lib/db'
 import { requireTenant } from '@/lib/auth/context'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 import { DEMO_SKIN_COOKIE, type DemoSkin } from '@/lib/types/demo-skin'
+import { DEMO_TRACK_IDS, suggestDemoTrack, type DemoTrackId } from '@/lib/types/demo-script'
 import { buildDemoSkin } from '@/lib/demo-skin-build'
 import {
   getProspectingConfig,
@@ -305,9 +306,15 @@ const convertSchema = z.object({
  * platform admin inside demo mode (readDemoSkin guards), and exitDemoMode
  * clears it with the demo cookie.
  */
-export async function startBrandedDemoAction(prospectId: string): Promise<void> {
+export async function startBrandedDemoAction(
+  prospectId: string,
+  trackId?: string,
+): Promise<void> {
   const ctx = await requirePlatformAdmin()
   const id = z.string().min(1).parse(prospectId)
+  const requestedTrack = trackId
+    ? z.enum(DEMO_TRACK_IDS as [DemoTrackId, ...DemoTrackId[]]).parse(trackId)
+    : null
   const [p] = await db
     .select({
       id: schema.prospect.id,
@@ -342,6 +349,8 @@ export async function startBrandedDemoAction(prospectId: string): Promise<void> 
   // Full brand composition: their theme-color, their favicon logo, their
   // verified gaps as beat ammunition, the doctor's first name — all pure,
   // all size-capped for the cookie.
+  const signals = (p.enrichment ?? null) as import('@/lib/types/prospecting').ProspectCrawlSignals | null
+  const verdict = (p.aiVerdict ?? null) as import('@/lib/types/prospecting').ProspectAiVerdict | null
   const skin: DemoSkin = buildDemoSkin({
     prospect: {
       id: p.id,
@@ -352,8 +361,15 @@ export async function startBrandedDemoAction(prospectId: string): Promise<void> 
       googleRatingTenths: p.googleRatingTenths,
       reviewCount: p.reviewCount,
     },
-    signals: (p.enrichment ?? null) as import('@/lib/types/prospecting').ProspectCrawlSignals | null,
-    verdict: (p.aiVerdict ?? null) as import('@/lib/types/prospecting').ProspectAiVerdict | null,
+    signals,
+    verdict,
+    // No explicit pick → lead with the story their verified gaps suggest.
+    track:
+      requestedTrack ??
+      suggestDemoTrack(verdict, signals, {
+        ratingTenths: p.googleRatingTenths,
+        reviewCount: p.reviewCount,
+      }),
   })
   const cookieStore = await cookies()
   const cookieOpts = {
@@ -364,10 +380,15 @@ export async function startBrandedDemoAction(prospectId: string): Promise<void> 
     maxAge: 60 * 60 * 24, // one day — a demo, not a residency
   }
   cookieStore.set(DEMO_SKIN_COOKIE, JSON.stringify(skin), cookieOpts)
+  // SAME lifetime as the skin (a branded demo is one sitting) — a longer
+  // demo_context used to outlive the skin, leaving an unbranded demo mode
+  // running for days with no prospect attached to the end-demo flow. The
+  // prospectId rides along so ending the demo can always find its way back
+  // to the call list even if the skin cookie is gone.
   cookieStore.set(
     'demo_context',
-    JSON.stringify({ orgId, role: 'owner' }),
-    { ...cookieOpts, maxAge: 60 * 60 * 24 * 7 },
+    JSON.stringify({ orgId, role: 'owner', prospectId: p.id }),
+    cookieOpts,
   )
   redirect('/')
 }

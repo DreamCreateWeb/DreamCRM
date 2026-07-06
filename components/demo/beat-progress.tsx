@@ -1,21 +1,23 @@
 'use client'
 
-import { DEMO_BEATS } from '@/lib/types/demo-script'
+import type { DemoBeat } from '@/lib/types/demo-script'
 
-/** Segmented beat progress: current fills with the demo accent, visited a
- *  soft mix, upcoming stays dark. Click = jump. */
+/** Segmented beat progress for the ACTIVE track: current fills with the demo
+ *  accent, visited a soft mix, upcoming stays dark. Click = jump. */
 export default function BeatProgress({
+  beats,
   index,
   visited,
   onJump,
 }: {
+  beats: DemoBeat[]
   index: number
   visited: Set<string>
   onJump: (i: number) => void
 }) {
   return (
     <div className="flex items-center gap-1" role="tablist" aria-label="Demo beats">
-      {DEMO_BEATS.map((b, i) => (
+      {beats.map((b, i) => (
         <button
           key={b.id}
           type="button"

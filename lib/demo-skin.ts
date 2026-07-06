@@ -1,6 +1,7 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { DEMO_SKIN_COOKIE, type DemoSkin } from '@/lib/types/demo-skin'
+import { DEMO_TRACK_IDS, type DemoTrackId } from '@/lib/types/demo-script'
 
 /**
  * Read the presenter-mode demo skin. Guarded twice: the cookie only ever
@@ -56,6 +57,9 @@ export function parseDemoSkin(raw: string): DemoSkin | null {
     }
     if (typeof parsed.officialFirstName === 'string' && parsed.officialFirstName.trim()) {
       skin.officialFirstName = parsed.officialFirstName.trim().slice(0, 40)
+    }
+    if (typeof parsed.track === 'string' && DEMO_TRACK_IDS.includes(parsed.track as DemoTrackId)) {
+      skin.track = parsed.track
     }
     return skin
   } catch {

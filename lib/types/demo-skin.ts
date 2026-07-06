@@ -16,6 +16,9 @@ export interface DemoSkin {
   weaknesses?: string[]
   /** "Dr. Maria Garza" → "Maria" — {firstName} talk-track substitution. */
   officialFirstName?: string // ≤40
+  /** Which demo story to lead with (lib/types/demo-script.ts) — the panel
+   *  falls back to the full tour when absent/unknown. */
+  track?: string
 }
 
 export const DEMO_SKIN_COOKIE = 'demo_skin'

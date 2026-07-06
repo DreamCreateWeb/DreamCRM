@@ -94,18 +94,10 @@ export async function exitDemoMode() {
  */
 export async function endBrandedDemoAction() {
   const cookieStore = await cookies()
-  let prospectId: string | null = null
-  try {
-    const raw = cookieStore.get('demo_skin')?.value
-    if (raw) {
-      const parsed = JSON.parse(raw) as { prospectId?: unknown }
-      if (typeof parsed.prospectId === 'string' && parsed.prospectId) {
-        prospectId = parsed.prospectId
-      }
-    }
-  } catch {
-    /* malformed skin — plain exit below */
-  }
+  const prospectId = readDemoProspectId(
+    cookieStore.get('demo_skin')?.value,
+    cookieStore.get(DEMO_COOKIE)?.value,
+  )
   cookieStore.delete(DEMO_COOKIE)
   cookieStore.delete('demo_skin')
   redirect(
@@ -113,6 +105,78 @@ export async function endBrandedDemoAction() {
       ? `/platform/prospecting/call-list?highlight=${encodeURIComponent(prospectId)}`
       : '/',
   )
+}
+
+/** The prospect a live branded demo belongs to — from the skin cookie, or
+ *  the demo_context fallback (the skin can drop/expire independently; the
+ *  end-of-demo flow must never dead-end on the platform overview). */
+function readDemoProspectId(
+  skinRaw: string | undefined,
+  contextRaw: string | undefined,
+): string | null {
+  for (const raw of [skinRaw, contextRaw]) {
+    if (!raw) continue
+    try {
+      const parsed = JSON.parse(raw) as { prospectId?: unknown }
+      if (typeof parsed.prospectId === 'string' && parsed.prospectId) {
+        return parsed.prospectId
+      }
+    } catch {
+      /* malformed — try the next source */
+    }
+  }
+  return null
+}
+
+const endDemoOutcomeSchema = z.object({
+  // Absent = "skip logging" — the demo still ends cleanly on the call list.
+  outcome: z.enum(['won', 'callback', 'demo_booked', 'not_interested']).optional(),
+  note: z.string().max(500).optional(),
+  lostReason: z
+    .enum(['price', 'using_competitor', 'no_need', 'bad_timing', 'not_decision_maker', 'other'])
+    .optional(),
+})
+
+/**
+ * The presenter panel's wrap-up: log the demo's outcome on the prospect AND
+ * end the branded demo in one motion — a demo always ends in a logged
+ * result, never a dead drop. Returns the destination path; the client
+ * hard-assigns it so middleware + tenant context see the cleared cookies.
+ */
+export async function endBrandedDemoWithOutcomeAction(
+  input: unknown,
+): Promise<{ ok: boolean; to: string }> {
+  const ctx = await requirePlatformAdmin()
+  const parsed = endDemoOutcomeSchema.parse(input)
+  const cookieStore = await cookies()
+  const prospectId = readDemoProspectId(
+    cookieStore.get('demo_skin')?.value,
+    cookieStore.get(DEMO_COOKIE)?.value,
+  )
+  if (prospectId && parsed.outcome) {
+    try {
+      const { logCallOutcome } = await import('@/lib/services/prospecting')
+      await logCallOutcome({
+        prospectId,
+        outcome: parsed.outcome,
+        note: parsed.note,
+        lostReason: parsed.lostReason,
+        calledByUserId: ctx.userId,
+      })
+    } catch (err) {
+      console.warn('[endBrandedDemoWithOutcome] outcome log failed', err)
+    }
+  }
+  cookieStore.delete(DEMO_COOKIE)
+  cookieStore.delete('demo_skin')
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  return {
+    ok: true,
+    to: prospectId
+      ? `/platform/prospecting/call-list?highlight=${encodeURIComponent(prospectId)}`
+      : '/platform/prospecting',
+  }
 }
 
 /**
