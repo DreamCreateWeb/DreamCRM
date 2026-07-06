@@ -2,10 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { startMyPaymentPlanAction } from '../actions'
+import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
 
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 export interface PlanOption {
   months: number

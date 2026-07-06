@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import type { BookingSlot, SlotsClosedReason, SlotsForDay } from '@/lib/services/booking'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { dayOfWeekForDateKey } from '@/lib/clinic-timezone'
+import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
 
 /**
  * 14-day date strip + slot grid for the portal's book and reschedule flows.
@@ -16,9 +17,6 @@ import { dayOfWeekForDateKey } from '@/lib/clinic-timezone'
  * traveling patient's midnight is not the clinic's midnight.
  */
 
-const BORDER = '#E8E2D9'
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
 
 const DAY_WINDOW = 14
 const DAY_NAME_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

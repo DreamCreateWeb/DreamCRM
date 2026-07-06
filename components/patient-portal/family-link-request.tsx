@@ -2,11 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { requestFamilyLinkAction } from '@/app/(portal)/patient/actions'
-import { PortalCard } from '@/components/patient-portal/ui'
+import { PortalCard, PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
 
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 /**
  * "Add a family member" — replaces the old call-the-front-desk dead end with

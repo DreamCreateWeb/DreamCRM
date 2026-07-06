@@ -10,6 +10,7 @@ import {
 } from '@/app/(portal)/patient/actions'
 import SlotPicker from './slot-picker'
 import { fmtVisitDayTime, visitProximityLabel } from './format'
+import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
 
 /**
  * The portal's anchor object: a state-aware visit card. The action row
@@ -31,9 +32,6 @@ export interface VisitCardData {
   isDependent: boolean
 }
 
-const BORDER = '#E8E2D9'
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
 
 const STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
   confirmed: { bg: '#E5EFE6', fg: '#2F6B3C', label: 'Confirmed' },
