@@ -21,6 +21,7 @@ import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
 import PayBalanceForm from './pay-form'
 import PlanOffer, { type PlanOption } from './plan-offer'
 import BillingHistory, { type BillingHistoryRow } from './billing-history'
+import { listActivePlans } from '@/lib/services/membership'
 import {
   getMyOpenPaymentPlan,
   planInstallmentCents,
@@ -54,13 +55,15 @@ export default async function PortalBillingPage({
     await finalizeBalancePaymentFromSession(ctx.organizationId, sessionId).catch(() => {})
   }
 
-  const [bills, payments, paymentsAvailable, openPlan] = await Promise.all([
+  const [bills, payments, paymentsAvailable, openPlan, activePlans] = await Promise.all([
     getMyBills(ctx.patientId, ctx.organizationId),
     getMyBalancePayments(ctx.patientId, ctx.organizationId),
     settings.features.payments ? canTakeBalancePayments(ctx.organizationId) : Promise.resolve(false),
     // Any open plan (proposed / active / past_due) — shown as a status card;
     // its existence also hides the split-it offer (one plan at a time).
     getMyOpenPaymentPlan(ctx.organizationId, ctx.patientId).catch(() => null),
+    // Membership upsell — only worth loading when the patient has no plan.
+    listActivePlans(ctx.organizationId).catch(() => []),
   ])
 
   const hasBalance = bills.pmsBalanceCents != null && bills.pmsBalanceCents > 0
@@ -270,6 +273,15 @@ export default async function PortalBillingPage({
               {bills.membership.currentPeriodEnd &&
                 ` · renews ${fmtVisitDayShort(bills.membership.currentPeriodEnd, timeZone)}`}
             </p>
+            {settings.features.messages && (
+              <p className="mt-2 text-[0.82rem]" style={{ color: PORTAL_MUTED }}>
+                Need to change or pause it?{' '}
+                <a href="/patient/messages" className="font-semibold" style={{ color: brand }}>
+                  Message us
+                </a>{' '}
+                — we’ll handle it, no hoops.
+              </p>
+            )}
             {bills.membership.benefits.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {bills.membership.benefits.map((b, i) => {
@@ -287,6 +299,33 @@ export default async function PortalBillingPage({
                 })}
               </ul>
             )}
+          </PortalCard>
+        </section>
+      )}
+
+      {/* Membership upsell — only for patients WITHOUT a plan, and only when
+          the clinic actually sells one. Links into the public dental-plans
+          page, which carries the full pitch + checkout. */}
+      {!bills.membership && activePlans.length > 0 && (
+        <section className="mt-7">
+          <PortalSectionLabel>Worth a look</PortalSectionLabel>
+          <PortalCard>
+            <p className="text-[1.05rem] font-semibold" style={{ color: PORTAL_INK }}>
+              No dental insurance? There’s a plan for that.
+            </p>
+            <p className="mt-1 text-[0.88rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
+              Our in-house plan covers your routine care and discounts the rest — from{' '}
+              {fmtMoney(Math.min(...activePlans.map((pl) => pl.priceCents)))}/
+              {activePlans.find((pl) => pl.priceCents === Math.min(...activePlans.map((x) => x.priceCents)))?.billingInterval === 'annual' ? 'year' : 'month'}
+              . No deductibles, no claim forms, no waiting periods.
+            </p>
+            <a
+              href={`/site/${ctx.organizationSlug}/dental-plans`}
+              className="mt-3 inline-flex items-center rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white"
+              style={{ backgroundColor: brand }}
+            >
+              See the plans →
+            </a>
           </PortalCard>
         </section>
       )}
