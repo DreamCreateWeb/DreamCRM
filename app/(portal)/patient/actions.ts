@@ -21,6 +21,8 @@ import {
 } from '@/lib/services/appointments'
 import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { addToWaitlist } from '@/lib/services/appointment-waitlist'
+import { proposePaymentPlan } from '@/lib/services/payment-plans'
+import { paymentPlan } from '@/lib/db/schema/clinic'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -407,6 +409,46 @@ export async function requestMyVisitAction(formData: FormData): Promise<PortalAc
  * replies in the patient's own portal thread, and mails/hands over the records
  * out-of-band. Turns the old passive "call us" card into a real, tracked ask.
  */
+/**
+ * "Split this into monthly payments" — the patient starts a payment plan on
+ * their OWN full balance, right from Billing. Reuses the exact staff propose
+ * path (floors, one-open-plan rule, Connect check, proposal email as a paper
+ * trail), then routes them straight to the secure /i/[token] accept page
+ * instead of making them wait for the email.
+ */
+export async function startMyPaymentPlanAction(
+  installments: number,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const ctx = await requirePatient()
+  const settings = await getPortalSettings(ctx.organizationId)
+  if (!settings.features.billing || !settings.features.payments) {
+    return { ok: false, error: 'Payment plans aren’t available online — give us a call and we’ll set one up together.' }
+  }
+  const [me] = await db
+    .select({ balance: patient.pmsBalanceCents })
+    .from(patient)
+    .where(and(eq(patient.organizationId, ctx.organizationId), eq(patient.id, ctx.patientId)))
+    .limit(1)
+  const totalCents = me?.balance ?? 0
+  if (totalCents <= 0) return { ok: false, error: 'You don’t have a balance right now.' }
+
+  const res = await proposePaymentPlan(
+    ctx.organizationId,
+    ctx.patientId,
+    { totalCents, installments },
+    ctx.userId,
+  )
+  if (!res.ok) return res
+  const [plan] = await db
+    .select({ token: paymentPlan.token })
+    .from(paymentPlan)
+    .where(and(eq(paymentPlan.organizationId, ctx.organizationId), eq(paymentPlan.id, res.planId)))
+    .limit(1)
+  if (!plan) return { ok: false, error: 'Something went wrong — try again.' }
+  revalidatePath('/patient/invoices')
+  return { ok: true, url: `/i/${plan.token}` }
+}
+
 export async function requestMyRecordsAction(): Promise<PortalActionResult> {
   const ctx = await requirePatient()
   const body = [

@@ -19,7 +19,17 @@ import {
 } from '@/components/patient-portal/ui'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
 import PayBalanceForm from './pay-form'
+import PlanOffer, { type PlanOption } from './plan-offer'
 import BillingHistory, { type BillingHistoryRow } from './billing-history'
+import {
+  getMyOpenPaymentPlan,
+  planInstallmentCents,
+  planAmountForInstallment,
+  PLAN_MIN_TOTAL_CENTS,
+  PLAN_MIN_INSTALLMENT_CENTS,
+  PLAN_MIN_MONTHS,
+  PLAN_MAX_MONTHS,
+} from '@/lib/services/payment-plans'
 
 const FULFILLMENT_LABELS: Record<string, string> = {
   unfulfilled: 'Being prepared',
@@ -44,13 +54,37 @@ export default async function PortalBillingPage({
     await finalizeBalancePaymentFromSession(ctx.organizationId, sessionId).catch(() => {})
   }
 
-  const [bills, payments, paymentsAvailable] = await Promise.all([
+  const [bills, payments, paymentsAvailable, openPlan] = await Promise.all([
     getMyBills(ctx.patientId, ctx.organizationId),
     getMyBalancePayments(ctx.patientId, ctx.organizationId),
     settings.features.payments ? canTakeBalancePayments(ctx.organizationId) : Promise.resolve(false),
+    // Any open plan (proposed / active / past_due) — shown as a status card;
+    // its existence also hides the split-it offer (one plan at a time).
+    getMyOpenPaymentPlan(ctx.organizationId, ctx.patientId).catch(() => null),
   ])
 
   const hasBalance = bills.pmsBalanceCents != null && bills.pmsBalanceCents > 0
+
+  // Month options for the split-it offer, floors applied server-side so the
+  // client never shows a cadence the propose call would reject.
+  const planOptions: PlanOption[] = []
+  if (
+    hasBalance &&
+    !openPlan &&
+    settings.features.payments &&
+    paymentsAvailable &&
+    bills.pmsBalanceCents! >= PLAN_MIN_TOTAL_CENTS
+  ) {
+    for (let m = PLAN_MIN_MONTHS; m <= PLAN_MAX_MONTHS; m++) {
+      const per = planInstallmentCents(bills.pmsBalanceCents!, m)
+      if (per < PLAN_MIN_INSTALLMENT_CENTS) break
+      planOptions.push({
+        months: m,
+        perCents: per,
+        lastCents: planAmountForInstallment(bills.pmsBalanceCents!, m, m - 1),
+      })
+    }
+  }
   const justPaid = Boolean(sessionId)
 
   // One chronological money trail: balance payments + shop orders. Each row
@@ -110,7 +144,10 @@ export default async function PortalBillingPage({
                 walk through it line by line, in plain language.
               </p>
               {settings.features.payments && paymentsAvailable ? (
-                <PayBalanceForm balanceCents={bills.pmsBalanceCents!} brand={brand} />
+                <>
+                  <PayBalanceForm balanceCents={bills.pmsBalanceCents!} brand={brand} />
+                  <PlanOffer options={planOptions} brand={brand} />
+                </>
               ) : (
                 clinic?.phone && (
                   <p className="mt-3 text-[0.88rem]" style={{ color: PORTAL_MUTED }}>
@@ -150,6 +187,60 @@ export default async function PortalBillingPage({
           )}
         </PortalCard>
       </section>
+
+      {/* Open payment plan — honest live status; a proposed plan links back
+          into the accept flow so an interrupted setup is one tap to finish. */}
+      {openPlan && (
+        <section className="mt-7">
+          <PortalSectionLabel>Your payment plan</PortalSectionLabel>
+          <PortalCard accent={brand}>
+            {openPlan.status === 'proposed' ? (
+              <>
+                <p className="text-[1.05rem] font-semibold" style={{ color: PORTAL_INK }}>
+                  {fmtMoney(openPlan.totalCents)} over {openPlan.installments} monthly payments
+                </p>
+                <p className="mt-1 text-[0.88rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
+                  About {fmtMoney(openPlan.installmentCents)} a month. It isn’t active yet — finish
+                  the two-minute setup to save a card, and the first payment happens then.
+                </p>
+                <a
+                  href={`/i/${openPlan.token}`}
+                  className="mt-3 inline-flex items-center rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white"
+                  style={{ backgroundColor: brand }}
+                >
+                  Finish setting up →
+                </a>
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[1.05rem] font-semibold" style={{ color: PORTAL_INK }}>
+                    {openPlan.installmentsPaid} of {openPlan.installments} payments made
+                  </p>
+                  {openPlan.status === 'past_due' && (
+                    <span
+                      className="rounded-full px-2.5 py-1 text-[0.72rem] font-semibold"
+                      style={{ backgroundColor: '#FBEAE9', color: '#B4231F' }}
+                    >
+                      Payment needs attention
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-[0.88rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
+                  {fmtMoney(openPlan.installmentCents)} a month, charged automatically
+                  {openPlan.nextChargeAt
+                    ? ` — next one ${fmtVisitDayShort(openPlan.nextChargeAt, timeZone)}`
+                    : ''}
+                  .{' '}
+                  {openPlan.status === 'past_due'
+                    ? 'The last charge didn’t go through — we’ll retry, or call us and we’ll sort it out together.'
+                    : 'Questions or need to adjust it? Just message us.'}
+                </p>
+              </>
+            )}
+          </PortalCard>
+        </section>
+      )}
 
       {bills.membership && (
         <section className="mt-7">

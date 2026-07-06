@@ -604,6 +604,45 @@ export interface PaymentPlanView {
   createdAt: Date
 }
 
+/** The patient's own open plan (proposed / active / past_due), for the portal
+ *  Billing page — newest first so a re-proposed plan wins. Null when none. */
+export async function getMyOpenPaymentPlan(
+  organizationId: string,
+  patientId: string,
+): Promise<{
+  id: string
+  token: string
+  status: string
+  totalCents: number
+  installmentCents: number
+  installments: number
+  installmentsPaid: number
+  nextChargeAt: Date | null
+} | null> {
+  const [row] = await db
+    .select({
+      id: schema.paymentPlan.id,
+      token: schema.paymentPlan.token,
+      status: schema.paymentPlan.status,
+      totalCents: schema.paymentPlan.totalCents,
+      installmentCents: schema.paymentPlan.installmentCents,
+      installments: schema.paymentPlan.installments,
+      installmentsPaid: schema.paymentPlan.installmentsPaid,
+      nextChargeAt: schema.paymentPlan.nextChargeAt,
+    })
+    .from(schema.paymentPlan)
+    .where(
+      and(
+        eq(schema.paymentPlan.organizationId, organizationId),
+        eq(schema.paymentPlan.patientId, patientId),
+        inArray(schema.paymentPlan.status, ['proposed', 'active', 'past_due']),
+      ),
+    )
+    .orderBy(desc(schema.paymentPlan.createdAt))
+    .limit(1)
+  return row ?? null
+}
+
 export async function listPaymentPlans(organizationId: string): Promise<PaymentPlanView[]> {
   const rows = await db
     .select({
