@@ -57,7 +57,7 @@ describe('submitForm notifications', () => {
         title: expect.stringContaining('Jane Doe'),
         linkPath: '/patients/pat_1',
       }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: 'jane@example.com' },
     )
   })
 
@@ -77,7 +77,7 @@ describe('submitForm notifications', () => {
         title: expect.stringContaining('Walk-in Guest'),
         linkPath: '/intake-forms',
       }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: 'nobody@example.com' },
     )
   })
 

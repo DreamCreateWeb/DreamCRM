@@ -812,7 +812,7 @@ export async function submitReviewText(input: {
   // followed up) promptly. Best-effort — the completion above is the truth.
   try {
     const [p] = await db
-      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
       .from(schema.patient)
       .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
       .limit(1)
@@ -846,7 +846,11 @@ export async function submitReviewText(input: {
             linkPath: '/reviews/received',
             meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
           },
-      { roles: ['owner', 'admin'] },
+      // Never notify the reviewer about their own review — when the acting
+      // patient's email belongs to a staff-hat user (owner who is also a
+      // patient, or a platform admin demoing), the alert must not land in
+      // the inbox that just submitted it.
+      { roles: ['owner', 'admin'], excludeEmail: p?.email ?? null },
     )
   } catch (err) {
     console.warn('[reviews.submitReviewText] notification failed', err)
@@ -912,7 +916,7 @@ export async function submitPrivateFeedback(input: {
   // touches the public site (privateFeedback is not reviewText).
   try {
     const [p] = await db
-      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
       .from(schema.patient)
       .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
       .limit(1)
@@ -934,7 +938,11 @@ export async function submitPrivateFeedback(input: {
         forceEmail: lowRating,
         meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
       },
-      { roles: ['owner', 'admin'] },
+      // Never notify the reviewer about their own review — when the acting
+      // patient's email belongs to a staff-hat user (owner who is also a
+      // patient, or a platform admin demoing), the alert must not land in
+      // the inbox that just submitted it.
+      { roles: ['owner', 'admin'], excludeEmail: p?.email ?? null },
     )
   } catch (err) {
     console.warn('[reviews.submitPrivateFeedback] notification failed', err)

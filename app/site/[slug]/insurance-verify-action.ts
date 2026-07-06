@@ -125,7 +125,8 @@ export async function submitInsuranceVerifyRequest(
         linkPath: '/leads',
         meta: { sourcePage: 'insurance_verifier' },
       },
-      { roles: ['owner', 'admin'] },
+      // The asker never gets the staff alert about their own question.
+      { roles: ['owner', 'admin'], excludeEmail: email || null },
     )
   } catch (err) {
     console.warn('[insurance-verify] notification failed', err)

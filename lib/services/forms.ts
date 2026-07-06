@@ -395,7 +395,9 @@ export async function submitForm(input: SubmitFormInput): Promise<FormSubmission
         linkPath: patientId ? `/patients/${patientId}` : '/intake-forms',
         meta: { submissionId: row.id, patientId },
       },
-      { roles: ['owner', 'admin'] },
+      // The submitter must never receive the staff alert about their own
+      // submission (owner-as-patient / platform-admin-demoing case).
+      { roles: ['owner', 'admin'], excludeEmail: input.submitterEmail ?? null },
     )
   } catch (err) {
     console.warn('[forms.submitForm] notification failed', err)

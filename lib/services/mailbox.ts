@@ -1168,7 +1168,9 @@ async function ingestMessageById(
         linkPath: `/inbox?m=${parsed.providerMessageId}`,
         meta: { providerMessageId: parsed.providerMessageId, accountId },
       },
-      { roles: ['owner', 'admin'] },
+      // Never re-notify the sender about their own email (a staff member
+      // mailing the shared inbox already knows it arrived).
+      { roles: ['owner', 'admin'], excludeEmail: parsed.fromEmail ?? null },
     )
     // Push to any open inbox tabs — this is the path that fires when
     // Gmail Pub/Sub delivers a new-mail event in real time.

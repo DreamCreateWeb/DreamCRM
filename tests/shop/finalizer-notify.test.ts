@@ -62,7 +62,7 @@ import { finalizeBalancePaymentFromSession } from '@/lib/services/balance-paymen
 
 const PENDING_PAYMENT = { id: 'bp_1', patientId: 'pat_1', amountCents: 12000, status: 'pending' }
 const ACTIVE_CONFIG = { accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd' }
-const PATIENT = { firstName: 'Mia', lastName: 'Hayes' }
+const PATIENT = { firstName: 'Mia', lastName: 'Hayes', email: 'mia@example.com' }
 const CLINIC = { email: 'frontdesk@acme.example' }
 
 beforeEach(() => {
@@ -84,7 +84,7 @@ describe('finalizeBalancePaymentFromSession notifications', () => {
     expect(notifySpy).toHaveBeenCalledTimes(1)
     const [, payload, opts] = notifySpy.mock.calls[0]
     expect((payload as { title: string }).title).toContain('$120.00')
-    expect(opts).toEqual({ roles: ['owner', 'admin'] })
+    expect(opts).toEqual({ roles: ['owner', 'admin'], excludeEmail: 'mia@example.com' })
     expect(emailSpy).toHaveBeenCalledTimes(1)
     expect((emailSpy.mock.calls[0][0] as { to: string }).to).toBe('frontdesk@acme.example')
   })

@@ -566,7 +566,7 @@ export async function claimOffer(
   // Staff heads-up.
   try {
     const [p] = await db
-      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
       .from(schema.patient)
       .where(eq(schema.patient.id, offer.patientId))
       .limit(1)
@@ -583,7 +583,8 @@ export async function claimOffer(
         linkPath: `/appointments?appt=${newApptId}`,
         meta: { appointmentId: newApptId, patientId: offer.patientId },
       },
-      { roles: ['owner', 'admin'] },
+      // The claiming patient never gets the staff alert about their own claim.
+      { roles: ['owner', 'admin'], excludeEmail: p?.email ?? null },
     )
   } catch (err) {
     console.warn('[waitlist] staff notification failed', err)

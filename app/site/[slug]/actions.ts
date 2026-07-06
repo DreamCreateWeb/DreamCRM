@@ -125,7 +125,8 @@ export async function submitContactRequest(formData: FormData) {
         linkPath: '/leads',
         meta: { sourcePage },
       },
-      { roles: ['owner', 'admin'] },
+      // The enquirer never gets the staff alert about their own enquiry.
+      { roles: ['owner', 'admin'], excludeEmail: email ?? null },
     )
   } catch (err) {
     console.warn('[clinic-site] lead notification failed', err)
@@ -615,7 +616,10 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
         linkLabel: `View ${firstName}’s record →`,
         meta: { appointmentId: apptId, patientId },
       },
-      { roles: ['owner', 'admin'] },
+      // The booking patient never gets the staff alert about their own
+      // booking — THE demo-day bug: a platform admin (or the owner) books
+      // with their own email and the front-desk ping lands in their inbox.
+      { roles: ['owner', 'admin'], excludeEmail: email ?? null },
     )
   } catch (err) {
     console.warn('[clinic-site] booking notification failed', err)

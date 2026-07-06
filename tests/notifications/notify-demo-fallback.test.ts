@@ -11,6 +11,7 @@ vi.mock('@/lib/db', () => {
   const chain = () => {
     const obj: Record<string, unknown> = {}
     obj.from = () => obj
+    obj.innerJoin = () => obj
     obj.where = () => obj
     obj.limit = async () => state.selectQueue.shift() ?? []
     obj.then = (resolve: (v: unknown) => void) => resolve(state.selectQueue.shift() ?? [])
@@ -55,7 +56,7 @@ describe('notifyOrgMembers demo fallback', () => {
   it('routes demo-org events to platform admins when the org has no members', async () => {
     state.selectQueue.push([]) // member lookup → none
     state.selectQueue.push([{ isDemo: true }]) // org → demo
-    state.selectQueue.push([{ userId: 'admin_1' }]) // platform admins
+    state.selectQueue.push([{ userId: 'admin_1', email: 'admin@x.com' }]) // platform admins
     state.selectQueue.push([]) // notify(): prefs → defaults (comments on)
     state.selectQueue.push([{ email: null, name: 'Admin' }]) // email lookup → no email send
 
@@ -75,7 +76,7 @@ describe('notifyOrgMembers demo fallback', () => {
   })
 
   it('does not consult the demo fallback when members exist', async () => {
-    state.selectQueue.push([{ userId: 'owner_1' }]) // member lookup → owner
+    state.selectQueue.push([{ userId: 'owner_1', email: 'owner@x.com' }]) // member lookup → owner
     state.selectQueue.push([]) // notify(): prefs → defaults
     state.selectQueue.push([{ email: null, name: 'Owner' }]) // email lookup
 

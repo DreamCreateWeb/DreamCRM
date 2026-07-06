@@ -387,7 +387,7 @@ export async function finalizeMembershipFromSession(organizationId: string, sess
   // Only the race winner notifies the clinic (best-effort, never blocks).
   if (claimed.length > 0) {
     const [pat] = await db
-      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
       .from(schema.patient)
       .where(eq(schema.patient.id, m.patientId))
       .limit(1)
@@ -397,6 +397,7 @@ export async function finalizeMembershipFromSession(organizationId: string, sess
       title: `New member — ${planName}`,
       body: `${who} just joined ${planName}.`,
       linkPath: '/shop/memberships',
+      excludeEmail: pat?.email ?? null,
     })
   }
   return { active: true, planName }
@@ -411,6 +412,8 @@ async function notifyMembershipJoined(input: {
   title: string
   body: string
   linkPath: string
+  /** The joining patient's email — they never get the staff alert about themselves. */
+  excludeEmail?: string | null
 }): Promise<void> {
   try {
     await notifyOrgMembers(
@@ -418,7 +421,7 @@ async function notifyMembershipJoined(input: {
       // 'comments' = clinic "Patient activity" bucket (default ON) — a patient
       // joining a plan is patient activity, not 'offers' (billing/platform, OFF).
       { bucket: 'comments', type: 'membership_joined', title: input.title, body: input.body, linkPath: input.linkPath },
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: input.excludeEmail ?? null },
     )
   } catch (err) {
     console.warn('[membership] notifyOrgMembers failed', err)

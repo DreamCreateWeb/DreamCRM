@@ -228,7 +228,8 @@ export async function rescheduleMyVisitAction(
       body: `${reName} moved their visit to ${await fmtNotifyDate(ctx.organizationId, newStart)}.`,
       linkPath: '/appointments',
     },
-    { roles: ['owner', 'admin'] },
+    // The acting patient never gets the staff alert about their own change.
+    { roles: ['owner', 'admin'], excludeEmail: ctx.userEmail ?? null },
   )
 
   revalidateVisits()
@@ -337,7 +338,8 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
       body: `${patientName} booked ${label.toLowerCase()} for ${await fmtNotifyDate(ctx.organizationId, startTime)}.`,
       linkPath: '/appointments',
     },
-    { roles: ['owner', 'admin'] },
+    // The acting patient never gets the staff alert about their own booking.
+    { roles: ['owner', 'admin'], excludeEmail: ctx.userEmail ?? null },
   )
 
   revalidateVisits()

@@ -344,7 +344,7 @@ export async function recordNpsScore(token: string, score: number): Promise<bool
   if (score <= 6) {
     try {
       const [p] = await db
-        .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+        .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
         .from(schema.patient)
         .where(eq(schema.patient.id, row.patientId))
         .limit(1)
@@ -360,7 +360,9 @@ export async function recordNpsScore(token: string, score: number): Promise<bool
           linkPath: `/patients/${row.patientId}`,
           linkLabel: `Open ${who.split(' ')[0]}’s record →`,
         },
-        { roles: ['owner', 'admin'] },
+        // Never notify the scorer about their own score (owner-as-patient /
+        // platform-admin-demoing case — same posture as reviews + messaging).
+        { roles: ['owner', 'admin'], excludeEmail: p?.email ?? null },
       )
     } catch (err) {
       console.warn('[nps] detractor escalation failed', err)

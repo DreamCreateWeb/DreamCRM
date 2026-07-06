@@ -185,7 +185,7 @@ export async function finalizeBalancePaymentFromSession(
   // this to the PMS ledger. Best-effort; never blocks finalize.
   if (claimed.length > 0) {
     const [pat] = await db
-      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
       .from(schema.patient)
       .where(eq(schema.patient.id, payment.patientId))
       .limit(1)
@@ -193,6 +193,7 @@ export async function finalizeBalancePaymentFromSession(
     const amount = `$${(payment.amountCents / 100).toFixed(2)}`
     await notifyBalancePaymentReceived({
       organizationId,
+      excludeEmail: pat?.email ?? null,
       title: `Online payment — ${amount}`,
       body: `${who} paid ${amount} toward their balance online. Post it to your PMS ledger when you get a chance.`,
       linkPath: '/shop/payments',
@@ -210,6 +211,8 @@ async function notifyBalancePaymentReceived(input: {
   title: string
   body: string
   linkPath: string
+  /** The paying patient's email — they never get the staff alert about themselves. */
+  excludeEmail?: string | null
 }): Promise<void> {
   try {
     await notifyOrgMembers(
@@ -217,7 +220,7 @@ async function notifyBalancePaymentReceived(input: {
       // 'comments' = clinic "Patient activity" bucket (default ON) — a patient
       // paying their balance is patient activity, not 'offers' (billing, OFF).
       { bucket: 'comments', type: 'balance_payment_paid', title: input.title, body: input.body, linkPath: input.linkPath },
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: input.excludeEmail ?? null },
     )
   } catch (err) {
     console.warn('[balance-payments] notifyOrgMembers failed', err)

@@ -222,7 +222,8 @@ describe('rescheduleMyVisitAction', () => {
     expect(notifyOrgMembers).toHaveBeenCalledWith(
       'org_1',
       expect.objectContaining({ type: 'portal_reschedule' }),
-      { roles: ['owner', 'admin'] },
+      // The acting portal patient is excluded from their own staff ping.
+      { roles: ['owner', 'admin'], excludeEmail: 'mia@example.com' },
     )
   })
 

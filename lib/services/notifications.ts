@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
@@ -132,20 +132,31 @@ export async function notify(input: NotifyInput): Promise<void> {
 export async function notifyOrgMembers(
   organizationId: string,
   input: Omit<NotifyInput, 'userId' | 'organizationId'>,
-  opts: { roles?: string[] } = {},
+  opts: {
+    roles?: string[]
+    /**
+     * Login email of the person whose ACTION triggered this alert (e.g. the
+     * patient who just sent the message / left the feedback). Any recipient
+     * whose account uses this email is skipped — nobody needs a staff alert
+     * about their own action, and without this a dentist-owner who is also a
+     * patient of their own clinic (or a platform admin booking a fake visit
+     * mid-demo) receives internal staff mail at the "patient's" inbox.
+     */
+    excludeEmail?: string | null
+  } = {},
 ): Promise<void> {
   try {
+    // Staff alerts NEVER go to patient-role members — enforced HERE, not just
+    // at call sites, so a future caller that forgets a roles filter can't
+    // leak internal notifications to patients (defense in depth).
     const rolesFilter = opts.roles?.length
       ? inArray(schema.member.role, opts.roles)
-      : undefined
+      : ne(schema.member.role, 'patient')
     let rows = await db
-      .select({ userId: schema.member.userId })
+      .select({ userId: schema.member.userId, email: schema.user.email })
       .from(schema.member)
-      .where(
-        rolesFilter
-          ? and(eq(schema.member.organizationId, organizationId), rolesFilter)
-          : eq(schema.member.organizationId, organizationId),
-      )
+      .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+      .where(and(eq(schema.member.organizationId, organizationId), rolesFilter))
 
     // Demo orgs have no real members (the "View as clinic" context is
     // synthesized from a cookie, not a membership row), so org events would
@@ -160,15 +171,20 @@ export async function notifyOrgMembers(
         .limit(1)
       if (org?.isDemo) {
         rows = await db
-          .select({ userId: schema.user.id })
+          .select({ userId: schema.user.id, email: schema.user.email })
           .from(schema.user)
           .where(eq(schema.user.platformAdmin, true))
           .limit(10)
       }
     }
 
+    const excluded = opts.excludeEmail?.trim().toLowerCase() || null
+    const recipients = excluded
+      ? rows.filter((r) => (r.email ?? '').toLowerCase() !== excluded)
+      : rows
+
     await Promise.all(
-      rows.map((r) =>
+      recipients.map((r) =>
         notify({ ...input, userId: r.userId, organizationId }),
       ),
     )

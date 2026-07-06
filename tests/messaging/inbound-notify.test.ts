@@ -67,7 +67,7 @@ beforeEach(() => {
 function queueInbound(threadExists = true) {
   state.selectQueue.push([{ id: 'pat_1' }]) // assertPatientInOrg
   state.selectQueue.push(threadExists ? [{ id: 'thr_1' }] : []) // existing thread
-  state.selectQueue.push([{ firstName: 'Sophia', lastName: 'Reyes' }]) // notify name lookup
+  state.selectQueue.push([{ firstName: 'Sophia', lastName: 'Reyes', email: 'sophia@example.com' }]) // notify name lookup
 }
 
 describe('recordInboundMessage notifications', () => {
@@ -87,7 +87,9 @@ describe('recordInboundMessage notifications', () => {
         title: expect.stringContaining('Sophia Reyes'),
         linkPath: '/messages?thread=thr_1',
       }),
-      { roles: ['owner', 'admin'] },
+      // Sophia's own email is excluded — a staff-hat user who IS the patient
+      // must never get the staff alert about their own message (the demo bug).
+      { roles: ['owner', 'admin'], excludeEmail: 'sophia@example.com' },
     )
   })
 

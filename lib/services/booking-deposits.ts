@@ -161,7 +161,7 @@ export async function finalizeBookingDepositFromSession(
   if (!deposit) return null
 
   const [pat] = await db
-    .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+    .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
     .from(schema.patient)
     .where(eq(schema.patient.id, deposit.patientId))
     .limit(1)
@@ -219,7 +219,8 @@ export async function finalizeBookingDepositFromSession(
           body: `${who} paid a ${amount} deposit with their online booking. It's credited toward their visit — post it to your PMS ledger when you get a chance.`,
           linkPath: '/shop/payments',
         },
-        { roles: ['owner', 'admin'] },
+        // The paying patient never gets the staff alert about their own deposit.
+        { roles: ['owner', 'admin'], excludeEmail: pat?.email ?? null },
       )
     } catch (err) {
       console.warn('[booking-deposits] notify failed', err)

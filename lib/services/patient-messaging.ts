@@ -963,7 +963,7 @@ export async function recordInboundMessage(input: {
   // to refresh /messages. Best-effort — the message row above is the truth.
   try {
     const [p] = await db
-      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+      .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName, email: schema.patient.email })
       .from(schema.patient)
       .where(and(eq(schema.patient.organizationId, input.organizationId), eq(schema.patient.id, input.patientId)))
       .limit(1)
@@ -979,7 +979,11 @@ export async function recordInboundMessage(input: {
         linkPath: `/messages?thread=${threadId}`,
         meta: { threadId, messageId, channel: input.channel },
       },
-      { roles: ['owner', 'admin'] },
+      // excludeEmail: the sender never gets a staff alert about their own
+      // message — without it, an owner who is also a patient of their own
+      // clinic (or a demoing admin booking a fake visit) sees internal staff
+      // mail land in the "patient's" inbox.
+      { roles: ['owner', 'admin'], excludeEmail: p?.email ?? null },
     )
   } catch (err) {
     console.warn('[patient-messaging.recordInboundMessage] notification failed', err)

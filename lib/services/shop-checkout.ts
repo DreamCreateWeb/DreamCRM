@@ -307,6 +307,7 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
       : ''
   await notifyOrderReceived({
     organizationId: order.organizationId,
+    excludeEmail: order.email ?? null,
     title: `Paid order — ${itemCount} ${itemCount === 1 ? 'item' : 'items'}, ${dollarsFromCents(orderTotalCents)}`,
     body: `${order.name || order.email} just paid for ${items.map((it) => `${it.quantity}× ${it.productName}`).join(', ') || 'an order'}.${oversoldNote}`,
     linkPath: '/shop/orders',
@@ -376,6 +377,8 @@ async function notifyOrderReceived(input: {
   title: string
   body: string
   linkPath: string
+  /** The buyer's email — they never get the staff alert about their own order. */
+  excludeEmail?: string | null
 }): Promise<void> {
   try {
     await notifyOrgMembers(
@@ -383,7 +386,7 @@ async function notifyOrderReceived(input: {
       // 'comments' = clinic "Patient activity" bucket (default ON), the right
       // home for "a patient just paid you" — not 'offers' (billing/platform, OFF).
       { bucket: 'comments', type: 'shop_order_paid', title: input.title, body: input.body, linkPath: input.linkPath },
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: input.excludeEmail ?? null },
     )
   } catch (err) {
     console.warn('[shop-checkout] notifyOrgMembers failed', err)

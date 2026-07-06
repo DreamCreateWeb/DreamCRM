@@ -312,7 +312,7 @@ describe('claimOffer', () => {
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
       expect.objectContaining({ type: 'waitlist_claimed', title: expect.stringContaining('Mia Hayes') }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: null },
     )
     expect(queueCommLogMock).toHaveBeenCalled()
   })

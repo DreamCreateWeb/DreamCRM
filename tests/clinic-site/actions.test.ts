@@ -252,7 +252,8 @@ describe('submitContactRequest', () => {
         title: expect.stringContaining('Jane Doe'),
         linkPath: '/leads',
       }),
-      { roles: ['owner', 'admin'] },
+      // The enquirer's own email is excluded — never staff-alert the actor.
+      { roles: ['owner', 'admin'], excludeEmail: 'jane@example.com' },
     )
   })
 
@@ -414,7 +415,9 @@ describe('submitBookingRequest', () => {
         linkPath: expect.stringMatching(/^\/patients\/.+/),
         linkLabel: expect.stringContaining('Jane'),
       }),
-      { roles: ['owner', 'admin'] },
+      // THE demo-day regression: the booking email must never receive the
+      // front-desk ping about its own booking.
+      { roles: ['owner', 'admin'], excludeEmail: 'jane@x.com' },
     )
   })
 

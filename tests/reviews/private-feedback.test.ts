@@ -111,7 +111,7 @@ describe('submitPrivateFeedback', () => {
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
       expect.objectContaining({ type: 'review_low_rating', forceEmail: true, linkPath: '/reviews' }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })
 
@@ -121,7 +121,7 @@ describe('submitPrivateFeedback', () => {
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
       expect.objectContaining({ type: 'private_feedback', forceEmail: false }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })
 

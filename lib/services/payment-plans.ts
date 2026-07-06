@@ -459,7 +459,7 @@ async function chargePlanInstallment(
       note: `Payment plan installment ${paid} of ${plan.installments} charged (${fmtDollars(amount)}).`,
       mode: 'Email',
     }).catch(() => {})
-    await notifyPlanEvent(plan.organizationId, {
+    await notifyPlanEvent(plan.organizationId, plan.patientId, {
       title: done
         ? `Payment plan completed — ${fmtDollars(plan.totalCents)} fully collected`
         : `Payment plan charge — ${fmtDollars(amount)} (${paid} of ${plan.installments})`,
@@ -481,7 +481,7 @@ async function chargePlanInstallment(
         updatedAt: new Date(),
       })
       .where(eq(schema.paymentPlan.id, plan.id))
-    await notifyPlanEvent(plan.organizationId, {
+    await notifyPlanEvent(plan.organizationId, plan.patientId, {
       title: `Payment plan charge failed (attempt ${attempts} of ${MAX_FAILED_ATTEMPTS})`,
       body: parked
         ? 'We’ve stopped retrying — reach out to the patient for a new card.'
@@ -494,13 +494,22 @@ async function chargePlanInstallment(
 /** Best-effort staff ping (in-app owners/admins + the clinic inbox). */
 async function notifyPlanEvent(
   organizationId: string,
+  patientId: string,
   input: { title: string; body: string },
 ): Promise<void> {
   try {
+    // The plan's patient never gets the staff alert about their own plan —
+    // when their email doubles as a staff-hat user's (owner-as-patient /
+    // demoing admin), the "reach out to the patient" ping must not reach them.
+    const [pat] = await db
+      .select({ email: schema.patient.email })
+      .from(schema.patient)
+      .where(eq(schema.patient.id, patientId))
+      .limit(1)
     await notifyOrgMembers(
       organizationId,
       { bucket: 'comments', type: 'payment_plan', title: input.title, body: input.body, linkPath: '/shop/collections' },
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: pat?.email ?? null },
     )
   } catch {
     /* best-effort */

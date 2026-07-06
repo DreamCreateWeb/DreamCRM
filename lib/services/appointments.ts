@@ -956,7 +956,9 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
           linkLabel: patientRecordLinkLabel(notifyCtx.patientName),
           meta: { appointmentId, patientId: notifyCtx.patientId },
         },
-        { roles: ['owner', 'admin'] },
+        // Staff alert about this patient must never land in that patient's
+        // own inbox (owner-as-patient / demoing-admin case).
+        { roles: ['owner', 'admin'], excludeEmail: notifyCtx.patientEmail ?? null },
       )
     } catch (err) {
       console.warn('[appointments.cancelAppointment] notification failed', err)
@@ -1166,7 +1168,9 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
           linkLabel: patientRecordLinkLabel(notifyCtx.patientName),
           meta: { appointmentId, patientId: notifyCtx.patientId },
         },
-        { roles: ['owner', 'admin'] },
+        // Staff alert about this patient must never land in that patient's
+        // own inbox (owner-as-patient / demoing-admin case).
+        { roles: ['owner', 'admin'], excludeEmail: notifyCtx.patientEmail ?? null },
       )
     } catch (err) {
       console.warn('[appointments.markNoShow] notification failed', err)

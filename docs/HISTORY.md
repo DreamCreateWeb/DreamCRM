@@ -7,6 +7,30 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Staff-alert misdirection fix (2026-07-06).** Demo-day bug: the owner
+  booked a fake visit with his own email mid-demo and the FRONT-DESK ping
+  ("New appointment request via the website") landed in the inbox he booked
+  with — his email doubles as a staff-hat account (platform admin via the
+  demo-org fallback; real-world analog: a dentist-owner who is a patient of
+  their own clinic). Fixed at the chokepoint + every seam: (1)
+  `notifyOrgMembers` HARD-excludes `role='patient'` members in the query
+  when a caller passes no roles filter (defense in depth) and gains
+  `excludeEmail` — the person the alert is ABOUT is filtered from recipients
+  case-insensitively, including the demo-org platform-admin fallback; (2)
+  all 15 patient/public-actor notify sites now pass the actor's email:
+  inbound messages + chat widget (patient-messaging), review submit +
+  private feedback (reviews), NPS detractor (nps), intake submissions
+  (forms), fast-pass claims (appointment-waitlist), cancel/no-show pings
+  (appointments), membership joins, balance payments, booking deposits,
+  shop orders, payment-plan charge events, Gmail ingest (sender never
+  re-notified), portal reschedule/booking, public-site lead + booking +
+  insurance-verify actions. Left alone deliberately: prospecting alerts
+  (the owner IS the recipient), Stripe billing webhooks (a clinic's own
+  subscription events must reach the owner), pms-sync. New guard suite
+  `tests/notifications/notify-exclusions.test.ts`; the booking/messaging/
+  intake test mocks now carry emails so the exclusions are pinned as
+  regression tests.
+
 - **Consolidation pass C1–C3 (2026-07-06, `5c9c856` + `b0db8b7` + this).**
   Owner-driven "shared assets over individually-set things": **C1 portal**
   — semantic tone tokens (PORTAL_ERROR/WARN/SUCCESS/DANGER, 38 raw hexes

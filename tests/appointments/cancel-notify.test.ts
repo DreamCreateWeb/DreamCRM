@@ -124,7 +124,8 @@ describe('cancelAppointment notifications', () => {
         linkPath: '/patients/pat_1',
         linkLabel: 'View Mia’s record →',
       }),
-      { roles: ['owner', 'admin'] },
+      // …and never to the patient the alert is about (staff-hat-as-patient case).
+      { roles: ['owner', 'admin'], excludeEmail: 'mia@example.com' },
     )
   })
 
@@ -187,7 +188,7 @@ describe('markNoShow notifications', () => {
         linkPath: '/patients/pat_1',
         linkLabel: 'View Aiden’s record →',
       }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: 'aiden@example.com' },
     )
     // A no-show never sends the "your visit was cancelled" CONFIRMATION…
     expect(sendCancellationMock).not.toHaveBeenCalled()

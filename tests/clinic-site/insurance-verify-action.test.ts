@@ -221,7 +221,7 @@ describe('submitInsuranceVerifyRequest', () => {
         title: expect.stringContaining('Jane Doe'),
         linkPath: '/leads',
       }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: 'jane@example.com' },
     )
   })
 

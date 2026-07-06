@@ -114,7 +114,7 @@ describe('submitReviewText notifications', () => {
         title: expect.stringContaining('5★'),
         linkPath: '/reviews/received',
       }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })
 
@@ -130,7 +130,7 @@ describe('submitReviewText notifications', () => {
         title: expect.stringContaining('before it goes public'),
         linkPath: '/reviews/received',
       }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })
 
@@ -141,7 +141,7 @@ describe('submitReviewText notifications', () => {
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
       expect.objectContaining({ type: 'review_submitted' }),
-      { roles: ['owner', 'admin'] },
+      { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })
 
