@@ -127,6 +127,37 @@ describe('page navigator', () => {
   })
 })
 
+describe('Studio undo history (the walk-back safety net)', () => {
+  const actions = read('app/(default)/website/website-actions.ts')
+  const history = read('lib/services/website-history.ts')
+  it('every writeSection records the overwritten values BEFORE the update, best-effort', () => {
+    // recordWebsiteEdit must appear inside writeSection, before the db.update,
+    // wrapped in try/catch (a history hiccup must never block a save).
+    const body = actions.slice(actions.indexOf('async function writeSection'))
+    const record = body.indexOf('recordWebsiteEdit')
+    const update = body.indexOf('.update(clinicProfile)')
+    expect(record).toBeGreaterThan(-1)
+    expect(update).toBeGreaterThan(record)
+    expect(body.slice(0, record)).toContain('try {')
+  })
+  it('undo restores the head entry and deletes it (one-way walk back, no redo)', () => {
+    expect(history).toMatch(/undoLastWebsiteEdit/)
+    expect(history).toMatch(/\.delete\(websiteEditHistory\)/)
+    expect(history).toMatch(/WEBSITE_HISTORY_CAP = 20/)
+  })
+  it('the undo action is owner/admin-gated and revalidates the site subtree', () => {
+    expect(actions).toMatch(/export async function undoLastEditAction/)
+    const undoBody = actions.slice(actions.indexOf('undoLastEditAction'))
+    expect(undoBody).toMatch(/await gate\(\)/)
+    expect(undoBody).toMatch(/revalidatePath\(`\/site\/\$\{gated\.ctx\.organizationSlug\}`, 'layout'\)/)
+  })
+  it('the ↩ Undo button is mounted, confirm-gated, and disabled with no history', () => {
+    expect(studio).toMatch(/undoLastEditAction\(\)/)
+    expect(studio).toMatch(/disabled=\{!undoLabel \|\| undoBusy\}/)
+    expect(studio).toMatch(/Undo your last change\?/)
+  })
+})
+
 describe('brand color in the Studio', () => {
   const actions = read('app/(default)/website/website-actions.ts')
   const popover = read('app/(default)/website/brand-color-popover.tsx')
@@ -134,8 +165,9 @@ describe('brand color in the Studio', () => {
     expect(actions).toMatch(/saveBrandColor/)
     expect(actions).toMatch(/\^#\[0-9a-fA-F\]\{6\}\$/)
   })
-  it('the popover is mounted in the top bar and repaints the canvas on save', () => {
-    expect(studio).toMatch(/<BrandColorPopover[\s\S]{0,200}onSaved=\{\(\) => reloadFrame\(\)\}/)
+  it('the popover is mounted in the top bar and repaints the canvas (and arms Undo) on save', () => {
+    expect(studio).toMatch(/<BrandColorPopover[\s\S]{0,300}reloadFrame\(\)/)
+    expect(studio).toMatch(/<BrandColorPopover[\s\S]{0,300}setUndoLabel/)
   })
   it('client-side gate mirrors the server regex (Save disabled until a valid hex)', () => {
     expect(popover).toMatch(/\^#\[0-9a-fA-F\]\{6\}\$/)

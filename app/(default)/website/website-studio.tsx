@@ -47,6 +47,7 @@ import {
   saveLeadForm,
   saveHours,
   saveDifferenceVideo,
+  undoLastEditAction,
   type SectionResult,
 } from './website-actions'
 import { isValidVideoUrl } from '@/lib/website-url'
@@ -64,6 +65,8 @@ interface Props {
   /** The page-navigator entries (gated server-side, same truth as the public
    *  nav) — paths relative to /site/<slug>, '' = homepage. */
   pages: StudioPage[]
+  /** Label of the newest undo-history entry (null = nothing to undo yet). */
+  lastEditLabel: string | null
 }
 
 import type { SitePerformance } from '@/lib/services/site-analytics'
@@ -190,9 +193,15 @@ const btnSecondary =
  * half: it calls the server actions (persistence is always gated server-side),
  * reloads the canvas on success, and renders the image / section modals on top.
  */
-export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, performance, pages }: Props) {
+export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, performance, pages, lastEditLabel }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [status, setStatus] = useState<Status>('idle')
+  // The undo-history head. Server-seeded; any successful save arms it (the
+  // exact label is only known server-side, so post-save it reads generically
+  // until the next undo response refreshes it).
+  const [undoLabel, setUndoLabel] = useState<string | null>(lastEditLabel)
+  const [undoBusy, setUndoBusy] = useState(false)
+  const confirmUndo = useConfirm()
   const [showPerf, setShowPerf] = useState(false)
   // Desktop vs phone canvas width. Most patients see the site on a phone, so
   // the owner should be able to check that view without leaving the Studio —
@@ -436,6 +445,8 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     const res = await fn()
     if (res.ok) {
       setStatus('saved')
+      // Every successful save pushes a new undo-history head server-side.
+      setUndoLabel('your last change')
       // Fire any pre-reload hook (e.g. the inline saved-tick) while the canvas
       // still holds the edited element, before the reload re-renders it.
       onOkBeforeReload?.()
@@ -562,11 +573,46 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
             onUsage={setAiUsage}
             onSaved={() => reloadFrame()}
           />
+          {/* Undo — walk back through the last saves (server-side history;
+              one-way, no redo). Disabled until something has been saved. */}
+          <button
+            type="button"
+            onClick={async () => {
+              if (!undoLabel || undoBusy) return
+              const ok = await confirmUndo({
+                title: 'Undo your last change?',
+                message:
+                  undoLabel === 'your last change'
+                    ? 'Restores what was there before your last save. You can keep undoing to walk further back.'
+                    : `Restores “${undoLabel}” to what it was before. You can keep undoing to walk further back.`,
+                confirmLabel: 'Undo',
+              })
+              if (!ok) return
+              setUndoBusy(true)
+              const res = await undoLastEditAction()
+              setUndoBusy(false)
+              if (res.ok) {
+                setUndoLabel(res.more ? (res.nextLabel ?? 'previous change') : null)
+                reloadFrame()
+              } else {
+                setStatus('error')
+                setErrorMsg(res.error)
+              }
+            }}
+            disabled={!undoLabel || undoBusy}
+            title={undoLabel ? `Undo: ${undoLabel}` : 'Nothing to undo yet'}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-300 hover:text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-300"
+          >
+            ↩ {undoBusy ? 'Undoing…' : 'Undo'}
+          </button>
           {/* Brand color — the palette's single lever, editable where the
               owner can watch the whole site repaint. */}
           <BrandColorPopover
             initial={profile.brandColor ?? '#9CAF9F'}
-            onSaved={() => reloadFrame()}
+            onSaved={() => {
+              setUndoLabel('your last change')
+              reloadFrame()
+            }}
           />
           {/* Desktop / phone canvas toggle — most patients are on a phone, so
               checking that view should be one click, not devtools. */}

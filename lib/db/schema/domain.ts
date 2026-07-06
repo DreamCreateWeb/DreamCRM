@@ -712,6 +712,29 @@ export const sitePageview = pgTable(
 export type SitePageview = typeof sitePageview.$inferSelect
 export type NewSitePageview = typeof sitePageview.$inferInsert
 
+// Website Studio edit history — one row per save, holding the PREVIOUS value
+// of every clinic_profile column that save overwrote, so the owner can walk
+// back ("undo my last change") in a Studio where every save goes live
+// instantly. Capped per org (newest N kept) by the writer; undo restores a
+// row's columns and deletes the row (a one-way walk back, no redo).
+export const websiteEditHistory = pgTable(
+  'website_edit_history',
+  {
+    id: serial('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    /** Owner-readable label of what the save changed ("Hero headline", "About
+     *  your practice", "Brand color"). */
+    label: text('label').notNull(),
+    /** The overwritten columns' previous values: { column: previousValue }. */
+    previous: jsonb('previous').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('website_edit_history_org_created_idx').on(t.organizationId, t.createdAt)]
+)
+export type WebsiteEditHistory = typeof websiteEditHistory.$inferSelect
+
 export type Customer = typeof customers.$inferSelect
 export type NewCustomer = typeof customers.$inferInsert
 export type Order = typeof orders.$inferSelect

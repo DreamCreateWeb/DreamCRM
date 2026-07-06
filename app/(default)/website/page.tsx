@@ -11,6 +11,7 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { buildStudioPages } from '@/lib/clinic-site-helpers'
+import { getLastWebsiteEdit } from '@/lib/services/website-history'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import WebsiteStudio from './website-studio'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -76,6 +77,8 @@ export default async function WebsiteEditorPage() {
     listActivePlans(ctx.organizationId).catch(() => []),
     getOpenJobs(ctx.organizationId).catch(() => []),
   ])
+  // Undo-history head — arms the Studio's ↩ Undo button on load.
+  const lastEdit = await getLastWebsiteEdit(ctx.organizationId).catch(() => null)
   const pages = buildStudioPages({
     hasTeam: ((profile.staff as ClinicStaff[] | null) ?? []).length > 0,
     hasBlog: posts.length > 0,
@@ -93,6 +96,7 @@ export default async function WebsiteEditorPage() {
       initialAiUsage={aiUsage}
       performance={performance}
       pages={pages}
+      lastEditLabel={lastEdit?.label ?? null}
     />
   )
 }

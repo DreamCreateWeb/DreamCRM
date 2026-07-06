@@ -18,6 +18,7 @@ import {
   parseHours,
   clean,
 } from '@/lib/clinic-content-parse'
+import { recordWebsiteEdit, undoLastWebsiteEdit } from '@/lib/services/website-history'
 
 /**
  * Per-section server actions for the Website Editor (app/(default)/website).
@@ -49,11 +50,59 @@ async function gate(): Promise<
   return { ok: true, ctx }
 }
 
-/** Scoped column write + revalidate the editor and the whole public-site subtree. */
+// Owner-readable labels for the undo history ("Undo: About your practice").
+// Single-column saves get their column's label; multi-column saves join them.
+const COLUMN_LABELS: Record<string, string> = {
+  about: 'About your practice',
+  stats: 'Trust stats',
+  staff: 'Meet the team',
+  officePhotos: 'Office photos',
+  faq: 'FAQ',
+  acceptedInsuranceCarriers: 'Insurance carriers',
+  paymentMethods: 'Payment methods',
+  financingPartners: 'Financing partners',
+  cancellationPolicy: 'Cancellation policy',
+  differenceChips: '“Why us” highlights',
+  leadForms: 'Form fields',
+  hours: 'Office hours',
+  differenceVideoUrl: 'Intro video',
+  heroImageUrl: 'Hero image',
+  heroImageUrl2: 'Second hero image',
+  logoUrl: 'Logo',
+  brandColor: 'Brand color',
+  tagline: 'Hero tagline',
+  copyOverrides: 'Text edit',
+  imagePositions: 'Photo focus point',
+}
+
+function editLabel(set: Partial<typeof clinicProfile.$inferInsert>): string {
+  const labels = Object.keys(set).map((k) => COLUMN_LABELS[k] ?? k)
+  return Array.from(new Set(labels)).slice(0, 3).join(' + ') || 'Website edit'
+}
+
+/** Scoped column write + revalidate the editor and the whole public-site
+ *  subtree. Records the overwritten values in the undo history first —
+ *  best-effort: a history hiccup must never block a save. */
 async function writeSection(
   ctx: TenantContext,
   set: Partial<typeof clinicProfile.$inferInsert>,
 ) {
+  try {
+    const [current] = await db
+      .select()
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, ctx.organizationId))
+      .limit(1)
+    if (current) {
+      const previous: Record<string, unknown> = {}
+      for (const key of Object.keys(set)) {
+        previous[key] = (current as Record<string, unknown>)[key] ?? null
+      }
+      await recordWebsiteEdit(ctx.organizationId, editLabel(set), previous)
+    }
+  } catch {
+    /* history is a safety net, not a gate */
+  }
   await db
     .update(clinicProfile)
     .set({ ...set, updatedAt: new Date() })
@@ -62,6 +111,27 @@ async function writeSection(
   // 'layout' revalidates the entire /site/[slug] subtree (home + /faq +
   // /insurance + /team + /payment-financing + …) in one call.
   revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
+}
+
+/**
+ * Undo the owner's last Studio save — restores the overwritten values and
+ * steps the history back one entry. Returns the undone label + whether more
+ * history remains (drives the button's enabled state without a refetch).
+ */
+export async function undoLastEditAction(): Promise<
+  { ok: true; undone: string; more: boolean; nextLabel: string | null } | { ok: false; error: string }
+> {
+  const gated = await gate()
+  if (!gated.ok) return gated
+  try {
+    const res = await undoLastWebsiteEdit(gated.ctx.organizationId)
+    if (!res) return { ok: false, error: 'Nothing to undo yet' }
+    revalidatePath('/website')
+    revalidatePath(`/site/${gated.ctx.organizationSlug}`, 'layout')
+    return { ok: true, undone: res.undone, more: !!res.next, nextLabel: res.next?.label ?? null }
+  } catch {
+    return { ok: false, error: 'Could not undo — try again' }
+  }
 }
 
 /** Wrap a section body in the owner/admin gate + uniform error handling. */
