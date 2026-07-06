@@ -167,7 +167,7 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
                       </Link>
                       {archived && <span className="ml-2 text-xs text-[color:var(--color-ink-500)]">(archived)</span>}
                       {p.isDemo && (
-                        <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[0.65rem] font-semibold align-middle">
+                        <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-xs font-semibold align-middle">
                           Demo
                         </span>
                       )}

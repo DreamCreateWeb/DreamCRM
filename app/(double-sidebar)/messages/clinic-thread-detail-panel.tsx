@@ -827,7 +827,7 @@ export default function ThreadDetailPanel({
             {/* Next visit */}
             <span className="inline-flex items-center gap-1.5">
               <span className="text-gray-400 dark:text-gray-500"><IconCalendar /></span>
-              <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Next</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Next</span>
               {patientContext.nextVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.nextVisitAt)}
@@ -841,7 +841,7 @@ export default function ThreadDetailPanel({
             {/* Last visit */}
             <span className="inline-flex items-center gap-1.5">
               <span className="text-gray-400 dark:text-gray-500"><IconClock /></span>
-              <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Last</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Last</span>
               {patientContext.lastVisitAt ? (
                 <span className="font-medium text-gray-700 dark:text-gray-200 font-mono-num tabular-nums">
                   {fmtVisitDate(patientContext.lastVisitAt)}
@@ -865,7 +865,7 @@ export default function ThreadDetailPanel({
               >
                 <IconCard />
               </span>
-              <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Balance</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-500)]">Balance</span>
               {patientContext.outstandingBalanceCents == null ? (
                 <span className="text-gray-500 dark:text-gray-400" title="No balance synced from the PMS">no PMS balance</span>
               ) : patientContext.outstandingBalanceCents > 0 ? (

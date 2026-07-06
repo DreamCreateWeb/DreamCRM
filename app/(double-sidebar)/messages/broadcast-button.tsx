@@ -149,7 +149,7 @@ export default function BroadcastButton() {
                           value={body}
                           onChange={(e) => setBody(e.target.value)}
                         />
-                        <p className="mt-1 text-[11px] text-gray-400 tabular-nums">
+                        <p className="mt-1 text-xs text-gray-400 tabular-nums">
                           {body.length}/{BROADCAST_BODY_MAX}
                         </p>
                       </div>

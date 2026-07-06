@@ -166,7 +166,7 @@ function DocIcon({ doc }: { doc: PatientDocumentRow }) {
     )
   }
   return (
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-rose-50 text-[9px] font-bold text-rose-600 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800">
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded bg-rose-50 text-xs font-bold text-rose-600 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800">
       PDF
     </span>
   )
