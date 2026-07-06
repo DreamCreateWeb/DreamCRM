@@ -7,6 +7,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
 import ClosingCTA from './closing-cta'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { brandTint } from '@/lib/brand-tint'
 
 
 interface Props {
@@ -129,7 +130,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
       </header>
 
       {post.coverImageUrl && (
-        <div className="rounded-2xl overflow-hidden mb-10" style={{ backgroundColor: `${brand}1A` }}>
+        <div className="rounded-2xl overflow-hidden mb-10" style={{ backgroundColor: brandTint(brand, 0.1) }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={post.coverImageUrl}
@@ -149,7 +150,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
       {secondHalf && (
         <>
           {/* Contextual in-content CTA at the ~40% mark */}
-          <div className="my-10 rounded-2xl px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4" style={{ backgroundColor: `${brand}14` }}>
+          <div className="my-10 rounded-2xl px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4" style={{ backgroundColor: brandTint(brand, 0.08) }}>
             <p className="text-[15px] leading-snug flex-1" style={{ color: INK }}>
               Have a question about this, or want to be seen? We&apos;ll talk it through — no judgment, ever.
             </p>
@@ -227,7 +228,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
                 <a href={`${basePath}/blog/${r.slug}`} className="group block">
                   <div
                     className="aspect-[16/10] w-full rounded-xl overflow-hidden mb-3 transition-transform duration-500 group-hover:-translate-y-1"
-                    style={{ backgroundColor: `${brand}1A` }}
+                    style={{ backgroundColor: brandTint(brand, 0.1) }}
                   >
                     {r.coverImageUrl && (
                       /* eslint-disable-next-line @next/next/no-img-element */

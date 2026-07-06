@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { readableInk } from '@/lib/clinic-site-theme'
+import { brandTint } from '@/lib/brand-tint'
 
 interface Member {
   id: string
@@ -103,7 +104,7 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
             >
               <div
                 className="overflow-hidden rounded-[22px] aspect-[4/5] mb-3.5"
-                style={{ backgroundColor: `${brand}1A` }}
+                style={{ backgroundColor: brandTint(brand, 0.1) }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

@@ -28,6 +28,7 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { RippleMotif, ArcDivider, GrainOverlay, SparkleGlyph } from '@/components/clinic-site/decor'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { brandTint } from '@/lib/brand-tint'
 
 /**
  * Modern Family/Wellness template — the default clinic site.
@@ -722,7 +723,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     >
                       <div
                         className="relative overflow-hidden rounded-[22px] aspect-[4/5] mb-3.5"
-                        style={heroPlaceholderStyle(brand, `${brand}1A`)}
+                        style={heroPlaceholderStyle(brand, brandTint(brand, 0.1))}
                       >
                         <HeroPlaceholderMotif brand={brand} />
                       </div>
@@ -764,7 +765,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 className="overflow-hidden"
                 style={{
                   borderRadius: '32px',
-                  backgroundColor: `${brand}1A`,
+                  backgroundColor: brandTint(brand, 0.1),
                   aspectRatio: '4 / 3',
                 }}
                 data-edit-field="differenceVideoUrl"
@@ -795,7 +796,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   // No media yet → a designed brand-gradient bloom so the section
                   // stays a polished 2-column layout (public); the prompt to add a
                   // video/photo only shows in the Studio (dc-edit-only).
-                  <div className="relative w-full h-full" style={heroPlaceholderStyle(brand, `${brand}1A`)}>
+                  <div className="relative w-full h-full" style={heroPlaceholderStyle(brand, brandTint(brand, 0.1))}>
                     <HeroPlaceholderMotif brand={brand} />
                     <div
                       className="dc-edit-only absolute inset-0 flex items-center justify-center text-center text-sm font-medium px-8"
@@ -864,7 +865,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     <span
                       className="flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold"
                       style={{
-                        backgroundColor: `${brand}26`,
+                        backgroundColor: brandTint(brand, 0.15),
                         color: INK,
                         border: `1px solid ${brand}55`,
                       }}
@@ -1427,7 +1428,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   className="group flex h-full flex-col rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                   style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}
                 >
-                  <div className="aspect-[16/10] overflow-hidden" style={{ backgroundColor: `${brand}14` }}>
+                  <div className="aspect-[16/10] overflow-hidden" style={{ backgroundColor: brandTint(brand, 0.08) }}>
                     {post.coverImageUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img

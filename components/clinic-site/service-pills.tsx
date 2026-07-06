@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from 'react'
 import { readableInk } from '@/lib/clinic-site-theme'
+import { brandTint } from '@/lib/brand-tint'
 
 interface Pill {
   id: string
@@ -79,7 +80,7 @@ export default function ServicePills({ pills, brand, ink, href }: Props) {
               href={href}
               className="inline-flex items-center px-8 sm:px-10 lg:px-14 py-4 sm:py-5 rounded-full text-base sm:text-lg font-semibold transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
               style={{
-                backgroundColor: `${brand}26`,
+                backgroundColor: brandTint(brand, 0.15),
                 color: ink,
                 border: `1px solid ${brand}55`,
               }}

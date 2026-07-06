@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useRef, useState } from 'react'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PortalNavItem, PortalIconName } from './nav'
+import { brandTint } from '@/lib/brand-tint'
 
 /**
  * Client chrome for the patient portal: desktop header nav + mobile bottom
@@ -221,7 +222,7 @@ export function PortalTabBar({
                 >
                   <span
                     className="relative rounded-full px-3 py-0.5 transition-colors"
-                    style={active ? { backgroundColor: `${brand}1F` } : undefined}
+                    style={active ? { backgroundColor: brandTint(brand, 0.12) } : undefined}
                   >
                     <PortalIcon name={item.icon} className="h-[22px] w-[22px]" />
                     {!!item.badge && (

@@ -7,6 +7,24 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Consolidation pass C1–C3 (2026-07-06, `5c9c856` + `b0db8b7` + this).**
+  Owner-driven "shared assets over individually-set things": **C1 portal**
+  — semantic tone tokens (PORTAL_ERROR/WARN/SUCCESS/DANGER, 38 raw hexes
+  swept across 14 files) + the missing primitives (BrandButton gains
+  onClick/disabled; new GhostButton, PortalErrorText, PortalInput/Textarea,
+  PortalNotice) adopted in the newest components as exemplars; guard
+  `tests/a11y/portal-tokens.test.ts` bans the meaning-hexes outside ui.tsx.
+  **C2 site** — `components/clinic-site/tokens.ts` (SITE_* surface vars; 43
+  files' local BG/INK consts swept; the sweep found a real drift bug — the
+  header's #FEF7F1 fallback vs canonical #FAF7F2) + `DeepBand` in decor.tsx
+  (the dark band + arc + grain + ripple recipe as ONE component; 4 bands
+  rewritten); guard `tests/a11y/site-tokens.test.ts`. **C3** —
+  `lib/brand-tint.ts` `brandTint(brand, alpha)` replaces `${brand}1F`-style
+  suffix literals in shared components (12 swept; junk-safe on non-6-digit
+  input). Net effect: change-once points for error/warn colors, site
+  surfaces, the band signature, and brand tints — with CI guards so none of
+  it erodes.
+
 - **Visibility pass — "Where am I? What am I doing?" + "never squint"
   (2026-07-06, `7e17c3f` + `2c791d4`).** Owner-driven accessibility rules
   (partial vision), codified in DESIGN-SYSTEM.md §2.2 and enforced: **text-

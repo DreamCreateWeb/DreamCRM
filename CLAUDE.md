@@ -347,6 +347,14 @@ sitemap/robots/OG.
   tests** — happy-dom misses build-only failures (fonts, turbopack resolution,
   server/client boundary slips). `next/font/google` is banned (build env can't
   reach Google Fonts; use runtime `<link>` or the npm `geist` package).
+- **Shared assets over one-off values (2026-07-06).** Meaning-colors and
+  surface vars have single homes with CI guards: portal tones in
+  `components/patient-portal/ui.tsx` (PORTAL_ERROR/WARN/SUCCESS/DANGER +
+  the primitive kit — BrandButton/GhostButton/PortalInput/PortalErrorText/
+  PortalNotice), site surfaces in `components/clinic-site/tokens.ts`
+  (SITE_*), the deep-band recipe in `DeepBand` (decor.tsx), brand alpha
+  tints via `brandTint()` (lib/brand-tint.ts). Don't re-declare these
+  locally — the tests/a11y guards fail CI naming the file.
 - **No fake content.** Every UI placeholder reads a real DB column; the demo
   seeder populates every column shown anywhere (empty/common/edge covered);
   self-heal backfills legacy demos. Ship wiring + seed + self-heal in one PR.
