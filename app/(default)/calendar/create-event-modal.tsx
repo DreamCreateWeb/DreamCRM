@@ -240,7 +240,7 @@ export default function CreateEventModal({ autoOpen, draft, onClose }: Props = {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="block">
-      <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">
+      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">
         {label}{required && <span className="text-rose-500 ml-0.5">*</span>}
       </div>
       {children}

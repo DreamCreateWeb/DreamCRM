@@ -620,7 +620,7 @@ function CampaignPreviewModal({
         </div>
 
         <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex items-center justify-between gap-3">
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-snug">
+          <p className="text-xs text-gray-400 dark:text-gray-500 leading-snug">
             Links are disabled in preview. {`{{firstName}}`} and {`{{bookingUrl}}`} are filled in,
             just like a real send.
           </p>

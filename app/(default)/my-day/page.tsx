@@ -134,7 +134,7 @@ export default async function MyDayPage() {
                         )}
                       </span>
                       {t.unreadCount > 0 && (
-                        <span className="shrink-0 text-[11px] font-semibold text-white bg-rose-500 rounded-full px-1.5 py-0.5 tabular-nums">
+                        <span className="shrink-0 text-xs font-semibold text-white bg-rose-500 rounded-full px-1.5 py-0.5 tabular-nums">
                           {t.unreadCount}
                         </span>
                       )}

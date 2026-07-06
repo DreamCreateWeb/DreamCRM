@@ -132,7 +132,7 @@ export default function TerritoryTable({
                     </button>
                     <span className="ml-2 text-xs text-gray-400">{r.stateName}</span>
                     {!r.enabled && (
-                      <span className="ml-2 text-[10px] uppercase tracking-wide text-gray-400">
+                      <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">
                         off
                       </span>
                     )}
@@ -140,7 +140,7 @@ export default function TerritoryTable({
                   <td className="px-3 py-2">
                     <StatusPill tone={STAGE_TONE[stage]} label={TERRITORY_STAGE_LABELS[stage]} />
                     {r.tasksPending > 0 && (
-                      <span className="ml-2 text-[11px] text-gray-400 tabular-nums">
+                      <span className="ml-2 text-xs text-gray-400 tabular-nums">
                         {r.tasksPending} sweeping
                       </span>
                     )}

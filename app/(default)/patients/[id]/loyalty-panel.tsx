@@ -106,7 +106,7 @@ export default function LoyaltyPanel({
             aria-label="Adjustment note"
             className="form-input w-full text-xs"
           />
-          {error && <p className="text-[11px] text-rose-600 dark:text-rose-400">{error}</p>}
+          {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
           <div className="flex gap-2">
             <button
               type="button"

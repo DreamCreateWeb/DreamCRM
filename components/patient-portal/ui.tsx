@@ -62,7 +62,7 @@ export function PortalHeading({
 export function PortalSectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="mb-2.5 text-[0.72rem] font-bold uppercase tracking-[0.12em]"
+      className="mb-2.5 text-[0.78rem] font-bold uppercase tracking-[0.12em]"
       style={{ color: PORTAL_MUTED }}
     >
       {children}
@@ -82,7 +82,7 @@ export function VisitStatusPill({ status }: { status: string }) {
   const s = STATUS_STYLES[status] ?? STATUS_STYLES.scheduled
   return (
     <span
-      className="rounded-full px-2.5 py-1 text-[0.72rem] font-semibold"
+      className="rounded-full px-2.5 py-1 text-[0.78rem] font-semibold"
       style={{ backgroundColor: s.bg, color: s.fg }}
     >
       {s.label}

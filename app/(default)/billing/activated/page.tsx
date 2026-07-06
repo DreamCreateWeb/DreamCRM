@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { siteNeedsPersonalization } from '@/lib/services/starter-pack'
 
+export const metadata = { title: 'Billing Activated - DreamCRM' }
+
 export const dynamic = 'force-dynamic'
 
 /**

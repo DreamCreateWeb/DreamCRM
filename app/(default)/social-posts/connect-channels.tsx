@@ -244,13 +244,13 @@ function ChannelCard({
       ) : !channel.social ? (
         // Google Business — free + uncapped on every plan.
         <>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Free · always</span>
+          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Free · always</span>
           <ConnectButton channel={channel} handlers={handlers} primary />
         </>
       ) : !zernioConfigured ? (
-        <span className="text-[11px] text-gray-400 italic mt-1">Not enabled yet</span>
+        <span className="text-xs text-gray-400 italic mt-1">Not enabled yet</span>
       ) : !canManage ? (
-        <span className="text-[11px] text-gray-400 mt-1">Owner/admin only</span>
+        <span className="text-xs text-gray-400 mt-1">Owner/admin only</span>
       ) : !cap.allowed ? (
         <AtCapAction handlers={handlers} />
       ) : (
@@ -279,7 +279,7 @@ function ConnectButton({
 }) {
   // Members can't connect — surface a calm note instead of a dead button.
   if (!handlers.canManage) {
-    return <span className="text-[11px] text-gray-400 mt-1">Owner/admin only</span>
+    return <span className="text-xs text-gray-400 mt-1">Owner/admin only</span>
   }
   // Demo: simulate in place (no new tab / no real OAuth).
   if (handlers.isDemo) {

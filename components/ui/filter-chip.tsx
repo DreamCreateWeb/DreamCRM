@@ -15,7 +15,7 @@ function chipClass(active: boolean, className: string) {
   return `inline-flex items-center gap-1 rounded-[var(--r-xs)] px-2.5 py-1 text-xs font-medium transition-colors ${
     active
       ? // Selection ≠ status: teal tint + teal text + a hairline-strong ring.
-        'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+        'bg-teal-500/15 text-teal-800 dark:text-teal-200 font-semibold ring-1 ring-inset ring-teal-500/60'
       : 'bg-gray-100 dark:bg-gray-700/40 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
   } ${className}`
 }

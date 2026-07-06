@@ -835,7 +835,7 @@ function SectionHead({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="mb-2.5">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
-      <p className="text-[11px] text-gray-500 dark:text-gray-400">{hint}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">{hint}</p>
     </div>
   )
 }
@@ -1050,7 +1050,7 @@ function ContentEditDrawer({
           placeholder="A warm sentence or two about how this works at your clinic…"
           className={textareaCls}
         />
-        <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{body.length} / 2000</div>
+        <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">{body.length} / 2000</div>
       </section>
 
       {/* What to expect */}

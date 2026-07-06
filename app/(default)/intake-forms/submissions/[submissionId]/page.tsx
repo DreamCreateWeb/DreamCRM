@@ -11,6 +11,8 @@ import type { FormTemplateSchema, FormSubmissionData, FormFieldValue } from '@/l
 import { isFileRefArray, sanitizeFileRefs } from '@/lib/types/forms'
 import PreVisitSummary from './previsit-summary'
 
+export const metadata = { title: 'Intake Submission - DreamCRM' }
+
 interface Props {
   params: Promise<{ submissionId: string }>
 }

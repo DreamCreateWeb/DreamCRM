@@ -135,7 +135,7 @@ export default async function PortalFormsPage({
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-bold text-white"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-bold text-white"
                       style={{ backgroundColor: '#7BA37E' }}
                     >
                       ✓

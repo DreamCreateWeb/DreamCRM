@@ -128,11 +128,11 @@ export default function SlotPicker({
                     : { backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }
                 }
               >
-                <span className="text-[0.68rem] font-semibold uppercase tracking-wide" style={{ opacity: active ? 0.9 : 0.55 }}>
+                <span className="text-[0.78rem] font-semibold uppercase tracking-wide" style={{ opacity: active ? 1 : 0.85 }}>
                   {today ? 'Today' : DAY_NAME_SHORT[dayOfWeekForDateKey(d)]}
                 </span>
                 <span className="text-[1.05rem] font-bold leading-tight">{keyParts(d).d}</span>
-                <span className="text-[0.68rem]" style={{ opacity: active ? 0.9 : 0.55 }}>
+                <span className="text-[0.78rem]" style={{ opacity: active ? 1 : 0.85 }}>
                   {MONTH_NAME_SHORT[keyParts(d).m - 1]}
                 </span>
               </button>

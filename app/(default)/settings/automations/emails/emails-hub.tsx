@@ -337,7 +337,7 @@ function EmailCard({
                     type="button"
                     title={sample ? `${t.label} — fills in as “${sample}”` : t.label}
                     onClick={() => insertToken(t.token)}
-                    className="group relative rounded-full border border-gray-200 bg-white px-2 py-0.5 font-mono-num text-[11px] text-gray-700 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    className="group relative rounded-full border border-gray-200 bg-white px-2 py-0.5 font-mono-num text-xs text-gray-700 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                   >
                     {t.token}
                     {sample && (
@@ -346,7 +346,7 @@ function EmailCard({
                         // info for assistive tech, so this must NOT join the
                         // button's accessible name (it would double the token).
                         aria-hidden="true"
-                        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-gray-900 px-2 py-1 text-[11px] font-normal text-white shadow-[var(--shadow-pop)] group-hover:block group-focus-visible:block dark:bg-gray-700"
+                        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-gray-900 px-2 py-1 text-xs font-normal text-white shadow-[var(--shadow-pop)] group-hover:block group-focus-visible:block dark:bg-gray-700"
                       >
                         <span className="font-mono-num">{t.token}</span> → {sample}
                       </span>
@@ -397,7 +397,7 @@ function EmailCard({
                     />
                   )}
                   {f.hint && (
-                    <p id={hintId} className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                    <p id={hintId} className="mt-1 text-xs leading-relaxed text-gray-400">
                       {f.hint}
                     </p>
                   )}
@@ -410,11 +410,11 @@ function EmailCard({
               a subject bar, an envelope-like framed body with preserved line
               breaks, and an honest note of the blocks we add for you. */}
           <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Preview</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Preview</p>
             <div className="v2-well overflow-hidden rounded-[var(--r-md)] text-left">
               {/* Subject bar — the line a patient sees in their inbox. */}
               <div className="border-b border-gray-200/70 bg-gray-100/60 px-4 py-2 dark:border-gray-700/60 dark:bg-gray-800/50">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">Subject</span>
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Subject</span>
                 <p className="truncate text-[13px] font-semibold text-gray-800 dark:text-gray-100">
                   {fillTokens(slots.subject ?? '') || <span className="font-normal italic text-gray-400">(no subject)</span>}
                 </p>
@@ -429,7 +429,7 @@ function EmailCard({
                   <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">{fillTokens(slots.closing)}</p>
                 )}
                 {spec.includesNote.length > 0 && (
-                  <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-[11px] leading-relaxed text-gray-400 dark:border-gray-700/60">
+                  <p className="mt-3 border-t border-dashed border-gray-200 pt-2.5 text-xs leading-relaxed text-gray-400 dark:border-gray-700/60">
                     We automatically add: {spec.includesNote.join(' · ')}.
                   </p>
                 )}
@@ -469,20 +469,20 @@ function StatePill({
 }) {
   if (off || reminderOff) {
     return (
-      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/50 dark:text-gray-300">
+      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700/50 dark:text-gray-300">
         Off
       </span>
     )
   }
   if (customized) {
     return (
-      <span className="rounded-full bg-teal-500/10 px-2 py-0.5 text-[11px] font-medium text-teal-700 dark:text-teal-300">
+      <span className="rounded-full bg-teal-500/10 px-2 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
         Customized
       </span>
     )
   }
   return (
-    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
+    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-700/50 dark:text-gray-400">
       Default
     </span>
   )
@@ -590,7 +590,7 @@ function ReminderTiming({
                   onClick={() => onChange({ ...value, touchOffsets: [...p.offsets] })}
                   disabled={timingDisabled}
                   aria-pressed={active}
-                  className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors disabled:opacity-40 ${
+                  className={`rounded-full border px-2 py-0.5 text-xs transition-colors disabled:opacity-40 ${
                     active
                       ? 'border-teal-400 bg-teal-500/10 text-teal-700 dark:text-teal-300'
                       : 'border-gray-200 bg-white text-gray-600 hover:border-teal-400 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
@@ -615,7 +615,7 @@ function ReminderTiming({
           srLabel="Also remind patients to finish their forms"
         />
       </label>
-      <p className="text-[11px] leading-relaxed text-gray-400">
+      <p className="text-xs leading-relaxed text-gray-400">
         Each reminder sends at most once per visit, never two within a day of each other. Patients
         who’ve already confirmed get the gentler “already confirmed” email below instead. Offsets
         between {REMINDER_OFFSET_MIN_HOURS} and {REMINDER_OFFSET_MAX_HOURS} hours (7 days). The

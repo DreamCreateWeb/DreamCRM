@@ -18,7 +18,7 @@ export function TagChip({
   onRemove?: () => void
   removeLabel?: string
 }) {
-  const pad = size === 'xs' ? 'px-1.5 py-0 text-[10px]' : 'px-2 py-0.5 text-[11px]'
+  const pad = size === 'xs' ? 'px-1.5 py-0 text-xs' : 'px-2 py-0.5 text-xs'
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full ring-1 ring-inset font-medium leading-tight ${pad} ${TAG_CHIP_CLASSES[color]}`}

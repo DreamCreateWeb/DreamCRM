@@ -311,7 +311,7 @@ function TemplateForm({
           <label htmlFor="tmpl-body" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
             Message
           </label>
-          <span className={`font-mono-num tabular-nums text-[11px] ${countTone}`} aria-live="polite">
+          <span className={`font-mono-num tabular-nums text-xs ${countTone}`} aria-live="polite">
             {bodyLen.toLocaleString()} / {MAX_TEMPLATE_BODY_LEN.toLocaleString()}
           </span>
         </div>
@@ -325,11 +325,11 @@ function TemplateForm({
           className={`form-textarea w-full text-sm ${over ? 'border-rose-500/70 focus:border-rose-500' : ''}`}
         />
         {over && (
-          <p className="text-[11px] text-rose-600 dark:text-rose-400">
+          <p className="text-xs text-rose-600 dark:text-rose-400">
             Over the limit by {(bodyLen - MAX_TEMPLATE_BODY_LEN).toLocaleString()} characters — trim it to save.
           </p>
         )}
-        <p className="text-[11px] text-gray-400 dark:text-gray-500">
+        <p className="text-xs text-gray-400 dark:text-gray-500">
           Type <code className="font-mono-num rounded bg-gray-100 dark:bg-gray-700/50 px-1 py-px">{'{{firstName}}'}</code>,{' '}
           <code className="font-mono-num rounded bg-gray-100 dark:bg-gray-700/50 px-1 py-px">{'{{lastName}}'}</code>, or{' '}
           <code className="font-mono-num rounded bg-gray-100 dark:bg-gray-700/50 px-1 py-px">{'{{fullName}}'}</code> and we fill in the patient&apos;s name when sent.

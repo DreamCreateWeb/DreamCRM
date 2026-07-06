@@ -112,7 +112,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
         onChange={(e) => setProductOverride(e.target.value)}
         disabled={pending}
       />
-      <div className="mt-1 text-right text-[11px] tabular-nums text-gray-400">
+      <div className="mt-1 text-right text-xs tabular-nums text-gray-400">
         {productOverride.length.toLocaleString()} / 12,000
       </div>
 

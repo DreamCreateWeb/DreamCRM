@@ -252,7 +252,7 @@ export default function Composer({
       <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
           <Label className="mb-0">Post to</Label>
-          <span className={`text-[11px] font-medium ${selected.size === 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
+          <span className={`text-xs font-medium ${selected.size === 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
             {selected.size === 0
               ? 'Pick at least one'
               : `${selected.size} of ${channels.length} selected`}
@@ -303,7 +303,7 @@ export default function Composer({
                     {ch.label}
                   </span>
                   {ch.handle && (
-                    <span className="block text-[11px] text-gray-400 truncate max-w-[130px]">{ch.handle}</span>
+                    <span className="block text-xs text-gray-400 truncate max-w-[130px]">{ch.handle}</span>
                   )}
                 </span>
               </button>
@@ -381,7 +381,7 @@ export default function Composer({
       {/* Summary + counter */}
       <div className="mb-1.5 flex items-center justify-between">
         <Label className="mb-0">{targetsGbp && postType === 'standard' ? "What's new" : 'Message'}</Label>
-        <span className={`text-[11px] font-mono-num ${counterCls}`}>{remaining}</span>
+        <span className={`text-xs font-mono-num ${counterCls}`}>{remaining}</span>
       </div>
       <textarea
         value={summary}
@@ -392,7 +392,7 @@ export default function Composer({
         aria-label="Post text"
       />
       {selectedPlatforms.length > 1 && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Same text goes to every channel. Counter shows the tightest limit ({charLimit}).
         </p>
       )}
@@ -496,7 +496,7 @@ export default function Composer({
                     e.stopPropagation()
                     handleRef.current?.cancel()
                   }}
-                  className="text-[11px] text-gray-400 underline underline-offset-2 hover:text-gray-600"
+                  className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600"
                 >
                   Cancel
                 </button>
@@ -510,7 +510,7 @@ export default function Composer({
                 <p className="text-[13px] font-medium text-gray-700 dark:text-gray-200">
                   Drag a photo or video here, or <span className="text-teal-700 dark:text-teal-400">browse</span>
                 </p>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-xs text-gray-400">
                   Photos up to {MAX_IMAGE_MB}MB · video up to {MAX_VIDEO_MB}MB
                 </p>
               </>
@@ -558,7 +558,7 @@ export default function Composer({
             </div>
           )}
           {ctaType === 'CALL' && (
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 self-end pb-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 self-end pb-2">
               Uses your Google listing&apos;s phone number.
             </p>
           )}
@@ -594,7 +594,7 @@ export default function Composer({
                 ? `Post to ${selected.size} channels`
                 : 'Post now'}
         </ActionButton>
-        <p className="text-[11px] text-gray-400">
+        <p className="text-xs text-gray-400">
           Posts go out through your connected channels. Google Updates drop off your listing after about 7 days.
         </p>
       </div>

@@ -104,7 +104,7 @@ export default function ContactsPanel({
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                 <StatusPill tone={VERIFY_TONE[c.verifyStatus]} label={EMAIL_VERIFY_LABELS[c.verifyStatus]} />
-                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   {CONTACT_ROLE_LABELS[c.role as ContactRole] ?? c.role}
                   {c.name ? ` · ${c.name}` : ''}
                   {c.source === 'manual' ? ' · added by you' : ''}

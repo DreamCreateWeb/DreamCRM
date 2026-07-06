@@ -87,7 +87,7 @@ export default function FocalPointPicker({
         />
       </div>
       {!compact && (
-        <p className="text-[11px] text-stone-400 mt-2 text-center">
+        <p className="text-xs text-stone-400 mt-2 text-center">
           Drag to choose what stays in frame.
         </p>
       )}

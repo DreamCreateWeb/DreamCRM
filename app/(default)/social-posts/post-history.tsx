@@ -98,13 +98,13 @@ function PostCard({ post }: { post: SocialPostView }) {
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               {targetsGbp && post.postType !== 'standard' && (
-                <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-xs font-semibold text-gray-600 dark:text-gray-300">
                   {GBP_POST_TYPE_LABELS[post.postType]}
                 </span>
               )}
               <StatusPill tone={STATUS_TONE[post.status]} label={STATUS_LABEL[post.status]} />
             </div>
-            <span className="text-[11px] text-gray-400 font-mono-num shrink-0">{dateLabel}</span>
+            <span className="text-xs text-gray-400 font-mono-num shrink-0">{dateLabel}</span>
           </div>
 
           {/* Per-channel target chips */}
@@ -190,7 +190,7 @@ function TargetChip({ target }: { target: SocialPostTargetView }) {
     </>
   )
   const base =
-    'inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-inset ring-[color:var(--color-hairline)] pl-1.5 pr-2 py-1 text-[11px] font-medium text-gray-700 dark:text-gray-200'
+    'inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-gray-800 ring-1 ring-inset ring-[color:var(--color-hairline)] pl-1.5 pr-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-200'
   if (target.url) {
     return (
       <a

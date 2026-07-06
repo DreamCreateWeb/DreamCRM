@@ -58,7 +58,7 @@ export function Field({
         </label>
       )}
       {control}
-      {hint && <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">{hint}</p>}
     </div>
   )
 }
@@ -126,7 +126,7 @@ export function EditorCard({
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 min-w-0">
             {label && (
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500">
+              <span className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
                 {label}
               </span>
             )}
@@ -269,7 +269,7 @@ export function TagListEditor({
           className="flex-1 min-w-[140px] bg-transparent text-sm px-1.5 py-1 focus:outline-none text-stone-900 dark:text-stone-100 placeholder-stone-400"
         />
       </div>
-      <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1.5">
+      <p className="text-xs text-stone-500 dark:text-stone-400 mt-1.5">
         Type and press Enter to add. Click × to remove.
       </p>
     </div>

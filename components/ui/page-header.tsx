@@ -46,7 +46,7 @@ export function PageHeader({
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
           {title}
         </h1>
-        {subtitle && <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 max-w-2xl">{subtitle}</p>}
+        {subtitle && <p className="mt-1 text-sm text-gray-600 dark:text-gray-300 max-w-2xl">{subtitle}</p>}
       </div>
       {(actions || legend) && (
         <div className="mt-4 sm:mt-0 flex flex-wrap items-center gap-2 shrink-0">

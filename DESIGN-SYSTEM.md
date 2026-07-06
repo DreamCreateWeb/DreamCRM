@@ -142,10 +142,29 @@ uppercase tracking-wider` ink-500; the page-title eyebrow may be teal-700.
 - **Numerals: Geist Mono** for KPI hero numbers, money, times, and count
   columns — the "financial instrument" signature. Body numerals keep
   `tabular-nums`.
-- Size ramp unchanged. v1 floor/contrast rules unchanged: 12px floor
-  (banned: `text-[11px]` and below); `gray-500` lightest meaningful on
-  white, `dark:gray-400` lightest on dark; never dim a zero; every
-  icon-only interactive has `aria-label`; truncations carry `title`.
+- Size ramp unchanged. **Visibility rules (2026-07-06 — binding, swept
+  and enforced):** the product is built for imperfect vision. Two tests
+  every screen must pass: **"Where am I? What am I doing?"** (location +
+  state always announced — strong active nav states, a PageHeader or
+  equivalent large title, a per-page browser title) and **"never
+  squint"** (nothing load-bearing is tiny or faint).
+  - **12px floor, enforced**: `text-[11px]`/`text-[10px]` and sub-0.75rem
+    literals are banned everywhere (dashboard AND portal — the portal's
+    warm world follows the same floor). Short state badges sit AT the
+    floor, never under it. Prefer rem-based Tailwind sizes over px
+    literals — px does not scale with the user text-size setting.
+  - **Contrast**: `gray-500` lightest meaningful on white,
+    `dark:gray-400` lightest on dark; portal muted ink is `PORTAL_MUTED`
+    (#6B635A) — never lighter literals; never dim a zero; no
+    hover-to-reveal for data values.
+  - **Text-size setting**: per-device Standard/Large/Extra-large scales
+    the ROOT font-size (`html.dc-text-lg`/`.dc-text-xl` in style.css,
+    pre-paint script in app/layout.tsx, control =
+    `components/ui/text-size-toggle.tsx` in Settings → Account + portal
+    My info). This only works because sizes are rem-based — another
+    reason the px ban matters.
+  - Every icon-only interactive has `aria-label`; truncations carry
+    `title`; hit targets ≥40px for primary controls.
 - Public site keeps Fraunces/Inter; portal and marketing unchanged.
 
 ### 2.3 Radius scale (kill the rounded-xl grab-bag)

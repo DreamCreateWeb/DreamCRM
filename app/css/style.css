@@ -633,3 +633,18 @@
     transform: none;
   }
 }
+
+/* ── Accessibility: per-device text size ("never squint") ─────────────────
+   Applied pre-paint by the inline script in app/layout.tsx from
+   localStorage['dc-text-size'] — same pattern as the theme class, so there
+   is no flash and no SSR/dynamic-rendering cost. Tailwind's type scale is
+   rem-based, so bumping the ROOT font-size scales the entire app
+   proportionally (text, paddings in rem, line lengths) instead of blowing
+   up one element at a time. px literals do not scale — which is why the
+   design system bans sub-12px px sizes for anything load-bearing. */
+html.dc-text-lg {
+  font-size: 112.5%; /* ~18px base — comfortably larger everywhere */
+}
+html.dc-text-xl {
+  font-size: 125%; /* ~20px base — the no-squint setting */
+}

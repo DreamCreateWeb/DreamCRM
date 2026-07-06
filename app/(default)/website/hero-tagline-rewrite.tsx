@@ -88,13 +88,13 @@ export default function HeroTaglineRewrite({
 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-72 rounded-[var(--r-lg)] bg-gray-900/95 backdrop-blur-xl border border-white/10 shadow-[var(--shadow-modal)] p-3 text-gray-100 z-[80]">
-          <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1.5">Suggested tagline</p>
+          <p className="text-xs uppercase tracking-wide text-gray-400 mb-1.5">Suggested tagline</p>
           {busy && <p className="text-sm text-gray-300">Writing a fresh tagline…</p>}
           {!busy && draft && (
             <>
               <p className="text-sm font-medium text-white mb-1">“{draft}”</p>
               {currentTagline && (
-                <p className="text-[11px] text-gray-400 mb-2 line-clamp-1">
+                <p className="text-xs text-gray-400 mb-2 line-clamp-1">
                   Now: {currentTagline}
                 </p>
               )}
@@ -123,7 +123,7 @@ export default function HeroTaglineRewrite({
                   Discard
                 </button>
               </div>
-              <p className="mt-2 text-[10px] text-gray-500">
+              <p className="mt-2 text-xs text-gray-500">
                 {usage.remaining} AI rewrite{usage.remaining === 1 ? '' : 's'} left this month
               </p>
             </>

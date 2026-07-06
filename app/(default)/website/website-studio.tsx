@@ -690,20 +690,20 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
                       <div className="text-2xl font-bold text-white tabular-nums leading-none">
                         {performance.traffic.total.toLocaleString()}
                       </div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">visits</div>
+                      <div className="text-xs text-gray-400 mt-0.5">visits</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-white tabular-nums leading-none">
                         {performance.leads30d.toLocaleString()}
                       </div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">leads</div>
+                      <div className="text-xs text-gray-400 mt-0.5">leads</div>
                     </div>
                     {performance.conversionPct != null && (
                       <div>
                         <div className="text-2xl font-bold text-white tabular-nums leading-none">
                           {performance.conversionPct}%
                         </div>
-                        <div className="text-[11px] text-gray-400 mt-0.5">visit → lead</div>
+                        <div className="text-xs text-gray-400 mt-0.5">visit → lead</div>
                       </div>
                     )}
                   </div>
@@ -722,7 +722,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
                   </div>
                   {performance.traffic.topPages.length > 0 ? (
                     <div>
-                      <div className="text-[11px] font-medium text-gray-400 mb-1.5">Top pages</div>
+                      <div className="text-xs font-medium text-gray-400 mb-1.5">Top pages</div>
                       <ul className="space-y-1">
                         {performance.traffic.topPages.slice(0, 5).map((tp) => (
                           <li key={tp.path} className="flex items-center justify-between text-xs">

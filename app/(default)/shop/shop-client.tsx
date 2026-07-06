@@ -601,7 +601,7 @@ function LowStockPanel({ products }: { products: ProductRow[] }) {
               {product.name}
             </Link>
             <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                 state === 'out'
                   ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
                   : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'

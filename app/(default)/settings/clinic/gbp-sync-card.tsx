@@ -179,12 +179,12 @@ function PhotoGallery({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.url} alt={p.category ?? 'Google photo'} className="h-full w-full object-cover" loading="lazy" decoding="async" />
               {already && (
-                <span className="absolute bottom-1 right-1 rounded bg-emerald-600 px-1 text-[10px] font-medium text-white">
+                <span className="absolute bottom-1 right-1 rounded bg-emerald-600 px-1 text-xs font-medium text-white">
                   Added
                 </span>
               )}
               {isSelected && !already && (
-                <span className="absolute top-1 right-1 rounded-full bg-teal-600 px-1.5 text-[11px] font-bold text-white">
+                <span className="absolute top-1 right-1 rounded-full bg-teal-600 px-1.5 text-xs font-bold text-white">
                   ✓
                 </span>
               )}

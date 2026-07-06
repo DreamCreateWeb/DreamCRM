@@ -53,7 +53,7 @@ export default function FollowupRulesCard({
     <div className="v2-card p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Auto-add rules</h2>
-        <span className="text-[11px] font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 rounded-full px-2 py-0.5">
+        <span className="text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 rounded-full px-2 py-0.5">
           Builds your list for you
         </span>
       </div>
@@ -92,7 +92,7 @@ export default function FollowupRulesCard({
         </div>
       </div>
 
-      {error && <p className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       {!canManage && (
         <p className="mt-3 pt-3 border-t border-[color:var(--color-hairline)] text-xs text-gray-500 dark:text-gray-400">
           Only an owner or admin can change rules.

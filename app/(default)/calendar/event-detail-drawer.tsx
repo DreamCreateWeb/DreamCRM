@@ -119,7 +119,7 @@ export default function EventDetailDrawer({ event, onClose }: Props) {
       footer={
         editing ? (
           <div className="flex items-center justify-between gap-3">
-            <div className="text-[11px] text-rose-600 dark:text-rose-400 min-w-0 truncate">
+            <div className="text-xs text-rose-600 dark:text-rose-400 min-w-0 truncate">
               {error ?? ''}
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -241,7 +241,7 @@ function ReadOnly({ event }: { event: CalendarEventRow }) {
         </Row>
       )}
       <Row label="Category">
-        <span className="inline-flex items-center gap-1 rounded-full text-[11px] font-medium px-2 py-0.5 bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-200">
+        <span className="inline-flex items-center gap-1 rounded-full text-xs font-medium px-2 py-0.5 bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-200">
           {CATEGORY_LABEL[event.category as CalendarCategory] ?? event.category}
         </span>
       </Row>
@@ -264,7 +264,7 @@ function ReadOnly({ event }: { event: CalendarEventRow }) {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">{label}</div>
       <div>{children}</div>
     </div>
   )
@@ -273,7 +273,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <div className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-500 mb-1">{label}</div>
       {children}
     </label>
   )

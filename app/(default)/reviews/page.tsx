@@ -444,7 +444,7 @@ export default async function ReviewsPage() {
               one you don&apos;t want on the “Reviews received” page.
             </li>
           </ol>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
             Text-message requests are coming next — everything above runs on email today.
           </p>
         </div>

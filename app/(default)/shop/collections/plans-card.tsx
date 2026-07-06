@@ -93,7 +93,7 @@ export default function PlansCard({ plans, canManage }: { plans: PlanRowView[]; 
                   <td className="px-4 py-3">
                     <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
                     {p.status === 'past_due' && p.lastError && (
-                      <p className="mt-1 text-[11px] text-rose-500 max-w-[16rem] truncate" title={p.lastError}>
+                      <p className="mt-1 text-xs text-rose-500 max-w-[16rem] truncate" title={p.lastError}>
                         {p.lastError}
                       </p>
                     )}

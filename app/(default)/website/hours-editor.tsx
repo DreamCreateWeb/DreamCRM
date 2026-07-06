@@ -103,7 +103,7 @@ export default function HoursEditor({
               </label>
             </div>
             {err && (
-              <p className="ml-[5.6rem] mt-0.5 text-[11px] text-rose-600" role="alert">
+              <p className="ml-[5.6rem] mt-0.5 text-xs text-rose-600" role="alert">
                 {err}
               </p>
             )}

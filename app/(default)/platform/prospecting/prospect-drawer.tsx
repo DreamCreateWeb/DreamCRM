@@ -326,7 +326,7 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
           </div>
         )}
       </div>
-      <p className="mt-1.5 text-[11px] text-gray-400">
+      <p className="mt-1.5 text-xs text-gray-400">
         Estimated from tools detected on their site — typical mid-range pricing, not a quote.
       </p>
     </div>

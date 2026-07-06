@@ -178,7 +178,7 @@ export default function PortalMessagesView({
               <div key={g.day} className="space-y-2.5">
                 <div className="my-2 flex items-center gap-3">
                   <div className="h-px flex-1" style={{ backgroundColor: BORDER }} />
-                  <span className="text-[0.68rem] font-bold uppercase tracking-[0.1em]" style={{ color: MUTED }}>
+                  <span className="text-[0.78rem] font-bold uppercase tracking-[0.1em]" style={{ color: MUTED }}>
                     {g.day}
                   </span>
                   <div className="h-px flex-1" style={{ backgroundColor: BORDER }} />
@@ -190,10 +190,10 @@ export default function PortalMessagesView({
                     <div key={m.id} className={`flex ${isFromMe ? 'justify-end' : 'justify-start'}`}>
                       <div className={`flex max-w-[82%] flex-col ${isFromMe ? 'items-end' : 'items-start'}`}>
                         <div className="mb-0.5 flex items-baseline gap-2 px-1">
-                          <span className="text-[0.72rem] font-semibold" style={{ color: INK }}>
+                          <span className="text-[0.8rem] font-semibold" style={{ color: INK }}>
                             {senderName}
                           </span>
-                          <span className="text-[0.66rem]" style={{ color: '#B9B0A5' }}>
+                          <span className="text-[0.78rem]" style={{ color: '#6B635A' }}>
                             {fmtTime(m.sentAtIso)}
                             {m.channel !== 'in_app' ? ` · via ${CHANNEL_LABEL[m.channel] ?? m.channel}` : ''}
                           </span>

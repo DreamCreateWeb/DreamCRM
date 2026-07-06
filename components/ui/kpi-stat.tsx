@@ -100,11 +100,11 @@ export function KpiStat({
     <div
       className={`${href ? 'v2-card-interactive' : 'v2-card'} p-4 h-full ${className}`}
     >
-      <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">{label}</div>
       <div className="mt-1 text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">
         {countUp && typeof value === 'number' ? <CountUp value={value} /> : value}
       </div>
-      {sub && <div className={`mt-0.5 text-xs ${tone ? TONE_TEXT[tone] : 'text-gray-500 dark:text-gray-400'}`}>{sub}</div>}
+      {sub && <div className={`mt-0.5 text-xs font-medium ${tone ? TONE_TEXT[tone] : 'text-gray-600 dark:text-gray-300'}`}>{sub}</div>}
     </div>
   )
   if (href) {

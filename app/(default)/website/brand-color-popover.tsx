@@ -77,7 +77,7 @@ export default function BrandColorPopover({
       {open && (
         <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-gray-700 bg-gray-900 p-4 shadow-2xl z-20">
           <p className="text-sm font-semibold text-white mb-1">Brand color</p>
-          <p className="text-[11px] text-gray-400 leading-relaxed mb-3">
+          <p className="text-xs text-gray-400 leading-relaxed mb-3">
             One color, whole site — backgrounds, the dark band, buttons, and text tints all
             derive from it (and stay readable automatically).
           </p>

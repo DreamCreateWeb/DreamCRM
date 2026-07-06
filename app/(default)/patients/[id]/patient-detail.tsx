@@ -686,11 +686,11 @@ function FamilyCard({ family }: { family: FamilyMemberView[] }) {
             >
               {m.name}
             </Link>
-            <span className="shrink-0 text-[11px] text-gray-500 dark:text-gray-400">{label[m.relation]}</span>
+            <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{label[m.relation]}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+      <p className="mt-2 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
         Linked through portal family access — handy for booking the household together.
       </p>
     </div>
@@ -716,7 +716,7 @@ function ReferralCard({ referral }: { referral: ReferralContext }) {
       )}
       {referral.referred.length > 0 && (
         <div className={referral.referredBy ? 'mt-2.5' : ''}>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
             Brought {referral.referred.length === 1 ? 'a friend' : `${referral.referred.length} friends`} to the practice:
           </p>
           <ul className="space-y-1">
@@ -728,7 +728,7 @@ function ReferralCard({ referral }: { referral: ReferralContext }) {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+          <p className="mt-2 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
             Worth a thank-you at their next visit.
           </p>
         </div>

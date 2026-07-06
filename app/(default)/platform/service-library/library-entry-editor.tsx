@@ -104,7 +104,7 @@ export default function LibraryEntryEditor({
               <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 truncate">
                 Edit default · {entry.name}
               </h2>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 The default content every clinic starts from. URL stays{' '}
                 <code className="font-mono">{entry.slug}</code>. Clinics that customized their own
                 copy keep it.
@@ -180,7 +180,7 @@ export default function LibraryEntryEditor({
           <section>
             <SectionHead title="Description" hint="The main paragraph patients read." />
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} maxLength={2000} className={textareaCls} />
-            <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{body.length} / 2000</div>
+            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">{body.length} / 2000</div>
           </section>
 
           {/* What to expect */}
@@ -275,7 +275,7 @@ function SectionHead({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="mb-2.5">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{title}</h3>
-      <p className="text-[11px] text-gray-500 dark:text-gray-400">{hint}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">{hint}</p>
     </div>
   )
 }

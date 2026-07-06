@@ -187,7 +187,7 @@ function StaffRow({
               'Add photo'
             )}
             {uploading && (
-              <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1 text-white text-[10px] leading-none">
+              <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1 text-white text-xs leading-none">
                 <span>{progress}%</span>
               </div>
             )}
@@ -196,13 +196,13 @@ function StaffRow({
             <button
               type="button"
               onClick={() => handleRef.current?.cancel()}
-              className="text-[11px] text-gray-400 hover:text-rose-600 leading-tight"
+              className="text-xs text-gray-400 hover:text-rose-600 leading-tight"
             >
               Cancel
             </button>
           )}
           {uploadError && (
-            <p className="text-[11px] text-rose-600 text-center leading-tight" role="alert">
+            <p className="text-xs text-rose-600 text-center leading-tight" role="alert">
               {uploadError}
             </p>
           )}

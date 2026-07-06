@@ -310,7 +310,7 @@ function ProvidersSection({
       </ul>
 
       <div className="v2-well p-3">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Add a provider</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Add a provider</p>
         <div className="flex flex-wrap items-end gap-2">
           <label className="block min-w-[180px] flex-1">
             <span className="text-xs text-gray-500 dark:text-gray-400">Name</span>
@@ -399,7 +399,7 @@ function ProviderRowEditor({
     <li className={`v2-card p-3 ${provider.isActive ? '' : 'opacity-60'}`}>
       <div className="flex flex-wrap items-end gap-2">
         <label className="block min-w-[160px] flex-1">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">Name</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Name</span>
           <input
             value={name}
             onChange={(e) => { setName(e.target.value); setSaved(false) }}
@@ -408,7 +408,7 @@ function ProviderRowEditor({
           />
         </label>
         <label className="block">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">Role</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Role</span>
           <select
             value={role}
             onChange={(e) => { setRole(e.target.value); setSaved(false) }}
@@ -421,7 +421,7 @@ function ProviderRowEditor({
           </select>
         </label>
         <label className="block min-w-[160px] flex-1">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">Email</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Email</span>
           <input
             type="email"
             value={email}
@@ -521,11 +521,11 @@ function VisitTypesSection({
           return (
             <li key={i} className="v2-card flex flex-wrap items-end gap-3 p-3">
               <label className="block min-w-[150px] flex-1">
-                <span className="text-[11px] text-gray-500 dark:text-gray-400">Label</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Label</span>
                 <input value={t.label} onChange={(e) => update(i, { label: e.target.value })} className="form-input mt-1 w-full text-sm" />
               </label>
               <label className="block w-28">
-                <span className="text-[11px] text-gray-500 dark:text-gray-400">Duration</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Duration</span>
                 <div className="mt-1 flex items-center gap-1.5">
                   <input
                     type="number"
@@ -541,7 +541,7 @@ function VisitTypesSection({
                 </div>
               </label>
               <label className="block w-28">
-                <span className="text-[11px] text-gray-500 dark:text-gray-400">Deposit</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Deposit</span>
                 <div className="mt-1 flex items-center gap-1.5">
                   <span className="text-xs text-gray-500 dark:text-gray-400">$</span>
                   <input
@@ -572,7 +572,7 @@ function VisitTypesSection({
                 )}
               </div>
               <label className="block w-full">
-                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   Prep instructions <span className="text-gray-400 dark:text-gray-500">(optional — added to this type&rsquo;s reminder emails)</span>
                 </span>
                 <textarea
@@ -652,7 +652,7 @@ function OpsSection({
       {/* Chairs */}
       <div className="v2-card p-4">
         <label className="block max-w-xs">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Chairs (operatories)</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Chairs (operatories)</span>
           <input
             type="number"
             min={1}
@@ -672,7 +672,7 @@ function OpsSection({
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="v2-card p-4">
           <div className="mb-1 flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Routine recall — “due” every</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Routine recall — “due” every</span>
             <StatusPill tone="info" label="Reminders" title="Drives who shows as due for a recall visit." />
           </div>
           <div className="mt-1 flex items-center gap-2">
@@ -694,7 +694,7 @@ function OpsSection({
 
         <div className="v2-card p-4">
           <div className="mb-1 flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Flag as lapsed after</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Flag as lapsed after</span>
             <StatusPill tone="neutral" label="💤 quiet" title="Marks a patient lapsed / inactive." />
           </div>
           <div className="mt-1 flex items-center gap-2">

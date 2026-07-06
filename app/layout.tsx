@@ -27,6 +27,16 @@ export default function RootLayout({
     // suppressHydrationWarning: https://github.com/vercel/next.js/issues/44343
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <body className="font-inter antialiased bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400">
+        {/* Text-size preference — applied BEFORE paint (same trick next-themes
+            uses for dark mode) so a larger-text user never sees a small-text
+            flash. Per device by design: vision needs follow the person's
+            screen, not their account. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var s=localStorage.getItem('dc-text-size');if(s==='lg'||s==='xl')document.documentElement.classList.add('dc-text-'+s)}catch(e){}})();",
+          }}
+        />
         {/* Auto-recovers from stale-chunk 404s after a deploy (one guarded
             reload) so a subscriber never hits the fatal client-side error. */}
         <ChunkReloadGuard />

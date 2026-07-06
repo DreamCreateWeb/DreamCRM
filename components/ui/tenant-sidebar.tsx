@@ -261,7 +261,7 @@ export default function TenantSidebar({
           <button
             type="button"
             onClick={toggleRail}
-            className="hidden lg:inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-400 hover:text-ink-600 hover:bg-ink-900/[0.04] transition"
+            className="hidden lg:inline-flex h-10 w-10 items-center justify-center rounded-md text-ink-400 hover:text-ink-600 hover:bg-ink-900/[0.04] transition"
             title={railCollapsed ? 'Expand sidebar ([)' : 'Collapse sidebar ([)'}
             aria-label={railCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             aria-pressed={railCollapsed}
@@ -390,12 +390,12 @@ function OrgSwitcher({
           <img
             src={logoUrl}
             alt=""
-            className="h-7 w-7 shrink-0 rounded-md object-cover"
+            className="h-8 w-8 shrink-0 rounded-md object-cover"
             onError={() => setLogoFailed(true)}
             data-testid="org-logo"
           />
         ) : (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300 text-xs font-bold">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-500/12 text-teal-700 dark:text-teal-300 text-xs font-bold">
             {initial}
           </span>
         )}
@@ -575,13 +575,13 @@ function NavItem({
           rail ? 'lg:justify-center lg:px-0' : ''
         } ${
           active
-            ? 'breath bg-teal-500/10 text-ink-900 font-semibold'
+            ? 'breath bg-teal-500/15 text-ink-900 font-semibold'
             : 'text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900'
         } ${isSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         {/* Active 2px teal left bar */}
         {active && (
-          <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-teal-500" aria-hidden="true" />
+          <span className="absolute left-0 top-1 bottom-1 w-1 rounded-full bg-teal-500" aria-hidden="true" />
         )}
         <NavIcon
           name={m.icon}

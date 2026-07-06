@@ -175,7 +175,7 @@ export default function VisitCard({
               ) : null}
             </p>
             {statusStyle && (
-              <span className="rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold" style={{ backgroundColor: statusStyle.bg, color: statusStyle.fg }}>
+              <span className="rounded-full px-2.5 py-0.5 text-[0.75rem] font-semibold" style={{ backgroundColor: statusStyle.bg, color: statusStyle.fg }}>
                 {statusStyle.label}
               </span>
             )}
@@ -183,7 +183,7 @@ export default function VisitCard({
           <p className="mt-1 text-[0.92rem]" style={{ color: MUTED }}>
             {fmtVisitDayTime(start, timeZone)}
             {proximity && (
-              <span className="ml-2 rounded-full px-2 py-0.5 text-[0.7rem] font-bold uppercase tracking-wide" style={{ backgroundColor: '#FAF7F2', color: brand }}>
+              <span className="ml-2 rounded-full px-2 py-0.5 text-[0.75rem] font-bold uppercase tracking-wide" style={{ backgroundColor: '#FAF7F2', color: brand }}>
                 {proximity}
               </span>
             )}

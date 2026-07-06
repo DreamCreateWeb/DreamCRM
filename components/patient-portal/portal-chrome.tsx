@@ -125,7 +125,7 @@ export function PortalDesktopNav({
             {!!item.badge && (
               <span
                 aria-label={`${item.badge} unread`}
-                className="ml-1.5 inline-flex min-w-[1.15rem] items-center justify-center rounded-full px-1 text-[0.68rem] font-bold leading-[1.15rem] align-middle"
+                className="ml-1.5 inline-flex min-w-[1.15rem] items-center justify-center rounded-full px-1 text-[0.78rem] font-bold leading-[1.15rem] align-middle"
                 style={active ? { backgroundColor: '#FFFFFF', color: brand } : { backgroundColor: brand, color: '#FFFFFF' }}
               >
                 {item.badge > 9 ? '9+' : item.badge}
@@ -188,7 +188,7 @@ export function PortalTabBar({
                       {!!item.badge && (
                         <span
                           aria-label={`${item.badge} unread`}
-                          className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[0.7rem] font-bold leading-[1.25rem] text-white"
+                          className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[0.75rem] font-bold leading-[1.25rem] text-white"
                           style={{ backgroundColor: brand }}
                         >
                           {item.badge > 9 ? '9+' : item.badge}
@@ -216,22 +216,25 @@ export function PortalTabBar({
                 <Link
                   href={item.href}
                   className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5"
-                  style={{ color: active ? brand : '#8A8178' }}
+                  style={{ color: active ? brand : '#6B635A' }}
                   aria-current={active ? 'page' : undefined}
                 >
-                  <span className="relative">
+                  <span
+                    className="relative rounded-full px-3 py-0.5 transition-colors"
+                    style={active ? { backgroundColor: `${brand}1F` } : undefined}
+                  >
                     <PortalIcon name={item.icon} className="h-[22px] w-[22px]" />
                     {!!item.badge && (
                       <span
                         aria-label={`${item.badge} unread`}
-                        className="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full px-1 text-[0.6rem] font-bold leading-4 text-white"
+                        className="absolute -right-2.5 -top-1.5 inline-flex min-w-[1.15rem] items-center justify-center rounded-full px-1 text-[0.78rem] font-bold leading-[1.15rem] text-white"
                         style={{ backgroundColor: brand }}
                       >
                         {item.badge > 9 ? '9+' : item.badge}
                       </span>
                     )}
                   </span>
-                  <span className="text-[0.68rem] font-semibold">{item.label}</span>
+                  <span className="text-[0.8rem] font-semibold">{item.label}</span>
                 </Link>
               </li>
             )
@@ -242,10 +245,10 @@ export function PortalTabBar({
                 type="button"
                 onClick={() => setSheetOpen((v) => !v)}
                 className="flex min-h-[56px] w-full flex-col items-center justify-center gap-0.5 py-1.5"
-                style={{ color: moreActive ? brand : '#8A8178' }}
+                style={{ color: moreActive ? brand : '#6B635A' }}
               >
                 <PortalIcon name="dots" className="h-[22px] w-[22px]" />
-                <span className="text-[0.68rem] font-semibold">More</span>
+                <span className="text-[0.8rem] font-semibold">More</span>
               </button>
             </li>
           )}

@@ -112,7 +112,7 @@ function NumField({
 }) {
   return (
     <label className="block">
-      <span className="text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+      <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
         {label}
       </span>
       <span className="mt-1 flex items-center gap-1.5">

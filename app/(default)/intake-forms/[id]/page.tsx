@@ -6,6 +6,8 @@ import { requireTenant } from '@/lib/auth/context'
 import { getFormTemplate, listSubmissionsForTemplate, countSubmissionsForTemplate } from '@/lib/services/forms'
 import FormBuilder from './form-builder'
 
+export const metadata = { title: 'Intake Form - DreamCRM' }
+
 interface Props {
   params: Promise<{ id: string }>
 }

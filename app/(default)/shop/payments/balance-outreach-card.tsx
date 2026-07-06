@@ -72,7 +72,7 @@ export default function BalanceOutreachCard({
 
       <div className={`mt-4 grid gap-4 sm:grid-cols-3 ${s.enabled ? '' : 'opacity-50 pointer-events-none'}`}>
         <label className="block">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">Only when they owe at least</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Only when they owe at least</span>
           <div className="mt-1 flex items-center gap-1.5">
             <span className="text-xs text-gray-500 dark:text-gray-400">$</span>
             <input
@@ -89,7 +89,7 @@ export default function BalanceOutreachCard({
           </div>
         </label>
         <label className="block">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">Wait between reminders</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Wait between reminders</span>
           <div className="mt-1 flex items-center gap-1.5">
             <input
               type="number"
@@ -106,7 +106,7 @@ export default function BalanceOutreachCard({
           </div>
         </label>
         <label className="block">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">Stop after</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Stop after</span>
           <div className="mt-1 flex items-center gap-1.5">
             <input
               type="number"
@@ -123,7 +123,7 @@ export default function BalanceOutreachCard({
           </div>
         </label>
       </div>
-      <p className={`mt-2 text-[11px] leading-relaxed text-gray-400 ${s.enabled ? '' : 'opacity-50'}`}>
+      <p className={`mt-2 text-xs leading-relaxed text-gray-400 ${s.enabled ? '' : 'opacity-50'}`}>
         After the cap, collections becomes a phone call — the front-desk follow-up list still
         tracks the balance. A pay link you send by hand pauses the schedule too, so patients
         never get two in a row.

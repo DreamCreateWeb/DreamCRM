@@ -399,7 +399,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 <p className="text-xs font-semibold text-teal-900 dark:text-teal-200">
                   It’s live 🎉 Want your patients to see it?
                 </p>
-                <p className="text-[11px] text-teal-800/90 dark:text-teal-300/90 mt-0.5 leading-snug">
+                <p className="text-xs text-teal-800/90 dark:text-teal-300/90 mt-0.5 leading-snug">
                   One click drafts a patient email from this post — you pick the audience and
                   review before anything sends.
                 </p>

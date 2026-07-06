@@ -136,10 +136,10 @@ export default async function ShareCardsPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed mb-3">
               {card.subtitle}
             </p>
-            <p className="text-[11px] font-mono text-gray-400 dark:text-gray-500 break-all">
+            <p className="text-xs font-mono text-gray-400 dark:text-gray-500 break-all">
               {card.url}
             </p>
-            <p className="no-print mt-4 text-[11px] font-medium text-teal-700 dark:text-teal-400">
+            <p className="no-print mt-4 text-xs font-medium text-teal-700 dark:text-teal-400">
               Best spot: {card.placement}
             </p>
           </div>

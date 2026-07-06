@@ -27,7 +27,7 @@ export default function HuntPanel({
       <div className={`mt-0.5 text-xl font-bold tabular-nums ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100'}`}>
         {value.toLocaleString()}
       </div>
-      {sub && <div className="text-[11px] text-gray-400">{sub}</div>}
+      {sub && <div className="text-xs text-gray-400">{sub}</div>}
     </div>
   )
 

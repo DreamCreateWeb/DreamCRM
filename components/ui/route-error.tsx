@@ -77,7 +77,7 @@ export function RouteError({
           Reload the page
         </button>
         {error.digest && (
-          <p className="mt-4 text-[11px] font-mono text-gray-400 dark:text-gray-600">Ref: {error.digest}</p>
+          <p className="mt-4 text-xs font-mono text-gray-400 dark:text-gray-600">Ref: {error.digest}</p>
         )}
       </div>
     </div>

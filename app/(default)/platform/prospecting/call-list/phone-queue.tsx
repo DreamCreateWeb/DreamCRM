@@ -54,7 +54,7 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
                   {r.reasons.map((reason, i) => (
                     <li
                       key={i}
-                      className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] text-gray-600 dark:text-gray-300"
+                      className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-300"
                     >
                       {reason}
                     </li>

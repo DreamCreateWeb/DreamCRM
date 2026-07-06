@@ -222,7 +222,7 @@ export default async function PortalBillingPage({
                   </p>
                   {openPlan.status === 'past_due' && (
                     <span
-                      className="rounded-full px-2.5 py-1 text-[0.72rem] font-semibold"
+                      className="rounded-full px-2.5 py-1 text-[0.78rem] font-semibold"
                       style={{ backgroundColor: '#FBEAE9', color: '#B4231F' }}
                     >
                       Payment needs attention
@@ -254,7 +254,7 @@ export default async function PortalBillingPage({
                 {bills.membership.planName}
               </p>
               <span
-                className="rounded-full px-2.5 py-1 text-[0.72rem] font-semibold"
+                className="rounded-full px-2.5 py-1 text-[0.78rem] font-semibold"
                 style={
                   bills.membership.status === 'active'
                     ? { backgroundColor: '#E5EFE6', color: '#2F6B3C' }

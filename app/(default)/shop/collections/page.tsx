@@ -141,7 +141,7 @@ export default async function CollectionsPage() {
                         {r.name}
                       </Link>
                       {!r.hasEmail && (
-                        <span className="ml-2 text-[11px] text-gray-400" title="No email on file — pay links need one">
+                        <span className="ml-2 text-xs text-gray-400" title="No email on file — pay links need one">
                           no email
                         </span>
                       )}
@@ -184,7 +184,7 @@ export default async function CollectionsPage() {
                         />
                         {canManage &&
                           (onPlan.has(r.patientId) ? (
-                            <span className="text-[11px] text-gray-400" title="This patient already has an open payment plan (see above)">
+                            <span className="text-xs text-gray-400" title="This patient already has an open payment plan (see above)">
                               on a plan
                             </span>
                           ) : (
@@ -209,7 +209,7 @@ export default async function CollectionsPage() {
               </tbody>
             </table>
           </div>
-          <p className="px-4 py-3 text-[11px] text-gray-400 border-t border-[color:var(--color-hairline)]">
+          <p className="px-4 py-3 text-xs text-gray-400 border-t border-[color:var(--color-hairline)]">
             Paid amounts stay on this board until your next PMS sync updates the balance — post
             each online payment to the PMS ledger so the books agree.
           </p>

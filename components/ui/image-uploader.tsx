@@ -137,7 +137,7 @@ export default function ImageUploader({
           }}
         />
       </div>
-      <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">{hintText}</p>
+      <p className="text-xs text-stone-500 dark:text-stone-400 mt-1.5">{hintText}</p>
       {error && <p className="text-xs text-rose-600 mt-1" role="alert">{error}</p>}
     </div>
   )

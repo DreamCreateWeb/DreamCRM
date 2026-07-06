@@ -3,6 +3,7 @@ import { db, schema } from '@/lib/db'
 import AccountPanel from './account-panel'
 import { requireUser } from '@/lib/session'
 import { SettingsPage } from '../settings-kit'
+import TextSizeToggle from '@/components/ui/text-size-toggle'
 
 export const metadata = {
   title: 'Account Settings - DreamCRM',
@@ -32,6 +33,12 @@ export default async function AccountSettings() {
             bio: row?.bio ?? null,
           }}
         />
+      </SettingsPage>
+      <SettingsPage
+        title="Text size"
+        subtitle="Make everything bigger, everywhere in the app — no squinting. Saved on this device."
+      >
+        <TextSizeToggle />
       </SettingsPage>
     </>
   )

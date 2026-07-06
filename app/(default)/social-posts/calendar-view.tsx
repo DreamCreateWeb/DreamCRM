@@ -102,7 +102,7 @@ export default function CalendarView({ posts }: { posts: SocialPostView[] }) {
       {/* Weekday header */}
       <div className="grid grid-cols-7 gap-px mb-px">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="text-[11px] font-semibold text-gray-400 text-center py-1">
+          <div key={d} className="text-xs font-semibold text-gray-400 text-center py-1">
             {d}
           </div>
         ))}
@@ -121,7 +121,7 @@ export default function CalendarView({ posts }: { posts: SocialPostView[] }) {
               className={`min-h-[84px] p-1.5 ${inMonth ? 'bg-[color:var(--color-surface-2)]' : 'bg-[color:var(--color-surface-sunk)]'}`}
             >
               <div
-                className={`text-[11px] font-mono-num mb-1 ${
+                className={`text-xs font-mono-num mb-1 ${
                   isToday
                     ? 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
                     : inMonth
@@ -142,11 +142,11 @@ export default function CalendarView({ posts }: { posts: SocialPostView[] }) {
                   >
                     <div className="flex items-center gap-1">
                       <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${TONE_DOT[STATUS_TONE[p.status]]}`} />
-                      <span className="text-[11px] truncate text-gray-700 dark:text-gray-200">{previewText(p)}</span>
+                      <span className="text-xs truncate text-gray-700 dark:text-gray-200">{previewText(p)}</span>
                     </div>
                     <div className="flex items-center gap-0.5 mt-0.5">
                       {p.targets.slice(0, 5).map((t) => (
-                        <span key={t.id} className="text-[10px]" aria-hidden="true" title={t.label}>
+                        <span key={t.id} className="text-xs" aria-hidden="true" title={t.label}>
                           {t.icon}
                         </span>
                       ))}
@@ -182,7 +182,7 @@ function DetailPopover({ post, onClose }: { post: SocialPostView; onClose: () =>
       >
         <div className="flex items-center gap-2 flex-wrap mb-2">
           {targetsGbp && post.postType !== 'standard' && (
-            <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+            <span className="inline-flex items-center rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-xs font-semibold text-gray-600 dark:text-gray-300">
               {GBP_POST_TYPE_LABELS[post.postType]}
             </span>
           )}
@@ -207,7 +207,7 @@ function DetailPopover({ post, onClose }: { post: SocialPostView; onClose: () =>
           {post.targets.map((t) => (
             <span
               key={t.id}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:text-gray-300"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] px-2 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-300"
             >
               <span aria-hidden="true">{t.icon}</span>
               {t.label}

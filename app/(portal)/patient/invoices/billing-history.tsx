@@ -102,7 +102,7 @@ export default function BillingHistory({
                 <div className="flex shrink-0 items-center gap-2.5">
                   {h.badge && (
                     <span
-                      className="rounded-full px-2 py-0.5 text-[0.68rem] font-semibold"
+                      className="rounded-full px-2 py-0.5 text-[0.78rem] font-semibold"
                       style={{ backgroundColor: '#FBF3E4', color: '#8A6116' }}
                     >
                       {h.badge}

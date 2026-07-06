@@ -155,7 +155,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               <div>
                 <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">New patients</p>
                 <p className="text-4xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 mt-0.5">{a.acquisition.newPatients}</p>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">won through your channels · bulk imports excluded</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">won through your channels · bulk imports excluded</p>
               </div>
               <DeltaBadge value={newPatientsDelta} />
             </div>
@@ -627,7 +627,7 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
             className="absolute inset-x-0 z-10 border-t border-dashed border-gray-300/80 dark:border-gray-600/70 pointer-events-none"
             style={{ bottom: `${(avg / max) * 100}%` }}
           >
-            <span className="absolute -top-2 right-0 text-[10px] text-gray-400 dark:text-gray-500 bg-[color:var(--color-surface-1)] px-1">
+            <span className="absolute -top-2 right-0 text-xs text-gray-400 dark:text-gray-500 bg-[color:var(--color-surface-1)] px-1">
               avg {Math.round(avg)}
             </span>
           </div>
@@ -635,7 +635,7 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
         <div className="flex items-end gap-1 h-full border-b border-[color:var(--color-hairline)]">
           {points.map((p, i) => (
             <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group">
-              <span className="text-[10px] tabular-nums font-mono-num text-gray-600 dark:text-gray-300 mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span className="text-xs tabular-nums font-mono-num text-gray-600 dark:text-gray-300 mb-0.5">
                 {p.count}
               </span>
               {/* Chart series 1 = teal (identity; the only teal allowed in data). */}
@@ -650,7 +650,7 @@ function Bars({ points, className = '' }: { points: TrendPoint[]; className?: st
       </div>
       <div className="flex gap-1 mt-1">
         {points.map((p, i) => (
-          <span key={i} className="flex-1 text-[10px] text-gray-400 dark:text-gray-500 truncate text-center">
+          <span key={i} className="flex-1 text-xs text-gray-400 dark:text-gray-500 truncate text-center">
             {i % labelEvery === 0 ? p.label : ''}
           </span>
         ))}

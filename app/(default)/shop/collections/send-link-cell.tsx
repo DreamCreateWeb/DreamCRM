@@ -51,7 +51,7 @@ export default function SendLinkCell({
         {pending ? 'Sending…' : 'Email pay link'}
       </button>
       {state === 'error' && (
-        <span className="text-[11px] text-rose-600 dark:text-rose-400">{error}</span>
+        <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>
       )}
     </span>
   )

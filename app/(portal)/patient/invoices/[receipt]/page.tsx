@@ -127,21 +127,21 @@ export default async function PortalReceiptPage({
               {clinic?.displayName ?? 'Your clinic'}
             </p>
             {addr && (
-              <p className="mt-0.5 text-[0.78rem]" style={{ color: PORTAL_MUTED }}>
+              <p className="mt-0.5 text-[0.85rem]" style={{ color: PORTAL_MUTED }}>
                 {addr}
               </p>
             )}
             {clinic?.phone && (
-              <p className="text-[0.78rem]" style={{ color: PORTAL_MUTED }}>
+              <p className="text-[0.85rem]" style={{ color: PORTAL_MUTED }}>
                 {clinic.phone}
               </p>
             )}
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-[0.72rem] font-semibold uppercase tracking-wider" style={{ color: brand }}>
+            <p className="text-[0.85rem] font-semibold uppercase tracking-wider" style={{ color: brand }}>
               {title}
             </p>
-            <p className="text-[0.78rem] tabular-nums" style={{ color: PORTAL_MUTED }}>
+            <p className="text-[0.85rem] tabular-nums" style={{ color: PORTAL_MUTED }}>
               {ref}
             </p>
           </div>
@@ -170,7 +170,7 @@ export default async function PortalReceiptPage({
             >
               <div className="min-w-0">
                 <p className="text-[0.9rem] font-medium" style={{ color: PORTAL_INK }}>{l.label}</p>
-                {l.sub && <p className="text-[0.76rem]" style={{ color: PORTAL_MUTED }}>{l.sub}</p>}
+                {l.sub && <p className="text-[0.82rem]" style={{ color: PORTAL_MUTED }}>{l.sub}</p>}
               </div>
               <span className="shrink-0 text-[0.9rem] font-semibold tabular-nums" style={{ color: PORTAL_INK }}>
                 {fmtMoney(l.amountCents)}
@@ -189,12 +189,12 @@ export default async function PortalReceiptPage({
         </div>
 
         {footNote && (
-          <p className="mt-4 text-[0.78rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
+          <p className="mt-4 text-[0.85rem] leading-relaxed" style={{ color: PORTAL_MUTED }}>
             {footNote}
           </p>
         )}
 
-        <p className="mt-5 text-center text-[0.76rem]" style={{ color: PORTAL_MUTED }}>
+        <p className="mt-5 text-center text-[0.82rem]" style={{ color: PORTAL_MUTED }}>
           Thank you{clinic?.phone ? ` — questions about this receipt? Call ${clinic.phone}.` : '.'}
         </p>
       </div>
