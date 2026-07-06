@@ -9,16 +9,15 @@ import {
   type ProspectLossReason,
 } from '@/lib/types/prospecting'
 import { endBrandedDemoWithOutcomeAction } from '@/app/(default)/ecommerce/customers/admin-actions'
-import { clearPresenterSession, readDemoStartedAt } from './presenter-session'
-import { useDemoElapsed } from './demo-timer'
 
 /**
- * The wrap-up view — the demo's landing strip. Every demo ends HERE, in a
- * logged outcome, never in a disabled Next button or a dead drop on the
- * platform overview. Shows the close reminder (the track's plan pitch),
- * collects the result + a note (pre-filled from the per-beat notes taken
- * mid-demo), then ends the branded demo and hard-assigns to the call list
- * with the prospect pinned.
+ * The wrap-up view — the demo's landing strip, rendered in the pop-out
+ * script window (the presenter's screen; the audience never sees it).
+ * Every demo ends HERE, in a logged outcome, never a dead drop. Shows the
+ * close reminder (the track's plan pitch), collects the result + a note
+ * (pre-filled from the per-beat notes mirrored over the channel), logs it
+ * and ends the branded demo — then hands the destination to the caller,
+ * which tells the demo tab to navigate and closes this window.
  */
 
 const OUTCOMES: Array<{ value: 'won' | 'callback' | 'not_interested'; label: string }> = [
@@ -27,21 +26,18 @@ const OUTCOMES: Array<{ value: 'won' | 'callback' | 'not_interested'; label: str
   { value: 'not_interested', label: 'Not now' },
 ]
 
-/** "The website story demo · 14 min · 6/7 beats" + the per-beat notes —
- *  the call log tells the win/loss review what actually happened. */
-function buildDemoNote(track: DemoTrack): string {
-  const startedAt = readDemoStartedAt()
+/** "The website story demo · 14 min" + the per-beat notes — the call log
+ *  tells the win/loss review what actually happened. */
+function buildDemoNote(
+  track: DemoTrack,
+  notes: Record<string, string>,
+  startedAt: number | null,
+): string {
   const minutes = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 60_000)) : null
-  const parts: string[] = [
-    `${track.label} demo${minutes ? ` · ${minutes} min` : ''}`,
-  ]
-  try {
-    for (const b of track.beats) {
-      const note = sessionStorage.getItem(`dc.demo-notes.${b.id}`)
-      if (note?.trim()) parts.push(`${b.title}: ${note.trim()}`)
-    }
-  } catch {
-    /* private mode */
+  const parts: string[] = [`${track.label} demo${minutes ? ` · ${minutes} min` : ''}`]
+  for (const b of track.beats) {
+    const note = notes[b.id]
+    if (note?.trim()) parts.push(`${b.title}: ${note.trim()}`)
   }
   return parts.join(' · ').slice(0, 480)
 }
@@ -50,17 +46,27 @@ export default function WrapUp({
   skin,
   track,
   coveredCount,
+  notes,
+  startedAt,
+  elapsed,
   onBack,
+  onEnded,
 }: {
   skin: DemoSkin | null
   track: DemoTrack
   coveredCount: number
+  notes: Record<string, string>
+  startedAt: number | null
+  elapsed: string
   onBack: () => void
+  onEnded: (to: string) => void
 }) {
-  const elapsed = useDemoElapsed()
   const [outcome, setOutcome] = useState<'won' | 'callback' | 'not_interested' | null>(null)
   const [lostReason, setLostReason] = useState<ProspectLossReason>('bad_timing')
-  const initialNote = useMemo(() => buildDemoNote(track), [track])
+  const initialNote = useMemo(
+    () => buildDemoNote(track, notes, startedAt),
+    [track, notes, startedAt],
+  )
   const [note, setNote] = useState(initialNote)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -70,15 +76,14 @@ export default function WrapUp({
       setError(null)
       try {
         const res = await endBrandedDemoWithOutcomeAction(input)
-        clearPresenterSession()
-        window.location.assign(res.to)
+        onEnded(res.to)
       } catch {
         setError('Couldn’t end the demo — try again.')
       }
     })
 
   return (
-    <div className="mt-2" data-testid="demo-wrapup">
+    <div className="mt-4" data-testid="demo-wrapup">
       <div className="text-[10px] font-medium uppercase tracking-wider text-gray-500">
         Wrap up · {coveredCount} of {track.beats.length} beats · {elapsed}
       </div>
@@ -121,7 +126,7 @@ export default function WrapUp({
       )}
 
       <textarea
-        rows={2}
+        rows={3}
         value={note}
         onChange={(e) => setNote(e.target.value.slice(0, 500))}
         placeholder="How it went, what they cared about, next step…"

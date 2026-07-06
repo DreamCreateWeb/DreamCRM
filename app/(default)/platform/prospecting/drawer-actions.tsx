@@ -83,7 +83,12 @@ export default function DrawerActions({
           title="Enter the demo clinic with this practice's name on it — their practice, running on DreamCRM"
           onClick={() =>
             startTransition(async () => {
+              // Pre-open the script window INSIDE the click gesture (popup
+              // blockers kill window.open after an await), then point it at
+              // the script once the demo cookies exist.
+              const script = window.open('', 'dcDemoScript', 'width=440,height=780')
               const res = await startBrandedDemoAction(prospectId)
+              if (script) script.location.href = '/demo/script'
               // Hard-assign so middleware + tenant context see the new demo
               // cookies; the action picks the story's first beat.
               window.location.assign(res.to)

@@ -4,22 +4,28 @@ import React from 'react'
 
 /**
  * The pop-out presenter remote — protocol parsing (cross-window input is
- * untrusted) + the two-window contract: the demo tab OWNS state and
- * collapses on connect (the talk tracks leave the shared screen); the
- * script window mirrors state and drives beats/track/wrap-up/notes.
+ * untrusted) + the two-window contract: the demo tab's INVISIBLE conductor
+ * owns state and answers commands; the script window mirrors state, drives
+ * beats/track/notes, hosts the wrap-up, and hands back `ended`.
  */
 
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }))
+const { endWithOutcomeMock } = vi.hoisted(() => ({
+  endWithOutcomeMock: vi.fn(async () => ({
+    ok: true,
+    to: '/platform/prospecting/call-list?highlight=pros_1',
+  })),
+}))
 vi.mock('@/app/(default)/ecommerce/customers/admin-actions', () => ({
   endBrandedDemoAction: vi.fn(),
-  endBrandedDemoWithOutcomeAction: vi.fn(async () => ({ ok: true, to: '/x' })),
+  endBrandedDemoWithOutcomeAction: endWithOutcomeMock,
   exitDemoMode: vi.fn(),
 }))
 
 import { parseDemoRemoteMessage, DEMO_REMOTE_CHANNEL } from '@/lib/demo-remote'
 import { DEMO_TRACKS } from '@/lib/types/demo-script'
-import PresenterPanel from '@/components/demo/presenter-panel'
+import DemoConductor from '@/components/demo/demo-conductor'
 import ScriptRemote from '@/components/demo/script-remote'
 
 // A same-process BroadcastChannel: instances sharing a name form a hub;
@@ -38,9 +44,10 @@ class FakeBroadcastChannel {
     hub.add(this)
   }
   postMessage(data: unknown) {
-    for (const peer of FakeBroadcastChannel.hubs.get(this.name) ?? []) {
+    const hub = FakeBroadcastChannel.hubs.get(this.name)
+    hub?.forEach((peer) => {
       if (peer !== this) peer.listeners.forEach((fn) => fn({ data }))
-    }
+    })
   }
   addEventListener(_type: string, fn: (e: { data: unknown }) => void) {
     this.listeners.add(fn)
@@ -105,7 +112,7 @@ describe('parseDemoRemoteMessage', () => {
   })
 })
 
-describe('PresenterPanel as the remote-driven main window', () => {
+describe('DemoConductor as the remote-driven main window', () => {
   function connectRemote() {
     const remote = new FakeBroadcastChannel(DEMO_REMOTE_CHANNEL)
     const received: unknown[] = []
@@ -113,19 +120,18 @@ describe('PresenterPanel as the remote-driven main window', () => {
     return { remote, received }
   }
 
-  it('hello → replies with state AND collapses (talk tracks leave the shared screen)', () => {
-    render(<PresenterPanel skin={SKIN} />)
+  it('renders nothing, and hello → replies with full state', () => {
+    const { container } = render(<DemoConductor skin={SKIN} />)
+    expect(container.innerHTML).toBe('')
     const { remote, received } = connectRemote()
     act(() => remote.postMessage({ kind: 'hello' }))
     const state = received.find((m) => (m as { kind?: string }).kind === 'state')
     expect(state).toMatchObject({ kind: 'state', index: 0, trackId: 'full', wrapup: false })
-    // Collapsed to the pill — only the 🎬 pill remains, no panel.
-    expect(screen.queryByTestId('presenter-panel')).toBeNull()
-    expect(screen.getByText(/🎬/)).toBeTruthy()
+    expect((state as { startedAt: number | null }).startedAt).toBeGreaterThan(0)
   })
 
   it('goto drives navigation; switch-track resets to the new story; note lands in storage', () => {
-    render(<PresenterPanel skin={SKIN} />)
+    render(<DemoConductor skin={SKIN} />)
     const { remote } = connectRemote()
     act(() => remote.postMessage({ kind: 'goto', index: 2 }))
     expect(pushMock).toHaveBeenLastCalledWith(DEMO_TRACKS.full.beats[2].href)
@@ -135,11 +141,33 @@ describe('PresenterPanel as the remote-driven main window', () => {
     expect(sessionStorage.getItem('dc.demo-notes.compare')).toBe('They gasped.')
   })
 
-  it('wrapup command opens the wrap-up view', () => {
-    render(<PresenterPanel skin={SKIN} />)
-    const { remote } = connectRemote()
+  it('wrapup command flips the mirrored state (the script window shows the wrap-up)', () => {
+    render(<DemoConductor skin={SKIN} />)
+    const { remote, received } = connectRemote()
     act(() => remote.postMessage({ kind: 'wrapup' }))
-    expect(screen.getByTestId('demo-wrapup')).toBeTruthy()
+    const state = received.filter((m) => (m as { kind?: string }).kind === 'state').pop()
+    expect(state).toMatchObject({ kind: 'state', wrapup: true })
+  })
+
+  it('ended → clears the presenter session and hard-assigns to the call list', () => {
+    const assign = vi.fn()
+    const original = window.location
+    Object.defineProperty(window, 'location', {
+      value: { ...original, assign },
+      writable: true,
+      configurable: true,
+    })
+    try {
+      render(<DemoConductor skin={SKIN} />)
+      sessionStorage.setItem('dc.demo-notes.huddle', 'x')
+      const { remote } = connectRemote()
+      act(() => remote.postMessage({ kind: 'ended', to: '/platform/prospecting/call-list?highlight=pros_1' }))
+      expect(assign).toHaveBeenCalledWith('/platform/prospecting/call-list?highlight=pros_1')
+      expect(sessionStorage.getItem('dc.demo-notes.huddle')).toBeNull()
+      expect(sessionStorage.getItem('dc.demo-started-at')).toBeNull()
+    } finally {
+      Object.defineProperty(window, 'location', { value: original, writable: true, configurable: true })
+    }
   })
 })
 
@@ -157,6 +185,7 @@ describe('ScriptRemote as the second-screen script', () => {
           wrapup: false,
           startedAt: Date.now() - 60_000,
           notes: { website: 'Loved the editor' },
+          visited: ['compare', 'website'],
         })
       }
     })
@@ -200,5 +229,41 @@ describe('ScriptRemote as the second-screen script', () => {
     expect(commands).toContainEqual({ kind: 'goto', index: 2 })
     fireEvent.keyDown(window, { key: '7' }) // last beat of the 7-beat website track
     expect(commands).toContainEqual({ kind: 'goto', index: 6 })
+  })
+
+  it('hosts the wrap-up: logs the outcome, sends ended, and shows the ended screen', async () => {
+    const main = new FakeBroadcastChannel(DEMO_REMOTE_CHANNEL)
+    const commands: unknown[] = []
+    main.addEventListener('message', (e) => {
+      commands.push(e.data)
+      if ((e.data as { kind?: string }).kind === 'hello') {
+        main.postMessage({
+          kind: 'state',
+          index: 6,
+          trackId: 'website',
+          wrapup: true,
+          startedAt: Date.now() - 14 * 60_000,
+          notes: { website: 'Loved the editor' },
+          visited: ['compare', 'website', 'appointments'],
+        })
+      }
+    })
+    render(<ScriptRemote skin={SKIN} />)
+    expect(screen.getByTestId('demo-wrapup')).toBeTruthy()
+    expect(screen.getByText(/3 of 7 beats/)).toBeTruthy()
+    // Note pre-fills with the auto summary + per-beat notes.
+    const note = screen.getByPlaceholderText(/How it went/) as HTMLTextAreaElement
+    expect(note.value).toContain('The website story demo · 14 min')
+    expect(note.value).toContain('Loved the editor')
+    fireEvent.click(screen.getByText(/They’re in/))
+    fireEvent.click(screen.getByText('Log & end demo'))
+    await vi.waitFor(() =>
+      expect(commands).toContainEqual({
+        kind: 'ended',
+        to: '/platform/prospecting/call-list?highlight=pros_1',
+      }),
+    )
+    expect(endWithOutcomeMock).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'won' }))
+    expect(screen.getByText('Demo ended')).toBeTruthy()
   })
 })

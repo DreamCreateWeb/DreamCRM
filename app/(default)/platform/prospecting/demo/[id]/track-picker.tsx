@@ -70,7 +70,12 @@ export default function TrackPicker({
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
+              // Pre-open the script window INSIDE the click gesture (popup
+              // blockers kill window.open after an await), then point it at
+              // the script once the demo cookies exist.
+              const script = window.open('', 'dcDemoScript', 'width=440,height=780')
               const res = await startBrandedDemoAction(prospectId, selected)
+              if (script) script.location.href = '/demo/script'
               // Hard-assign so middleware + tenant context see the new demo
               // cookies; the action picks the story's first beat.
               window.location.assign(res.to)

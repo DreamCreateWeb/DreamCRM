@@ -7,6 +7,31 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Demo v5 — all-in on the pop-out; nothing floats on the shared screen
+  (2026-07-06).** Owner call after v4: "run 100% with the pop-out — no
+  hovering card on the site at all." The floating presenter panel is GONE;
+  the demo tab now mounts an INVISIBLE `DemoConductor`
+  (`components/demo/demo-conductor.tsx`, renders null): it owns all
+  presenter state (scoped session, clock, visited, notes), still answers
+  the keyboard (→/n/←/digits — no Esc, nothing to hide), navigates on
+  `goto`, and serves the BroadcastChannel as the state authority. The
+  pop-out `/demo/script` is now the WHOLE presenter surface — the wrap-up
+  (outcome buttons + auto-summarized note) moved into it; "Log & end"
+  calls the end action from the popup (same-origin cookies), sends a new
+  `ended{to}` command so the demo tab clears its session and lands on the
+  call list, then closes itself. All three launchers pre-open the script
+  window INSIDE the click gesture (popup blockers kill window.open after
+  an await; `window.open('', 'dcDemoScript')` then point it at
+  /demo/script once the demo cookies exist), so a demo starts with the
+  script already on the second screen; the script hello-retries every
+  second until the demo tab answers. The header "Presenting to X" chip is
+  the only on-screen control left — it opens/refocuses the one named
+  script window (blocked-popup fallback: same-tab navigate). Deleted:
+  presenter-panel, beat-progress, beat-notes, gap-callouts, demo-timer
+  (state protocol gains `visited`; wrap-up went props-driven). Tests
+  reworked: conductor renders NOTHING + keyboard + scoped reset;
+  channel contract incl. `ended` handshake; wrap-up-in-popup logging flow.
+
 - **Demo v4 — the second-screen script + stage direction (2026-07-06).**
   The remaining flaw after v3: the presenter panel (talk tracks, ⚠ gaps,
   "their site is a DIY Wix" ammunition) rendered on the SHARED SCREEN the

@@ -9,7 +9,20 @@ const SCOPE_KEY = 'dc.demo-key'
 export const DEMO_START_KEY = 'dc.demo-started-at'
 export const DEMO_NOTES_PREFIX = 'dc.demo-notes.'
 
-/** Epoch ms the demo clock started (null before the timer mounts). */
+/** Start the demo clock if it isn't running; returns the start epoch ms. */
+export function ensureDemoStartedAt(): number {
+  const existing = readDemoStartedAt()
+  if (existing) return existing
+  const now = Date.now()
+  try {
+    sessionStorage.setItem(DEMO_START_KEY, String(now))
+  } catch {
+    /* private mode */
+  }
+  return now
+}
+
+/** Epoch ms the demo clock started (null before the conductor mounts). */
 export function readDemoStartedAt(): number | null {
   try {
     const raw = Number(sessionStorage.getItem(DEMO_START_KEY))

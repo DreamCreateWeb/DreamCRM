@@ -12,7 +12,7 @@ import { ToastProvider } from '@/components/ui/toast'
 import { SkipToContent } from '@/components/ui/skip-to-content'
 import { getTenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
-import PresenterPanel from '@/components/demo/presenter-panel'
+import DemoConductor from '@/components/demo/demo-conductor'
 import { getServerSession } from '@/lib/session'
 import { trialDaysLeft } from '@/lib/trial'
 import { findPendingInviteForEmail } from '@/lib/auth/pending-invite'
@@ -175,10 +175,10 @@ export default async function DashboardShell({
       </TrailProvider>
       {/* Global keyboard map ( [ · ⌘1/2/3 · C · G→P/A/L ). */}
       <KeyboardShortcuts cockpitPaths={cockpitPaths} />
-      {/* Presenter script — the platform admin's floating demo beats. Only
-          mounts for platformAdmin inside demo mode; the audience never sees
-          it on a shared screen unless the presenter wants it visible. */}
-      {ctx.isDemo && ctx.platformAdmin && <PresenterPanel skin={demoSkin} />}
+      {/* The demo conductor — INVISIBLE. It owns presenter state + keyboard
+          drive and feeds the pop-out /demo/script window; the audience never
+          sees a script on this screen. Platform admin + demo mode only. */}
+      {ctx.isDemo && ctx.platformAdmin && <DemoConductor skin={demoSkin} />}
     </div>
   )
 }

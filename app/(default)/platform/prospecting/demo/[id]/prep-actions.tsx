@@ -17,7 +17,11 @@ export default function PrepActions({ prospectId }: { prospectId: string }) {
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
+            // Pre-open the script window INSIDE the click gesture (popup
+            // blockers kill window.open after an await).
+            const script = window.open('', 'dcDemoScript', 'width=440,height=780')
             const res = await startBrandedDemoAction(prospectId)
+            if (script) script.location.href = '/demo/script'
             window.location.assign(res.to)
           })
         }

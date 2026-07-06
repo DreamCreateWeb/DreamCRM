@@ -15,6 +15,7 @@ import {
   parseDemoRemoteMessage,
   type DemoRemoteCommand,
 } from '@/lib/demo-remote'
+import WrapUp from './wrap-up'
 
 /**
  * The pop-out presenter script — the SECOND-SCREEN view of a live demo.
@@ -27,6 +28,7 @@ import {
 
 export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
   const [connected, setConnected] = useState(false)
+  const [ended, setEnded] = useState(false)
   const [index, setIndex] = useState(0)
   const [trackId, setTrackId] = useState<DemoTrackId>(
     (skin?.track as DemoTrackId | undefined) ?? 'full',
@@ -34,6 +36,7 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
   const [wrapup, setWrapup] = useState(false)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [notes, setNotes] = useState<Record<string, string>>({})
+  const [visited, setVisited] = useState<string[]>([])
   const [elapsed, setElapsed] = useState('0:00')
   const channelRef = useRef<BroadcastChannel | null>(null)
 
@@ -51,23 +54,37 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
   }, [])
 
   // Connect + mirror. The main tab replies to 'hello' with full state.
+  // This window often opens BEFORE the demo tab finishes loading (the
+  // launchers pre-open it), so keep knocking until the first state lands.
   useEffect(() => {
     const ch = openDemoRemoteChannel()
     channelRef.current = ch
     if (!ch) return
+    let heard = false
     const onMessage = (e: MessageEvent) => {
       const msg = parseDemoRemoteMessage(e.data)
       if (msg?.kind !== 'state') return
+      heard = true
       setConnected(true)
       setIndex(msg.index)
       setTrackId(msg.trackId)
       setWrapup(msg.wrapup)
       setStartedAt(msg.startedAt)
       setNotes(msg.notes)
+      setVisited(msg.visited)
     }
     ch.addEventListener('message', onMessage)
     ch.postMessage({ kind: 'hello' } satisfies DemoRemoteCommand)
+    const retry = setInterval(() => {
+      if (heard) return clearInterval(retry)
+      try {
+        ch.postMessage({ kind: 'hello' } satisfies DemoRemoteCommand)
+      } catch {
+        clearInterval(retry)
+      }
+    }, 1000)
     return () => {
+      clearInterval(retry)
       ch.removeEventListener('message', onMessage)
       ch.close()
       channelRef.current = null
@@ -156,14 +173,33 @@ export default function ScriptRemote({ skin }: { skin: DemoSkin | null }) {
           </select>
         </div>
 
-        {wrapup ? (
+        {ended ? (
           <div className="mt-4 rounded-lg bg-white/5 p-4 ring-1 ring-inset ring-white/10">
-            <div className="text-sm font-semibold">Wrapping up on the demo screen</div>
-            <p className="mt-1 text-xs leading-relaxed text-gray-300">{track.planPitch}</p>
-            <p className="mt-2 text-[11px] text-gray-500">
-              Log the outcome in the panel on the demo window.
+            <div className="text-sm font-semibold">Demo ended</div>
+            <p className="mt-1 text-xs leading-relaxed text-gray-300">
+              The outcome is logged — the demo window is on the call list. You can close this window.
             </p>
           </div>
+        ) : wrapup ? (
+          <WrapUp
+            skin={skin}
+            track={track}
+            coveredCount={track.beats.filter((b) => visited.includes(b.id)).length}
+            notes={notes}
+            startedAt={startedAt}
+            elapsed={elapsed}
+            onBack={() => send({ kind: 'goto', index: safeIndex })}
+            onEnded={(to) => {
+              // Tell the demo tab to land on the call list, then bow out.
+              send({ kind: 'ended', to })
+              setEnded(true)
+              try {
+                window.close()
+              } catch {
+                /* not script-opened — the ended screen covers it */
+              }
+            }}
+          />
         ) : (
           <ol className="mt-4 space-y-1.5">
             {beats.map((b, i) => {

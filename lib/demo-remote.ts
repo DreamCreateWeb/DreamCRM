@@ -15,6 +15,9 @@ export type DemoRemoteCommand =
   | { kind: 'switch-track'; trackId: DemoTrackId }
   | { kind: 'wrapup' }
   | { kind: 'note'; beatId: string; value: string }
+  // The script window logged the outcome and ended the demo — the main tab
+  // clears its presenter session and navigates to the call list.
+  | { kind: 'ended'; to: string }
 
 /** Main → remote: mirror the demo. */
 export interface DemoRemoteState {
@@ -27,6 +30,8 @@ export interface DemoRemoteState {
   startedAt: number | null
   /** Per-beat notes snapshot — the remote edits, the main tab stores. */
   notes: Record<string, string>
+  /** Beat ids already shown — the wrap-up's "covered N of M". */
+  visited: string[]
 }
 
 export type DemoRemoteMessage = DemoRemoteCommand | DemoRemoteState
@@ -60,6 +65,10 @@ export function parseDemoRemoteMessage(data: unknown): DemoRemoteMessage | null 
       return typeof m.beatId === 'string' && typeof m.value === 'string'
         ? { kind: 'note', beatId: m.beatId, value: m.value.slice(0, 2000) }
         : null
+    case 'ended':
+      return typeof m.to === 'string' && m.to.startsWith('/')
+        ? { kind: 'ended', to: m.to.slice(0, 300) }
+        : null
     case 'state': {
       if (typeof m.index !== 'number' || typeof m.trackId !== 'string') return null
       return {
@@ -76,6 +85,9 @@ export function parseDemoRemoteMessage(data: unknown): DemoRemoteMessage | null 
                 ),
               )
             : {},
+        visited: Array.isArray(m.visited)
+          ? (m.visited.filter((v): v is string => typeof v === 'string'))
+          : [],
       }
     }
     default:
