@@ -11,6 +11,17 @@ export const PORTAL_MUTED = '#6B635A'
 export const PORTAL_BORDER = '#E8E2D9'
 export const PORTAL_BG = '#FAF7F2'
 
+// Semantic tones — meaning-first names so "what error looks like" is decided
+// HERE, once. Raw hexes for these meanings are banned outside this file
+// (tests/a11y/portal-tokens.test.ts).
+export const PORTAL_ERROR = '#B4231F'
+export const PORTAL_WARN_BG = '#FBF3E4'
+export const PORTAL_WARN_INK = '#8A6116'
+export const PORTAL_SUCCESS_BG = '#E5EFE6'
+export const PORTAL_SUCCESS_INK = '#2F6B3C'
+export const PORTAL_DANGER_BG = '#F7E9E6'
+export const PORTAL_DANGER_INK = '#9B4434'
+
 export function PortalCard({
   children,
   className = '',
@@ -71,11 +82,11 @@ export function PortalSectionLabel({ children }: { children: React.ReactNode }) 
 }
 
 const STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
-  confirmed: { bg: '#E5EFE6', fg: '#2F6B3C', label: 'Confirmed' },
-  scheduled: { bg: '#FBF3E4', fg: '#8A6116', label: 'Scheduled' },
-  completed: { bg: '#EDEAE4', fg: '#6B635A', label: 'Completed' },
-  cancelled: { bg: '#F7E9E6', fg: '#9B4434', label: 'Cancelled' },
-  no_show: { bg: '#F7E9E6', fg: '#9B4434', label: 'Missed' },
+  confirmed: { bg: PORTAL_SUCCESS_BG, fg: PORTAL_SUCCESS_INK, label: 'Confirmed' },
+  scheduled: { bg: PORTAL_WARN_BG, fg: PORTAL_WARN_INK, label: 'Scheduled' },
+  completed: { bg: '#EDEAE4', fg: PORTAL_MUTED, label: 'Completed' },
+  cancelled: { bg: PORTAL_DANGER_BG, fg: PORTAL_DANGER_INK, label: 'Cancelled' },
+  no_show: { bg: PORTAL_DANGER_BG, fg: PORTAL_DANGER_INK, label: 'Missed' },
 }
 
 export function VisitStatusPill({ status }: { status: string }) {
@@ -173,23 +184,30 @@ export function PortalEmptyState({
   )
 }
 
-/** Pill-shaped primary action — brand fill. */
+/** Pill-shaped primary action — brand fill. Works from server pages (href)
+ *  AND client components (onClick/disabled) so nobody hand-rolls the pill. */
 export function BrandButton({
   children,
   brand,
   href,
   type = 'button',
   small = false,
+  onClick,
+  disabled,
+  className = '',
 }: {
   children: React.ReactNode
   brand: string
   href?: string
   type?: 'button' | 'submit'
   small?: boolean
+  onClick?: () => void
+  disabled?: boolean
+  className?: string
 }) {
-  const cls = `inline-flex items-center justify-center rounded-full font-semibold text-white ${
+  const cls = `inline-flex items-center justify-center rounded-full font-semibold text-white transition disabled:opacity-50 ${
     small ? 'px-4 py-2 text-[0.82rem]' : 'px-5 py-2.5 text-[0.9rem]'
-  }`
+  } ${className}`
   if (href) {
     return (
       <Link href={href} className={cls} style={{ backgroundColor: brand }}>
@@ -198,9 +216,84 @@ export function BrandButton({
     )
   }
   return (
-    <button type={type} className={cls} style={{ backgroundColor: brand }}>
+    <button type={type} className={cls} style={{ backgroundColor: brand }} onClick={onClick} disabled={disabled}>
       {children}
     </button>
+  )
+}
+
+/** Bare text action — the "Cancel"/"Never mind" third tier. */
+export function GhostButton({
+  children,
+  onClick,
+  className = '',
+}: {
+  children: React.ReactNode
+  onClick?: () => void
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-[0.85rem] font-medium ${className}`}
+      style={{ color: PORTAL_MUTED }}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** The error line under a failed action — one voice, one color, role=alert. */
+export function PortalErrorText({ children }: { children: React.ReactNode }) {
+  if (!children) return null
+  return (
+    <p className="mt-2 text-[0.82rem] font-medium" style={{ color: PORTAL_ERROR }} role="alert">
+      {children}
+    </p>
+  )
+}
+
+/** Warm text input — the portal's one field recipe. */
+export function PortalInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const { className = '', style, ...rest } = props
+  return (
+    <input
+      {...rest}
+      className={`w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none ${className}`}
+      style={{ border: `1px solid ${PORTAL_BORDER}`, color: PORTAL_INK, backgroundColor: '#FFFFFF', ...style }}
+    />
+  )
+}
+
+/** Warm textarea — same recipe as PortalInput. */
+export function PortalTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const { className = '', style, ...rest } = props
+  return (
+    <textarea
+      {...rest}
+      className={`w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none ${className}`}
+      style={{ border: `1px solid ${PORTAL_BORDER}`, color: PORTAL_INK, backgroundColor: '#FFFFFF', ...style }}
+    />
+  )
+}
+
+/** Tinted notice block — success (green) or attention (amber), one recipe. */
+export function PortalNotice({
+  tone,
+  children,
+  className = '',
+}: {
+  tone: 'success' | 'warn'
+  children: React.ReactNode
+  className?: string
+}) {
+  const bg = tone === 'success' ? PORTAL_SUCCESS_BG : PORTAL_WARN_BG
+  const ink = tone === 'success' ? PORTAL_SUCCESS_INK : PORTAL_WARN_INK
+  return (
+    <div className={`rounded-2xl px-4 py-3.5 text-[0.9rem] font-medium ${className}`} style={{ backgroundColor: bg, color: ink }}>
+      {children}
+    </div>
   )
 }
 

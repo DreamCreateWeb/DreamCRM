@@ -10,7 +10,7 @@ import {
 } from '@/app/(portal)/patient/actions'
 import SlotPicker from './slot-picker'
 import { fmtVisitDayTime, visitProximityLabel } from './format'
-import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
+import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER, PORTAL_WARN_BG, PORTAL_WARN_INK, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK, PORTAL_DANGER_BG, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
 
 /**
  * The portal's anchor object: a state-aware visit card. The action row
@@ -34,8 +34,8 @@ export interface VisitCardData {
 
 
 const STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
-  confirmed: { bg: '#E5EFE6', fg: '#2F6B3C', label: 'Confirmed' },
-  scheduled: { bg: '#FBF3E4', fg: '#8A6116', label: 'Needs confirming' },
+  confirmed: { bg: PORTAL_SUCCESS_BG, fg: PORTAL_SUCCESS_INK, label: 'Confirmed' },
+  scheduled: { bg: PORTAL_WARN_BG, fg: PORTAL_WARN_INK, label: 'Needs confirming' },
 }
 
 function Face({ name, photoUrl, brand }: { name: string | null; photoUrl: string | null; brand: string }) {
@@ -81,7 +81,7 @@ function ActionPill({
     variant === 'brand'
       ? { backgroundColor: brand, color: '#FFFFFF' }
       : variant === 'danger'
-        ? { backgroundColor: '#FFFFFF', border: '1px solid #E8C8C0', color: '#9B4434' }
+        ? { backgroundColor: '#FFFFFF', border: '1px solid #E8C8C0', color: PORTAL_DANGER_INK }
         : { backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }
   if (href) {
     return (
@@ -310,8 +310,8 @@ export default function VisitCard({
           className="mt-3 rounded-xl px-3.5 py-2.5 text-[0.85rem] font-medium"
           style={
             message.kind === 'ok'
-              ? { backgroundColor: '#E5EFE6', color: '#2F6B3C' }
-              : { backgroundColor: '#F7E9E6', color: '#9B4434' }
+              ? { backgroundColor: PORTAL_SUCCESS_BG, color: PORTAL_SUCCESS_INK }
+              : { backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }
           }
         >
           {message.text}

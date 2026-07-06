@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { requestMyRecordsAction } from '../actions'
-import { PortalCard, PORTAL_INK, PORTAL_MUTED } from '@/components/patient-portal/ui'
+import { PortalCard, PORTAL_INK, PORTAL_MUTED, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK } from '@/components/patient-portal/ui'
 
 /**
  * "Request my records" — turns the old passive "call us" card into a real,
@@ -36,7 +36,7 @@ export default function RequestRecordsCard({ brand, phone }: { brand: string; ph
       {done ? (
         <div
           className="mt-3 rounded-2xl px-4 py-3 text-[0.88rem] font-medium"
-          style={{ backgroundColor: '#E5EFE6', color: '#2F6B3C' }}
+          style={{ backgroundColor: PORTAL_SUCCESS_BG, color: PORTAL_SUCCESS_INK }}
         >
           Request sent — we’ll reply in your{' '}
           <a href="/patient/messages" className="font-semibold underline">

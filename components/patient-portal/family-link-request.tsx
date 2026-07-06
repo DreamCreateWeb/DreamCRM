@@ -2,7 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import { requestFamilyLinkAction } from '@/app/(portal)/patient/actions'
-import { PortalCard, PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
+import {
+  PortalCard,
+  BrandButton,
+  GhostButton,
+  PortalInput,
+  PortalErrorText,
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+} from '@/components/patient-portal/ui'
 
 
 /**
@@ -55,14 +63,9 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
             Ask us to link their record to your account — you’ll see their visits and handle
             their forms from this same login.
           </p>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="mt-3 inline-flex items-center rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white"
-            style={{ backgroundColor: brand }}
-          >
+          <BrandButton brand={brand} onClick={() => setOpen(true)} className="mt-3">
             Add a family member
-          </button>
+          </BrandButton>
         </>
       ) : (
         <>
@@ -70,30 +73,24 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
             Who should we add?
           </p>
           <div className="mt-3 space-y-2.5">
-            <input
+            <PortalInput
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Their full name"
               maxLength={120}
-              className="w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none"
-              style={{ border: `1px solid ${BORDER}`, color: INK }}
             />
             <div className="grid grid-cols-2 gap-2.5">
-              <input
+              <PortalInput
                 value={dob}
                 onChange={(e) => setDob(e.target.value)}
                 placeholder="Birthday (optional)"
                 maxLength={20}
-                className="w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none"
-                style={{ border: `1px solid ${BORDER}`, color: INK }}
               />
-              <input
+              <PortalInput
                 value={rel}
                 onChange={(e) => setRel(e.target.value)}
                 placeholder="Relationship (optional)"
                 maxLength={60}
-                className="w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none"
-                style={{ border: `1px solid ${BORDER}`, color: INK }}
               />
             </div>
           </div>
@@ -101,29 +98,12 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
             This goes to the front desk as a message — they’ll verify a couple of details before
             linking, to keep everyone’s records safe.
           </p>
-          {error && (
-            <p className="mt-2 text-[0.82rem] font-medium" style={{ color: '#B4231F' }} role="alert">
-              {error}
-            </p>
-          )}
+          {error && <PortalErrorText>{error}</PortalErrorText>}
           <div className="mt-3 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={send}
-              disabled={pending || !name.trim()}
-              className="rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white disabled:opacity-50"
-              style={{ backgroundColor: brand }}
-            >
+            <BrandButton brand={brand} onClick={send} disabled={pending || !name.trim()}>
               {pending ? 'Sending…' : 'Send the request'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-[0.85rem] font-medium"
-              style={{ color: MUTED }}
-            >
-              Cancel
-            </button>
+            </BrandButton>
+            <GhostButton onClick={() => setOpen(false)}>Cancel</GhostButton>
           </div>
         </>
       )}

@@ -5,13 +5,7 @@ import { notFound } from 'next/navigation'
 import { getVisitForPatients, getMyPendingForms, getVisitPrep } from '@/lib/services/patient-portal'
 import { getPortalPageContext, toVisitCardData, mapsQueryFor } from '../../portal-data'
 import VisitCard from '@/components/patient-portal/visit-card'
-import {
-  PortalCard,
-  PortalHeading,
-  PortalSectionLabel,
-  PORTAL_INK,
-  PORTAL_MUTED,
-} from '@/components/patient-portal/ui'
+import { PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_WARN_BG, PORTAL_WARN_INK } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort, fmtVisitTime } from '@/components/patient-portal/format'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
 
@@ -98,9 +92,9 @@ export default async function VisitDetailPage({
             {pendingForms.length > 0 && (
               <div
                 className="mb-4 rounded-2xl p-3.5"
-                style={{ backgroundColor: '#FBF3E4' }}
+                style={{ backgroundColor: PORTAL_WARN_BG }}
               >
-                <p className="text-[0.9rem] font-semibold" style={{ color: '#8A6116' }}>
+                <p className="text-[0.9rem] font-semibold" style={{ color: PORTAL_WARN_INK }}>
                   {pendingForms.length === 1
                     ? '1 form to fill out before you arrive'
                     : `${pendingForms.length} forms to fill out before you arrive`}
@@ -108,7 +102,7 @@ export default async function VisitDetailPage({
                 <Link
                   href="/patient/intake"
                   className="mt-1 inline-block text-[0.85rem] font-semibold"
-                  style={{ color: '#8A6116' }}
+                  style={{ color: PORTAL_WARN_INK }}
                 >
                   Do it from the couch →
                 </Link>

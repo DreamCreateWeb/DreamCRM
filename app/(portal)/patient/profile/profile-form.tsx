@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { updateMyProfileAction, setMarketingEmailOptInAction } from './actions'
 import { signOut } from '@/lib/auth-client'
+import { PORTAL_SUCCESS_INK, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
 
 /**
  * Profile editor + communication preferences + sign out. Single-column,
@@ -147,12 +148,12 @@ export default function ProfileForm({
               {pending ? 'Saving…' : 'Save changes'}
             </button>
             {saved && (
-              <span className="text-[0.85rem] font-medium" style={{ color: '#2F6B3C' }}>
+              <span className="text-[0.85rem] font-medium" style={{ color: PORTAL_SUCCESS_INK }}>
                 Saved — thanks for keeping us current.
               </span>
             )}
             {error && (
-              <span className="text-[0.85rem] font-medium" style={{ color: '#9B4434' }}>
+              <span className="text-[0.85rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>
                 {error}
               </span>
             )}

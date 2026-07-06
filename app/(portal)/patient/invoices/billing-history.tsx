@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
-import { PortalCard, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER } from '@/components/patient-portal/ui'
+import { PortalCard, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER, PORTAL_WARN_BG, PORTAL_WARN_INK } from '@/components/patient-portal/ui'
 
 /**
  * Billing history list: the merged money trail (online balance payments + shop
@@ -103,7 +103,7 @@ export default function BillingHistory({
                   {h.badge && (
                     <span
                       className="rounded-full px-2 py-0.5 text-[0.78rem] font-semibold"
-                      style={{ backgroundColor: '#FBF3E4', color: '#8A6116' }}
+                      style={{ backgroundColor: PORTAL_WARN_BG, color: PORTAL_WARN_INK }}
                     >
                       {h.badge}
                     </span>

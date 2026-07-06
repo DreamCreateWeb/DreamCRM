@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendPortalMessageAction } from '../actions'
-import { PortalHeading } from '@/components/patient-portal/ui'
+import { PortalHeading, PORTAL_SUCCESS_INK, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 import { MAX_MESSAGE_ATTACHMENTS, isImageAttachment, type MessageAttachment } from '@/lib/types/messaging'
 
@@ -321,7 +321,7 @@ export default function PortalMessagesView({
           {feedback && (
             <p
               className="mt-1.5 text-[0.78rem] font-medium"
-              style={{ color: feedback.kind === 'ok' ? '#2F6B3C' : '#9B4434' }}
+              style={{ color: feedback.kind === 'ok' ? PORTAL_SUCCESS_INK : PORTAL_DANGER_INK }}
             >
               {feedback.msg}
             </p>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { startBalancePaymentAction } from './actions'
+import { PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
 
 /**
  * Inline "pay your balance" — defaults to the full balance, allows a
@@ -70,7 +71,7 @@ export default function PayBalanceForm({
         </button>
       </div>
       {error && (
-        <p className="mt-2 text-[0.82rem] font-medium" style={{ color: '#9B4434' }}>
+        <p className="mt-2 text-[0.82rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>
           {error}
         </p>
       )}

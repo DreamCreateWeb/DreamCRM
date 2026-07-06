@@ -2,7 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import { answerMySurveyAction, commentMySurveyAction } from '@/app/(portal)/patient/actions'
-import { PortalCard, PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
+import {
+  PortalCard,
+  BrandButton,
+  PortalTextarea,
+  PortalErrorText,
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+} from '@/components/patient-portal/ui'
 
 
 /**
@@ -70,11 +78,7 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
               </button>
             ))}
           </div>
-          {error && (
-            <p className="mt-2 text-[0.82rem] font-medium" style={{ color: '#B4231F' }} role="alert">
-              {error}
-            </p>
-          )}
+          {error && <PortalErrorText>{error}</PortalErrorText>}
         </>
       )}
       {phase === 'comment' && (
@@ -87,25 +91,18 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
           <p className="mt-1 text-[0.85rem]" style={{ color: MUTED }}>
             Anything we should know? Totally optional — it goes straight to the team.
           </p>
-          <textarea
+          <PortalTextarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             maxLength={2000}
             placeholder="The wait, the chair, the small talk — anything."
-            className="mt-3 w-full rounded-2xl px-3.5 py-2.5 text-[0.9rem] outline-none"
-            style={{ border: `1px solid ${BORDER}`, color: INK, backgroundColor: '#FFFFFF' }}
+            className="mt-3"
           />
           <div className="mt-2 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={sendNote}
-              disabled={pending}
-              className="rounded-full px-5 py-2 text-[0.88rem] font-semibold text-white disabled:opacity-50"
-              style={{ backgroundColor: brand }}
-            >
+            <BrandButton brand={brand} onClick={sendNote} disabled={pending}>
               {note.trim() ? 'Send it' : 'Done'}
-            </button>
+            </BrandButton>
           </div>
         </>
       )}

@@ -10,13 +10,7 @@ import {
   finalizeBalancePaymentFromSession,
 } from '@/lib/services/balance-payments'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
-import {
-  PortalCard,
-  PortalHeading,
-  PortalSectionLabel,
-  PORTAL_INK,
-  PORTAL_MUTED,
-} from '@/components/patient-portal/ui'
+import { PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_ERROR, PORTAL_WARN_BG, PORTAL_WARN_INK, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK } from '@/components/patient-portal/ui'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
 import PayBalanceForm from './pay-form'
 import PlanOffer, { type PlanOption } from './plan-offer'
@@ -121,7 +115,7 @@ export default async function PortalBillingPage({
       </p>
 
       {justPaid && (
-        <div className="mt-5 rounded-2xl px-4 py-3.5 text-[0.9rem] font-medium" style={{ backgroundColor: '#E5EFE6', color: '#2F6B3C' }}>
+        <div className="mt-5 rounded-2xl px-4 py-3.5 text-[0.9rem] font-medium" style={{ backgroundColor: PORTAL_SUCCESS_BG, color: PORTAL_SUCCESS_INK }}>
           Thank you — your payment went through. The front desk will post it to your account, so the
           balance below may take a little while to update.
         </div>
@@ -223,7 +217,7 @@ export default async function PortalBillingPage({
                   {openPlan.status === 'past_due' && (
                     <span
                       className="rounded-full px-2.5 py-1 text-[0.78rem] font-semibold"
-                      style={{ backgroundColor: '#FBEAE9', color: '#B4231F' }}
+                      style={{ backgroundColor: '#FBEAE9', color: PORTAL_ERROR }}
                     >
                       Payment needs attention
                     </span>
@@ -257,8 +251,8 @@ export default async function PortalBillingPage({
                 className="rounded-full px-2.5 py-1 text-[0.78rem] font-semibold"
                 style={
                   bills.membership.status === 'active'
-                    ? { backgroundColor: '#E5EFE6', color: '#2F6B3C' }
-                    : { backgroundColor: '#FBF3E4', color: '#8A6116' }
+                    ? { backgroundColor: PORTAL_SUCCESS_BG, color: PORTAL_SUCCESS_INK }
+                    : { backgroundColor: PORTAL_WARN_BG, color: PORTAL_WARN_INK }
                 }
               >
                 {bills.membership.status === 'active'

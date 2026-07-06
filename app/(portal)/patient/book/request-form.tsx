@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { requestMyVisitAction } from '../actions'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { PORTAL_DANGER_BG, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
 
 /**
  * Portal request-only booking — shown instead of the slot picker when the
@@ -200,7 +201,7 @@ export default function PortalRequestForm({
       </section>
 
       {error && (
-        <p className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: '#F7E9E6', color: '#9B4434' }}>
+        <p className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }}>
           {error}
         </p>
       )}

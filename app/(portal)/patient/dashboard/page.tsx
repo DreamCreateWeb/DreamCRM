@@ -21,15 +21,7 @@ import LoyaltyCard from '@/components/patient-portal/loyalty-card'
 import SurveyCard from '@/components/patient-portal/survey-card'
 import { getOrCreatePortalSurvey } from '@/lib/services/nps'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
-import {
-  PortalCard,
-  PortalHeading,
-  PortalSectionLabel,
-  PortalEmptyState,
-  PORTAL_INK,
-  PORTAL_MUTED,
-  PORTAL_BORDER,
-} from '@/components/patient-portal/ui'
+import { PortalCard, PortalHeading, PortalSectionLabel, PortalEmptyState, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER, PORTAL_WARN_BG, PORTAL_WARN_INK } from '@/components/patient-portal/ui'
 import { greetingFor } from '@/components/patient-portal/format'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
 import type { PortalIconName } from '@/components/patient-portal/nav'
@@ -101,13 +93,13 @@ export default async function PortalHome() {
         <Link
           href="/patient/intake"
           className="mt-5 flex items-center gap-3 rounded-2xl px-4 py-3.5"
-          style={{ backgroundColor: '#FBF3E4', border: '1px solid #EBDCB8' }}
+          style={{ backgroundColor: PORTAL_WARN_BG, border: '1px solid #EBDCB8' }}
         >
           <PortalIcon name="doc" className="h-5 w-5 shrink-0" />
-          <span className="flex-1 text-[0.9rem] font-medium" style={{ color: '#8A6116' }}>
+          <span className="flex-1 text-[0.9rem] font-medium" style={{ color: PORTAL_WARN_INK }}>
             A few questions before your visit — it takes about 5 minutes and saves you the clipboard.
           </span>
-          <span className="text-[0.85rem] font-bold" style={{ color: '#8A6116' }}>
+          <span className="text-[0.85rem] font-bold" style={{ color: PORTAL_WARN_INK }}>
             →
           </span>
         </Link>

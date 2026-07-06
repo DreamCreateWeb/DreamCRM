@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from 'react'
 import { startMyPaymentPlanAction } from '../actions'
-import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER } from '@/components/patient-portal/ui'
+import {
+  BrandButton,
+  GhostButton,
+  PortalErrorText,
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+} from '@/components/patient-portal/ui'
 
 
 export interface PlanOption {
@@ -97,29 +104,12 @@ export default function PlanOffer({
               The last payment is {money(chosen.lastCents)} so the total comes out exact.
             </p>
           )}
-          {error && (
-            <p className="mt-2 text-[0.82rem] font-medium" style={{ color: '#B4231F' }} role="alert">
-              {error}
-            </p>
-          )}
+          {error && <PortalErrorText>{error}</PortalErrorText>}
           <div className="mt-3 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={start}
-              disabled={!chosen || pending}
-              className="rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white transition disabled:opacity-50"
-              style={{ backgroundColor: brand }}
-            >
+            <BrandButton brand={brand} onClick={start} disabled={!chosen || pending}>
               {pending ? 'Setting up…' : 'Review my plan'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-[0.85rem] font-medium"
-              style={{ color: MUTED }}
-            >
-              Never mind
-            </button>
+            </BrandButton>
+            <GhostButton onClick={() => setOpen(false)}>Never mind</GhostButton>
           </div>
         </div>
       )}

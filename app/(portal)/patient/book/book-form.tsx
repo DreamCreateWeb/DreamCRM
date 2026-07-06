@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { bookMyVisitAction, getPortalSlotsAction } from '../actions'
 import SlotPicker from '@/components/patient-portal/slot-picker'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
+import { PORTAL_DANGER_BG, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
 
 /**
  * Portal booking: confirm-and-adjust, not blank-form. The signed-in patient
@@ -203,7 +204,7 @@ export default function PortalBookForm({
       </section>
 
       {error && (
-        <p className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: '#F7E9E6', color: '#9B4434' }}>
+        <p className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }}>
           {error}
         </p>
       )}
