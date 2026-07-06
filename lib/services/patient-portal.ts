@@ -24,6 +24,7 @@ import {
 import { derivePatientRecallStatus, type RecallStatus } from '@/lib/services/recall-status'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
 import type { MessageAttachment } from '@/lib/types/messaging'
+import { visitTypePrepInstructions } from '@/lib/types/visit-types'
 
 export async function getMyPatientRecord(patientId: string, organizationId: string) {
   const [row] = await db
@@ -476,6 +477,22 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
     hours: (row.hours ?? null) as PortalClinicInfo['hours'],
     // null/undefined → enabled, matching the not-null default(true) column.
     selfBookingEnabled: row.selfBookingEnabled !== false,
+  }
+}
+
+/** The clinic's prep instructions for a visit type ('' when none) — the same
+ *  copy the reminder emails and the one-click confirm page show, so the
+ *  portal's visit-detail 'Get ready' card never contradicts the email. */
+export async function getVisitPrep(organizationId: string, visitType: string | null): Promise<string> {
+  try {
+    const [row] = await db
+      .select({ vts: clinicProfile.visitTypeSettings })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, organizationId))
+      .limit(1)
+    return visitTypePrepInstructions(row?.vts ?? null, visitType)
+  } catch {
+    return ''
   }
 }
 

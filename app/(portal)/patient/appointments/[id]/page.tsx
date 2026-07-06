@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getVisitForPatients, getMyPendingForms } from '@/lib/services/patient-portal'
+import { getVisitForPatients, getMyPendingForms, getVisitPrep } from '@/lib/services/patient-portal'
 import { getPortalPageContext, toVisitCardData, mapsQueryFor } from '../../portal-data'
 import VisitCard from '@/components/patient-portal/visit-card'
 import {
@@ -40,10 +40,14 @@ export default async function VisitDetailPage({
   if (!visit) notFound()
 
   const upcoming = visit.startTime.getTime() > Date.now()
-  const pendingForms =
+  const [pendingForms, prep] = await Promise.all([
     upcoming && settings.features.forms
-      ? await getMyPendingForms(visit.patientId, ctx.organizationId).catch(() => [])
-      : []
+      ? getMyPendingForms(visit.patientId, ctx.organizationId).catch(() => [])
+      : Promise.resolve([]),
+    // The clinic's own per-visit-type prep copy — same text the reminder
+    // emails carry, so portal and inbox never contradict each other.
+    upcoming ? getVisitPrep(ctx.organizationId, visit.type) : Promise.resolve(''),
+  ])
   const mapsQuery = mapsQueryFor(clinic)
   const typeLabel = PORTAL_VISIT_LABELS[visit.type] ?? 'Visit'
 
@@ -109,6 +113,14 @@ export default async function VisitDetailPage({
                   Do it from the couch →
                 </Link>
               </div>
+            )}
+            {prep && (
+              <p
+                className="mb-4 whitespace-pre-line rounded-2xl p-3.5 text-[0.9rem] leading-relaxed"
+                style={{ backgroundColor: '#FAF7F2', color: PORTAL_INK }}
+              >
+                {prep}
+              </p>
             )}
             <ul className="space-y-2 text-[0.9rem]" style={{ color: PORTAL_INK }}>
               <li className="flex items-start gap-2.5">
