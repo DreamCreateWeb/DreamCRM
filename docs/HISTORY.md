@@ -35,7 +35,19 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   share cards** (`f561fab`): /website/share prints QR cards (server-side SVG
   via the new `qrcode` dep) for booking / site / Google review / patient
   portal — card list gated by `buildShareCards` so nothing dead-ends; print
-  CSS keeps only the cards; linked from the Studio top bar.
+  CSS keeps only the cards; linked from the Studio top bar. **W7 — lead
+  channels** (`797b188`): /analytics Acquisition gains "Where website leads
+  come from" — `lib/lead-channel.ts` buckets the utm/referrer attribution the
+  forms already capture into owner-language channels (paid beats social;
+  junk-tolerant). **W8+W9 — check-engine light + brand color in Studio**
+  (`dd6cf5e`): `lib/website-health.ts` fires two floored signals (traffic
+  halved vs a substantive week / real traffic but zero leads in 14d,
+  null-safe) as an amber Overview banner; and the Studio top bar gains a
+  Brand swatch popover (8 presets + picker + hex, strict #RRGGBB both sides)
+  that saves via `saveBrandColor` and repaints the canvas live. **W10 —
+  first-open welcome** (`8644d57`): a one-time Studio welcome card naming the
+  editing moves (click text / hover sections / ask the AI / phone view),
+  localStorage-flagged.
 
 - **Clinic site enhancement 5 — the design signature pass (2026-07-05).** The
   "finished gorgeous" elevation: a site-wide visual DNA layered onto the Tend
