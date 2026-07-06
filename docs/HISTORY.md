@@ -47,7 +47,14 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   that saves via `saveBrandColor` and repaints the canvas live. **W10 —
   first-open welcome** (`8644d57`): a one-time Studio welcome card naming the
   editing moves (click text / hover sections / ask the AI / phone view),
-  localStorage-flagged.
+  localStorage-flagged. **W11 — Studio undo history** (`41db8c2`, migration
+  0123): `website_edit_history` records each save's overwritten
+  clinic_profile columns (owner-readable label, newest-20 cap) via a
+  best-effort hook in `writeSection` (covers inline text / images / section
+  modals / brand color; the AI bar keeps its own undo);
+  `undoLastWebsiteEdit` restores the head + deletes it (one-way walk back,
+  no redo); ↩ Undo in the Studio top bar (server-seeded label, armed by
+  every save, confirm-gated, repeatable).
 
 - **Clinic site enhancement 5 — the design signature pass (2026-07-05).** The
   "finished gorgeous" elevation: a site-wide visual DNA layered onto the Tend
