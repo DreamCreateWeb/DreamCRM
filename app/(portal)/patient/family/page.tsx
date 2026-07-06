@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { getUpcomingVisits } from '@/lib/services/patient-portal'
 import { getPortalPageContext, requirePortalFeature, toVisitCardData, mapsQueryFor } from '../portal-data'
 import VisitCard from '@/components/patient-portal/visit-card'
+import FamilyLinkRequest from '@/components/patient-portal/family-link-request'
 import {
   PortalCard,
   PortalHeading,
@@ -113,6 +114,12 @@ export default async function PortalFamilyPage() {
           </section>
         )
       })}
+
+      {/* Add another family member — rides the message thread; staff verify
+          and link with their existing tools. */}
+      <section className="mt-7">
+        <FamilyLinkRequest brand={brand} />
+      </section>
     </div>
   )
 }

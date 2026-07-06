@@ -8,10 +8,11 @@ import { getMyPatientRecord } from '@/lib/services/patient-portal'
 import { getPortalPageContext } from '../portal-data'
 import { PortalHeading, PORTAL_MUTED } from '@/components/patient-portal/ui'
 import ProfileForm from './profile-form'
+import FamilyLinkRequest from '@/components/patient-portal/family-link-request'
 
 export default async function PortalProfilePage() {
   const pc = await getPortalPageContext()
-  const { ctx, brand } = pc
+  const { ctx, brand, settings } = pc
 
   const me = await getMyPatientRecord(ctx.patientId, ctx.organizationId)
   if (!me) return null
@@ -40,6 +41,15 @@ export default async function PortalProfilePage() {
           insuranceGroupNumber: me.insuranceGroupNumber ?? '',
         }}
       />
+
+      {/* Family access lives behind the Family tab once a dependent is
+          linked — but the FIRST link request has to start somewhere always
+          reachable, and that's here. */}
+      {settings.features.family && settings.features.messages && (
+        <div className="mt-7">
+          <FamilyLinkRequest brand={brand} />
+        </div>
+      )}
     </div>
   )
 }

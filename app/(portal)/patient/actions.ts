@@ -540,6 +540,42 @@ export async function sendPortalMessageAction(
 }
 
 /**
+ * "Add a family member" — the guardian's link request. Deliberately rides the
+ * EXISTING message thread (no shadow approval queue): a structured ask lands
+ * in the clinic inbox where staff already work, they verify identity like
+ * they would on the phone, and link the record with the tools they have.
+ * Honest self-serve: the patient gets a real human confirmation, not a silent
+ * pending state.
+ */
+export async function requestFamilyLinkAction(
+  name: string,
+  birthDate: string,
+  relationship: string,
+): Promise<PortalActionResult> {
+  const ctx = await requirePatient()
+  const settings = await getPortalSettings(ctx.organizationId)
+  if (!settings.features.family) {
+    return { ok: false, error: 'Family access isn’t available online — give us a call and we’ll set it up.' }
+  }
+  const cleanName = name.trim().slice(0, 120)
+  const cleanDob = birthDate.trim().slice(0, 20)
+  const cleanRel = relationship.trim().slice(0, 60)
+  if (!cleanName) return { ok: false, error: 'Add their name first.' }
+  const body =
+    `Family access request: please add ${cleanName}` +
+    (cleanRel ? ` (my ${cleanRel})` : '') +
+    (cleanDob ? `, born ${cleanDob},` : '') +
+    ` to my account so I can manage their visits and forms.`
+  try {
+    await sendMessageFromPatient(ctx.organizationId, ctx.patientId, body, [])
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+  }
+  revalidatePath('/patient/messages')
+  return { ok: true }
+}
+
+/**
  * Refer-a-friend: mint (or fetch) the signed-in patient's share link. Called
  * lazily from the dashboard share card's "Copy my link" button so a link row
  * only exists for patients who actually went to share.
