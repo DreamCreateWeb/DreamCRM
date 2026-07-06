@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import {
   confirmMyVisitAction,
+  joinMyWaitlistAction,
   cancelMyVisitAction,
   rescheduleMyVisitAction,
   getPortalSlotsAction,
@@ -105,6 +106,7 @@ export default function VisitCard({
   clinicPhone,
   mapsQuery,
   canModify,
+  canJoinWaitlist,
   minNoticeHours,
   showFace,
 }: {
@@ -116,11 +118,14 @@ export default function VisitCard({
   mapsQuery: string | null
   /** Clinic allows self-serve reschedule/cancel (feature flag). */
   canModify: boolean
+  /** Clinic allows waitlist self-enroll ("notify me if something opens sooner"). */
+  canJoinWaitlist: boolean
   /** Reschedule/cancel cutoff (hours before start). */
   minNoticeHours: number
   showFace: boolean
 }) {
   const [panel, setPanel] = useState<'none' | 'reschedule' | 'cancel'>('none')
+  const [waitlisted, setWaitlisted] = useState(false)
   const [newSlotIso, setNewSlotIso] = useState<string | null>(null)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [pending, startTransition] = useTransition()
@@ -213,6 +218,32 @@ export default function VisitCard({
         )}
         {canModify && withinNotice && clinicPhone && (
           <ActionPill href={`tel:${clinicPhone}`}>Need to change it? Call us</ActionPill>
+        )}
+        {/* Fast-pass waitlist self-enroll — the same list the front desk works
+            from, so a freed slot reaches this patient like any other. Only
+            worth offering while the visit is still ahead + changeable. */}
+        {canJoinWaitlist && !withinNotice && (visit.status === 'scheduled' || visit.status === 'confirmed') && (
+          waitlisted ? (
+            <span
+              className="inline-flex items-center rounded-full px-3.5 py-1.5 text-[0.85rem] font-semibold"
+              style={{ backgroundColor: '#EEF4EF', color: '#3E5C50' }}
+            >
+              ✓ We’ll text or email if something opens sooner
+            </span>
+          ) : (
+            <ActionPill
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  const res = await joinMyWaitlistAction(visit.id)
+                  if (res.ok) setWaitlisted(true)
+                  return res
+                }, 'You’re on the list — we’ll reach out the moment something opens up.')
+              }
+            >
+              ⏰ Notify me if something opens sooner
+            </ActionPill>
+          )
         )}
       </div>
 

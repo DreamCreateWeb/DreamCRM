@@ -482,6 +482,9 @@ export async function getPortalClinicInfo(organizationId: string): Promise<Porta
 export interface PortalVisit {
   id: string
   patientId: string
+  /** Raw provider id — the waitlist self-enroll passes it through so a
+   *  freed slot matches on the same provider. */
+  providerId: string | null
   type: string
   status: string
   startTime: Date
@@ -498,6 +501,7 @@ export interface PortalVisit {
 const visitSelection = {
   id: appointment.id,
   patientId: appointment.patientId,
+  providerId: appointment.providerId,
   type: appointment.type,
   status: appointment.status,
   startTime: appointment.startTime,

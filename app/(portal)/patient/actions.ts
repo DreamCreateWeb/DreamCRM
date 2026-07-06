@@ -20,6 +20,7 @@ import {
   rescheduleAppointment,
 } from '@/lib/services/appointments'
 import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
+import { addToWaitlist } from '@/lib/services/appointment-waitlist'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -105,6 +106,42 @@ export async function cancelMyVisitAction(visitId: string): Promise<PortalAction
 
   try {
     await cancelAppointment(ctx.organizationId, visitId)
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+  }
+  revalidateVisits()
+  return { ok: true }
+}
+
+/**
+ * "Notify me if something opens sooner" — self-enroll on the fast-pass
+ * waitlist for an upcoming visit. Idempotent (re-joining refreshes the
+ * existing entry); the same waitlist the front desk works from, so a slot
+ * opening reaches portal joiners exactly like staff-added ones.
+ */
+export async function joinMyWaitlistAction(visitId: string): Promise<PortalActionResult> {
+  const ctx = await requirePatient()
+  const settings = await getPortalSettings(ctx.organizationId)
+  if (!settings.features.waitlist) {
+    return { ok: false, error: 'The waitlist isn’t available online — give us a call and we’ll add you.' }
+  }
+  const allowed = await getAccessiblePatientIds(ctx.patientId, ctx.organizationId, settings.features.family)
+  const visit = await getVisitForPatients(visitId, allowed, ctx.organizationId)
+  if (!visit) return { ok: false, error: 'We couldn’t find that visit.' }
+  if (visit.status !== 'scheduled' && visit.status !== 'confirmed') {
+    return { ok: false, error: 'This visit can’t join the waitlist.' }
+  }
+  if (visit.startTime.getTime() <= Date.now()) {
+    return { ok: false, error: 'This visit has already started.' }
+  }
+  try {
+    await addToWaitlist(ctx.organizationId, {
+      patientId: visit.patientId,
+      visitType: visit.type ?? null,
+      providerId: visit.providerId ?? null,
+      appointmentId: visit.id,
+      source: 'portal',
+    })
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
   }

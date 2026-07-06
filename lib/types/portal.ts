@@ -32,6 +32,10 @@ export interface PortalFeatureFlags {
   family: boolean
   /** "Shop" link out to the clinic storefront (only when storefront is enabled). */
   shopLink: boolean
+  /** "Notify me if something opens sooner" on upcoming visits (fast-pass waitlist). */
+  waitlist: boolean
+  /** The refer-a-friend share card on the portal dashboard. */
+  referrals: boolean
 }
 
 /** Booking behavior knobs (only meaningful when features.booking is on). */
@@ -110,6 +114,8 @@ export const DEFAULT_PORTAL_SETTINGS: PortalSettings = {
     forms: true,
     family: true,
     shopLink: true,
+    waitlist: true,
+    referrals: true,
   },
   booking: {
     // Hygiene + diagnostic visits only by default — clinical/procedure visits
@@ -159,6 +165,14 @@ export const PORTAL_FEATURE_LABELS: Record<keyof PortalFeatureFlags, { label: st
   payments: {
     label: 'Online payments',
     description: 'Patients can pay their balance online. Requires your connected Stripe account (Shop → Connect). Payments land in your bank; post them to your PMS ledger.',
+  },
+  waitlist: {
+    label: 'Earlier-visit waitlist',
+    description: 'Patients can tap “Notify me if something opens sooner” on an upcoming visit — they join the same fast-pass waitlist your front desk works from.',
+  },
+  referrals: {
+    label: 'Refer-a-friend card',
+    description: 'The share-your-link card on the portal home. Turn off if you don’t want to promote referrals right now.',
   },
   records: {
     label: 'My records',

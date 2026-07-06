@@ -93,6 +93,19 @@ describe('resolvePortalSettings', () => {
     expect(resolvePortalSettings({ display: { showTeamPhotos: 'nope' } }).display.showTeamPhotos).toBe(true)
   })
 
+  it('waitlist + referrals flags default ON and resolve stored overrides', () => {
+    const d = resolvePortalSettings(null)
+    expect(d.features.waitlist).toBe(true)
+    expect(d.features.referrals).toBe(true)
+    const off = resolvePortalSettings({ features: { waitlist: false, referrals: false } })
+    expect(off.features.waitlist).toBe(false)
+    expect(off.features.referrals).toBe(false)
+    // Junk never poisons the flags.
+    const junk = resolvePortalSettings({ features: { waitlist: 'nah', referrals: 0 } })
+    expect(junk.features.waitlist).toBe(true)
+    expect(junk.features.referrals).toBe(true)
+  })
+
   it('does not share mutable state with DEFAULT_PORTAL_SETTINGS', () => {
     const s = resolvePortalSettings(null)
     s.booking.allowedTypes.push('other')

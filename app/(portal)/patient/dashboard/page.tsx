@@ -117,6 +117,7 @@ export default async function PortalHome() {
             clinicPhone={clinic?.phone ?? null}
             mapsQuery={mapsQuery}
             canModify={settings.features.reschedule}
+            canJoinWaitlist={settings.features.waitlist}
             minNoticeHours={settings.reschedule.minNoticeHours}
             showFace={settings.display.showTeamPhotos}
           />
@@ -161,6 +162,7 @@ export default async function PortalHome() {
                 clinicPhone={clinic?.phone ?? null}
                 mapsQuery={mapsQuery}
                 canModify={settings.features.reschedule}
+                canJoinWaitlist={settings.features.waitlist}
                 minNoticeHours={settings.reschedule.minNoticeHours}
                 showFace={settings.display.showTeamPhotos}
               />
@@ -235,14 +237,19 @@ export default async function PortalHome() {
         </section>
       )}
 
-      <section className="mt-7">
-        <PortalSectionLabel>Share the love</PortalSectionLabel>
-        <ReferCard
-          brand={brand}
-          clinicName={clinic?.displayName ?? ctx.organizationName}
-          referredCount={referredCount}
-        />
-      </section>
+      {/* Refer-a-friend — clinic-toggleable (Settings → Patient portal).
+          Previously rendered unconditionally, which forced the marketing
+          card on clinics not running referrals. */}
+      {settings.features.referrals && (
+        <section className="mt-7">
+          <PortalSectionLabel>Share the love</PortalSectionLabel>
+          <ReferCard
+            brand={brand}
+            clinicName={clinic?.displayName ?? ctx.organizationName}
+            referredCount={referredCount}
+          />
+        </section>
+      )}
 
       <section className="mt-7 md:hidden">
         <PortalCard>

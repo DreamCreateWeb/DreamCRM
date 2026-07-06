@@ -61,6 +61,7 @@ export default async function PortalVisitsPage() {
                 clinicPhone={clinic?.phone ?? null}
                 mapsQuery={mapsQuery}
                 canModify={settings.features.reschedule}
+                canJoinWaitlist={settings.features.waitlist}
                 minNoticeHours={settings.reschedule.minNoticeHours}
                 showFace={settings.display.showTeamPhotos}
               />
