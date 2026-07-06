@@ -57,7 +57,7 @@ export default function TrackPicker({
               </div>
               <p className="mt-1 text-xs leading-snug text-gray-600 dark:text-gray-400">{t.story}</p>
               <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500">
-                {t.beats.length} beats · closes on {PLAN_LABELS[t.recommendedPlan]}
+                {t.beats.length} beats · ~{t.targetMinutes} min · closes on {PLAN_LABELS[t.recommendedPlan]}
               </p>
             </button>
           )
@@ -70,10 +70,10 @@ export default function TrackPicker({
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
-              await startBrandedDemoAction(prospectId, selected)
-              // Server action redirects; hard-assign as a fallback so the
-              // new demo cookies are seen by middleware + tenant context.
-              window.location.assign('/')
+              const res = await startBrandedDemoAction(prospectId, selected)
+              // Hard-assign so middleware + tenant context see the new demo
+              // cookies; the action picks the story's first beat.
+              window.location.assign(res.to)
             })
           }
         >

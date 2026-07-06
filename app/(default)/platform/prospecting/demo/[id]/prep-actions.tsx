@@ -17,8 +17,8 @@ export default function PrepActions({ prospectId }: { prospectId: string }) {
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            await startBrandedDemoAction(prospectId)
-            window.location.assign('/')
+            const res = await startBrandedDemoAction(prospectId)
+            window.location.assign(res.to)
           })
         }
       >

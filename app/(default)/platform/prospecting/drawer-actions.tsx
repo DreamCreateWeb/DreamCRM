@@ -83,10 +83,10 @@ export default function DrawerActions({
           title="Enter the demo clinic with this practice's name on it — their practice, running on DreamCRM"
           onClick={() =>
             startTransition(async () => {
-              await startBrandedDemoAction(prospectId)
-              // Server action redirects; hard-assign as a fallback so the
-              // new demo cookies are seen by middleware + tenant context.
-              window.location.assign('/')
+              const res = await startBrandedDemoAction(prospectId)
+              // Hard-assign so middleware + tenant context see the new demo
+              // cookies; the action picks the story's first beat.
+              window.location.assign(res.to)
             })
           }
         >

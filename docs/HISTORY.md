@@ -7,6 +7,33 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Demo v4 — the second-screen script + stage direction (2026-07-06).**
+  The remaining flaw after v3: the presenter panel (talk tracks, ⚠ gaps,
+  "their site is a DIY Wix" ammunition) rendered on the SHARED SCREEN the
+  prospect watches. **(1) Pop-out presenter script** — the panel's ⧉ button
+  opens `/demo/script` (chrome-less `(preview)` page, gated platform-admin
+  + demo like /demo/compare) on the presenter's second screen: the full
+  beat list with talk tracks/moves/gaps/notes, keyboard drive, story
+  switcher, pacing clock (amber past the track's target), all synced over
+  a BroadcastChannel (`lib/demo-remote.ts` — junk-tolerant protocol; main
+  tab owns state, remote sends commands). On connect the main panel
+  auto-collapses to the pill — the audience sees only the product.
+  **(2) Stage direction** — every beat carries `moves` (▸ "what to click
+  now": open a thread → AI draft; confirm an unconfirmed visit; scroll
+  both compare panes), rendered in panel + remote. **(3) Land on beat 1**
+  — `startBrandedDemoAction` now returns the chosen story's first-beat
+  href (a website demo opens on the side-by-side, not the dashboard);
+  all three launchers hard-assign it. **(4) Wrap-up notes that write
+  themselves** — the outcome note pre-fills "「track」demo · N min" + the
+  per-beat notes, so the win/loss review knows what actually happened;
+  `logCallOutcome`'s existing follow-up ladder covers post-demo
+  never-drop-a-lead. **(5) Honest pacing** — `targetMinutes` per track in
+  the story picker ("7 beats · ~15 min") and the remote's clock.
+  Notes/timer storage consolidated in `components/demo/presenter-session.ts`.
+  Tests: `demo-remote.test.tsx` (protocol truth table + both windows over
+  a fake BroadcastChannel hub: hello→state+collapse, goto/switch/note/
+  wrapup drive, remote mirroring + keyboard).
+
 - **Demo v3 — interest-driven tracks + a real ending (2026-07-06).** The
   branded demo was one hardcoded 8-beat script that never ended: the last
   beat just disabled Next, presenter state (clock/beat/notes) was global

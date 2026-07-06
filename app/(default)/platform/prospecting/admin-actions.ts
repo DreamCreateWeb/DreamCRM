@@ -9,7 +9,7 @@ import { db, schema } from '@/lib/db'
 import { requireTenant } from '@/lib/auth/context'
 import { DEMO_CLINIC_SLUG } from '@/lib/services/demo-constants'
 import { DEMO_SKIN_COOKIE, type DemoSkin } from '@/lib/types/demo-skin'
-import { DEMO_TRACK_IDS, suggestDemoTrack, type DemoTrackId } from '@/lib/types/demo-script'
+import { DEMO_TRACK_IDS, resolveTrack, suggestDemoTrack, type DemoTrackId } from '@/lib/types/demo-script'
 import { buildDemoSkin } from '@/lib/demo-skin-build'
 import {
   getProspectingConfig,
@@ -309,7 +309,7 @@ const convertSchema = z.object({
 export async function startBrandedDemoAction(
   prospectId: string,
   trackId?: string,
-): Promise<void> {
+): Promise<{ ok: true; to: string }> {
   const ctx = await requirePlatformAdmin()
   const id = z.string().min(1).parse(prospectId)
   const requestedTrack = trackId
@@ -390,7 +390,10 @@ export async function startBrandedDemoAction(
     JSON.stringify({ orgId, role: 'owner', prospectId: p.id }),
     cookieOpts,
   )
-  redirect('/')
+  // Land on the chosen story's FIRST beat (a website demo opens on the
+  // side-by-side, not the dashboard). The client hard-assigns so middleware
+  // + tenant context see the fresh demo cookies.
+  return { ok: true, to: resolveTrack(skin.track).beats[0].href }
 }
 
 /**

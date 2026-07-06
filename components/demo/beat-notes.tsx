@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { DEMO_NOTES_PREFIX, writeBeatNote } from './presenter-session'
 
 /** Per-beat presenter notes — sessionStorage only ('dc.demo-notes.{beatId}'),
  *  zero DB. Collapsed by default; the demo is the show, not the notepad. */
 export default function BeatNotes({ beatId }: { beatId: string }) {
-  const key = `dc.demo-notes.${beatId}`
+  const key = `${DEMO_NOTES_PREFIX}${beatId}`
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState('')
 
@@ -19,12 +20,7 @@ export default function BeatNotes({ beatId }: { beatId: string }) {
 
   const save = (value: string) => {
     setNote(value)
-    try {
-      if (value) sessionStorage.setItem(key, value)
-      else sessionStorage.removeItem(key)
-    } catch {
-      /* private mode — notes just don't persist */
-    }
+    writeBeatNote(beatId, value)
   }
 
   return (

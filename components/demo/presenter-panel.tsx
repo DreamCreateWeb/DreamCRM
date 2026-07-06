@@ -11,7 +11,17 @@ import {
 } from '@/lib/types/demo-script'
 import type { DemoSkin } from '@/lib/types/demo-skin'
 import { groupGapsByBeat } from '@/lib/demo-gaps'
-import { ensurePresenterScope } from './presenter-session'
+import {
+  ensurePresenterScope,
+  readAllBeatNotes,
+  readDemoStartedAt,
+  writeBeatNote,
+} from './presenter-session'
+import {
+  openDemoRemoteChannel,
+  parseDemoRemoteMessage,
+  type DemoRemoteState,
+} from '@/lib/demo-remote'
 import BeatProgress from './beat-progress'
 import DemoTimer, { useDemoElapsed } from './demo-timer'
 import BeatNotes from './beat-notes'
@@ -182,6 +192,67 @@ export default function PresenterPanel({ skin }: { skin: DemoSkin | null }) {
     return () => window.removeEventListener(DEMO_WRAPUP_EVENT, onWrapup)
   }, [])
 
+  // ---- The pop-out script remote (second screen) ----
+  // This tab (the shared screen) OWNS the state; the /demo/script window
+  // mirrors it and sends commands. On connect, this panel collapses to the
+  // pill — the talk tracks move off the screen the prospect is watching.
+  const [channel, setChannel] = useState<BroadcastChannel | null>(null)
+  useEffect(() => {
+    const ch = openDemoRemoteChannel()
+    setChannel(ch)
+    return () => ch?.close()
+  }, [])
+  const postState = useCallback(
+    (over: Partial<Omit<DemoRemoteState, 'kind'>> = {}) => {
+      if (!channel) return
+      const state: DemoRemoteState = {
+        kind: 'state',
+        index,
+        trackId,
+        wrapup,
+        startedAt: readDemoStartedAt(),
+        notes: readAllBeatNotes(),
+        ...over,
+      }
+      try {
+        channel.postMessage(state)
+      } catch {
+        /* channel closed */
+      }
+    },
+    [channel, index, trackId, wrapup],
+  )
+  useEffect(() => {
+    if (!channel) return
+    const onMessage = (e: MessageEvent) => {
+      const msg = parseDemoRemoteMessage(e.data)
+      if (!msg) return
+      if (msg.kind === 'hello') {
+        setCollapsed(true)
+        postState()
+      } else if (msg.kind === 'goto') {
+        goTo(msg.index)
+      } else if (msg.kind === 'switch-track') {
+        switchTrack(resolveTrack(msg.trackId).id)
+      } else if (msg.kind === 'wrapup') {
+        setCollapsed(false)
+        setWrapup(true)
+      } else if (msg.kind === 'note') {
+        writeBeatNote(msg.beatId, msg.value)
+      }
+    }
+    channel.addEventListener('message', onMessage)
+    return () => channel.removeEventListener('message', onMessage)
+  }, [channel, goTo, switchTrack, postState])
+  // Mirror every state change out to the remote.
+  useEffect(() => {
+    postState()
+  }, [postState])
+
+  const popOutScript = useCallback(() => {
+    window.open('/demo/script', 'dcDemoScript', 'width=440,height=780')
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Never steal keys from form fields.
@@ -242,6 +313,15 @@ export default function PresenterPanel({ skin }: { skin: DemoSkin | null }) {
             <DemoTimer />
             <button
               type="button"
+              onClick={popOutScript}
+              className="text-gray-400 hover:text-gray-200 text-sm leading-none"
+              aria-label="Pop the script out to a second window"
+              title="Pop the script out — put it on your screen, not theirs"
+            >
+              ⧉
+            </button>
+            <button
+              type="button"
               onClick={() => setCollapsed(true)}
               className="text-gray-400 hover:text-gray-200 text-sm leading-none"
               aria-label="Collapse presenter panel"
@@ -297,6 +377,16 @@ export default function PresenterPanel({ skin }: { skin: DemoSkin | null }) {
               <p className="mt-1 text-xs leading-relaxed text-gray-300">
                 {renderTalkTrack(beat.talkTrack, skin)}
               </p>
+              {beat.moves && beat.moves.length > 0 && (
+                <ul className="mt-1.5 space-y-0.5">
+                  {beat.moves.map((m) => (
+                    <li key={m} className="flex items-start gap-1.5 text-[11px] leading-snug text-teal-300/90">
+                      <span aria-hidden="true">▸</span>
+                      <span>{m}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <GapCallouts gaps={gapsByBeat[beat.id]} />
               {skin?.websiteUrl && (
                 <a

@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-
-const START_KEY = 'dc.demo-started-at'
+import { DEMO_START_KEY as START_KEY } from './presenter-session'
 
 /** mm:ss elapsed since the demo started (sessionStorage — survives reloads,
  *  dies with the tab; a new demo session starts a fresh clock). */

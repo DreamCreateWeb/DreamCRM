@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import type { DemoBeat, DemoTrack } from '@/lib/types/demo-script'
+import type { DemoTrack } from '@/lib/types/demo-script'
 import type { DemoSkin } from '@/lib/types/demo-skin'
 import {
   MANUAL_LOSS_REASONS,
@@ -9,7 +9,7 @@ import {
   type ProspectLossReason,
 } from '@/lib/types/prospecting'
 import { endBrandedDemoWithOutcomeAction } from '@/app/(default)/ecommerce/customers/admin-actions'
-import { clearPresenterSession } from './presenter-session'
+import { clearPresenterSession, readDemoStartedAt } from './presenter-session'
 import { useDemoElapsed } from './demo-timer'
 
 /**
@@ -27,17 +27,23 @@ const OUTCOMES: Array<{ value: 'won' | 'callback' | 'not_interested'; label: str
   { value: 'not_interested', label: 'Not now' },
 ]
 
-function readBeatNotes(beats: DemoBeat[]): string {
+/** "The website story demo · 14 min · 6/7 beats" + the per-beat notes —
+ *  the call log tells the win/loss review what actually happened. */
+function buildDemoNote(track: DemoTrack): string {
+  const startedAt = readDemoStartedAt()
+  const minutes = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 60_000)) : null
+  const parts: string[] = [
+    `${track.label} demo${minutes ? ` · ${minutes} min` : ''}`,
+  ]
   try {
-    const parts: string[] = []
-    for (const b of beats) {
+    for (const b of track.beats) {
       const note = sessionStorage.getItem(`dc.demo-notes.${b.id}`)
       if (note?.trim()) parts.push(`${b.title}: ${note.trim()}`)
     }
-    return parts.join(' · ').slice(0, 480)
   } catch {
-    return ''
+    /* private mode */
   }
+  return parts.join(' · ').slice(0, 480)
 }
 
 export default function WrapUp({
@@ -54,7 +60,7 @@ export default function WrapUp({
   const elapsed = useDemoElapsed()
   const [outcome, setOutcome] = useState<'won' | 'callback' | 'not_interested' | null>(null)
   const [lostReason, setLostReason] = useState<ProspectLossReason>('bad_timing')
-  const initialNote = useMemo(() => readBeatNotes(track.beats), [track.beats])
+  const initialNote = useMemo(() => buildDemoNote(track), [track])
   const [note, setNote] = useState(initialNote)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()

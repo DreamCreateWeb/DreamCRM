@@ -20,6 +20,9 @@ export interface DemoBeat {
   href: string
   /** Narrative arc grouping shown in the panel ("Grow · beat 6 of 8"). */
   group: DemoBeatGroup
+  /** What to actually CLICK on this beat (≤2 short moves) — the presenter
+   *  never fumbles "what do I show now" mid-pitch. */
+  moves?: string[]
 }
 
 export const DEMO_GROUP_LABELS: Record<DemoBeatGroup, string> = {
@@ -42,6 +45,8 @@ export interface DemoTrack {
   recommendedPlan: 'basic' | 'pro' | 'premium'
   /** The money line — shown on the wrap-up screen as the close reminder. */
   planPitch: string
+  /** Honest pacing for the story picker ("~15 min"). */
+  targetMinutes: number
   beats: DemoBeat[]
 }
 
@@ -58,6 +63,7 @@ const HUDDLE: DemoBeat = {
     "This is {clinicName}'s morning — today's chairs, who needs attention, what's trending. Your front desk opens ONE screen instead of six.",
   href: '/dashboard',
   group: 'open',
+  moves: ['Point at today’s chair count + the attention cards'],
 }
 
 const MESSAGES: DemoBeat = {
@@ -67,6 +73,7 @@ const MESSAGES: DemoBeat = {
     'Every patient text and email in one inbox. Watch the AI draft a reply — your team just reviews and hits send.',
   href: '/messages',
   group: 'run',
+  moves: ['Open a thread → ✨ Draft a reply → send it'],
 }
 
 const APPOINTMENTS: DemoBeat = {
@@ -76,6 +83,7 @@ const APPOINTMENTS: DemoBeat = {
     'The day, grouped how the desk thinks. Unconfirmed visits age visibly; one click confirms, reschedules, or fills the slot from the waitlist.',
   href: '/appointments',
   group: 'run',
+  moves: ['Open an unconfirmed visit → Confirm it live'],
 }
 
 const FOLLOWUPS: DemoBeat = {
@@ -85,6 +93,7 @@ const FOLLOWUPS: DemoBeat = {
     'Balances, overdue recall, unconfirmed visits — rules create the follow-ups, your team just works the list. Nothing slips.',
   href: '/followups',
   group: 'run',
+  moves: ['Claim one follow-up → check it off'],
 }
 
 const REVIEWS: DemoBeat = {
@@ -94,6 +103,7 @@ const REVIEWS: DemoBeat = {
     'Visit completes → review request → Google. 4-star-plus reviews auto-feature on the website. {clinicName} builds reputation on autopilot.',
   href: '/reviews',
   group: 'grow',
+  moves: ['Show a 5★ auto-featured on the site', 'Point at the 1–2★ escalation path'],
 }
 
 const WEBSITE: DemoBeat = {
@@ -103,6 +113,7 @@ const WEBSITE: DemoBeat = {
     "This is the site we'd build for {clinicName} — edit it live, right here. AI rewrites copy in your voice. No web guy, no tickets.",
   href: '/website',
   group: 'grow',
+  moves: ['Click a section → edit → AI rewrite in their voice'],
 }
 
 const COMPARE: DemoBeat = {
@@ -112,6 +123,7 @@ const COMPARE: DemoBeat = {
     "{firstName}, this is {clinicName}'s site today — and this is the same practice on ours, in your own colors. Same brand, different decade.",
   href: '/demo/compare',
   group: 'grow',
+  moves: ['Scroll both panes together — let it speak'],
 }
 
 const ANALYTICS: DemoBeat = {
@@ -121,12 +133,20 @@ const ANALYTICS: DemoBeat = {
     'New patients, retention, reputation, search visibility — one honest scorecard. This is what you check monthly to know it paid for itself.',
   href: '/analytics',
   group: 'close',
+  moves: ['Walk the scorecard top to bottom — end on new patients'],
 }
 
 /** Every track ends here — the breadth beat. The talk track carries the
  *  track's plan pitch so the close always lands on a price. */
 function moreBeat(talkTrack: string): DemoBeat {
-  return { id: 'more', title: 'And so much more', talkTrack, href: '/integrations', group: 'close' }
+  return {
+    id: 'more',
+    title: 'And so much more',
+    talkTrack,
+    href: '/integrations',
+    group: 'close',
+    moves: ['Scroll the marketplace — every tile is included'],
+  }
 }
 
 // ---------- The tracks ----------
@@ -139,6 +159,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     story: 'They need everything — the full open-to-close tour.',
     recommendedPlan: 'premium',
     planPitch: 'Everything you just saw is the Premium plan — $500 a month, no contracts.',
+    targetMinutes: 25,
     beats: [
       HUDDLE,
       MESSAGES,
@@ -162,6 +183,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     recommendedPlan: 'basic',
     planPitch:
       'The website story is the Basic plan — $150 a month for the site, booking, reviews, and SEO. Live in days, not months.',
+    targetMinutes: 15,
     beats: [
       { ...COMPARE, group: 'open' },
       { ...WEBSITE, group: 'run' },
@@ -170,6 +192,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         title: 'Online booking, built in',
         talkTrack:
           "Every page of the new site ends in a Book button. Patients pick a real open slot; it lands here on the desk's agenda — no phone tag.",
+        moves: ['Open the public /book page → pick a slot → show it land here'],
       },
       {
         id: 'leads',
@@ -178,6 +201,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           'Forms on the site don’t go to a dusty inbox — they land in a triage queue with status, source, and follow-through. Nothing leaks.',
         href: '/leads',
         group: 'run',
+        moves: ['Open a lead → convert it to a patient'],
       },
       {
         ...REVIEWS,
@@ -192,6 +216,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           'Search Console and the Google Business Profile wired in — {clinicName} sees exactly what patients search and where the site ranks.',
         href: '/seo',
         group: 'grow',
+        moves: ['Show what patients searched to find them'],
       },
       moreBeat(
         'That’s the website story — and the same $150 a month also includes the patient inbox, follow-ups, and intake forms. And so much more on top.',
@@ -207,6 +232,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     recommendedPlan: 'pro',
     planPitch:
       'Getting found everywhere is the Pro plan — $250 a month. Website, Google, reviews, and social in one engine.',
+    targetMinutes: 15,
     beats: [
       {
         id: 'seo',
@@ -215,6 +241,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           '{clinicName}’s Google Business Profile managed right from the dashboard — hours, photos, posts. Most listings drift; yours stays true.',
         href: '/seo',
         group: 'open',
+        moves: ['Show the GBP listing synced from the dashboard'],
       },
       { ...REVIEWS, group: 'run' },
       {
@@ -224,6 +251,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           'One composer for Google, Facebook, Instagram — write once, preview each platform, schedule the month in one sitting.',
         href: '/social-posts',
         group: 'run',
+        moves: ['Write one post → flip through the per-platform previews'],
       },
       {
         ...WEBSITE,
@@ -251,6 +279,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     recommendedPlan: 'pro',
     planPitch:
       'The social suite rides the Pro plan — $250 a month, and a $30 add-on unlocks every channel.',
+    targetMinutes: 12,
     beats: [
       {
         id: 'social',
@@ -259,6 +288,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           'Google, Facebook, Instagram, TikTok, YouTube — write once, preview each platform, post or schedule. This is the whole workflow.',
         href: '/social-posts',
         group: 'open',
+        moves: ['Write one post → flip through the per-platform previews'],
       },
       {
         id: 'social-calendar',
@@ -267,6 +297,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           'Flip to the calendar — plan the month, drag the gaps closed. A practice that posts weekly looks alive; this makes weekly effortless.',
         href: '/social-posts',
         group: 'run',
+        moves: ['Switch calendar ⇄ showcase views'],
       },
       {
         id: 'social-comments',
@@ -275,6 +306,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           'Every comment across channels lands in one queue — nothing sits unanswered under {clinicName}’s name.',
         href: '/social-posts',
         group: 'run',
+        moves: ['Answer one comment live'],
       },
       {
         ...REVIEWS,
@@ -303,6 +335,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     recommendedPlan: 'pro',
     planPitch:
       'Running the day is the Pro plan — $250 a month; most offices recover more than that in no-shows alone.',
+    targetMinutes: 15,
     beats: [
       HUDDLE,
       MESSAGES,
@@ -315,6 +348,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
           'Forms go out automatically before the visit — photos, insurance cards, signatures. Chair time starts on time.',
         href: '/intake-forms',
         group: 'run',
+        moves: ['Open a completed form → the AI pre-visit summary'],
       },
       moreBeat(
         'That’s the front-desk story — Pro is $250 a month, and the reviews engine, website editor, and recall campaigns come with it. And so much more.',
