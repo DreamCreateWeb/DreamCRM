@@ -7,6 +7,24 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Visibility pass — "Where am I? What am I doing?" + "never squint"
+  (2026-07-06, `7e17c3f` + `2c791d4`).** Owner-driven accessibility rules
+  (partial vision), codified in DESIGN-SYSTEM.md §2.2 and enforced: **text-
+  size setting** (Standard/Large/XL scales the root font-size; pre-paint
+  script in app/layout.tsx + `html.dc-text-lg/.dc-text-xl` in style.css +
+  `components/ui/text-size-toggle.tsx` in Settings → Account and portal My
+  info; per-device by design); **12px floor swept** (116 dashboard px
+  literals + the portal's sub-0.75rem class raised — worst: 10.9px mobile
+  tab labels, 10.6px timestamps at ~2:1 contrast, 11.5px receipt money
+  lines, 55%-opacity slot labels); **contrast raises** (KPI labels/subs,
+  portal inactive tabs #8A8178→#6B635A, editor hints, dark PageHeader
+  subtitle, analytics values un-hover-gated); **orientation** (sidebar
+  active 15% tint + 4px bar, portal mobile active tab gets a brand pill,
+  FilterChip active semibold + teal ring, tab titles on the 4 title-less
+  pages, 40px collapse caret). A new CI guard
+  (`tests/a11y/legibility-floor.test.ts`) bans sub-floor sizes across
+  dashboard/portal/shared UI — it caught 4 stragglers on its first run.
+
 - **Patient-portal mega-pass P1–P9 + website closers W12–W13 (2026-07-06).**
   The "serious upgrades across the board" push into the portal, scouted first
   (an Explore sweep produced the ranked top-10), then shipped as nine slices,
