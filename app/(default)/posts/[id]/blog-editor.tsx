@@ -98,6 +98,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   const [aiBusy, setAiBusy] = useState(false)
   const [showSeo, setShowSeo] = useState(Boolean(post.seoTitle || post.seoDescription))
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [justPublished, setJustPublished] = useState(false)
   const [social, setSocial] = useState<{ open: boolean; busy: boolean; text: string | null }>({
     open: false,
     busy: false,
@@ -187,6 +188,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
         return
       }
       setStatus('published')
+      // The moment of publish is when 'send it to your patients' converts —
+      // offer it once, right here, instead of leaving it buried in Tools.
+      setJustPublished(true)
       router.refresh()
     })
   }
@@ -386,6 +390,37 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             )}
             {publishError && (
               <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{publishError}</p>
+            )}
+            {/* The publish-moment nudge — the blog's whole retention value is
+                patients actually READING it; drafting the newsletter is one
+                click while the win is fresh. Review-before-send as always. */}
+            {justPublished && (
+              <div className="mt-3 rounded-lg border border-teal-200 dark:border-teal-800/60 bg-teal-50 dark:bg-teal-950/40 p-3">
+                <p className="text-xs font-semibold text-teal-900 dark:text-teal-200">
+                  It’s live 🎉 Want your patients to see it?
+                </p>
+                <p className="text-[11px] text-teal-800/90 dark:text-teal-300/90 mt-0.5 leading-snug">
+                  One click drafts a patient email from this post — you pick the audience and
+                  review before anything sends.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startTransition(async () => { await emailThisPostAction(post.id) })}
+                    disabled={pending}
+                    className="text-xs font-semibold px-2.5 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-500 disabled:opacity-50"
+                  >
+                    ✉️ Email it to patients
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJustPublished(false)}
+                    className="text-xs font-medium text-teal-800/80 dark:text-teal-300/80 hover:underline"
+                  >
+                    Not now
+                  </button>
+                </div>
+              </div>
             )}
             {!published && !scheduled && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
