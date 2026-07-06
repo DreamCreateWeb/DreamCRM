@@ -7,6 +7,40 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Patient-portal mega-pass P1–P9 + website closers W12–W13 (2026-07-06).**
+  The "serious upgrades across the board" push into the portal, scouted first
+  (an Explore sweep produced the ranked top-10), then shipped as nine slices,
+  each deployed green: **W12 — address in the Studio** (`02a7369`): footer
+  Visit block is click-to-edit (5-field modal via `saveAddress`, rides the
+  undo history, mirrors to the primary `clinic_location` row). **P1 —
+  waitlist self-enroll + refer toggle** (`62ec5d8`): "Notify me if something
+  opens sooner" on every portal visit card → the SAME `addToWaitlist` the
+  front desk uses (`source:'portal'`, idempotent; PortalVisit gained
+  providerId); two new portal flags (`waitlist`, `referrals` — the refer card
+  had rendered unconditionally). **P2 — payment plans in Billing**
+  (`ab8454f`): "split it into monthly payments" month-picker (server-computed
+  floors), `startMyPaymentPlanAction` reuses the staff propose path then
+  routes straight to /i/[token]; open-plan status card (proposed → finish
+  setup; active/past_due → N-of-M + next charge); `getMyOpenPaymentPlan`.
+  **P3 — in-portal survey** (`2e54ada`): `getOrCreatePortalSurvey`
+  (mint-on-view, same rows/throttles as the email engine, no delay) + a 0–10
+  SurveyCard on the dashboard; answers reuse recordNpsScore (detractor
+  escalation intact) behind logged-in ownership checks. **Badges**
+  (`4c3b7ff`): `getMyUnreadMessageCount` (mirrors the mark-read where-clause)
+  → Messages badge in all three chrome spots. **Membership** (`e09a020`):
+  join-our-plan upsell (cheapest-price teaser, gated on active plans) + an
+  honest message-us manage line (no blind Stripe billing-portal link). **W13 —
+  publish-moment newsletter nudge** (`47c3c1d`) on the blog editor. **Visit
+  detail** (`1c0ab43`): /patient/appointments/[id] — VisitCard action hub +
+  get-ready (pending forms; staff notes deliberately NOT exposed) + where-to-
+  go; every card title links there. **Visit prep** (`ec4817b`):
+  `getVisitPrep` surfaces the clinic's per-type prep copy (same resolver as
+  reminders) on the detail page. **Family link requests** (`d6ec74b`):
+  "Add a family member" on My info + Family — a structured ask through the
+  existing message thread (no shadow approval queue). **Tokens** (`6da4a33`):
+  five components' local INK/MUTED/BORDER hexes → the exported PORTAL_*
+  tokens.
+
 - **Website mega-pass W1–W6 (2026-07-05).** The "every feature surrounding the
   live website" sweep — six slices, each shipped + deployed green:
   **W1 — callouts + carry-through** (`4784127`): homepage care-callouts

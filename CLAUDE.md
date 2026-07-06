@@ -247,9 +247,16 @@ service library (`/platform/service-library`), platform blog, developer,
 settings.
 
 **Patient tenant**: the clinic-branded portal (`app/(portal)/patient/*`) —
-next-visit card, reschedule/cancel w/ notice windows, booking, forms, billing
-(PMS balance + online balance payments via Connect), records, messages,
-family access, magic-link sign-in, per-clinic feature toggles + preview.
+next-visit card + per-visit detail pages (`appointments/[id]`: action hub,
+clinic's per-type prep copy, pending-forms task, directions), reschedule/
+cancel w/ notice windows, waitlist self-enroll ("notify me if something opens
+sooner" → the staff fast-pass list), booking, forms, billing (PMS balance +
+online balance payments via Connect + patient-started payment plans + open-
+plan status + membership upsell), in-portal post-visit 0–10 survey (same NPS
+rows/escalation as the email engine), records, messages (unread badge in the
+chrome), family access + link requests via the message thread, magic-link
+sign-in, per-clinic feature toggles (incl. waitlist + referrals) + preview.
+Portal color tokens live in `components/patient-portal/ui.tsx` (PORTAL_*).
 
 **Public clinic sites** (`app/site/[slug]/`): Tend-style template — home,
 services (+AI-customized detail pages), new-patients (first-visit guide),
