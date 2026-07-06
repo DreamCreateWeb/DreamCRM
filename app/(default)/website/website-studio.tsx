@@ -18,6 +18,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import StudioAiBar, { type UndoData } from './studio-ai-bar'
 import BrandColorPopover from './brand-color-popover'
+import StudioWelcome from './studio-welcome'
 import RewriteWithAiButton from './rewrite-with-ai-button'
 import HeroTaglineRewrite from './hero-tagline-rewrite'
 import type { AiUsageSnapshot, GeneratedContent } from '@/lib/types/ai-website'
@@ -733,6 +734,10 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           />
         </div>
       </div>
+
+      {/* One-time first-open welcome — names the three editing moves, then
+          never shows again (localStorage). */}
+      <StudioWelcome />
 
       {/* The AI command bar stays MOUNTED while a modal is open (CSS-hidden) so
           its done-panel + one-click Undo survive opening a section editor. */}
