@@ -11,6 +11,7 @@ import { isBirthdayThisWeek } from '@/lib/dates'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/services/analytics'
 import { clinicDayStart, clinicMonthStart } from '@/lib/clinic-timezone'
 import { getSiteTraffic, type SiteTraffic } from '@/lib/services/site-analytics'
+import { websiteHealthNotice, type WebsiteHealthNotice } from '@/lib/website-health'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
@@ -61,6 +62,9 @@ export interface ClinicOverviewData {
     count: number
     preview: LeadPreviewRow[]
   }
+  /** The website's check-engine light — traffic drop / silent forms; null
+   *  when healthy or when the reads failed (never false-alarms). */
+  siteHealth: WebsiteHealthNotice | null
   /** Paid shop orders still awaiting fulfillment — your move to ship/ready. */
   paidOrdersUnfulfilled: number
   /** Unread inbound patient messages (the ball is in our court). */
@@ -529,7 +533,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic] = await Promise.all([
+  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d] = await Promise.all([
     getIntegrationsHealth(organizationId, now),
     // Paid shop orders still awaiting fulfillment (our move).
     db
@@ -548,6 +552,14 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     getFollowupSummary(organizationId, now),
     // Website visits are an enrichment, never a reason the huddle fails.
     getSiteTraffic(organizationId, 7).catch(() => null),
+    // 14-day lead count for the silent-forms signal — null on failure so the
+    // signal can never false-alarm off a hiccup.
+    db
+      .select({ count: count() })
+      .from(schema.lead)
+      .where(and(eq(schema.lead.organizationId, organizationId), gte(schema.lead.createdAt, new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000))))
+      .then((r) => Number(r[0]?.count ?? 0))
+      .catch(() => null as number | null),
   ])
 
   return {
@@ -566,5 +578,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     integrationsHealth,
     followups,
     siteTraffic,
+    siteHealth: siteTraffic
+      ? websiteHealthNotice({ total: siteTraffic.total, totalPrev: siteTraffic.totalPrev, leads14d })
+      : null,
   }
 }

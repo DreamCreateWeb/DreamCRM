@@ -337,6 +337,22 @@ export async function saveImageField(
   })
 }
 
+/**
+ * Save the clinic's ONE brand color — the single lever the whole public-site
+ * palette derives from (lib/clinic-site-theme.ts re-derives ground, deep band,
+ * inks, and every accent on the next render). Strict #RRGGBB so junk can never
+ * poison the palette math.
+ */
+export async function saveBrandColor(hex: string): Promise<SectionResult> {
+  const v = (hex ?? '').trim()
+  if (!/^#[0-9a-fA-F]{6}$/.test(v)) {
+    return { ok: false, error: 'Pick a color first — it should look like #2F6D62' }
+  }
+  return runSection(async (ctx) => {
+    await writeSection(ctx, { brandColor: v.toUpperCase() })
+  })
+}
+
 export async function saveInlineField(field: string, value: string): Promise<SectionResult> {
   // Hardcoded-copy override: field "copy:<key>" merges into the copy_overrides
   // map (the template falls back to its built-in default when a key is unset).

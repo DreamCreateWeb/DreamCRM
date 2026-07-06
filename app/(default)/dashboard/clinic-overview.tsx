@@ -188,6 +188,36 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         </section>
       )}
 
+      {/* ── Website check-engine light (renders only when a signal fires) ──
+          Traffic drop / silent forms — problems that never announce
+          themselves. Same banner language as the sync-health notice above. */}
+      {data.siteHealth && (
+        <section className="mb-6">
+          <div className="rounded-[var(--r-lg)] border p-4 flex items-start gap-3 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30">
+            <div
+              className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base bg-amber-100 dark:bg-amber-500/20"
+              aria-hidden="true"
+            >
+              🌐
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                {data.siteHealth.title}
+              </p>
+              <p className="text-xs mt-0.5 text-amber-800/90 dark:text-amber-300/90">
+                {data.siteHealth.body}
+              </p>
+            </div>
+            <Link
+              href={data.siteHealth.href}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0 self-center bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30"
+            >
+              {data.siteHealth.linkLabel}
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
       {/* Signature moment: this row cascades in once on first session entry
           (MorningReveal), in the same beat the KPIs below count up. */}

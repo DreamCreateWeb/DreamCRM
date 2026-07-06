@@ -59,6 +59,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     paidOrdersUnfulfilled: 0,
     unreadMessages: 0,
     siteTraffic: null,
+    siteHealth: null,
     reviewsReceived: { completed30d: 0, sent30d: 0 },
     trends: {
       bookingsToday: 0,
@@ -574,5 +575,33 @@ describe('website-visits trend tile', () => {
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText('Website visits')).not.toBeInTheDocument()
+  })
+})
+
+describe('website-health banner', () => {
+  it('renders the notice with its CTA when a signal fires', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        siteHealth: {
+          kind: 'traffic_drop',
+          title: 'Website traffic dropped this week',
+          body: '40 visits in the last 7 days — down 67% from 120 the week before.',
+          href: '/analytics',
+          linkLabel: 'Open Analytics',
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('Website traffic dropped this week')).toBeInTheDocument()
+    const cta = screen.getByRole('link', { name: 'Open Analytics' })
+    expect(cta).toHaveAttribute('href', '/analytics')
+  })
+
+  it('renders nothing when the site is healthy', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ siteHealth: null }))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/traffic dropped/i)).not.toBeInTheDocument()
   })
 })

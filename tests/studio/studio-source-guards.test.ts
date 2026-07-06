@@ -127,6 +127,22 @@ describe('page navigator', () => {
   })
 })
 
+describe('brand color in the Studio', () => {
+  const actions = read('app/(default)/website/website-actions.ts')
+  const popover = read('app/(default)/website/brand-color-popover.tsx')
+  it('saveBrandColor validates strict #RRGGBB before any write (junk can never poison the palette)', () => {
+    expect(actions).toMatch(/saveBrandColor/)
+    expect(actions).toMatch(/\^#\[0-9a-fA-F\]\{6\}\$/)
+  })
+  it('the popover is mounted in the top bar and repaints the canvas on save', () => {
+    expect(studio).toMatch(/<BrandColorPopover[\s\S]{0,200}onSaved=\{\(\) => reloadFrame\(\)\}/)
+  })
+  it('client-side gate mirrors the server regex (Save disabled until a valid hex)', () => {
+    expect(popover).toMatch(/\^#\[0-9a-fA-F\]\{6\}\$/)
+    expect(popover).toMatch(/disabled=\{!normalized \|\| busy\}/)
+  })
+})
+
 describe('collapsible AI bar', () => {
   it('persists the collapsed state per browser', () => {
     expect(aiBar).toMatch(/dc-studio-ai-min/)

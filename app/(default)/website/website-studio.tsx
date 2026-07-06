@@ -17,6 +17,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import StudioAiBar, { type UndoData } from './studio-ai-bar'
+import BrandColorPopover from './brand-color-popover'
 import RewriteWithAiButton from './rewrite-with-ai-button'
 import HeroTaglineRewrite from './hero-tagline-rewrite'
 import type { AiUsageSnapshot, GeneratedContent } from '@/lib/types/ai-website'
@@ -558,6 +559,12 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
             currentTagline={profile.tagline ?? null}
             usage={aiUsage}
             onUsage={setAiUsage}
+            onSaved={() => reloadFrame()}
+          />
+          {/* Brand color — the palette's single lever, editable where the
+              owner can watch the whole site repaint. */}
+          <BrandColorPopover
+            initial={profile.brandColor ?? '#9CAF9F'}
             onSaved={() => reloadFrame()}
           />
           {/* Desktop / phone canvas toggle — most patients are on a phone, so
