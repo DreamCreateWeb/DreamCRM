@@ -1,10 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
+import { clinicLocation } from '@/lib/db/schema/platform'
 import { requireTenant, type TenantContext } from '@/lib/auth/context'
 import type { LeadFormField } from '@/lib/types/lead-forms'
 import { isValidVideoUrl } from '@/lib/website-url'
@@ -73,6 +74,11 @@ const COLUMN_LABELS: Record<string, string> = {
   tagline: 'Hero tagline',
   copyOverrides: 'Text edit',
   imagePositions: 'Photo focus point',
+  addressLine1: 'Address',
+  addressLine2: 'Address',
+  city: 'Address',
+  state: 'Address',
+  postalCode: 'Address',
 }
 
 function editLabel(set: Partial<typeof clinicProfile.$inferInsert>): string {
@@ -111,6 +117,47 @@ async function writeSection(
   // 'layout' revalidates the entire /site/[slug] subtree (home + /faq +
   // /insurance + /team + /payment-financing + …) in one call.
   revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
+}
+
+/**
+ * Save the clinic's street address (footer "Visit" block + every JSON-LD /
+ * contact surface). Writes the profile columns via writeSection (so it rides
+ * the undo history) and mirrors to the primary clinic_location row when one
+ * exists — the public site prefers that row over the profile columns, so
+ * skipping the mirror would make the edit silently invisible.
+ */
+export async function saveAddress(fd: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    const set = {
+      addressLine1: clean('addressLine1', fd),
+      addressLine2: clean('addressLine2', fd),
+      city: clean('city', fd),
+      state: clean('state', fd),
+      postalCode: clean('postalCode', fd),
+    }
+    await writeSection(ctx, set)
+    try {
+      const [primary] = await db
+        .select({ id: clinicLocation.id })
+        .from(clinicLocation)
+        .where(and(eq(clinicLocation.organizationId, ctx.organizationId), eq(clinicLocation.isPrimary, 1)))
+        .limit(1)
+      const target =
+        primary ??
+        (
+          await db
+            .select({ id: clinicLocation.id })
+            .from(clinicLocation)
+            .where(eq(clinicLocation.organizationId, ctx.organizationId))
+            .limit(1)
+        )[0]
+      if (target) {
+        await db.update(clinicLocation).set(set).where(eq(clinicLocation.id, target.id))
+      }
+    } catch {
+      /* profile columns are already saved — the mirror is best-effort */
+    }
+  })
 }
 
 /**

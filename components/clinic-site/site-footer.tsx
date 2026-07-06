@@ -174,12 +174,26 @@ export default function SiteFooter({
               Visit
             </h2>
             <div className="space-y-3 text-[15px]">
-              {locationLine && (
-                <p style={{ color: FOOTER_INK }}>{locationLine}</p>
-              )}
-              {cityState && (
-                <p style={{ color: FOOTER_MUTED }}>{cityState}</p>
-              )}
+              {/* Street address — Studio-editable in place (opens the address
+                  modal). The dc-edit-only nudge makes an EMPTY address
+                  addable too, instead of an invisible dead zone. */}
+              <div
+                data-edit-field="address"
+                data-edit-kind="modal"
+                data-edit-label="address"
+              >
+                {locationLine && (
+                  <p style={{ color: FOOTER_INK }}>{locationLine}</p>
+                )}
+                {cityState && (
+                  <p style={{ color: FOOTER_MUTED }}>{cityState}</p>
+                )}
+                {!locationLine && !cityState && (
+                  <span className="dc-edit-only text-[12px] font-semibold text-violet-400">
+                    + Add your address
+                  </span>
+                )}
+              </div>
               {/* Full weekly hours live here now — the standalone homepage
                   Hours section was removed to match Tend's flow (hours sit
                   in the footer, not as a dedicated band). */}

@@ -47,6 +47,7 @@ import {
   saveLeadForm,
   saveHours,
   saveDifferenceVideo,
+  saveAddress,
   undoLastEditAction,
   type SectionResult,
 } from './website-actions'
@@ -116,6 +117,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   insurance_verifier: saveLeadForm,
   contact: saveLeadForm,
   hours: saveHours,
+  address: saveAddress,
 }
 
 const SECTION_TITLES: Record<string, string> = {
@@ -132,6 +134,7 @@ const SECTION_TITLES: Record<string, string> = {
   insurance_verifier: 'Insurance check form',
   contact: 'Contact form',
   hours: 'Office hours',
+  address: 'Address & location',
   services: 'Services',
   blog: 'Blog posts',
   careers: 'Job postings',
@@ -1228,6 +1231,33 @@ function StudioModal({
                   className={textareaCls}
                 />
               </Field>
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'address' && (
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged} className="space-y-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Your street address — shown in the footer of every page, on your
+                contact surfaces, and in the structured data search engines read.
+              </p>
+              <Field label="Street address">
+                <input name="addressLine1" defaultValue={profile.addressLine1 ?? ''} placeholder="123 Main St" className={inputCls} />
+              </Field>
+              <Field label="Suite / unit (optional)">
+                <input name="addressLine2" defaultValue={profile.addressLine2 ?? ''} placeholder="Suite 200" className={inputCls} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="City">
+                  <input name="city" defaultValue={profile.city ?? ''} placeholder="Austin" className={inputCls} />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="State">
+                    <input name="state" defaultValue={profile.state ?? ''} placeholder="TX" className={inputCls} />
+                  </Field>
+                  <Field label="ZIP">
+                    <input name="postalCode" defaultValue={profile.postalCode ?? ''} placeholder="78701" className={inputCls} />
+                  </Field>
+                </div>
+              </div>
             </form>
           )}
           {modal.kind === 'section' && modal.field === 'hours' && (
