@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import IntakeFormRunner, { type IntakeSubmitPayload, type OcrAction } from '../../[formSlug]/intake-form-runner'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 export interface PacketForm {
   id: string
@@ -11,10 +12,6 @@ export interface PacketForm {
   translations: FormTranslations | null
 }
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 /**
  * Walks a patient through a packet's forms one at a time. Each form submits

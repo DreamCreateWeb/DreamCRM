@@ -9,6 +9,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { clinicDayStart, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 /** Public-bookable visit type, shaped for the form (server passes the
  *  resolved, bookablePublic-filtered catalog with each type's duration —
@@ -50,11 +51,6 @@ export function fmtDeposit(cents: number): string {
   return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`
 }
 
-const BG = 'var(--c-bg, #FAF7F2)'
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 const DAY_WINDOW = 14 // show two weeks of days
 const DAY_NAME_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

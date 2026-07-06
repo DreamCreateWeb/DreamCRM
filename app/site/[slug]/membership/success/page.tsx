@@ -3,9 +3,8 @@ import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-
 import { finalizeMembershipFromSession } from '@/lib/services/membership'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 import { readableInk } from '@/lib/clinic-site-theme'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
 
 interface Props {
   params: Promise<{ slug: string }>

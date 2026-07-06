@@ -16,10 +16,8 @@ import {
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
 
-const BG = 'var(--c-bg, #FAF7F2)'
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
 
 // Template revision, not a per-clinic edit date — bump when the policy copy
 // itself changes.

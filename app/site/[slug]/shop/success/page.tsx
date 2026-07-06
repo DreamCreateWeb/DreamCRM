@@ -5,8 +5,8 @@ import { formatCents } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 import { readableInk } from '@/lib/clinic-site-theme'
 import ClearCart from '../clear-cart'
+import { SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
 
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
 
 interface Props {
   params: Promise<{ slug: string }>

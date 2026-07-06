@@ -22,16 +22,12 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
-import { ArcDivider, GrainOverlay, RippleMotif } from '@/components/clinic-site/decor'
+import { DeepBand } from '@/components/clinic-site/decor'
 import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const BG = 'var(--c-bg, #FAF7F2)'
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -343,17 +339,7 @@ export default async function NewPatientsPage({ params }: Props) {
         </section>
 
         {/* ── Before you arrive — deep band w/ checklist + intake card ────── */}
-        <section
-          className="relative overflow-hidden pt-20 pb-14 sm:pt-32 sm:pb-24"
-          style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
-        >
-          <ArcDivider fill="var(--c-surface, #FFFFFF)" />
-          <GrainOverlay opacity={0.04} />
-          <RippleMotif
-            tint="#FFFFFF"
-            opacity={0.05}
-            className="absolute -right-40 -bottom-56 w-[560px] h-[560px]"
-          />
+        <DeepBand className="pt-20 pb-14 sm:pt-32 sm:pb-24" arcFill="var(--c-surface, #FFFFFF)">
           <div className="relative max-w-[1240px] mx-auto px-5 sm:px-8">
             <div className="text-center max-w-[700px] mx-auto mb-12">
               <p
@@ -477,7 +463,7 @@ export default async function NewPatientsPage({ params }: Props) {
               </div>
             </div>
           </div>
-        </section>
+        </DeepBand>
 
         {/* ── The money part — insurance + payment cards (real data) ──────── */}
         <section className="py-14 sm:py-24">

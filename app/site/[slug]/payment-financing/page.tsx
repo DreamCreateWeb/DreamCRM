@@ -30,16 +30,12 @@ import SiteHeader from '@/components/clinic-site/site-header'
 import SiteFooter from '@/components/clinic-site/site-footer'
 import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
-import { ArcDivider, GrainOverlay, RippleMotif } from '@/components/clinic-site/decor'
+import { DeepBand } from '@/components/clinic-site/decor'
 import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const BG = 'var(--c-bg, #FAF7F2)'
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -382,17 +378,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
         </section>
 
         {/* ── HSA & FSA — full-width band ──────────────────────────────────── */}
-        <section
-          className="relative overflow-hidden pt-24 pb-14 sm:pt-28 sm:pb-20"
-          style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
-        >
-          <ArcDivider />
-          <GrainOverlay opacity={0.04} />
-          <RippleMotif
-            tint="#FFFFFF"
-            opacity={0.05}
-            className="absolute -left-40 -bottom-56 w-[520px] h-[520px]"
-          />
+        <DeepBand className="pt-24 pb-14 sm:pt-28 sm:pb-20" ripple="left">
           <div className="relative max-w-[900px] mx-auto px-5 sm:px-8 text-center">
             <p
               className="text-xs font-semibold uppercase tracking-[0.22em] mb-4"
@@ -429,7 +415,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
               )}
             </p>
           </div>
-        </section>
+        </DeepBand>
 
         {/* ── Financing partners (only when set) ───────────────────────── */}
         {financingPartners.length > 0 && (

@@ -1,9 +1,6 @@
 import ScrollReveal from './scroll-reveal'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 export interface NumberedStep {
   title: string

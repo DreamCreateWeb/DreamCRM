@@ -7,12 +7,10 @@ import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { SiteNavLink } from '@/lib/clinic-site-helpers'
 import { SkipToContent } from '@/components/ui/skip-to-content'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { SITE_BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 // Nav text + hairlines read the brand-derived neutral vars (set on :root by the
 // site layout). Literal fallbacks keep parity if rendered outside the layout.
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   data: ClinicSiteData
@@ -162,7 +160,7 @@ export default function SiteHeader({
   // near-white nav pill. Literal fallbacks keep parity outside the layout.
   const STRIP_BG = 'var(--c-strip, #E7FB7E)'
   const STRIP_INK = 'var(--c-strip-ink, #1C1A17)'
-  const NAV_CONTAINER_BG = 'var(--c-bg, #FEF7F1)'
+  const NAV_CONTAINER_BG = SITE_BG
 
   return (
     <>

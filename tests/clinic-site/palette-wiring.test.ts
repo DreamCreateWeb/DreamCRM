@@ -53,8 +53,10 @@ describe('the announcement strip reads var(--c-strip), not a fixed chartreuse', 
 describe('neutral surfaces read the brand-tinted vars', () => {
   it('modern template grounds/ink derive from the brand', () => {
     const m = read('components/clinic-site/modern-template.tsx')
-    expect(m).toMatch(/var\(--c-bg/)
-    expect(m).toMatch(/var\(--c-ink/)
+    // Post-consolidation the var() strings come in via the token module.
+    expect(m).toMatch(/from '@\/components\/clinic-site\/tokens'/)
+    expect(m).toMatch(/SITE_BG/)
+    expect(m).toMatch(/SITE_INK/)
     // No bare destructure of the fixed CLINIC_THEME constants anymore.
     expect(m).not.toMatch(/= CLINIC_THEME/)
   })

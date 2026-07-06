@@ -8,10 +8,8 @@ import {
   MAX_RESUME_BYTES,
   RESUME_ACCEPT,
 } from '@/lib/types/careers'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 const FIELD =
   'w-full text-[15px] px-3.5 py-3 rounded-xl border bg-[var(--c-surface,#FFFFFF)] focus:outline-none focus:ring-2 focus:ring-offset-0'
 

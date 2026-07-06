@@ -192,7 +192,7 @@ describe('SiteHeader', () => {
       resolve(__dirname, '../../components/clinic-site/site-header.tsx'),
       'utf8',
     )
-    expect(src).toMatch(/NAV_CONTAINER_BG = 'var\(--c-bg/)
+    expect(src).toMatch(/NAV_CONTAINER_BG = SITE_BG/)
   })
 
   it('omits the tagline chip when the tagline is too long for a chip', () => {

@@ -6,10 +6,8 @@ import { readingTimeMinutes } from '@/lib/utils'
 import { readableInk } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
 import ClosingCTA from './closing-cta'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   post: BlogPost

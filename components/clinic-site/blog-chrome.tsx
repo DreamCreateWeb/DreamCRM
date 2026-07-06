@@ -11,9 +11,8 @@ import {
 import SiteHeader from './site-header'
 import SiteFooter from './site-footer'
 import SiteMobileActions from './site-mobile-actions'
+import { SITE_BG as BG, SITE_INK as INK } from '@/components/clinic-site/tokens'
 
-const BG = 'var(--c-bg, #FAF7F2)'
-const INK = 'var(--c-ink, #1C1A17)'
 
 /**
  * Shared chrome for blog index + blog post + membership pages. Wraps

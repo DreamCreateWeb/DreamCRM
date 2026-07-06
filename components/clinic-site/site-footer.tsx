@@ -1,5 +1,6 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import { GrainOverlay, RippleMotif } from '@/components/clinic-site/decor'
+import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
 import { appBaseUrl } from '@/lib/services/clinic-site'
 import type { ClinicService } from '@/lib/types/clinic-content'
 import {
@@ -55,9 +56,9 @@ export default function SiteFooter({
   // vars, so the footer grounds the page in the clinic's OWN color instead of a
   // fixed forest-teal. Literal fallbacks keep it painting if rendered outside
   // the site layout. The border is a translucent white so it reads on any deep.
-  const FOOTER_BG = 'var(--c-deep, #36514c)'
-  const FOOTER_INK = 'var(--c-deep-ink, #FFFFFF)'
-  const FOOTER_MUTED = 'var(--c-deep-muted, #C5CFCC)'
+  const FOOTER_BG = SITE_DEEP
+  const FOOTER_INK = SITE_DEEP_INK
+  const FOOTER_MUTED = SITE_DEEP_MUTED
   const FOOTER_BORDER = 'rgba(255,255,255,0.16)'
 
   // About column links — page paths first, blog/careers appended only if

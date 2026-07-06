@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { authClient, signUp } from '@/lib/auth/client'
 import { linkUserToClinicAsPatient } from './actions'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 interface Props {
   orgId: string
@@ -15,10 +16,6 @@ interface Props {
 
 type Mode = 'signup' | 'signin'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 /**
  * Sign-in / sign-up form for the public "Save your intake to your account"

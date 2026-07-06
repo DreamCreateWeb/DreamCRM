@@ -6,10 +6,8 @@ import BlogChrome from '@/components/clinic-site/blog-chrome'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { readableInk } from '@/lib/clinic-site-theme'
 import CartButton from './cart-button'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   params: Promise<{ slug: string }>

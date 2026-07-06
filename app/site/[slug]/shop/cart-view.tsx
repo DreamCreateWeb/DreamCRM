@@ -4,10 +4,8 @@ import { useEffect, useState, useTransition } from 'react'
 import { formatCents, type CartLine } from '@/lib/types/shop'
 import { getCart, setQty, removeLine } from './cart-store'
 import { startCheckout, applyCoupon } from './actions'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 export default function CartView({
   slug,

@@ -6,11 +6,8 @@ import { intervalSuffix, type PlanRow } from '@/lib/types/membership'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import { startMembershipCheckout } from './actions'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 /** Inline checkmark — the site language uses real SVG checks, not a "✓" glyph. */
 function Check({ color }: { color: string }) {

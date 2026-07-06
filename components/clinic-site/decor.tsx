@@ -103,3 +103,44 @@ export function SparkleGlyph({ className, color }: { className?: string; color?:
     </svg>
   )
 }
+
+/**
+ * The signature deep "rhythm-break" band, as ONE component — dark derived-
+ * palette background, organic ArcDivider seam from the section above, tactile
+ * grain, and an optional corner ripple. Every page previously copied this
+ * four-element recipe by hand; now the composition (and any future tuning of
+ * it) lives here. Children render inside a `relative` wrapper so they stack
+ * above the decor; bring your own max-width container + paddings via
+ * `className`.
+ */
+export function DeepBand({
+  children,
+  className = 'pt-20 pb-14 sm:pt-32 sm:pb-24',
+  arcFill,
+  ripple = 'right',
+}: {
+  children: React.ReactNode
+  /** Vertical paddings + any extra section classes. */
+  className?: string
+  /** Color of the section ABOVE the seam (ArcDivider default = page bg). */
+  arcFill?: string
+  /** Corner ripple placement — 'none' for short bands. */
+  ripple?: 'right' | 'left' | 'none'
+}) {
+  return (
+    <section
+      className={`relative overflow-hidden ${className}`}
+      style={{ backgroundColor: 'var(--c-deep, #36514c)', color: 'var(--c-deep-ink, #FAF7F2)' }}
+    >
+      <ArcDivider fill={arcFill} />
+      <GrainOverlay opacity={0.04} />
+      {ripple === 'right' && (
+        <RippleMotif tint="#FFFFFF" opacity={0.05} className="absolute -right-40 -bottom-56 w-[560px] h-[560px]" />
+      )}
+      {ripple === 'left' && (
+        <RippleMotif tint="#FFFFFF" opacity={0.04} className="absolute -left-48 -bottom-64 w-[620px] h-[620px]" />
+      )}
+      <div className="relative">{children}</div>
+    </section>
+  )
+}

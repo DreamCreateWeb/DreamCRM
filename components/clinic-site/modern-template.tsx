@@ -27,6 +27,7 @@ import GoogleRatingBadge, { GOOGLE_RATING_MIN_COUNT } from '@/components/clinic-
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { RippleMotif, ArcDivider, GrainOverlay, SparkleGlyph } from '@/components/clinic-site/decor'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 /**
  * Modern Family/Wellness template — the default clinic site.
@@ -51,11 +52,6 @@ import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 // the original warm-neutral scheme so a surface rendered outside the layout
 // (e.g. a unit test) still paints. These are style values only — never passed
 // into readableInk's color math (that takes the raw brand + a real hex).
-const BG = 'var(--c-bg, #FAF7F2)'
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 interface Props {
   data: ClinicSiteData

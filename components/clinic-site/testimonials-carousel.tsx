@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
+import { SITE_SURFACE, SITE_BORDER, SITE_INK, SITE_DEEP } from '@/components/clinic-site/tokens'
 
 // Prev/next buttons sit on the page ground → derived neutral vars. The card
 // surface itself is the brand-derived deep band (see TestimonialCard below).
-const BTN_BG = 'var(--c-surface, #FFFFFF)'
-const BTN_BORDER = 'var(--c-border, #E8E2D9)'
-const BTN_INK = 'var(--c-ink, #1C1A17)'
+const BTN_BG = SITE_SURFACE
+const BTN_BORDER = SITE_BORDER
+const BTN_INK = SITE_INK
 
 // Match the CSS `transition-duration` on the track. Slightly-padded
 // timeout matches the visible animation length so the snap-back fires
@@ -190,7 +191,7 @@ export default function TestimonialsCarousel({ testimonials, brand: _brand }: Pr
  * deliberate dark rhythm-break grounded in the clinic's OWN color. Gold stars
  * stay gold (universal review signal).
  */
-const TESTIMONIAL_CARD_BG = 'var(--c-deep, #36514c)'
+const TESTIMONIAL_CARD_BG = SITE_DEEP
 const TESTIMONIAL_CARD_STAR = '#FFCC00'
 
 export function TestimonialCard({ t }: { t: ClinicTestimonial; brand?: string }) {

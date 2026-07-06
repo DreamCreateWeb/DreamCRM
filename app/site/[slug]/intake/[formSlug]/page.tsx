@@ -10,6 +10,7 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { readableInk } from '@/lib/clinic-site-theme'
 import IntakeFormRunner from './intake-form-runner'
 import { submitIntakeForm, readInsuranceCardAction } from './actions'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 interface Props {
   params: Promise<{ slug: string; formSlug: string }>
@@ -55,12 +56,7 @@ export default async function IntakeFormPage({ params, searchParams }: Props) {
   const basePath = await resolveSiteBasePath(slug)
   const schema = template.schema as FormTemplateSchema
 
-  const BG = 'var(--c-bg, #FAF7F2)'
-  const INK = 'var(--c-ink, #1C1A17)'
-  const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-  const SURFACE = 'var(--c-surface, #FFFFFF)'
-  const BORDER = 'var(--c-border, #E8E2D9)'
-
+          
   return (
     <div
       className="min-h-screen font-inter antialiased"

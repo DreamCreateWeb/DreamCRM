@@ -5,6 +5,7 @@ import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { submitIntakeForm, readInsuranceCardAction } from '../../[formSlug]/actions'
 import PacketRunner, { type PacketForm } from './packet-runner'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 interface Props {
   params: Promise<{ slug: string; packetSlug: string }>
@@ -44,11 +45,7 @@ export default async function IntakePacketPage({ params }: Props) {
     translations: (f.translations as FormTranslations | null) ?? null,
   }))
 
-  const BG = 'var(--c-bg, #FAF7F2)'
-  const INK = 'var(--c-ink, #1C1A17)'
-  const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-  const BORDER = 'var(--c-border, #E8E2D9)'
-
+        
   return (
     <div className="min-h-screen font-inter antialiased" style={{ backgroundColor: BG, color: INK }}>
       <header className="sticky top-0 z-40 backdrop-blur-md border-b" style={{ backgroundColor: 'var(--c-bg, #FAF7F2)', borderColor: BORDER }}>

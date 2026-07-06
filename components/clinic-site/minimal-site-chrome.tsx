@@ -1,12 +1,9 @@
 import { readableInk, clinicPaletteCss } from '@/lib/clinic-site-theme'
+import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 // Brand-derived neutral roles (set on :root — by the /site/[slug] layout when
 // this chrome is used there, and by this component itself for surfaces OUTSIDE
 // that layout like /r/[token], which injects clinicPaletteCss below).
-const BG = 'var(--c-bg, #FAF7F2)'
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 export interface MinimalSiteChromeProps {
   /** Clinic display name. When absent (e.g. a not-found host with no clinic),

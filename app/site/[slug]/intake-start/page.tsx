@@ -10,6 +10,7 @@ import { auth } from '@/lib/auth/server'
 import { readableInk } from '@/lib/clinic-site-theme'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import IntakeStartForm from './intake-start-form'
+import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -22,10 +23,6 @@ export const metadata = {
   robots: { index: false, follow: false },
 }
 
-const INK = 'var(--c-ink, #1C1A17)'
-const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
-const SURFACE = 'var(--c-surface, #FFFFFF)'
-const BORDER = 'var(--c-border, #E8E2D9)'
 
 export default async function IntakeStartPage({ params }: Props) {
   const { slug } = await params

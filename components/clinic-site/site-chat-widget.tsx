@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { submitChatMessage } from '@/app/site/[slug]/actions'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
+import { SITE_INK as INK, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
 /**
  * The "Message us" bubble on every public clinic page — the site's
@@ -13,9 +14,7 @@ import FormTrustFields from '@/components/clinic-site/form-trust-fields'
  * visitor's email. No account, no sign-in.
  */
 
-const INK = '#1C1A17'
 const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 export default function SiteChatWidget({
   slug,
