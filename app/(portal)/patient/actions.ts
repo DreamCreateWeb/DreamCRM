@@ -22,7 +22,8 @@ import {
 import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { addToWaitlist } from '@/lib/services/appointment-waitlist'
 import { proposePaymentPlan } from '@/lib/services/payment-plans'
-import { paymentPlan } from '@/lib/db/schema/clinic'
+import { paymentPlan, npsResponse } from '@/lib/db/schema/clinic'
+import { recordNpsScore, recordNpsComment } from '@/lib/services/nps'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -447,6 +448,39 @@ export async function startMyPaymentPlanAction(
   if (!plan) return { ok: false, error: 'Something went wrong — try again.' }
   revalidatePath('/patient/invoices')
   return { ok: true, url: `/i/${plan.token}` }
+}
+
+/** Verify a survey token belongs to the logged-in patient (tenant + owner). */
+async function myOwnSurvey(token: string): Promise<boolean> {
+  const ctx = await requirePatient()
+  const [row] = await db
+    .select({ patientId: npsResponse.patientId })
+    .from(npsResponse)
+    .where(and(eq(npsResponse.token, token), eq(npsResponse.organizationId, ctx.organizationId)))
+    .limit(1)
+  return !!row && row.patientId === ctx.patientId
+}
+
+/**
+ * One-tap post-visit rating from the dashboard card. Reuses the exact email-
+ * survey recording path (same rows, same detractor escalation to the team) —
+ * the only difference is the auth: logged-in ownership check instead of
+ * token-IS-auth.
+ */
+export async function answerMySurveyAction(token: string, score: number): Promise<PortalActionResult> {
+  if (!(await myOwnSurvey(token))) return { ok: false, error: 'We couldn’t find that survey.' }
+  const ok = await recordNpsScore(token, score)
+  if (!ok) return { ok: false, error: 'That didn’t save — try again.' }
+  revalidatePath('/patient/dashboard')
+  return { ok: true }
+}
+
+/** The optional follow-up comment (post-score). */
+export async function commentMySurveyAction(token: string, comment: string): Promise<PortalActionResult> {
+  if (!(await myOwnSurvey(token))) return { ok: false, error: 'We couldn’t find that survey.' }
+  const ok = await recordNpsComment(token, comment)
+  if (!ok) return { ok: false, error: 'That didn’t save — try again.' }
+  return { ok: true }
 }
 
 export async function requestMyRecordsAction(): Promise<PortalActionResult> {

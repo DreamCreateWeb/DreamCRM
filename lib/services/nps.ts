@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
-import { and, desc, eq, gte, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { authEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
@@ -188,6 +188,106 @@ export interface NpsLandingContext {
   /** Already answered → the landing thanks instead of re-asking. */
   score: number | null
   comment: string | null
+}
+
+/**
+ * The portal's post-visit survey — mint-on-view. When the logged-in patient
+ * has a fresh completed visit (within the same SURVEY_WINDOW_DAYS the email
+ * engine uses, but with NO delay — they're right here), return an answerable
+ * survey token: an existing unanswered row is reused (email- or portal-
+ * minted), the 180-day per-patient throttle is honored against ANSWERED rows,
+ * and one-row-per-appointment stays true. Returns null when there's nothing
+ * to ask — the dashboard simply doesn't render the card. Same npsEnabled
+ * switch as the email engine; demo orgs mint nothing.
+ */
+export async function getOrCreatePortalSurvey(
+  organizationId: string,
+  patientId: string,
+  opts?: { now?: Date },
+): Promise<{ token: string } | null> {
+  const now = opts?.now ?? new Date()
+  const [cfg] = await db
+    .select({ enabled: schema.clinicReviewConfig.npsEnabled })
+    .from(schema.clinicReviewConfig)
+    .where(eq(schema.clinicReviewConfig.organizationId, organizationId))
+    .limit(1)
+  if (cfg?.enabled !== 1) return null
+  const [org] = await db
+    .select({ isDemo: schema.organization.isDemo })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, organizationId))
+    .limit(1)
+  if (org?.isDemo) return null
+
+  const windowStart = new Date(now.getTime() - SURVEY_WINDOW_DAYS * DAY_MS)
+
+  // A fresh unanswered survey already exists → reuse it (don't double-mint).
+  const [pending] = await db
+    .select({ token: schema.npsResponse.token, sentAt: schema.npsResponse.sentAt })
+    .from(schema.npsResponse)
+    .where(
+      and(
+        eq(schema.npsResponse.organizationId, organizationId),
+        eq(schema.npsResponse.patientId, patientId),
+        isNull(schema.npsResponse.score),
+        gte(schema.npsResponse.sentAt, windowStart),
+      ),
+    )
+    .orderBy(desc(schema.npsResponse.sentAt))
+    .limit(1)
+  if (pending) return { token: pending.token }
+
+  // Throttle: surveyed (and answered, or stale-unanswered) recently → stay quiet.
+  const [recent] = await db
+    .select({ id: schema.npsResponse.id })
+    .from(schema.npsResponse)
+    .where(
+      and(
+        eq(schema.npsResponse.organizationId, organizationId),
+        eq(schema.npsResponse.patientId, patientId),
+        gte(schema.npsResponse.sentAt, new Date(now.getTime() - PER_PATIENT_THROTTLE_DAYS * DAY_MS)),
+      ),
+    )
+    .limit(1)
+  if (recent) return null
+
+  // A completed visit inside the window, not yet surveyed → mint.
+  const [visit] = await db
+    .select({ id: schema.appointment.id })
+    .from(schema.appointment)
+    .where(
+      and(
+        eq(schema.appointment.organizationId, organizationId),
+        eq(schema.appointment.patientId, patientId),
+        eq(schema.appointment.status, 'completed'),
+        isNotNull(schema.appointment.completedAt),
+        gte(schema.appointment.completedAt, windowStart),
+      ),
+    )
+    .orderBy(desc(schema.appointment.completedAt))
+    .limit(1)
+  if (!visit) return null
+  const [surveyed] = await db
+    .select({ id: schema.npsResponse.id })
+    .from(schema.npsResponse)
+    .where(
+      and(
+        eq(schema.npsResponse.organizationId, organizationId),
+        eq(schema.npsResponse.appointmentId, visit.id),
+      ),
+    )
+    .limit(1)
+  if (surveyed) return null
+
+  const token = `nps_${randomBytes(16).toString('base64url')}`
+  await db.insert(schema.npsResponse).values({
+    id: newId('nps'),
+    organizationId,
+    patientId,
+    appointmentId: visit.id,
+    token,
+  })
+  return { token }
 }
 
 export async function getNpsByToken(token: string): Promise<NpsLandingContext | null> {

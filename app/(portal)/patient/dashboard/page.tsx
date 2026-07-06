@@ -18,6 +18,8 @@ import { getLoyaltySettings, getPointsBalance } from '@/lib/services/loyalty'
 import VisitCard from '@/components/patient-portal/visit-card'
 import ReferCard from '@/components/patient-portal/refer-card'
 import LoyaltyCard from '@/components/patient-portal/loyalty-card'
+import SurveyCard from '@/components/patient-portal/survey-card'
+import { getOrCreatePortalSurvey } from '@/lib/services/nps'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import {
   PortalCard,
@@ -76,6 +78,10 @@ export default async function PortalHome() {
     (v) => v.status === 'completed' && Date.now() - v.startTime.getTime() < WEEK_MS,
   )
   const showAftercare = Boolean(settings.copy.aftercareNote && recentCompleted)
+
+  // Post-visit pulse — mint-on-view against the same rows/throttles as the
+  // email surveys. Best-effort: a hiccup just means no card this load.
+  const survey = await getOrCreatePortalSurvey(ctx.organizationId, ctx.patientId).catch(() => null)
 
   const verbs: Array<{ href: string; label: string; sub: string; icon: PortalIconName; show: boolean }> = [
     { href: '/patient/book', label: bookLabel, sub: bookSub, icon: 'calendar', show: settings.features.booking },
@@ -175,6 +181,12 @@ export default async function PortalHome() {
           </Link>
         )}
       </section>
+
+      {survey && (
+        <section className="mt-6">
+          <SurveyCard token={survey.token} brand={brand} />
+        </section>
+      )}
 
       {showAftercare && (
         <section className="mt-7">
