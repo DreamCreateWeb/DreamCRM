@@ -801,6 +801,35 @@ export async function markOutboundMessagesReadByPatient(
 }
 
 /**
+ * The patient's OWN unread count — clinic replies (in-app) they haven't
+ * opened yet. Powers the portal chrome's Messages badge. Mirrors the exact
+ * where-clause markOutboundMessagesReadByPatient clears, so badge and
+ * receipt can never disagree. Best-effort: a read failure returns 0.
+ */
+export async function getMyUnreadMessageCount(
+  organizationId: string,
+  patientId: string,
+): Promise<number> {
+  try {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.patientMessage)
+      .where(
+        and(
+          eq(schema.patientMessage.organizationId, organizationId),
+          eq(schema.patientMessage.patientId, patientId),
+          eq(schema.patientMessage.direction, 'outbound'),
+          eq(schema.patientMessage.channel, 'in_app'),
+          isNull(schema.patientMessage.readByPatientAt),
+        ),
+      )
+    return Number(row?.n ?? 0)
+  } catch {
+    return 0
+  }
+}
+
+/**
  * Record an inbound message (patient → clinic). Called by webhook
  * handlers (Twilio for SMS Phase B; in-app patient-portal action for
  * portal messages). Increments unread counter so staff sees a badge.

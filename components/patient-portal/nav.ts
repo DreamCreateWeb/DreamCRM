@@ -10,6 +10,8 @@ import type { PortalSettings } from '@/lib/types/portal'
  */
 export interface PortalNavItem {
   href: string
+  /** Unread/attention count rendered as a badge (omitted or 0 = no badge). */
+  badge?: number
   label: string
   icon: PortalIconName
 }
@@ -32,13 +34,15 @@ export function buildPortalNav(opts: {
   hasShop: boolean
   /** Signed-in patient has linked dependents — gates the Family entry. */
   hasDependents: boolean
+  /** Unread clinic replies — renders a badge on the Messages entry. */
+  unreadMessages?: number
 }): { primary: PortalNavItem[]; more: PortalNavItem[] } {
   const f = opts.settings.features
 
   const all: Array<PortalNavItem & { enabled: boolean }> = [
     { href: '/patient/dashboard', label: 'Home', icon: 'home', enabled: true },
     { href: '/patient/appointments', label: 'Visits', icon: 'calendar', enabled: true },
-    { href: '/patient/messages', label: 'Messages', icon: 'chat', enabled: f.messages },
+    { href: '/patient/messages', label: 'Messages', icon: 'chat', enabled: f.messages, badge: opts.unreadMessages && opts.unreadMessages > 0 ? opts.unreadMessages : undefined },
     { href: '/patient/invoices', label: 'Billing', icon: 'card', enabled: f.billing },
     { href: '/patient/records', label: 'Records', icon: 'folder', enabled: f.records },
     { href: '/patient/intake', label: 'Forms', icon: 'doc', enabled: f.forms },

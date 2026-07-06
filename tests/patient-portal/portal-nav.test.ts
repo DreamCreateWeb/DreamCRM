@@ -73,6 +73,26 @@ describe('buildPortalNav', () => {
     expect([...nav.primary, ...nav.more].map((i) => i.label)).toEqual(['Home', 'Visits', 'My info'])
   })
 
+  it('unreadMessages puts a badge on the Messages entry only (and 0 puts none)', () => {
+    const nav = buildPortalNav({
+      settings: DEFAULT_PORTAL_SETTINGS,
+      hasShop: false,
+      hasDependents: false,
+      unreadMessages: 3,
+    })
+    const all = [...nav.primary, ...nav.more]
+    expect(all.find((i) => i.label === 'Messages')?.badge).toBe(3)
+    expect(all.filter((i) => i.badge).length).toBe(1)
+
+    const quiet = buildPortalNav({
+      settings: DEFAULT_PORTAL_SETTINGS,
+      hasShop: false,
+      hasDependents: false,
+      unreadMessages: 0,
+    })
+    expect([...quiet.primary, ...quiet.more].every((i) => !i.badge)).toBe(true)
+  })
+
   it('primary never exceeds 4 entries', () => {
     const nav = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: true, hasDependents: true })
     expect(nav.primary.length).toBeLessThanOrEqual(4)

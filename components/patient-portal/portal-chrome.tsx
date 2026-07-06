@@ -122,6 +122,15 @@ export function PortalDesktopNav({
             }
           >
             {item.label}
+            {!!item.badge && (
+              <span
+                aria-label={`${item.badge} unread`}
+                className="ml-1.5 inline-flex min-w-[1.15rem] items-center justify-center rounded-full px-1 text-[0.68rem] font-bold leading-[1.15rem] align-middle"
+                style={active ? { backgroundColor: '#FFFFFF', color: brand } : { backgroundColor: brand, color: '#FFFFFF' }}
+              >
+                {item.badge > 9 ? '9+' : item.badge}
+              </span>
+            )}
           </Link>
         )
       })}
@@ -176,6 +185,15 @@ export function PortalTabBar({
                     >
                       <PortalIcon name={item.icon} className="h-5 w-5" />
                       {item.label}
+                      {!!item.badge && (
+                        <span
+                          aria-label={`${item.badge} unread`}
+                          className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[0.7rem] font-bold leading-[1.25rem] text-white"
+                          style={{ backgroundColor: brand }}
+                        >
+                          {item.badge > 9 ? '9+' : item.badge}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 )
@@ -201,7 +219,18 @@ export function PortalTabBar({
                   style={{ color: active ? brand : '#8A8178' }}
                   aria-current={active ? 'page' : undefined}
                 >
-                  <PortalIcon name={item.icon} className="h-[22px] w-[22px]" />
+                  <span className="relative">
+                    <PortalIcon name={item.icon} className="h-[22px] w-[22px]" />
+                    {!!item.badge && (
+                      <span
+                        aria-label={`${item.badge} unread`}
+                        className="absolute -right-2 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full px-1 text-[0.6rem] font-bold leading-4 text-white"
+                        style={{ backgroundColor: brand }}
+                      >
+                        {item.badge > 9 ? '9+' : item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="text-[0.68rem] font-semibold">{item.label}</span>
                 </Link>
               </li>

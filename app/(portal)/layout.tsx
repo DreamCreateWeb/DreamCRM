@@ -13,6 +13,7 @@ import {
 } from '@/lib/services/patient-portal'
 import { getShopConfig } from '@/lib/services/shop'
 import { buildPortalNav } from '@/components/patient-portal/nav'
+import { getMyUnreadMessageCount } from '@/lib/services/patient-messaging'
 import {
   PortalDesktopNav,
   PortalTabBar,
@@ -78,17 +79,21 @@ export default async function PortalLayout({ children }: { children: React.React
     )
   }
 
-  const [settings, me, dependents, shopConfig] = await Promise.all([
+  const [settings, me, dependents, shopConfig, unreadMessages] = await Promise.all([
     getPortalSettings(ctx.organizationId),
     getMyPatientRecord(ctx.patientId, ctx.organizationId),
     getMyDependents(ctx.patientId, ctx.organizationId),
     getShopConfig(ctx.organizationId),
+    // Unread clinic replies → the Messages badge. Best-effort (returns 0 on
+    // failure inside the service) so the chrome never blocks on it.
+    getMyUnreadMessageCount(ctx.organizationId, ctx.patientId),
   ])
 
   const nav = buildPortalNav({
     settings,
     hasShop: shopConfig.storefrontEnabled,
     hasDependents: dependents.length > 0,
+    unreadMessages,
   })
 
   // Master self-scheduling switch (Settings → Practice): off → the booking CTA
