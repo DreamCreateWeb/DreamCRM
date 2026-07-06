@@ -107,6 +107,7 @@ export default function VisitCard({
   mapsQuery,
   canModify,
   canJoinWaitlist,
+  linkToDetail = true,
   minNoticeHours,
   showFace,
 }: {
@@ -120,6 +121,8 @@ export default function VisitCard({
   canModify: boolean
   /** Clinic allows waitlist self-enroll ("notify me if something opens sooner"). */
   canJoinWaitlist: boolean
+  /** Link the header to the visit-detail page (off on the detail page itself). */
+  linkToDetail?: boolean
   /** Reschedule/cancel cutoff (hours before start). */
   minNoticeHours: number
   showFace: boolean
@@ -159,7 +162,13 @@ export default function VisitCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[1.05rem] font-semibold leading-snug" style={{ color: INK }}>
-              {visit.typeLabel}
+              {linkToDetail ? (
+                <a href={`/patient/appointments/${visit.id}`} className="hover:underline underline-offset-2">
+                  {visit.typeLabel}
+                </a>
+              ) : (
+                visit.typeLabel
+              )}
               {visit.providerName ? (
                 <span className="font-normal" style={{ color: MUTED }}>
                   {' '}
