@@ -36,6 +36,33 @@ const STATE_META: Record<CustomDomainState, { tone: Tone; label: string; title: 
   },
 }
 
+/** A monospace value with a click-to-copy affordance — handy for pasting a DNS
+ *  record straight into a registrar (or handing it to the client). */
+function CopyValue({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard?.writeText(value).then(
+          () => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+          },
+          () => {},
+        )
+      }}
+      title="Copy"
+      className="group inline-flex items-start gap-1.5 text-left hover:text-teal-600 dark:hover:text-teal-400"
+    >
+      <span className="break-all">{value}</span>
+      <span className="shrink-0 text-[10px] uppercase tracking-wide opacity-0 group-hover:opacity-70">
+        {copied ? 'Copied' : 'Copy'}
+      </span>
+    </button>
+  )
+}
+
 export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props) {
   const [status, setStatus] = useState<CustomDomainStatus | null>(initialStatus)
   const [domain, setDomain] = useState('')
@@ -101,9 +128,10 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
         {meta && <StatusPill tone={meta.tone} label={meta.label} title={meta.title} />}
       </div>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-5 max-w-2xl">
-        Use your own web address for your site (like{' '}
-        <span className="font-medium text-gray-700 dark:text-gray-300">www.yourpractice.com</span>).
-        Your site is always reachable at{' '}
+        Use your own web address for your site — enter it with or without the{' '}
+        <span className="font-medium text-gray-700 dark:text-gray-300">www.</span> (like{' '}
+        <span className="font-medium text-gray-700 dark:text-gray-300">yourpractice.com</span>) and
+        we’ll set up both. Your site is always reachable at{' '}
         <a
           href={subdomainUrl}
           target="_blank"
@@ -179,10 +207,15 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
                         {r.type}
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
-                        {r.name}
+                        <CopyValue value={r.name} />
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
-                        {r.value}
+                        <CopyValue value={r.value} />
+                        {r.note && (
+                          <p className="mt-1.5 font-sans text-[11px] leading-snug text-gray-500 dark:text-gray-400 whitespace-normal">
+                            {r.note}
+                          </p>
+                        )}
                       </td>
                     </tr>
                   ))}

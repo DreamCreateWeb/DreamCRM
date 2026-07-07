@@ -66,6 +66,7 @@ vi.mock('@aws-sdk/client-apprunner', () => ({
 
 import {
   validateCustomDomain,
+  resolveCustomDomain,
   requestCustomDomain,
   checkCustomDomainStatus,
   removeCustomDomain,
@@ -84,17 +85,27 @@ beforeEach(() => {
 })
 
 describe('validateCustomDomain', () => {
-  it('accepts a www subdomain (lowercased, URL-stripped)', () => {
+  it('accepts a www subdomain (lowercased, URL-stripped) — canonical stays www', () => {
     expect(validateCustomDomain('https://WWW.SmileBright.com/')).toEqual({
       ok: true,
       domain: 'www.smilebright.com',
     })
   })
 
-  it('rejects a bare apex with an ALIAS/redirect explanation', () => {
-    const r = validateCustomDomain('smilebright.com')
-    expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.error).toMatch(/bare domain|CNAME|redirect/i)
+  it('accepts a bare apex and canonicalizes to the www host', () => {
+    // Apex is now supported — we associate the apex + its www sibling as a pair,
+    // so the canonical (SEO/display) host is the www variant.
+    expect(validateCustomDomain('smilebright.com')).toEqual({
+      ok: true,
+      domain: 'www.smilebright.com',
+    })
+  })
+
+  it('accepts a non-www subdomain as its own host', () => {
+    expect(validateCustomDomain('book.smilebright.com')).toEqual({
+      ok: true,
+      domain: 'book.smilebright.com',
+    })
   })
 
   it('rejects the platform domain + its subdomains', () => {
@@ -108,11 +119,45 @@ describe('validateCustomDomain', () => {
     expect(validateCustomDomain('foo').ok).toBe(false)
   })
 
-  it('strips a pasted wildcard prefix', () => {
+  it('strips a pasted wildcard prefix (→ apex pair)', () => {
     expect(validateCustomDomain('*.smilebright.com')).toEqual({
-      ok: false,
-      // *.smilebright.com → smilebright.com is a bare apex → rejected.
-      error: expect.stringMatching(/bare domain|CNAME/i),
+      ok: true,
+      domain: 'www.smilebright.com',
+    })
+  })
+})
+
+describe('resolveCustomDomain — apex/www pairing', () => {
+  it('associates the apex with EnableWWWSubdomain for a bare apex', () => {
+    const r = resolveCustomDomain('smilebright.com')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.plan).toEqual({
+      associateHost: 'smilebright.com',
+      enableWww: true,
+      canonical: 'www.smilebright.com',
+      servedHosts: ['smilebright.com', 'www.smilebright.com'],
+    })
+  })
+
+  it('derives the apex from a www host', () => {
+    const r = resolveCustomDomain('www.smilebright.com')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.plan.associateHost).toBe('smilebright.com')
+    expect(r.plan.enableWww).toBe(true)
+    expect(r.plan.servedHosts).toEqual(['smilebright.com', 'www.smilebright.com'])
+  })
+
+  it('leaves a non-www subdomain standalone', () => {
+    const r = resolveCustomDomain('book.smilebright.com')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.plan).toEqual({
+      associateHost: 'book.smilebright.com',
+      enableWww: false,
+      canonical: 'book.smilebright.com',
+      servedHosts: ['book.smilebright.com'],
     })
   })
 })
@@ -134,20 +179,26 @@ describe('requestCustomDomain — AWS happy path', () => {
     expect(res.ok).toBe(true)
     if (!res.ok) return
     expect(aws.associate).toHaveBeenCalledTimes(1)
-    // EnableWWWSubdomain must be false (we never auto-add the www variant).
+    // Apex pair: we associate the APEX with EnableWWWSubdomain so App Runner
+    // covers both smilebright.com and www.smilebright.com under one cert.
     expect(aws.associate.mock.calls[0][0]).toMatchObject({
-      DomainName: 'www.smilebright.com',
-      EnableWWWSubdomain: false,
+      DomainName: 'smilebright.com',
+      EnableWWWSubdomain: true,
     })
     expect(res.status.state).toBe('pending_dns')
     expect(res.status.error).toBeUndefined()
-    const routing = res.status.dnsRecords.find((r) => r.purpose === 'routing')
-    expect(routing?.value).toBe('hq7ygyvjdp.us-east-1.awsapprunner.com')
+    // Two routing records: apex (ALIAS) + www (CNAME), both pointing at target.
+    const routing = res.status.dnsRecords.filter((r) => r.purpose === 'routing')
+    expect(routing).toHaveLength(2)
+    expect(routing.every((r) => r.value === 'hq7ygyvjdp.us-east-1.awsapprunner.com')).toBe(true)
+    expect(routing.find((r) => r.name === 'smilebright.com')?.type).toBe('ALIAS')
+    expect(routing.find((r) => r.name === 'www.smilebright.com')?.type).toBe('CNAME')
     const certs = res.status.dnsRecords.filter((r) => r.purpose === 'certificate')
     expect(certs).toHaveLength(2)
     expect(certs[0].value).toBe('_y1.acm-validations.aws')
-    // Persisted websiteDomain + status.
+    // Persisted canonical websiteDomain + both served hosts.
     expect(state.profile?.websiteDomain).toBe('www.smilebright.com')
+    expect(res.status.servedHosts).toEqual(['smilebright.com', 'www.smilebright.com'])
   })
 })
 
@@ -179,7 +230,7 @@ describe('requestCustomDomain — graceful degradation', () => {
   })
 
   it('rejects an invalid domain before any AWS call', async () => {
-    const res = await requestCustomDomain(ORG, 'smilebright.com')
+    const res = await requestCustomDomain(ORG, 'not a domain')
     expect(res.ok).toBe(false)
     expect(aws.associate).not.toHaveBeenCalled()
   })

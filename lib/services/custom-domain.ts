@@ -41,11 +41,19 @@ export interface CustomDomainDnsRecord {
   type: string
   value: string
   purpose: DnsRecordPurpose
+  /** Extra human guidance for a record (e.g. the apex ALIAS/forward caveat). */
+  note?: string
 }
 
 export interface CustomDomainStatus {
   state: CustomDomainState
+  /** Canonical host (the `www.` variant for an apex pair) — used for SEO + display. */
   domain: string
+  /** The host actually associated in App Runner (the apex for a pair). Match
+   *  DescribeCustomDomains / DisassociateCustomDomain against this, not `domain`. */
+  associateHost?: string
+  /** Every host that should serve the site (apex + www for a pair, else one). */
+  servedHosts?: string[]
   requestedAt: string
   dnsRecords: CustomDomainDnsRecord[]
   lastCheckedAt?: string
@@ -67,26 +75,47 @@ const APP_RUNNER_DEFAULT_HOST =
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1'
 
-// ── Validation ──────────────────────────────────────────────────────────────
+// ── Validation + planning ─────────────────────────────────────────────────────
 
 /**
- * Normalize + validate a candidate custom domain.
+ * The resolved plan for a candidate domain: what to associate in App Runner,
+ * whether to also cover the `www.` variant, the canonical host, and the full
+ * set of hosts that should serve the site.
  *
- * We require a `www.` or other subdomain host (at least 3 labels), NOT a bare
- * apex — a bare apex can't CNAME to App Runner (the same reason our own apex
- * uses a redirect), so accepting one would create a domain that silently never
- * resolves. We reject anything on the platform's own domain (those are served
- * by the wildcard subdomain path, not a custom domain).
+ * We support BOTH an apex (`nwasmiles.com`) and a subdomain (`www.` / `book.`).
+ * For an apex — or a `www.` host, from which we derive the apex — we associate
+ * the apex with `EnableWWWSubdomain: true`, so App Runner provisions ONE cert +
+ * routing for the apex AND its `www.` sibling. That's the pair a clinic
+ * expects: `nwasmiles.com` and `www.nwasmiles.com` both land on their site.
+ * A deeper subdomain (e.g. `book.example.com`) is associated on its own.
  */
-export function validateCustomDomain(
+export interface CustomDomainPlan {
+  /** Host we call `AssociateCustomDomain` with (the apex for a pair). */
+  associateHost: string
+  /** Whether App Runner should also cover the `www.` sibling (apex pairs only). */
+  enableWww: boolean
+  /** Canonical host for SEO + storage (`www.` for a pair, else the host itself). */
+  canonical: string
+  /** Every host that should route to the site (apex + www for a pair, else one). */
+  servedHosts: string[]
+}
+
+/**
+ * Normalize a raw domain string (tolerating a pasted URL / wildcard) and resolve
+ * it into a `CustomDomainPlan`. Rejects garbage + the platform's own domain
+ * (those are served by the wildcard subdomain path, not a custom domain).
+ */
+export function resolveCustomDomain(
   raw: string,
-): { ok: true; domain: string } | { ok: false; error: string } {
+): { ok: true; plan: CustomDomainPlan } | { ok: false; error: string } {
   let host = (raw ?? '').trim().toLowerCase()
   if (!host) return { ok: false, error: 'Enter a domain.' }
-  // Tolerate a pasted URL.
-  host = host.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '')
-  // Strip a leading wildcard if pasted.
-  host = host.replace(/^\*\./, '')
+  // Tolerate a pasted URL / wildcard / trailing dot.
+  host = host
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '')
+    .replace(/\.$/, '')
+    .replace(/^\*\./, '')
 
   if (host.includes(' ') || host.includes('/')) {
     return { ok: false, error: 'That doesn’t look like a domain.' }
@@ -102,22 +131,85 @@ export function validateCustomDomain(
     }
   }
   const labels = host.split('.')
-  // Require a subdomain (≥3 labels, e.g. www.example.com). A 2-label apex is
-  // rejected with an explanation.
-  if (labels.length < 3) {
+  if (labels.length < 2) {
+    return { ok: false, error: 'That doesn’t look like a valid domain.' }
+  }
+
+  // Apex pair: a bare 2-label apex, or a `www.` host we can derive the apex from.
+  let apex: string | null = null
+  if (host.startsWith('www.')) apex = host.slice(4)
+  else if (labels.length === 2) apex = host
+
+  if (apex && apex.split('.').length >= 2) {
     return {
-      ok: false,
-      error:
-        'Use a subdomain like “www.” — a bare domain (example.com) can’t point at us with a CNAME. Set your apex to redirect to the www host at your registrar.',
+      ok: true,
+      plan: {
+        associateHost: apex,
+        enableWww: true,
+        canonical: `www.${apex}`,
+        servedHosts: [apex, `www.${apex}`],
+      },
     }
   }
-  return { ok: true, domain: host }
+
+  // A non-www subdomain (book.example.com, portal.example.com, …): associate it
+  // alone — there's no apex the clinic implied.
+  return {
+    ok: true,
+    plan: {
+      associateHost: host,
+      enableWww: false,
+      canonical: host,
+      servedHosts: [host],
+    },
+  }
+}
+
+/**
+ * Back-compat validator: returns the canonical host (the `www.` variant for an
+ * apex pair). Kept for callers that only need pass/fail + the display host.
+ */
+export function validateCustomDomain(
+  raw: string,
+): { ok: true; domain: string } | { ok: false; error: string } {
+  const r = resolveCustomDomain(raw)
+  return r.ok ? { ok: true, domain: r.plan.canonical } : r
+}
+
+/**
+ * Pure: the hosts that should route to a clinic's site given its stored canonical
+ * domain (used by the middleware host→slug map as a fallback when a full status
+ * object isn't available). Mirrors `resolveCustomDomain`'s served-host logic.
+ */
+export function expandServedHosts(domain: string): string[] {
+  const r = resolveCustomDomain(domain)
+  return r.ok ? r.plan.servedHosts : [domain.trim().toLowerCase()].filter(Boolean)
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function routingRecord(host: string, target: string): CustomDomainDnsRecord {
-  return { name: host, type: 'CNAME', value: target, purpose: 'routing' }
+/**
+ * Build the routing DNS record(s) a clinic must add. For an apex pair this is
+ * TWO records: the apex (ALIAS/ANAME — a bare apex can't use a CNAME) and the
+ * `www.` host (CNAME). Both point at the same App Runner target. For a lone
+ * subdomain it's a single CNAME.
+ */
+function routingRecords(plan: CustomDomainPlan, target: string): CustomDomainDnsRecord[] {
+  if (plan.enableWww) {
+    const apex = plan.associateHost
+    const www = `www.${apex}`
+    return [
+      {
+        name: apex,
+        type: 'ALIAS',
+        value: target,
+        purpose: 'routing',
+        note: `A bare domain can’t use a CNAME. If your DNS host supports an ALIAS/ANAME record (Cloudflare, Route 53, and many others do), point ${apex} at the value above. If it doesn’t, set up domain forwarding from ${apex} to https://${www} at your registrar instead.`,
+      },
+      { name: www, type: 'CNAME', value: target, purpose: 'routing' },
+    ]
+  }
+  return [{ name: plan.associateHost, type: 'CNAME', value: target, purpose: 'routing' }]
 }
 
 /** Placeholder certificate record used in the manual-fallback path. */
@@ -184,17 +276,20 @@ export async function requestCustomDomain(
   orgId: string,
   domain: string,
 ): Promise<CustomDomainResult> {
-  const v = validateCustomDomain(domain)
+  const v = resolveCustomDomain(domain)
   if (!v.ok) return { ok: false, error: v.error }
-  const host = v.domain
+  const { plan } = v
+  const host = plan.canonical
   const now = new Date().toISOString()
 
   const manualStatus: CustomDomainStatus = {
     state: 'pending_dns',
     domain: host,
+    associateHost: plan.associateHost,
+    servedHosts: plan.servedHosts,
     requestedAt: now,
     error: 'manual',
-    dnsRecords: [routingRecord(host, APP_RUNNER_DEFAULT_HOST), placeholderCertRecord(host)],
+    dnsRecords: [...routingRecords(plan, APP_RUNNER_DEFAULT_HOST), placeholderCertRecord(host)],
   }
 
   let conn: Awaited<ReturnType<typeof appRunnerClient>> = null
@@ -215,11 +310,11 @@ export async function requestCustomDomain(
     const res = await conn.client.send(
       new AssociateCustomDomainCommand({
         ServiceArn: conn.serviceArn,
-        DomainName: host,
-        // We only associate the exact host the clinic gave us — never the
-        // implicit www. variant (mirrors the wildcard setup's
-        // --no-enable-www-subdomain).
-        EnableWWWSubdomain: false,
+        DomainName: plan.associateHost,
+        // For an apex pair we DO enable the www. variant so App Runner covers
+        // both nwasmiles.com and www.nwasmiles.com under one cert. For a lone
+        // subdomain we associate just that host.
+        EnableWWWSubdomain: plan.enableWww,
       }),
     )
     const target = res.DNSTarget?.trim() || APP_RUNNER_DEFAULT_HOST
@@ -234,10 +329,12 @@ export async function requestCustomDomain(
     const status: CustomDomainStatus = {
       state: 'pending_dns',
       domain: host,
+      associateHost: plan.associateHost,
+      servedHosts: plan.servedHosts,
       requestedAt: now,
       lastCheckedAt: now,
       dnsRecords: [
-        routingRecord(host, target),
+        ...routingRecords(plan, target),
         // Certificate records may not be present in the immediate response —
         // a follow-up checkStatus call backfills them. Use a placeholder so
         // the clinic always sees at least the routing record to add now.
@@ -247,10 +344,66 @@ export async function requestCustomDomain(
     await persist(orgId, status)
     return { ok: true, status }
   } catch (err) {
+    // The most common non-fatal failure is "already associated" (a re-Connect
+    // after a partial run, or an operator who associated it by hand). Recover by
+    // reading the existing association back, so the clinic still gets the REAL
+    // cert records instead of a placeholder.
+    const recovered = await recoverExistingAssociation(conn, plan, now)
+    if (recovered) {
+      await persist(orgId, recovered)
+      return { ok: true, status: recovered }
+    }
     // AccessDenied / quota / anything else → degrade to manual, never throw.
     console.warn('[custom-domain] associate failed, degrading to manual:', (err as Error).message)
     await persist(orgId, manualStatus)
     return { ok: true, status: manualStatus }
+  }
+}
+
+/**
+ * Read an already-existing App Runner association for `plan.associateHost` and
+ * build a real status from it (routing + whatever cert records exist so far).
+ * Returns null when there's no such association (or the describe call fails), so
+ * the caller can fall back to the manual state.
+ */
+async function recoverExistingAssociation(
+  conn: { client: import('@aws-sdk/client-apprunner').AppRunnerClient; serviceArn: string },
+  plan: CustomDomainPlan,
+  now: string,
+): Promise<CustomDomainStatus | null> {
+  try {
+    const { DescribeCustomDomainsCommand } = await import('@aws-sdk/client-apprunner')
+    const res = await conn.client.send(
+      new DescribeCustomDomainsCommand({ ServiceArn: conn.serviceArn }),
+    )
+    const match = (res.CustomDomains ?? []).find(
+      (d) => d.DomainName?.toLowerCase() === plan.associateHost.toLowerCase(),
+    )
+    if (!match) return null
+    const target = res.DNSTarget?.trim() || APP_RUNNER_DEFAULT_HOST
+    const certRecords: CustomDomainDnsRecord[] = (match.CertificateValidationRecords ?? [])
+      .filter((r) => r.Name && r.Value)
+      .map((r) => ({
+        name: r.Name!,
+        type: r.Type || 'CNAME',
+        value: r.Value!,
+        purpose: 'certificate' as const,
+      }))
+    const awsStatus = String(match.Status ?? '').toUpperCase()
+    return {
+      state: awsStatus === 'ACTIVE' ? 'active' : 'pending_dns',
+      domain: plan.canonical,
+      associateHost: plan.associateHost,
+      servedHosts: plan.servedHosts,
+      requestedAt: now,
+      lastCheckedAt: now,
+      dnsRecords: [
+        ...routingRecords(plan, target),
+        ...(certRecords.length > 0 ? certRecords : [placeholderCertRecord(plan.canonical)]),
+      ],
+    }
+  } catch {
+    return null
   }
 }
 
@@ -283,8 +436,11 @@ export async function checkCustomDomainStatus(orgId: string): Promise<CustomDoma
     const res = await conn.client.send(
       new DescribeCustomDomainsCommand({ ServiceArn: conn.serviceArn }),
     )
+    // App Runner keys the record on the host we associated (the apex for a
+    // pair), which may differ from our canonical `domain` (the www variant).
+    const matchHost = (current.associateHost || current.domain).toLowerCase()
     const match = (res.CustomDomains ?? []).find(
-      (d) => d.DomainName?.toLowerCase() === current.domain.toLowerCase(),
+      (d) => d.DomainName?.toLowerCase() === matchHost,
     )
     if (!match) {
       // App Runner doesn't know this domain — likely the manual path hasn't
@@ -303,15 +459,24 @@ export async function checkCustomDomainStatus(orgId: string): Promise<CustomDoma
         value: r.Value!,
         purpose: 'certificate' as const,
       }))
+    // Rebuild the routing record(s) from the plan so an apex pair keeps BOTH
+    // (apex ALIAS + www CNAME), not just the canonical host.
+    const planForRecords = resolveCustomDomain(current.associateHost || current.domain)
+    const routing = planForRecords.ok
+      ? routingRecords(planForRecords.plan, target)
+      : current.dnsRecords.filter((r) => r.purpose === 'routing')
     const dnsRecords: CustomDomainDnsRecord[] = [
-      routingRecord(current.domain, target),
+      ...routing,
       ...(certRecords.length > 0
         ? certRecords
         : current.dnsRecords.filter((r) => r.purpose === 'certificate')),
     ]
 
     let state: CustomDomainState = current.state
-    const awsStatus = match.Status ?? ''
+    // App Runner's REST API returns the status LOWERCASE ("active",
+    // "create_failed", "pending_certificate_dns_validation") even though the SDK
+    // types it uppercase — normalize so the match is reliable at runtime.
+    const awsStatus = String(match.Status ?? '').toUpperCase()
     if (awsStatus === 'ACTIVE') state = 'active'
     else if (awsStatus === 'CREATE_FAILED' || awsStatus === 'DELETE_FAILED') state = 'failed'
     else state = 'pending_dns'
@@ -353,7 +518,8 @@ export async function removeCustomDomain(orgId: string): Promise<{ ok: true } | 
       await conn.client.send(
         new DisassociateCustomDomainCommand({
           ServiceArn: conn.serviceArn,
-          DomainName: current.domain,
+          // Disassociate the host we associated (the apex for a pair).
+          DomainName: current.associateHost || current.domain,
         }),
       )
     } catch (err) {

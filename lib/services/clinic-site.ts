@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, clinicLocation } from '@/lib/db/schema/platform'
 import type { ClinicProfile, ClinicLocation } from '@/lib/db/schema/platform'
+import { expandServedHosts } from '@/lib/services/custom-domain'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -213,6 +214,7 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
       slug: organization.slug,
       type: organization.type,
       domain: clinicProfile.websiteDomain,
+      status: clinicProfile.customDomainStatus,
     })
     .from(clinicProfile)
     .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
@@ -223,7 +225,24 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
     if (r.type !== 'clinic') continue
     const host = r.domain?.trim().toLowerCase()
     if (!host || !r.slug) continue
-    map[host] = r.slug
+    // Route EVERY host this clinic's site serves — an apex + its www. sibling
+    // are a pair. Prefer the explicit served hosts / routing records stored on
+    // the status; fall back to deriving them from the canonical domain so a
+    // legacy row (no status) still routes both.
+    const status = r.status as { servedHosts?: unknown; dnsRecords?: unknown } | null
+    let hosts: string[] = []
+    if (status && Array.isArray(status.servedHosts)) {
+      hosts = status.servedHosts.filter((h): h is string => typeof h === 'string')
+    } else if (status && Array.isArray(status.dnsRecords)) {
+      hosts = (status.dnsRecords as Array<{ name?: unknown; purpose?: unknown }>)
+        .filter((d) => d.purpose === 'routing' && typeof d.name === 'string')
+        .map((d) => d.name as string)
+    }
+    if (hosts.length === 0) hosts = expandServedHosts(host)
+    for (const h of hosts) {
+      const key = h.trim().toLowerCase()
+      if (key) map[key] = r.slug
+    }
   }
   return map
 }

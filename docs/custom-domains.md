@@ -6,17 +6,21 @@ DreamCRM public site. This is the operator-facing companion to the in-app
 
 ## What the clinic does
 
-1. In **Settings → Clinic profile → Custom domain**, they enter a host. We
-   require a **subdomain** (e.g. `www.` or `book.`), **not a bare apex**
-   (`example.com`) — a bare apex can't `CNAME` to App Runner, the same reason
-   our own apex uses a redirect. The card explains this and tells them to point
-   their apex at the www host via their registrar's ALIAS/ANAME/redirect.
+1. In **Settings → Clinic profile → Custom domain**, they enter a host — with
+   OR without the `www.` (e.g. `nwasmiles.com` or `www.nwasmiles.com`). We treat
+   an apex + its `www.` sibling as a **pair**: whichever they type, we resolve to
+   the apex and associate it in App Runner with `EnableWWWSubdomain: true`, so one
+   cert + one association covers **both** hosts. (A non-`www.` subdomain like
+   `book.example.com` is associated on its own.)
 2. They click **Connect**. We call App Runner `AssociateCustomDomain` and show a
-   copy-paste **DNS records table**:
-   - **Routing** — a `CNAME` from their host → the App Runner service hostname
-     (`hq7ygyvjdp.us-east-1.awsapprunner.com`, or `APP_RUNNER_DEFAULT_HOST`).
+   copy-paste **DNS records table** (each value is click-to-copy):
+   - **Routing** — for a pair, TWO records: the apex (`ALIAS`/`ANAME` — a bare
+     apex can't use a `CNAME`) and the `www.` host (`CNAME`), both pointing at
+     the App Runner service hostname (`hq7ygyvjdp.us-east-1.awsapprunner.com`, or
+     `APP_RUNNER_DEFAULT_HOST`). The apex record carries a note: use ALIAS/ANAME
+     if the DNS host supports it, otherwise forward the apex → `https://www.…`.
    - **Certificate** — the ACM domain-validation `CNAME`(s) returned by App
-     Runner. These prove ownership so ACM can issue the TLS cert.
+     Runner (one set per host). These prove ownership so ACM can issue the cert.
 3. They add those records at their DNS provider. **Usually live within an hour.**
 4. They click **Check status** (calls `DescribeCustomDomains`); when App Runner
    reports `ACTIVE` the card flips to a green **Active** pill.
@@ -101,5 +105,9 @@ the stored state to `active`.
   `sc-domain:dreamcreatestudio.com` property only for their **subdomain**. A
   custom domain is a different property and is **not** covered by the shared
   connection. A per-clinic GSC connection for custom domains is future work.
-- **Apex** — we deliberately reject bare apexes. The clinic should use a
-  subdomain (`www.`) and redirect/ALIAS their apex to it at the registrar.
+- **Apex** — supported as a pair with `www.` (App Runner `EnableWWWSubdomain`).
+  A bare apex still can't use a `CNAME`, so the apex routing record must be an
+  `ALIAS`/`ANAME` (Cloudflare, Route 53, name.com, and many others support it),
+  or the clinic forwards the apex → `https://www.…` at their registrar. Both
+  hosts route to the site via the middleware map (`servedHosts`), and the site's
+  canonical/OG/sitemap URLs use the `www.` host.
