@@ -63,6 +63,10 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
 
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
+    q: 'Do I have to pay to try it?',
+    a: 'No. Every practice starts with a 7-day free trial of the full Premium tier — website, booking, portal, messaging, reviews, marketing, all of it — with no credit card required. You pick a plan and add billing only when you decide to stay.',
+  },
+  {
     q: 'Is there a contract or setup fee?',
     a: 'No. Every plan is month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Prefer annual? Pay for 10 months, get 12: Basic $1,500, Pro $2,500, Premium $5,000 per year \u2014 two months free.',
   },
@@ -103,6 +107,14 @@ export default function PricingPage() {
       />
 
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+        <div className="mb-8 rounded-xl border border-teal-200 bg-teal-50/70 px-5 py-4 text-center">
+          <p className="text-[0.95rem] font-semibold text-gray-950">
+            Every practice starts with 7 days of Premium, free — no card required.
+          </p>
+          <p className="mt-1 text-[0.85rem] text-gray-600">
+            Try everything below first. Pick a tier when you&apos;re convinced; switch or cancel monthly.
+          </p>
+        </div>
         <div className="grid gap-4 lg:grid-cols-3">
           {PLANS.map((plan) => (
             <div
@@ -205,7 +217,7 @@ export default function PricingPage() {
           ))}
         </div>
         <div className="mt-10 text-center">
-          <PrimaryCta href="/signup">Start free setup</PrimaryCta>
+          <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
         </div>
       </section>
     </>

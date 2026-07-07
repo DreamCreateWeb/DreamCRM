@@ -168,7 +168,7 @@ export function MarketingHeader() {
             href="/signup"
             className="rounded-lg bg-teal-700 px-3.5 py-2 text-[0.875rem] font-semibold text-white transition-colors hover:bg-teal-800"
           >
-            Get started
+            Start free trial
           </Link>
         </div>
 
@@ -242,7 +242,7 @@ export function MarketingHeader() {
               className="flex-1 rounded-lg bg-teal-700 px-3 py-2.5 text-center text-[0.9rem] font-semibold text-white"
               onClick={() => setMobileOpen(false)}
             >
-              Get started
+              Start free trial
             </Link>
           </div>
         </nav>

@@ -99,7 +99,7 @@ export default async function DocArticlePage({ params }: Props) {
           ← All docs
         </Link>
         <Link href="/signup" className="font-semibold text-teal-700 hover:underline">
-          Start free setup →
+          Start your free trial →
         </Link>
       </div>
     </article>

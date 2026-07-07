@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic'
 export const metadata = {
   title: 'DreamCRM — the front-office platform for dental practices',
   description:
-    'Website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. $150–500/mo, month-to-month.',
+    'Website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. $150–500/mo after, month-to-month.',
   openGraph: {
     title: 'DreamCRM — the front-office platform for dental practices',
     description:
@@ -145,11 +145,11 @@ export default async function MarketingHome() {
               PMS? It stays exactly where it is.
             </p>
             <div className="mkt-enter mkt-d3 mt-8 flex flex-wrap items-center justify-center gap-3">
-              <PrimaryCta href="/signup">Start free setup</PrimaryCta>
+              <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
               <GhostCta href="/product">Tour the platform</GhostCta>
             </div>
             <div className="mkt-enter mkt-d4 mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
-              {['$150–500/mo flat', 'Month-to-month', '10-minute setup', 'Official PMS APIs only'].map((t) => (
+              {['7 days of Premium free', 'No card to start', '$150–500/mo after, flat', 'Month-to-month'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
                   <CheckIcon className="h-3.5 w-3.5 text-teal-700" />
                   {t}
@@ -285,6 +285,51 @@ export default async function MarketingHome() {
         </div>
       </ScrollReveal>
 
+      {/* ── The first afternoon ── */}
+      <section className="border-t border-gray-100">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
+          <ScrollReveal>
+            <SectionTitle sub="No implementation project, no onboarding call queue — the trial starts the moment you finish the four-step setup.">
+              Your first afternoon on DreamCRM
+            </SectionTitle>
+          </ScrollReveal>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                step: '1',
+                title: 'Create your account',
+                body: 'Name, practice, address, web address, brand color. Four screens, no card.',
+              },
+              {
+                step: '2',
+                title: 'Answer a short interview',
+                body: 'The AI asks about your practice and drafts your whole website — services, about, FAQ — in your voice.',
+              },
+              {
+                step: '3',
+                title: 'Your site + trial go live',
+                body: 'A finished practice site on your address, and 7 days of the full Premium platform to run for real.',
+              },
+              {
+                step: '4',
+                title: 'Connect as you go',
+                body: 'Google Business, Gmail, social accounts, Open Dental — each takes minutes, none blocks the rest.',
+              },
+            ].map((st, i) => (
+              <ScrollReveal key={st.step} delay={Math.min(i * 60, 240)}>
+                <div className="relative h-full rounded-xl border border-gray-200 bg-white p-5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-700 text-[0.85rem] font-bold text-white">
+                    {st.step}
+                  </span>
+                  <h3 className="mt-3.5 text-[0.98rem] font-bold text-gray-950">{st.title}</h3>
+                  <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{st.body}</p>
+                </div>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Comparison teaser ── */}
       <section className="border-t border-gray-100 bg-gray-50/70">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
@@ -366,15 +411,15 @@ export default async function MarketingHome() {
                 See it running before you sign up for anything
               </h2>
               <p className="mx-auto mt-3 max-w-xl text-[0.95rem] leading-relaxed text-gray-400">
-                Dream Dental is a fully-populated demo practice — browse its public website, then
-                start your own setup whenever you&apos;re convinced.
+                Dream Dental is a fully-populated demo practice — browse its public website. When
+                you&apos;re convinced, every practice starts with 7 days of Premium, free, no card.
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Link
                   href="/signup"
                   className="inline-flex items-center justify-center rounded-lg bg-teal-700 px-5 py-2.5 text-[0.92rem] font-semibold text-white hover:bg-teal-600"
                 >
-                  Get started
+                  Start your free trial
                 </Link>
                 <a
                   href={DEMO_URL}

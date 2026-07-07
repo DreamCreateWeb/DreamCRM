@@ -160,7 +160,7 @@ export default async function ComparePage({ params }: Props) {
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <PrimaryCta href="/signup">Start free setup</PrimaryCta>
+          <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
           <GhostCta href={DEMO_URL} external>
             Browse the demo practice ↗
           </GhostCta>

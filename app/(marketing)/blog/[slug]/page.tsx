@@ -162,7 +162,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
           Website, booking, portal, reviews, recall — $150–500/mo, month-to-month.
         </p>
         <div className="mt-4">
-          <PrimaryCta href="/signup">Start free setup</PrimaryCta>
+          <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
         </div>
       </div>
 

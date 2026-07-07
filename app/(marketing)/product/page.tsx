@@ -204,7 +204,7 @@ export default function ProductPage() {
         sub="Because it's one product, the modules compound: a website lead becomes a patient record, the patient gets a portal, the visit triggers a review request, and the recall campaign knows who's overdue — automatically."
       >
         <div className="flex flex-wrap justify-center gap-3">
-          <PrimaryCta href="/signup">Start free setup</PrimaryCta>
+          <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
           <GhostCta href={DEMO_URL} external>
             Browse the demo practice ↗
           </GhostCta>
@@ -266,7 +266,7 @@ export default function ProductPage() {
             Start on Basic with the website, switch tiers as you adopt more. Month-to-month, no contract.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <PrimaryCta href="/signup">Get started</PrimaryCta>
+            <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
             <GhostCta href="/pricing">See pricing</GhostCta>
           </div>
         </div>
