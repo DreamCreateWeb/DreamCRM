@@ -180,9 +180,15 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
           <div>
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
               Add these records where you manage{' '}
-              <span className="font-medium">{status.domain}</span>’s DNS. The CNAME points your
-              domain at us; the certificate record proves you own it. It’s usually live within an
-              hour.
+              <span className="font-medium">{status.domain.replace(/^www\./, '')}</span>’s DNS. The
+              routing records point your domain at us; the certificate records prove you own it.
+              It’s usually live within an hour.
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 max-w-2xl">
+              The <span className="font-medium">Host</span> is relative to your domain — enter it
+              exactly as shown (<span className="font-mono-num">@</span> means the bare domain
+              itself). A few providers want the full name instead; that’s the smaller grey line
+              under each host.
             </p>
             <div className="overflow-x-auto rounded-[var(--r-md)] shadow-[inset_0_0_0_1px_var(--color-hairline)]">
               <table className="w-full text-sm">
@@ -207,7 +213,10 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
                         {r.type}
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
-                        <CopyValue value={r.name} />
+                        <CopyValue value={r.host} />
+                        <p className="mt-0.5 font-sans text-[11px] leading-snug text-gray-400 dark:text-gray-500 whitespace-normal">
+                          full: {r.name}
+                        </p>
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
                         <CopyValue value={r.value} />

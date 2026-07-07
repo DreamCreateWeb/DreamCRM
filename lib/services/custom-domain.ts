@@ -37,7 +37,13 @@ export type CustomDomainState = 'pending_dns' | 'active' | 'failed'
 export type DnsRecordPurpose = 'routing' | 'certificate'
 
 export interface CustomDomainDnsRecord {
+  /** Fully-qualified record name (e.g. `www.nwasmiles.com`). Kept for clarity /
+   *  the providers that want the full name. */
   name: string
+  /** The record name RELATIVE to the domain's zone — what most registrars want
+   *  in their "Host/Name" field: `@` for the apex, `www` for www, or the token
+   *  label for a cert CNAME. Falls back to `name` when it can't be relativized. */
+  host: string
   type: string
   value: string
   purpose: DnsRecordPurpose
@@ -188,6 +194,29 @@ export function expandServedHosts(domain: string): string[] {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/** The zone apex (registrable root) a plan's records live under. For a pair
+ *  that's the associate host itself; for a subdomain, best-effort last-two
+ *  labels (correct for the common `.com` case). */
+function zoneApex(plan: CustomDomainPlan): string {
+  if (plan.enableWww) return plan.associateHost
+  const labels = plan.associateHost.split('.')
+  return labels.length <= 2 ? plan.associateHost : labels.slice(-2).join('.')
+}
+
+/**
+ * The record name RELATIVE to its zone apex — what registrars want in the
+ * Host/Name field. `@` for the apex itself, otherwise the leading label(s) with
+ * the trailing `.apex` stripped. Tolerates a trailing dot (App Runner's ACM
+ * names carry one). Falls back to the full name if it isn't under the apex.
+ */
+function relativeHost(fqdn: string, apex: string): string {
+  const n = fqdn.trim().replace(/\.$/, '').toLowerCase()
+  const a = apex.trim().replace(/\.$/, '').toLowerCase()
+  if (n === a) return '@'
+  if (n.endsWith(`.${a}`)) return n.slice(0, n.length - a.length - 1)
+  return n
+}
+
 /**
  * Build the routing DNS record(s) a clinic must add. For an apex pair this is
  * TWO records: the apex (ALIAS/ANAME — a bare apex can't use a CNAME) and the
@@ -195,27 +224,53 @@ export function expandServedHosts(domain: string): string[] {
  * subdomain it's a single CNAME.
  */
 function routingRecords(plan: CustomDomainPlan, target: string): CustomDomainDnsRecord[] {
+  const apex = zoneApex(plan)
   if (plan.enableWww) {
-    const apex = plan.associateHost
-    const www = `www.${apex}`
+    const www = `www.${plan.associateHost}`
     return [
       {
-        name: apex,
+        name: plan.associateHost,
+        host: relativeHost(plan.associateHost, apex), // '@'
         type: 'ALIAS',
         value: target,
         purpose: 'routing',
-        note: `A bare domain can’t use a CNAME. If your DNS host supports an ALIAS/ANAME record (Cloudflare, Route 53, and many others do), point ${apex} at the value above. If it doesn’t, set up domain forwarding from ${apex} to https://${www} at your registrar instead.`,
+        note: `Enter “@” as the host for your bare domain. A bare domain can’t use a CNAME — if your DNS host supports an ALIAS/ANAME record (Cloudflare, Route 53, name.com, and many others do), point it at the value above. If it doesn’t, set up domain forwarding from ${plan.associateHost} to https://${www} at your registrar instead.`,
       },
-      { name: www, type: 'CNAME', value: target, purpose: 'routing' },
+      { name: www, host: relativeHost(www, apex), type: 'CNAME', value: target, purpose: 'routing' },
     ]
   }
-  return [{ name: plan.associateHost, type: 'CNAME', value: target, purpose: 'routing' }]
+  return [
+    {
+      name: plan.associateHost,
+      host: relativeHost(plan.associateHost, apex),
+      type: 'CNAME',
+      value: target,
+      purpose: 'routing',
+    },
+  ]
+}
+
+/** Map App Runner ACM validation records → our shape, with a zone-relative host. */
+function certRecordsFrom(
+  raw: Array<{ Name?: string; Type?: string; Value?: string }> | undefined,
+  apex: string,
+): CustomDomainDnsRecord[] {
+  return (raw ?? [])
+    .filter((r) => r.Name && r.Value)
+    .map((r) => ({
+      name: r.Name!.replace(/\.$/, ''),
+      host: relativeHost(r.Name!, apex),
+      type: r.Type || 'CNAME',
+      value: r.Value!.replace(/\.$/, ''),
+      purpose: 'certificate' as const,
+    }))
 }
 
 /** Placeholder certificate record used in the manual-fallback path. */
 function placeholderCertRecord(host: string): CustomDomainDnsRecord {
   return {
     name: `_acme-challenge.${host}`,
+    host: `_acme-challenge`,
     type: 'CNAME',
     value: '(pending — we’ll fill this in once provisioning starts)',
     purpose: 'certificate',
@@ -318,14 +373,7 @@ export async function requestCustomDomain(
       }),
     )
     const target = res.DNSTarget?.trim() || APP_RUNNER_DEFAULT_HOST
-    const certRecords: CustomDomainDnsRecord[] = (res.CustomDomain?.CertificateValidationRecords ?? [])
-      .filter((r) => r.Name && r.Value)
-      .map((r) => ({
-        name: r.Name!,
-        type: r.Type || 'CNAME',
-        value: r.Value!,
-        purpose: 'certificate' as const,
-      }))
+    const certRecords = certRecordsFrom(res.CustomDomain?.CertificateValidationRecords, zoneApex(plan))
     const status: CustomDomainStatus = {
       state: 'pending_dns',
       domain: host,
@@ -381,14 +429,7 @@ async function recoverExistingAssociation(
     )
     if (!match) return null
     const target = res.DNSTarget?.trim() || APP_RUNNER_DEFAULT_HOST
-    const certRecords: CustomDomainDnsRecord[] = (match.CertificateValidationRecords ?? [])
-      .filter((r) => r.Name && r.Value)
-      .map((r) => ({
-        name: r.Name!,
-        type: r.Type || 'CNAME',
-        value: r.Value!,
-        purpose: 'certificate' as const,
-      }))
+    const certRecords = certRecordsFrom(match.CertificateValidationRecords, zoneApex(plan))
     const awsStatus = String(match.Status ?? '').toUpperCase()
     return {
       state: awsStatus === 'ACTIVE' ? 'active' : 'pending_dns',
@@ -451,20 +492,16 @@ export async function checkCustomDomainStatus(orgId: string): Promise<CustomDoma
     }
 
     const target = res.DNSTarget?.trim() || current.dnsRecords.find((r) => r.purpose === 'routing')?.value || APP_RUNNER_DEFAULT_HOST
-    const certRecords: CustomDomainDnsRecord[] = (match.CertificateValidationRecords ?? [])
-      .filter((r) => r.Name && r.Value)
-      .map((r) => ({
-        name: r.Name!,
-        type: r.Type || 'CNAME',
-        value: r.Value!,
-        purpose: 'certificate' as const,
-      }))
     // Rebuild the routing record(s) from the plan so an apex pair keeps BOTH
     // (apex ALIAS + www CNAME), not just the canonical host.
     const planForRecords = resolveCustomDomain(current.associateHost || current.domain)
     const routing = planForRecords.ok
       ? routingRecords(planForRecords.plan, target)
       : current.dnsRecords.filter((r) => r.purpose === 'routing')
+    const certRecords = certRecordsFrom(
+      match.CertificateValidationRecords,
+      planForRecords.ok ? zoneApex(planForRecords.plan) : current.domain,
+    )
     const dnsRecords: CustomDomainDnsRecord[] = [
       ...routing,
       ...(certRecords.length > 0

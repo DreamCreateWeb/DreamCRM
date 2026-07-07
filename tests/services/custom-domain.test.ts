@@ -191,11 +191,19 @@ describe('requestCustomDomain — AWS happy path', () => {
     const routing = res.status.dnsRecords.filter((r) => r.purpose === 'routing')
     expect(routing).toHaveLength(2)
     expect(routing.every((r) => r.value === 'hq7ygyvjdp.us-east-1.awsapprunner.com')).toBe(true)
-    expect(routing.find((r) => r.name === 'smilebright.com')?.type).toBe('ALIAS')
-    expect(routing.find((r) => r.name === 'www.smilebright.com')?.type).toBe('CNAME')
+    const apexRec = routing.find((r) => r.name === 'smilebright.com')
+    const wwwRec = routing.find((r) => r.name === 'www.smilebright.com')
+    expect(apexRec?.type).toBe('ALIAS')
+    // Host is registrar-relative: '@' for the apex, 'www' for the www record.
+    expect(apexRec?.host).toBe('@')
+    expect(wwwRec?.type).toBe('CNAME')
+    expect(wwwRec?.host).toBe('www')
     const certs = res.status.dnsRecords.filter((r) => r.purpose === 'certificate')
     expect(certs).toHaveLength(2)
     expect(certs[0].value).toBe('_y1.acm-validations.aws')
+    // Cert host is the token label with the domain stripped (relative to zone).
+    expect(certs[0].host).toBe('_x1.www')
+    expect(certs[0].name).toBe('_x1.www.smilebright.com')
     // Persisted canonical websiteDomain + both served hosts.
     expect(state.profile?.websiteDomain).toBe('www.smilebright.com')
     expect(res.status.servedHosts).toEqual(['smilebright.com', 'www.smilebright.com'])
@@ -243,7 +251,7 @@ describe('checkCustomDomainStatus', () => {
       domain: 'www.smilebright.com',
       requestedAt: new Date().toISOString(),
       dnsRecords: [
-        { name: 'www.smilebright.com', type: 'CNAME', value: 'x.awsapprunner.com', purpose: 'routing' },
+        { name: 'www.smilebright.com', host: 'www', type: 'CNAME', value: 'x.awsapprunner.com', purpose: 'routing' },
       ],
     }
     state.profile = { organizationId: ORG, websiteDomain: 'www.smilebright.com', customDomainStatus: status }
