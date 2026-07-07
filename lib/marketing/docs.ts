@@ -376,6 +376,290 @@ export const DOCS: DocArticle[] = [
       },
     ],
   },
+
+  /* ── Front desk, daily (new systems) ────────────────────────────── */
+  {
+    slug: 'fast-pass-waitlist',
+    title: 'The fast-pass waitlist',
+    summary: 'Fill a cancelled slot before it goes empty — automatically.',
+    category: 'Front desk, daily',
+    minutes: 3,
+    sections: [
+      {
+        paragraphs: [
+          'A cancellation is a hole in the day and lost production. The fast-pass waitlist closes it: when a booked visit cancels, the freed slot is offered to patients who asked to be told if something opened sooner — first-come, one-click to claim.',
+        ],
+        steps: [
+          'Patients join the waitlist themselves from your portal ("notify me if something opens sooner") or you add them from the Appointments drawer.',
+          'When a matching slot frees up (same visit type, same provider window), the earliest waitlisted patient gets an email with a one-click claim link.',
+          'They claim it; the visit books and confirms in one step, and the rest of the list is told the slot is taken.',
+          'You see "Fast-pass filled — [name]" on the schedule so it never surprises the desk.',
+        ],
+      },
+      {
+        heading: 'Why it beats a sticky note',
+        paragraphs: [
+          'The old way — a paper list you phone through when someone cancels — only works if the desk has time to make calls. This works while the phones are busy, at 9pm, on a weekend. The patient claims the slot themselves.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'follow-ups-that-run-themselves',
+    title: 'Follow-ups that run themselves',
+    summary: 'A reminders board that fills itself from balances, recall, and unconfirmed visits.',
+    category: 'Front desk, daily',
+    minutes: 3,
+    sections: [
+      {
+        paragraphs: [
+          'Follow-ups is the "nothing slips" board. Rules watch your patient data and create a follow-up when a patient needs a nudge — an outstanding balance, an overdue recall, an unconfirmed visit — so the team works a list instead of trying to remember.',
+        ],
+        steps: [
+          'Open Follow-ups (Daily → Follow-ups). Each card is a patient + a reason + who it’s assigned to.',
+          'Claim an unassigned card, work it (call, text, email), and check it off — it clears from the board.',
+          'The smart rules run hourly: balance reminders, recall-due nudges, unconfirmed-visit chases, and an auto-rebook when someone no-shows.',
+          'Use ⌘K → "add follow-up" to drop a manual reminder on any patient from anywhere in the app.',
+        ],
+      },
+      {
+        heading: 'The sidebar badge',
+        paragraphs: [
+          'A due count sits on the Follow-ups sidebar entry so the board is never out of sight. Zero is the goal; the rules make sure the list is always the real one.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'digital-intake-forms',
+    title: 'Digital intake forms',
+    summary: 'Photo & insurance-card fields, OCR autofill, AI pre-visit summaries, kiosk mode, and packets.',
+    category: 'Front desk, daily',
+    minutes: 4,
+    sections: [
+      {
+        paragraphs: [
+          'Intake Forms turns the clipboard into a link. Patients complete forms before they arrive — on their phone — and you get a clean, searchable submission plus an AI pre-visit summary, so chair time starts on time.',
+        ],
+        steps: [
+          'Every practice starts with a standard new-patient form; edit fields or build your own (Intake Forms → the form editor).',
+          'Add photo and insurance-card fields — the card image runs through OCR to pre-fill carrier and member details for the patient to confirm.',
+          'Conditional fields show follow-up questions only when relevant, so the form stays short.',
+          'Forms send automatically before a visit and chase gently if not completed; returning patients get a pre-filled form to just confirm.',
+          'For walk-ins, open kiosk mode on a tablet at the desk — the same form, no login.',
+        ],
+      },
+      {
+        heading: 'Where the answers go',
+        paragraphs: [
+          'Each submission attaches to the patient with an AI summary of what matters for the visit, offered in Spanish when needed. If Open Dental is connected, a copy of the completed form is mirrored into the patient’s chart as an honest text note — never a fabricated structured-field sync.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'broadcast-messaging',
+    title: 'Broadcast messaging',
+    summary: 'Send one message to a whole segment of patients at once.',
+    category: 'Front desk, daily',
+    minutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          'Sometimes you need to reach a group fast — "we’re closing early Friday," "Dr. Lee has openings next week." Broadcast lets you message a segment from the inbox without building a campaign.',
+        ],
+        steps: [
+          'In Messages, click the 📣 Broadcast button (owner/admin).',
+          'Pick a segment with a live count — today’s visits, tomorrow’s visits, the next 7 days, or all active opt-in patients.',
+          'Write the message; each recipient gets it in their own thread, so their replies come back to your inbox normally.',
+          'A 500-recipient cap keeps this for genuine broadcasts — bigger sends belong in Recall campaigns with funnel tracking.',
+        ],
+      },
+    ],
+  },
+
+  /* ── Patient-facing (new systems) ───────────────────────────────── */
+  {
+    slug: 'post-visit-surveys',
+    title: 'Post-visit surveys (NPS)',
+    summary: 'A quiet 0–10 pulse after each visit, with unhappy patients escalated to the owner.',
+    category: 'Patient-facing',
+    minutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          'After a visit, patients can be asked a single question — how likely are you to recommend us, 0 to 10 — by email and inside the portal. It’s the honest early-warning system: you hear about a rough visit before it becomes a public 1-star.',
+        ],
+        steps: [
+          'A promoter (9–10) is invited onward to leave a public review — the good visits become reputation.',
+          'A detractor (0–6) never gets a public-review push; instead the owner is emailed so someone can reach out personally.',
+          'An optional comment lets the patient say what happened, in their words.',
+          'Scores roll up so you can see the trend, not just single answers.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'family-access',
+    title: 'Family access',
+    summary: 'One login runs the whole household — parents manage kids’ visits, forms, and balances.',
+    category: 'Patient-facing',
+    minutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          'Households don’t want a login per person. With family access on (Settings → Patient portal), one passwordless login manages everyone linked to it — the parent confirms the kids’ visits, fills their forms, and sees their balances from one place.',
+        ],
+        steps: [
+          'A patient requests to link a family member from inside their portal message thread; you approve it.',
+          'Once linked, the portal shows a person-switcher — every action (reschedule, forms, payment) applies to the selected family member.',
+          'Household appointment reminders consolidate: one email per household per day instead of four.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'loyalty-and-referrals',
+    title: 'Loyalty & refer-a-friend',
+    summary: 'Reward visits and turn happy patients into new-patient referrals.',
+    category: 'Patient-facing',
+    minutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          'Two growth loops that run off patients you already have. The loyalty program awards points for visits; refer-a-friend gives each patient a share link and credits them when a new patient books through it.',
+        ],
+        steps: [
+          'Turn on referrals in the portal (Settings → Patient portal); each patient gets a unique share link.',
+          'When someone books through that link, the booking is attributed to the referrer and surfaced to your team.',
+          'Loyalty points accrue on completed visits — a quiet reason to keep coming back.',
+        ],
+      },
+    ],
+  },
+
+  /* ── Money & integrations (new systems) ─────────────────────────── */
+  {
+    slug: 'booking-deposits',
+    title: 'Booking deposits',
+    summary: 'Take a deposit on high-value visit types so the slot is real.',
+    category: 'Money & integrations',
+    minutes: 3,
+    sections: [
+      {
+        paragraphs: [
+          'For visit types where a no-show is expensive, you can require a deposit at booking. Money down means the appointment is confirmed, and it’s credited toward the visit — this needs Stripe connected (your account, your payout).',
+        ],
+        steps: [
+          'Set a deposit amount per visit type (Settings → Practice).',
+          'When a patient books that type online, they pay the deposit through Stripe Checkout; the appointment flips to confirmed automatically.',
+          'The deposit shows in your payments reconciliation, credited toward that visit — post it to your PMS ledger when convenient.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'payment-plans',
+    title: 'Payment plans with autopay',
+    summary: 'Let patients pay a balance in installments on a card kept on file.',
+    category: 'Money & integrations',
+    minutes: 3,
+    sections: [
+      {
+        paragraphs: [
+          'When a balance is too big to pay at once, offer a payment plan instead of sending it to collections. The patient accepts online, a card is kept on file, and installments charge themselves.',
+        ],
+        steps: [
+          'Propose a plan from the Collections board (2–12 months, with sensible floors).',
+          'The patient accepts on a secure link and saves a card (Stripe Connect, SETUP mode) — the first installment charges on accept.',
+          'Remaining installments charge automatically each month; declines retry a few times, then park for the desk to handle.',
+          'Every installment records a payment for reconciliation, and the plan’s status is visible on the board.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'membership-plans',
+    title: 'In-house membership plans',
+    summary: 'Your answer for uninsured patients — a subscription that keeps them coming.',
+    category: 'Money & integrations',
+    minutes: 3,
+    sections: [
+      {
+        paragraphs: [
+          'In-house membership plans are the uninsured-patient answer: a monthly or annual subscription that bundles cleanings, exams, and a discount, billed through your own Stripe account. They sell from your website and the portal.',
+        ],
+        steps: [
+          'Build plans in the Shop (Business → Shop → Memberships) — price, billing interval, and included benefits.',
+          'Patients subscribe from your public site or the portal upsell; billing runs on Stripe Connect subscriptions.',
+          'Benefit usage is tracked so the front desk knows what a member has left this period.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'collections-and-ar',
+    title: 'The collections workboard',
+    summary: 'Work open balances honestly, with pay-links and a dunning state per patient.',
+    category: 'Money & integrations',
+    minutes: 3,
+    sections: [
+      {
+        paragraphs: [
+          'Collections (Business → Shop → Collections) lists open PMS balances so the desk can work them in order, send a pay-by-email link, and see where each patient is in the follow-up — without inventing aging numbers the PMS didn’t give us.',
+        ],
+        steps: [
+          'Sort by largest open balance; each row shows the latest pay-link status and last online payment.',
+          'Send a pay-link in one click; the patient pays online and it lands in your reconciliation.',
+          'Escalate a stubborn balance into a payment plan right from the board.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'requesting-a-pms-integration',
+    title: 'Requesting your PMS integration',
+    summary: 'Run Dentrix, Eaglesoft, or Curve? Raise your hand and we’ll notify you when it’s ready.',
+    category: 'Money & integrations',
+    minutes: 2,
+    sections: [
+      {
+        paragraphs: [
+          'Open Dental syncs today, two-way, through its official API. The other major PMSs — Dentrix Ascend, Dentrix desktop, Eaglesoft, Curve — are on the roadmap, and each depends on a vendor partnership or approval we pursue based on real demand. We won’t claim a sync works before it does.',
+        ],
+        steps: [
+          'Open Business → Integrations and find your PMS in the Practice Management group.',
+          'Click "Notify me when it’s ready." That records your practice’s interest against that PMS.',
+          'We prioritize the vendor partnerships with the most practices waiting — and email you the day yours goes live.',
+        ],
+      },
+      {
+        heading: 'Why not just "turn it on"?',
+        paragraphs: [
+          'Because a real integration goes through the vendor’s sanctioned path (the Henry Schein One API Exchange for Dentrix Ascend, Patterson Innovation Connection for Eaglesoft, and so on), not a database scraper. That’s slower to enable, but it’s the only way every write lands in your audit trail — the same standard we hold for Open Dental.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'custom-domains',
+    title: 'Using your own domain',
+    summary: 'Point your practice domain at your DreamCRM site with managed SSL.',
+    category: 'Money & integrations',
+    minutes: 3,
+    sections: [
+      {
+        paragraphs: [
+          'Your site ships on your-practice.dreamcreatestudio.com, but you can put it on your own domain (yourpractice.com) with a managed certificate — patients never see our subdomain.',
+        ],
+        steps: [
+          'Add your domain in Settings and we’ll give you the DNS records to add at your registrar.',
+          'Add those records; the certificate provisions automatically once DNS resolves.',
+          'Your site, booking, and portal all serve from your domain — the subdomain keeps working as a fallback.',
+        ],
+      },
+    ],
+  },
 ]
 
 export function getDoc(slug: string): DocArticle | undefined {
