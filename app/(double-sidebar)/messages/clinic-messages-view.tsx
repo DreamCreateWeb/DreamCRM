@@ -248,7 +248,7 @@ export default async function ClinicMessagesView({
                   body={
                     filterEmpty
                       ? 'Try a different status or search term, or clear the filters to see more.'
-                      : 'When a patient messages you — in-app, by email, or by text — the thread shows up right here, one row per patient.'
+                      : 'When a patient messages you — in-app or by email — the thread shows up right here, one row per patient.'
                   }
                 />
               </div>
@@ -319,7 +319,7 @@ export default async function ClinicMessagesView({
                 title={threads.length === 0 ? 'No patient conversations yet' : 'Pick a conversation to read or reply'}
                 body={
                   threads.length === 0
-                    ? 'Every patient who messages you — in-app, by email, or by text — lands here, threaded by patient. One row per relationship, across every channel.'
+                    ? 'Every patient who messages you — in-app or by email — lands here, threaded by patient. One row per relationship, across every channel.'
                     : 'Pick a patient from the list to see the full thread and reply. Conversations waiting on you have a colored edge so nothing slips.'
                 }
               />

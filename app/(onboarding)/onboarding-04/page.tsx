@@ -83,9 +83,9 @@ export default function Onboarding04() {
                 </p>
 
                 <form onSubmit={onSubmit} className="space-y-5">
-                  <div className="rounded-lg border-2 border-violet-500 bg-violet-50/40 dark:bg-violet-500/10 p-4">
+                  <div className="rounded-lg border-2 border-teal-500 bg-teal-50/40 dark:bg-teal-500/10 p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="w-2 h-2 rounded-full bg-violet-500" aria-hidden="true" />
+                      <span className="w-2 h-2 rounded-full bg-teal-600" aria-hidden="true" />
                       <span className="font-semibold text-gray-800 dark:text-gray-100">
                         Everything, free for {TRIAL_DAYS} days
                       </span>
@@ -94,7 +94,7 @@ export default function Onboarding04() {
                       {TRIAL_PERKS.map((perk) => (
                         <li key={perk} className="flex items-start gap-2">
                           <svg
-                            className="w-3.5 h-3.5 mt-0.5 shrink-0 text-violet-500"
+                            className="w-3.5 h-3.5 mt-0.5 shrink-0 text-teal-600"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"

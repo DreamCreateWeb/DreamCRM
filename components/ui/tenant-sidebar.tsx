@@ -300,6 +300,11 @@ export default function TenantSidebar({
         {/* 3 — Cockpit zone (label-less, inset) */}
         {pinned.length > 0 && (
           <div className="relative z-10 mb-4 rounded-lg bg-surface-sunk/70 p-1.5" data-testid="cockpit">
+            {!railCollapsed && (
+              <p className="px-2 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wider text-ink-400">
+                Pinned
+              </p>
+            )}
             <ul className="space-y-0.5">
               {pinned.map((m) => (
                 <NavItem
