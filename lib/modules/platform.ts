@@ -19,16 +19,16 @@ export const platformModules: ModuleRegistry = {
     { id: 'partners',         path: '/partners',            label: 'Partners',         section: 'Pages', icon: 'users',    status: 'live' },
     { id: 'sales_pipeline',   path: '/ecommerce/orders',              label: 'Sales Pipeline',   section: 'Pages', icon: 'flag',     status: 'live' },
     { id: 'prospecting',      path: '/platform/prospecting', label: 'Prospecting',      section: 'Pages', icon: 'search',   status: 'live' },
-    { id: 'calendar',         path: '/calendar',            label: 'Calendar',         section: 'Pages', icon: 'cal',      status: 'live' },
-    { id: 'tasks',            path: '/tasks/kanban',        label: 'Tasks',            section: 'Pages', icon: 'check',    status: 'live' },
     { id: 'campaigns',        path: '/marketing',           label: 'Marketing',        section: 'Pages', icon: 'megaphone',status: 'live' },
     { id: 'marketing_blog',   path: '/posts',               label: 'Platform Blog',    section: 'Pages', icon: 'pen',      status: 'live' },
     { id: 'search_console',   path: '/seo',                 label: 'Search Console',   section: 'Settings', icon: 'search', status: 'live' },
     { id: 'service_library',  path: '/platform/service-library', label: 'Service Library', section: 'Settings', icon: 'gear', status: 'live' },
     { id: 'settings',         path: '/settings',            label: 'Settings',         section: 'Settings', icon: 'gear', status: 'live' },
-    // 'Developer' is a placeholder slot for a future API-keys + webhooks
-    // management page. Marked `soon` so the sidebar shows it dimmed
-    // instead of routing to a 404 (no `/developer` page exists yet).
-    { id: 'developer',        path: '/developer',           label: 'Developer',         section: 'Settings', icon: 'code', status: 'soon' },
+    // Removed 2026-07-07 (platform declutter): the generic Mosaic Calendar
+    // (/calendar) and Tasks kanban (/tasks/kanban) — neither is dental or
+    // platform-specific (no shipping dental product runs a generic todo
+    // board), plus the dead 'Developer' slot that dimmed to a nonexistent
+    // /developer page. All three were template leftovers. Their routes now
+    // redirect to /dashboard so an old bookmark never dead-ends.
   ],
 }

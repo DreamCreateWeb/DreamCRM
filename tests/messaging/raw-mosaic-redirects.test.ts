@@ -54,8 +54,10 @@ async function expectRedirect(run: () => Promise<unknown>, path: string) {
 }
 
 describe('raw Mosaic route clinic redirects', () => {
-  it('tasks/kanban → / for clinic', () => expectRedirect(() => Kanban({ searchParams: sp }), '/'))
-  it('tasks/list → / for clinic', () => expectRedirect(() => TasksList({ searchParams: sp }), '/'))
+  // Tasks + Calendar were fully retired 2026-07-07 (platform declutter) — they
+  // redirect EVERY tenant now (out of all nav), so clinic lands on /dashboard.
+  it('tasks/kanban → /dashboard for clinic', () => expectRedirect(() => Kanban(), '/dashboard'))
+  it('tasks/list → /dashboard for clinic', () => expectRedirect(() => TasksList(), '/dashboard'))
   it('ecommerce/orders → /shop/orders for clinic', () =>
     expectRedirect(() => OrdersOrPipeline(), '/shop/orders'))
   it('ecommerce/product → /shop for clinic', () =>
@@ -64,20 +66,17 @@ describe('raw Mosaic route clinic redirects', () => {
   it('ecommerce/cart → /shop for clinic', () => expectRedirect(() => Cart(), '/shop'))
 })
 
-describe('platform tenants are NOT redirected by the Mosaic guards', () => {
+describe('retired Mosaic routes redirect platform tenants too', () => {
   beforeEach(() => { tenantCtx = { ...tenantCtx, tenantType: 'platform' } })
 
-  it('tasks/kanban does not redirect a platform tenant', async () => {
-    // Platform falls through to render (returns JSX, not a thrown redirect).
-    await Kanban({ searchParams: sp })
-    expect(redirect).not.toHaveBeenCalled()
-  })
+  // The generic Tasks board + list are gone from the platform sidebar and
+  // now redirect platform to the real dashboard, not the template UI.
+  it('tasks/kanban → /dashboard for platform', () =>
+    expectRedirect(() => Kanban(), '/dashboard'))
+  it('tasks/list → /dashboard for platform', () =>
+    expectRedirect(() => TasksList(), '/dashboard'))
 
-  it('tasks/list does not redirect a platform tenant', async () => {
-    await TasksList({ searchParams: sp })
-    expect(redirect).not.toHaveBeenCalled()
-  })
-
+  // Sales Pipeline (/ecommerce/orders) + the platform shop stay real — no redirect.
   it('ecommerce/orders renders the pipeline (no redirect) for platform', async () => {
     await OrdersOrPipeline()
     expect(redirect).not.toHaveBeenCalled()
