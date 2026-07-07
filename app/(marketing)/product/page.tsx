@@ -22,7 +22,7 @@ export const metadata = {
   title: 'Platform tour — DreamCRM',
   alternates: { canonical: '/product' },
   description:
-    'A deep dive through every module: website studio, online booking, patient portal, unified messages, reviews, recall, shop & memberships, and the official-API Open Dental sync.',
+    'A deep dive through every module: the front-desk daily-ops layer, website studio, online booking, patient portal, unified messages, reviews & surveys, recall & loyalty, shop & memberships, and the official-API Open Dental sync.',
 }
 
 interface ModuleSection {
@@ -36,6 +36,22 @@ interface ModuleSection {
 }
 
 const SECTIONS: ModuleSection[] = [
+  {
+    id: 'frontdesk',
+    eyebrow: 'Run the day',
+    title: 'The front desk’s whole morning on one screen',
+    body: 'Every module above feeds a daily-ops layer built for the person at the desk. The Overview is a morning huddle — today’s chairs, who hasn’t confirmed, what came in overnight. The Appointments agenda groups the day the way the desk thinks and ages unconfirmed visits from green to red; a freed slot offers itself to your fast-pass waitlist before it goes empty. Follow-ups create themselves from balances, overdue recall, and unconfirmed visits, so nothing slips. And the money side is handled: booking deposits, online balance payments, patient-started payment plans with card-on-file autopay, and a collections workboard.',
+    bullets: [
+      'Morning-huddle Overview: today’s chair, attention cards, overnight activity',
+      'Appointments agenda with aging edges + one-click confirm / reschedule / no-show',
+      'Fast-pass waitlist: a cancelled slot fills itself before it goes empty',
+      'Booking deposits (per visit type) that confirm the appointment on payment',
+      'Self-running follow-ups from balances, recall, and unconfirmed visits',
+      'Collections workboard + payment plans with card-on-file autopay',
+    ],
+    docHref: '/docs/managing-the-schedule',
+    visual: 'dashboard',
+  },
   {
     id: 'website',
     eyebrow: 'The storefront',
@@ -108,6 +124,7 @@ const SECTIONS: ModuleSection[] = [
       'Text-first review capture you own, with Google/Healthgrades/Facebook share-on',
       'One-click feature/unfeature onto your website’s testimonial section',
       'Ready-to-ask list driven by completed visits',
+      'Post-visit 0–10 NPS surveys with detractor escalation to the owner',
       'Per-patient rate limiting so nobody gets over-asked',
     ],
     docHref: '/docs/reviews-collection',
@@ -138,8 +155,9 @@ const SECTIONS: ModuleSection[] = [
       'Self-maintaining audiences from lifecycle + recall status',
       'System templates with your voice: reactivation, birthday, welcome',
       'Sent → Opened → Clicked → Booked attribution to real appointments',
+      'Loyalty program + refer-a-friend with booking attribution',
+      'Broadcast a segment-picked message from the inbox in one shot',
       'One-click unsubscribe honored everywhere automatically',
-      'SMS channel on the roadmap — not available yet',
     ],
     docHref: '/docs/recall-campaigns',
     visual: 'recall',
@@ -200,8 +218,8 @@ export default function ProductPage() {
     <>
       <PageHero
         eyebrow="Platform tour"
-        title="One system, eight jobs, zero copy-paste between them"
-        sub="Because it's one product, the modules compound: a website lead becomes a patient record, the patient gets a portal, the visit triggers a review request, and the recall campaign knows who's overdue — automatically."
+        title="One system for the whole front office, zero copy-paste between the parts"
+        sub="Because it's one product, the modules compound: a website lead becomes a patient record, the patient gets a portal, the visit triggers a review request, the recall campaign knows who's overdue, and the front desk sees all of it on one morning screen — automatically."
       >
         <div className="flex flex-wrap justify-center gap-3">
           <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
@@ -259,7 +277,42 @@ export default function ProductPage() {
         ))}
       </div>
 
+      {/* ── Everything else in the box ── */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+        <div className="text-center">
+          <Eyebrow>And so much more</Eyebrow>
+          <h2 className="text-[1.6rem] font-bold tracking-tight sm:text-[1.9rem]">
+            The parts that don’t need their own tour
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-[0.95rem] text-gray-600">
+            Deep systems that ride along with the modules above — no add-on line items, all
+            in the same flat price.
+          </p>
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            ['Digital intake forms', 'Photo & insurance-card fields, OCR autofill, AI pre-visit summary, Spanish, kiosk mode, and an OD chart mirror.'],
+            ['Membership plans', 'In-house plans for the uninsured — monthly or annual, with benefit-usage tracking and a portal upsell.'],
+            ['Payment plans', 'Patient-started installments with card-on-file autopay, retries, and a collections workboard.'],
+            ['Careers + ATS', 'Public job postings with JobPosting schema (Google for Jobs) and a hiring pipeline.'],
+            ['Practice analytics', 'A scorecard of new patients, retention, reputation, and search — measured against the prior window.'],
+            ['Loyalty + referrals', 'Points for visits and a refer-a-friend link with booking attribution baked in.'],
+            ['Custom domains', 'Point your own domain at your DreamCRM site with managed SSL.'],
+            ['Family access', 'One passwordless login runs the whole household’s visits, forms, and balances.'],
+            ['Honest by default', 'Published pricing, month-to-month, official APIs only, and every gap marked before you buy.'],
+          ].map(([title, body]) => (
+            <div key={title} className="rounded-xl border border-gray-200 bg-white p-5">
+              <h3 className="flex items-center gap-2 text-[0.95rem] font-bold text-gray-950">
+                <CheckIcon className="h-3.5 w-3.5 shrink-0 text-teal-700" />
+                {title}
+              </h3>
+              <p className="mt-1.5 text-[0.85rem] leading-relaxed text-gray-600">{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
         <div className="rounded-2xl border border-teal-200 bg-teal-50/60 px-8 py-12 text-center">
           <h2 className="text-[1.6rem] font-bold tracking-tight">Ten minutes from signup to a live website</h2>
           <p className="mx-auto mt-2 max-w-xl text-[0.95rem] text-gray-600">

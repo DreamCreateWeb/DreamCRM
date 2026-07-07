@@ -230,7 +230,7 @@ export default async function MarketingHome() {
       <section className="border-y border-gray-100 bg-gray-50/70">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
           <ScrollReveal>
-            <SectionTitle sub="Eight jobs, one login. Every card opens the full walkthrough.">
+            <SectionTitle sub="Every patient-facing job, one login. Every card opens the full walkthrough — and there's a daily-ops layer behind them.">
               Everything patient-facing, in one place
             </SectionTitle>
           </ScrollReveal>
@@ -338,7 +338,7 @@ export default async function MarketingHome() {
               Evaluating the alternatives? Good.
             </SectionTitle>
           </ScrollReveal>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {COMPARISONS.map((c, i) => (
               <ScrollReveal key={c.slug} delay={Math.min(i * 60, 240)}>
                 <Link

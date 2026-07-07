@@ -248,6 +248,114 @@ export const COMPARISONS: VendorComparison[] = [
     bottomLine:
       'If the phone room is your bottleneck, Adit consolidates it well. If the patient-facing storefront is what needs fixing — the website, the booking, the portal patients keep using — that’s the half DreamCRM owns, at half the reported price.',
   },
+  {
+    slug: 'dental-intelligence',
+    name: 'Dental Intelligence',
+    category: 'Practice analytics + patient engagement (Modento)',
+    reportedPricing: 'Reported ~$300–$600+/mo per location depending on the analytics + engagement bundle (third-party reviews, 2025–2026)',
+    summary:
+      'Dental Intelligence is the analytics leader in the category — morning-huddle dashboards and production KPIs pulled straight from the PMS — and its acquisition of Modento added a polished patient app for forms, reminders, and payments. If deep production analytics is what you want, DI is genuinely ahead of us there. What it isn’t is a storefront: no practice website, no clinic-branded patient portal (the Modento app runs under its own brand), and no online shop or memberships. DreamCRM is the patient-facing half — the site that wins the patient and the portal they return to — with honest, booked-visit-level reporting rather than deep clinical production metrics.',
+    theirStrengths: [
+      { title: 'Production analytics depth', body: 'DI reads clinical production numbers out of the PMS — hygiene reactivation value, provider production, unscheduled treatment — deeper than our booked-visit-level reporting, which intentionally stops at the CRM/PMS line.' },
+      { title: 'The morning-huddle dashboard', body: 'Its live KPI huddle is the product it’s famous for, and it’s excellent.' },
+      { title: 'The Modento patient app', body: 'A mature patient-facing app for digital forms, reminders, and payments with strong adoption.' },
+    ],
+    ourStrengths: [
+      { title: 'A website is included', body: 'DI/Modento assumes you already have a website vendor. DreamCRM ships one — edit-in-place studio, blog, SEO dashboard, careers — and replaces that retainer.' },
+      { title: 'The portal wears your brand', body: 'Modento’s patient app runs under its own brand; DreamCRM’s portal is your logo, colors, and voice, with per-feature toggles and preview-as-patient.' },
+      { title: 'Store, memberships, and shop revenue', body: 'Whitening kits and in-house membership plans sold from your own site — no equivalent in DI.' },
+      { title: 'Published flat pricing', body: '$150–500/mo on the page, month-to-month — versus quote-based analytics + engagement bundles.' },
+    ],
+    matrix: baseMatrix({
+      website: ['no', 'Assumes an existing site'],
+      booking: ['yes'],
+      portal: ['partial', 'Modento app — vendor-branded, not clinic-branded'],
+      inbox: ['partial', 'App messaging + reminders'],
+      reviews: ['yes'],
+      recall: ['yes', 'Strong reactivation tooling from production data'],
+      social: ['no'],
+      shop: ['no'],
+      careers: ['no'],
+      pms: ['yes', 'Deep multi-PMS analytics is its foundation'],
+      phones: ['no'],
+      sms: ['yes'],
+      contract: ['partial', 'Custom quotes; terms vary'],
+    }),
+    bottomLine:
+      'If you want the deepest production analytics and huddle dashboards in dentistry, Dental Intelligence is the leader and we don’t try to be. If what’s missing is the patient-facing storefront — website, branded portal, shop — at a flat published price, that’s DreamCRM. Many practices run one for the numbers and the other for the front door.',
+  },
+  {
+    slug: 'podium',
+    name: 'Podium',
+    category: 'Reviews, webchat & texting for local business',
+    reportedPricing: 'Reported ~$399–$599+/mo depending on tier and messaging volume (third-party reviews, 2025–2026)',
+    summary:
+      'Podium built the review-generation and business-texting category — it’s excellent at turning a happy customer into a Google review over text, and its webchat-to-text and Payments products are mature. But Podium is a general local-business tool, not a dental product: no practice website, no patient portal, no PMS sync, no dental-specific recall or intake. DreamCRM is dentistry-native and ships the whole patient-facing stack; where Podium leads today is live two-way SMS, which is still on our roadmap.',
+    theirStrengths: [
+      { title: 'Two-way texting today', body: 'Mature SMS with webchat-to-text and campaign texting. Our SMS channel is still on the roadmap — if texting is your #1 need today, Podium is ahead.' },
+      { title: 'Review generation', body: 'The text-to-review flow that made Podium famous is best-in-class at volume.' },
+      { title: 'Payments over text', body: 'Text-to-pay tied into the messaging stack.' },
+    ],
+    ourStrengths: [
+      { title: 'Dentistry-native, not generic', body: 'Visit-type booking rules, dental intake with insurance-card OCR, recall on PMS due dates, an OD chart mirror — none of which a general local-business tool models.' },
+      { title: 'The website + portal Podium has neither of', body: 'A real practice site with an edit-in-place studio and a clinic-branded patient portal — Podium ships no website and no portal.' },
+      { title: 'FTC-clean reviews', body: 'Same ask to every patient, no rating-gating — clean under the FTC fake-reviews rule, and the results feed your own site’s testimonials.' },
+      { title: 'One flat dental price', body: '$150–500/mo for the whole stack versus a messaging platform fee plus volume-based add-ons.' },
+    ],
+    matrix: baseMatrix({
+      website: ['no'],
+      booking: ['partial', 'Scheduling via integrations, not native to a dental PMS'],
+      portal: ['no'],
+      inbox: ['partial', 'SMS + webchat unified; no portal/email patient threads'],
+      reviews: ['yes', 'Their origin product — excellent'],
+      recall: ['partial', 'Generic campaigns, not PMS-recall-driven'],
+      social: ['partial'],
+      shop: ['no'],
+      careers: ['no'],
+      pms: ['no', 'Not a dental PMS integrator'],
+      phones: ['partial', 'Phone add-on'],
+      sms: ['yes'],
+      contract: ['partial', 'Annual terms commonly reported'],
+    }),
+    bottomLine:
+      'If two-way texting and review volume are the whole job, Podium is a strong pick and beats us on SMS today. If you want a dentistry-native platform — website, booking, branded portal, PMS sync, dental intake — at a flat price, that’s DreamCRM.',
+  },
+  {
+    slug: 'patientpop',
+    name: 'Tebra (PatientPop)',
+    category: 'Healthcare practice-growth: websites, SEO & reputation',
+    reportedPricing: 'Reported ~$300–$700+/mo, typically annual, per the practice-growth suite (third-party reviews, 2025–2026)',
+    summary:
+      'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite. It’s a capable, established product across medical and dental. The differences are focus and terms: PatientPop is a multi-specialty healthcare tool (not dental-native), its sites and portal run more as a managed service on annual contracts, and it has no online store, memberships, or official-API Open Dental sync. DreamCRM is dental-native, self-serve, edit-it-yourself, and month-to-month.',
+    theirStrengths: [
+      { title: 'Established healthcare SEO', body: 'Years of medical + dental SEO and directory-listing management across specialties — broad and proven.' },
+      { title: 'Reputation + scheduling suite', body: 'Reviews, online scheduling, and provider profiles bundled with the site.' },
+      { title: 'Billing under one roof (Tebra)', body: 'Post-merger, practices can add Kareo billing/EHR from the same vendor — a bigger footprint than ours.' },
+    ],
+    ourStrengths: [
+      { title: 'Dental-native, not multi-specialty', body: 'A curated dental services library, visit-type booking rules, dental intake, and PMS recall — versus a generic healthcare template.' },
+      { title: 'Edit it yourself, no agency queue', body: 'The Website Studio changes your live site by clicking it; PatientPop sites lean on managed changes.' },
+      { title: 'Store, memberships, and official-API sync', body: 'An online shop, in-house membership plans, and two-way Open Dental sync through the sanctioned API — none of which PatientPop ships.' },
+      { title: 'Month-to-month, published price', body: '$150–500/mo on the page with no annual contract, versus reported annual growth-suite agreements.' },
+    ],
+    matrix: baseMatrix({
+      website: ['yes', 'Managed healthcare sites — its core'],
+      booking: ['yes'],
+      portal: ['partial', 'Provider-directory + booking pages, not a clinic-branded portal'],
+      inbox: ['partial'],
+      reviews: ['yes'],
+      recall: ['yes', 'Generic healthcare campaigns'],
+      social: ['partial'],
+      shop: ['no'],
+      careers: ['no'],
+      pms: ['partial', 'Broad healthcare integrations; not official-API OD sync'],
+      phones: ['no'],
+      sms: ['yes'],
+      contract: ['no', 'Reported annual contracts'],
+    }),
+    bottomLine:
+      'If you want an established multi-specialty growth suite and don’t mind an annual contract and managed changes, PatientPop is credible. If you want a dental-native platform you edit yourself, with a store, memberships, and official-API Open Dental sync, month-to-month — that’s DreamCRM.',
+  },
 ]
 
 export function getComparison(slug: string): VendorComparison | undefined {
