@@ -49,6 +49,8 @@ let stubActivity: {
   stripeUnavailable: boolean
 } = { rows: [], stripeUnavailable: false }
 
+let stubPmsDemand: Array<{ provider: string; waiting: number; pending: number }> = []
+
 vi.mock('@/lib/services/projects', () => ({
   getSubscriptionStats: async () => stubSubs,
 }))
@@ -56,6 +58,10 @@ vi.mock('@/lib/services/projects', () => ({
 vi.mock('@/lib/services/operations', () => ({
   getAttentionItems: async () => stubAttention,
   getRecentPlatformActivity: async () => stubActivity,
+}))
+
+vi.mock('@/lib/services/pms-interest', () => ({
+  getPmsDemand: async () => stubPmsDemand,
 }))
 
 import PlatformOverview from '@/app/(default)/dashboard/platform-overview'
@@ -78,6 +84,7 @@ beforeEach(() => {
     stripeUnavailable: false,
   }
   stubActivity = { rows: [], stripeUnavailable: false }
+  stubPmsDemand = []
 })
 
 describe('PlatformOverview', () => {

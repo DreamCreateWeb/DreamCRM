@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { planAllows } from '@/lib/modules'
 import { db, schema } from '@/lib/db'
 import { getIntegrationsDashboard } from '@/lib/services/pms'
+import { getRequestedPms } from '@/lib/services/pms-interest'
 import { getZernioConnection } from '@/lib/services/zernio'
 import { getShopConfig } from '@/lib/services/shop'
 import { canConnectSocialPlatform } from '@/lib/services/social-billing'
@@ -65,7 +66,7 @@ export default async function IntegrationsPage({
   // Load the live state for the integrations we actually wire. GBP + social +
   // Gmail + Stripe load for everyone; the PMS dashboard only for Premium (the
   // full PMS dashboard lives on the detail route).
-  const [dashboard, zernio, cap, profileRow, shopConfig, gmailRows] = await Promise.all([
+  const [dashboard, zernio, cap, profileRow, shopConfig, gmailRows, requestedPmsSet] = await Promise.all([
     pmsEligible ? getIntegrationsDashboard(ctx.organizationId) : Promise.resolve(null),
     getZernioConnection(ctx.organizationId),
     canConnectSocialPlatform(ctx.organizationId),
@@ -85,6 +86,9 @@ export default async function IntegrationsPage({
       .from(schema.emailAccount)
       .where(and(eq(schema.emailAccount.organizationId, ctx.organizationId), eq(schema.emailAccount.disabled, false)))
       .limit(5),
+    // Roadmap PMSs this clinic has already requested early access to (Premium
+    // only — the catalog + request flow are Premium-gated).
+    pmsEligible ? getRequestedPms(ctx.organizationId) : Promise.resolve(new Set<string>()),
   ])
 
   const connection = dashboard?.connection ?? null
@@ -211,6 +215,7 @@ export default async function IntegrationsPage({
         routeError={one(sp.zernioError)}
         isDemo={ctx.isDemo}
         canManage={ctx.role === 'owner' || ctx.role === 'admin'}
+        requestedPms={Array.from(requestedPmsSet)}
       />
     </div>
   )

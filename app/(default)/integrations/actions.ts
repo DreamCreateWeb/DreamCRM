@@ -27,6 +27,47 @@ function ensureClinicAdmin(ctx: { tenantType: string; role: string; planTier: Pl
   }
 }
 
+export interface RequestPmsResult {
+  ok: boolean
+  error?: string
+  /** Total clinics now waiting on this PMS (incl. this one). */
+  waiting?: number
+}
+
+/**
+ * Register the clinic's interest in a roadmap PMS (Dentrix Ascend/desktop,
+ * Eaglesoft, Curve). Low-friction on purpose — any clinic staffer can raise a
+ * hand (no owner/admin gate; it's demand capture, not a privileged mutation),
+ * and it's Premium-gated only because that's where the catalog lives. The
+ * founder uses the aggregate to prioritize which vendor partnership to pursue.
+ */
+export async function requestPmsAccessAction(provider: string): Promise<RequestPmsResult> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') {
+    return { ok: false, error: 'Only a clinic can request a PMS integration.' }
+  }
+  if (!planAllows(ctx.planTier as PlanTier, 'premium')) {
+    return { ok: false, error: 'PMS integrations are on the Premium plan.' }
+  }
+  const { isRequestablePms, recordPmsInterest } = await import('@/lib/services/pms-interest')
+  if (!isRequestablePms(provider)) {
+    return { ok: false, error: 'That PMS is already available — connect it directly.' }
+  }
+  try {
+    const res = await recordPmsInterest({
+      organizationId: ctx.organizationId,
+      provider,
+      requestedByUserId: ctx.userId,
+      notifyEmail: ctx.userEmail ?? null,
+    })
+    revalidatePath('/integrations')
+    return { ok: true, waiting: res.waiting }
+  } catch (err) {
+    console.warn('[integrations] requestPmsAccess failed', err)
+    return { ok: false, error: 'Could not record your request — please try again.' }
+  }
+}
+
 export interface ConnectResult {
   ok: boolean
   error?: string

@@ -10,6 +10,7 @@ import type { Tone } from '@/lib/ui/encodings'
 import { BrandLogo, BrandLogoWell, BRAND_ACCENTS, type BrandLogoId } from '@/components/integrations/brand-logos'
 import { searchableText, type IntegrationDef } from '@/lib/integrations/catalog'
 import type { ResolvedIntegration } from '@/lib/integrations/resolve'
+import PmsRequestButton from './pms-request-button'
 import {
   bundleLogos,
   bundlePlanLabel,
@@ -89,6 +90,9 @@ export interface IntegrationsLibraryProps {
   /** Owner/admin — connect/disconnect/add-on actions render only when true
    *  (the server actions reject members; don't show buttons that can only fail). */
   canManage: boolean
+  /** Roadmap PMS provider ids this clinic has already requested early access
+   *  to — so the tile shows "you're on the list" instead of the button. */
+  requestedPms?: string[]
 }
 
 export default function IntegrationsLibrary({
@@ -103,8 +107,10 @@ export default function IntegrationsLibrary({
   routeError,
   isDemo,
   canManage,
+  requestedPms = [],
 }: IntegrationsLibraryProps) {
   const router = useRouter()
+  const requestedPmsSet = new Set(requestedPms)
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(routeError)
   // After opening any connect tab, poll on focus until accounts refresh.
@@ -191,6 +197,7 @@ export default function IntegrationsLibrary({
     capAllowed: cap.allowed,
     addonAvailable: entitlement.addonAvailable,
     addonActive: entitlement.addonActive,
+    requestedPms: requestedPmsSet,
   }
 
   // The connected accounts across every bundle (for the overview logo stack).
@@ -624,6 +631,8 @@ interface CardHandlers {
   capAllowed: boolean
   addonAvailable: boolean
   addonActive: boolean
+  /** Roadmap PMS ids this clinic already requested early access to. */
+  requestedPms: Set<string>
 }
 
 const STATUS_PILL: Record<string, { tone: Tone; label: string }> = {
@@ -773,9 +782,21 @@ function DisconnectedActions({
   runtime: ResolvedIntegration['runtime']
   handlers: CardHandlers
 }) {
-  // Roadmap / partner tiles — an honest note, no connect.
+  // Roadmap / partner tiles — an honest note + (for the roadmap PMSs) a
+  // "notify me when it's ready" demand-capture button. No fake connect.
   if (runtime.status === 'coming_soon' || runtime.status === 'request_access') {
-    return def.note ? <p className="text-xs text-gray-400 dark:text-gray-500">{def.note}</p> : null
+    return (
+      <div className="space-y-2">
+        {def.note && <p className="text-xs text-gray-400 dark:text-gray-500">{def.note}</p>}
+        {def.category === 'pms' && (
+          <PmsRequestButton
+            provider={def.id}
+            alreadyRequested={handlers.requestedPms.has(def.id)}
+            canManage={handlers.canManage}
+          />
+        )}
+      </div>
+    )
   }
 
   // Members can't connect anything (the server actions reject them) — say so

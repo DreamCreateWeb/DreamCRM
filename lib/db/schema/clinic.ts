@@ -1325,6 +1325,35 @@ export const pmsConnection = pgTable('pms_connection', {
 export type PmsConnection = typeof pmsConnection.$inferSelect
 export type NewPmsConnection = typeof pmsConnection.$inferInsert
 
+// Early-access demand capture for the roadmap PMSs (Dentrix Ascend/desktop,
+// Eaglesoft, Curve). A clinic on one of those clicks "Notify me when this is
+// ready" on the integrations catalog; we record who wants which PMS so the
+// founder can prioritize the vendor partnerships that unblock the most
+// practices — and email each clinic the day their PMS goes live. One row per
+// (org, provider); re-requesting is idempotent.
+export const pmsInterest = pgTable(
+  'pms_interest',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // The roadmap provider id — matches the PmsProviderId vocabulary.
+    provider: text('provider').notNull(),
+    requestedByUserId: text('requested_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    // The email we'll notify — snapshot at request time (the requester may
+    // leave the practice before the PMS ships).
+    notifyEmail: text('notify_email'),
+    // Set once the founder has emailed this clinic that their PMS is live, so
+    // the notify sweep never double-pings.
+    notifiedAt: timestamp('notified_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('pms_interest_org_provider_uq').on(t.organizationId, t.provider)],
+)
+export type PmsInterest = typeof pmsInterest.$inferSelect
+export type NewPmsInterest = typeof pmsInterest.$inferInsert
+
 // Durable 1:1 link between a PMS-side record and our row. Lets re-syncs be
 // idempotent (upsert on external id) and lets write-back record the external
 // id the PMS assigned to a DreamCRM-originated booking. internalId is a soft

@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { getSubscriptionStats } from '@/lib/services/projects'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
+import { getPmsDemand } from '@/lib/services/pms-interest'
+import { PROVIDER_LABELS } from '@/lib/types/pms'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -36,11 +38,13 @@ function moneyFull(cents: number): string {
 }
 
 export default async function PlatformOverview() {
-  const [subs, attention, activity] = await Promise.all([
+  const [subs, attention, activity, pmsDemand] = await Promise.all([
     getSubscriptionStats(),
     getAttentionItems({ perKind: 3 }),
     getRecentPlatformActivity(10),
+    getPmsDemand(),
   ])
+  const pmsWanted = pmsDemand.filter((d) => d.pending > 0)
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -92,6 +96,37 @@ export default async function PlatformOverview() {
       {attention.stripeUnavailable && (
         <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
           Stripe couldn't be reached — past-due invoice checks skipped this load.
+        </div>
+      )}
+
+      {/* ── PMS demand — which roadmap PMS to pursue next ─────────────────
+          Only shows when clinics have raised a hand. Turns the "coming soon"
+          catalog tiles into a prioritized partnership pipeline. */}
+      {pmsWanted.length > 0 && (
+        <div className="v2-card p-6 mb-8">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              PMS integration demand
+            </h2>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Clinics waiting — pursue the vendor with the most demand first
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {pmsWanted.map((d) => (
+              <li
+                key={d.provider}
+                className="flex items-center justify-between rounded-lg border border-[color:var(--color-hairline)] px-4 py-2.5"
+              >
+                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {PROVIDER_LABELS[d.provider as keyof typeof PROVIDER_LABELS] ?? d.provider}
+                </span>
+                <span className="text-sm text-gray-600 dark:text-gray-400 tabular-nums">
+                  {d.pending} {d.pending === 1 ? 'clinic' : 'clinics'} waiting
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

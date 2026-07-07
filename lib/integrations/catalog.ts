@@ -245,7 +245,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'request_access',
     connectKind: 'none',
     minPlan: 'premium',
-    note: 'Requires Henry Schein One partner approval. Request access and we’ll enable it for your practice.',
+    note: 'Through the Henry Schein One API Exchange (official API only). Needs partner approval — the more practices waiting, the sooner we pursue it.',
   },
   {
     id: 'dentrix_desktop',
@@ -259,7 +259,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'coming_soon',
     connectKind: 'none',
     minPlan: 'premium',
-    note: 'Needs a signed agent installed at each location. On the roadmap after Open Dental.',
+    note: 'On-prem G-series via the Dentrix Developer Program (signed connector per location). On the roadmap — raise your hand to help us prioritize it.',
   },
   {
     id: 'eaglesoft',
@@ -273,7 +273,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'coming_soon',
     connectKind: 'none',
     minPlan: 'premium',
-    note: 'The most closed of the majors. On the roadmap.',
+    note: 'Via Patterson Innovation Connection (local agent). The most closed of the majors — demand tells us whether it’s worth the lift.',
   },
   {
     id: 'curve',
@@ -287,7 +287,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'coming_soon',
     connectKind: 'none',
     minPlan: 'premium',
-    note: 'On the roadmap after Open Dental + Dentrix.',
+    note: 'Cloud-native, open partner network — the most integration-friendly after Open Dental. Raise your hand and we’ll pursue it.',
   },
 
   // ── Google ─────────────────────────────────────────────────────────────────
