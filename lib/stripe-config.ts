@@ -50,6 +50,7 @@ export const PLANS: Plan[] = [
       'Digital intake forms',
       'Clinic-branded patient portal',
       'Reviews collection + website testimonials',
+      'Google Business sync + social posting',
       'Blog + SEO dashboard',
     ],
     priceIds: {
@@ -68,6 +69,7 @@ export const PLANS: Plan[] = [
       'Recall & outreach campaigns',
       'Practice analytics',
       'Online shop + membership plans (payouts to your bank)',
+      'Online balance payments + patient payment plans',
       'Careers page + applicant tracking',
       'PMS integration — Open Dental, two-way',
       'Priority support',

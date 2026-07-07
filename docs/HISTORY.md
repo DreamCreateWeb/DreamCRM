@@ -7,6 +7,27 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Autonomous final-polish program (2026-07-07).** Owner directive: max
+  autonomy, best possible funnel/UX everywhere. Audited the entire
+  buyer-facing spine (marketing → pricing → signup → onboarding →
+  first-run → module layouts) and shipped what the audit actually found —
+  most surfaces were already finished; the real gaps: **(1) Trial-first
+  marketing** — the product has been no-card-trial-first for weeks but no
+  marketing surface said so; every CTA now reads "Start your free trial",
+  the homepage hero trust-row leads with "7 days of Premium free · No
+  card to start", pricing gets a trial banner + a first FAQ, and a new
+  homepage section ("Your first afternoon on DreamCRM") tells the honest
+  4-step signup→live story. **(2) Dead-surface cleanup** — the orphaned
+  Mosaic job board (/jobs, never in any module registry) is now a
+  redirect to /careers, its service/types deleted. **(3) Plan bullets
+  caught up with the product** — Pro gains "Google Business sync + social
+  posting", Premium gains "Online balance payments + patient payment
+  plans". Audit findings that needed NO work (verified healthy): signup
+  form + onboarding 1–4 already trial-first with correct copy; Overview
+  already has welcome modal + live activation checklist; EmptyState
+  adoption complete across all day-0 modules; 404/error pages exist per
+  route group; docs index + signin polished.
+
 - **Demo v5 — all-in on the pop-out; nothing floats on the shared screen
   (2026-07-06).** Owner call after v4: "run 100% with the pop-out — no
   hovering card on the site at all." The floating presenter panel is GONE;
