@@ -7,6 +7,38 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Vision-fulfillment capstone — 4 slices (2026-07-07).** Owner: "whip the
+  marketing site into shape, deepen the docs, get the other PMS integrations,
+  clean the platform-admin junk — and that's the entire vision fulfilled."
+  Shipped as four verified slices, each committed + deployed green.
+  **A · Platform declutter** (`3f03385`): removed the generic Mosaic Calendar,
+  Tasks kanban/list, and the dead Developer placeholder from the platform
+  sidebar (`lib/modules/platform.ts`); the three routes now redirect (calendar
+  → /appointments|/dashboard, tasks → /dashboard) so bookmarks never dead-end;
+  the patient .ics calendar-FEED is a separate live system, untouched.
+  **B · Other PMS integrations, honest** (`d5637bb`): real two-way Dentrix/
+  Eaglesoft/Curve sync needs vendor approval we don't have, and faking it
+  would blow up the "official APIs only / gaps marked" positioning — so
+  instead, **demand capture**: migration 0124 `pms_interest` (one row per
+  org+provider, idempotent, notify-email snapshot + notifiedAt),
+  `lib/services/pms-interest.ts` (record/getRequested/getPmsDemand/
+  listPending), `requestPmsAccessAction`, a "🔔 Notify me when it's ready"
+  button on every roadmap PMS tile (flips to "✓ you're on the list — N
+  waiting"), a founder-side PMS-demand panel on the platform overview
+  (which vendor to pursue first), and enriched honest catalog copy naming
+  each real integration path. Verified live end-to-end (Cedar Grove → Dentrix
+  Ascend). **C · Marketing refresh** (`7955635`): /product gains a "Run the
+  day" front-office section (the whole daily-ops layer had zero
+  representation) + enriched bullets (NPS, loyalty, broadcast) + an "And so
+  much more" breadth grid; hero/pillar copy de-number-locked; **3 new honest
+  competitor comparisons** — Dental Intelligence (Modento), Podium, Tebra
+  (PatientPop) — sitemap auto-indexes them. **D · Docs depth** (`1197273`):
+  +12 articles (fast-pass waitlist, self-running follow-ups, intake forms,
+  broadcast, NPS surveys, family access, loyalty/referrals, booking deposits,
+  payment plans, memberships, collections, requesting-a-PMS, custom domains)
+  — docs 16→31, all auto-indexed. The tour, the docs, the integrations story,
+  and the admin surface now all match the product that actually shipped.
+
 - **Autonomous final-polish program (2026-07-07).** Owner directive: max
   autonomy, best possible funnel/UX everywhere. Audited the entire
   buyer-facing spine (marketing → pricing → signup → onboarding →
