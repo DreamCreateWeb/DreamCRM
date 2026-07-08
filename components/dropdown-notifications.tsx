@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Menu, MenuButton, MenuItems, MenuItem, Transition } from '@headlessui/react'
+import { useRealtime } from '@/components/realtime/realtime-provider'
 
 interface NotificationItem {
   id: number
@@ -17,15 +18,13 @@ interface NotificationItem {
 }
 
 /**
- * Header bell. Polls /api/notifications every 30s for the unread count and
- * the most recent items. Clicking an item marks it read and navigates to
- * the linked path (or stays put if there's no link).
- *
- * We poll instead of using server-sent events to keep the surface area tight
- * for v1; if real-time becomes important we can swap the polling loop for
- * an SSE/WS subscription without touching this component's render.
+ * Header bell. Refreshes the instant a notification lands — it subscribes to
+ * the app-wide `notifications` realtime topic (RealtimeProvider → SSE →
+ * Postgres NOTIFY) and refetches on each event. A slow interval remains as a
+ * fallback for when the stream is mid-reconnect. Clicking an item marks it read
+ * and navigates to the linked path.
  */
-const POLL_INTERVAL_MS = 30_000
+const POLL_INTERVAL_MS = 60_000
 const ICON_FOR_BUCKET: Record<string, string> = {
   comments: '💬',
   candidates: '🎯',
@@ -55,6 +54,12 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
     const id = setInterval(refresh, POLL_INTERVAL_MS)
     return () => clearInterval(id)
   }, [refresh])
+
+  // Live: a new notification for this user → refetch immediately (the bell
+  // dings the moment something happens, not on the next poll).
+  useRealtime('notifications', () => {
+    refresh()
+  })
 
   async function handleItemClick(item: NotificationItem) {
     if (!item.readAt) {

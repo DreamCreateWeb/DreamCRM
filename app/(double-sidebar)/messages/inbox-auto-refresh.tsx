@@ -2,54 +2,57 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { useRealtime } from '@/components/realtime/realtime-provider'
 
 /**
- * Keeps the unified inbox fresh without a manual reload, so a new inbound
- * message (and the unread badge) appears on its own. Uses a soft
- * `router.refresh()` — re-runs the server component while React reconciliation
- * preserves client state, so an in-progress composer draft is NOT lost.
+ * Keeps Patient Communications (/messages) live. A soft `router.refresh()`
+ * re-runs the server component while React reconciliation preserves client
+ * state, so an in-progress composer draft is NOT lost.
  *
- * Triggers:
- *   - tab regains focus / becomes visible (the big one — switch back, see new)
- *   - a gentle interval while the tab is visible (paused when hidden, so a
- *     left-open tab doesn't poll the server forever in the background)
- *
- * SSE-free on purpose: /messages is server-rendered + force-dynamic, so a
- * refresh is the simplest correct live-update. (The Gmail /inbox keeps its SSE
- * stream — different surface, different mental model.)
+ * Primary path is now REAL-TIME: it subscribes to the app-wide `messages`
+ * topic (RealtimeProvider → SSE → Postgres NOTIFY), so a new inbound patient
+ * message or a reply sent from another tab appears within a beat, no polling.
+ * The focus/visibility refresh + a slow safety interval remain as a fallback
+ * for when the stream is mid-reconnect or the browser lacks EventSource.
  */
-const INTERVAL_MS = 60_000
+const SAFETY_INTERVAL_MS = 120_000
 
 export default function InboxAutoRefresh() {
   const router = useRouter()
-  // Throttle: never refresh more than once every 15s (focus + interval can
-  // otherwise stack).
+  // Throttle: never refresh more than once every 4s (realtime bursts + focus +
+  // interval can otherwise stack).
   const lastRef = useRef(0)
+  function refresh() {
+    const now = Date.now()
+    if (now - lastRef.current < 4_000) return
+    lastRef.current = now
+    router.refresh()
+  }
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
 
+  // Live: any message event for this org → refresh.
+  useRealtime('messages', () => refreshRef.current())
+
+  // Fallback: focus/visibility + a slow interval (covers stream reconnects).
   useEffect(() => {
-    function refresh() {
-      const now = Date.now()
-      if (now - lastRef.current < 15_000) return
-      lastRef.current = now
-      router.refresh()
+    function onFocus() {
+      refreshRef.current()
     }
-
     function onVisibility() {
-      if (document.visibilityState === 'visible') refresh()
+      if (document.visibilityState === 'visible') refreshRef.current()
     }
-
-    window.addEventListener('focus', refresh)
+    window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibility)
     const id = setInterval(() => {
-      if (document.visibilityState === 'visible') refresh()
-    }, INTERVAL_MS)
-
+      if (document.visibilityState === 'visible') refreshRef.current()
+    }, SAFETY_INTERVAL_MS)
     return () => {
-      window.removeEventListener('focus', refresh)
+      window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
       clearInterval(id)
     }
-  }, [router])
+  }, [])
 
   return null
 }

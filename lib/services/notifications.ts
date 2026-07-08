@@ -100,6 +100,19 @@ export async function notify(input: NotifyInput): Promise<void> {
       meta: input.meta ?? {},
     })
 
+    // Live-push so the header bell + sidebar badges update the instant this
+    // lands, instead of on their next poll. User-targeted (only this recipient's
+    // browser reacts); best-effort inside notify()'s own try/catch.
+    if (input.organizationId) {
+      const { publishRealtime } = await import('./realtime')
+      await publishRealtime(
+        input.organizationId,
+        'notifications',
+        { notificationType: input.type },
+        { userId: input.userId },
+      )
+    }
+
     const shouldEmail = input.forceEmail || (prefs.pushEmail && prefs[input.bucket])
     if (shouldEmail) {
       const [u] = await db

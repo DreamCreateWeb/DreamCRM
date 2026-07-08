@@ -7,6 +7,7 @@ import TrialReminderModal from './trial-reminder-modal'
 import TrialEndedWall from './trial-ended-wall'
 import KeyboardShortcuts from './keyboard-shortcuts'
 import { TrailProvider } from '@/app/trail-context'
+import { RealtimeProvider } from '@/components/realtime/realtime-provider'
 import { ConfirmProvider } from '@/components/ui/confirm-dialog'
 import { ToastProvider } from '@/components/ui/toast'
 import { SkipToContent } from '@/components/ui/skip-to-content'
@@ -98,6 +99,10 @@ export default async function DashboardShell({
       // accent custom property chrome surfaces can pick up. Cosmetic only.
       style={demoSkin?.brandColor ? ({ '--demo-accent': demoSkin.brandColor } as React.CSSProperties) : undefined}
     >
+      {/* One app-wide realtime connection (SSE → Postgres LISTEN/NOTIFY). Wraps
+          the sidebar, header bell, and page so any of them can subscribe to
+          live events via useRealtime — replacing the old per-surface polling. */}
+      <RealtimeProvider orgId={ctx.organizationId} userId={ctx.userId}>
       {/* Keyboard a11y: the first focusable element lets keyboard/AT users jump
           past the whole sidebar straight to the page content. Hidden until focused. */}
       <SkipToContent />
@@ -179,6 +184,7 @@ export default async function DashboardShell({
           drive and feeds the pop-out /demo/script window; the audience never
           sees a script on this screen. Platform admin + demo mode only. */}
       {ctx.isDemo && ctx.platformAdmin && <DemoConductor skin={demoSkin} />}
+      </RealtimeProvider>
     </div>
   )
 }

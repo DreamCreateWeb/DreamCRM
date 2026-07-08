@@ -769,6 +769,15 @@ export async function sendMessageToPatient(input: {
     })
     .where(eq(schema.patientThread.id, threadId))
 
+  // Live-push so other staff tabs (and the sender's own thread list) reflect the
+  // sent message immediately. Org-scoped, best-effort.
+  try {
+    const { publishRealtime } = await import('@/lib/services/realtime')
+    await publishRealtime(input.organizationId, 'messages', { threadId, direction: 'outbound' })
+  } catch {
+    /* best-effort */
+  }
+
   return { threadId, messageId }
 }
 
@@ -958,6 +967,16 @@ export async function recordInboundMessage(input: {
       updatedAt: now,
     })
     .where(eq(schema.patientThread.id, threadId))
+
+  // Live-push so an OPEN /messages view refreshes the instant the message lands
+  // (org-scoped: every staff tab, not just notification recipients). The bell
+  // itself goes live via the notifyOrgMembers → notify() → 'notifications' path.
+  try {
+    const { publishRealtime } = await import('@/lib/services/realtime')
+    await publishRealtime(input.organizationId, 'messages', { threadId, direction: 'inbound' })
+  } catch {
+    /* best-effort */
+  }
 
   // Ping the front desk so an inbound patient message doesn't wait for someone
   // to refresh /messages. Best-effort — the message row above is the truth.

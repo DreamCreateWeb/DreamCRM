@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAppProvider } from '@/app/app-provider'
+import { useRealtime } from '@/components/realtime/realtime-provider'
 import { DreamCreateMark } from '@/components/brand/dream-create-logo'
 import DropdownProfile from '@/components/dropdown-profile'
 import { NavIcon } from './nav-icons'
@@ -161,6 +162,13 @@ export default function TenantSidebar({
       window.removeEventListener('nav-badges:refresh', onRefresh)
     }
   }, [isClinic, refreshBadges])
+
+  // Live: a message or notification event for this org → refresh the badge
+  // counts immediately (the Messages dot appears the moment mail lands, not on
+  // the next 60s poll). Hook is unconditional; the handler no-ops off-clinic.
+  useRealtime(['messages', 'notifications'], () => {
+    if (isClinic) refreshBadges()
+  })
 
   // Opening a leads/shop module stamps it "seen now" → its badge clears at
   // once (optimistic) and the next fetch agrees. Any navigation also refreshes
