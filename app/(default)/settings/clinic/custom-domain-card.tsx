@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
 import type { CustomDomainStatus, CustomDomainState } from '@/lib/services/custom-domain'
+import type { DnsProviderInfo } from '@/lib/services/dns-provider'
 import {
   requestCustomDomainAction,
   checkCustomDomainStatusAction,
   removeCustomDomainAction,
+  detectDnsProviderAction,
 } from './custom-domain-actions'
 
 interface Props {
@@ -68,7 +70,48 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
   const [domain, setDomain] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [provider, setProvider] = useState<DnsProviderInfo | null>(null)
+  const [autoChecking, setAutoChecking] = useState(false)
   const [pending, startTransition] = useTransition()
+
+  const isPending = status?.state === 'pending_dns'
+  const detectDomain = status?.domain ?? null
+
+  // Detect the clinic's DNS provider once we have a pending domain, so we can
+  // show provider-specific "where to add these" instructions + a deep link.
+  useEffect(() => {
+    if (!detectDomain || !isPending) {
+      setProvider(null)
+      return
+    }
+    let cancelled = false
+    detectDnsProviderAction(detectDomain).then((res) => {
+      if (!cancelled && res.ok) setProvider(res.detection.provider)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [detectDomain, isPending])
+
+  // Auto-poll App Runner while pending so the card flips to Active on its own —
+  // no more hunting for "Check status". Polls every 45s, quietly.
+  const polledActive = useRef(false)
+  useEffect(() => {
+    if (!isPending) return
+    const id = setInterval(async () => {
+      setAutoChecking(true)
+      const res = await checkCustomDomainStatusAction()
+      setAutoChecking(false)
+      if (res.ok) {
+        setStatus(res.status)
+        if (res.status.state === 'active' && !polledActive.current) {
+          polledActive.current = true
+          setNote('Your domain is live. 🎉')
+        }
+      }
+    }, 45000)
+    return () => clearInterval(id)
+  }, [isPending])
 
   function connect(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -190,6 +233,35 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
               itself). A few providers want the full name instead; that’s the smaller grey line
               under each host.
             </p>
+
+            {provider && (
+              <div className="mb-4 rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] px-4 py-3 shadow-[inset_0_0_0_1px_var(--color-hairline)]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
+                    Looks like your DNS is at {provider.name}
+                  </p>
+                  <a
+                    href={provider.dnsPanelUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-medium text-teal-600 hover:underline dark:text-teal-400"
+                  >
+                    Open {provider.name} DNS →
+                  </a>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                  {provider.addRecordHelp}
+                </p>
+                {!provider.supportsApexAlias && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
+                    Heads up: {provider.name} can’t point a bare domain at us directly. The{' '}
+                    <span className="font-mono-num">www</span> record works normally — for the bare
+                    domain, use {provider.name}’s forwarding to send it to your www address.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="overflow-x-auto rounded-[var(--r-md)] shadow-[inset_0_0_0_1px_var(--color-hairline)]">
               <table className="w-full text-sm">
                 <thead>
@@ -239,9 +311,17 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
             )}
           </div>
 
+          {isPending && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {autoChecking
+                ? 'Checking…'
+                : 'We’re checking automatically every minute — you can leave this page; it’ll go live on its own once your records are in and the certificate is issued (usually within the hour).'}
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <ActionButton variant="secondary" onClick={check} disabled={pending}>
-              {pending ? 'Checking…' : 'Check status'}
+              {pending ? 'Checking…' : 'Check now'}
             </ActionButton>
             <ActionButton variant="danger" onClick={remove} disabled={pending}>
               Remove

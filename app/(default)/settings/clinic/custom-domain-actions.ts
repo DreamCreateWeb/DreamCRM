@@ -8,6 +8,7 @@ import {
   removeCustomDomain,
   type CustomDomainResult,
 } from '@/lib/services/custom-domain'
+import { detectDnsProvider, type DnsDetection } from '@/lib/services/dns-provider'
 
 /**
  * Custom-domain settings actions. Owner/admin-gated like the rest of the clinic
@@ -40,6 +41,15 @@ export async function checkCustomDomainStatusAction(): Promise<CustomDomainResul
   const res = await checkCustomDomainStatus(g.orgId)
   revalidatePath('/settings/clinic')
   return res
+}
+
+export async function detectDnsProviderAction(
+  domain: string,
+): Promise<{ ok: true; detection: DnsDetection } | { ok: false; error: string }> {
+  const g = await gate()
+  if (!g.ok) return { ok: false, error: g.error }
+  const detection = await detectDnsProvider(domain)
+  return { ok: true, detection }
 }
 
 export async function removeCustomDomainAction(): Promise<{ ok: true } | { ok: false; error: string }> {
