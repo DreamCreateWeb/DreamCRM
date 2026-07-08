@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
+import { publishRealtime } from '@/lib/services/realtime'
 import {
   listProviders,
   createProvider,
@@ -76,6 +77,7 @@ export async function createProviderAction(input: {
     }
     await createProvider({ organizationId: ctx.organizationId, displayName, role: input.role, email: input.email })
     revalidatePath('/settings/practice')
+    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     revalidatePath('/appointments')
     return { ok: true }
   } catch (err) {
@@ -105,6 +107,7 @@ export async function updateProviderAction(input: {
     }
     await updateProvider({ organizationId: ctx.organizationId, providerId, patch })
     revalidatePath('/settings/practice')
+    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     revalidatePath('/appointments')
     return { ok: true }
   } catch (err) {
@@ -117,6 +120,7 @@ export async function deactivateProviderAction(providerId: string): Promise<Resu
   try {
     await deactivateProvider(ctx.organizationId, providerId)
     revalidatePath('/settings/practice')
+    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     revalidatePath('/appointments')
     return { ok: true }
   } catch (err) {
@@ -146,6 +150,7 @@ export async function saveVisitTypesAction(visitTypes: VisitType[]): Promise<Res
       .set({ visitTypeSettings: cleaned, updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
     revalidatePath('/settings/practice')
+    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not save visit types' }
@@ -169,6 +174,7 @@ export async function saveSelfBookingAction(enabled: boolean): Promise<Result> {
       .set({ selfBookingEnabled: Boolean(enabled), updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
     revalidatePath('/settings/practice')
+    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not save booking setting' }
@@ -185,6 +191,7 @@ export async function saveChatWidgetAction(enabled: boolean): Promise<Result> {
       .set({ chatWidgetEnabled: Boolean(enabled), updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
     revalidatePath('/settings/practice')
+    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not save chat setting' }
@@ -208,6 +215,7 @@ export async function savePracticeOpsAction(input: {
       .set({ chairCount, recallDefaultMonths, lapsedAfterMonths, updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
     revalidatePath('/settings/practice')
+    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     revalidatePath('/appointments')
     return { ok: true }
   } catch (err) {

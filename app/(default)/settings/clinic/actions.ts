@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { publishRealtime } from '@/lib/services/realtime'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { emailAccount } from '@/lib/db/schema/email'
 import { organization } from '@/lib/db/schema/auth'
@@ -135,6 +136,8 @@ export async function updateClinicProfile(formData: FormData) {
   }
 
   revalidatePath('/settings/clinic')
+  // Live: any teammate viewing settings sees the change without a refresh.
+  await publishRealtime(orgId, 'settings', { section: 'clinic' })
   revalidatePath('/website')
   // 'layout' cascades to every public subpage (/about, /team, /faq, /insurance,
   // /payment-financing, /services/*, …) — without it only the home page

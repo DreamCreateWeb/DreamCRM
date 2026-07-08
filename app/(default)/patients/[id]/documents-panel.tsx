@@ -9,7 +9,12 @@ import {
   isImageDocument,
   type PatientDocumentRow,
 } from '@/lib/types/patient-documents'
-import { uploadPatientDocumentAction, deletePatientDocumentAction } from '../actions'
+import {
+  uploadPatientDocumentAction,
+  deletePatientDocumentAction,
+  listPatientDocumentsAction,
+} from '../actions'
+import { useRealtime } from '@/components/realtime/realtime-provider'
 
 /**
  * Documents panel on the patient detail. Upload a PDF or image (referral
@@ -30,6 +35,16 @@ export default function DocumentsPanel({
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Live: another tab or teammate shared/removed a file for THIS patient →
+  // re-pull the list so it appears/disappears on its own. Filtered by patientId
+  // so a change on a different patient's record doesn't refetch here.
+  useRealtime('documents', (e) => {
+    if (e.patientId !== patientId) return
+    listPatientDocumentsAction(patientId).then((res) => {
+      if (res.ok) setDocs(res.documents)
+    })
+  })
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]

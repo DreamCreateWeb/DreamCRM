@@ -119,6 +119,16 @@ export async function addPatientDocument(input: AddPatientDocumentInput): Promis
     label,
     createdAt,
   })
+
+  // Live-push so an open patient record (staff detail + the patient's own
+  // portal) shows the new file the instant it's shared — best-effort.
+  try {
+    const { publishRealtime } = await import('@/lib/services/realtime')
+    await publishRealtime(input.organizationId, 'documents', { patientId: input.patientId, action: 'added' })
+  } catch {
+    /* best-effort */
+  }
+
   return {
     id,
     fileName,
@@ -133,7 +143,7 @@ export async function addPatientDocument(input: AddPatientDocumentInput): Promis
 
 /** Soft-delete a document (the S3 object is left in place). */
 export async function deletePatientDocument(organizationId: string, documentId: string): Promise<void> {
-  await db
+  const removed = await db
     .update(schema.patientDocument)
     .set({ deletedAt: new Date() })
     .where(
@@ -142,4 +152,15 @@ export async function deletePatientDocument(organizationId: string, documentId: 
         eq(schema.patientDocument.organizationId, organizationId),
       ),
     )
+    .returning({ patientId: schema.patientDocument.patientId })
+
+  const patientId = removed[0]?.patientId
+  if (patientId) {
+    try {
+      const { publishRealtime } = await import('@/lib/services/realtime')
+      await publishRealtime(organizationId, 'documents', { patientId, action: 'removed' })
+    } catch {
+      /* best-effort */
+    }
+  }
 }

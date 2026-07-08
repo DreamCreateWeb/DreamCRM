@@ -22,6 +22,7 @@ import {
   sniffPatientDocument,
   addPatientDocument,
   deletePatientDocument,
+  listPatientDocuments,
   type PatientDocumentRow,
 } from '@/lib/services/patient-documents'
 import {
@@ -248,6 +249,17 @@ export async function deletePatientDocumentAction(
   await deletePatientDocument(ctx.organizationId, documentId)
   revalidatePath(`/patients/${patientId}`)
   return { ok: true }
+}
+
+/** Re-fetch a patient's documents — called by the panel when a realtime
+ *  `documents` event lands (another tab/user shared or removed a file). */
+export async function listPatientDocumentsAction(
+  patientId: string,
+): Promise<{ ok: true; documents: PatientDocumentRow[] } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can view documents' }
+  const documents = await listPatientDocuments(ctx.organizationId, patientId)
+  return { ok: true, documents }
 }
 
 // ---------- Merge ----------
