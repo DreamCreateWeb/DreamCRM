@@ -21,6 +21,13 @@ export const maxDuration = 300
 export async function GET(): Promise<Response> {
   const ctx = await requireTenant()
   const orgId = ctx.organizationId
+  // Staff see org-wide events; a PATIENT must only ever receive events scoped to
+  // THEIR OWN record (their patientId) or targeted at them (their userId) —
+  // never another patient's or a staff notification. This filter is enforced
+  // server-side so other patients' event metadata never crosses the wire.
+  const isPatient = ctx.tenantType === 'patient'
+  const myPatientId = ctx.patientId
+  const myUserId = ctx.userId
 
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) {
@@ -67,9 +74,22 @@ export async function GET(): Promise<Response> {
       client.on('notification', (msg) => {
         if (!msg.payload) return
         try {
-          const parsed = JSON.parse(msg.payload) as { orgId?: string }
+          const parsed = JSON.parse(msg.payload) as {
+            orgId?: string
+            userId?: string | null
+            patientId?: string | null
+          }
           // Tenant isolation: only forward events for THIS connection's org.
           if (parsed.orgId !== orgId) return
+          // Patient isolation: a patient only receives their own patient-scoped
+          // events or events explicitly targeted at their user — never another
+          // patient's message/document event or a staff notification.
+          if (isPatient) {
+            const forMe =
+              (!!parsed.userId && parsed.userId === myUserId) ||
+              (!!parsed.patientId && !!myPatientId && parsed.patientId === myPatientId)
+            if (!forMe) return
+          }
           safeEnqueue(`data: ${msg.payload}\n\n`)
         } catch (err) {
           console.warn('[realtime.stream] bad notify payload', err)

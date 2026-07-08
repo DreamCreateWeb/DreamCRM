@@ -773,7 +773,11 @@ export async function sendMessageToPatient(input: {
   // sent message immediately. Org-scoped, best-effort.
   try {
     const { publishRealtime } = await import('@/lib/services/realtime')
-    await publishRealtime(input.organizationId, 'messages', { threadId, direction: 'outbound' })
+    await publishRealtime(input.organizationId, 'messages', {
+      threadId,
+      patientId: input.patientId,
+      direction: 'outbound',
+    })
   } catch {
     /* best-effort */
   }
@@ -973,7 +977,11 @@ export async function recordInboundMessage(input: {
   // itself goes live via the notifyOrgMembers → notify() → 'notifications' path.
   try {
     const { publishRealtime } = await import('@/lib/services/realtime')
-    await publishRealtime(input.organizationId, 'messages', { threadId, direction: 'inbound' })
+    await publishRealtime(input.organizationId, 'messages', {
+      threadId,
+      patientId: input.patientId,
+      direction: 'inbound',
+    })
   } catch {
     /* best-effort */
   }

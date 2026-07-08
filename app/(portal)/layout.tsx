@@ -22,6 +22,8 @@ import {
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
 import DemoBanner from '@/components/ui/demo-banner'
 import { SkipToContent } from '@/components/ui/skip-to-content'
+import { RealtimeProvider } from '@/components/realtime/realtime-provider'
+import PortalLiveRefresh from '@/components/patient-portal/portal-live-refresh'
 
 /**
  * Patient-portal chrome — the clinic-branded replacement for the Mosaic
@@ -108,7 +110,10 @@ export default async function PortalLayout({ children }: { children: React.React
     : null
 
   return (
-    <>
+    <RealtimeProvider orgId={ctx.organizationId} userId={ctx.userId}>
+      {/* Live updates for the patient — their messages + shared files appear on
+          their own. The stream is patient-scoped server-side (own record only). */}
+      <PortalLiveRefresh />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link
@@ -218,7 +223,7 @@ export default async function PortalLayout({ children }: { children: React.React
 
         <PortalTabBar primary={nav.primary} more={nav.more} brand={brand} />
       </div>
-    </>
+    </RealtimeProvider>
   )
 }
 
