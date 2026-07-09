@@ -16,8 +16,10 @@ import {
   getHuntStats,
   getWinLossReport,
   getPipelineBoard,
+  getPipelineMomentum,
 } from '@/lib/services/prospecting'
 import SalesPipelineBoard from './sales-pipeline-board'
+import MomentumStrip from './momentum-strip'
 import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
 import ProspectDrawer from './prospect-drawer'
 import HuntPanel from './hunt-panel'
@@ -81,21 +83,6 @@ function buildQuery(
   return qs ? `/platform/prospecting?${qs}` : '/platform/prospecting'
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: 'violet' | 'emerald' }) {
-  const valueColor =
-    tone === 'violet'
-      ? 'text-violet-600 dark:text-violet-400'
-      : tone === 'emerald'
-        ? 'text-emerald-600 dark:text-emerald-400'
-        : 'text-gray-800 dark:text-gray-100'
-  return (
-    <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] px-4 py-3 ring-1 ring-[color:var(--color-hairline)]">
-      <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
-      <p className={`mt-1 font-mono-num text-2xl font-bold leading-none ${valueColor}`}>{value.toLocaleString()}</p>
-    </div>
-  )
-}
-
 export default async function ProspectingPage({
   searchParams,
 }: {
@@ -118,7 +105,7 @@ export default async function ProspectingPage({
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list, detail, huntStats, briefing, winLoss, board] = await Promise.all([
+  const [config, funnel, list, detail, huntStats, briefing, winLoss, board, momentum] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
@@ -127,6 +114,7 @@ export default async function ProspectingPage({
     getDailyBriefing(),
     getWinLossReport(),
     getPipelineBoard(),
+    getPipelineMomentum(),
   ])
   const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize))
   const activeStates = config.enabledStates as UsState[]
@@ -189,11 +177,8 @@ export default async function ProspectingPage({
       {/* ── PIPELINE (default): the board is the hero ── */}
       {view === 'pipeline' && (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Tracked" value={board.prospects.tracked} />
-            <Stat label="Communicated" value={board.communicated.count} />
-            <Stat label="Demos upcoming" value={board.demoScheduled.count} tone="violet" />
-            <Stat label="Won" value={funnel.converted} tone="emerald" />
+          <div className="mb-6">
+            <MomentumStrip momentum={momentum} />
           </div>
           <SalesPipelineBoard board={board} />
           {!config.killSwitch && (

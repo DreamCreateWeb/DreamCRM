@@ -320,6 +320,81 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
   }
 }
 
+// ── Pipeline momentum (this-week flow, week-over-week) ──────────────────────
+
+/** One momentum metric: this-week count + the prior week's, for a delta. */
+export interface MomentumMetric {
+  now: number
+  prev: number
+}
+export interface PipelineMomentum {
+  /** Emails the hunter sent + calls you logged. */
+  reachedOut: MomentumMetric
+  /** Replies that came back. */
+  replies: MomentumMetric
+  /** Demos that got a time on the calendar. */
+  demosBooked: MomentumMetric
+  /** Prospects that became paying clinics. */
+  won: MomentumMetric
+}
+
+/**
+ * The machine's FLOW over the trailing 7 days, paired with the 7 days before
+ * it so each number reads as momentum, not just a total. Complements the board
+ * (a snapshot) and the briefing (today's actions): this answers "are we
+ * building?". All windows are rolling from `now` — no timezone bucketing
+ * needed, these are volume counts, not day labels.
+ */
+export async function getPipelineMomentum(opts?: { now?: Date }): Promise<PipelineMomentum> {
+  const now = opts?.now ?? new Date()
+  const DAY = 24 * 60 * 60 * 1000
+  const w1 = new Date(now.getTime() - 7 * DAY) // start of the current week window
+  const w2 = new Date(now.getTime() - 14 * DAY) // start of the prior week window
+
+  // count(*) FILTER split: rows in [w1, now] → cur; rows in [w2, w1) → prev.
+  const split = (col: ReturnType<typeof sql>) => ({
+    cur: sql<number>`count(*) filter (where ${col} >= ${w1})::int`,
+    prev: sql<number>`count(*) filter (where ${col} >= ${w2} and ${col} < ${w1})::int`,
+  })
+
+  const sc = schema.outreachTouchLog.sentAt
+  const [sends = { cur: 0, prev: 0 }] = await db
+    .select(split(sql`${sc}`))
+    .from(schema.outreachTouchLog)
+    .where(and(inArray(schema.outreachTouchLog.channel, ['resend', 'gmail']), sql`${sc} >= ${w2}`))
+
+  const cc = schema.prospectCallLog.createdAt
+  const [calls = { cur: 0, prev: 0 }] = await db
+    .select(split(sql`${cc}`))
+    .from(schema.prospectCallLog)
+    .where(sql`${cc} >= ${w2}`)
+
+  const ec = schema.outreachEvent.occurredAt
+  const [replies = { cur: 0, prev: 0 }] = await db
+    .select(split(sql`${ec}`))
+    .from(schema.outreachEvent)
+    .where(and(eq(schema.outreachEvent.type, 'reply'), sql`${ec} >= ${w2}`))
+
+  const bc = schema.prospectMeeting.bookedAt
+  const [demos = { cur: 0, prev: 0 }] = await db
+    .select(split(sql`${bc}`))
+    .from(schema.prospectMeeting)
+    .where(and(isNotNull(bc), sql`${bc} >= ${w2}`))
+
+  const oc = schema.prospect.outcomeAt
+  const [won = { cur: 0, prev: 0 }] = await db
+    .select(split(sql`${oc}`))
+    .from(schema.prospect)
+    .where(and(eq(schema.prospect.status, 'converted'), isNotNull(oc), sql`${oc} >= ${w2}`))
+
+  return {
+    reachedOut: { now: sends.cur + calls.cur, prev: sends.prev + calls.prev },
+    replies: { now: replies.cur, prev: replies.prev },
+    demosBooked: { now: demos.cur, prev: demos.prev },
+    won: { now: won.cur, prev: won.prev },
+  }
+}
+
 export interface CommItem {
   kind: 'email' | 'call' | 'reply'
   prospectId: string
