@@ -15,7 +15,9 @@ import {
   getProspectingConfig,
   updateProspectingConfig,
   suppressProspect,
+  addManualProspect,
 } from '@/lib/services/prospecting'
+import { logBookedDemo } from '@/lib/services/prospect-meetings'
 import { US_STATES } from '@/lib/types/us-geo'
 import type { CopilotResponse } from '@/lib/prospect-copilot'
 
@@ -23,6 +25,60 @@ async function requirePlatformAdmin() {
   const ctx = await requireTenant()
   if (!ctx.platformAdmin) throw new Error('Forbidden: platform admin only')
   return ctx
+}
+
+// ── Manual add: a clinic the owner cold-called (+ optionally the demo booked) ──
+const addProspectSchema = z.object({
+  name: z.string().trim().min(2, 'Add the practice name').max(200),
+  contactName: z.string().trim().max(160).optional(),
+  phone: z.string().trim().max(40).optional(),
+  email: z.string().trim().max(200).optional(),
+  city: z.string().trim().max(120).optional(),
+  state: z.string().trim().max(2).optional(),
+  websiteUrl: z.string().trim().max(300).optional(),
+  // A local datetime string ("2026-07-14T14:00") from the form's datetime-local
+  // input; blank when they added the clinic without booking a demo yet.
+  demoAt: z.string().trim().optional(),
+  demoNote: z.string().trim().max(1000).optional(),
+})
+
+export async function addProspectAction(
+  raw: unknown,
+): Promise<{ ok: true; prospectId: string; demoLogged: boolean } | { ok: false; error: string }> {
+  const ctx = await requirePlatformAdmin()
+  const parsed = addProspectSchema.safeParse(raw)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the form.' }
+  }
+  const d = parsed.data
+  const { id } = await addManualProspect({
+    name: d.name,
+    contactName: d.contactName || null,
+    phone: d.phone || null,
+    email: d.email || null,
+    city: d.city || null,
+    state: d.state || null,
+    websiteUrl: d.websiteUrl || null,
+  })
+
+  let demoLogged = false
+  if (d.demoAt) {
+    const when = new Date(d.demoAt)
+    if (!Number.isNaN(when.getTime())) {
+      await logBookedDemo({
+        prospectId: id,
+        scheduledAt: when,
+        attendeeName: d.contactName || d.name,
+        attendeeEmail: d.email || null,
+        note: d.demoNote || null,
+        createdByUserId: ctx.userId,
+      })
+      demoLogged = true
+    }
+  }
+
+  revalidatePath('/platform/prospecting')
+  return { ok: true, prospectId: id, demoLogged }
 }
 
 /** Flip the master kill switch (true = everything OFF). */

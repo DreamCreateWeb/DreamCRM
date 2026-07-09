@@ -25,6 +25,50 @@ import { lossReasonForSuppression } from '@/lib/prospect-learnings'
  * header for the scoping rationale).
  */
 
+// ── Manual entry (clinics the owner cold-called, not NPPES discovery) ───────
+
+/**
+ * Add a clinic the owner personally called + is working by hand — the manual
+ * on-ramp into the pipeline (discovery normally only fills it from NPPES). It
+ * lands as a warm, human-sourced lead in the CALL LIST (status 'call_list' +
+ * a demo_request intent), so it shows up alongside the hot inbound ones in the
+ * daily briefing and the working table — but NOT in the auto-enroll pool (that
+ * pulls status='enriched' only), so a hand-worked prospect never gets a cold
+ * drip email. npi + dedupeHash stay null (Postgres allows many null uniques),
+ * so this never collides with a discovered row.
+ */
+export async function addManualProspect(input: {
+  name: string
+  contactName?: string | null
+  phone?: string | null
+  email?: string | null
+  city?: string | null
+  state?: string | null
+  websiteUrl?: string | null
+}): Promise<{ id: string }> {
+  const id = newId('pros')
+  const email = input.email?.trim().toLowerCase() || null
+  const rawSite = input.websiteUrl?.trim() || null
+  const websiteUrl = rawSite ? (/^https?:\/\//.test(rawSite) ? rawSite : `https://${rawSite}`) : null
+  await db.insert(schema.prospect).values({
+    id,
+    name: input.name.trim(),
+    authorizedOfficialName: input.contactName?.trim() || null,
+    phone: input.phone ? input.phone.replace(/\D/g, '') || null : null,
+    email,
+    emailSource: email ? 'manual' : null,
+    city: input.city?.trim() || null,
+    state: input.state?.trim().toUpperCase().slice(0, 2) || null,
+    websiteUrl,
+    status: 'call_list',
+    scoreBand: 'warm',
+    intentSignal: 'demo_request',
+    intentAt: new Date(),
+    intentSummary: 'Added by hand — sourced from an outbound call.',
+  })
+  return { id }
+}
+
 // ── Config (singleton row, resolve-with-defaults) ──────────────────────────
 
 export async function getProspectingConfig(): Promise<ProspectingConfig> {

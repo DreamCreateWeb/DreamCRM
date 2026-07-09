@@ -36,6 +36,7 @@ import { PROSPECT_STATUSES, PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospec
 import type { Tone } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import AddClinicButton from './add-clinic-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -121,11 +122,12 @@ export default async function ProspectingPage({
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
         eyebrow="Platform · Dream Create"
-        title="Prospecting"
-        subtitle="Every dental clinic we can find, scored by how much they need us. Hot prospects get outreach; intent lands them on your call list."
+        title="Sales Pipeline"
+        subtitle="Every clinic we're working — found by the hunter or added by hand — scored by how much they need us. Hot ones get outreach; intent + booked demos land them on your call list."
         actions={
           <div className="flex items-center gap-2">
             <CopilotBar />
+            <AddClinicButton />
             <ActionButton href="/platform/prospecting/call-list" variant={funnel.callList > 0 ? 'primary' : 'secondary'}>
               📞 Call list{funnel.callList > 0 ? ` (${funnel.callList - funnel.converted})` : ''}
             </ActionButton>

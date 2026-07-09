@@ -14,8 +14,8 @@ export default async function SalesPipeline() {
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
         eyebrow="Platform · Dream Create"
-        title="Sales Pipeline"
-        subtitle="Every agency project — website builds, intake forms, content shoots — across all clinics and prospects."
+        title="Projects"
+        subtitle="Every agency project you deliver — website builds, intake forms, content shoots — across all clinics and prospects."
         actions={<NewProjectModal clinics={clinicOptions} />}
       />
 

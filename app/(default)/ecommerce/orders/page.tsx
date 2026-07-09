@@ -13,7 +13,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { formatShortDate } from '@/lib/utils'
 
 export const metadata = {
-  title: 'Sales Pipeline - DreamCRM',
+  title: 'Projects - DreamCRM',
   description: 'Track every agency project across all clinics',
 }
 

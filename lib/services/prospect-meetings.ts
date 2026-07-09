@@ -107,6 +107,44 @@ export async function getOrCreateBookingLink(
   return { token, url: `${APP_URL}/d/${token}` }
 }
 
+/**
+ * Log a demo the OWNER booked directly (e.g. on the cold call that closed it),
+ * rather than the prospect self-booking via /d/<token>. Inserts a 'booked'
+ * meeting with a real time + createdByUserId, so it flows through
+ * getUpcomingMeetings, the demo reminders cron, and the owner bell exactly like
+ * a self-booked one. Not gated by config.booking.enabled — that switch governs
+ * the public self-serve page, not the owner logging their own call outcome.
+ */
+export async function logBookedDemo(input: {
+  prospectId: string
+  scheduledAt: Date
+  attendeeName?: string | null
+  attendeeEmail?: string | null
+  note?: string | null
+  durationMin?: number
+  createdByUserId?: string | null
+}): Promise<{ id: string; token: string }> {
+  const config = await getProspectingConfig()
+  const token = randomUUID().replace(/-/g, '')
+  const id = newId('pmtg')
+  const now = new Date()
+  await db.insert(schema.prospectMeeting).values({
+    id,
+    prospectId: input.prospectId,
+    token,
+    status: 'booked',
+    scheduledAt: input.scheduledAt,
+    durationMin: input.durationMin ?? config.booking.durationMin,
+    hostTimeZone: config.booking.hostTimeZone,
+    attendeeName: input.attendeeName?.trim() || null,
+    attendeeEmail: input.attendeeEmail?.trim().toLowerCase() || null,
+    note: input.note?.trim() || null,
+    createdByUserId: input.createdByUserId ?? null,
+    bookedAt: now,
+  })
+  return { id, token }
+}
+
 export interface BookingView {
   meeting: typeof schema.prospectMeeting.$inferSelect
   prospectName: string
