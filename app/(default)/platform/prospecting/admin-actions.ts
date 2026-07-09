@@ -85,6 +85,8 @@ export async function addProspectAction(raw: unknown): Promise<AddProspectResult
     state: d.state || null,
     websiteUrl: d.websiteUrl || null,
     note: d.note || null,
+    demoBooked: !!d.demoAt,
+    calledByUserId: ctx.userId,
   })
 
   let demoLogged = false

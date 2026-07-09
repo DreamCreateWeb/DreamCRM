@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
@@ -280,6 +280,67 @@ export interface UpcomingMeeting {
   scheduledAt: Date
   hostTimeZone: string
   attendeeEmail: string | null
+}
+
+export interface DemoRow {
+  id: string
+  prospectId: string
+  prospectName: string
+  city: string | null
+  state: string | null
+  scheduledAt: Date
+  status: string
+  attendeeName: string | null
+  attendeeEmail: string | null
+  whenLabel: string
+  href: string
+}
+
+/**
+ * Every demo — upcoming + past — for the "All demos" page. Formats each time in
+ * the host timezone. Split into upcoming vs completed by the caller (past =
+ * scheduledAt ≤ now, regardless of booked/completed/no_show).
+ */
+export async function listDemos(limit = 200): Promise<DemoRow[]> {
+  const rows = await db
+    .select({
+      id: schema.prospectMeeting.id,
+      prospectId: schema.prospectMeeting.prospectId,
+      name: schema.prospect.name,
+      city: schema.prospect.city,
+      state: schema.prospect.state,
+      scheduledAt: schema.prospectMeeting.scheduledAt,
+      status: schema.prospectMeeting.status,
+      hostTimeZone: schema.prospectMeeting.hostTimeZone,
+      attendeeName: schema.prospectMeeting.attendeeName,
+      attendeeEmail: schema.prospectMeeting.attendeeEmail,
+    })
+    .from(schema.prospectMeeting)
+    .innerJoin(schema.prospect, eq(schema.prospect.id, schema.prospectMeeting.prospectId))
+    .where(
+      and(
+        inArray(schema.prospectMeeting.status, ['booked', 'completed', 'no_show']),
+        isNotNull(schema.prospectMeeting.scheduledAt),
+      ),
+    )
+    .orderBy(desc(schema.prospectMeeting.scheduledAt))
+    .limit(limit)
+  return rows.map((r) => {
+    const slot = r.scheduledAt as Date
+    return {
+      id: r.id,
+      prospectId: r.prospectId,
+      prospectName: r.name,
+      city: r.city,
+      state: r.state,
+      scheduledAt: slot,
+      status: r.status,
+      attendeeName: r.attendeeName,
+      attendeeEmail: r.attendeeEmail,
+      whenLabel: formatMeetingTime(slot, r.hostTimeZone || 'America/New_York'),
+      href: `/platform/prospecting?prospect=${r.prospectId}`,
+    }
+  })
 }
 
 export async function getUpcomingMeetings(limit = 20, now: Date = new Date()): Promise<UpcomingMeeting[]> {

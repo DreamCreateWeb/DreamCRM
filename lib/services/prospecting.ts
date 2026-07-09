@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
@@ -49,6 +49,9 @@ export async function addManualProspect(input: {
   /** Free-text call notes — what they said, what they want to see. Seeds the
    *  intent summary + talking points so the deal room + call card have context. */
   note?: string | null
+  /** True when a demo came out of the call (logs the call as demo_booked). */
+  demoBooked?: boolean
+  calledByUserId?: string | null
 }): Promise<{ id: string }> {
   const id = newId('pros')
   const email = input.email?.trim().toLowerCase() || null
@@ -75,6 +78,16 @@ export async function addManualProspect(input: {
     intentAt: new Date(),
     intentSummary: note || 'Added by hand — sourced from an outbound call.',
     talkingPoints: note ? [note] : null,
+  })
+  // A manual add represents a call that already happened — log it so the clinic
+  // correctly shows as "communicated" on the pipeline board (a called clinic is
+  // past the untouched-prospect stage). demo_booked when a demo came out of it.
+  await db.insert(schema.prospectCallLog).values({
+    id: newId('pcall'),
+    prospectId: id,
+    outcome: input.demoBooked ? 'demo_booked' : 'callback',
+    note: note,
+    calledByUserId: input.calledByUserId ?? null,
   })
   return { id }
 }
@@ -115,6 +128,283 @@ export async function findExistingProspect(input: {
     )
     .limit(1)
   return byName ?? null
+}
+
+// ── Pipeline board (the Kanban) ─────────────────────────────────────────────
+
+/** Prospects we treat as closed/off-board (won or lost). */
+const PIPELINE_TERMINAL = ['converted', 'suppressed', 'disqualified', 'not_interested']
+
+export interface PipelineCard {
+  prospectId: string
+  name: string
+  city: string | null
+  state: string | null
+  /** One-line context (a demo time, "Replied", "Emailed", …). */
+  subtitle: string | null
+  href: string
+}
+
+export interface PipelineBoard {
+  /** Untouched leads (not yet communicated or demoed) + the grand total tracked. */
+  prospects: { count: number; tracked: number }
+  communicated: { count: number; cards: PipelineCard[] }
+  demoScheduled: { count: number; cards: PipelineCard[] }
+  demoCompleted: { count: number; cards: PipelineCard[] }
+}
+
+/**
+ * The pipeline board — every active prospect projected onto its FURTHEST stage:
+ *
+ *   Prospects → Communicated → Demo Scheduled → Demo Completed
+ *
+ * Derived purely from data (no stage column, no dragging): a prospect is
+ * "communicated" once it has an AI outreach touch or a logged call; "demo
+ * scheduled" once it has a booked meeting in the future; "demo completed" once
+ * that meeting's time has passed. It moves itself. Won/lost drop off the board.
+ */
+export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }): Promise<PipelineBoard> {
+  const now = opts?.now ?? new Date()
+  const per = opts?.perColumn ?? 6
+  const config = await getProspectingConfig()
+  const hostTz = config.booking.hostTimeZone || 'America/New_York'
+  const fmtWhen = (d: Date) =>
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: hostTz,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(d)
+
+  const p = schema.prospect
+  const detail = `/platform/prospecting?prospect=`
+
+  // Demos joined to active prospects → each prospect's soonest-upcoming or
+  // most-recent-past meeting.
+  const meetings = await db
+    .select({
+      prospectId: schema.prospectMeeting.prospectId,
+      scheduledAt: schema.prospectMeeting.scheduledAt,
+      mstatus: schema.prospectMeeting.status,
+      name: p.name,
+      city: p.city,
+      state: p.state,
+    })
+    .from(schema.prospectMeeting)
+    .innerJoin(p, eq(p.id, schema.prospectMeeting.prospectId))
+    .where(
+      and(
+        inArray(schema.prospectMeeting.status, ['booked', 'completed', 'no_show']),
+        isNotNull(schema.prospectMeeting.scheduledAt),
+        notInArray(p.status, PIPELINE_TERMINAL),
+      ),
+    )
+    .orderBy(desc(schema.prospectMeeting.scheduledAt))
+
+  const upById = new Map<string, { card: PipelineCard; ms: number }>()
+  const doneById = new Map<string, { card: PipelineCard; ms: number }>()
+  for (const m of meetings) {
+    if (!m.scheduledAt) continue
+    const ms = m.scheduledAt.getTime()
+    const card: PipelineCard = {
+      prospectId: m.prospectId,
+      name: m.name,
+      city: m.city,
+      state: m.state,
+      subtitle: fmtWhen(m.scheduledAt),
+      href: `${detail}${m.prospectId}`,
+    }
+    if (ms > now.getTime() && m.mstatus === 'booked') {
+      const cur = upById.get(m.prospectId)
+      if (!cur || ms < cur.ms) upById.set(m.prospectId, { card, ms }) // soonest
+    } else {
+      const cur = doneById.get(m.prospectId)
+      if (!cur || ms > cur.ms) doneById.set(m.prospectId, { card, ms }) // most recent
+    }
+  }
+  // An upcoming demo outranks a past one for the same prospect.
+  upById.forEach((_v, pid) => doneById.delete(pid))
+  const demoIds = new Set<string>([...Array.from(upById.keys()), ...Array.from(doneById.keys())])
+  const scheduledCards = Array.from(upById.values()).sort((a, b) => a.ms - b.ms).map((x) => x.card)
+  const completedCards = Array.from(doneById.values()).sort((a, b) => b.ms - a.ms).map((x) => x.card)
+
+  // Communicated: an AI outreach touch (sent) OR a logged call — minus anyone
+  // already in a demo stage.
+  const commRows = await db
+    .select({
+      id: p.id,
+      name: p.name,
+      city: p.city,
+      state: p.state,
+      intentSignal: p.intentSignal,
+      intentAt: p.intentAt,
+    })
+    .from(p)
+    .where(
+      and(
+        notInArray(p.status, PIPELINE_TERMINAL),
+        or(
+          exists(
+            db
+              .select({ x: sql`1` })
+              .from(schema.outreachTouchLog)
+              .where(
+                and(
+                  eq(schema.outreachTouchLog.prospectId, p.id),
+                  eq(schema.outreachTouchLog.status, 'sent'),
+                ),
+              ),
+          ),
+          exists(
+            db
+              .select({ x: sql`1` })
+              .from(schema.prospectCallLog)
+              .where(eq(schema.prospectCallLog.prospectId, p.id)),
+          ),
+        ),
+      ),
+    )
+    .orderBy(desc(p.intentAt))
+
+  const REPLY_SIGNALS = ['interested', 'question', 'not_interested', 'demo_request', 'reply']
+  const commActive = commRows.filter((r) => !demoIds.has(r.id))
+  const communicatedCards: PipelineCard[] = commActive.slice(0, per).map((r) => ({
+    prospectId: r.id,
+    name: r.name,
+    city: r.city,
+    state: r.state,
+    subtitle: r.intentSignal && REPLY_SIGNALS.includes(r.intentSignal) ? 'Replied' : 'Contacted',
+    href: `${detail}${r.id}`,
+  }))
+
+  const [{ n: activeTotal } = { n: 0 }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(p)
+    .where(notInArray(p.status, PIPELINE_TERMINAL))
+
+  const communicatedCount = commActive.length
+  const untouched = Math.max(0, activeTotal - communicatedCount - scheduledCards.length - completedCards.length)
+
+  return {
+    prospects: { count: untouched, tracked: activeTotal },
+    communicated: { count: communicatedCount, cards: communicatedCards },
+    demoScheduled: { count: scheduledCards.length, cards: scheduledCards.slice(0, per) },
+    demoCompleted: { count: completedCards.length, cards: completedCards.slice(0, per) },
+  }
+}
+
+export interface CommItem {
+  kind: 'email' | 'call' | 'reply'
+  prospectId: string
+  prospectName: string
+  city: string | null
+  title: string
+  detail: string | null
+  at: Date
+  href: string
+}
+
+const CALL_OUTCOME_LABEL: Record<string, string> = {
+  demo_booked: 'Demo booked',
+  callback: 'Spoke — following up',
+  no_answer: 'No answer',
+  voicemail: 'Left a voicemail',
+  not_interested: 'Not interested',
+  won: 'Won',
+}
+
+/**
+ * Every communication that's gone out (or come back) — AI outreach emails,
+ * logged calls, and replies — merged into one reverse-chronological feed for
+ * the "All communications" page.
+ */
+export async function listCommunications(limit = 120): Promise<CommItem[]> {
+  const p = schema.prospect
+  const href = (id: string) => `/platform/prospecting?prospect=${id}`
+
+  const [touches, calls, replies] = await Promise.all([
+    db
+      .select({
+        prospectId: schema.outreachTouchLog.prospectId,
+        name: p.name,
+        city: p.city,
+        subject: schema.outreachTouchLog.subject,
+        channel: schema.outreachTouchLog.channel,
+        at: schema.outreachTouchLog.sentAt,
+      })
+      .from(schema.outreachTouchLog)
+      .innerJoin(p, eq(p.id, schema.outreachTouchLog.prospectId))
+      .where(eq(schema.outreachTouchLog.status, 'sent'))
+      .orderBy(desc(schema.outreachTouchLog.sentAt))
+      .limit(limit),
+    db
+      .select({
+        prospectId: schema.prospectCallLog.prospectId,
+        name: p.name,
+        city: p.city,
+        outcome: schema.prospectCallLog.outcome,
+        note: schema.prospectCallLog.note,
+        at: schema.prospectCallLog.createdAt,
+      })
+      .from(schema.prospectCallLog)
+      .innerJoin(p, eq(p.id, schema.prospectCallLog.prospectId))
+      .orderBy(desc(schema.prospectCallLog.createdAt))
+      .limit(limit),
+    db
+      .select({
+        prospectId: schema.outreachEvent.prospectId,
+        name: p.name,
+        city: p.city,
+        at: schema.outreachEvent.occurredAt,
+      })
+      .from(schema.outreachEvent)
+      .innerJoin(p, eq(p.id, schema.outreachEvent.prospectId))
+      .where(eq(schema.outreachEvent.type, 'reply'))
+      .orderBy(desc(schema.outreachEvent.occurredAt))
+      .limit(limit),
+  ])
+
+  const items: CommItem[] = []
+  for (const t of touches) {
+    items.push({
+      kind: 'email',
+      prospectId: t.prospectId,
+      prospectName: t.name,
+      city: t.city,
+      title: t.subject,
+      detail: t.channel === 'dry_run' ? 'Dry run — not actually sent' : `Sent via ${t.channel}`,
+      at: t.at as Date,
+      href: href(t.prospectId),
+    })
+  }
+  for (const c of calls) {
+    items.push({
+      kind: 'call',
+      prospectId: c.prospectId,
+      prospectName: c.name,
+      city: c.city,
+      title: CALL_OUTCOME_LABEL[c.outcome] ?? 'Call',
+      detail: c.note,
+      at: c.at as Date,
+      href: href(c.prospectId),
+    })
+  }
+  for (const r of replies) {
+    items.push({
+      kind: 'reply',
+      prospectId: r.prospectId,
+      prospectName: r.name,
+      city: r.city,
+      title: 'They replied',
+      detail: null,
+      at: r.at as Date,
+      href: href(r.prospectId),
+    })
+  }
+  items.sort((a, b) => b.at.getTime() - a.at.getTime())
+  return items.slice(0, limit)
 }
 
 // ── Config (singleton row, resolve-with-defaults) ──────────────────────────

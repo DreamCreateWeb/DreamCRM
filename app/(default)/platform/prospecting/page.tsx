@@ -15,7 +15,9 @@ import {
   getProspectDetail,
   getHuntStats,
   getWinLossReport,
+  getPipelineBoard,
 } from '@/lib/services/prospecting'
+import SalesPipelineBoard from './sales-pipeline-board'
 import { getDailyBriefing } from '@/lib/services/prospecting-briefing'
 import ProspectDrawer from './prospect-drawer'
 import HuntPanel from './hunt-panel'
@@ -37,7 +39,6 @@ import type { Tone } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import AddClinicButton from './add-clinic-button'
-import { KpiStat } from '@/components/ui/kpi-stat'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -102,7 +103,7 @@ export default async function ProspectingPage({
   }
   const page = Math.max(1, Number(params.page) || 1)
 
-  const [config, funnel, list, detail, huntStats, briefing, winLoss] = await Promise.all([
+  const [config, funnel, list, detail, huntStats, briefing, winLoss, board] = await Promise.all([
     getProspectingConfig(),
     getFunnelStats(),
     listProspects(filters, page),
@@ -110,6 +111,7 @@ export default async function ProspectingPage({
     getHuntStats(),
     getDailyBriefing(),
     getWinLossReport(),
+    getPipelineBoard(),
   ])
   const totalPages = Math.max(1, Math.ceil(list.total / list.pageSize))
   const activeStates = config.enabledStates as UsState[]
@@ -162,20 +164,14 @@ export default async function ProspectingPage({
 
       <PipelinePanel report={winLoss} />
 
-      {/* Funnel */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        <KpiStat label="Discovered" value={funnel.discovered} />
-        <KpiStat label="Enriched" value={funnel.enriched} />
-        <KpiStat label="Contacted" value={funnel.contacted} />
-        <KpiStat label="Engaged" value={funnel.engaged} />
-        <KpiStat
-          label="Call list"
-          value={funnel.callList}
-          tone={funnel.callList > 0 ? 'warn' : undefined}
-          sub={funnel.callList > 0 ? 'ready for your call' : undefined}
-        />
-        <KpiStat label="Converted" value={funnel.converted} tone="ok" />
-      </div>
+      {/* Pipeline board — the Kanban. Prospects → Communicated → Demo Scheduled
+          → Demo Completed, each prospect on its furthest stage (data-derived). */}
+      <SalesPipelineBoard board={board} />
+
+      {/* The full working list. The board's "Prospects" column links here. */}
+      <h2 id="prospect-table" className="mb-3 scroll-mt-16 text-lg font-semibold text-gray-800 dark:text-gray-100">
+        All prospects
+      </h2>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
