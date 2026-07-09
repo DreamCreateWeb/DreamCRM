@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listDemos, type DemoRow } from '@/lib/services/prospect-meetings'
+import { prospectInitials } from '@/lib/prospect-when'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -22,20 +23,33 @@ const STATUS_META: Record<string, { tone: 'ok' | 'warn' | 'urgent' | 'info' | 'n
 function DemoRowItem({ d, past }: { d: DemoRow; past: boolean }) {
   const place = [d.city, d.state].filter(Boolean).join(', ')
   const meta = STATUS_META[d.status] ?? { tone: 'neutral' as const, label: d.status }
+  // Upcoming demos read better relative ("Tomorrow · 2:00 PM"); the archive
+  // wants the precise absolute date.
+  const when = past ? d.whenLabel : d.relativeWhen
   return (
     <Link
       href={d.href}
       className="flex items-center justify-between gap-3 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-4 py-3 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition hover:shadow-[inset_0_0_0_1px_var(--color-hairline),0_1px_6px_rgba(0,0,0,0.06)]"
     >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{d.prospectName}</p>
-        <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-          {place || '—'}
-          {d.attendeeName ? ` · ${d.attendeeName}` : ''}
-        </p>
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-xs font-bold text-white ${
+            past ? 'bg-emerald-500' : 'bg-violet-500'
+          }`}
+          aria-hidden="true"
+        >
+          {prospectInitials(d.prospectName)}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{d.prospectName}</p>
+          <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+            {place || '—'}
+            {d.attendeeName ? ` · ${d.attendeeName}` : ''}
+          </p>
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        <span className="text-sm font-medium tabular-nums text-gray-700 dark:text-gray-300">{d.whenLabel}</span>
+        <span className="text-sm font-medium tabular-nums text-gray-700 dark:text-gray-300">{when}</span>
         {past ? <StatusPill tone={meta.tone} label={meta.label} /> : null}
       </div>
     </Link>

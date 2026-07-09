@@ -13,6 +13,7 @@ import {
   googleCalendarLink,
   type DemoSlotConfig,
 } from '@/lib/prospect-booking'
+import { relativeDayTime } from '@/lib/prospect-when'
 
 /**
  * Prospect demo self-booking — the close accelerator. An interested prospect
@@ -292,7 +293,10 @@ export interface DemoRow {
   status: string
   attendeeName: string | null
   attendeeEmail: string | null
+  /** Absolute host-tz time, e.g. "Wed, Jul 10, 2:00 PM" — for the archive. */
   whenLabel: string
+  /** Relative host-tz time, e.g. "Tomorrow · 2:00 PM" — for upcoming demos. */
+  relativeWhen: string
   href: string
 }
 
@@ -338,6 +342,7 @@ export async function listDemos(limit = 200): Promise<DemoRow[]> {
       attendeeName: r.attendeeName,
       attendeeEmail: r.attendeeEmail,
       whenLabel: formatMeetingTime(slot, r.hostTimeZone || 'America/New_York'),
+      relativeWhen: relativeDayTime(slot, r.hostTimeZone || 'America/New_York'),
       href: `/platform/prospecting?prospect=${r.prospectId}`,
     }
   })

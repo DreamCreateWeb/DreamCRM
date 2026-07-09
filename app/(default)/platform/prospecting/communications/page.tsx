@@ -9,10 +9,17 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listCommunications, type CommItem } from '@/lib/services/prospecting'
+import { prospectInitials } from '@/lib/prospect-when'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 
 const KIND_ICON: Record<CommItem['kind'], string> = { email: '✉️', call: '📞', reply: '💬' }
+// Avatar tint by kind — replies (a human reaching back) are the warm signal.
+const KIND_AVATAR: Record<CommItem['kind'], string> = {
+  email: 'bg-sky-500',
+  call: 'bg-gray-400',
+  reply: 'bg-emerald-500',
+}
 
 /** Coarse relative time — no timezone needed, reads well in a feed. */
 function ago(at: Date, now: number): string {
@@ -62,7 +69,15 @@ export default async function CommunicationsPage() {
                   href={c.href}
                   className="flex items-start gap-3 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-4 py-3 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition hover:shadow-[inset_0_0_0_1px_var(--color-hairline),0_1px_6px_rgba(0,0,0,0.06)]"
                 >
-                  <span className="mt-0.5 shrink-0 text-base" aria-hidden="true">{KIND_ICON[c.kind]}</span>
+                  <span
+                    className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-xs font-bold text-white ${KIND_AVATAR[c.kind]}`}
+                    aria-hidden="true"
+                  >
+                    {prospectInitials(c.prospectName)}
+                    <span className="absolute -bottom-1 -right-1 rounded-full bg-[color:var(--color-surface-2)] px-0.5 text-[0.6rem] leading-none">
+                      {KIND_ICON[c.kind]}
+                    </span>
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">

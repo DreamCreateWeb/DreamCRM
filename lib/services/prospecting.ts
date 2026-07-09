@@ -16,7 +16,7 @@ import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
 import { followUpForOutcome } from '@/lib/prospect-followup'
 import { lossReasonForSuppression } from '@/lib/prospect-learnings'
-import { clinicDayKey } from '@/lib/format-datetime'
+import { relativeDayTime } from '@/lib/prospect-when'
 
 /**
  * Prospecting core — Dream Create's own outbound growth engine. Queries,
@@ -178,28 +178,9 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
   const per = opts?.perColumn ?? 6
   const config = await getProspectingConfig()
   const hostTz = config.booking.hostTimeZone || 'America/New_York'
-  // Humanize demo times relative to the host's today: "Today · 2:00 PM",
-  // "Tomorrow · 2:00 PM", a weekday within the coming week, else "Jul 17".
-  // Day math runs on host-tz calendar keys so a 7 PM Central demo isn't
-  // already "tomorrow" in UTC.
-  const dayOrdinal = (key: string) => {
-    const [y, m, d] = key.split('-').map(Number)
-    return Date.UTC(y, m - 1, d) / 86_400_000
-  }
-  const todayOrd = dayOrdinal(clinicDayKey(now, hostTz))
-  const fmtTime = (d: Date) =>
-    new Intl.DateTimeFormat('en-US', { timeZone: hostTz, hour: 'numeric', minute: '2-digit' }).format(d)
-  const fmtWhen = (d: Date) => {
-    const diff = dayOrdinal(clinicDayKey(d, hostTz)) - todayOrd
-    let prefix: string
-    if (diff === 0) prefix = 'Today'
-    else if (diff === 1) prefix = 'Tomorrow'
-    else if (diff === -1) prefix = 'Yesterday'
-    else if (diff > 1 && diff <= 6)
-      prefix = new Intl.DateTimeFormat('en-US', { timeZone: hostTz, weekday: 'short' }).format(d)
-    else prefix = new Intl.DateTimeFormat('en-US', { timeZone: hostTz, month: 'short', day: 'numeric' }).format(d)
-    return `${prefix} · ${fmtTime(d)}`
-  }
+  // Humanize demo times relative to the host's today ("Today · 2:00 PM",
+  // "Tomorrow · …", weekday, else absolute) — shared with the demos page.
+  const fmtWhen = (d: Date) => relativeDayTime(d, hostTz, now)
 
   const p = schema.prospect
   const detail = `/platform/prospecting?prospect=`

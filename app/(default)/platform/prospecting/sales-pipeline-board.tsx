@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { PipelineBoard, PipelineCard } from '@/lib/services/prospecting'
+import { prospectInitials } from '@/lib/prospect-when'
 
 /**
  * The pipeline Kanban — the hero of the Sales Pipeline. Four derived stages a
@@ -25,17 +26,6 @@ const STAGE: Record<string, StageStyle> = {
   completed: { dot: 'bg-emerald-500', accent: 'text-emerald-600 dark:text-emerald-400', avatar: 'bg-emerald-500' },
 }
 
-/** Two-letter monogram from a clinic name (skips filler words like "the"/"of"). */
-function initials(name: string): string {
-  const words = name
-    .replace(/[^a-zA-Z0-9 ]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w && !['the', 'of', 'and', 'a'].includes(w.toLowerCase()))
-  if (words.length === 0) return name.slice(0, 2).toUpperCase()
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
-}
-
 function Card({ card, stage }: { card: PipelineCard; stage: keyof typeof STAGE }) {
   const place = [card.city, card.state].filter(Boolean).join(', ')
   const s = STAGE[stage]
@@ -53,7 +43,7 @@ function Card({ card, stage }: { card: PipelineCard; stage: keyof typeof STAGE }
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-xs font-bold text-white ${s.avatar}`}
         aria-hidden="true"
       >
-        {initials(card.name)}
+        {prospectInitials(card.name)}
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[0.9rem] font-semibold leading-tight text-gray-800 dark:text-gray-100">
