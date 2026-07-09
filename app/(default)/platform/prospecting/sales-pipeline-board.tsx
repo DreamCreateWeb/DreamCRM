@@ -9,37 +9,68 @@ import type { PipelineBoard, PipelineCard } from '@/lib/services/prospecting'
  *
  * Stages are computed from data (touches, calls, meetings, time) — cards move
  * themselves; nothing is dragged. The first column is a headline count (there
- * can be thousands of untouched leads); the rest show live cards + a link to
- * their full page.
+ * can be thousands of untouched leads) with a warmth bar; the rest show live
+ * cards (each with a stage-tinted initials tile) + a link to their full page.
  */
 
 interface StageStyle {
   dot: string
   accent: string
-  ring: string
+  avatar: string
 }
 const STAGE: Record<string, StageStyle> = {
-  prospects: { dot: 'bg-gray-400', accent: 'text-gray-500 dark:text-gray-400', ring: 'hover:ring-gray-300' },
-  communicated: { dot: 'bg-sky-500', accent: 'text-sky-600 dark:text-sky-400', ring: 'hover:ring-sky-300' },
-  scheduled: { dot: 'bg-violet-500', accent: 'text-violet-600 dark:text-violet-400', ring: 'hover:ring-violet-300' },
-  completed: { dot: 'bg-emerald-500', accent: 'text-emerald-600 dark:text-emerald-400', ring: 'hover:ring-emerald-300' },
+  prospects: { dot: 'bg-gray-400', accent: 'text-gray-500 dark:text-gray-400', avatar: 'bg-gray-400' },
+  communicated: { dot: 'bg-sky-500', accent: 'text-sky-600 dark:text-sky-400', avatar: 'bg-sky-500' },
+  scheduled: { dot: 'bg-violet-500', accent: 'text-violet-600 dark:text-violet-400', avatar: 'bg-violet-500' },
+  completed: { dot: 'bg-emerald-500', accent: 'text-emerald-600 dark:text-emerald-400', avatar: 'bg-emerald-500' },
 }
 
-function Card({ card, ring }: { card: PipelineCard; ring: string }) {
+/** Two-letter monogram from a clinic name (skips filler words like "the"/"of"). */
+function initials(name: string): string {
+  const words = name
+    .replace(/[^a-zA-Z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w && !['the', 'of', 'and', 'a'].includes(w.toLowerCase()))
+  if (words.length === 0) return name.slice(0, 2).toUpperCase()
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase()
+}
+
+function Card({ card, stage }: { card: PipelineCard; stage: keyof typeof STAGE }) {
   const place = [card.city, card.state].filter(Boolean).join(', ')
+  const s = STAGE[stage]
+  const soon = card.soon
   return (
     <Link
       href={card.href}
-      className={`block rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-3 py-2.5 ring-1 ring-[color:var(--color-hairline)] transition hover:-translate-y-px hover:shadow-sm ${ring}`}
+      className={`flex items-start gap-2.5 rounded-[var(--r-md)] px-2.5 py-2.5 ring-1 transition hover:-translate-y-px hover:shadow-sm ${
+        soon
+          ? 'bg-violet-50 ring-violet-200 dark:bg-violet-500/10 dark:ring-violet-500/30'
+          : 'bg-[color:var(--color-surface-2)] ring-[color:var(--color-hairline)]'
+      }`}
     >
-      <p className="truncate text-[0.9rem] font-semibold leading-tight text-gray-800 dark:text-gray-100">
-        {card.name}
-      </p>
-      <div className="mt-1 flex items-center justify-between gap-2 text-xs">
-        <span className="truncate text-gray-500 dark:text-gray-400">{place || '—'}</span>
-        {card.subtitle && (
-          <span className="shrink-0 font-medium text-gray-600 dark:text-gray-300">{card.subtitle}</span>
-        )}
+      <span
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-xs font-bold text-white ${s.avatar}`}
+        aria-hidden="true"
+      >
+        {initials(card.name)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[0.9rem] font-semibold leading-tight text-gray-800 dark:text-gray-100">
+          {card.name}
+        </p>
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
+          <span className="truncate text-gray-500 dark:text-gray-400">{place || '—'}</span>
+          {card.subtitle && (
+            <span
+              className={`shrink-0 font-semibold ${
+                soon ? 'text-violet-600 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              {card.subtitle}
+            </span>
+          )}
+        </div>
       </div>
     </Link>
   )
@@ -69,10 +100,10 @@ function Column({
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</h3>
         </div>
         <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-0.5 text-xs font-bold tabular-nums text-gray-600 ring-1 ring-[color:var(--color-hairline)] dark:text-gray-300">
-          {count}
+          {count.toLocaleString()}
         </span>
       </div>
-      <div className="flex-1 space-y-2 px-3.5">{children}</div>
+      <div className="flex flex-1 flex-col gap-2 px-3.5">{children}</div>
       <div className="px-3.5 py-3">
         <Link href={viewAllHref} className={`text-xs font-semibold ${s.accent} hover:underline`}>
           {viewAllLabel} →
@@ -86,10 +117,37 @@ function EmptyHint({ text }: { text: string }) {
   return <p className="px-1 py-6 text-center text-xs text-gray-400 dark:text-gray-500">{text}</p>
 }
 
+/** The waiting-pool warmth bar + legend on the Prospects headline. */
+function WarmthBar({ hot, warm, cool }: { hot: number; warm: number; cool: number }) {
+  const total = hot + warm + cool
+  if (total === 0) return null
+  const pct = (n: number) => `${(n / total) * 100}%`
+  return (
+    <div className="mt-3.5 w-full">
+      <div className="flex h-1.5 w-full overflow-hidden rounded-full">
+        {hot > 0 && <div className="bg-rose-500" style={{ width: pct(hot) }} />}
+        {warm > 0 && <div className="bg-amber-500" style={{ width: pct(warm) }} />}
+        {cool > 0 && <div className="bg-slate-400" style={{ width: pct(cool) }} />}
+      </div>
+      <div className="mt-2 flex justify-center gap-3 text-[0.65rem] text-gray-500 dark:text-gray-400">
+        <span>
+          <b className="tabular-nums text-gray-700 dark:text-gray-200">{hot.toLocaleString()}</b> hot
+        </span>
+        <span>
+          <b className="tabular-nums text-gray-700 dark:text-gray-200">{warm.toLocaleString()}</b> warm
+        </span>
+        <span>
+          <b className="tabular-nums text-gray-700 dark:text-gray-200">{cool.toLocaleString()}</b> cool
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {/* Prospects — a headline count (there can be thousands). */}
+      {/* Prospects — a headline count (there can be thousands) + warmth bar. */}
       <Column stage="prospects" label="Prospects" count={board.prospects.count} viewAllHref="/platform/prospecting?view=prospects" viewAllLabel="Browse the full list">
         <div className="flex h-full flex-col items-center justify-center rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-3 py-6 text-center ring-1 ring-[color:var(--color-hairline)]">
           <p className="font-mono-num text-4xl font-bold leading-none text-gray-800 dark:text-gray-100">
@@ -101,6 +159,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
           <p className="mt-0.5 text-[0.7rem] text-gray-400 dark:text-gray-500">
             {board.prospects.tracked.toLocaleString()} tracked in all
           </p>
+          <WarmthBar hot={board.prospects.hot} warm={board.prospects.warm} cool={board.prospects.cool} />
         </div>
       </Column>
 
@@ -108,7 +167,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
         {board.communicated.cards.length === 0 ? (
           <EmptyHint text="No outreach or calls yet." />
         ) : (
-          board.communicated.cards.map((c) => <Card key={c.prospectId} card={c} ring={STAGE.communicated.ring} />)
+          board.communicated.cards.map((c) => <Card key={c.prospectId} card={c} stage="communicated" />)
         )}
       </Column>
 
@@ -116,7 +175,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
         {board.demoScheduled.cards.length === 0 ? (
           <EmptyHint text="No upcoming demos yet." />
         ) : (
-          board.demoScheduled.cards.map((c) => <Card key={c.prospectId} card={c} ring={STAGE.scheduled.ring} />)
+          board.demoScheduled.cards.map((c) => <Card key={c.prospectId} card={c} stage="scheduled" />)
         )}
       </Column>
 
@@ -124,7 +183,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
         {board.demoCompleted.cards.length === 0 ? (
           <EmptyHint text="No demos have happened yet." />
         ) : (
-          board.demoCompleted.cards.map((c) => <Card key={c.prospectId} card={c} ring={STAGE.completed.ring} />)
+          board.demoCompleted.cards.map((c) => <Card key={c.prospectId} card={c} stage="completed" />)
         )}
       </Column>
     </div>

@@ -143,15 +143,24 @@ export interface PipelineCard {
   /** One-line context (a demo time, "Replied", "Emailed", …). */
   subtitle: string | null
   href: string
+  /** Time-sensitive — a booked demo happening today or tomorrow. */
+  soon?: boolean
 }
 
 export interface PipelineBoard {
-  /** Untouched leads (not yet communicated or demoed) + the grand total tracked. */
-  prospects: { count: number; tracked: number }
+  /**
+   * Untouched leads (not yet communicated or demoed) + the grand total tracked,
+   * plus the warmth breakdown of the waiting pool (hot/warm/cool, cool absorbing
+   * low + unscored) so the count reads as a quality signal, not just a number.
+   */
+  prospects: { count: number; tracked: number; hot: number; warm: number; cool: number }
   communicated: { count: number; cards: PipelineCard[] }
   demoScheduled: { count: number; cards: PipelineCard[] }
   demoCompleted: { count: number; cards: PipelineCard[] }
 }
+
+/** A booked demo this close counts as "soon" — earns the highlight treatment. */
+const SOON_WINDOW_MS = 36 * 60 * 60 * 1000
 
 /**
  * The pipeline board — every active prospect projected onto its FURTHEST stage:
@@ -215,6 +224,7 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
       state: m.state,
       subtitle: fmtWhen(m.scheduledAt),
       href: `${detail}${m.prospectId}`,
+      soon: ms > now.getTime() && ms - now.getTime() <= SOON_WINDOW_MS,
     }
     if (ms > now.getTime() && m.mstatus === 'booked') {
       const cur = upById.get(m.prospectId)
@@ -279,16 +289,31 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
     href: `${detail}${r.id}`,
   }))
 
-  const [{ n: activeTotal } = { n: 0 }] = await db
-    .select({ n: sql<number>`count(*)::int` })
+  // Pull id + band for every active prospect so we can both total them and
+  // tally the warmth of the *untouched* pool (excluding anyone already
+  // communicated or in a demo stage) — a few thousand rows at most.
+  const activeRows = await db
+    .select({ id: p.id, band: p.scoreBand })
     .from(p)
     .where(notInArray(p.status, PIPELINE_TERMINAL))
+  const activeTotal = activeRows.length
+
+  const worked = new Set<string>([...commActive.map((r) => r.id), ...Array.from(demoIds)])
+  let hot = 0
+  let warm = 0
+  let cool = 0 // absorbs cool + low + unscored
+  for (const r of activeRows) {
+    if (worked.has(r.id)) continue
+    if (r.band === 'hot') hot++
+    else if (r.band === 'warm') warm++
+    else cool++
+  }
 
   const communicatedCount = commActive.length
   const untouched = Math.max(0, activeTotal - communicatedCount - scheduledCards.length - completedCards.length)
 
   return {
-    prospects: { count: untouched, tracked: activeTotal },
+    prospects: { count: untouched, tracked: activeTotal, hot, warm, cool },
     communicated: { count: communicatedCount, cards: communicatedCards },
     demoScheduled: { count: scheduledCards.length, cards: scheduledCards.slice(0, per) },
     demoCompleted: { count: completedCards.length, cards: completedCards.slice(0, per) },
