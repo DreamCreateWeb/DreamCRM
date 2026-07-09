@@ -175,7 +175,21 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
         {board.demoScheduled.cards.length === 0 ? (
           <EmptyHint text="No upcoming demos yet." />
         ) : (
-          board.demoScheduled.cards.map((c) => <Card key={c.prospectId} card={c} stage="scheduled" />)
+          board.demoScheduled.cards.map((c) => (
+            <div key={c.prospectId} className="space-y-1">
+              <Card card={c} stage="scheduled" />
+              {c.soon && (
+                // One-tap to the AI prep brief — surfaced only when the demo is
+                // imminent, so it reads as "get ready now", not clutter.
+                <Link
+                  href={`/platform/prospecting/demo/${c.prospectId}`}
+                  className="ml-1.5 inline-flex items-center gap-1 text-[0.7rem] font-semibold text-violet-600 hover:underline dark:text-violet-400"
+                >
+                  🎬 Prep for this demo →
+                </Link>
+              )}
+            </div>
+          ))
         )}
       </Column>
 
