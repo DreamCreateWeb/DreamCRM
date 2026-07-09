@@ -194,7 +194,20 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
         {board.demoCompleted.cards.length === 0 ? (
           <EmptyHint text="No demos have happened yet." />
         ) : (
-          board.demoCompleted.cards.map((c) => <Card key={c.prospectId} card={c} stage="completed" />)
+          board.demoCompleted.cards.map((c) => (
+            // Everyone here is awaiting a verdict — a win converts them off the
+            // board, a pass drops them off with a reason that sharpens the next
+            // pitch. Nudge the outcome so the learning loop never starves.
+            <div key={c.prospectId} className="space-y-1">
+              <Card card={c} stage="completed" />
+              <Link
+                href={c.href}
+                className="ml-1.5 inline-flex items-center gap-1 text-[0.7rem] font-semibold text-amber-600 hover:underline dark:text-amber-400"
+              >
+                🏁 Won it? Log the outcome →
+              </Link>
+            </div>
+          ))
         )}
       </Column>
     </div>
