@@ -136,16 +136,21 @@ export async function findExistingProspect(input: {
 /** Prospects we treat as closed/off-board (won or lost). */
 const PIPELINE_TERMINAL = ['converted', 'suppressed', 'disqualified', 'not_interested']
 
+/** Colors the card's next-step line: what to DO, not just what happened. */
+export type PipelineCardTone = 'due' | 'reply' | 'quiet'
+
 export interface PipelineCard {
   prospectId: string
   name: string
   city: string | null
   state: string | null
-  /** One-line context (a demo time, "Replied", "Emailed", …). */
+  /** One-line next step / context (a demo time, "Replied — call them", …). */
   subtitle: string | null
   href: string
   /** Time-sensitive — a booked demo happening today or tomorrow. */
   soon?: boolean
+  /** Semantic color for the subtitle (Communicated cards' next-step). */
+  tone?: PipelineCardTone
 }
 
 export interface PipelineBoard {
@@ -236,7 +241,10 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
   const completedCards = Array.from(doneById.values()).sort((a, b) => b.ms - a.ms).map((x) => x.card)
 
   // Communicated: an AI outreach touch (sent) OR a logged call — minus anyone
-  // already in a demo stage.
+  // already in a demo stage. We also pull the follow-up state + the most
+  // recent contact so each card can say what to DO next, not just that we
+  // talked. lastContactAt = latest of a sent touch or a logged call (GREATEST
+  // skips nulls in Postgres).
   const commRows = await db
     .select({
       id: p.id,
@@ -245,6 +253,14 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
       state: p.state,
       intentSignal: p.intentSignal,
       intentAt: p.intentAt,
+      nextFollowUpAt: p.nextFollowUpAt,
+      followUpReason: p.followUpReason,
+      lastContactAt: sql<string | null>`GREATEST(
+        (SELECT MAX(${schema.outreachTouchLog.sentAt}) FROM ${schema.outreachTouchLog}
+           WHERE ${schema.outreachTouchLog.prospectId} = ${p.id} AND ${schema.outreachTouchLog.status} = 'sent'),
+        (SELECT MAX(${schema.prospectCallLog.createdAt}) FROM ${schema.prospectCallLog}
+           WHERE ${schema.prospectCallLog.prospectId} = ${p.id})
+      )`,
     })
     .from(p)
     .where(
@@ -273,16 +289,39 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
     )
     .orderBy(desc(p.intentAt))
 
-  const REPLY_SIGNALS = ['interested', 'question', 'not_interested', 'demo_request', 'reply']
   const commActive = commRows.filter((r) => !demoIds.has(r.id))
-  const communicatedCards: PipelineCard[] = commActive.slice(0, per).map((r) => ({
-    prospectId: r.id,
-    name: r.name,
-    city: r.city,
-    state: r.state,
-    subtitle: r.intentSignal && REPLY_SIGNALS.includes(r.intentSignal) ? 'Replied' : 'Contacted',
-    href: `${detail}${r.id}`,
-  }))
+  // A positive inbound signal → they raised a hand; call them. (not_interested
+  // is terminal and already filtered out, so it's not here.)
+  const POSITIVE_REPLY = ['interested', 'question', 'demo_request', 'reply']
+  const DAY_MS = 24 * 60 * 60 * 1000
+  // Compact so it fits the narrow column; the tone carries the urgency.
+  const nextStep = (r: (typeof commActive)[number]): { subtitle: string; tone?: PipelineCardTone } => {
+    if (r.nextFollowUpAt && r.nextFollowUpAt.getTime() <= now.getTime()) {
+      const overdue = Math.floor((now.getTime() - r.nextFollowUpAt.getTime()) / DAY_MS)
+      const due = overdue <= 0 ? 'now' : `${overdue}d`
+      return { subtitle: `⏰ Follow up · ${due}`, tone: 'due' }
+    }
+    if (r.intentSignal && POSITIVE_REPLY.includes(r.intentSignal)) {
+      return { subtitle: '📞 Call them', tone: 'reply' }
+    }
+    const last = r.lastContactAt ? new Date(r.lastContactAt) : null
+    const days = last ? Math.floor((now.getTime() - last.getTime()) / DAY_MS) : null
+    if (days !== null && days >= 7) return { subtitle: `${days}d quiet`, tone: 'quiet' }
+    if (days !== null && days >= 1) return { subtitle: `Sent · ${days}d` }
+    return { subtitle: 'Sent today' }
+  }
+  const communicatedCards: PipelineCard[] = commActive.slice(0, per).map((r) => {
+    const step = nextStep(r)
+    return {
+      prospectId: r.id,
+      name: r.name,
+      city: r.city,
+      state: r.state,
+      subtitle: step.subtitle,
+      tone: step.tone,
+      href: `${detail}${r.id}`,
+    }
+  })
 
   // Pull id + band for every active prospect so we can both total them and
   // tally the warmth of the *untouched* pool (excluding anyone already

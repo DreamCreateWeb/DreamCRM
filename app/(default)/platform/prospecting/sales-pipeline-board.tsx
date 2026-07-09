@@ -26,10 +26,23 @@ const STAGE: Record<string, StageStyle> = {
   completed: { dot: 'bg-emerald-500', accent: 'text-emerald-600 dark:text-emerald-400', avatar: 'bg-emerald-500' },
 }
 
+// Next-step tone → subtitle color. 'due' is the only urgent one (amber);
+// 'reply' is a hot hand-raiser (teal); 'quiet' is a cooling lead (muted).
+const TONE_TEXT: Record<NonNullable<PipelineCard['tone']>, string> = {
+  due: 'text-amber-600 dark:text-amber-400',
+  reply: 'text-teal-600 dark:text-teal-400',
+  quiet: 'text-gray-400 dark:text-gray-500',
+}
+
 function Card({ card, stage }: { card: PipelineCard; stage: keyof typeof STAGE }) {
   const place = [card.city, card.state].filter(Boolean).join(', ')
   const s = STAGE[stage]
   const soon = card.soon
+  const subtitleClass = soon
+    ? 'text-violet-600 dark:text-violet-400'
+    : card.tone
+      ? TONE_TEXT[card.tone]
+      : 'text-gray-600 dark:text-gray-300'
   return (
     <Link
       href={card.href}
@@ -52,13 +65,7 @@ function Card({ card, stage }: { card: PipelineCard; stage: keyof typeof STAGE }
         <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
           <span className="truncate text-gray-500 dark:text-gray-400">{place || '—'}</span>
           {card.subtitle && (
-            <span
-              className={`shrink-0 font-semibold ${
-                soon ? 'text-violet-600 dark:text-violet-400' : 'text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              {card.subtitle}
-            </span>
+            <span className={`shrink-0 font-semibold ${subtitleClass}`}>{card.subtitle}</span>
           )}
         </div>
       </div>
