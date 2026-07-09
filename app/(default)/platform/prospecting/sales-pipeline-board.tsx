@@ -2,63 +2,79 @@ import Link from 'next/link'
 import type { PipelineBoard, PipelineCard } from '@/lib/services/prospecting'
 
 /**
- * The pipeline Kanban. Four derived stages a prospect flows through —
- * Prospects → Communicated → Demo Scheduled → Demo Completed — each showing the
- * top few cards plus a link to its full page. Stages are computed from data
- * (touches, calls, meetings, time), so cards move themselves; nothing is
- * dragged. The first column is a pure count (there can be thousands of
- * untouched leads); the rest show live cards.
+ * The pipeline Kanban — the hero of the Sales Pipeline. Four derived stages a
+ * prospect flows through, each prospect on its FURTHEST reached stage:
+ *
+ *   Prospects → Communicated → Demo Scheduled → Demo Completed
+ *
+ * Stages are computed from data (touches, calls, meetings, time) — cards move
+ * themselves; nothing is dragged. The first column is a headline count (there
+ * can be thousands of untouched leads); the rest show live cards + a link to
+ * their full page.
  */
 
-const COLUMN_TONE: Record<string, string> = {
-  prospects: 'border-t-gray-300 dark:border-t-gray-600',
-  communicated: 'border-t-sky-400',
-  scheduled: 'border-t-violet-400',
-  completed: 'border-t-emerald-400',
+interface StageStyle {
+  dot: string
+  accent: string
+  ring: string
+}
+const STAGE: Record<string, StageStyle> = {
+  prospects: { dot: 'bg-gray-400', accent: 'text-gray-500 dark:text-gray-400', ring: 'hover:ring-gray-300' },
+  communicated: { dot: 'bg-sky-500', accent: 'text-sky-600 dark:text-sky-400', ring: 'hover:ring-sky-300' },
+  scheduled: { dot: 'bg-violet-500', accent: 'text-violet-600 dark:text-violet-400', ring: 'hover:ring-violet-300' },
+  completed: { dot: 'bg-emerald-500', accent: 'text-emerald-600 dark:text-emerald-400', ring: 'hover:ring-emerald-300' },
 }
 
-function Card({ card }: { card: PipelineCard }) {
+function Card({ card, ring }: { card: PipelineCard; ring: string }) {
   const place = [card.city, card.state].filter(Boolean).join(', ')
   return (
     <Link
       href={card.href}
-      className="block rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-3 py-2 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition hover:shadow-[inset_0_0_0_1px_var(--color-hairline),0_1px_6px_rgba(0,0,0,0.06)]"
+      className={`block rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-3 py-2.5 ring-1 ring-[color:var(--color-hairline)] transition hover:-translate-y-px hover:shadow-sm ${ring}`}
     >
-      <p className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">{card.name}</p>
-      <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
-        <span className="truncate">{place || '—'}</span>
-        {card.subtitle && <span className="shrink-0 font-medium text-gray-600 dark:text-gray-300">{card.subtitle}</span>}
+      <p className="truncate text-[0.9rem] font-semibold leading-tight text-gray-800 dark:text-gray-100">
+        {card.name}
+      </p>
+      <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+        <span className="truncate text-gray-500 dark:text-gray-400">{place || '—'}</span>
+        {card.subtitle && (
+          <span className="shrink-0 font-medium text-gray-600 dark:text-gray-300">{card.subtitle}</span>
+        )}
       </div>
     </Link>
   )
 }
 
 function Column({
-  toneKey,
+  stage,
   label,
   count,
-  children,
   viewAllHref,
   viewAllLabel,
+  children,
 }: {
-  toneKey: string
+  stage: keyof typeof STAGE
   label: string
   count: number
-  children: React.ReactNode
   viewAllHref: string
   viewAllLabel: string
+  children: React.ReactNode
 }) {
+  const s = STAGE[stage]
   return (
-    <div className={`flex flex-col rounded-[var(--r-lg)] border-t-[3px] bg-[color:var(--color-surface-sunk)] ${COLUMN_TONE[toneKey]}`}>
-      <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</h3>
-        <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-600 dark:text-gray-300 shadow-[inset_0_0_0_1px_var(--color-hairline)]">
+    <div className="flex min-h-[16rem] flex-col rounded-[var(--r-lg)] bg-[color:var(--color-surface-sunk)] ring-1 ring-[color:var(--color-hairline)]">
+      <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5 pb-3">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${s.dot}`} aria-hidden="true" />
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</h3>
+        </div>
+        <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-0.5 text-xs font-bold tabular-nums text-gray-600 ring-1 ring-[color:var(--color-hairline)] dark:text-gray-300">
           {count}
         </span>
       </div>
-      <div className="flex-1 space-y-2 px-3">{children}</div>
-      <div className="px-3 py-2.5">
-        <Link href={viewAllHref} className="text-xs font-medium text-teal-600 hover:underline dark:text-teal-400">
+      <div className="flex-1 space-y-2 px-3.5">{children}</div>
+      <div className="px-3.5 py-3">
+        <Link href={viewAllHref} className={`text-xs font-semibold ${s.accent} hover:underline`}>
           {viewAllLabel} →
         </Link>
       </div>
@@ -66,70 +82,51 @@ function Column({
   )
 }
 
+function EmptyHint({ text }: { text: string }) {
+  return <p className="px-1 py-6 text-center text-xs text-gray-400 dark:text-gray-500">{text}</p>
+}
+
 export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) {
   return (
-    <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {/* Prospects — a count (there can be thousands), links to the full list. */}
-      <Column
-        toneKey="prospects"
-        label="Prospects"
-        count={board.prospects.count}
-        viewAllHref="#prospect-table"
-        viewAllLabel="Open the full list"
-      >
-        <div className="rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-3 py-4 text-center shadow-[inset_0_0_0_1px_var(--color-hairline)]">
-          <p className="font-mono-num text-3xl font-bold text-gray-800 dark:text-gray-100">{board.prospects.count}</p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            waiting to be worked · {board.prospects.tracked} tracked in all
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Prospects — a headline count (there can be thousands). */}
+      <Column stage="prospects" label="Prospects" count={board.prospects.count} viewAllHref="/platform/prospecting?view=prospects" viewAllLabel="Browse the full list">
+        <div className="flex h-full flex-col items-center justify-center rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-3 py-6 text-center ring-1 ring-[color:var(--color-hairline)]">
+          <p className="font-mono-num text-4xl font-bold leading-none text-gray-800 dark:text-gray-100">
+            {board.prospects.count.toLocaleString()}
+          </p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            waiting to be worked
+          </p>
+          <p className="mt-0.5 text-[0.7rem] text-gray-400 dark:text-gray-500">
+            {board.prospects.tracked.toLocaleString()} tracked in all
           </p>
         </div>
       </Column>
 
-      <Column
-        toneKey="communicated"
-        label="Communicated"
-        count={board.communicated.count}
-        viewAllHref="/platform/prospecting/communications"
-        viewAllLabel="All communications"
-      >
+      <Column stage="communicated" label="Communicated" count={board.communicated.count} viewAllHref="/platform/prospecting/communications" viewAllLabel="All communications">
         {board.communicated.cards.length === 0 ? (
-          <EmptyHint text="No outreach or calls logged yet." />
+          <EmptyHint text="No outreach or calls yet." />
         ) : (
-          board.communicated.cards.map((c) => <Card key={c.prospectId} card={c} />)
+          board.communicated.cards.map((c) => <Card key={c.prospectId} card={c} ring={STAGE.communicated.ring} />)
         )}
       </Column>
 
-      <Column
-        toneKey="scheduled"
-        label="Demo Scheduled"
-        count={board.demoScheduled.count}
-        viewAllHref="/platform/prospecting/demos"
-        viewAllLabel="All demos"
-      >
+      <Column stage="scheduled" label="Demo Scheduled" count={board.demoScheduled.count} viewAllHref="/platform/prospecting/demos" viewAllLabel="All demos">
         {board.demoScheduled.cards.length === 0 ? (
           <EmptyHint text="No upcoming demos yet." />
         ) : (
-          board.demoScheduled.cards.map((c) => <Card key={c.prospectId} card={c} />)
+          board.demoScheduled.cards.map((c) => <Card key={c.prospectId} card={c} ring={STAGE.scheduled.ring} />)
         )}
       </Column>
 
-      <Column
-        toneKey="completed"
-        label="Demo Completed"
-        count={board.demoCompleted.count}
-        viewAllHref="/platform/prospecting/demos#completed"
-        viewAllLabel="All demos"
-      >
+      <Column stage="completed" label="Demo Completed" count={board.demoCompleted.count} viewAllHref="/platform/prospecting/demos#completed" viewAllLabel="All demos">
         {board.demoCompleted.cards.length === 0 ? (
           <EmptyHint text="No demos have happened yet." />
         ) : (
-          board.demoCompleted.cards.map((c) => <Card key={c.prospectId} card={c} />)
+          board.demoCompleted.cards.map((c) => <Card key={c.prospectId} card={c} ring={STAGE.completed.ring} />)
         )}
       </Column>
     </div>
   )
-}
-
-function EmptyHint({ text }: { text: string }) {
-  return <p className="px-1 py-3 text-xs text-gray-400 dark:text-gray-500">{text}</p>
 }

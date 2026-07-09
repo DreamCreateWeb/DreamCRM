@@ -81,6 +81,21 @@ function buildQuery(
   return qs ? `/platform/prospecting?${qs}` : '/platform/prospecting'
 }
 
+function Stat({ label, value, tone }: { label: string; value: number; tone?: 'violet' | 'emerald' }) {
+  const valueColor =
+    tone === 'violet'
+      ? 'text-violet-600 dark:text-violet-400'
+      : tone === 'emerald'
+        ? 'text-emerald-600 dark:text-emerald-400'
+        : 'text-gray-800 dark:text-gray-100'
+  return (
+    <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] px-4 py-3 ring-1 ring-[color:var(--color-hairline)]">
+      <p className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">{label}</p>
+      <p className={`mt-1 font-mono-num text-2xl font-bold leading-none ${valueColor}`}>{value.toLocaleString()}</p>
+    </div>
+  )
+}
+
 export default async function ProspectingPage({
   searchParams,
 }: {
@@ -119,6 +134,13 @@ export default async function ProspectingPage({
     senderConfigured: Boolean(process.env.OUTREACH_EMAIL_FROM?.trim()),
     gmailConfigured: Boolean(process.env.OUTREACH_GMAIL_ACCOUNT_ID?.trim()),
   }
+  const view = typeof params.view === 'string' ? params.view : 'pipeline'
+  const TABS: Array<[string, string]> = [
+    ['pipeline', 'Pipeline'],
+    ['prospects', 'Prospects'],
+    ['engine', 'Engine'],
+    ['insights', 'Insights'],
+  ]
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -133,18 +155,26 @@ export default async function ProspectingPage({
             <ActionButton href="/platform/prospecting/call-list" variant={funnel.callList > 0 ? 'primary' : 'secondary'}>
               📞 Call list{funnel.callList > 0 ? ` (${funnel.callList - funnel.converted})` : ''}
             </ActionButton>
-            <ActionButton href="/platform/prospecting/sequences" variant="secondary">
-              ✉️ Sequences
-            </ActionButton>
-            <ActionButton href="/platform/prospecting/territory" variant="secondary">
-              🗺️ Territory
-            </ActionButton>
-            <ActionButton href="/platform/prospecting/settings" variant="secondary">
-              ⚙️ Settings
-            </ActionButton>
           </div>
         }
       />
+
+      {/* View tabs — the board is the hero; everything heavy lives behind a tab. */}
+      <div className="mb-6 flex flex-wrap items-center gap-1 border-b border-[color:var(--color-hairline)]">
+        {TABS.map(([v, label]) => (
+          <Link
+            key={v}
+            href={v === 'pipeline' ? '/platform/prospecting' : `/platform/prospecting?view=${v}`}
+            className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition ${
+              view === v
+                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
 
       {config.killSwitch && (
         <div className="mb-6 v2-card border-l-4 border-amber-400 px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
@@ -156,22 +186,50 @@ export default async function ProspectingPage({
         </div>
       )}
 
+      {/* ── PIPELINE (default): the board is the hero ── */}
+      {view === 'pipeline' && (
+        <>
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="Tracked" value={board.prospects.tracked} />
+            <Stat label="Communicated" value={board.communicated.count} />
+            <Stat label="Demos upcoming" value={board.demoScheduled.count} tone="violet" />
+            <Stat label="Won" value={funnel.converted} tone="emerald" />
+          </div>
+          <SalesPipelineBoard board={board} />
+          {!config.killSwitch && (
+            <div className="mt-8">
+              <DailyBriefing briefing={briefing} />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── ENGINE: the hunter's controls + status ── */}
+      {view === 'engine' && (
+        <>
+          {config.focus.state && <FocusBanner state={config.focus.state} />}
+          {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} />}
+          <div className="mt-6 flex flex-wrap gap-2">
+            <ActionButton href="/platform/prospecting/sequences" variant="secondary">
+              ✉️ Sequences
+            </ActionButton>
+            <ActionButton href="/platform/prospecting/territory" variant="secondary">
+              🗺️ Territory
+            </ActionButton>
+            <ActionButton href="/platform/prospecting/settings" variant="secondary">
+              ⚙️ Settings
+            </ActionButton>
+          </div>
+        </>
+      )}
+
+      {/* ── INSIGHTS: win/loss + learning loop ── */}
+      {view === 'insights' && <PipelinePanel report={winLoss} />}
+
+      {/* ── PROSPECTS: the full working list ── */}
+      {view !== 'prospects' ? null : (
+      <>
       {config.focus.state && <FocusBanner state={config.focus.state} />}
-
-      {!config.killSwitch && <DailyBriefing briefing={briefing} />}
-
-      {!config.killSwitch && <HuntPanel stats={huntStats} config={config} env={huntEnv} />}
-
-      <PipelinePanel report={winLoss} />
-
-      {/* Pipeline board — the Kanban. Prospects → Communicated → Demo Scheduled
-          → Demo Completed, each prospect on its furthest stage (data-derived). */}
-      <SalesPipelineBoard board={board} />
-
-      {/* The full working list. The board's "Prospects" column links here. */}
-      <h2 id="prospect-table" className="mb-3 scroll-mt-16 text-lg font-semibold text-gray-800 dark:text-gray-100">
-        All prospects
-      </h2>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -327,8 +385,6 @@ export default async function ProspectingPage({
         </div>
       )}
 
-      {detail && <ProspectDrawer detail={detail} closeHref={buildQuery(params, {})} />}
-
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
@@ -357,6 +413,11 @@ export default async function ProspectingPage({
           </div>
         </div>
       )}
+      </>
+      )}
+
+      {/* Prospect drawer — opens over any view via ?prospect=. */}
+      {detail && <ProspectDrawer detail={detail} closeHref={buildQuery(params, {})} />}
     </div>
   )
 }
