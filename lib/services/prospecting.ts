@@ -13,7 +13,7 @@ import {
   type WinLossReport,
 } from '@/lib/types/prospecting'
 import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
-import { stateZip3Prefixes } from '@/lib/types/us-geo'
+import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
 import { followUpForOutcome } from '@/lib/prospect-followup'
 import { lossReasonForSuppression } from '@/lib/prospect-learnings'
 
@@ -42,14 +42,20 @@ export async function addManualProspect(input: {
   contactName?: string | null
   phone?: string | null
   email?: string | null
+  addressLine1?: string | null
   city?: string | null
   state?: string | null
   websiteUrl?: string | null
+  /** Free-text call notes — what they said, what they want to see. Seeds the
+   *  intent summary + talking points so the deal room + call card have context. */
+  note?: string | null
 }): Promise<{ id: string }> {
   const id = newId('pros')
   const email = input.email?.trim().toLowerCase() || null
   const rawSite = input.websiteUrl?.trim() || null
   const websiteUrl = rawSite ? (/^https?:\/\//.test(rawSite) ? rawSite : `https://${rawSite}`) : null
+  const state = input.state?.trim().toUpperCase().slice(0, 2) || null
+  const note = input.note?.trim() || null
   await db.insert(schema.prospect).values({
     id,
     name: input.name.trim(),
@@ -57,16 +63,58 @@ export async function addManualProspect(input: {
     phone: input.phone ? input.phone.replace(/\D/g, '') || null : null,
     email,
     emailSource: email ? 'manual' : null,
+    addressLine1: input.addressLine1?.trim() || null,
     city: input.city?.trim() || null,
-    state: input.state?.trim().toUpperCase().slice(0, 2) || null,
+    state,
+    // Prospect-facing times (demo confirmation, reminders) render in this tz.
+    timezone: stateTimeZone(state),
     websiteUrl,
     status: 'call_list',
     scoreBand: 'warm',
     intentSignal: 'demo_request',
     intentAt: new Date(),
-    intentSummary: 'Added by hand — sourced from an outbound call.',
+    intentSummary: note || 'Added by hand — sourced from an outbound call.',
+    talkingPoints: note ? [note] : null,
   })
   return { id }
+}
+
+/**
+ * Is this clinic likely already in the pipeline? Checked before a manual add so
+ * the owner doesn't create a duplicate of a discovered (or previously-added)
+ * prospect. Matches on normalized phone first (strongest signal), then on an
+ * exact name + state match. Returns the existing row's headline fields for the
+ * "already in your pipeline — open it?" prompt, or null.
+ */
+export async function findExistingProspect(input: {
+  phone?: string | null
+  name: string
+  state?: string | null
+}): Promise<{ id: string; name: string; city: string | null; status: string } | null> {
+  const cols = {
+    id: schema.prospect.id,
+    name: schema.prospect.name,
+    city: schema.prospect.city,
+    status: schema.prospect.status,
+  }
+  const phone = input.phone ? input.phone.replace(/\D/g, '') : ''
+  if (phone.length >= 7) {
+    const [byPhone] = await db.select(cols).from(schema.prospect).where(eq(schema.prospect.phone, phone)).limit(1)
+    if (byPhone) return byPhone
+  }
+  const name = input.name.trim().toLowerCase()
+  const state = input.state?.trim().toUpperCase().slice(0, 2) || null
+  const [byName] = await db
+    .select(cols)
+    .from(schema.prospect)
+    .where(
+      and(
+        sql`lower(${schema.prospect.name}) = ${name}`,
+        state ? eq(schema.prospect.state, state) : sql`true`,
+      ),
+    )
+    .limit(1)
+  return byName ?? null
 }
 
 // ── Config (singleton row, resolve-with-defaults) ──────────────────────────

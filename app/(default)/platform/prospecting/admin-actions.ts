@@ -16,6 +16,7 @@ import {
   updateProspectingConfig,
   suppressProspect,
   addManualProspect,
+  findExistingProspect,
 } from '@/lib/services/prospecting'
 import { logBookedDemo } from '@/lib/services/prospect-meetings'
 import { US_STATES } from '@/lib/types/us-geo'
@@ -33,32 +34,57 @@ const addProspectSchema = z.object({
   contactName: z.string().trim().max(160).optional(),
   phone: z.string().trim().max(40).optional(),
   email: z.string().trim().max(200).optional(),
+  addressLine1: z.string().trim().max(200).optional(),
   city: z.string().trim().max(120).optional(),
   state: z.string().trim().max(2).optional(),
   websiteUrl: z.string().trim().max(300).optional(),
+  note: z.string().trim().max(2000).optional(),
   // A local datetime string ("2026-07-14T14:00") from the form's datetime-local
   // input; blank when they added the clinic without booking a demo yet.
   demoAt: z.string().trim().optional(),
   demoNote: z.string().trim().max(1000).optional(),
+  // Set true to add anyway after the duplicate warning.
+  force: z.boolean().optional(),
 })
 
-export async function addProspectAction(
-  raw: unknown,
-): Promise<{ ok: true; prospectId: string; demoLogged: boolean } | { ok: false; error: string }> {
+export type AddProspectResult =
+  | { ok: true; prospectId: string; demoLogged: boolean }
+  | {
+      ok: false
+      error: string
+      duplicate?: { id: string; name: string; city: string | null; status: string }
+    }
+
+export async function addProspectAction(raw: unknown): Promise<AddProspectResult> {
   const ctx = await requirePlatformAdmin()
   const parsed = addProspectSchema.safeParse(raw)
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the form.' }
   }
   const d = parsed.data
+
+  // Don't quietly create a second copy of a clinic already in the pipeline.
+  if (!d.force) {
+    const existing = await findExistingProspect({ phone: d.phone, name: d.name, state: d.state })
+    if (existing) {
+      return {
+        ok: false,
+        error: 'This clinic looks like it’s already in your pipeline.',
+        duplicate: existing,
+      }
+    }
+  }
+
   const { id } = await addManualProspect({
     name: d.name,
     contactName: d.contactName || null,
     phone: d.phone || null,
     email: d.email || null,
+    addressLine1: d.addressLine1 || null,
     city: d.city || null,
     state: d.state || null,
     websiteUrl: d.websiteUrl || null,
+    note: d.note || null,
   })
 
   let demoLogged = false
@@ -74,6 +100,11 @@ export async function addProspectAction(
         createdByUserId: ctx.userId,
       })
       demoLogged = true
+      // Pre-warm the AI demo-prep brief so it's ready on /demo/[id] before the
+      // call. Best-effort, fire-and-forget (same pattern as prospect-intent).
+      import('@/lib/services/demo-brief')
+        .then((m) => m.generateDemoBrief(id))
+        .catch(() => {})
     }
   }
 
