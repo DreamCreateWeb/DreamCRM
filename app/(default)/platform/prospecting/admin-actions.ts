@@ -259,6 +259,26 @@ export async function getCallScriptAction(
   return getOrGenerateCallScript(z.string().min(1).parse(prospectId), { force })
 }
 
+/** 🎭 Practice mode: the AI's next line as the prospect's front desk. */
+export async function practiceReplyAction(
+  prospectId: string,
+  transcript: unknown,
+): Promise<import('@/lib/services/practice-call').PracticeReplyResult> {
+  await requirePlatformAdmin()
+  const { practiceReply } = await import('@/lib/services/practice-call')
+  return practiceReply(z.string().min(1).parse(prospectId), transcript)
+}
+
+/** 🎭 Practice mode: end-of-rehearsal coaching. */
+export async function practiceFeedbackAction(
+  prospectId: string,
+  transcript: unknown,
+): Promise<import('@/lib/services/practice-call').PracticeFeedbackResult> {
+  await requirePlatformAdmin()
+  const { practiceFeedback } = await import('@/lib/services/practice-call')
+  return practiceFeedback(z.string().min(1).parse(prospectId), transcript)
+}
+
 /** Manually suppress a prospect (permanent; stops any live enrollment). */
 export async function suppressProspectAction(prospectId: string, reason?: string): Promise<void> {
   await requirePlatformAdmin()

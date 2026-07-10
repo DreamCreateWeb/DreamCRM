@@ -8,6 +8,7 @@ import type { CallQueueItem } from '@/lib/services/prospecting'
 import type { CallScript } from '@/lib/types/call-script'
 import { prospectInitials } from '@/lib/prospect-when'
 import { Stage } from '../stage'
+import PracticePanel from './practice-panel'
 import {
   getCallScriptAction,
   logCallOutcomeAction,
@@ -79,6 +80,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
   const [attendeeEmail, setAttendeeEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [rehearsing, setRehearsing] = useState(false)
 
   const item = idx < items.length ? items[idx] : null
   const done = idx >= items.length
@@ -345,6 +347,14 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
             </p>
           )}
 
+          <button
+            type="button"
+            onClick={() => setRehearsing(true)}
+            className="mt-3 w-full rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] px-3 py-2 text-xs font-bold text-gray-600 ring-1 ring-[color:var(--color-hairline)] transition hover:ring-gray-400 dark:text-gray-300"
+          >
+            🎭 Nervous? Rehearse it first
+          </button>
+
           {hasSignals && (
             <div className="mt-4 border-t border-[color:var(--color-hairline)] pt-3">
               <p className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
@@ -544,6 +554,10 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           Keys 1–5 log outcomes · callbacks, voicemails, and no-answers schedule their own follow-up — nothing drops.
         </p>
       </div>
+
+      {rehearsing && (
+        <PracticePanel prospectId={item.id} prospectName={item.name} onClose={() => setRehearsing(false)} />
+      )}
     </div>
   )
 }
