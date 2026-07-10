@@ -1013,6 +1013,22 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
         await bumpProspectingCounter(month, 'ai_email')
       }
 
+      // Self-booking close: from touch 2 on (never front-load the ask in the
+      // opener), let a warmed-up prospect skip the phone entirely — their
+      // stable /d/<token> link books straight into the owner's calendar.
+      // getOrCreateBookingLink returns null while booking is disabled; any
+      // failure just sends the email without the line.
+      if (step >= 2) {
+        const booking = await import('./prospect-meetings')
+          .then((m) => m.getOrCreateBookingLink(p.id))
+          .catch(() => null)
+        if (booking) {
+          personalized.paragraphs.push(
+            `If it's easier, you can skip the back-and-forth and grab a demo time directly: ${booking.url}`,
+          )
+        }
+      }
+
       // Atomic claim — the unique(enrollmentId, stepNumber) insert. A
       // concurrent run losing this race skips silently (the winner sends).
       const touchLogId = newId('otch')
