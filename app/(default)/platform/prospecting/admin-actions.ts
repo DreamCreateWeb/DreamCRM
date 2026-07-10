@@ -199,6 +199,19 @@ export async function generateDemoBriefAction(
   return { ok: brief !== null }
 }
 
+/** Draft an AI post-demo follow-up email for a prospect (owner-initiated,
+ *  never auto-sent; an optional note on how the demo went steers it). */
+export async function draftDemoFollowupAction(
+  prospectId: string,
+  note?: string,
+): Promise<import('@/lib/services/demo-followup').DemoFollowupResult> {
+  await requirePlatformAdmin()
+  const { generateDemoFollowup } = await import('@/lib/services/demo-followup')
+  return generateDemoFollowup(z.string().min(1).parse(prospectId), {
+    note: typeof note === 'string' ? note : undefined,
+  })
+}
+
 /** Manually suppress a prospect (permanent; stops any live enrollment). */
 export async function suppressProspectAction(prospectId: string, reason?: string): Promise<void> {
   await requirePlatformAdmin()

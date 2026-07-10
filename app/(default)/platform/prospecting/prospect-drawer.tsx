@@ -16,6 +16,7 @@ import {
   type VendorCategory,
 } from '@/lib/prospect-vendors'
 import DrawerActions from './drawer-actions'
+import DemoFollowupDrafter from './demo-followup-drafter'
 import ContactsPanel from './contacts-panel'
 
 /**
@@ -263,6 +264,12 @@ export default function ProspectDrawer({
               ))}
             </ul>
           </div>
+        )}
+
+        {/* Post-demo follow-up drafter — surfaced once we've actually engaged
+            them (touched, called, or a demo brief exists). */}
+        {(detail.touches.length > 0 || detail.calls.length > 0 || Boolean(p.demoBrief)) && (
+          <DemoFollowupDrafter prospectId={p.id} />
         )}
 
         <DrawerActions
