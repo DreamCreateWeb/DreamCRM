@@ -60,6 +60,15 @@ export default async function CommunicationsPage() {
           body="Once the hunter emails a prospect, you log a call, or a reply lands, it shows up here."
         />
       ) : (
+        <>
+        <div className="mb-2.5 flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            🛰 The feed
+          </span>
+          <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 dark:text-gray-400">
+            {items.length}
+          </span>
+        </div>
         <ol className="space-y-2">
           {items.map((c, i) => {
             const place = c.city ? ` · ${c.city}` : ''
@@ -94,6 +103,7 @@ export default async function CommunicationsPage() {
             )
           })}
         </ol>
+        </>
       )}
     </div>
   )

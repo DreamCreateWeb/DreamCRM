@@ -5,6 +5,7 @@ import type { DemoBrief } from '@/lib/types/demo-brief'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { generateDemoBriefAction } from '../../admin-actions'
+import { Stage } from '../../stage'
 
 const WEIGHT_LABEL: Record<string, { label: string; tone: 'special' | 'neutral' | 'info' }> = {
   lead: { label: 'LEAD WITH THIS', tone: 'special' },
@@ -77,21 +78,16 @@ export default function BriefPanel({
         </div>
       </div>
 
-      <blockquote
-        className="border-l-4 pl-3 text-base font-medium text-gray-900 dark:text-gray-100"
-        style={{ borderColor: 'var(--demo-accent, #2dd4bf)' }}
-      >
-        &ldquo;{brief.openingLine}&rdquo;
-      </blockquote>
+      <Stage n={1} tone="teal" label="Open with">
+        <p className="text-[1.05rem] font-medium leading-relaxed text-gray-900 dark:text-gray-100">
+          &ldquo;{brief.openingLine}&rdquo;
+        </p>
+      </Stage>
 
-      <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{brief.walkUpStory}</p>
-
-      {brief.beatEmphasis.length > 0 && (
-        <div className="mt-4">
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-            Beat emphasis
-          </div>
-          <ul className="space-y-1.5">
+      <Stage n={2} tone="gray" label="The walk-up story">
+        <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">{brief.walkUpStory}</p>
+        {brief.beatEmphasis.length > 0 && (
+          <ul className="mt-2.5 space-y-1.5">
             {brief.beatEmphasis.map((e) => (
               <li key={e.beatId} className="flex items-start gap-2 text-sm">
                 <StatusPill
@@ -108,15 +104,9 @@ export default function BriefPanel({
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {ammoByBeat.size > 0 && (
-        <div className="mt-4">
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-            Land these points
-          </div>
-          <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+        )}
+        {ammoByBeat.size > 0 && (
+          <ul className="mt-2.5 space-y-1 text-sm text-gray-700 dark:text-gray-300">
             {Array.from(ammoByBeat.entries()).map(([beatId, points]) => (
               <li key={beatId}>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
@@ -126,31 +116,30 @@ export default function BriefPanel({
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </Stage>
 
       {brief.objections.length > 0 && (
-        <div className="mt-4">
-          <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-            Likely objections
-          </div>
-          <ul className="space-y-2">
+        <Stage n={3} tone="gray" label="If they say…">
+          <div className="space-y-1.5">
             {brief.objections.map((o, i) => (
-              <li key={i} className="text-sm">
-                <div className="font-medium text-gray-900 dark:text-gray-100">
-                  &ldquo;{o.objection}&rdquo;
-                </div>
-                <div className="text-gray-600 dark:text-gray-400">→ {o.response}</div>
-              </li>
+              <div
+                key={i}
+                className="rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] px-3 py-2 text-sm leading-relaxed"
+              >
+                <span className="font-semibold text-gray-800 dark:text-gray-200">&ldquo;{o.objection}&rdquo;</span>
+                <span className="text-gray-600 dark:text-gray-300"> → {o.response}</span>
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
+        </Stage>
       )}
 
-      <div className="mt-4 rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
-        <span className="font-medium text-gray-900 dark:text-gray-100">The ask:</span>{' '}
-        {brief.closingAsk}
-      </div>
+      <Stage n={4} tone="violet" label="The ask">
+        <p className="text-[0.95rem] font-semibold leading-relaxed text-gray-900 dark:text-gray-100">
+          {brief.closingAsk}
+        </p>
+      </Stage>
     </section>
   )
 }

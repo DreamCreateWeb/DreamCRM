@@ -149,7 +149,19 @@ export default function TerritoryTable({
                     {r.total.toLocaleString()}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">
-                    {r.total > 0 ? `${r.workedPct}%` : '—'}
+                    {r.total > 0 ? (
+                      <span className="inline-flex items-center justify-end gap-1.5">
+                        <span className="h-1.5 w-12 overflow-hidden rounded-full bg-[color:var(--color-surface-sunk)]">
+                          <span
+                            className="block h-full rounded-full bg-teal-500"
+                            style={{ width: `${Math.min(100, r.workedPct)}%` }}
+                          />
+                        </span>
+                        {r.workedPct}%
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-rose-600 dark:text-rose-400">
                     {r.hot || '—'}

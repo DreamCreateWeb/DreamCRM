@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { PhoneQueueRow } from '@/lib/services/prospecting'
 import { ratingLabel } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
+import { prospectInitials } from '@/lib/prospect-when'
 
 /**
  * The phone queue — high-value prospects with no deliverable email (the
@@ -14,8 +15,13 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
   if (rows.length === 0) return null
   return (
     <section className="mt-10">
-      <div className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
-        📵 Phone-first queue <span className="text-gray-400">· {rows.length}</span>
+      <div className="mb-1 flex items-center gap-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          📵 Phone-first queue
+        </span>
+        <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 dark:text-gray-400">
+          {rows.length}
+        </span>
       </div>
       <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
         Hot prospects we can&apos;t email — no website, or no address that accepts mail. These are your best cold
@@ -27,7 +33,16 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
             key={r.id}
             className="v2-card p-4 flex flex-wrap items-start justify-between gap-3"
           >
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <span
+                className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-[0.65rem] font-bold text-white ${
+                  r.scoreBand === 'hot' ? 'bg-rose-500' : 'bg-amber-500'
+                }`}
+                aria-hidden="true"
+              >
+                {prospectInitials(r.name)}
+              </span>
+              <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Link
                   href={`/platform/prospecting?prospect=${r.id}`}
@@ -61,6 +76,7 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
                   ))}
                 </ul>
               )}
+              </div>
             </div>
             {r.phone && (
               <a

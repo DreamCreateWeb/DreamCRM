@@ -15,6 +15,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import CallCard from './call-card'
 import PhoneQueue from './phone-queue'
+import { prospectInitials } from '@/lib/prospect-when'
 
 export default async function CallListPage({
   searchParams,
@@ -76,16 +77,29 @@ export default async function CallListPage({
         }
       />
       {meetings.length > 0 && (
-        <div className="mb-6 rounded-xl border border-teal-500/30 bg-teal-500/5 p-4">
-          <div className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">📅 Booked demos</div>
+        <div className="mb-6 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] p-4 ring-1 ring-[color:var(--color-hairline)]">
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+              📅 Booked demos
+            </span>
+            <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-violet-600 dark:text-violet-400">
+              {meetings.length}
+            </span>
+          </div>
           <ul className="space-y-1.5">
             {meetings.map((m) => (
               <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <Link
                   href={`/platform/prospecting?prospect=${m.prospectId}`}
-                  className="font-medium text-gray-900 dark:text-gray-100 hover:text-teal-600 dark:hover:text-teal-400"
+                  className="flex min-w-0 items-center gap-2 font-semibold text-gray-900 dark:text-gray-100 hover:text-teal-600 dark:hover:text-teal-400"
                 >
-                  {m.prospectName}
+                  <span
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-violet-500 text-[0.6rem] font-bold text-white"
+                    aria-hidden="true"
+                  >
+                    {prospectInitials(m.prospectName)}
+                  </span>
+                  <span className="truncate">{m.prospectName}</span>
                 </Link>
                 <span className="tabular-nums text-gray-600 dark:text-gray-300">
                   {formatMeetingTime(m.scheduledAt, m.hostTimeZone)}
@@ -120,6 +134,14 @@ export default async function CallListPage({
         />
       ) : (
         <>
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              🔥 Hand-raisers
+            </span>
+            <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 dark:text-gray-400">
+              {rows.length}
+            </span>
+          </div>
           <div className="space-y-4">
             {rows.map((row) => (
               <div

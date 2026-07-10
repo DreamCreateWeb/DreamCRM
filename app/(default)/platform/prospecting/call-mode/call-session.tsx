@@ -7,6 +7,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import type { CallQueueItem } from '@/lib/services/prospecting'
 import type { CallScript } from '@/lib/types/call-script'
 import { prospectInitials } from '@/lib/prospect-when'
+import { Stage } from '../stage'
 import {
   getCallScriptAction,
   logCallOutcomeAction,
@@ -528,46 +529,6 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
         <p className="mt-2 text-[0.7rem] text-gray-400 dark:text-gray-500">
           Keys 1–5 log outcomes · callbacks, voicemails, and no-answers schedule their own follow-up — nothing drops.
         </p>
-      </div>
-    </div>
-  )
-}
-
-/** One numbered teleprompter stage. */
-function Stage({
-  n,
-  tone,
-  label,
-  children,
-}: {
-  n: number
-  tone: 'teal' | 'gray' | 'violet'
-  label: string
-  children: React.ReactNode
-}) {
-  const toneClass =
-    tone === 'teal'
-      ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
-      : tone === 'violet'
-        ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
-        : 'bg-[color:var(--color-surface-sunk)] text-gray-500 dark:text-gray-400'
-  const labelClass =
-    tone === 'teal'
-      ? 'text-teal-600 dark:text-teal-400'
-      : tone === 'violet'
-        ? 'text-violet-600 dark:text-violet-400'
-        : 'text-gray-500 dark:text-gray-400'
-  return (
-    <div className="grid grid-cols-[26px_1fr] gap-3 border-t border-[color:var(--color-hairline)] py-4 first:border-t-0 first:pt-1 last:pb-1">
-      <span
-        className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${toneClass}`}
-        aria-hidden="true"
-      >
-        {n}
-      </span>
-      <div className="min-w-0">
-        <p className={`mb-1 text-[0.68rem] font-bold uppercase tracking-wider ${labelClass}`}>{label}</p>
-        {children}
       </div>
     </div>
   )

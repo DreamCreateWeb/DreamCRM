@@ -20,7 +20,7 @@ const STATUS_META: Record<string, { tone: 'ok' | 'warn' | 'urgent' | 'info' | 'n
   no_show: { tone: 'urgent', label: 'No-show' },
 }
 
-function DemoRowItem({ d, past }: { d: DemoRow; past: boolean }) {
+function DemoRowItem({ d, past, soon }: { d: DemoRow; past: boolean; soon?: boolean }) {
   const place = [d.city, d.state].filter(Boolean).join(', ')
   const meta = STATUS_META[d.status] ?? { tone: 'neutral' as const, label: d.status }
   // Upcoming demos read better relative ("Tomorrow · 2:00 PM"); the archive
@@ -29,7 +29,11 @@ function DemoRowItem({ d, past }: { d: DemoRow; past: boolean }) {
   return (
     <Link
       href={d.href}
-      className="flex items-center justify-between gap-3 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-4 py-3 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition hover:shadow-[inset_0_0_0_1px_var(--color-hairline),0_1px_6px_rgba(0,0,0,0.06)]"
+      className={`flex items-center justify-between gap-3 rounded-[var(--r-md)] px-4 py-3 transition hover:shadow-[inset_0_0_0_1px_var(--color-hairline),0_1px_6px_rgba(0,0,0,0.06)] ${
+        soon
+          ? 'bg-violet-50 shadow-[inset_0_0_0_1px_#ddd6fe] dark:bg-violet-500/10 dark:shadow-[inset_0_0_0_1px_rgba(139,92,246,.3)]'
+          : 'bg-[color:var(--color-surface-2)] shadow-[inset_0_0_0_1px_var(--color-hairline)]'
+      }`}
     >
       <div className="flex min-w-0 items-center gap-3">
         <span
@@ -49,7 +53,13 @@ function DemoRowItem({ d, past }: { d: DemoRow; past: boolean }) {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        <span className="text-sm font-medium tabular-nums text-gray-700 dark:text-gray-300">{when}</span>
+        <span
+          className={`text-sm font-semibold tabular-nums ${
+            soon ? 'text-violet-600 dark:text-violet-400' : 'text-gray-700 dark:text-gray-300'
+          }`}
+        >
+          {when}
+        </span>
         {past ? <StatusPill tone={meta.tone} label={meta.label} /> : null}
       </div>
     </Link>
@@ -83,23 +93,46 @@ export default async function DemosPage() {
       />
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          Upcoming ({upcoming.length})
+        <h2 className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+            📅 Upcoming
+          </span>
+          <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-violet-600 dark:text-violet-400">
+            {upcoming.length}
+          </span>
         </h2>
         {upcoming.length === 0 ? (
           <EmptyState title="No upcoming demos" body="Book one from a call (＋ Add a clinic) or a prospect's deal room." />
         ) : (
           <div className="space-y-2">
-            {upcoming.map((d) => (
-              <DemoRowItem key={d.id} d={d} past={false} />
-            ))}
+            {upcoming.map((d) => {
+              const soon = d.scheduledAt.getTime() - now <= 36 * 60 * 60 * 1000
+              return (
+                <div key={d.id} className="space-y-1">
+                  <DemoRowItem d={d} past={false} soon={soon} />
+                  {soon && (
+                    <Link
+                      href={`/platform/prospecting/demo/${d.prospectId}`}
+                      className="ml-1.5 inline-flex items-center gap-1 text-[0.7rem] font-semibold text-violet-600 hover:underline dark:text-violet-400"
+                    >
+                      🎬 Prep for this demo →
+                    </Link>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </section>
 
       <section id="completed" className="scroll-mt-16">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          Completed ({completed.length})
+        <h2 className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+            🏁 Completed
+          </span>
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-emerald-600 dark:text-emerald-400">
+            {completed.length}
+          </span>
         </h2>
         {completed.length === 0 ? (
           <EmptyState title="No demos have happened yet" body="Past demos land here automatically once their time passes." />

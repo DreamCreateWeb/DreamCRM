@@ -33,7 +33,14 @@ function TouchCard({ touch }: { touch: SequenceWithTouches['touches'][number] })
   return (
     <div className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <span
+            className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-teal-500/10 text-[0.68rem] font-extrabold text-teal-600 dark:text-teal-400"
+            aria-hidden="true"
+          >
+            {touch.stepNumber}
+          </span>
+          <span>
           Touch {touch.stepNumber}
           <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">
             day {dayOffset}
@@ -60,6 +67,7 @@ function TouchCard({ touch }: { touch: SequenceWithTouches['touches'][number] })
               )}
             </span>
           )}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {saved && <span className="text-xs text-teal-600 dark:text-teal-400">Saved</span>}

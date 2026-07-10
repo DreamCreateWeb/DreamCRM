@@ -18,7 +18,7 @@ import {
 } from '../admin-actions'
 
 const SECTION = 'v2-card p-5 mb-5'
-const SECTION_TITLE = 'text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1'
+const SECTION_TITLE = 'text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5'
 const SECTION_SUB = 'text-xs text-gray-500 dark:text-gray-400 mb-4'
 
 function Toggle({

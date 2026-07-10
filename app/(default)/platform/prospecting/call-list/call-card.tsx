@@ -10,6 +10,7 @@ import {
 } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
+import { prospectInitials } from '@/lib/prospect-when'
 import { logCallOutcomeAction, convertProspectAction, getBookingLinkAction } from '../admin-actions'
 
 // 'not_interested' is handled separately — it opens a loss-reason picker so
@@ -245,9 +246,16 @@ export default function CallCard({ row }: { row: CallListRow }) {
   return (
     <div className="v2-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="flex items-start gap-3">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-teal-600 text-xs font-extrabold text-white"
+            aria-hidden="true"
+          >
+            {prospectInitials(row.name)}
+          </span>
+          <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{row.name}</h2>
+            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">{row.name}</h2>
             {row.intentSignal && (
               <StatusPill
                 tone="special"
@@ -265,6 +273,7 @@ export default function CallCard({ row }: { row: CallListRow }) {
             {[row.authorizedOfficialName, [row.city, row.state].filter(Boolean).join(', ')]
               .filter(Boolean)
               .join(' · ')}
+          </div>
           </div>
         </div>
         <div className="text-right">
