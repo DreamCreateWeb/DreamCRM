@@ -27,14 +27,14 @@ export default async function CallModePage() {
   const queue = await getCallQueue()
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
       <PageHeader
         eyebrow="Platform · Sales Pipeline"
-        title="Call Mode"
-        subtitle="One call at a time. The script's on screen, the outcome is one tap, and the next call loads itself."
+        title="📞 Call Mode"
+        subtitle="One call at a time. The script's on screen, the outcome is one key, and the next call loads itself."
         actions={
-          <ActionButton href="/platform/prospecting/call-list" variant="secondary">
-            ← Call list
+          <ActionButton href="/platform/prospecting" variant="secondary">
+            ✕ End session
           </ActionButton>
         }
       />
