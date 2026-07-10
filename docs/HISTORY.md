@@ -7,6 +7,30 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Anti-cold-call finishers — three closers (2026-07-10).** Owner: "finish
+  anything else you can think of… don't skip over any of the anti cold call
+  features." Three green deploys. **Self-booking in outreach** (`f517f4f`):
+  when `config.booking.enabled`, every outreach touch from step 2 on closes
+  with the prospect's stable `/d/<token>` link ("skip the back-and-forth and
+  grab a demo time directly") — the warmest prospects book themselves and
+  the call never happens; touch 1 stays link-free, gated inside
+  getOrCreateBookingLink, best-effort, appended post-personalization so the
+  URL is never rewritten. **Best-time-to-call** (`708ee5d`):
+  `callWindowScore` (lib/prospect-when.ts, pure + 6 tests) scores the
+  prospect-LOCAL moment 0–3 (prime mid-morning/mid-afternoon · late-pm ·
+  just-opening/lunch · early/evening/weekend; unknown tz stays neutral-good);
+  getCallQueue stable-sorts within buckets so answerable calls lead; the
+  dial zone shows "☀️ good time to call" / "⏳ lunch there". **🎭 Practice
+  mode** (`7cc36f7`): a rehearsal booth in Call Mode — the AI answers the
+  phone as THIS practice's front desk (grounded in name/city/owner + their
+  call script's brush-offs), plays it guarded-but-fair, and on "End + coach
+  me" returns zero-shame coaching (verdict, what worked, what to tighten,
+  quoting the caller's words). lib/services/practice-call.ts (haiku, metered
+  ai_practice, 24-turn zod cap, nothing stored), practice-panel.tsx chat
+  booth, +7 tests (suite 247). The full anti-cold-call arsenal: hunter
+  emails warm them → self-booking closes without a call → Call Mode scripts
+  + warm signals + call windows + rehearsal handle the calls that remain.
+
 - **Cockpit UI overhauls — Call Mode + the whole pipeline (2026-07-10).**
   Owner: "the UI could use an overhaul as well… I also want the same
   overhaul for the entire sales pipeline." Two green deploys, pure
