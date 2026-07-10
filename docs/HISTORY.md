@@ -28,8 +28,16 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   mono pills), tabs gain icons + a live tracked-count pill, and the
   prospects table gets warmth-tinted monogram tiles (hot rose / warm
   amber / cool sky) so every pipeline surface speaks one avatar language.
-  Design iterated on token-accurate static mocks rendered w/ headless
-  Chromium before porting.
+  **Sub-pages pass** (`39e6aa2`): every remaining page joins — call list
+  (teal card monograms, violet booked-demos panel, hand-raisers label,
+  warmth-tinted phone queue), demos (tinted micro-label headers + count
+  pills, ≤36h violet soon-tint + prep link), communications (feed label),
+  the demo prep brief REBUILT as the numbered teleprompter ①→④ via a new
+  shared `<Stage>` primitive (`stage.tsx`, Call Mode deduped onto it),
+  sequences (teal numbered touch circles), territory (worked-% mini
+  progress bars), settings (all 8 titles → the micro-label style via the
+  single SECTION_TITLE constant). Design iterated on token-accurate static
+  mocks rendered w/ headless Chromium before porting.
 
 - **Call Mode — the anti-cold-call cockpit (2026-07-10).** Owner: "where I
   struggle the most is cold calls… I hate making cold calls… I want
