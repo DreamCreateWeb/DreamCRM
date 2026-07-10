@@ -9,21 +9,34 @@ import type { ProspectAiVerdict } from '@/lib/types/prospecting'
 import { bumpProspectingCounter, counterMonth, getProspectingConfig } from './prospecting'
 
 /**
- * The AI post-demo follow-up drafter — the close accelerator. After a demo,
- * the money move is a fast, personalized follow-up; this drafts one from the
- * prospect's real context (their gaps, the objections the pre-demo brief
- * anticipated, and an optional one-line note on how the demo actually went).
+ * The AI post-demo follow-up drafter + debrief — the close-and-learn
+ * accelerator. From the prospect's real context (their gaps, the objections
+ * the pre-demo brief anticipated) plus the owner's one-line note on how the
+ * demo went, it BOTH drafts a personalized follow-up email AND reads the note
+ * for the likely outcome (won / still deciding / a pass + why) — a SUGGESTION
+ * the owner confirms with one click, feeding the win/loss learning loop.
  *
  * Owner-initiated (a button in the deal room), NOT the cron engine — so no
  * kill-switch / dry-run gate. Cheap haiku, metered on ai_demo_followup. We
- * NEVER auto-send: the draft is copied into the owner's own inbox. Nothing is
- * stored — it's regenerated each time so the note can steer it fresh.
+ * NEVER auto-send and NEVER auto-log: the draft is copied into the owner's own
+ * inbox, the outcome is a one-click confirm. Nothing is stored — it's
+ * regenerated each time so the note can steer it fresh.
  */
 
-const draftSchema = z.object({ draft: z.string().min(20).max(2000) })
+/** Outcome the AI reads from the note — a suggestion, never auto-applied. */
+export const DEMO_OUTCOMES = ['won', 'lost', 'undecided'] as const
+export type DemoOutcome = (typeof DEMO_OUTCOMES)[number]
+const LOST_REASONS = ['price', 'using_competitor', 'no_need', 'bad_timing', 'not_decision_maker', 'other'] as const
+export type DemoLostReason = (typeof LOST_REASONS)[number]
+
+const draftSchema = z.object({
+  draft: z.string().min(20).max(2000),
+  outcome: z.enum(DEMO_OUTCOMES).catch('undecided'),
+  lostReason: z.enum(LOST_REASONS).nullish(),
+})
 
 export type DemoFollowupResult =
-  | { ok: true; draft: string }
+  | { ok: true; draft: string; outcome: DemoOutcome; lostReason: DemoLostReason | null }
   | { ok: false; error: 'ai_unavailable' | 'not_found' | 'failed' }
 
 export async function generateDemoFollowup(
@@ -65,20 +78,38 @@ export async function generateDemoFollowup(
       maxTokens: 600,
       system:
         effectiveProductKnowledge(config?.brain ?? null, { short: true }) +
-        '\n\nYou draft a short post-demo follow-up email from Dustin at Dream Create to a dental practice he just gave a live demo to. Reinforce the ONE or two things that matter most to THEM (from the gaps/context), quietly reassure the likeliest hesitation, and end with one clear, low-pressure next step (getting started, or answering any lingering questions). Warm, plain, human — no hype, no exclamation marks, no pressure, no fabricated pricing/clients/capabilities beyond the product knowledge. Under 140 words. A greeting line is fine; do NOT add a sign-off (the owner adds his own). If the owner gave a note on how the demo went, let it steer the tone and content.',
+        "\n\nYou do two things for a dental practice Dustin at Dream Create just gave a live demo to.\n1) DRAFT a short post-demo follow-up email from Dustin. Reinforce the ONE or two things that matter most to THEM (from the gaps/context), quietly reassure the likeliest hesitation, and end with one clear, low-pressure next step (getting started, or answering any lingering questions). Warm, plain, human — no hype, no exclamation marks, no pressure, no fabricated pricing/clients/capabilities beyond the product knowledge. Under 140 words. A greeting line is fine; do NOT add a sign-off (the owner adds his own).\n2) READ the owner's note (if any) for the likely OUTCOME: 'won' only if they clearly signed up / committed; 'lost' if they clearly passed; otherwise 'undecided'. When lost, set lostReason to the best fit (price, using_competitor, no_need, bad_timing, not_decision_maker, other). With NO note, or anything ambiguous, use 'undecided' and omit lostReason. Never overclaim a win — 'interested' or 'thinking about it' is undecided, not won.",
       messages: [{ role: 'user', content: facts.join('\n') }],
-      toolName: 'write_followup_draft',
-      toolDescription: 'Emit the drafted post-demo follow-up email body.',
+      toolName: 'write_followup_and_read_outcome',
+      toolDescription: 'Emit the drafted follow-up email plus the outcome read from the note.',
       inputSchema: {
         type: 'object',
-        properties: { draft: { type: 'string' } },
-        required: ['draft'],
+        properties: {
+          draft: { type: 'string', description: 'The follow-up email body.' },
+          outcome: {
+            type: 'string',
+            enum: ['won', 'lost', 'undecided'],
+            description: "The outcome read from the owner's note; 'undecided' when unclear or no note.",
+          },
+          lostReason: {
+            type: 'string',
+            enum: [...LOST_REASONS],
+            description: "Only when outcome is 'lost' — the best-fit reason.",
+          },
+        },
+        required: ['draft', 'outcome'],
       },
     })
     const parsed = draftSchema.safeParse(raw)
     if (!parsed.success) return { ok: false, error: 'failed' }
     await bumpProspectingCounter(counterMonth(), 'ai_demo_followup')
-    return { ok: true, draft: parsed.data.draft.trim().slice(0, 2000) }
+    const outcome = parsed.data.outcome
+    return {
+      ok: true,
+      draft: parsed.data.draft.trim().slice(0, 2000),
+      outcome,
+      lostReason: outcome === 'lost' ? parsed.data.lostReason ?? 'other' : null,
+    }
   } catch {
     return { ok: false, error: 'failed' }
   }

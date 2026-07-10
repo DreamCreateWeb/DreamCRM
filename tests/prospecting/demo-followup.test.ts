@@ -76,13 +76,47 @@ describe('generateDemoFollowup', () => {
     expect(res).toEqual({ ok: false, error: 'not_found' })
   })
 
-  it('returns the draft and meters on success', async () => {
+  it('returns the draft and meters on success (undecided by default)', async () => {
     state.selectQueue.push([PROSPECT])
     aiMock.mockResolvedValue({ draft: 'Hi Dr. Garza — thanks for the time today. Here is what we can do…' })
     const res = await generateDemoFollowup('pros_1')
     expect(res.ok).toBe(true)
-    if (res.ok) expect(res.draft).toContain('Dr. Garza')
+    if (res.ok) {
+      expect(res.draft).toContain('Dr. Garza')
+      expect(res.outcome).toBe('undecided')
+      expect(res.lostReason).toBeNull()
+    }
     expect(bumpMock).toHaveBeenCalledWith('2026-07', 'ai_demo_followup')
+  })
+
+  it('reads a win from the note (no lost reason)', async () => {
+    state.selectQueue.push([PROSPECT])
+    aiMock.mockResolvedValue({ draft: 'Thanks for signing on today — welcome aboard, here is what happens next.', outcome: 'won', lostReason: 'price' })
+    const res = await generateDemoFollowup('pros_1', { note: 'signing up next week' })
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.outcome).toBe('won')
+      expect(res.lostReason).toBeNull() // lostReason ignored unless outcome is lost
+    }
+  })
+
+  it('reads a pass + reason from the note', async () => {
+    state.selectQueue.push([PROSPECT])
+    aiMock.mockResolvedValue({ draft: 'Thanks for the time today — the door stays open whenever things change.', outcome: 'lost', lostReason: 'using_competitor' })
+    const res = await generateDemoFollowup('pros_1', { note: 'happy with their current vendor' })
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.outcome).toBe('lost')
+      expect(res.lostReason).toBe('using_competitor')
+    }
+  })
+
+  it('defaults a reasonless pass to "other"', async () => {
+    state.selectQueue.push([PROSPECT])
+    aiMock.mockResolvedValue({ draft: 'Thanks for the time today — reach out anytime you want to revisit this.', outcome: 'lost' })
+    const res = await generateDemoFollowup('pros_1', { note: 'passed' })
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.lostReason).toBe('other')
   })
 
   it('fails cleanly (and does NOT meter) on a too-short draft', async () => {
