@@ -162,7 +162,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
 
       <Column stage="communicated" label="Communicated" count={board.communicated.count} viewAllHref="/platform/prospecting/communications" viewAllLabel="All communications">
         {board.communicated.cards.length === 0 ? (
-          <EmptyHint text="No outreach or calls yet." />
+          <EmptyHint text="Nobody worked yet — the hunter's emails and your logged calls land here." />
         ) : (
           board.communicated.cards.map((c) => <Card key={c.prospectId} card={c} stage="communicated" />)
         )}
@@ -170,7 +170,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
 
       <Column stage="scheduled" label="Demo Scheduled" count={board.demoScheduled.count} viewAllHref="/platform/prospecting/demos" viewAllLabel="All demos">
         {board.demoScheduled.cards.length === 0 ? (
-          <EmptyHint text="No upcoming demos yet." />
+          <EmptyHint text="No demos booked. Book one from a hot reply or a good call." />
         ) : (
           board.demoScheduled.cards.map((c) => (
             <div key={c.prospectId} className="space-y-1">
@@ -192,7 +192,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
 
       <Column stage="completed" label="Demo Completed" count={board.demoCompleted.count} viewAllHref="/platform/prospecting/demos#completed" viewAllLabel="All demos">
         {board.demoCompleted.cards.length === 0 ? (
-          <EmptyHint text="No demos have happened yet." />
+          <EmptyHint text="Once a demo's time passes, it lands here to close out." />
         ) : (
           board.demoCompleted.cards.map((c) => (
             // Everyone here is awaiting a verdict — a win converts them off the

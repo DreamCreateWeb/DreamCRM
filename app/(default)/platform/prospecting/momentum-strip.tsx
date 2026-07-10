@@ -1,10 +1,11 @@
+import Link from 'next/link'
 import type { MomentumMetric, PipelineMomentum } from '@/lib/services/prospecting'
 
 /**
  * "This week" — the machine's FLOW, week over week. Where the board is a
  * snapshot and the briefing is today's to-do, this strip answers "are we
  * building momentum?" Each metric shows the trailing-7-day count with a
- * delta chip vs the 7 days before it.
+ * delta chip vs the 7 days before it, and links to the record behind it.
  */
 
 interface Metric {
@@ -13,12 +14,14 @@ interface Metric {
   icon: string
   /** Higher-is-better metrics get green up-arrows; all four here are. */
   accent: string
+  /** Where the number's record lives — the strip doubles as a launchpad. */
+  href: string
 }
 const METRICS: Metric[] = [
-  { key: 'reachedOut', label: 'Reached out', icon: '📣', accent: 'text-gray-800 dark:text-gray-100' },
-  { key: 'replies', label: 'Replies', icon: '💬', accent: 'text-sky-600 dark:text-sky-400' },
-  { key: 'demosBooked', label: 'Demos booked', icon: '📅', accent: 'text-violet-600 dark:text-violet-400' },
-  { key: 'won', label: 'Won', icon: '🏆', accent: 'text-emerald-600 dark:text-emerald-400' },
+  { key: 'reachedOut', label: 'Reached out', icon: '📣', accent: 'text-gray-800 dark:text-gray-100', href: '/platform/prospecting/communications' },
+  { key: 'replies', label: 'Replies', icon: '💬', accent: 'text-sky-600 dark:text-sky-400', href: '/platform/prospecting/communications' },
+  { key: 'demosBooked', label: 'Demos booked', icon: '📅', accent: 'text-violet-600 dark:text-violet-400', href: '/platform/prospecting/demos' },
+  { key: 'won', label: 'Won', icon: '🏆', accent: 'text-emerald-600 dark:text-emerald-400', href: '/platform/prospecting?view=prospects&status=converted' },
 ]
 
 function Delta({ m }: { m: MomentumMetric }) {
@@ -55,8 +58,12 @@ export default function MomentumStrip({ momentum }: { momentum: PipelineMomentum
         {METRICS.map((mt) => {
           const m = momentum[mt.key]
           return (
-            <div key={mt.key} className="flex flex-col gap-1 px-4 py-3">
-              <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+            <Link
+              key={mt.key}
+              href={mt.href}
+              className="group flex flex-col gap-1 px-4 py-3 transition hover:bg-[color:var(--color-surface-sunk)]"
+            >
+              <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200">
                 <span aria-hidden="true">{mt.icon}</span>
                 {mt.label}
               </span>
@@ -64,7 +71,7 @@ export default function MomentumStrip({ momentum }: { momentum: PipelineMomentum
                 {m.now.toLocaleString()}
               </span>
               <Delta m={m} />
-            </div>
+            </Link>
           )
         })}
       </div>
