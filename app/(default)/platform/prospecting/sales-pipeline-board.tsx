@@ -15,15 +15,18 @@ import { prospectInitials } from '@/lib/prospect-when'
  */
 
 interface StageStyle {
-  dot: string
+  /** The column's stage number ①→④ — same visual language as Call Mode's
+   *  teleprompter stages: a tinted circle, not a dot. */
+  n: number
+  numClass: string
   accent: string
   avatar: string
 }
 const STAGE: Record<string, StageStyle> = {
-  prospects: { dot: 'bg-gray-400', accent: 'text-gray-500 dark:text-gray-400', avatar: 'bg-gray-400' },
-  communicated: { dot: 'bg-sky-500', accent: 'text-sky-600 dark:text-sky-400', avatar: 'bg-sky-500' },
-  scheduled: { dot: 'bg-violet-500', accent: 'text-violet-600 dark:text-violet-400', avatar: 'bg-violet-500' },
-  completed: { dot: 'bg-emerald-500', accent: 'text-emerald-600 dark:text-emerald-400', avatar: 'bg-emerald-500' },
+  prospects: { n: 1, numClass: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300', accent: 'text-gray-500 dark:text-gray-400', avatar: 'bg-gray-400' },
+  communicated: { n: 2, numClass: 'bg-sky-500/15 text-sky-600 dark:text-sky-400', accent: 'text-sky-600 dark:text-sky-400', avatar: 'bg-sky-500' },
+  scheduled: { n: 3, numClass: 'bg-violet-500/12 text-violet-600 dark:text-violet-400', accent: 'text-violet-600 dark:text-violet-400', avatar: 'bg-violet-500' },
+  completed: { n: 4, numClass: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400', accent: 'text-emerald-600 dark:text-emerald-400', avatar: 'bg-emerald-500' },
 }
 
 // Next-step tone → subtitle color. 'due' is the only urgent one (amber);
@@ -93,8 +96,13 @@ function Column({
     <div className="flex min-h-[16rem] flex-col rounded-[var(--r-lg)] bg-[color:var(--color-surface-sunk)] ring-1 ring-[color:var(--color-hairline)]">
       <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5 pb-3">
         <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${s.dot}`} aria-hidden="true" />
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{label}</h3>
+          <span
+            className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-[0.68rem] font-extrabold ${s.numClass}`}
+            aria-hidden="true"
+          >
+            {s.n}
+          </span>
+          <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200">{label}</h3>
         </div>
         <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-0.5 text-xs font-bold tabular-nums text-gray-600 ring-1 ring-[color:var(--color-hairline)] dark:text-gray-300">
           {count.toLocaleString()}

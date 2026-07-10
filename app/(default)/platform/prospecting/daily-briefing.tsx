@@ -15,18 +15,22 @@ export default function DailyBriefing({ briefing }: { briefing: DailyBriefing })
 
   return (
     <section className="mb-6">
-      {/* The one clear next action */}
-      <div className="v2-card p-5 mb-3 flex flex-wrap items-center gap-4 bg-gradient-to-br from-teal-50/60 to-transparent dark:from-teal-900/10">
+      <h2 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        Today
+      </h2>
+      {/* The one clear next action — the hero band, same gradient language as
+          Call Mode's dial block. */}
+      <div className="mb-3 flex flex-wrap items-center gap-4 rounded-[var(--r-lg)] bg-gradient-to-br from-teal-700 via-teal-600 to-teal-500 px-5 py-4 text-white shadow-sm">
         <div className="text-3xl leading-none" aria-hidden="true">
           {nextAction.icon}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-base font-bold text-gray-900 dark:text-gray-100">{nextAction.headline}</div>
-          <div className="text-sm text-gray-600 dark:text-gray-300">{nextAction.sub}</div>
+          <div className="text-base font-bold">{nextAction.headline}</div>
+          <div className="text-sm text-teal-50/80">{nextAction.sub}</div>
         </div>
         <Link
           href={nextAction.href}
-          className="shrink-0 rounded-[var(--r-xs)] bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+          className="shrink-0 rounded-full bg-white px-5 py-2 text-sm font-bold text-teal-700 transition hover:bg-teal-50"
         >
           Let’s go →
         </Link>
@@ -142,8 +146,8 @@ function BriefColumn({
   return (
     <div className="v2-card p-4">
       <Link href={href} className="mb-2 flex items-center justify-between gap-2 group">
-        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</span>
-        <span className="text-xs tabular-nums text-gray-400 group-hover:text-teal-600 dark:group-hover:text-teal-400">
+        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{title}</span>
+        <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 group-hover:text-teal-600 dark:text-gray-400 dark:group-hover:text-teal-400">
           {count}
         </span>
       </Link>

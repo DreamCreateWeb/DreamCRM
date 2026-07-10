@@ -36,6 +36,7 @@ import {
   type ProspectStatus,
 } from '@/lib/types/prospecting'
 import { US_STATE_NAMES, type UsState } from '@/lib/types/us-geo'
+import { prospectInitials } from '@/lib/prospect-when'
 import { PROSPECT_STATUSES, PROSPECT_SCORE_BANDS } from '@/lib/db/schema/prospecting'
 import type { Tone } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
@@ -65,6 +66,14 @@ const BAND_TONES: Record<ProspectScoreBand, Tone> = {
   warm: 'warn',
   cool: 'info',
   low: 'neutral',
+}
+// Monogram tile tint by warmth — the table speaks the same avatar language
+// as the board, the demos page, and Call Mode.
+const BAND_AVATAR: Record<string, string> = {
+  hot: 'bg-rose-500',
+  warm: 'bg-amber-500',
+  cool: 'bg-sky-500',
+  low: 'bg-gray-400',
 }
 
 function buildQuery(
@@ -123,11 +132,11 @@ export default async function ProspectingPage({
     gmailConfigured: Boolean(process.env.OUTREACH_GMAIL_ACCOUNT_ID?.trim()),
   }
   const view = typeof params.view === 'string' ? params.view : 'pipeline'
-  const TABS: Array<[string, string]> = [
-    ['pipeline', 'Pipeline'],
-    ['prospects', 'Prospects'],
-    ['engine', 'Engine'],
-    ['insights', 'Insights'],
+  const TABS: Array<{ v: string; icon: string; label: string; count?: number }> = [
+    { v: 'pipeline', icon: '📋', label: 'Pipeline' },
+    { v: 'prospects', icon: '🔭', label: 'Prospects', count: board.prospects.tracked },
+    { v: 'engine', icon: '⚙️', label: 'Engine' },
+    { v: 'insights', icon: '📊', label: 'Insights' },
   ]
 
   return (
@@ -152,17 +161,29 @@ export default async function ProspectingPage({
 
       {/* View tabs — the board is the hero; everything heavy lives behind a tab. */}
       <div className="mb-6 flex flex-wrap items-center gap-1 border-b border-[color:var(--color-hairline)]">
-        {TABS.map(([v, label]) => (
+        {TABS.map((t) => (
           <Link
-            key={v}
-            href={v === 'pipeline' ? '/platform/prospecting' : `/platform/prospecting?view=${v}`}
-            className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition ${
-              view === v
-                ? 'border-teal-500 text-teal-600 dark:text-teal-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            key={t.v}
+            href={t.v === 'pipeline' ? '/platform/prospecting' : `/platform/prospecting?view=${t.v}`}
+            className={`-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-sm transition ${
+              view === t.v
+                ? 'border-teal-500 font-semibold text-teal-600 dark:text-teal-400'
+                : 'border-transparent font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
             }`}
           >
-            {label}
+            <span aria-hidden="true">{t.icon}</span>
+            {t.label}
+            {typeof t.count === 'number' && (
+              <span
+                className={`rounded-full px-1.5 py-0.5 font-mono-num text-[0.65rem] font-bold ${
+                  view === t.v
+                    ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
+                    : 'bg-[color:var(--color-surface-sunk)] text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {t.count.toLocaleString()}
+              </span>
+            )}
           </Link>
         ))}
       </div>
@@ -313,18 +334,30 @@ export default async function ProspectingPage({
                   className="border-b border-[color:var(--color-hairline)] last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/40"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                    <Link
-                      href={`${buildQuery(params, {})}${buildQuery(params, {}).includes('?') ? '&' : '?'}prospect=${p.id}`}
-                      scroll={false}
-                      className="hover:text-teal-600 dark:hover:text-teal-400"
-                    >
-                      {p.name}
-                    </Link>
-                    {p.phone && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                        ({p.phone.slice(0, 3)}) {p.phone.slice(3, 6)}-{p.phone.slice(6)}
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-[0.68rem] font-bold text-white ${
+                          BAND_AVATAR[p.scoreBand ?? ''] ?? 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {prospectInitials(p.name)}
+                      </span>
+                      <div className="min-w-0">
+                        <Link
+                          href={`${buildQuery(params, {})}${buildQuery(params, {}).includes('?') ? '&' : '?'}prospect=${p.id}`}
+                          scroll={false}
+                          className="hover:text-teal-600 dark:hover:text-teal-400"
+                        >
+                          {p.name}
+                        </Link>
+                        {p.phone && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                            ({p.phone.slice(0, 3)}) {p.phone.slice(3, 6)}-{p.phone.slice(6)}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                     {[p.city, p.state].filter(Boolean).join(', ') || '—'}

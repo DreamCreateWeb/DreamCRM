@@ -14,14 +14,16 @@ interface Metric {
   icon: string
   /** Higher-is-better metrics get green up-arrows; all four here are. */
   accent: string
+  /** Tinted circle behind the icon — same language as the cockpit stages. */
+  iconBg: string
   /** Where the number's record lives — the strip doubles as a launchpad. */
   href: string
 }
 const METRICS: Metric[] = [
-  { key: 'reachedOut', label: 'Reached out', icon: '📣', accent: 'text-gray-800 dark:text-gray-100', href: '/platform/prospecting/communications' },
-  { key: 'replies', label: 'Replies', icon: '💬', accent: 'text-sky-600 dark:text-sky-400', href: '/platform/prospecting/communications' },
-  { key: 'demosBooked', label: 'Demos booked', icon: '📅', accent: 'text-violet-600 dark:text-violet-400', href: '/platform/prospecting/demos' },
-  { key: 'won', label: 'Won', icon: '🏆', accent: 'text-emerald-600 dark:text-emerald-400', href: '/platform/prospecting?view=prospects&status=converted' },
+  { key: 'reachedOut', label: 'Reached out', icon: '📣', accent: 'text-gray-800 dark:text-gray-100', iconBg: 'bg-[color:var(--color-surface-sunk)]', href: '/platform/prospecting/communications' },
+  { key: 'replies', label: 'Replies', icon: '💬', accent: 'text-sky-600 dark:text-sky-400', iconBg: 'bg-sky-500/10', href: '/platform/prospecting/communications' },
+  { key: 'demosBooked', label: 'Demos booked', icon: '📅', accent: 'text-violet-600 dark:text-violet-400', iconBg: 'bg-violet-500/10', href: '/platform/prospecting/demos' },
+  { key: 'won', label: 'Won', icon: '🏆', accent: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-500/10', href: '/platform/prospecting?view=prospects&status=converted' },
 ]
 
 function Delta({ m }: { m: MomentumMetric }) {
@@ -61,16 +63,23 @@ export default function MomentumStrip({ momentum }: { momentum: PipelineMomentum
             <Link
               key={mt.key}
               href={mt.href}
-              className="group flex flex-col gap-1 px-4 py-3 transition hover:bg-[color:var(--color-surface-sunk)]"
+              className="group flex items-center gap-3 px-4 py-3 transition hover:bg-[color:var(--color-surface-sunk)]"
             >
-              <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200">
-                <span aria-hidden="true">{mt.icon}</span>
-                {mt.label}
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base ${mt.iconBg}`}
+                aria-hidden="true"
+              >
+                {mt.icon}
               </span>
-              <span className={`font-mono-num text-3xl font-bold leading-none ${mt.accent}`}>
-                {m.now.toLocaleString()}
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-xs font-medium text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200">
+                  {mt.label}
+                </span>
+                <span className={`font-mono-num text-[1.6rem] font-extrabold leading-none ${mt.accent}`}>
+                  {m.now.toLocaleString()}
+                </span>
+                <Delta m={m} />
               </span>
-              <Delta m={m} />
             </Link>
           )
         })}
