@@ -7,6 +7,38 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Call Mode — the anti-cold-call cockpit (2026-07-10).** Owner: "where I
+  struggle the most is cold calls… I hate making cold calls… I want
+  everything that would help as much as possible." Two green deploys.
+  **Foundation** (`0f08277`): migration 0125 `prospect.call_script` jsonb;
+  `lib/types/call-script.ts` (client-safe CallScript — opener, why-them
+  hook, ≤3 value points, ≤4 brush-offs w/ one-breath responses, demo ask,
+  ~20-second voicemail — + junk-tolerant `parseCallScript`);
+  `lib/services/call-script.ts` `getOrGenerateCallScript` (haiku, grounded
+  in effectiveProductKnowledge + segmentAngle + verified gaps, cache-forever
+  on the row, force regenerates, metered `ai_call_script`, fails to null);
+  `getCallQueue` (hand-raisers → due follow-ups → hot phone-first, deduped,
+  phone-required, cap 25, carries per-prospect email open/click warm
+  signals). **Cockpit** (`68286d2`): `/platform/prospecting/call-mode` —
+  one card at a time; current script loads on entry, NEXT prefetches while
+  you talk (ref-guarded against StrictMode double-fetch); click-to-call
+  tel: + their local time; "opened your emails 4×" warm line; one-tap
+  outcomes through the existing logCallOutcome plumbing (follow-ups
+  auto-schedule) with auto-advance, progress bar, end-of-session tally;
+  "🎉 Demo booked" opens an inline time picker (`bookDemoForProspectAction`
+  → logBookedDemo + demo_booked outcome + pre-warms the AI demo brief) so
+  the slot locks while they're still on the phone; not-interested captures
+  the coded loss reason for the learning loop. Entry: primary "▶ Call Mode"
+  on the pipeline header + call list. Earlier same session: **AI demo
+  debrief** (`66dac69`) — the deal-room follow-up drafter's "how did it go?"
+  note now also has the AI read the outcome (won/undecided/pass + reason)
+  as a one-click-confirm suggestion into logCallOutcome; and the **AI
+  post-demo follow-up drafter** (`b4949b6`) it extends. Tests: suite 234
+  (call-script parser/cache/meter 9, demo-followup 8). Note: two container
+  restarts this session reverted the working tree to a stale baked-in
+  clone — recovered both times via `git reset --hard origin/main` (pushed
+  work was never at risk; commit early, push often).
+
 - **Sales Pipeline UX pass — the closing cockpit (2026-07-09/10).** Owner:
   "the sales pipeline is really poor… built for selling something else" →
   "keep enhancing the UX" → north star: "what would make this better at

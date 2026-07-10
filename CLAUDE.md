@@ -81,7 +81,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0124 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0125 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -214,6 +214,13 @@ AUTO-ENROLLMENT (`lib/prospect-segment.ts`: no-website / weak-website /
 weak-presence → three pitch sequences; hottest-first, daily-capped, runs in
 dry-run) → AI drip outreach → reply intent classification → CALL LIST with
 instant bell+forced-email alerts + AI reply drafts (`prospect.reply_draft`)
+→ CALL MODE (`/platform/prospecting/call-mode` — the anti-cold-call
+cockpit: one card at a time, cached AI cold-call script per prospect
+(`prospect.call_script` 0125, `lib/services/call-script.ts` — opener /
+why-them / brush-off answers / ask / 20-sec voicemail; next card's script
+prefetches during the call), email open/click warm signals, tel: +
+prospect-local time, one-tap outcomes through logCallOutcome w/
+auto-advance, inline demo-time booking via `bookDemoForProspectAction`)
 → SELF-BOOKING demo close (`prospect_meeting` + public `/d/[token]`,
 token-IS-auth; prospect picks a slot from the owner's availability in their
 OWN tz, both sides get an add-to-calendar link; reminders 24h out;
@@ -373,7 +380,7 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0124**. Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0125**. Workflow: `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime
