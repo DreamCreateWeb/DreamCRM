@@ -1302,6 +1302,158 @@ export async function getDueFollowUps(opts?: { now?: Date; limit?: number }): Pr
   }))
 }
 
+// ── Call Mode (the dial-session queue) ──────────────────────────────────────
+
+export type CallQueueSource = 'hand_raiser' | 'follow_up' | 'phone_first'
+
+export interface CallQueueItem {
+  id: string
+  name: string
+  city: string | null
+  state: string | null
+  /** Digits-only; never null — no phone, no place in the dial queue. */
+  phone: string
+  timezone: string | null
+  authorizedOfficialName: string | null
+  scoreBand: string | null
+  reviewCount: number | null
+  googleRatingTenths: number | null
+  websiteUrl: string | null
+  intentSignal: string | null
+  intentSummary: string | null
+  talkingPoints: string[]
+  followUpReason: string | null
+  lastCallOutcome: string | null
+  /** Which bucket put them in the queue (shown as a chip on the call card). */
+  source: CallQueueSource
+  /** Warm signals — email opens/clicks, the "this isn't really cold" counter. */
+  opens: number
+  clicks: number
+}
+
+/**
+ * The Call Mode queue — everyone worth dialing right now, in the order that
+ * maximizes momentum for someone who hates cold calls: hand-raisers first
+ * (they replied — warmest, easiest), then promised follow-ups now due, then
+ * the hot phone-first pool (no deliverable email, so the phone is the only
+ * door). Deduped across buckets, phone-required, capped so a session always
+ * looks finishable.
+ */
+export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promise<CallQueueItem[]> {
+  const now = opts?.now ?? new Date()
+  const limit = opts?.limit ?? 25
+  const seen = new Set<string>()
+  const picked: Array<{ p: typeof schema.prospect.$inferSelect; source: CallQueueSource }> = []
+
+  // Earlier buckets are warmer; each later bucket fills whatever room is left.
+  const take = (rows: Array<typeof schema.prospect.$inferSelect>, source: CallQueueSource) => {
+    for (const p of rows) {
+      if (picked.length >= limit) return
+      if (!p.phone || seen.has(p.id)) continue
+      seen.add(p.id)
+      picked.push({ p, source })
+    }
+  }
+
+  // 1. Hand-raisers — replied/asked/booked-intent; freshest signal first.
+  take(
+    await db
+      .select()
+      .from(schema.prospect)
+      .where(and(eq(schema.prospect.status, 'call_list'), isNotNull(schema.prospect.phone)))
+      .orderBy(desc(schema.prospect.intentAt))
+      .limit(limit),
+    'hand_raiser',
+  )
+  // 2. Follow-ups now due — a callback you promised; most overdue first.
+  take(
+    await db
+      .select()
+      .from(schema.prospect)
+      .where(
+        and(
+          isNotNull(schema.prospect.nextFollowUpAt),
+          sql`${schema.prospect.nextFollowUpAt} <= ${now}`,
+          isNotNull(schema.prospect.phone),
+          inArray(schema.prospect.status, ['contacted', 'engaged', 'call_list', 'enriched', 'queued']),
+        ),
+      )
+      .orderBy(asc(schema.prospect.nextFollowUpAt))
+      .limit(limit),
+    'follow_up',
+  )
+  // 3. Phone-first — hot/warm, un-emailable; the phone is the only door.
+  take(
+    await db
+      .select()
+      .from(schema.prospect)
+      .where(
+        and(
+          eq(schema.prospect.status, 'enriched'),
+          isNull(schema.prospect.email),
+          isNotNull(schema.prospect.phone),
+          inArray(schema.prospect.scoreBand, ['hot', 'warm']),
+        ),
+      )
+      .orderBy(desc(schema.prospect.opportunityScore), desc(schema.prospect.enrichedAt))
+      .limit(limit),
+    'phone_first',
+  )
+
+  if (picked.length === 0) return []
+  const ids = picked.map((x) => x.p.id)
+
+  // Warm signals in one grouped query — opens/clicks on our outreach emails.
+  const events = await db
+    .select({
+      prospectId: schema.outreachEvent.prospectId,
+      type: schema.outreachEvent.type,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(schema.outreachEvent)
+    .where(and(inArray(schema.outreachEvent.prospectId, ids), inArray(schema.outreachEvent.type, ['open', 'click'])))
+    .groupBy(schema.outreachEvent.prospectId, schema.outreachEvent.type)
+  const warm = new Map<string, { opens: number; clicks: number }>()
+  for (const e of events) {
+    const w = warm.get(e.prospectId) ?? { opens: 0, clicks: 0 }
+    if (e.type === 'open') w.opens = e.n
+    else w.clicks = e.n
+    warm.set(e.prospectId, w)
+  }
+
+  const out: CallQueueItem[] = []
+  for (const { p, source } of picked) {
+    const [lastCall] = await db
+      .select({ outcome: schema.prospectCallLog.outcome })
+      .from(schema.prospectCallLog)
+      .where(eq(schema.prospectCallLog.prospectId, p.id))
+      .orderBy(desc(schema.prospectCallLog.createdAt))
+      .limit(1)
+    out.push({
+      id: p.id,
+      name: p.name,
+      city: p.city,
+      state: p.state,
+      phone: p.phone as string,
+      timezone: p.timezone,
+      authorizedOfficialName: p.authorizedOfficialName,
+      scoreBand: p.scoreBand,
+      reviewCount: p.reviewCount,
+      googleRatingTenths: p.googleRatingTenths,
+      websiteUrl: p.websiteUrl,
+      intentSignal: p.intentSignal,
+      intentSummary: p.intentSummary,
+      talkingPoints: Array.isArray(p.talkingPoints) ? (p.talkingPoints as string[]) : [],
+      followUpReason: p.followUpReason,
+      lastCallOutcome: lastCall?.outcome ?? null,
+      source,
+      opens: warm.get(p.id)?.opens ?? 0,
+      clicks: warm.get(p.id)?.clicks ?? 0,
+    })
+  }
+  return out
+}
+
 /** New hot prospects that got enriched in the trailing window — the
  *  "entered overnight" line in the daily briefing. */
 export async function getRecentHotArrivals(

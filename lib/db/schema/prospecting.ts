@@ -117,6 +117,13 @@ export const prospect = pgTable(
     // (scoring input). Migration 0117.
     demoBrief: jsonb('demo_brief'),
 
+    // Cached AI COLD-CALL script (CallScript in lib/types/call-script.ts):
+    // personalized opener, why-them hook, value points, objections + one-breath
+    // responses, the demo ask, and a 20-second voicemail. Generated on first
+    // view in Call Mode (haiku, cache-forever, regenerate overwrites) — the
+    // pre-demo brief scripts the DEMO; this scripts the dial. Migration 0125.
+    callScript: jsonb('call_script'),
+
     // Never-drop-a-lead follow-up: a call outcome that isn't terminal
     // (callback/voicemail/no answer) schedules the next nudge here; it surfaces
     // as "due" in the briefing + call list and clears on the next outcome or a
