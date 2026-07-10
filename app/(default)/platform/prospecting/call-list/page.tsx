@@ -65,9 +65,14 @@ export default async function CallListPage({
         title="Call List"
         subtitle="Every practice here raised a hand — a reply, a click, a demo request. Freshest signal first. Call them while it's warm."
         actions={
-          <ActionButton href="/platform/prospecting" variant="secondary">
-            ← All prospects
-          </ActionButton>
+          <div className="flex items-center gap-2">
+            <ActionButton href="/platform/prospecting" variant="secondary">
+              ← All prospects
+            </ActionButton>
+            <ActionButton href="/platform/prospecting/call-mode" variant="primary">
+              ▶ Call Mode
+            </ActionButton>
+          </div>
         }
       />
       {meetings.length > 0 && (

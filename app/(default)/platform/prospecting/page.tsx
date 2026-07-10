@@ -140,8 +140,11 @@ export default async function ProspectingPage({
           <div className="flex items-center gap-2">
             <CopilotBar />
             <AddClinicButton />
-            <ActionButton href="/platform/prospecting/call-list" variant={funnel.callList > 0 ? 'primary' : 'secondary'}>
+            <ActionButton href="/platform/prospecting/call-list" variant="secondary">
               📞 Call list{funnel.callList > 0 ? ` (${funnel.callList - funnel.converted})` : ''}
+            </ActionButton>
+            <ActionButton href="/platform/prospecting/call-mode" variant="primary">
+              ▶ Call Mode
             </ActionButton>
           </div>
         }

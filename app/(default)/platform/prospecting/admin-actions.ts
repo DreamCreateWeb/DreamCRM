@@ -212,6 +212,53 @@ export async function draftDemoFollowupAction(
   })
 }
 
+const bookDemoSchema = z.object({
+  prospectId: z.string().min(1),
+  demoAtIso: z.string().datetime(),
+  attendeeName: z.string().trim().max(160).optional(),
+  attendeeEmail: z.string().trim().email().max(200).optional().or(z.literal('')),
+})
+
+/** Book a demo for an EXISTING prospect right from Call Mode — they just said
+ *  yes on the phone. Logs the meeting (reminders + upcoming list), records a
+ *  demo_booked call outcome, and pre-warms the AI demo brief. */
+export async function bookDemoForProspectAction(input: unknown): Promise<{ ok: boolean }> {
+  const ctx = await requirePlatformAdmin()
+  const parsed = bookDemoSchema.parse(input)
+  const demoAt = new Date(parsed.demoAtIso)
+  await logBookedDemo({
+    prospectId: parsed.prospectId,
+    scheduledAt: demoAt,
+    attendeeName: parsed.attendeeName || null,
+    attendeeEmail: parsed.attendeeEmail || null,
+    createdByUserId: ctx.userId,
+  })
+  const { logCallOutcome } = await import('@/lib/services/prospecting')
+  await logCallOutcome({
+    prospectId: parsed.prospectId,
+    outcome: 'demo_booked',
+    calledByUserId: ctx.userId,
+  })
+  // Pre-warm the demo prep brief so it's ready before the meeting.
+  import('@/lib/services/demo-brief')
+    .then((m) => m.generateDemoBrief(parsed.prospectId))
+    .catch(() => {})
+  revalidatePath('/platform/prospecting')
+  revalidatePath('/platform/prospecting/call-list')
+  return { ok: true }
+}
+
+/** Fetch (cache) or generate the AI cold-call script for a prospect —
+ *  Call Mode calls this for the current card and prefetches the next. */
+export async function getCallScriptAction(
+  prospectId: string,
+  force = false,
+): Promise<import('@/lib/types/call-script').CallScript | null> {
+  await requirePlatformAdmin()
+  const { getOrGenerateCallScript } = await import('@/lib/services/call-script')
+  return getOrGenerateCallScript(z.string().min(1).parse(prospectId), { force })
+}
+
 /** Manually suppress a prospect (permanent; stops any live enrollment). */
 export async function suppressProspectAction(prospectId: string, reason?: string): Promise<void> {
   await requirePlatformAdmin()
