@@ -7,6 +7,40 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Sales Pipeline UX pass — the closing cockpit (2026-07-09/10).** Owner:
+  "the sales pipeline is really poor… built for selling something else" →
+  "keep enhancing the UX" → north star: "what would make this better at
+  closing demos and tracking them to improve the next." Shipped as a run of
+  small, verified slices on `/platform/prospecting` (the Prospecting engine
+  IS the sales pipeline; the old "Sales Pipeline" module was an agency
+  project board — relabeled earlier). Each committed + deployed green.
+  **Board polish** (`a0cc4c5`): warmth bar (hot/warm/cool of the untouched
+  pool) on the Prospects headline, stage-tinted initials tiles on every card,
+  violet "soon" highlight on demos ≤36h out; `getPipelineBoard` tallies the
+  bands + sets a `soon` flag. **Momentum strip** (`15f34b0`): replaced the
+  redundant 4-stat strip (dup'd the board) with a "This week" trailing-7-day
+  FLOW row — Reached out / Replies / Demos booked / Won, each with a
+  week-over-week delta chip; `getPipelineMomentum` sources it from real
+  timestamps via count(*) FILTER splits. **Humanized demo times** (`9430eb9`):
+  Today/Tomorrow/weekday/absolute, host-tz calendar-key day math. **Prep
+  affordance** (`a7bcbbd`, redeployed `18955ac` after a transient CodeBuild
+  fail): one-tap "🎬 Prep for this demo →" to the AI brief on imminent
+  demos. **One visual language** (`18955ac`): extracted `prospectInitials` +
+  `relativeDayTime` → `lib/prospect-when.ts` (pure, client-safe, +10 tests
+  incl. the host-tz-vs-UTC late-evening edge); reused across the board, the
+  Demos page (initials + relative upcoming labels; `DemoRow.relativeWhen`),
+  and the Communications feed (kind-tinted tiles). **Next-step signals**
+  (`47e230d`): the Communicated column now says what to DO — ⏰ Follow up · Nd
+  (amber, due), 📞 Call them (teal, a reply/hand-raiser), Sent · Nd, Nd quiet
+  (muted); `getPipelineBoard` pulls follow-up state + last-contact
+  (GREATEST of latest sent touch or logged call) and derives it; `PipelineCard`
+  gains `tone`. **Outcome nudge** (`e445dca`): every completed-demo card gets
+  "🏁 Won it? Log the outcome →" so the win/loss learning loop never starves.
+  **Launchpad + warmth** (`9d3b583`): momentum metrics link to their
+  drill-downs; board empty-states explain the flow instead of stating absence.
+  Visual iteration was done against a token-accurate static HTML mock rendered
+  with headless Chromium (can't screenshot the authed admin page from CI).
+
 - **Vision-fulfillment capstone — 4 slices (2026-07-07).** Owner: "whip the
   marketing site into shape, deepen the docs, get the other PMS integrations,
   clean the platform-admin junk — and that's the entire vision fulfilled."
