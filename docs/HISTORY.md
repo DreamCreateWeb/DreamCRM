@@ -7,6 +7,30 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Cockpit UI overhauls — Call Mode + the whole pipeline (2026-07-10).**
+  Owner: "the UI could use an overhaul as well… I also want the same
+  overhaul for the entire sales pipeline." Two green deploys, pure
+  presentation. **Call Mode v2** (`3dfae55`): the flat card becomes a
+  dialer cockpit — SESSION STRIP (one segment per call, filling with the
+  outcome's color: emerald booked / amber callback / grays / rose pass;
+  current call ring-pulses teal; final strip replays on the end screen),
+  split layout (sticky dial zone: monogram, teal-gradient tap-to-call
+  block w/ live pulse dot, prospect-local time, "Why this isn't cold"
+  panel · numbered TELEPROMPTER 1-Open with / 2-Why them / 3-If they say /
+  4-The ask), and a sticky OUTCOME DOCK with keyboard shortcuts 1–5
+  (1 = demo time picker, 5 = pass-reason picker, Esc closes; silent while
+  typing). **Pipeline overhaul** (`fd9832c`): the same language across
+  `/platform/prospecting` — board column headers get numbered tinted stage
+  circles ①→④ (the pipeline reads as the same staged flow as the call
+  script), momentum-strip metrics get tinted icon circles + extrabold
+  numbers, the daily briefing's next action becomes a teal-gradient hero
+  band under a TODAY micro-label (white pill CTA; column counts become
+  mono pills), tabs gain icons + a live tracked-count pill, and the
+  prospects table gets warmth-tinted monogram tiles (hot rose / warm
+  amber / cool sky) so every pipeline surface speaks one avatar language.
+  Design iterated on token-accurate static mocks rendered w/ headless
+  Chromium before porting.
+
 - **Call Mode — the anti-cold-call cockpit (2026-07-10).** Owner: "where I
   struggle the most is cold calls… I hate making cold calls… I want
   everything that would help as much as possible." Two green deploys.
