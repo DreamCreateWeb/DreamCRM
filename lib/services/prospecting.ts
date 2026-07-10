@@ -16,7 +16,7 @@ import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
 import { followUpForOutcome } from '@/lib/prospect-followup'
 import { lossReasonForSuppression } from '@/lib/prospect-learnings'
-import { relativeDayTime } from '@/lib/prospect-when'
+import { relativeDayTime, callWindowScore, type CallWindow } from '@/lib/prospect-when'
 
 /**
  * Prospecting core — Dream Create's own outbound growth engine. Queries,
@@ -1329,6 +1329,8 @@ export interface CallQueueItem {
   /** Warm signals — email opens/clicks, the "this isn't really cold" counter. */
   opens: number
   clicks: number
+  /** How callable their front desk is right now (prospect-local time). */
+  callWindow: CallWindow
 }
 
 /**
@@ -1449,8 +1451,14 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
       source,
       opens: warm.get(p.id)?.opens ?? 0,
       clicks: warm.get(p.id)?.clicks ?? 0,
+      callWindow: callWindowScore(p.timezone, now),
     })
   }
+  // Within each bucket, dial the answerable ones first — a session that opens
+  // with three no-answers (because it's lunch in Arkansas) kills momentum.
+  // Array.prototype.sort is stable, so bucket order + intent order survive.
+  const SOURCE_RANK: Record<CallQueueSource, number> = { hand_raiser: 0, follow_up: 1, phone_first: 2 }
+  out.sort((a, b) => SOURCE_RANK[a.source] - SOURCE_RANK[b.source] || b.callWindow.score - a.callWindow.score)
   return out
 }
 

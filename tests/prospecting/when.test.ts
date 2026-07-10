@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { prospectInitials, relativeDayTime } from '@/lib/prospect-when'
+import { prospectInitials, relativeDayTime, callWindowScore } from '@/lib/prospect-when'
 
 describe('prospectInitials', () => {
   it('takes first + last significant word', () => {
@@ -46,5 +46,43 @@ describe('relativeDayTime', () => {
     // 8:00 PM Central on the 8th is 01:00 UTC on the 9th — still "Today".
     const d = new Date('2026-07-09T01:00:00Z')
     expect(relativeDayTime(d, tz, now)).toBe('Today · 8:00 PM')
+  })
+})
+
+describe('callWindowScore', () => {
+  const tz = 'America/Chicago'
+  // Wed 2026-07-08 in Central; build instants from UTC.
+  const at = (utcHour: number, utcMin = 0) =>
+    new Date(Date.UTC(2026, 6, 8, utcHour, utcMin)) // Central = UTC-5 (CDT)
+
+  it('scores prime mid-morning as 3', () => {
+    const w = callWindowScore(tz, at(15)) // 10:00 AM Central
+    expect(w.score).toBe(3)
+    expect(w.good).toBe(true)
+  })
+  it('flags lunch', () => {
+    const w = callWindowScore(tz, at(17, 30)) // 12:30 PM Central
+    expect(w.score).toBe(1)
+    expect(w.label).toBe('lunch there')
+  })
+  it('scores mid-afternoon as 3', () => {
+    const w = callWindowScore(tz, at(19)) // 2:00 PM Central
+    expect(w.score).toBe(3)
+  })
+  it('zeroes evenings and early mornings', () => {
+    expect(callWindowScore(tz, at(23, 30)).score).toBe(0) // 6:30 PM Central
+    expect(callWindowScore(tz, at(11)).score).toBe(0) // 6:00 AM Central
+  })
+  it('zeroes weekends', () => {
+    const sat = new Date(Date.UTC(2026, 6, 11, 15)) // Sat 10 AM Central
+    const w = callWindowScore(tz, sat)
+    expect(w.score).toBe(0)
+    expect(w.label).toBe('weekend there')
+  })
+  it('unknown timezone stays neutral-good so it never sinks a hot prospect', () => {
+    const w = callWindowScore(null, at(15))
+    expect(w.score).toBe(2)
+    expect(w.good).toBe(true)
+    expect(w.label).toBe('')
   })
 })

@@ -330,6 +330,20 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
               <span className="font-mono-num font-semibold text-gray-700 dark:text-gray-200">{theirTime}</span>
             </div>
           )}
+          {item.callWindow.label && (
+            <p
+              className={`mt-1 text-right text-[0.7rem] font-semibold ${
+                item.callWindow.score >= 3
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : item.callWindow.good
+                    ? 'text-gray-500 dark:text-gray-400'
+                    : 'text-amber-600 dark:text-amber-400'
+              }`}
+            >
+              {item.callWindow.score >= 3 ? '☀️ ' : '⏳ '}
+              {item.callWindow.label}
+            </p>
+          )}
 
           {hasSignals && (
             <div className="mt-4 border-t border-[color:var(--color-hairline)] pt-3">

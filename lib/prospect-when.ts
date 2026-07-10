@@ -41,3 +41,49 @@ export function relativeDayTime(d: Date, timeZone: string, now: Date = new Date(
   else prefix = new Intl.DateTimeFormat('en-US', { timeZone, month: 'short', day: 'numeric' }).format(d)
   return `${prefix} · ${time}`
 }
+
+// ── Best-time-to-call (prospect-local call windows) ─────────────────────────
+
+export interface CallWindow {
+  /** 0 = don't bother · 1 = iffy · 2 = fine · 3 = prime front-desk time. */
+  score: 0 | 1 | 2 | 3
+  /** Short human label for the dial card ("good time", "lunch there", …). */
+  label: string
+  /** score >= 2 — safe to lead the queue with. */
+  good: boolean
+}
+
+/**
+ * How callable a dental front desk is RIGHT NOW in the prospect's timezone.
+ * Prime windows are mid-morning and mid-afternoon on weekdays; lunch, early,
+ * late, and weekends are deprioritized (still callable — just not first).
+ * Unknown timezone scores a neutral 2 so it never sinks a hot prospect.
+ */
+export function callWindowScore(timezone: string | null, now: Date = new Date()): CallWindow {
+  if (!timezone) return { score: 2, label: '', good: true }
+  let weekday: string
+  let minutes: number
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      weekday: 'short',
+      hour: 'numeric',
+      minute: 'numeric',
+      hourCycle: 'h23',
+    }).formatToParts(now)
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+    weekday = get('weekday')
+    minutes = Number(get('hour')) * 60 + Number(get('minute'))
+  } catch {
+    return { score: 2, label: '', good: true }
+  }
+  if (weekday === 'Sat' || weekday === 'Sun') return { score: 0, label: 'weekend there', good: false }
+  const t = (h: number, m = 0) => h * 60 + m
+  if (minutes < t(8)) return { score: 0, label: 'too early there', good: false }
+  if (minutes < t(9)) return { score: 1, label: 'just opening', good: false }
+  if (minutes < t(12)) return { score: 3, label: 'good time to call', good: true }
+  if (minutes < t(13, 30)) return { score: 1, label: 'lunch there', good: false }
+  if (minutes < t(16, 30)) return { score: 3, label: 'good time to call', good: true }
+  if (minutes < t(17, 30)) return { score: 2, label: 'late afternoon there', good: true }
+  return { score: 0, label: 'closed there', good: false }
+}
