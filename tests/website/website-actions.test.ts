@@ -16,6 +16,11 @@ vi.mock('@/lib/auth/context', () => ({
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
+const cookieDeletes: string[] = []
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ delete: (name: string) => cookieDeletes.push(name) }),
+}))
+
 const ops: Array<{ table: string; set: Record<string, unknown> }> = []
 
 vi.mock('@/lib/db', async () => {
@@ -38,6 +43,7 @@ vi.mock('@/lib/db', async () => {
 
 import {
   saveHero,
+  saveTemplate,
   saveAbout,
   saveStats,
   saveFaq,
@@ -50,6 +56,7 @@ import {
 
 beforeEach(() => {
   ops.length = 0
+  cookieDeletes.length = 0
   tenantCtx = {
     tenantType: 'clinic',
     role: 'owner',
@@ -225,5 +232,29 @@ describe('saveInlineField (Website Studio click-to-edit)', () => {
     const res = await saveInlineField('logoUrl', 'https://x/logo.png')
     expect(res).toEqual({ ok: true })
     expect(setKeys('clinic_profile')).toEqual(['logoUrl'])
+  })
+})
+
+
+describe('saveTemplate (Design picker apply)', () => {
+  it('writes the template column and clears the preview cookie', async () => {
+    const res = await saveTemplate('modern')
+    expect(res).toEqual({ ok: true })
+    expect(setKeys()).toEqual(['template'])
+    expect(ops[0].set.template).toBe('modern')
+    expect(cookieDeletes).toContain('dc-template-preview')
+  })
+
+  it('rejects an unregistered template id without writing', async () => {
+    const res = await saveTemplate('not-a-design')
+    expect(res).toEqual({ ok: false, error: expect.stringMatching(/unknown/i) })
+    expect(ops).toHaveLength(0)
+  })
+
+  it('rejects members (owner/admin only)', async () => {
+    tenantCtx = { tenantType: 'clinic', role: 'member', organizationId: 'org_1', organizationSlug: 'acme' }
+    const res = await saveTemplate('modern')
+    expect(res.ok).toBe(false)
+    expect(ops).toHaveLength(0)
   })
 })

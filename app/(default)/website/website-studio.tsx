@@ -48,10 +48,12 @@ import {
   saveHours,
   saveDifferenceVideo,
   saveAddress,
+  saveTemplate,
   undoLastEditAction,
   type SectionResult,
 } from './website-actions'
 import { isValidVideoUrl } from '@/lib/website-url'
+import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
 
 interface Props {
   slug: string
@@ -206,6 +208,13 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const [undoBusy, setUndoBusy] = useState(false)
   const confirmUndo = useConfirm()
   const [showPerf, setShowPerf] = useState(false)
+  // The Design picker: preview a different site template on the canvas (a
+  // slug-scoped, owner-only cookie the resolver re-gates per request), then
+  // Apply (writes clinic_profile.template, undo-able) or Discard. Content is
+  // universal, so edits made during a preview are REAL and survive either way.
+  const [showDesign, setShowDesign] = useState(false)
+  const [previewingId, setPreviewingId] = useState<string | null>(null)
+  const [designBusy, setDesignBusy] = useState(false)
   // Desktop vs phone canvas width. Most patients see the site on a phone, so
   // the owner should be able to check that view without leaving the Studio —
   // toggling only changes the wrapper's max-width (the iframe never remounts,
@@ -280,6 +289,50 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       f.contentWindow?.location.reload()
     } catch {
       f.src = f.src
+    }
+  }
+
+  // Drive the canvas through the template-preview route: it sets the preview
+  // cookie server-side (gated on canEditClinic) and bounces back to the page
+  // the owner was on, still in edit mode.
+  const startTemplatePreview = (id: string) => {
+    const f = iframeRef.current
+    if (!f) return
+    const back = `${currentCanvasPath() || '/'}?edit=1`
+    const url = `/site/${slug}/template-preview?template=${encodeURIComponent(id)}&return=${encodeURIComponent(back)}`
+    try {
+      f.contentWindow!.location.assign(url)
+    } catch {
+      f.src = url
+    }
+    setPreviewingId(id)
+    setShowDesign(false)
+  }
+
+  const discardTemplatePreview = () => {
+    const f = iframeRef.current
+    const back = `${currentCanvasPath() || '/'}?edit=1`
+    const url = `/site/${slug}/template-preview?template=off&return=${encodeURIComponent(back)}`
+    try {
+      f?.contentWindow!.location.assign(url)
+    } catch {
+      if (f) f.src = url
+    }
+    setPreviewingId(null)
+  }
+
+  const applyTemplatePreview = async () => {
+    if (!previewingId || designBusy) return
+    setDesignBusy(true)
+    const res = await saveTemplate(previewingId)
+    setDesignBusy(false)
+    if (res.ok) {
+      setPreviewingId(null)
+      setUndoLabel('your last change')
+      reloadFrame()
+    } else {
+      setStatus('error')
+      setErrorMsg(res.error)
     }
   }
 
@@ -617,6 +670,65 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
               reloadFrame()
             }}
           />
+          {/* Design picker — preview any registered site template on the
+              clinic's OWN content (nothing migrates; content is universal),
+              then apply or discard. */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowDesign((v) => !v)}
+              aria-expanded={showDesign}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors ${
+                showDesign ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'
+              }`}
+              title="Try a different design on your own content"
+            >
+              🎨 Design
+            </button>
+            {showDesign && (
+              <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-gray-700 bg-gray-900 p-4 shadow-2xl z-20">
+                <div className="text-sm font-semibold text-white mb-1">Site design</div>
+                <p className="text-xs text-gray-400 mb-3">
+                  Your content stays exactly as it is — switching designs is instant and reversible.
+                </p>
+                <ul className="space-y-2">
+                  {SITE_TEMPLATE_CATALOG.map((t) => {
+                    const isCurrent = (profile.template ?? 'modern') === t.id
+                    const isPreviewing = previewingId === t.id
+                    return (
+                      <li
+                        key={t.id}
+                        className="rounded-lg border border-gray-700 bg-gray-800/60 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-white">{t.label}</span>
+                          {isCurrent ? (
+                            <span className="text-xs uppercase tracking-wide rounded-full bg-teal-500/20 text-teal-300 px-2 py-0.5">
+                              Current
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startTemplatePreview(t.id)}
+                              className="text-xs rounded-md border border-gray-600 px-2 py-1 text-gray-200 hover:bg-gray-700 transition-colors"
+                            >
+                              {isPreviewing ? 'Previewing…' : 'Preview'}
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">{t.description}</p>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {SITE_TEMPLATE_CATALOG.length === 1 && (
+                  <p className="text-xs text-gray-500 mt-3">
+                    More designs are on the way — they'll appear here.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
           {/* Desktop / phone canvas toggle — most patients are on a phone, so
               checking that view should be one click, not devtools. */}
           <div
@@ -762,6 +874,37 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           </ActionButton>
         </div>
       </div>
+
+      {/* Design-preview strip — visible while the canvas wears a different
+          template. Content is universal, so any edits made now are real and
+          survive Apply AND Discard (the copy says so). */}
+      {previewingId && (
+        <div className="flex items-center justify-center gap-3 bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 text-sm text-amber-200">
+          <span>
+            Previewing{' '}
+            <strong>
+              {SITE_TEMPLATE_CATALOG.find((t) => t.id === previewingId)?.label ?? previewingId}
+            </strong>{' '}
+            on your own content — edits you make are real and stay either way.
+          </span>
+          <button
+            type="button"
+            onClick={applyTemplatePreview}
+            disabled={designBusy}
+            className="rounded-md bg-amber-400 text-gray-900 px-3 py-1 text-xs font-semibold hover:bg-amber-300 transition-colors disabled:opacity-50"
+          >
+            {designBusy ? 'Applying…' : 'Apply this design'}
+          </button>
+          <button
+            type="button"
+            onClick={discardTemplatePreview}
+            disabled={designBusy}
+            className="rounded-md border border-amber-400/50 px-3 py-1 text-xs text-amber-200 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+          >
+            Discard
+          </button>
+        </div>
+      )}
 
       {/* Canvas. The width toggle only changes the WRAPPER's max-width — the
           iframe itself never remounts, so a mid-edit inline field survives

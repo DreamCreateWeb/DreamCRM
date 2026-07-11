@@ -12,6 +12,7 @@ import type {
 } from '@/lib/types/clinic-content'
 import { DEFAULT_PAYMENT_METHODS } from '@/lib/types/clinic-content'
 import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
+import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
@@ -313,8 +314,25 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
         {/* Round-trip the SAVED template — never a hardcoded value. The mega-
             form posts every column it renders, so a literal 'modern' here
             silently reverted any clinic that had switched designs in the
-            Website Studio the next time they saved their profile. */}
+            Website Studio the next time they saved their profile. The Studio
+            is the single WRITER of this column (its Design picker previews
+            before applying); this form only carries it through. */}
         <input type="hidden" name="template" value={profile?.template ?? 'modern'} />
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700/60 px-3 py-2.5">
+          <div>
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-100">
+              Site design:{' '}
+              {SITE_TEMPLATE_CATALOG.find((t) => t.id === (profile?.template ?? 'modern'))?.label ??
+                'Modern Family'}
+            </div>
+            <p className={SUB_DESC + ' !mb-0 mt-0.5'}>
+              Preview and switch designs in the Website Studio — your content carries over untouched.
+            </p>
+          </div>
+          <a href="/website" className="text-sm text-violet-600 dark:text-violet-400 hover:underline whitespace-nowrap ml-4">
+            Open the Studio →
+          </a>
+        </div>
         {/* FAQ is edited in the Website Studio, not here. Carry the saved
             value through so a profile save doesn't wipe it (see initialFaqJson). */}
         <input type="hidden" name="faq" value={initialFaqJson} />

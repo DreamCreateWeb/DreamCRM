@@ -20,6 +20,9 @@ import {
   clean,
 } from '@/lib/clinic-content-parse'
 import { recordWebsiteEdit, undoLastWebsiteEdit } from '@/lib/services/website-history'
+import { cookies } from 'next/headers'
+import { isSiteTemplateId } from '@/lib/site-templates/catalog'
+import { TEMPLATE_PREVIEW_COOKIE } from '@/lib/site-templates/resolve'
 
 /**
  * Per-section server actions for the Website Editor (app/(default)/website).
@@ -74,6 +77,7 @@ const COLUMN_LABELS: Record<string, string> = {
   tagline: 'Hero tagline',
   copyOverrides: 'Text edit',
   imagePositions: 'Photo focus point',
+  template: 'Site design',
   addressLine1: 'Address',
   addressLine2: 'Address',
   city: 'Address',
@@ -178,6 +182,27 @@ export async function undoLastEditAction(): Promise<
     return { ok: true, undone: res.undone, more: !!res.next, nextLabel: res.next?.label ?? null }
   } catch {
     return { ok: false, error: 'Could not undo — try again' }
+  }
+}
+
+/**
+ * Apply a site design (template). Rides writeSection so the change lands in
+ * the undo history ("Undo: Site design" restores the previous template —
+ * content is universal, so switching is always safe + reversible). Clears any
+ * preview cookie so the applied design is what the owner sees immediately.
+ */
+export async function saveTemplate(templateId: string): Promise<SectionResult> {
+  const gated = await gate()
+  if (!gated.ok) return gated
+  if (!isSiteTemplateId(templateId)) {
+    return { ok: false, error: 'Unknown design' }
+  }
+  try {
+    await writeSection(gated.ctx, { template: templateId })
+    ;(await cookies()).delete(TEMPLATE_PREVIEW_COOKIE)
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'Could not switch designs — try again' }
   }
 }
 
