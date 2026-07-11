@@ -1,4 +1,5 @@
 import 'server-only'
+import { COLORING_LIBRARY, coloringLibraryUrl } from '@/lib/types/coloring-library'
 import { and, asc, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
@@ -1187,6 +1188,22 @@ const DEMO_DIFFERENCE_VIDEO_URL =
 // demo's seeded appointments). Deterministic so the demo URL never churns.
 const DEMO_CALENDAR_FEED_TOKEN = 'demo-dream-dental-calendar-feed-7c3f9a2e1b'
 
+// Kids' coloring corner — six pages from the platform's CC0 coloring library
+// (lib/types/coloring-library.ts). The `lib-<slug>` ids match what the Studio
+// editor's "Add from library" writes, so the demo mirrors the real flow and
+// re-seeding is idempotent. Dental-forward picks + crowd-pleasers.
+const DEMO_COLORING_PAGES = [
+  'happy-tooth',
+  'tooth-with-toothbrush',
+  'big-smile-teeth',
+  'caticorn',
+  'retro-rocket',
+  'stegosaurus',
+].map((slug) => {
+  const entry = COLORING_LIBRARY.find((e) => e.slug === slug)!
+  return { id: `lib-${slug}`, title: entry.title, imageUrl: coloringLibraryUrl(slug) }
+})
+
 const DEMO_OFFICE_PHOTOS = [
   {
     id: 'op1',
@@ -1693,6 +1710,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         stats: schema.clinicProfile.stats,
         testimonials: schema.clinicProfile.testimonials,
         officePhotos: schema.clinicProfile.officePhotos,
+        coloringPages: schema.clinicProfile.coloringPages,
         calendarFeedToken: schema.clinicProfile.calendarFeedToken,
         birthdayAutoSendEnabled: schema.clinicProfile.birthdayAutoSendEnabled,
         lapsedReactivationEnabled: schema.clinicProfile.lapsedReactivationEnabled,
@@ -1816,6 +1834,8 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // existingPatientIds (only available later in this block) so each
     // seeded testimonial can link to a real CRM patient.
     if (!profile?.officePhotos) patch.officePhotos = DEMO_OFFICE_PHOTOS
+    // Coloring corner backfill: legacy demos predate migration 0126.
+    if (!profile?.coloringPages) patch.coloringPages = DEMO_COLORING_PAGES
     if (!profile?.logoUrl) patch.logoUrl = DEMO_LOGO_URL
     if (!profile?.heroImageUrl) patch.heroImageUrl = DEMO_HERO_IMAGE_URL
     if (!profile?.heroImageUrl2) patch.heroImageUrl2 = DEMO_HERO_IMAGE_2_URL
@@ -2549,6 +2569,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     logoUrl: DEMO_LOGO_URL,
     heroImageUrl: DEMO_HERO_IMAGE_URL,
     heroImageUrl2: DEMO_HERO_IMAGE_2_URL,
+    coloringPages: DEMO_COLORING_PAGES,
     differenceVideoUrl: DEMO_DIFFERENCE_VIDEO_URL,
     calendarFeedToken: DEMO_CALENDAR_FEED_TOKEN,
     // Set & forget retention automations on, so the Recall & Outreach card

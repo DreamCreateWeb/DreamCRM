@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import type { ClinicColoringPage } from '@/lib/types/clinic-content'
+import { COLORING_LIBRARY, coloringLibraryUrl } from '@/lib/types/coloring-library'
 import { EmptyHint } from '@/components/ui/editor-kit'
 
 interface Props {
@@ -23,7 +24,18 @@ function uid() {
 export default function ColoringPagesEditor({ name, defaultValue }: Props) {
   const [items, setItems] = useState<ClinicColoringPage[]>(defaultValue ?? [])
   const [uploading, setUploading] = useState(false)
+  const [showLibrary, setShowLibrary] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Library entries seed a stable `lib-<slug>` id, so re-adding the same
+  // sheet is a no-op and the demo cleanup sweep can recognize seeded rows.
+  const addedLibrarySlugs = new Set(
+    items.map((p) => (p.id.startsWith('lib-') ? p.id.slice(4) : null)).filter(Boolean),
+  )
+  function addFromLibrary(slug: string, title: string) {
+    if (addedLibrarySlugs.has(slug)) return
+    setItems((prev) => [...prev, { id: `lib-${slug}`, title, imageUrl: coloringLibraryUrl(slug) }])
+  }
 
   function update(idx: number, patch: Partial<ClinicColoringPage>) {
     setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, ...patch } : p)))
@@ -113,10 +125,58 @@ export default function ColoringPagesEditor({ name, defaultValue }: Props) {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
               <path d="M10 5v10M5 10h10" />
             </svg>
-            Add coloring pages
+            Upload your own
           </>
         )}
       </button>
+
+      {/* The platform library — vetted public-domain line art any clinic can
+          use, no upload needed. Entries add with a stable `lib-<slug>` id so
+          re-adding is a no-op. */}
+      {COLORING_LIBRARY.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowLibrary((v) => !v)}
+            aria-expanded={showLibrary}
+            className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 py-2.5 text-[13px] font-semibold text-gray-500 dark:text-gray-400 hover:border-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition"
+          >
+            🎨 {showLibrary ? 'Hide the library' : `Add from the library (${COLORING_LIBRARY.length} free pages)`}
+          </button>
+          {showLibrary && (
+            <div className="mt-3 grid grid-cols-3 md:grid-cols-5 gap-2 max-h-72 overflow-y-auto pr-1">
+              {COLORING_LIBRARY.map((entry) => {
+                const added = addedLibrarySlugs.has(entry.slug)
+                return (
+                  <button
+                    key={entry.slug}
+                    type="button"
+                    onClick={() => addFromLibrary(entry.slug, entry.title)}
+                    disabled={added}
+                    title={added ? `${entry.title} — already added` : `Add “${entry.title}”`}
+                    className="relative rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white text-left hover:border-violet-400 transition disabled:opacity-45"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={coloringLibraryUrl(entry.slug)}
+                      alt={entry.title}
+                      loading="lazy"
+                      className="w-full aspect-[3/4] object-contain bg-white"
+                    />
+                    <span className="block px-1.5 py-1 text-xs font-medium text-gray-700 truncate bg-white/95 border-t border-gray-100">
+                      {added ? '✓ ' : ''}
+                      {entry.title}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+            Library art is public domain (CC0) — free to use on your site, no credit required.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

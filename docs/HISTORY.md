@@ -7,6 +7,32 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **The coloring LIBRARY — a vetted CC0 pack every clinic can use
+  (2026-07-11).** Owner: "search for any open source coloring page packs…
+  I want a rich library seeded in." Sourcing: a research agent evaluated
+  ~70 candidates across freesvg.org + openclipart.org (both CC0/public
+  domain; publicdomainvectors.org WAF-blocked), verified the per-item
+  license meta on every page, sanitized each SVG (scripts / on* handlers /
+  foreignObject / external hrefs / metadata stripped, viewBox ensured),
+  and render-proofed them; I visually curated the final **20** from a
+  contact sheet (dropped engraving-style dentists, an alphabet worksheet,
+  faint sketches, non-scene doodles). Assets live in
+  `public/images/coloring-library/` (under `/images/` so the middleware
+  static exclusion serves them on clinic subdomains + custom domains);
+  registry `lib/types/coloring-library.ts` records slug/title/sourceUrl/
+  license/themes per entry (provenance — CC0 needs no attribution).
+  Studio: the Coloring-pages modal gains **“Add from the library”** (grid
+  picker, stable `lib-<slug>` ids so re-adds are no-ops). Demo clinic
+  seeds 6 dental-forward pages (fresh-create + null-backfill self-heal,
+  migration-0126-era). Guards (tests/site-templates/coloring-library.
+  test.ts): registry↔asset parity both directions, kebab/unique/
+  alphabetized slugs, CC0 provenance strings, per-file sanitization scan
+  (no scripts/handlers/external refs — these serve from clinic ORIGINS),
+  demo-seed slug validity. Rejected sources: Freepik/Vecteezy/ADA
+  (non-redistributable). One gap: no balloon page — every candidate was
+  pre-colored; grow the pack by dropping a sanitized CC0 SVG in the asset
+  dir + one registry row (the guards enforce the rest).
+
 - **Pediatric template + the coloring-pages canon + confirmation pass
   (2026-07-11).** Owner: "lean in to the children/playful/cartoons theme…
   the first template that's going to add new things to the system — coloring
