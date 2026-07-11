@@ -1,6 +1,6 @@
 export const metadata = {
   title: 'Call Mode — DreamCRM',
-  description: 'One call at a time — script on screen, one-tap outcomes.',
+  description: 'One call at a time — script on screen, keyboard outcomes, rehearsal booth.',
 }
 
 export const dynamic = 'force-dynamic'
@@ -16,9 +16,9 @@ import CallSession from './call-session'
 /**
  * Call Mode — the cockpit for the part of the job the owner dreads. One
  * prospect at a time: the AI script for the first ten seconds, their local
- * time, the warm signals that prove it isn't really cold, one-tap outcomes
- * that log + advance. The queue is pre-ordered warmest-first so momentum
- * builds instead of draining.
+ * time, the warm signals that prove it isn't really cold, and outcomes on
+ * keys 1-5 that log + advance. The queue is pre-ordered warmest-first and
+ * answerable-first (call windows) so momentum builds instead of draining.
  */
 export default async function CallModePage() {
   const ctx = await requireTenant()

@@ -220,12 +220,16 @@ cockpit: one card at a time, cached AI cold-call script per prospect
 why-them / brush-off answers / ask / 20-sec voicemail; next card's script
 prefetches during the call), email open/click warm signals, tel: +
 prospect-local time, one-tap outcomes through logCallOutcome w/
-auto-advance, inline demo-time booking via `bookDemoForProspectAction`)
+auto-advance, inline demo-time booking via `bookDemoForProspectAction`,
+best-time-to-call ordering + prospect-local window hints (`callWindowScore`),
+and a 🎭 PRACTICE booth — rehearse against an AI playing that practice's
+front desk, then get zero-shame coaching (`lib/services/practice-call.ts`))
 → SELF-BOOKING demo close (`prospect_meeting` + public `/d/[token]`,
 token-IS-auth; prospect picks a slot from the owner's availability in their
 OWN tz, both sides get an add-to-calendar link; reminders 24h out;
 `lib/prospect-booking.ts` pure slot math, `lib/services/prospect-meetings.ts`;
-ships booking OFF) → AI demo prep brief (`/platform/prospecting/demo/[id]`) → CONVERT to a
+ships booking OFF; when ON, every outreach touch from step 2 carries the
+prospect's booking link) → AI demo prep brief (`/platform/prospecting/demo/[id]`) → CONVERT to a
 managed clinic that BOOTS IN THEIR BRAND (captured theme-color/logo seeds
 `clinic_profile`) → prospect-branded
 presenter mode (demo_skin cookie overlay, zero DB writes: chrome branding,
@@ -366,7 +370,10 @@ sitemap/robots/OG.
   seeder populates every column shown anywhere (empty/common/edge covered);
   self-heal backfills legacy demos. Ship wiring + seed + self-heal in one PR.
 - Vertical slices: schema + service + UI + tests in one PR. Tenant scoping is
-  non-negotiable. Tests before merge (`pnpm test` <4 min).
+  non-negotiable. Tests before merge — the FULL `pnpm test` (<4 min), not a
+  module subset: the repo-wide CI guards (legibility floor, tenant scoping,
+  cron parity, token single-homes) only run in the full pass, and deploys
+  don't run tests.
 - Voice: warm, plain, anti-shame ("3 still need a text", never "3 records
   pending confirmation"). See DESIGN.md for the full copy rules.
 

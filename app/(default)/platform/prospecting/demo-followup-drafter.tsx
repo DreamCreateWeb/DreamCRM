@@ -137,7 +137,7 @@ export default function DemoFollowupDrafter({ prospectId }: { prospectId: string
                 className="form-textarea w-full text-sm leading-relaxed"
                 spellCheck
               />
-              <p className="text-[0.7rem] text-gray-400 dark:text-gray-500">
+              <p className="text-xs text-gray-400 dark:text-gray-500">
                 Edit anything, then copy it into your own inbox. We never auto-send.
               </p>
             </>

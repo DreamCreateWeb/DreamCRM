@@ -324,7 +324,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
             <span className="font-mono-num text-2xl font-extrabold tracking-tight text-white">
               {fmtPhone(item.phone)}
             </span>
-            <span className="mt-0.5 block text-[0.7rem] text-teal-100/80">tap to call</span>
+            <span className="mt-0.5 block text-xs text-teal-100/80">tap to call</span>
           </a>
           {theirTime && (
             <div className="mt-3 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
@@ -334,7 +334,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           )}
           {item.callWindow.label && (
             <p
-              className={`mt-1 text-right text-[0.7rem] font-semibold ${
+              className={`mt-1 text-right text-xs font-semibold ${
                 item.callWindow.score >= 3
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : item.callWindow.good
@@ -357,7 +357,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
 
           {hasSignals && (
             <div className="mt-4 border-t border-[color:var(--color-hairline)] pt-3">
-              <p className="text-[0.65rem] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 Why this isn't cold
               </p>
               <div className="mt-1.5 space-y-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
@@ -550,7 +550,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           </div>
         )}
 
-        <p className="mt-2 text-[0.7rem] text-gray-400 dark:text-gray-500">
+        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
           Keys 1–5 log outcomes · callbacks, voicemails, and no-answers schedule their own follow-up — nothing drops.
         </p>
       </div>
@@ -588,7 +588,7 @@ function OutcomeButton({
     >
       <span>{children}</span>
       <span
-        className={`rounded px-1.5 font-mono-num text-[0.6rem] font-semibold ${
+        className={`rounded px-1.5 font-mono-num text-xs font-semibold ${
           primary ? 'bg-white/20 text-white' : 'bg-[color:var(--color-surface-sunk)] text-gray-400 dark:text-gray-500'
         }`}
       >

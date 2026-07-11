@@ -97,7 +97,7 @@ export default async function DemosPage() {
           <span className="text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">
             📅 Upcoming
           </span>
-          <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-violet-600 dark:text-violet-400">
+          <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono-num text-xs font-bold text-violet-600 dark:text-violet-400">
             {upcoming.length}
           </span>
         </h2>
@@ -113,7 +113,7 @@ export default async function DemosPage() {
                   {soon && (
                     <Link
                       href={`/platform/prospecting/demo/${d.prospectId}`}
-                      className="ml-1.5 inline-flex items-center gap-1 text-[0.7rem] font-semibold text-violet-600 hover:underline dark:text-violet-400"
+                      className="ml-1.5 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
                     >
                       🎬 Prep for this demo →
                     </Link>
@@ -130,7 +130,7 @@ export default async function DemosPage() {
           <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
             🏁 Completed
           </span>
-          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-emerald-600 dark:text-emerald-400">
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono-num text-xs font-bold text-emerald-600 dark:text-emerald-400">
             {completed.length}
           </span>
         </h2>

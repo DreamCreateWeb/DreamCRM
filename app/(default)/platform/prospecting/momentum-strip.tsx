@@ -29,15 +29,15 @@ const METRICS: Metric[] = [
 function Delta({ m }: { m: MomentumMetric }) {
   const diff = m.now - m.prev
   if (m.prev === 0 && m.now === 0) {
-    return <span className="text-[0.7rem] text-gray-400 dark:text-gray-500">—</span>
+    return <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
   }
   if (diff === 0) {
-    return <span className="text-[0.7rem] text-gray-400 dark:text-gray-500">± vs last wk</span>
+    return <span className="text-xs text-gray-400 dark:text-gray-500">± vs last wk</span>
   }
   const up = diff > 0
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-[0.7rem] font-semibold tabular-nums ${
+      className={`inline-flex items-center gap-0.5 text-xs font-semibold tabular-nums ${
         up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'
       }`}
       title={`${m.prev} the previous 7 days`}
@@ -54,7 +54,7 @@ export default function MomentumStrip({ momentum }: { momentum: PipelineMomentum
         <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           This week
         </h2>
-        <span className="text-[0.7rem] text-gray-400 dark:text-gray-500">· trailing 7 days</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">· trailing 7 days</span>
       </div>
       <div className="grid grid-cols-2 divide-y divide-[color:var(--color-hairline)] sm:grid-cols-4 sm:divide-y-0 sm:divide-x">
         {METRICS.map((mt) => {

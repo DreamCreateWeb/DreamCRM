@@ -36,7 +36,7 @@ export function Stage({
         {n}
       </span>
       <div className="min-w-0">
-        <p className={`mb-1 text-[0.68rem] font-bold uppercase tracking-wider ${labelClass}`}>{label}</p>
+        <p className={`mb-1 text-xs font-bold uppercase tracking-wider ${labelClass}`}>{label}</p>
         {children}
       </div>
     </div>

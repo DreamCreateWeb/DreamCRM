@@ -1152,6 +1152,21 @@ export async function getHuntStats(opts?: { now?: Date }): Promise<HuntStats> {
   }
 }
 
+/** Latest call outcome per prospect, batched — one DISTINCT ON query instead
+ *  of a per-row lookup (the call list alone can be 200 rows). */
+async function latestCallOutcomes(prospectIds: string[]): Promise<Map<string, string>> {
+  if (prospectIds.length === 0) return new Map()
+  const rows = await db
+    .selectDistinctOn([schema.prospectCallLog.prospectId], {
+      prospectId: schema.prospectCallLog.prospectId,
+      outcome: schema.prospectCallLog.outcome,
+    })
+    .from(schema.prospectCallLog)
+    .where(inArray(schema.prospectCallLog.prospectId, prospectIds))
+    .orderBy(schema.prospectCallLog.prospectId, desc(schema.prospectCallLog.createdAt))
+  return new Map(rows.map((r) => [r.prospectId, r.outcome]))
+}
+
 export interface CallListRow {
   id: string
   name: string
@@ -1178,14 +1193,9 @@ export async function getCallList(): Promise<CallListRow[]> {
     .where(eq(schema.prospect.status, 'call_list'))
     .orderBy(desc(schema.prospect.intentAt))
     .limit(200)
+  const lastCalls = await latestCallOutcomes(rows.map((r) => r.id))
   const out: CallListRow[] = []
   for (const p of rows) {
-    const [lastCall] = await db
-      .select({ outcome: schema.prospectCallLog.outcome })
-      .from(schema.prospectCallLog)
-      .where(eq(schema.prospectCallLog.prospectId, p.id))
-      .orderBy(desc(schema.prospectCallLog.createdAt))
-      .limit(1)
     out.push({
       id: p.id,
       name: p.name,
@@ -1201,7 +1211,7 @@ export async function getCallList(): Promise<CallListRow[]> {
       replyDraft: p.replyDraft ?? null,
       opportunityScore: p.opportunityScore,
       scoreBand: p.scoreBand,
-      lastCallOutcome: lastCall?.outcome ?? null,
+      lastCallOutcome: lastCalls.get(p.id) ?? null,
     })
   }
   return out
@@ -1423,14 +1433,9 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
     warm.set(e.prospectId, w)
   }
 
+  const lastCalls = await latestCallOutcomes(ids)
   const out: CallQueueItem[] = []
   for (const { p, source } of picked) {
-    const [lastCall] = await db
-      .select({ outcome: schema.prospectCallLog.outcome })
-      .from(schema.prospectCallLog)
-      .where(eq(schema.prospectCallLog.prospectId, p.id))
-      .orderBy(desc(schema.prospectCallLog.createdAt))
-      .limit(1)
     out.push({
       id: p.id,
       name: p.name,
@@ -1447,7 +1452,7 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
       intentSummary: p.intentSummary,
       talkingPoints: Array.isArray(p.talkingPoints) ? (p.talkingPoints as string[]) : [],
       followUpReason: p.followUpReason,
-      lastCallOutcome: lastCall?.outcome ?? null,
+      lastCallOutcome: lastCalls.get(p.id) ?? null,
       source,
       opens: warm.get(p.id)?.opens ?? 0,
       clicks: warm.get(p.id)?.clicks ?? 0,

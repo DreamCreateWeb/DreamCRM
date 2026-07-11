@@ -147,7 +147,7 @@ function BriefColumn({
     <div className="v2-card p-4">
       <Link href={href} className="mb-2 flex items-center justify-between gap-2 group">
         <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{title}</span>
-        <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 group-hover:text-teal-600 dark:text-gray-400 dark:group-hover:text-teal-400">
+        <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-xs font-bold text-gray-500 group-hover:text-teal-600 dark:text-gray-400 dark:group-hover:text-teal-400">
           {count}
         </span>
       </Link>

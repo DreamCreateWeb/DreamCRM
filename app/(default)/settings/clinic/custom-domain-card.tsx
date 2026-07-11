@@ -58,7 +58,7 @@ function CopyValue({ value }: { value: string }) {
       className="group inline-flex items-start gap-1.5 text-left hover:text-teal-600 dark:hover:text-teal-400"
     >
       <span className="break-all">{value}</span>
-      <span className="shrink-0 text-[10px] uppercase tracking-wide opacity-0 group-hover:opacity-70">
+      <span className="shrink-0 text-xs uppercase tracking-wide opacity-0 group-hover:opacity-70">
         {copied ? 'Copied' : 'Copy'}
       </span>
     </button>
@@ -286,14 +286,14 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
                         <CopyValue value={r.host} />
-                        <p className="mt-0.5 font-sans text-[11px] leading-snug text-gray-400 dark:text-gray-500 whitespace-normal">
+                        <p className="mt-0.5 font-sans text-xs leading-snug text-gray-400 dark:text-gray-500 whitespace-normal">
                           full: {r.name}
                         </p>
                       </td>
                       <td className="px-3 py-2 font-mono-num text-xs text-gray-700 dark:text-gray-300 break-all">
                         <CopyValue value={r.value} />
                         {r.note && (
-                          <p className="mt-1.5 font-sans text-[11px] leading-snug text-gray-500 dark:text-gray-400 whitespace-normal">
+                          <p className="mt-1.5 font-sans text-xs leading-snug text-gray-500 dark:text-gray-400 whitespace-normal">
                             {r.note}
                           </p>
                         )}

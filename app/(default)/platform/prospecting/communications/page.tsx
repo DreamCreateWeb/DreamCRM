@@ -65,7 +65,7 @@ export default async function CommunicationsPage() {
           <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             🛰 The feed
           </span>
-          <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 dark:text-gray-400">
+          <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-xs font-bold text-gray-500 dark:text-gray-400">
             {items.length}
           </span>
         </div>
@@ -83,7 +83,7 @@ export default async function CommunicationsPage() {
                     aria-hidden="true"
                   >
                     {prospectInitials(c.prospectName)}
-                    <span className="absolute -bottom-1 -right-1 rounded-full bg-[color:var(--color-surface-2)] px-0.5 text-[0.6rem] leading-none">
+                    <span className="absolute -bottom-1 -right-1 rounded-full bg-[color:var(--color-surface-2)] px-0.5 text-xs leading-none">
                       {KIND_ICON[c.kind]}
                     </span>
                   </span>

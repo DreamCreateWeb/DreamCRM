@@ -71,7 +71,7 @@ export default function PreVisitSummary({
               ))}
             </ul>
           )}
-          <p className="mt-2 text-[0.7rem] text-gray-400 dark:text-gray-500">
+          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
             AI-generated from this form for triage — verify against the answers below.
           </p>
         </div>

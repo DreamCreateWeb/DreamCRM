@@ -19,7 +19,7 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
         <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           📵 Phone-first queue
         </span>
-        <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 dark:text-gray-400">
+        <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-xs font-bold text-gray-500 dark:text-gray-400">
           {rows.length}
         </span>
       </div>
@@ -35,7 +35,7 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
           >
             <div className="flex min-w-0 items-start gap-2.5">
               <span
-                className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-[0.65rem] font-bold text-white ${
+                className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-xs font-bold text-white ${
                   r.scoreBand === 'hot' ? 'bg-rose-500' : 'bg-amber-500'
                 }`}
                 aria-hidden="true"

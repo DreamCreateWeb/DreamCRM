@@ -35,7 +35,7 @@ function TouchCard({ touch }: { touch: SequenceWithTouches['touches'][number] })
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
           <span
-            className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-teal-500/10 text-[0.68rem] font-extrabold text-teal-600 dark:text-teal-400"
+            className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-teal-500/10 text-xs font-extrabold text-teal-600 dark:text-teal-400"
             aria-hidden="true"
           >
             {touch.stepNumber}

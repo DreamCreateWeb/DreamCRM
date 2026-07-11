@@ -23,8 +23,10 @@ const SCAN_DIRS = [
 
 // px literals under 12: text-[1px] … text-[11px]
 const PX_BELOW_FLOOR = /text-\[(?:[1-9]|1[01])px\]/g
-// rem literals under 0.75: text-[0.0…] – text-[0.74…]rem
-const REM_BELOW_FLOOR = /text-\[0\.(?:[0-6]\d*|7[0-4])\d*rem\]/g
+// rem literals under 0.75: text-[0.0…] – text-[0.74…]rem. The 7-branch makes
+// its digits optional so bare "0.7rem" (11.2px — below the floor) is caught
+// too, while "0.75rem"+ stays allowed.
+const REM_BELOW_FLOOR = /text-\[0\.(?:[0-6]\d*|7(?:[0-4]\d*)?)rem\]/g
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

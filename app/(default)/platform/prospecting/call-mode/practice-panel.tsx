@@ -76,7 +76,7 @@ export default function PracticePanel({
         <div className="flex items-center justify-between gap-2 border-b border-[color:var(--color-hairline)] px-4 py-3">
           <div>
             <p className="text-sm font-bold text-gray-900 dark:text-gray-100">🎭 Rehearsal — {prospectName}</p>
-            <p className="text-[0.7rem] text-gray-400 dark:text-gray-500">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
               Say it out loud as you type. Nothing is saved.
             </p>
           </div>
@@ -115,7 +115,7 @@ export default function PracticePanel({
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{feedback.verdict}</p>
               {feedback.wins.length > 0 && (
                 <div className="mt-2.5">
-                  <p className="text-[0.68rem] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                     What worked
                   </p>
                   <ul className="mt-1 space-y-1 text-sm text-gray-700 dark:text-gray-300">
@@ -127,7 +127,7 @@ export default function PracticePanel({
               )}
               {feedback.fixes.length > 0 && (
                 <div className="mt-2.5">
-                  <p className="text-[0.68rem] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                  <p className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                     Tighten this
                   </p>
                   <ul className="mt-1 space-y-1 text-sm text-gray-700 dark:text-gray-300">

@@ -97,7 +97,7 @@ function Column({
       <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5 pb-3">
         <div className="flex items-center gap-2">
           <span
-            className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-[0.68rem] font-extrabold ${s.numClass}`}
+            className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-xs font-extrabold ${s.numClass}`}
             aria-hidden="true"
           >
             {s.n}
@@ -134,7 +134,7 @@ function WarmthBar({ hot, warm, cool }: { hot: number; warm: number; cool: numbe
         {warm > 0 && <div className="bg-amber-500" style={{ width: pct(warm) }} />}
         {cool > 0 && <div className="bg-slate-400" style={{ width: pct(cool) }} />}
       </div>
-      <div className="mt-2 flex justify-center gap-3 text-[0.65rem] text-gray-500 dark:text-gray-400">
+      <div className="mt-2 flex justify-center gap-3 text-xs text-gray-500 dark:text-gray-400">
         <span>
           <b className="tabular-nums text-gray-700 dark:text-gray-200">{hot.toLocaleString()}</b> hot
         </span>
@@ -161,7 +161,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             waiting to be worked
           </p>
-          <p className="mt-0.5 text-[0.7rem] text-gray-400 dark:text-gray-500">
+          <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
             {board.prospects.tracked.toLocaleString()} tracked in all
           </p>
           <WarmthBar hot={board.prospects.hot} warm={board.prospects.warm} cool={board.prospects.cool} />
@@ -188,7 +188,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
                 // imminent, so it reads as "get ready now", not clutter.
                 <Link
                   href={`/platform/prospecting/demo/${c.prospectId}`}
-                  className="ml-1.5 inline-flex items-center gap-1 text-[0.7rem] font-semibold text-violet-600 hover:underline dark:text-violet-400"
+                  className="ml-1.5 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 hover:underline dark:text-violet-400"
                 >
                   🎬 Prep for this demo →
                 </Link>
@@ -210,7 +210,7 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
               <Card card={c} stage="completed" />
               <Link
                 href={c.href}
-                className="ml-1.5 inline-flex items-center gap-1 text-[0.7rem] font-semibold text-amber-600 hover:underline dark:text-amber-400"
+                className="ml-1.5 inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:underline dark:text-amber-400"
               >
                 🏁 Won it? Log the outcome →
               </Link>

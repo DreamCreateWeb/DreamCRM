@@ -175,7 +175,7 @@ export default async function ProspectingPage({
             {t.label}
             {typeof t.count === 'number' && (
               <span
-                className={`rounded-full px-1.5 py-0.5 font-mono-num text-[0.65rem] font-bold ${
+                className={`rounded-full px-1.5 py-0.5 font-mono-num text-xs font-bold ${
                   view === t.v
                     ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
                     : 'bg-[color:var(--color-surface-sunk)] text-gray-500 dark:text-gray-400'
@@ -336,7 +336,7 @@ export default async function ProspectingPage({
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                     <div className="flex items-center gap-2.5">
                       <span
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-[0.68rem] font-bold text-white ${
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-xs font-bold text-white ${
                           BAND_AVATAR[p.scoreBand ?? ''] ?? 'bg-gray-300 dark:bg-gray-600'
                         }`}
                         aria-hidden="true"

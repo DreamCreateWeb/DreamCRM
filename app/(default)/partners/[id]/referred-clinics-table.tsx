@@ -121,7 +121,7 @@ export default function ReferredClinicsTable({
                         <input className="form-input w-20 text-xs py-1" type="number" min={1}
                           value={term} onChange={(e) => setTerm(e.target.value)} placeholder="mo" aria-label="Term months" />
                       </div>
-                      <p className="mt-1 text-[0.7rem] text-[color:var(--color-ink-500)]">
+                      <p className="mt-1 text-xs text-[color:var(--color-ink-500)]">
                         Uses partner default — currently {formatBps(partnerDefaultPercentBps)} · {formatTerm(partnerDefaultTermMonths)}. Match it to use the default.
                       </p>
                     </div>
@@ -129,7 +129,7 @@ export default function ReferredClinicsTable({
                     <span className="text-gray-700 dark:text-gray-300">
                       <span className="font-mono-num tabular-nums">{(c.percentBps / 100)}%</span>
                       <span className="text-gray-400 dark:text-gray-500"> · {formatTerm(c.termMonths)}</span>
-                      <span className="ml-1.5 text-[0.7rem] text-[color:var(--color-ink-500)]">
+                      <span className="ml-1.5 text-xs text-[color:var(--color-ink-500)]">
                         {c.hasPercentOverride ? 'override' : 'default'}
                       </span>
                     </span>

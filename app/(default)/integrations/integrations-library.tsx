@@ -399,9 +399,9 @@ function PricingBadge({ def }: { def: BundleDef }) {
         : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={`rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${cls}`}>{label}</span>
+      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>
       {def.hasPaidAddon && (
-        <span className="rounded-full px-2 py-0.5 text-[0.7rem] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300">
+        <span className="rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300">
           Add-on
         </span>
       )}

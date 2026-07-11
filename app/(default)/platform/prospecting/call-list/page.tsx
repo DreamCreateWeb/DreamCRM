@@ -82,7 +82,7 @@ export default async function CallListPage({
             <span className="text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">
               📅 Booked demos
             </span>
-            <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-violet-600 dark:text-violet-400">
+            <span className="rounded-full bg-violet-500/10 px-2 py-0.5 font-mono-num text-xs font-bold text-violet-600 dark:text-violet-400">
               {meetings.length}
             </span>
           </div>
@@ -94,7 +94,7 @@ export default async function CallListPage({
                   className="flex min-w-0 items-center gap-2 font-semibold text-gray-900 dark:text-gray-100 hover:text-teal-600 dark:hover:text-teal-400"
                 >
                   <span
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-violet-500 text-[0.6rem] font-bold text-white"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-violet-500 text-xs font-bold text-white"
                     aria-hidden="true"
                   >
                     {prospectInitials(m.prospectName)}
@@ -138,7 +138,7 @@ export default async function CallListPage({
             <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
               🔥 Hand-raisers
             </span>
-            <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-[0.65rem] font-bold text-gray-500 dark:text-gray-400">
+            <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 font-mono-num text-xs font-bold text-gray-500 dark:text-gray-400">
               {rows.length}
             </span>
           </div>

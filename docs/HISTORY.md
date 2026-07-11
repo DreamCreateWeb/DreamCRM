@@ -7,6 +7,25 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Maintenance cycle M1 — code health (2026-07-11).** Owner: "kick off the
+  maintenance and cleanup… the full maintenance cycle." First findings pass
+  over the pipeline arc. **Legibility regression fixed**: the arc (and two
+  earlier features) shipped sub-12px text — text-[0.6/0.65/0.68/0.7rem] +
+  text-[10/11px] across 17 files — violating the DESIGN-SYSTEM floor; all
+  bumped to text-xs, AND the guard itself had a regex gap that let bare
+  `0.7rem` (11.2px) through — tightened
+  (tests/a11y/legibility-floor.test.ts). Root cause: per-module test runs
+  (`pnpm test tests/prospecting`) skip the repo-wide guards and deploys
+  don't run tests — the full-suite-before-merge rule is now written into
+  CLAUDE.md conventions. **N+1s batched**: getCallList + getCallQueue each
+  ran a per-prospect latest-call-outcome query (up to 200/page on
+  /call-list) — now one shared DISTINCT ON batch (`latestCallOutcomes`).
+  **Verified sound**: momentum "Won" (markConverted stamps outcomeAt with
+  status flip; suppress + not_interested paths too). **Stale copy**: Call
+  Mode metadata/comments still said "one-tap outcomes" — now keyboard +
+  call windows + rehearsal booth. CLAUDE.md prospecting blurb gained the
+  three finishers. Full suite: 4,803 tests.
+
 - **Anti-cold-call finishers — three closers (2026-07-10).** Owner: "finish
   anything else you can think of… don't skip over any of the anti cold call
   features." Three green deploys. **Self-booking in outreach** (`f517f4f`):
