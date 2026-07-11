@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
 import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
-import { buildClinicPalette } from '@/lib/clinic-site-theme'
+import { getSiteTemplate } from '@/lib/site-templates/registry'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,9 +27,11 @@ export default async function Image({ params }: { params: Promise<Params> }) {
   const brand = data?.profile.brandColor ?? '#9CAF9F'
   const heroImageUrl = data?.profile.heroImageUrl ?? null
   // OG images render through Satori (no CSS custom properties) — so we derive
-  // the SAME palette as the live site but use the real hex values, keeping the
-  // share card on-brand instead of a fixed warm panel.
-  const p = buildClinicPalette(brand)
+  // the SAME palette as the live site (through the clinic's STORED template's
+  // recipe — scrapers carry no preview cookie, so share cards stay
+  // deterministic) but use the real hex values, keeping the share card
+  // on-brand instead of a fixed warm panel.
+  const p = getSiteTemplate(data?.profile.template).buildPalette(brand)
 
   return new ImageResponse(
     (

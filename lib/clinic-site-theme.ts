@@ -360,12 +360,18 @@ export function clinicPaletteVars(
   return out
 }
 
+/** Serialize any ClinicPalette to a `:root{…}` CSS string for a `<style>`
+ *  tag. Template palette recipes all emit the same roles, so this is the one
+ *  injector no matter which template built the palette. */
+export function paletteCss(p: ClinicPalette): string {
+  const body = (Object.keys(PALETTE_VARS) as (keyof ClinicPalette)[])
+    .map((key) => `${PALETTE_VARS[key]}:${p[key]}`)
+    .join(';')
+  return `:root{${body}}`
+}
+
 /** Serialize the palette to a `:root{…}` CSS string for a `<style>` tag (the
  *  site layout injects it once so every page + subpage inherits the theme). */
 export function clinicPaletteCss(brandHex: string | null | undefined): string {
-  const vars = clinicPaletteVars(brandHex)
-  const body = Object.entries(vars)
-    .map(([k, v]) => `${k}:${v}`)
-    .join(';')
-  return `:root{${body}}`
+  return paletteCss(buildClinicPalette(brandHex))
 }

@@ -14,7 +14,8 @@ import { getGoogleReviewStats, listFeaturableGoogleReviews } from '@/lib/service
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
-import ModernTemplate from '@/components/clinic-site/modern-template'
+import { isSelfBookingEnabled } from '@/lib/clinic-site-helpers'
+import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -93,6 +94,21 @@ export default async function ClinicSitePage({ params }: Props) {
   const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
   const heroImageUrl = data.profile.heroImageUrl ?? null
 
+  // Dispatch through the active template (stored choice, or an owner's
+  // preview). The shell above owns every read + SEO surface; the template
+  // only renders.
+  const { def } = await resolveActiveSiteTemplate(slug)
+  const Home = def.pages.Home
+  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
+  const gates = {
+    hasBlog: publishedPosts.length > 0,
+    hasTeam,
+    hasCareers: openJobs.length > 0,
+    hasDentalPlans: membershipPlans.length > 0,
+    isPro,
+    selfBooking: isSelfBookingEnabled(data.profile),
+  }
+
   return (
     <>
       {/* Preload the hero photo — it's the LCP element (the left oval portrait
@@ -109,16 +125,15 @@ export default async function ClinicSitePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ModernTemplate
+      <Home
         data={data}
         basePath={basePath}
         signInUrl={clinicPortalSignInUrl(slug)}
-        hasBlog={publishedPosts.length > 0}
+        gates={gates}
+        bookHref={isPro ? `${basePath}/book` : `${basePath}#contact`}
+        bookLabel={def.bookLabel}
         recentPosts={publishedPosts}
         reviewCount={reviewCount}
-        hasDentalPlans={membershipPlans.length > 0}
-        hasCareers={openJobs.length > 0}
-        hasTeam={hasTeam}
         featuredGoogleReviews={featuredGoogleReviews}
         googleRating={{ average: googleReviewStats.averageRating, count: googleReviewStats.count }}
       />

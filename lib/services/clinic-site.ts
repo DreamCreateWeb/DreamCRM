@@ -137,27 +137,31 @@ export const getClinicOrgIdBySlug = cache(async (slug: string): Promise<string |
 })
 
 /**
- * Minimal, request-cached slug → `{ orgId, brand }` resolver for the site
- * layout, which derives the whole CSS-variable palette from the brand color on
- * every public page hit. Kept separate (+ tiny) from the full profile load so
- * the layout doesn't pull locations/services just to read one color; `cache()`
- * dedupes it within a request. Returns `{ orgId: null, brand: null }` for a
- * non-clinic / unknown slug so the layout can fall back to the neutral default.
+ * Minimal, request-cached slug → `{ orgId, brand, template }` resolver for the
+ * site layout, which derives the whole CSS-variable palette from the brand
+ * color THROUGH the active template's recipe on every public page hit. Kept
+ * separate (+ tiny) from the full profile load so the layout doesn't pull
+ * locations/services just to read two columns; `cache()` dedupes it within a
+ * request. Returns all-null for a non-clinic / unknown slug so the layout can
+ * fall back to the neutral default.
  */
 export const getClinicThemeBySlug = cache(
-  async (slug: string): Promise<{ orgId: string | null; brand: string | null }> => {
+  async (
+    slug: string,
+  ): Promise<{ orgId: string | null; brand: string | null; template: string | null }> => {
     const [row] = await db
       .select({
         id: organization.id,
         type: organization.type,
         brand: clinicProfile.brandColor,
+        template: clinicProfile.template,
       })
       .from(organization)
       .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
       .where(eq(organization.slug, slug))
       .limit(1)
-    if (!row || row.type !== 'clinic') return { orgId: null, brand: null }
-    return { orgId: row.id, brand: row.brand ?? null }
+    if (!row || row.type !== 'clinic') return { orgId: null, brand: null, template: null }
+    return { orgId: row.id, brand: row.brand ?? null, template: row.template ?? null }
   },
 )
 

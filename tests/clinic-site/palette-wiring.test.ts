@@ -17,10 +17,11 @@ const read = (rel: string) => readFileSync(resolve(ROOT, rel), 'utf8')
 
 describe('site layout injects the derived palette', () => {
   const layout = read('app/site/[slug]/layout.tsx')
-  it('imports + calls clinicPaletteCss with the clinic brand', () => {
-    expect(layout).toMatch(/clinicPaletteCss/)
+  it('derives the palette from the clinic brand THROUGH the active template recipe', () => {
     expect(layout).toMatch(/getClinicThemeBySlug/)
-    expect(layout).toMatch(/clinicPaletteCss\(brand\)/)
+    expect(layout).toMatch(/resolveActiveSiteTemplate/)
+    expect(layout).toMatch(/def\.buildPalette\(brand\)/)
+    expect(layout).toMatch(/paletteCss\(palette\)/)
   })
 })
 
@@ -64,8 +65,10 @@ describe('neutral surfaces read the brand-tinted vars', () => {
 
 describe('OG image uses real derived hexes (Satori can not read CSS vars)', () => {
   const og = read('app/site/[slug]/opengraph-image.tsx')
-  it('builds the palette and uses p.bg / p.ink (not var())', () => {
-    expect(og).toMatch(/buildClinicPalette\(brand\)/)
+  it('builds the palette through the STORED template recipe and uses p.bg (not var())', () => {
+    // Stored template only — scrapers carry no preview cookie, so share
+    // cards stay deterministic.
+    expect(og).toMatch(/getSiteTemplate\(data\?\.profile\.template\)\.buildPalette\(brand\)/)
     expect(og).toMatch(/backgroundColor: p\.bg/)
     // Must NOT emit CSS custom properties into the image markup.
     expect(og).not.toMatch(/var\(--c-/)

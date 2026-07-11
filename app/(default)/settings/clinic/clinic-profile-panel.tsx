@@ -310,7 +310,11 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
           name="differenceVideoUrl"
           defaultValue={profile?.differenceVideoUrl ?? null}
         />
-        <input type="hidden" name="template" value="modern" />
+        {/* Round-trip the SAVED template — never a hardcoded value. The mega-
+            form posts every column it renders, so a literal 'modern' here
+            silently reverted any clinic that had switched designs in the
+            Website Studio the next time they saved their profile. */}
+        <input type="hidden" name="template" value={profile?.template ?? 'modern'} />
         {/* FAQ is edited in the Website Studio, not here. Carry the saved
             value through so a profile save doesn't wipe it (see initialFaqJson). */}
         <input type="hidden" name="faq" value={initialFaqJson} />

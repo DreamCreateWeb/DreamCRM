@@ -1,41 +1,31 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
-import { getClinicThemeBySlug } from '@/lib/services/clinic-site'
+import { getClinicThemeBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { canEditClinic } from '@/lib/clinic-site-edit'
-import { clinicPaletteCss } from '@/lib/clinic-site-theme'
+import { paletteCss } from '@/lib/clinic-site-theme'
+import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
+import TemplateFontLinks from '@/components/clinic-site/template-fonts'
+import TemplatePreviewBanner from '@/components/clinic-site/template-preview-banner'
 import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
 import SiteViewBeacon from '@/components/clinic-site/site-view-beacon'
 import SiteChatWidget from '@/components/clinic-site/site-chat-widget'
 
-const FRAUNCES_HREF =
-  'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap'
-
 /**
- * Site-wide layout for clinic public pages (/site/[slug]/...). Loads the
- * Fraunces serif used for display headings (hero H1 + section H2s) via a
- * standard <link> tag rather than `next/font/google`.
+ * Site-wide layout for clinic public pages (/site/[slug]/...). The active
+ * TEMPLATE (clinic_profile.template, or an owner's preview cookie) decides the
+ * display font links + the palette recipe here, once, for every page — see
+ * lib/site-templates/. Fonts load via runtime <link> (never next/font, which
+ * fetches at build time and broke the CodeBuild pipeline once — PR #166);
+ * the non-blocking media=print trick lives in TemplateFontLinks.
  *
  * It also mounts:
  *  - the Website Studio EditBridge (gated to owner/admin + the `?edit=1` flag)
  *    so the canvas stays editable as the clinic navigates their own pages;
  *  - the site-wide SiteViewBeacon — a fire-and-forget pageview counter so the
  *    clinic can finally see how many people visit their site (the only proxy
- *    before was GSC clicks: search-only, ~2-day lag).
- *
- * Why the link approach (not next/font): `next/font/google` fetches font files
- * at BUILD TIME and self-hosts them — brittle in build environments without
- * reliable outbound to fonts.googleapis.com, which broke the App Runner
- * CodeBuild pipeline once (PR #166). The <link> defers the fetch to the
- * browser, which always works.
- *
- * Why NON-render-blocking: a normal stylesheet <link> blocks first paint until
- * the CSS downloads — over a slow connection that delays the whole page on a
- * decorative display font. We load it with `media="print"` (which the browser
- * fetches at low priority WITHOUT blocking render) then flip it to `media="all"`
- * on load via a tiny inline onload handler. The Georgia fallback in the
- * template's inline `--font-display` covers the brief swap window, and a
- * <noscript> keeps it working with JS disabled.
+ *    before was GSC clicks: search-only, ~2-day lag);
+ *  - the template-preview banner when an owner is trying a different design.
  *
  * Inter for body text is loaded globally by the root layout, so we don't
  * need to touch it here.
@@ -49,7 +39,9 @@ export default async function ClinicSiteLayout({
 }) {
   const { slug } = await params
   const { orgId, brand } = await getClinicThemeBySlug(slug)
+  const { def, isPreview } = await resolveActiveSiteTemplate(slug)
   const canEdit = orgId ? await canEditClinic(orgId) : false
+  const palette = def.buildPalette(brand)
   // The "Message us" bubble (site-wide, so it lives here, not per-page).
   // Default ON; Settings → Practice is the off switch.
   let chatWidget: { enabled: boolean; clinicName: string } | null = null
@@ -65,35 +57,22 @@ export default async function ClinicSiteLayout({
   }
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      {/* Non-render-blocking: fetch the stylesheet as `print` (browsers fetch
-          it at low priority WITHOUT blocking first paint), then a tiny inline
-          script promotes it to `all` once it loads + on its load event. */}
-      <link id="dc-fraunces" rel="stylesheet" href={FRAUNCES_HREF} media="print" />
-      <script
-        dangerouslySetInnerHTML={{
-          __html:
-            "(function(){var l=document.getElementById('dc-fraunces');if(!l)return;function s(){l.media='all'}if(l.sheet){s()}else{l.addEventListener('load',s);l.addEventListener('error',s)}})();",
-        }}
-      />
-      <noscript>
-        {/* No JS → load it the normal (blocking) way so the font still applies. */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link rel="stylesheet" href={FRAUNCES_HREF} />
-      </noscript>
+      <TemplateFontLinks fonts={def.fonts} />
       {/* Derived theme — the clinic picks ONE brand color and the whole site
           palette (ground, surface, borders, the deep rhythm-break band, the
           bright strip, every readable ink) is derived from it here, once, as
-          CSS custom properties on :root. Every page + subpage + shared chrome
-          reads `var(--c-*)` so the site harmonizes around the brand instead of
-          a fixed teal/beige scheme. Pure + contrast-checked (lib/clinic-site-
-          theme.ts). Components keep literal fallbacks in their var() refs, so a
-          surface rendered outside this layout still paints. */}
-      <style>{clinicPaletteCss(brand)}</style>
+          CSS custom properties on :root — through the ACTIVE TEMPLATE's
+          recipe, so a luxury template can fix its own neutrals while a family
+          template derives everything from the brand. Every page + subpage +
+          shared chrome reads `var(--c-*)` (identical names across templates)
+          so the whole site restyles with the template. Pure + contrast-checked
+          (lib/clinic-site-theme.ts + each template's recipe). Components keep
+          literal fallbacks in their var() refs, so a surface rendered outside
+          this layout still paints. */}
+      <style>{paletteCss(palette)}</style>
       <style>{`
         :root {
-          --font-display: 'Fraunces', Georgia, serif;
+          ${def.fontCss}
           /* Single source of truth for the sticky site-header height, so
              sticky offsets + scroll-margin (e.g. the FAQ category tabs and
              in-page anchor targets) stay in lockstep with the header — change
@@ -122,7 +101,23 @@ export default async function ClinicSiteLayout({
       `}</style>
       {children}
       {orgId && <SiteViewBeacon orgId={orgId} slug={slug} />}
-      {chatWidget && <SiteChatWidget slug={slug} brand={brand || '#9CAF9F'} clinicName={chatWidget.clinicName} />}
+      {chatWidget && (
+        // Brand through the template's recipe when set (so e.g. a luxury
+        // template's accent harmonizes); the historical sage default when the
+        // clinic has no brand color yet.
+        <SiteChatWidget
+          slug={slug}
+          brand={brand ? palette.brand : '#9CAF9F'}
+          clinicName={chatWidget.clinicName}
+        />
+      )}
+      {isPreview && (
+        <TemplatePreviewBanner
+          slug={slug}
+          basePath={await resolveSiteBasePath(slug)}
+          label={def.label}
+        />
+      )}
       <EditBridgeGate canEdit={canEdit} />
     </>
   )
