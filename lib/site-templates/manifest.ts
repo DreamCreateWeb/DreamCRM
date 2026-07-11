@@ -50,5 +50,11 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
       'components/clinic-site/templates/cosmetic/footer.tsx',
       'components/clinic-site/templates/cosmetic/mobile-actions.tsx',
     ],
+    pediatric: [
+      'components/clinic-site/templates/pediatric/home.tsx',
+      'components/clinic-site/templates/pediatric/header.tsx',
+      'components/clinic-site/templates/pediatric/footer.tsx',
+      'components/clinic-site/templates/pediatric/mobile-actions.tsx',
+    ],
   },
 }

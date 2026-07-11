@@ -61,6 +61,7 @@ function homeProps(data: ClinicSiteData, def: (typeof TEMPLATES)[number]): HomeP
       hasTeam: staff.length > 0,
       hasCareers: false,
       hasDentalPlans: false,
+      hasColoringPages: false,
       isPro,
       selfBooking: data.profile.selfBookingEnabled !== false,
     },
@@ -103,6 +104,74 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     const { container } = render(<def.pages.Home {...homeProps(FIXTURES.rich(), def)} />)
     expect(container.textContent).toContain(def.bookLabel)
     cleanup()
+  })
+
+  it('a basic-tier Home hosts the #contact anchor its own bookHref targets', () => {
+    // The empty fixture is basic tier, so homeProps points bookHref at
+    // `…#contact` — a template that forgets the section strands the CTA.
+    const { container } = render(<def.pages.Home {...homeProps(FIXTURES.empty(), def)} />)
+    expect(container.querySelector('#contact'), 'missing #contact section on basic tier').toBeTruthy()
+    cleanup()
+  })
+
+  it('chrome: Footer carries the sitewide #site-footer-contact anchor + Header/Mobile render', () => {
+    // Every template's "Contact" nav entry targets #site-footer-contact; a
+    // footer without the anchor dead-ends that link on all 20 pages at once.
+    const data = FIXTURES.rich()
+    const chromeProps = {
+      data,
+      basePath: '/site/fixture-dental',
+      navLinks: [
+        { label: 'Services', href: '/site/fixture-dental/services' },
+        { label: 'Contact', href: '#site-footer-contact' },
+      ],
+      bookHref: '/site/fixture-dental/book',
+      bookLabel: def.bookLabel,
+      signInUrl: 'https://www.example.com/site/fixture-dental/portal',
+    }
+    const footer = render(<def.chrome.Footer {...chromeProps} />)
+    expect(footer.container.querySelector('#site-footer-contact')).toBeTruthy()
+    expect(footer.container.textContent).toContain(def.bookLabel)
+    cleanup()
+    const header = render(<def.chrome.Header {...chromeProps} />)
+    expect(header.container.textContent).toContain(data.profile.displayName as string)
+    expect(header.container.textContent).toContain(def.bookLabel)
+    cleanup()
+    const mobile = render(
+      <def.chrome.MobileActions
+        data={data}
+        basePath="/site/fixture-dental"
+        bookHref="/site/fixture-dental/book"
+        bookLabel={def.bookLabel}
+      />,
+    )
+    expect(mobile.container.textContent).toContain(def.bookLabel)
+    cleanup()
+  })
+
+  it('declared extra marketing pages resolve to real routes and honor their gates', () => {
+    for (const page of def.extraMarketingPages) {
+      // The route must exist — a declared page that 404s would poison nav +
+      // sitemap for every clinic on this template.
+      const routeFile = `app/site/[slug]${page.path}/page.tsx`
+      expect(() => read(routeFile), `${routeFile} missing for declared page ${page.path}`).not.toThrow()
+      // Gated pages must not surface on the empty clinic's Home nav.
+      if (page.gate) {
+        const emptyGates = {
+          hasBlog: false, hasTeam: false, hasCareers: false, hasDentalPlans: false,
+          hasColoringPages: false, isPro: false, selfBooking: true,
+        }
+        if (!page.gate(emptyGates)) {
+          const { container } = render(<def.pages.Home {...homeProps(FIXTURES.empty(), def)} />)
+          const hrefs = Array.from(container.querySelectorAll('a')).map((a) => a.getAttribute('href'))
+          expect(
+            hrefs.filter((h) => h?.endsWith(page.path)),
+            `gated page ${page.path} leaked into the empty clinic's Home`,
+          ).toEqual([])
+          cleanup()
+        }
+      }
+    }
   })
 
   it('palette recipe: all roles present + WCAG floors for every brand input', () => {

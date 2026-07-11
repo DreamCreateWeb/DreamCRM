@@ -25,6 +25,7 @@ import {
   navServicesFromClinicServices,
   copyOverride,
   resolveCopyList,
+  hasColoringPages,
 } from '@/lib/clinic-site-helpers'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { DeepBand } from '@/components/clinic-site/decor'
@@ -158,6 +159,13 @@ export default async function PaymentFinancingPage({ params }: Props) {
   const signIn = clinicPortalSignInUrl(slug)
 
   const navLinks = buildClinicNavLinks({
+    // Template-declared marketing pages (e.g. Pediatric's /coloring), gated
+    // inside the builder against the same flags as everything else.
+    extraPages: siteTemplate.extraMarketingPages,
+    extraGates: {
+      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
+      hasColoringPages: hasColoringPages(data.profile),
+    },
     basePath,
     hasBlog,
     hasDentalPlans,

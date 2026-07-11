@@ -66,7 +66,9 @@ app/
   (preview)/         /settings/portal/preview (watermarked portal replica)
   site/[slug]/       Public clinic sites — MULTI-TEMPLATE (clinic_profile.
                      template picks the design: 'modern' Tend-style family
-                     default, 'cosmetic' charcoal/cream luxury; /book, /services,
+                     default, 'cosmetic' charcoal/cream luxury, 'pediatric'
+                     playful pastels w/ the /coloring kids' corner; /book,
+                     /services,
                      /intake, /shop, /careers, /blog, /team, …). Page SHELLS own
                      every read/SEO/gate and dispatch typed props to the active
                      template's renderers. Fonts via runtime <link>, NOT
@@ -85,7 +87,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0125 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0126 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -401,7 +403,7 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0125**. Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0126**. Workflow: `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime

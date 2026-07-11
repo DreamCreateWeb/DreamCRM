@@ -25,6 +25,12 @@ export const SITE_TEMPLATE_CATALOG: SiteTemplateCatalogEntry[] = [
     description:
       'Charcoal and cream, serif editorial, doctor-as-hero — for cosmetic and aesthetic-led practices. Consultation-first voice; never leads with pricing.',
   },
+  {
+    id: 'pediatric',
+    label: 'Pediatric Play',
+    description:
+      'Soft pastels, rounded type, cartoon touches — built for kids’ practices. Parent-reassuring voice, plus a coloring corner kids can print or color online.',
+  },
 ]
 
 export const SITE_TEMPLATE_IDS = SITE_TEMPLATE_CATALOG.map((t) => t.id)

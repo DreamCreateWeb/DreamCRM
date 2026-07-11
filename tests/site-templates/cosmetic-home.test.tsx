@@ -18,6 +18,7 @@ function props(data: ClinicSiteData, over: Partial<HomePageProps> = {}): HomePag
       hasTeam: staff.length > 0,
       hasCareers: false,
       hasDentalPlans: false,
+      hasColoringPages: false,
       isPro,
       selfBooking: true,
     },

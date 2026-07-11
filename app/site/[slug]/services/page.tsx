@@ -17,7 +17,7 @@ import {
 } from '@/lib/services/service-library'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { servicesItemListJsonLd } from '@/lib/clinic-site-jsonld'
-import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
+import { buildClinicNavLinks, hasColoringPages } from '@/lib/clinic-site-helpers'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
@@ -125,6 +125,13 @@ export default async function ServicesPage({ params }: Props) {
       : null
 
   const navLinks = buildClinicNavLinks({
+    // Template-declared marketing pages (e.g. Pediatric's /coloring), gated
+    // inside the builder against the same flags as everything else.
+    extraPages: siteTemplate.extraMarketingPages,
+    extraGates: {
+      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
+      hasColoringPages: hasColoringPages(data.profile),
+    },
     basePath,
     hasBlog,
     hasDentalPlans,

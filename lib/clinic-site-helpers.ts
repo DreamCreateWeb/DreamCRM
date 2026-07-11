@@ -3,6 +3,7 @@
 // import from both server components and client-renderable demos.
 
 import type { ClinicService } from '@/lib/types/clinic-content'
+import type { TemplateMarketingPage, SiteGates } from '@/lib/site-templates/types'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 
 /**
@@ -93,6 +94,23 @@ export function isSelfBookingEnabled(
   profile: { selfBookingEnabled?: boolean | null } | null | undefined,
 ): boolean {
   return profile?.selfBookingEnabled !== false
+}
+
+/** ≥1 valid staff-uploaded coloring page on the profile — the content gate
+ *  for /coloring + any nav link a template declares for it. Pure + junk-
+ *  tolerant (the column is jsonb). */
+export function hasColoringPages(
+  profile: { coloringPages?: unknown } | null | undefined,
+): boolean {
+  const raw = profile?.coloringPages
+  if (!Array.isArray(raw)) return false
+  return raw.some(
+    (p) =>
+      !!p &&
+      typeof p === 'object' &&
+      typeof (p as { imageUrl?: unknown }).imageUrl === 'string' &&
+      ((p as { imageUrl: string }).imageUrl.trim().length > 0),
+  )
 }
 
 /**
@@ -203,14 +221,6 @@ export interface NavService {
  *
  * FAQ and Blog are NO LONGER top-level — they live inside the About dropdown.
  */
-export interface ExtraNavPage {
-  /** Site-relative path, e.g. '/smile-gallery'. */
-  path: string
-  label: string
-  /** Which nav group the page joins (default 'about'). */
-  navGroup?: 'about' | 'patients' | 'top'
-}
-
 export function buildClinicNavLinks(opts: {
   basePath: string
   hasBlog: boolean
@@ -218,10 +228,13 @@ export function buildClinicNavLinks(opts: {
   hasDentalPlans?: boolean
   hasTeam?: boolean
   hasCareers?: boolean
-  /** Template-declared marketing pages, ALREADY gate-filtered by the caller
-   *  (the shell holds the SiteGates). [] / omitted → output is bit-identical
-   *  to the pre-template nav. */
-  extraPages?: ExtraNavPage[]
+  /** The active template's declared marketing pages — gated HERE against the
+   *  same has* flags this builder already receives (+ `extraGates` for the
+   *  profile-derived ones), so no shell can surface a link its gate would
+   *  hide. [] / omitted → output is bit-identical to the pre-template nav. */
+  extraPages?: TemplateMarketingPage[]
+  /** Profile-derived gates the has* flags don't cover. */
+  extraGates?: { isPro?: boolean; selfBooking?: boolean; hasColoringPages?: boolean }
 }): SiteNavLink[] {
   const {
     basePath,
@@ -231,10 +244,20 @@ export function buildClinicNavLinks(opts: {
     hasTeam = false,
     hasCareers = false,
     extraPages = [],
+    extraGates = {},
   } = opts
+  const gates: SiteGates = {
+    hasBlog,
+    hasTeam,
+    hasCareers,
+    hasDentalPlans,
+    hasColoringPages: extraGates.hasColoringPages ?? false,
+    isPro: extraGates.isPro ?? false,
+    selfBooking: extraGates.selfBooking ?? true,
+  }
   const extrasIn = (group: 'about' | 'patients' | 'top') =>
     extraPages
-      .filter((p) => (p.navGroup ?? 'about') === group)
+      .filter((p) => (p.navGroup ?? 'about') === group && (!p.gate || p.gate(gates)))
       .map((p) => ({ label: p.label, href: `${basePath}${p.path}` }))
   const core = services.filter((s) => s.category !== 'special')
   const special = services.filter((s) => s.category === 'special')

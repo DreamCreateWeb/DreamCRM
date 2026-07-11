@@ -17,6 +17,7 @@ import type {
   ClinicOfficePhoto,
   ClinicFinancingPartner,
   ClinicFaqItem,
+  ClinicColoringPage,
 } from '@/lib/types/clinic-content'
 
 function uid() {
@@ -128,6 +129,29 @@ export function parseStats(raw: string | undefined): ClinicStat[] | null {
       if (!value && !label) continue
       const dynamic = obj.dynamic === 'review_count' ? 'review_count' : null
       out.push({ id: typeof obj.id === 'string' ? obj.id : uid(), value, label, dynamic })
+    }
+    return out.length ? out : null
+  } catch {
+    return null
+  }
+}
+
+export function parseColoringPages(raw: string | undefined): ClinicColoringPage[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: ClinicColoringPage[] = []
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue
+      const obj = item as Record<string, unknown>
+      const imageUrl = typeof obj.imageUrl === 'string' ? obj.imageUrl.trim() : ''
+      if (!imageUrl) continue
+      out.push({
+        id: typeof obj.id === 'string' ? obj.id : uid(),
+        title: typeof obj.title === 'string' ? obj.title.trim() || null : null,
+        imageUrl,
+      })
     }
     return out.length ? out : null
   } catch {

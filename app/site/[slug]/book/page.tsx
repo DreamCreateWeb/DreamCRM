@@ -15,6 +15,7 @@ import {
   navServicesFromClinicServices,
   copyOverride,
   isSelfBookingEnabled,
+  hasColoringPages,
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
 import { readableInk } from '@/lib/clinic-site-theme'
@@ -197,6 +198,13 @@ export default async function BookPage({ params, searchParams }: Props) {
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
 
   const navLinks = buildClinicNavLinks({
+    // Template-declared marketing pages (e.g. Pediatric's /coloring), gated
+    // inside the builder against the same flags as everything else.
+    extraPages: siteTemplate.extraMarketingPages,
+    extraGates: {
+      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
+      hasColoringPages: hasColoringPages(data.profile),
+    },
     basePath,
     hasBlog,
     hasDentalPlans,

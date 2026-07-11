@@ -14,7 +14,7 @@ import { getGoogleReviewStats, listFeaturableGoogleReviews } from '@/lib/service
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
-import { isSelfBookingEnabled } from '@/lib/clinic-site-helpers'
+import { isSelfBookingEnabled, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 
 interface Props {
@@ -105,6 +105,7 @@ export default async function ClinicSitePage({ params }: Props) {
     hasTeam,
     hasCareers: openJobs.length > 0,
     hasDentalPlans: membershipPlans.length > 0,
+    hasColoringPages: hasColoringPages(data.profile),
     isPro,
     selfBooking: isSelfBookingEnabled(data.profile),
   }

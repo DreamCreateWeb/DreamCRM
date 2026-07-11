@@ -65,6 +65,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   stats: jsonb('stats'),
   officePhotos: jsonb('office_photos'),
   faq: jsonb('faq'),
+  // coloringPages: Array<{ id, title?, imageUrl }> — staff-uploaded line-art
+  // kids can print or digitally color at the public /coloring page. Universal
+  // content (any template MAY surface it); the Pediatric template declares
+  // /coloring as one of its marketing pages. Null/empty → the page 404s and
+  // no nav link renders anywhere.
+  coloringPages: jsonb('coloring_pages'),
   // copyOverrides: Record<string, string> — per-clinic overrides for otherwise
   // hardcoded template copy (section headlines, etc.), keyed by a stable id
   // (e.g. 'home.differenceHeadline'). Null/missing for a key → the template

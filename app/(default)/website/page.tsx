@@ -10,7 +10,7 @@ import { getSitePerformance } from '@/lib/services/site-analytics'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
-import { buildStudioPages } from '@/lib/clinic-site-helpers'
+import { buildStudioPages, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
 import { getLastWebsiteEdit } from '@/lib/services/website-history'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
@@ -85,6 +85,7 @@ export default async function WebsiteEditorPage() {
     hasBlog: posts.length > 0,
     hasCareers: jobs.length > 0,
     hasDentalPlans: plans.length > 0,
+    hasColoringPages: hasColoringPages(profile),
     isPro: profile.planTier === 'pro' || profile.planTier === 'premium',
     selfBooking: profile.selfBookingEnabled !== false,
   }

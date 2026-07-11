@@ -75,6 +75,15 @@ describe('resolveActiveSiteTemplate', () => {
     expect(r.def.id).toBe('modern')
   })
 
+  it('honors a valid preview for a verified editor (stored modern, preview cosmetic)', async () => {
+    cookieValue = 'clinic-p:cosmetic'
+    canEdit.mockResolvedValue(true)
+    const r = await resolveActiveSiteTemplate('clinic-p')
+    expect(r.isPreview).toBe(true)
+    expect(r.def.id).toBe('cosmetic')
+    expect(r.storedId).toBe('modern')
+  })
+
   it('previewing the already-stored template is not a preview', async () => {
     cookieValue = 'clinic-f:modern'
     canEdit.mockResolvedValue(true)

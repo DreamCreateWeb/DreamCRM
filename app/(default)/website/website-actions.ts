@@ -13,6 +13,7 @@ import {
   parseStaff,
   parseStats,
   parseOfficePhotos,
+  parseColoringPages,
   parseFaq,
   parseStringList,
   parseFinancingPartners,
@@ -70,6 +71,7 @@ const COLUMN_LABELS: Record<string, string> = {
   leadForms: 'Form fields',
   hours: 'Office hours',
   differenceVideoUrl: 'Intro video',
+  coloringPages: 'Coloring pages',
   heroImageUrl: 'Hero image',
   heroImageUrl2: 'Second hero image',
   logoUrl: 'Logo',
@@ -308,6 +310,14 @@ export async function saveOfficePhotos(formData: FormData): Promise<SectionResul
   return runSection(async (ctx) => {
     await writeSection(ctx, {
       officePhotos: parseOfficePhotos(formData.get('officePhotos')?.toString()),
+    })
+  })
+}
+
+export async function saveColoringPages(formData: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    await writeSection(ctx, {
+      coloringPages: parseColoringPages(formData.get('coloringPages')?.toString()),
     })
   })
 }

@@ -17,6 +17,7 @@ import {
   navServicesFromClinicServices,
   copyOverride,
   resolveCopyList,
+  hasColoringPages,
 } from '@/lib/clinic-site-helpers'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
@@ -212,6 +213,13 @@ export default async function InsurancePage({ params }: Props) {
   const outOfNetworkSteps = resolveCopyList(copyOverrides, 'insurance.outNet', OUT_OF_NETWORK_STEPS)
 
   const navLinks = buildClinicNavLinks({
+    // Template-declared marketing pages (e.g. Pediatric's /coloring), gated
+    // inside the builder against the same flags as everything else.
+    extraPages: siteTemplate.extraMarketingPages,
+    extraGates: {
+      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
+      hasColoringPages: hasColoringPages(data.profile),
+    },
     basePath,
     hasBlog,
     hasDentalPlans,

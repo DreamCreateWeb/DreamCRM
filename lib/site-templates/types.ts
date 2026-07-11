@@ -15,7 +15,7 @@ import type { HomePageProps, SiteChromeProps, SiteChromeMobileProps } from './pa
  * `components/clinic-site/templates/<id>/` + a manifest entry. The conformance
  * harness (tests/site-templates/) auto-enrolls every registered template.
  */
-export type SiteTemplateId = 'modern' | 'cosmetic'
+export type SiteTemplateId = 'modern' | 'cosmetic' | 'pediatric'
 
 /** Content-driven visibility gates, computed once per request by the page
  *  shells and threaded to nav/sitemap/renderers so no template can link to a
@@ -25,6 +25,8 @@ export interface SiteGates {
   hasTeam: boolean
   hasCareers: boolean
   hasDentalPlans: boolean
+  /** ≥1 staff-uploaded coloring page — gates /coloring + its nav links. */
+  hasColoringPages: boolean
   /** planTier is pro/premium — gates /book and the booking CTA target. */
   isPro: boolean
   /** Live slot-picker booking vs request-only form. */

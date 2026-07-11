@@ -13,6 +13,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  hasColoringPages,
 } from '@/lib/clinic-site-helpers'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
@@ -82,6 +83,13 @@ export default async function PrivacyPage({ params }: Props) {
   const contactBits = [profile.email, profile.phone].filter(Boolean).join(' or ')
 
   const navLinks = buildClinicNavLinks({
+    // Template-declared marketing pages (e.g. Pediatric's /coloring), gated
+    // inside the builder against the same flags as everything else.
+    extraPages: siteTemplate.extraMarketingPages,
+    extraGates: {
+      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
+      hasColoringPages: hasColoringPages(data.profile),
+    },
     basePath,
     hasBlog: publishedPosts.length > 0,
     hasDentalPlans: membershipPlans.length > 0,

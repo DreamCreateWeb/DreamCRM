@@ -9,8 +9,7 @@ import type {
   ClinicOfficePhoto,
   ClinicFaqItem,
   ClinicFinancingPartner,
-  ClinicService,
-} from '@/lib/types/clinic-content'
+  ClinicService, ClinicColoringPage } from '@/lib/types/clinic-content'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import ImageUploader from '@/components/ui/image-uploader'
 import { ActionButton } from '@/components/ui/action-button'
@@ -33,6 +32,7 @@ import FinancingPartnersEditor from '../settings/clinic/financing-partners-edito
 import FaqEditor from './faq-editor'
 import HoursEditor from './hours-editor'
 import ServicesLibraryPicker from '../settings/clinic/services-library-picker'
+import ColoringPagesEditor from './coloring-pages-editor'
 import {
   saveInlineField,
   saveImageField,
@@ -40,6 +40,7 @@ import {
   saveAbout,
   saveStaff,
   saveOfficePhotos,
+  saveColoringPages,
   saveFaq,
   saveInsurance,
   savePaymentFinancing,
@@ -112,6 +113,7 @@ const FORM_SECTION_SAVES: Record<string, (fd: FormData) => Promise<SectionResult
   about: saveAbout,
   staff: saveStaff,
   officePhotos: saveOfficePhotos,
+  coloringPages: saveColoringPages,
   faq: saveFaq,
   acceptedInsuranceCarriers: saveInsurance,
   paymentFinancing: savePaymentFinancing,
@@ -129,6 +131,7 @@ const SECTION_TITLES: Record<string, string> = {
   about: 'About your practice',
   staff: 'Meet the team',
   officePhotos: 'Office photos',
+  coloringPages: 'Coloring pages',
   faq: 'Frequently asked questions',
   acceptedInsuranceCarriers: 'Insurance carriers',
   paymentFinancing: 'Payment & financing',
@@ -1093,7 +1096,7 @@ function StudioModal({
   const isLinkOut = modal.kind === 'section' && !!LINK_OUTS[modal.field]
   // Content-heavy repeater editors get a wider sheet so cards aren't cramped.
   const WIDE_FIELDS = new Set([
-    'staff', 'faq', 'stats', 'officePhotos', 'hours',
+    'staff', 'faq', 'stats', 'officePhotos', 'coloringPages', 'hours',
     'paymentFinancing', 'insurance_verifier', 'contact',
   ])
   const isWide = isServices || (modal.kind === 'section' && WIDE_FIELDS.has(modal.field))
@@ -1270,6 +1273,18 @@ function StudioModal({
               <OfficePhotosEditor
                 name="officePhotos"
                 defaultValue={(profile.officePhotos as ClinicOfficePhoto[] | null) ?? null}
+              />
+            </form>
+          )}
+          {modal.kind === 'section' && modal.field === 'coloringPages' && (
+            <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Line-art for the kids' corner — they print these or color them right on your
+                site at /coloring. Bold black outlines on white color best.
+              </p>
+              <ColoringPagesEditor
+                name="coloringPages"
+                defaultValue={(profile.coloringPages as ClinicColoringPage[] | null) ?? null}
               />
             </form>
           )}

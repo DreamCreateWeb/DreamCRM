@@ -237,6 +237,16 @@ export interface ClinicStat {
  * Office tour / interior photo. One row in the magazine-style gallery.
  * Caption optional.
  */
+/** A staff-uploaded coloring page (line-art) kids can print or digitally
+ *  color at the public /coloring page. Universal content — any template MAY
+ *  surface it; the Pediatric template declares /coloring in its nav. */
+export interface ClinicColoringPage {
+  id: string
+  /** e.g. "Brushing Buddy the Tooth" — shown under the sheet. */
+  title?: string | null
+  imageUrl: string
+}
+
 export interface ClinicOfficePhoto {
   id: string
   url: string

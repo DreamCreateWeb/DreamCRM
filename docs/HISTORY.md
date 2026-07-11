@@ -7,6 +7,40 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Pediatric template + the coloring-pages canon + confirmation pass
+  (2026-07-11).** Owner: "lean in to the children/playful/cartoons theme…
+  the first template that's going to add new things to the system — coloring
+  pages clinic staff upload and kids print or digitally color." One green
+  deploy. **Canon growth (the additive-evolution path, proven)**:
+  `clinic_profile.coloringPages` jsonb (migration 0126) →
+  `ClinicColoringPage` type + `parseColoringPages` + `saveColoringPages`
+  (undo-able) + a Studio modal (`coloring-pages-editor.tsx`, upload + name
+  per sheet) → the public **/coloring** page: works on ANY template when
+  content exists (notFound otherwise), grid of sheets each with 🖨️ print
+  (minimal print window) and 🖍️ **color-online studio**
+  (`coloring-gallery.tsx`: pointer-drawn strokes on an offscreen layer,
+  line art composited on top with `multiply` so outlines survive any crayon;
+  9-crayon palette, 3 brushes, eraser, start-over, save-as-PNG w/ graceful
+  CORS-taint fallback; nothing persisted). **Template-declared pages go
+  live**: `buildClinicNavLinks` now gates `extraMarketingPages` internally
+  against SiteGates (+ profile-derived `extraGates`); all 15 shells pass the
+  active template's declared pages; `SiteGates.hasColoringPages` joins the
+  gate set (homepage, sitemap, Studio navigator, conformance). **Pediatric
+  Play** (`templates/pediatric/`): pastel recipe (brand-hue pastel grounds,
+  friendly navy ink, bouncy saturated accent, night-sky deep band), Fredoka
+  runtime link, cloud/star SVG decor, rounded-card services w/ emoji,
+  team circles, speech-bubble testimonials, coloring-corner teaser band,
+  parent-reassurance voice, 8 `pediatricHome.*` copy keys; declares
+  `/coloring` (navGroup patients, gated). **Confirmation pass** — the
+  harness got teeth so "connects like modern" is proven per template:
+  basic-tier Home must host the `#contact` anchor its own bookHref targets;
+  Footer must carry `#site-footer-contact` (+ Header/Mobile render w/
+  bookLabel); every declared extra page must map to a real route and its
+  gate must hold on the empty clinic; positive preview-cookie test (stored
+  modern → preview cosmetic). All three templates pass everything —
+  Pediatric passed the full harness on its first run, zero template-specific
+  test fixes.
+
 - **Multi-template site system + Cosmetic/Luxury template (2026-07-11).**
   Owner: "build this properly to where I can have you build tons and tons of
   templates over time and they all connect the same effortlessly." Four green

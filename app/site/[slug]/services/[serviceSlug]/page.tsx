@@ -16,7 +16,7 @@ import {
 } from '@/lib/services/service-library'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
-import { buildClinicNavLinks } from '@/lib/clinic-site-helpers'
+import { buildClinicNavLinks, hasColoringPages } from '@/lib/clinic-site-helpers'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import NumberedSteps from '@/components/clinic-site/numbered-steps'
@@ -112,6 +112,13 @@ export default async function ServiceDetailPage({ params }: Props) {
   const signIn = clinicPortalSignInUrl(slug)
 
   const navLinks = buildClinicNavLinks({
+    // Template-declared marketing pages (e.g. Pediatric's /coloring), gated
+    // inside the builder against the same flags as everything else.
+    extraPages: siteTemplate.extraMarketingPages,
+    extraGates: {
+      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
+      hasColoringPages: hasColoringPages(data.profile),
+    },
     basePath,
     hasBlog,
     hasDentalPlans,

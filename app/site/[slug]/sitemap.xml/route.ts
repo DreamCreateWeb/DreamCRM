@@ -5,7 +5,7 @@ import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { resolveClinicServices } from '@/lib/services/service-library'
 import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
-import { staffSlug as resolveStaffSlug } from '@/lib/clinic-site-helpers'
+import { staffSlug as resolveStaffSlug, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
 
 interface Params {
@@ -169,6 +169,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   if (def.extraMarketingPages.length > 0) {
     const gates = {
       hasBlog: posts.length > 0,
+      hasColoringPages: hasColoringPages(data.profile),
       hasTeam: (((data.profile.staff as unknown[]) ?? []) as unknown[]).length > 0,
       hasCareers: openJobs.length > 0,
       hasDentalPlans: membershipPlans.length > 0,
