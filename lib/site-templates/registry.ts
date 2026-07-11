@@ -1,4 +1,5 @@
 import { modernTemplate } from './modern'
+import { cosmeticTemplate } from './cosmetic'
 import type { SiteTemplateDef, SiteTemplateId } from './types'
 
 /**
@@ -7,9 +8,8 @@ import type { SiteTemplateDef, SiteTemplateId } from './types'
  */
 const TEMPLATES: Record<SiteTemplateId, SiteTemplateDef> = {
   modern: modernTemplate,
-  // 'cosmetic' registers in Phase 4; until then the id exists only in the
-  // type union and getSiteTemplate falls back to modern for it.
-} as Record<SiteTemplateId, SiteTemplateDef>
+  cosmetic: cosmeticTemplate,
+}
 
 /**
  * Resolve a stored template id to its def. Unknown/null/unregistered ids fall

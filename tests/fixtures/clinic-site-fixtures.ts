@@ -120,8 +120,8 @@ export function richClinic(): ClinicSiteData {
       { id: 'x2', value: '0', label: 'happy patients', dynamic: 'review_count' },
     ],
     testimonials: [
-      { id: 't1', quote: 'The kindest dental visit of my life.', author: 'Sam W.' },
-      { id: 't2', quote: 'I stopped dreading the dentist.', author: 'Priya K.' },
+      { id: 't1', quote: 'The kindest dental visit of my life.', authorName: 'Sam W.' },
+      { id: 't2', quote: 'I stopped dreading the dentist.', authorName: 'Priya K.' },
     ],
     officePhotos: [
       { id: 'p1', url: 'https://cdn.test/office-1.jpg' },

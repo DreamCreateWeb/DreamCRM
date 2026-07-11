@@ -19,6 +19,12 @@ export const SITE_TEMPLATE_CATALOG: SiteTemplateCatalogEntry[] = [
     description:
       'Warm, welcoming, family-first — cream ground, brand-derived palette, lifestyle photography. The default every clinic starts on.',
   },
+  {
+    id: 'cosmetic',
+    label: 'Cosmetic Luxury',
+    description:
+      'Charcoal and cream, serif editorial, doctor-as-hero — for cosmetic and aesthetic-led practices. Consultation-first voice; never leads with pricing.',
+  },
 ]
 
 export const SITE_TEMPLATE_IDS = SITE_TEMPLATE_CATALOG.map((t) => t.id)

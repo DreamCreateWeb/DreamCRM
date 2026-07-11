@@ -44,6 +44,11 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
   ],
   byTemplate: {
     modern: ['components/clinic-site/templates/modern/home.tsx'],
-    cosmetic: [],
+    cosmetic: [
+      'components/clinic-site/templates/cosmetic/home.tsx',
+      'components/clinic-site/templates/cosmetic/header.tsx',
+      'components/clinic-site/templates/cosmetic/footer.tsx',
+      'components/clinic-site/templates/cosmetic/mobile-actions.tsx',
+    ],
   },
 }

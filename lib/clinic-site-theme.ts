@@ -38,8 +38,11 @@ export const CLINIC_THEME = {
 // it runs in server components and is unit-testable.
 
 /** sRGB hex (#rgb / #rrggbb, with or without leading #) → {r,g,b} 0-255.
- *  Returns null for anything unparseable so callers can fall back. */
-function parseHex(hex: string): { r: number; g: number; b: number } | null {
+ *  Returns null for anything unparseable so callers can fall back.
+ *  (These color/contrast helpers are exported for the per-template palette
+ *  recipes in lib/site-templates/<id>/palette.ts — every recipe must clear
+ *  the same WCAG floors this module pioneered.) */
+export function parseHex(hex: string): { r: number; g: number; b: number } | null {
   if (typeof hex !== 'string') return null
   let h = hex.trim().replace(/^#/, '')
   if (h.length === 3) h = h.split('').map((c) => c + c).join('')
@@ -51,7 +54,7 @@ function parseHex(hex: string): { r: number; g: number; b: number } | null {
   }
 }
 
-function toHex({ r, g, b }: { r: number; g: number; b: number }): string {
+export function toHex({ r, g, b }: { r: number; g: number; b: number }): string {
   const c = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0')
   return `#${c(r)}${c(g)}${c(b)}`
 }
@@ -66,7 +69,7 @@ function relativeLuminance({ r, g, b }: { r: number; g: number; b: number }): nu
 }
 
 /** WCAG contrast ratio between two colors (1:1 … 21:1). */
-function contrastRatio(
+export function contrastRatio(
   a: { r: number; g: number; b: number },
   b: { r: number; g: number; b: number },
 ): number {
@@ -128,10 +131,10 @@ export function readableInk(
 // until it clears WCAG AA so nothing the clinic can pick produces unreadable
 // text.
 
-type Rgb = { r: number; g: number; b: number }
-type Hsl = { h: number; s: number; l: number } // h 0-360, s/l 0-100
+export type Rgb = { r: number; g: number; b: number }
+export type Hsl = { h: number; s: number; l: number } // h 0-360, s/l 0-100
 
-function rgbToHsl({ r, g, b }: Rgb): Hsl {
+export function rgbToHsl({ r, g, b }: Rgb): Hsl {
   const rn = r / 255
   const gn = g / 255
   const bn = b / 255
@@ -151,7 +154,7 @@ function rgbToHsl({ r, g, b }: Rgb): Hsl {
   return { h, s: s * 100, l: l * 100 }
 }
 
-function hslToHex({ h, s, l }: Hsl): string {
+export function hslToHex({ h, s, l }: Hsl): string {
   const sn = clamp(s, 0, 100) / 100
   const ln = clamp(l, 0, 100) / 100
   const c = (1 - Math.abs(2 * ln - 1)) * sn
@@ -170,13 +173,13 @@ function hslToHex({ h, s, l }: Hsl): string {
   return toHex({ r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 })
 }
 
-function clamp(n: number, lo: number, hi: number): number {
+export function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
 }
 
 /** White vs near-black: whichever has more contrast on `bgHex`. The dark option
  *  is the (hue-tinted) site ink so dark-on-color text still feels of-a-piece. */
-function inkOn(bgHex: string, darkHex: string): string {
+export function inkOn(bgHex: string, darkHex: string): string {
   const bg = parseHex(bgHex)
   if (!bg) return '#FFFFFF'
   const dark = parseHex(darkHex) ?? INK_RGB
@@ -186,7 +189,7 @@ function inkOn(bgHex: string, darkHex: string): string {
 
 /** Darken a color (drop HSL lightness) until white text clears `minRatio` on it,
  *  so the deep band always carries legible white. */
-function darkenUntilWhiteReadable(hsl: Hsl, minRatio = 4.8): Hsl {
+export function darkenUntilWhiteReadable(hsl: Hsl, minRatio = 4.8): Hsl {
   const out = { ...hsl }
   const white = { r: 255, g: 255, b: 255 }
   // 48 steps × 2L covers the full descent from a near-white start (L≈96) down
@@ -203,7 +206,7 @@ function darkenUntilWhiteReadable(hsl: Hsl, minRatio = 4.8): Hsl {
 
 /** Lighten a color until it clears `minRatio` against the (dark) `onHex`, so
  *  muted secondary text on the deep band stays readable. */
-function lightenUntilReadable(hsl: Hsl, onHex: string, minRatio = 4.5): Hsl {
+export function lightenUntilReadable(hsl: Hsl, onHex: string, minRatio = 4.5): Hsl {
   const on = parseHex(onHex)
   if (!on) return hsl
   const out = { ...hsl }

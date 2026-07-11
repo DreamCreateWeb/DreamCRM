@@ -64,9 +64,13 @@ app/
   (partner-accept)/  /partner/accept — public token-auth invite acceptance
   (pay)/             /ecommerce/pay (bare checkout page)
   (preview)/         /settings/portal/preview (watermarked portal replica)
-  site/[slug]/       Public clinic sites (Tend-style template; /book, /services,
-                     /intake, /shop, /careers, /blog, /team, …). Fraunces via a
-                     runtime <link>, NOT next/font (build env can't reach Google)
+  site/[slug]/       Public clinic sites — MULTI-TEMPLATE (clinic_profile.
+                     template picks the design: 'modern' Tend-style family
+                     default, 'cosmetic' charcoal/cream luxury; /book, /services,
+                     /intake, /shop, /careers, /blog, /team, …). Page SHELLS own
+                     every read/SEO/gate and dispatch typed props to the active
+                     template's renderers. Fonts via runtime <link>, NOT
+                     next/font (build env can't reach Google)
   r/[token]/         Patient review landing — token IS the auth; Google-first
                      (+ optional star-gate triage). Siblings on the same
                      token-IS-auth pattern: w/ (fast-pass claim), c/ (one-click
@@ -91,6 +95,16 @@ lib/
                      pinned/shortcut gating
   integrations/      catalog.ts (pure IntegrationDef registry) · resolve.ts (pure
                      runtime status) · bundles.ts (feature bundles → sidebar)
+  site-templates/    THE public-site template system: types (SiteTemplateDef),
+                     client-safe catalog, registry (unknown id → modern),
+                     resolve.ts (stored template + owner preview cookie, re-
+                     gated per request), per-template palette recipes emitting
+                     the same --c-* vars, manifest for the scanning tests.
+                     Renderers live in components/clinic-site/templates/<id>/;
+                     conformance harness (tests/site-templates/) auto-enrolls
+                     every registered template. Studio 🎨 Design picker
+                     previews/applies; content is universal so switching is
+                     instant + reversible.
   types/             Client-safe types/enums/registries
   ui/encodings.ts    THE semantic tone/glyph/aging registry (see DESIGN-SYSTEM)
   clinic-timezone.ts Pure tz helpers: resolveClinicTimeZone, clinicDayStart/
@@ -191,7 +205,7 @@ Sidebar groups: **Daily** / **Growth** / **Website** / **Business** + a pinned
 | Growth | Reviews | `/reviews` + `/received` | **Google-first auto-loop**: completed visit → auto review request → Google; synced Google reviews auto-feature at `feature_min_stars` (default 4★+); per-review hide; private-feedback path; Facebook reviews read-only. Reviews is the ONLY testimonial manager. 1–2★ escalation. |
 | Growth | Social Posts | `/social-posts` | Multi-platform composer (GBP + connected socials) w/ preview studio, video, calendar ⇄ list ⇄ showcase views, comment manager. Gated by what's connected, not plan. |
 | Growth | Analytics | `/analytics` | Premium. Scorecard hero + trends vs previous window + funnels + proof panels (retention/reputation/social) + GSC + GBP local actions + social performance. Honest PMS-deferral block. |
-| Website | Website Editor | `/website` | Full-screen in-place Studio (iframe of the real site, EditBridge, per-section modals, collapsible AI bar, page navigator, phone-width preview, 📊 performance popover). Printable QR share cards at `/website/share`. `/settings/clinic` is the deep-edit fallback. |
+| Website | Website Editor | `/website` | Full-screen in-place Studio (iframe of the real site, EditBridge, per-section modals, collapsible AI bar, page navigator, phone-width preview, 📊 performance popover, 🎨 Design picker — preview/apply site templates on the clinic's own content). Printable QR share cards at `/website/share`. `/settings/clinic` is the deep-edit fallback. |
 | Website | Blog Posts | `/posts` | Clinic blog manager (platform org authors the marketing blog through the same system). |
 | Website | SEO | `/seo` | Site health, GSC (shared platform Domain-property connection, per-clinic scoped reads), GBP local metrics + top keywords. |
 | Website | Careers | `/careers` | Premium. Roles + ATS pipeline; public postings w/ JobPosting JSON-LD + jobs.xml. |

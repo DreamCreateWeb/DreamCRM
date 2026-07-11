@@ -7,6 +7,52 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Multi-template site system + Cosmetic/Luxury template (2026-07-11).**
+  Owner: "build this properly to where I can have you build tons and tons of
+  templates over time and they all connect the same effortlessly." Four green
+  deploys. **Architecture (user-settled)**: shared page SHELLS (each
+  `app/site/[slug]/**/page.tsx` keeps every DB read, SEO surface, and gate,
+  dispatching typed props) + a TEMPLATE CONTRACT (`lib/site-templates/`:
+  `SiteTemplateDef` w/ chrome, Home renderer, optional per-page overrides,
+  per-template `buildPalette` recipe emitting the SAME 17 `--c-*` vars, font
+  links, bookLabel, copyKeys/copyDefaults, extraMarketingPages) + pure
+  RENDERERS (`components/clinic-site/templates/<id>/`). Universal content
+  canon — no per-template fields, switching is instant + reversible. Fixed
+  functional IA (/book /intake /shop …) + template-declarable marketing pages
+  through the same `has*` gates (nav/Studio/sitemap all honor them).
+  **Phase 1** (`a86310a`): registry (unknown id → modern), layout derives
+  palette/fonts through the active def, owner-only preview cookie
+  (`template-preview` route sets it; `resolveActiveSiteTemplate` re-gates
+  with canEditClinic on EVERY request), OG pins the STORED template, and the
+  settings mega-form's hardcoded `value="modern"` stomp fixed (+ guard).
+  **Phase 2** (`720c0df`): all 15 subpage shells wear the active template's
+  chrome + bookLabel; modern renderer moved to `templates/modern/home.tsx`
+  and made pure (`appBaseUrl`/`clinicPortalSignInUrl` relocated to the
+  client-safe helpers); `<EditText>/<EditImage>/<EditModal>` primitives emit
+  the exact `data-edit-*` attributes (Studio editing for free, bridge
+  contract untouched); field-wiring test now manifest-driven per template;
+  `copyKeysForTemplate` (template voice defaults, universal clinic
+  overrides); CONFORMANCE HARNESS (`tests/site-templates/conformance.test.tsx`
+  + `tests/fixtures/clinic-site-fixtures.ts` empty/rich/edge) auto-enrolls
+  every registered template: fixture renders, gate discipline, WCAG floors,
+  tokens-only, purity source-scan. **Phase 3** (`97c8ded`): Studio 🎨 Design
+  picker — preview any template on the clinic's OWN content in the canvas,
+  amber Apply/Discard strip (apply = undo-able "Site design" write via the
+  section rails + cookie clear); Settings shows a read-only Design row.
+  **Phase 4**: the Cosmetic/Luxury template (DESIGN.md variant 2) —
+  charcoal/cream fixed neutrals w/ brand-as-accent recipe
+  (`cosmetic/palette.ts`, contrast toolkit now exported from
+  clinic-site-theme), Fraunces italic axis, editorial Home (doctor-as-hero
+  via `pickHeroDoctor`, numbered services index ≤6, pull-quote testimonials,
+  charcoal consult close, `#contact` ContactForm on basic tier), "Book a
+  Consultation" voice, NO pricing on Home (pinned by test), 7 `cosmeticHome.*`
+  AI-targetable copy keys. Deferred, by design: base-body extraction to
+  `components/clinic-site/base/` happens lazily when a template first
+  overrides a subpage; shell nav wiring of `extraMarketingPages` when a
+  template first declares one; presenter-mode template choice for
+  prospecting demos. Pediatric is the next template (register + conformance
+  auto-covers it).
+
 - **Maintenance deep round — security, typing root-fix, dead code
   (2026-07-11).** Owner: "yes please go deeper." Three batches. **M2**
   (`8ababc8`): fixed the settings-shell test broken since the realtime era
