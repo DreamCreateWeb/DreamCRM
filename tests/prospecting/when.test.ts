@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { prospectInitials, relativeDayTime, callWindowScore } from '@/lib/prospect-when'
+import { prospectInitials, relativeDayTime, callWindowScore, communicatedNextStep } from '@/lib/prospect-when'
 
 describe('prospectInitials', () => {
   it('takes first + last significant word', () => {
@@ -84,5 +84,43 @@ describe('callWindowScore', () => {
     expect(w.score).toBe(2)
     expect(w.good).toBe(true)
     expect(w.label).toBe('')
+  })
+})
+
+describe('communicatedNextStep', () => {
+  const now = new Date('2026-07-10T15:00:00Z')
+  const base = { nextFollowUpAt: null, intentSignal: null, lastContactAt: null }
+
+  it('a due follow-up beats everything', () => {
+    const step = communicatedNextStep(
+      { ...base, nextFollowUpAt: new Date('2026-07-08T15:00:00Z'), intentSignal: 'interested' },
+      now,
+    )
+    expect(step).toEqual({ subtitle: '⏰ Follow up · 2d', tone: 'due' })
+  })
+  it('due today reads "now"', () => {
+    const step = communicatedNextStep({ ...base, nextFollowUpAt: new Date('2026-07-10T14:00:00Z') }, now)
+    expect(step.subtitle).toBe('⏰ Follow up · now')
+  })
+  it('a positive reply says call them', () => {
+    expect(communicatedNextStep({ ...base, intentSignal: 'question' }, now)).toEqual({
+      subtitle: '📞 Call them',
+      tone: 'reply',
+    })
+  })
+  it('a week of silence reads quiet', () => {
+    const step = communicatedNextStep({ ...base, lastContactAt: '2026-07-01T15:00:00Z' }, now)
+    expect(step).toEqual({ subtitle: '9d quiet', tone: 'quiet' })
+  })
+  it('fresh sends read as awaiting', () => {
+    expect(communicatedNextStep({ ...base, lastContactAt: '2026-07-07T15:00:00Z' }, now).subtitle).toBe('Sent · 3d')
+    expect(communicatedNextStep({ ...base, lastContactAt: '2026-07-10T09:00:00Z' }, now).subtitle).toBe('Sent today')
+  })
+  it('a FUTURE follow-up does not trigger the due state', () => {
+    const step = communicatedNextStep(
+      { ...base, nextFollowUpAt: new Date('2026-07-12T15:00:00Z'), lastContactAt: '2026-07-09T15:00:00Z' },
+      now,
+    )
+    expect(step.subtitle).toBe('Sent · 1d')
   })
 })

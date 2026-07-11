@@ -16,7 +16,7 @@ import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
 import { followUpForOutcome } from '@/lib/prospect-followup'
 import { lossReasonForSuppression } from '@/lib/prospect-learnings'
-import { relativeDayTime, callWindowScore, type CallWindow } from '@/lib/prospect-when'
+import { relativeDayTime, callWindowScore, communicatedNextStep, type CallWindow } from '@/lib/prospect-when'
 
 /**
  * Prospecting core — Dream Create's own outbound growth engine. Queries,
@@ -290,28 +290,8 @@ export async function getPipelineBoard(opts?: { now?: Date; perColumn?: number }
     .orderBy(desc(p.intentAt))
 
   const commActive = commRows.filter((r) => !demoIds.has(r.id))
-  // A positive inbound signal → they raised a hand; call them. (not_interested
-  // is terminal and already filtered out, so it's not here.)
-  const POSITIVE_REPLY = ['interested', 'question', 'demo_request', 'reply']
-  const DAY_MS = 24 * 60 * 60 * 1000
-  // Compact so it fits the narrow column; the tone carries the urgency.
-  const nextStep = (r: (typeof commActive)[number]): { subtitle: string; tone?: PipelineCardTone } => {
-    if (r.nextFollowUpAt && r.nextFollowUpAt.getTime() <= now.getTime()) {
-      const overdue = Math.floor((now.getTime() - r.nextFollowUpAt.getTime()) / DAY_MS)
-      const due = overdue <= 0 ? 'now' : `${overdue}d`
-      return { subtitle: `⏰ Follow up · ${due}`, tone: 'due' }
-    }
-    if (r.intentSignal && POSITIVE_REPLY.includes(r.intentSignal)) {
-      return { subtitle: '📞 Call them', tone: 'reply' }
-    }
-    const last = r.lastContactAt ? new Date(r.lastContactAt) : null
-    const days = last ? Math.floor((now.getTime() - last.getTime()) / DAY_MS) : null
-    if (days !== null && days >= 7) return { subtitle: `${days}d quiet`, tone: 'quiet' }
-    if (days !== null && days >= 1) return { subtitle: `Sent · ${days}d` }
-    return { subtitle: 'Sent today' }
-  }
   const communicatedCards: PipelineCard[] = commActive.slice(0, per).map((r) => {
-    const step = nextStep(r)
+    const step = communicatedNextStep(r, now)
     return {
       prospectId: r.id,
       name: r.name,

@@ -87,3 +87,40 @@ export function callWindowScore(timezone: string | null, now: Date = new Date())
   if (minutes < t(17, 30)) return { score: 2, label: 'late afternoon there', good: true }
   return { score: 0, label: 'closed there', good: false }
 }
+
+// ── Communicated-column next step (the board's "what do I DO" line) ─────────
+
+export type NextStepTone = 'due' | 'reply' | 'quiet'
+export interface NextStep {
+  subtitle: string
+  tone?: NextStepTone
+}
+
+/** Inbound signals that mean a hand is raised — call them. (not_interested is
+ *  terminal and never reaches the board.) */
+const POSITIVE_REPLY = ['interested', 'question', 'demo_request', 'reply']
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * What to DO next with a communicated-but-not-demoed prospect, compact enough
+ * for the board's narrow column (the tone carries the urgency): a due
+ * follow-up beats everything, then a positive reply, then staleness.
+ */
+export function communicatedNextStep(
+  r: { nextFollowUpAt: Date | null; intentSignal: string | null; lastContactAt: string | Date | null },
+  now: Date = new Date(),
+): NextStep {
+  if (r.nextFollowUpAt && r.nextFollowUpAt.getTime() <= now.getTime()) {
+    const overdue = Math.floor((now.getTime() - r.nextFollowUpAt.getTime()) / DAY_MS)
+    const due = overdue <= 0 ? 'now' : `${overdue}d`
+    return { subtitle: `⏰ Follow up · ${due}`, tone: 'due' }
+  }
+  if (r.intentSignal && POSITIVE_REPLY.includes(r.intentSignal)) {
+    return { subtitle: '📞 Call them', tone: 'reply' }
+  }
+  const last = r.lastContactAt ? new Date(r.lastContactAt) : null
+  const days = last ? Math.floor((now.getTime() - last.getTime()) / DAY_MS) : null
+  if (days !== null && days >= 7) return { subtitle: `${days}d quiet`, tone: 'quiet' }
+  if (days !== null && days >= 1) return { subtitle: `Sent · ${days}d` }
+  return { subtitle: 'Sent today' }
+}

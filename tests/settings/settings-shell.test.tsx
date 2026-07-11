@@ -8,7 +8,12 @@ import { render, screen, cleanup } from '@testing-library/react'
  * tests pin that contract so the rail can't creep back in.
  */
 let mockPath = '/settings/clinic'
-vi.mock('next/navigation', () => ({ usePathname: () => mockPath }))
+vi.mock('next/navigation', () => ({
+  usePathname: () => mockPath,
+  // SettingsShell mounts useRealtimeRefresh (live settings), which needs a
+  // router for refresh() — a no-op stub keeps the shell renderable here.
+  useRouter: () => ({ refresh: () => {} }),
+}))
 
 import SettingsShell from '@/app/(default)/settings/settings-shell'
 import { SettingsPage } from '@/app/(default)/settings/settings-kit'
