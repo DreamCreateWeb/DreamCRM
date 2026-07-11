@@ -7,6 +7,34 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Maintenance deep round — security, typing root-fix, dead code
+  (2026-07-11).** Owner: "yes please go deeper." Three batches. **M2**
+  (`8ababc8`): fixed the settings-shell test broken since the realtime era
+  (mock lacked `useRouter` for `useRealtimeRefresh`) + extracted the
+  next-step ladder into pure `communicatedNextStep` (lib/prospect-when.ts,
+  28 tests). **M3 security** (`a3dfaf4`): `pnpm audit` 34 vulns → 5
+  (remaining are dev-tooling only: vite/esbuild/launch-editor). Next
+  16.0.10→16.2.10, better-auth 1.6.11→1.6.23, transitive undici/ws pinned
+  via `pnpm.overrides` (pnpm v10 `update` won't move transitive pins).
+  Fallout became a find: Next 16.2 auto-rewrites tsconfig to
+  `moduleResolution: "bundler"`, under which `Stripe.Stripe` no longer
+  exists — the old `type StripeInstance = Stripe.Stripe` in lib/stripe.ts
+  had silently degraded the ENTIRE billing surface to `any`. Root-fixed
+  (`type StripeInstance = Stripe`) + 18 explicit `Stripe.*` param
+  annotations across billing/clinics/operations/revenue/social-billing/
+  stripe-admin services. Gotcha logged: a stale `tsconfig.tsbuildinfo`
+  (baked into the container image) masks type errors — cold-check with
+  `rm -f tsconfig.tsbuildinfo && pnpm typecheck`. **Dead-code batch**:
+  knip-verified sweep of 39 orphan Mosaic-template leftovers (retired
+  calendar/tasks internals — the redirect stubs stay; unused shop-cards;
+  legacy messages/inbox components; lib/services/{calendar,campaigns,
+  dashboard,fintech,inbox}.ts; lib/api.ts) + 15 unused deps
+  (@fullcalendar×7, chart.js + moment adapter, @tanstack/react-table,
+  @radix-ui/react-popover, @dnd-kit/modifiers, date-fns, react-day-picker,
+  rrule). @dnd-kit core/sortable STAY (marketing pipeline-board);
+  scripts/*.mjs knip flags are false positives (Dockerfile boot). Full
+  suite 4,809 tests + cold typecheck + build green per batch.
+
 - **Maintenance cycle M1 — code health (2026-07-11).** Owner: "kick off the
   maintenance and cleanup… the full maintenance cycle." First findings pass
   over the pipeline arc. **Legibility regression fixed**: the arc (and two
