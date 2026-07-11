@@ -1,5 +1,4 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
-import { appBaseUrl, clinicPortalSignInUrl } from '@/lib/services/clinic-site'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 import type {
   ClinicService,
@@ -14,6 +13,8 @@ import {
   copyOverride,
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  appBaseUrl,
+  clinicPortalSignInUrl,
 } from '@/lib/clinic-site-helpers'
 import ContactForm from '@/app/site/[slug]/contact-form'
 import SiteHeader from '@/components/clinic-site/site-header'
@@ -1442,7 +1443,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   <div className="flex flex-col flex-1 p-6">
                     {post.category && (
                       <p
-                        className="text-[11px] font-semibold uppercase tracking-[0.14em] mb-3"
+                        className="text-xs font-semibold uppercase tracking-[0.14em] mb-3"
                         style={{ color: headingInk }}
                       >
                         {post.category}

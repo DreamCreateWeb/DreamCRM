@@ -1,6 +1,7 @@
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 import type { BlogPost } from '@/lib/db/schema/clinic'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
+import type { SiteNavLink } from '@/lib/clinic-site-helpers'
 import type { SiteGates } from './types'
 
 /**
@@ -14,6 +15,25 @@ import type { SiteGates } from './types'
  * computes. A template renderer cannot compile while ignoring required data —
  * TypeScript IS the wiring guarantee.
  */
+
+/** Prop shape for the Header/Footer chrome slots. */
+export interface SiteChromeProps {
+  data: ClinicSiteData
+  basePath: string
+  navLinks: SiteNavLink[]
+  bookHref: string
+  bookLabel: string
+  signInUrl: string
+}
+
+/** The floating mobile actions need no nav; sign-in is optional (legacy). */
+export interface SiteChromeMobileProps {
+  data: ClinicSiteData
+  basePath: string
+  bookHref: string
+  bookLabel: string
+  signInUrl?: string
+}
 
 /** Props every page renderer receives. */
 export interface SitePageCommonProps {

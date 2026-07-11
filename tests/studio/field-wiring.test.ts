@@ -20,31 +20,20 @@ import { resolve } from 'node:path'
 const ROOT = resolve(__dirname, '../..')
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), 'utf8')
 
-// Every clinic-site file that can mount an editable region in edit mode — the
-// shared chrome/template components AND every public subpage that instruments
-// its own sections (the canvas spans Home → About → Insurance → … in edit
-// mode, so a tag on any of them postMessages the same intents to the Studio).
-const TEMPLATE_FILES = [
-  'components/clinic-site/modern-template.tsx',
-  'components/clinic-site/site-header.tsx',
-  'components/clinic-site/site-footer.tsx',
-  'components/clinic-site/numbered-steps.tsx',
-  'components/clinic-site/closing-cta.tsx',
-  'app/site/[slug]/about/page.tsx',
-  'app/site/[slug]/faq/page.tsx',
-  'app/site/[slug]/insurance/page.tsx',
-  'app/site/[slug]/new-patients/page.tsx',
-  'app/site/[slug]/payment-financing/page.tsx',
-  'app/site/[slug]/team/page.tsx',
-  'app/site/[slug]/team/[staffSlug]/page.tsx',
-  'app/site/[slug]/services/page.tsx',
-  'app/site/[slug]/services/[serviceSlug]/page.tsx',
-  'app/site/[slug]/careers/page.tsx',
-  'app/site/[slug]/careers/[jobSlug]/page.tsx',
-  'app/site/[slug]/dental-plans/page.tsx',
-  'app/site/[slug]/blog/page.tsx',
-  'app/site/[slug]/blog/[postSlug]/page.tsx',
-  'app/site/[slug]/book/page.tsx',
+// Every clinic-site file that can mount an editable region in edit mode comes
+// from the template-system manifest (lib/site-templates/manifest.ts): the
+// shared chrome/components + the shared page bodies + each template's own
+// files. The suite runs once per REGISTERED template, so registering a new
+// template auto-enrolls its markup in this guard.
+import { SITE_TEMPLATE_MANIFEST } from '@/lib/site-templates/manifest'
+
+const TEMPLATE_IDS = Object.keys(SITE_TEMPLATE_MANIFEST.byTemplate) as Array<
+  keyof typeof SITE_TEMPLATE_MANIFEST.byTemplate
+>
+const filesForTemplate = (id: (typeof TEMPLATE_IDS)[number]) => [
+  ...SITE_TEMPLATE_MANIFEST.shared,
+  ...SITE_TEMPLATE_MANIFEST.base,
+  ...SITE_TEMPLATE_MANIFEST.byTemplate[id],
 ]
 
 const studioSrc = read('app/(default)/website/website-studio.tsx')
@@ -87,6 +76,14 @@ function extractTags(src: string): { field: string; kind: string }[] {
     const after = src.slice(m.index, m.index + 220)
     const kindM = after.match(/editKind="([^"]+)"/)
     out.push({ field: normalise(m[1]), kind: kindM?.[1] ?? 'image' })
+  }
+  // Editable-primitive style — <EditText field="…">, <EditImage field="…">,
+  // <EditModal field="…"> (components/clinic-site/editable.tsx). The kind is
+  // the component itself; attributes may span lines.
+  const primField = /<Edit(Text|Image|Modal)\b[\s\S]{0,400}?\bfield=(?:"([^"]+)"|\{`([^`]+)`\})/g
+  while ((m = primField.exec(src))) {
+    const kind = m[1] === 'Text' ? 'text' : m[1] === 'Image' ? 'image' : 'modal'
+    out.push({ field: normalise(m[2] ?? m[3] ?? ''), kind })
   }
   return out
 }
@@ -160,10 +157,10 @@ const LINK_OUTS = parseSetMembers(studioSrc, 'LINK_OUTS')
 const INLINE_TEXT_FIELDS = parseSetMembers(actionsSrc, 'INLINE_TEXT_FIELDS')
 const INLINE_IMAGE_FIELDS = parseSetMembers(actionsSrc, 'INLINE_IMAGE_FIELDS')
 
-const allTags = TEMPLATE_FILES.flatMap((f) => extractTags(read(f)))
-const fieldsByKind = (kind: string) => allTags.filter((t) => t.kind === kind).map((t) => t.field)
+describe.each(TEMPLATE_IDS)('Website Studio field wiring [%s] (template ↔ studio handlers)', (tid) => {
+  const allTags = filesForTemplate(tid).flatMap((f) => extractTags(read(f)))
+  const fieldsByKind = (kind: string) => allTags.filter((t) => t.kind === kind).map((t) => t.field)
 
-describe('Website Studio field wiring (template ↔ studio handlers)', () => {
   it('parsed sane registries + tags from source (sanity)', () => {
     expect(SECTION_TITLES.size).toBeGreaterThan(5)
     expect(IMAGE_FIELDS.has('heroImageUrl')).toBe(true)
@@ -229,9 +226,9 @@ const NUMBERED_STEPS_FORMS = ['eyebrow', 'heading', '0.title', '0.body']
 const CLOSING_CTA_FORMS = ['heading', 'subhead']
 
 /** All concrete `copy:` keys the templates can render (a `${i}` becomes `0`). */
-function collectConcreteCopyKeys(): Set<string> {
+function collectConcreteCopyKeys(files: string[]): Set<string> {
   const keys = new Set<string>()
-  for (const f of TEMPLATE_FILES) {
+  for (const f of files) {
     const src = read(f)
     // Direct literal copy keys (skip the generic components' own `${prefix}`
     // template literals — those are resolved via call-site prefixes below).
@@ -246,6 +243,13 @@ function collectConcreteCopyKeys(): Set<string> {
       }
       for (const m of Array.from(
         src.matchAll(/'data-edit-field':\s*(?:'(copy:[^']+)'|`(copy:[^`]+)`)/g),
+      )) {
+        const raw = (m[1] ?? m[2] ?? '').slice('copy:'.length)
+        if (raw) keys.add(raw.replace(/\$\{[^}]+\}/g, '0'))
+      }
+      // Editable-primitive copy regions: <EditText field="copy:…"> etc.
+      for (const m of Array.from(
+        src.matchAll(/\bfield=(?:"(copy:[^"]+)"|\{`(copy:[^`]+)`\})/g),
       )) {
         const raw = (m[1] ?? m[2] ?? '').slice('copy:'.length)
         if (raw) keys.add(raw.replace(/\$\{[^}]+\}/g, '0'))
@@ -270,29 +274,29 @@ function collectConcreteCopyKeys(): Set<string> {
   return keys
 }
 
-describe('AI bar COPY_KEYS coverage (template ↔ ai-website-edit)', () => {
-  const concrete = collectConcreteCopyKeys()
+describe.each(TEMPLATE_IDS)('AI bar COPY_KEYS coverage [%s] (template ↔ ai-website-edit)', (tid) => {
+  const concrete = collectConcreteCopyKeys(filesForTemplate(tid))
 
   it('found a meaningful number of copy keys (sanity)', () => {
     expect(concrete.size).toBeGreaterThan(40)
   })
 
   it('the two explicitly-flagged keys are covered (regression for the W1 bug)', () => {
-    expect(resolveCopyKey('home.closerTitle')).toBeTruthy()
-    expect(resolveCopyKey('home.contactEyebrow')).toBeTruthy()
+    expect(resolveCopyKey('home.closerTitle', tid)).toBeTruthy()
+    expect(resolveCopyKey('home.contactEyebrow', tid)).toBeTruthy()
   })
 
-  it('every concrete copy: key the templates render is in COPY_KEYS', () => {
+  it('every concrete copy: key this template renders is in its COPY_KEYS set', () => {
     const missing = Array.from(concrete)
-      .filter((k) => !resolveCopyKey(k))
+      .filter((k) => !resolveCopyKey(k, tid))
       .sort()
     expect(
       missing,
-      `copy: keys the AI bar can't target (add to COPY_KEYS): ${missing.join(', ')}`,
+      `copy: keys the AI bar can't target (add to COPY_KEYS / the template's copyKeys): ${missing.join(', ')}`,
     ).toEqual([])
   })
 
   it('resolveCopyKey rejects a literal wildcard key (model must use a real index)', () => {
-    expect(resolveCopyKey('home.callout.*.title')).toBeUndefined()
+    expect(resolveCopyKey('home.callout.*.title', tid)).toBeUndefined()
   })
 })

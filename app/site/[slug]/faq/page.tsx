@@ -20,13 +20,11 @@ import {
   navServicesFromClinicServices,
   copyOverride,
 } from '@/lib/clinic-site-helpers'
-import SiteHeader from '@/components/clinic-site/site-header'
-import SiteFooter from '@/components/clinic-site/site-footer'
-import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 
 
 interface Props {
@@ -96,7 +94,9 @@ export default async function FaqPage({ params }: Props) {
   const headingInk = readableInk(brand)
   const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
-  const bookLabel = 'Book a Visit'
+  const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
+  const bookLabel = siteTemplate.bookLabel
+  const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
   const signIn = clinicPortalSignInUrl(slug)
 
   const navLinks = buildClinicNavLinks({

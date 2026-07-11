@@ -53,7 +53,7 @@ describe('the announcement strip reads var(--c-strip), not a fixed chartreuse', 
 
 describe('neutral surfaces read the brand-tinted vars', () => {
   it('modern template grounds/ink derive from the brand', () => {
-    const m = read('components/clinic-site/modern-template.tsx')
+    const m = read('components/clinic-site/templates/modern/home.tsx')
     // Post-consolidation the var() strings come in via the token module.
     expect(m).toMatch(/from '@\/components\/clinic-site\/tokens'/)
     expect(m).toMatch(/SITE_BG/)
@@ -82,7 +82,7 @@ describe('no clinic-site surface still hardcodes the old fixed palette anchors',
     'components/clinic-site/site-footer.tsx',
     'components/clinic-site/testimonials-carousel.tsx',
     'components/clinic-site/site-header.tsx',
-    'components/clinic-site/modern-template.tsx',
+    'components/clinic-site/templates/modern/home.tsx',
   ]
   for (const f of FILES) {
     it(`${f}: forest-teal/chartreuse only survive as var() fallbacks`, () => {

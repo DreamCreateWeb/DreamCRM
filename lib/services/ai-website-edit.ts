@@ -6,6 +6,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { CORE_VOICE_RULES } from '@/lib/services/service-library-ai'
 import { incrementAiUsage, getAiUsage } from '@/lib/services/ai-website'
+import { getSiteTemplate } from '@/lib/site-templates/registry'
 import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 
 /**
@@ -29,8 +30,8 @@ import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 // drift. A `key` containing `*` matches any concrete index/prefix (e.g.
 // `home.callout.*.title` covers `home.callout.0.title` … `.3.title`), so the
 // repeating list-item families don't need one entry per index.
-type CopyKey = { key: string; label: string; fallback: string; page: string }
-const COPY_KEYS: CopyKey[] = [
+export type CopyKey = { key: string; label: string; fallback: string; page: string }
+const BASE_COPY_KEYS: CopyKey[] = [
   // ── Homepage ──────────────────────────────────────────────────────────────
   { key: 'home.differenceHeadline', label: 'Homepage "full range of care" headline', fallback: 'A full range of care for all your needs.', page: '/' },
   { key: 'home.differenceTitle', label: 'Homepage "difference" section title', fallback: 'The difference is in how it feels.', page: '/' },
@@ -172,19 +173,31 @@ const COPY_KEYS: CopyKey[] = [
 ]
 
 /**
- * Match a concrete copy key (e.g. `home.callout.2.title`) against a COPY_KEYS
- * entry whose `key` may contain `*` wildcards (e.g. `home.callout.*.title`).
+ * Match a concrete copy key (e.g. `home.callout.2.title`) against the active
+ * template's copy-key set, whose `key`s may contain `*` wildcards (e.g. `home.callout.*.title`).
  * Each `*` matches one dot-separated segment. An entry with no `*` is an exact
  * match. Returns the matching entry, or undefined.
  */
-export function resolveCopyKey(key: string): CopyKey | undefined {
+export function copyKeysForTemplate(templateId?: string | null): CopyKey[] {
+  const def = getSiteTemplate(templateId)
+  // A template may re-voice a BASE key's default copy; the key itself (and the
+  // clinic's saved override for it) is universal, so hand edits survive
+  // template switches wherever keys match.
+  const base = BASE_COPY_KEYS.map((k) =>
+    def.copyDefaults[k.key] !== undefined ? { ...k, fallback: def.copyDefaults[k.key] } : k,
+  )
+  return [...base, ...def.copyKeys]
+}
+
+export function resolveCopyKey(key: string, templateId?: string | null): CopyKey | undefined {
+  const keys = copyKeysForTemplate(templateId)
   // A concrete key only — never a literal wildcard (the model must substitute a
   // real index for the `*` in a family entry).
   if (!key || key.includes('*')) return undefined
   // Exact match first (cheap + the common case).
-  const exact = COPY_KEYS.find((c) => c.key === key)
+  const exact = keys.find((c) => c.key === key)
   if (exact) return exact
-  return COPY_KEYS.find((c) => {
+  return keys.find((c) => {
     if (!c.key.includes('*')) return false
     const pattern =
       '^' +
@@ -313,7 +326,7 @@ function snapshot(profile: typeof clinicProfile.$inferSelect): string {
   const paymentMethods = (profile.paymentMethods as string[] | null) ?? []
   const hours = (profile.hours as Record<string, { open?: string | null; close?: string | null; closed?: boolean }> | null) ?? {}
   const faq = (profile.faq as { category: string; question: string; answer: string }[] | null) ?? []
-  const copy = COPY_KEYS.map((c) => {
+  const copy = copyKeysForTemplate(profile.template).map((c) => {
     // Wildcard families repeat per list item — tell the model to substitute a
     // 0-based index for the `*` (e.g. home.callout.0.title), never write `*`.
     const isFamily = c.key.includes('*')
@@ -544,8 +557,8 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
     } else if (e.type === 'brandColor' && e.value && HEX.test(e.value.trim())) {
       patch.brandColor = e.value.trim()
       push({ label: 'Brand color', preview: e.value.trim(), anchor: 'tagline', page: '/' })
-    } else if (e.type === 'copy' && e.key && typeof e.value === 'string' && resolveCopyKey(e.key)) {
-      const entry = resolveCopyKey(e.key)!
+    } else if (e.type === 'copy' && e.key && typeof e.value === 'string' && resolveCopyKey(e.key, profile.template)) {
+      const entry = resolveCopyKey(e.key, profile.template)!
       // Persist the CONCRETE key the AI gave (e.g. home.callout.2.title), even
       // when it matched a `*` family entry — that's what the template reads.
       overrides[e.key] = e.value

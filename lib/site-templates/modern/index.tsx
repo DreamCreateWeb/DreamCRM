@@ -1,4 +1,7 @@
-import ModernTemplate from '@/components/clinic-site/modern-template'
+import ModernTemplate from '@/components/clinic-site/templates/modern/home'
+import SiteHeader from '@/components/clinic-site/site-header'
+import SiteFooter from '@/components/clinic-site/site-footer'
+import SiteMobileActions from '@/components/clinic-site/site-mobile-actions'
 import { buildClinicPalette } from '@/lib/clinic-site-theme'
 import type { SiteTemplateDef } from '../types'
 import type { HomePageProps } from '../page-props'
@@ -43,6 +46,7 @@ export const modernTemplate: SiteTemplateDef = {
   label: 'Modern Family',
   description:
     'Warm, welcoming, family-first — cream ground, brand-derived palette, lifestyle photography. The default every clinic starts on.',
+  chrome: { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions },
   pages: { Home: ModernHome },
   extraMarketingPages: [],
   buildPalette: buildClinicPalette,

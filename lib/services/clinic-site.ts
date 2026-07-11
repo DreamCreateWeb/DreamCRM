@@ -13,23 +13,10 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
 /** Canonical base URL of the authenticated app (sign-in, dashboard, portal).
  *  Used for cross-domain links FROM a clinic public site (which may live on a
  *  subdomain or custom domain) back INTO the app. Always absolute. */
-export function appBaseUrl(): string {
-  const env = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '')
-  return env || `https://www.${SITE_DOMAIN}`
-}
-
-/**
- * The clinic-scoped PATIENT-portal sign-in / sign-up URL — where a clinic's
- * public-site "Login" sends patients: to log into (or create) their account at
- * THIS clinic and land in this clinic's portal. NEVER the platform staff
- * sign-in (which would offer clinic onboarding — a patient could accidentally
- * create a whole new clinic). Absolute www URL so the better-auth POST is
- * same-origin: a subdomain `/portal` would rewrite to `/site/<slug>/portal` and
- * break the relative `/api/auth/*` call.
- */
-export function clinicPortalSignInUrl(slug: string): string {
-  return `${appBaseUrl()}/site/${encodeURIComponent(slug)}/portal`
-}
+// Pure env-derived URL helpers — relocated to the client-safe helpers module
+// so template renderers can use them without a value import from this
+// server-only service. Re-exported here for the existing server callers.
+export { appBaseUrl, clinicPortalSignInUrl } from '@/lib/clinic-site-helpers'
 
 /**
  * Resolve a clinic org id from its PUBLIC slug.

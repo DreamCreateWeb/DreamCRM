@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
-import ModernTemplate, { formatReviewCount } from '@/components/clinic-site/modern-template'
+import ModernTemplate, { formatReviewCount } from '@/components/clinic-site/templates/modern/home'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
 
 function makeData(overrides: Partial<ClinicSiteData['profile']> = {}): ClinicSiteData {
@@ -354,7 +354,7 @@ describe('ModernTemplate', () => {
     // contrast story is covered by tests/clinic-site/palette.test.ts), and that
     // the hero still renders for any brand.
     const src = readFileSync(
-      resolve(__dirname, '../../components/clinic-site/modern-template.tsx'),
+      resolve(__dirname, '../../components/clinic-site/templates/modern/home.tsx'),
       'utf8',
     )
     expect(src).toMatch(/leftPortraitBg = 'var\(--c-brand-soft/)

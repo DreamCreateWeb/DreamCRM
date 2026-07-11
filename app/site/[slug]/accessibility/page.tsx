@@ -14,9 +14,8 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
 } from '@/lib/clinic-site-helpers'
-import SiteHeader from '@/components/clinic-site/site-header'
-import SiteFooter from '@/components/clinic-site/site-footer'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
+import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 
 
 interface Props {
@@ -43,6 +42,9 @@ export default async function AccessibilityPage({ params }: Props) {
   if (!data) notFound()
 
   const basePath = await resolveSiteBasePath(slug)
+  const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
+  const bookLabel = siteTemplate.bookLabel
+  const { Header: SiteHeader, Footer: SiteFooter } = siteTemplate.chrome
   const [publishedPosts, membershipPlans, openJobs] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
@@ -104,7 +106,7 @@ export default async function AccessibilityPage({ params }: Props) {
         basePath={basePath}
         navLinks={navLinks}
         bookHref={bookHref}
-        bookLabel="Book a Visit"
+        bookLabel={bookLabel}
         signInUrl={signIn}
       />
 
@@ -166,7 +168,7 @@ export default async function AccessibilityPage({ params }: Props) {
         basePath={basePath}
         navLinks={navLinks}
         bookHref={bookHref}
-        bookLabel="Book a Visit"
+        bookLabel={bookLabel}
         signInUrl={signIn}
       />
     </div>

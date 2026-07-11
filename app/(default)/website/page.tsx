@@ -11,6 +11,7 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { buildStudioPages } from '@/lib/clinic-site-helpers'
+import { getSiteTemplate } from '@/lib/site-templates/registry'
 import { getLastWebsiteEdit } from '@/lib/services/website-history'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import WebsiteStudio from './website-studio'
@@ -79,11 +80,20 @@ export default async function WebsiteEditorPage() {
   ])
   // Undo-history head — arms the Studio's ↩ Undo button on load.
   const lastEdit = await getLastWebsiteEdit(ctx.organizationId).catch(() => null)
-  const pages = buildStudioPages({
+  const gates = {
     hasTeam: ((profile.staff as ClinicStaff[] | null) ?? []).length > 0,
     hasBlog: posts.length > 0,
     hasCareers: jobs.length > 0,
     hasDentalPlans: plans.length > 0,
+    isPro: profile.planTier === 'pro' || profile.planTier === 'premium',
+    selfBooking: profile.selfBookingEnabled !== false,
+  }
+  const templateDef = getSiteTemplate(profile.template)
+  const pages = buildStudioPages({
+    ...gates,
+    // Template-declared marketing pages join the navigator through the same
+    // gates as everything else.
+    extraPages: templateDef.extraMarketingPages.filter((p) => !p.gate || p.gate(gates)),
   })
 
   return (

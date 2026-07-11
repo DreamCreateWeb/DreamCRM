@@ -88,6 +88,10 @@ vi.mock('@/lib/services/clinic-site', async () => {
   )
   return {
     ...actual,
+    // The template-dispatching chrome resolves the active template per
+    // request; a null orgId short-circuits it to the modern default with no
+    // cookie/auth reads.
+    getClinicThemeBySlug: vi.fn(async () => ({ orgId: null, brand: null, template: null })),
     getClinicSiteBySlug: vi.fn(),
     resolveSiteBasePath: vi.fn(async () => '/site/acme-dental'),
     appBaseUrl: vi.fn(() => 'https://app.example.com'),

@@ -6,6 +6,7 @@ import { getOpenJobs } from '@/lib/services/careers'
 import { resolveClinicServices } from '@/lib/services/service-library'
 import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
 import { staffSlug as resolveStaffSlug } from '@/lib/clinic-site-helpers'
+import { getSiteTemplate } from '@/lib/site-templates/registry'
 
 interface Params {
   slug: string
@@ -158,6 +159,25 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
         changefreq: 'monthly',
         priority: '0.6',
       })
+    }
+  }
+
+  // Template-declared extra marketing pages (STORED template — the sitemap is
+  // for crawlers, which never carry a preview cookie), through the same
+  // content gates as the nav so a gated-off page never leaks into the index.
+  const def = getSiteTemplate(data.profile.template)
+  if (def.extraMarketingPages.length > 0) {
+    const gates = {
+      hasBlog: posts.length > 0,
+      hasTeam: (((data.profile.staff as unknown[]) ?? []) as unknown[]).length > 0,
+      hasCareers: openJobs.length > 0,
+      hasDentalPlans: membershipPlans.length > 0,
+      isPro,
+      selfBooking: data.profile.selfBookingEnabled !== false,
+    }
+    for (const p of def.extraMarketingPages) {
+      if (p.gate && !p.gate(gates)) continue
+      urls.push({ loc: `${base}${p.path}`, lastmod, changefreq: 'monthly', priority: '0.6' })
     }
   }
 

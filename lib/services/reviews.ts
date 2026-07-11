@@ -980,7 +980,7 @@ export async function recordReviewCompleted(token: string, site: ReviewSite): Pr
  * the public site's "happy patients" trust stat — clinics with 5 completed
  * reviews show "5", clinics with 8,500 show "8k+". The single source of
  * truth so the homepage doesn't lie. See `formatReviewCount` in
- * `components/clinic-site/modern-template.tsx` for display formatting.
+ * `components/clinic-site/templates/modern/home.tsx` for display formatting.
  *
  * Not 30-day-scoped: the trust stat is cumulative ("we've made N patients
  * happy"), not a recent-activity gauge. `getReviewStats` covers the 30-day

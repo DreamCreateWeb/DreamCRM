@@ -5,6 +5,31 @@
 import type { ClinicService } from '@/lib/types/clinic-content'
 import { SERVICE_LIBRARY_SEED } from '@/lib/services/service-library-seed'
 
+/**
+ * Absolute base URL of the main app (www) — for cross-domain links from clinic
+ * subdomains / custom domains back into the app. Env-derived and pure, so it
+ * lives here (client-safe) rather than in the server-only clinic-site service;
+ * that module re-exports it for its existing callers.
+ */
+export function appBaseUrl(): string {
+  const env = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '')
+  const domain = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
+  return env || `https://www.${domain}`
+}
+
+/**
+ * The clinic-scoped PATIENT-portal sign-in / sign-up URL — where a clinic's
+ * public-site "Login" sends patients: to log into (or create) their account at
+ * THIS clinic and land in this clinic's portal. NEVER the platform staff
+ * sign-in (which would offer clinic onboarding — a patient could accidentally
+ * create a whole new clinic). Absolute www URL so the better-auth POST is
+ * same-origin: a subdomain `/portal` would rewrite to `/site/<slug>/portal` and
+ * break the relative `/api/auth/*` call.
+ */
+export function clinicPortalSignInUrl(slug: string): string {
+  return `${appBaseUrl()}/site/${encodeURIComponent(slug)}/portal`
+}
+
 export const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 export const DAY_LABEL: Record<string, string> = {
   mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
@@ -178,6 +203,14 @@ export interface NavService {
  *
  * FAQ and Blog are NO LONGER top-level — they live inside the About dropdown.
  */
+export interface ExtraNavPage {
+  /** Site-relative path, e.g. '/smile-gallery'. */
+  path: string
+  label: string
+  /** Which nav group the page joins (default 'about'). */
+  navGroup?: 'about' | 'patients' | 'top'
+}
+
 export function buildClinicNavLinks(opts: {
   basePath: string
   hasBlog: boolean
@@ -185,6 +218,10 @@ export function buildClinicNavLinks(opts: {
   hasDentalPlans?: boolean
   hasTeam?: boolean
   hasCareers?: boolean
+  /** Template-declared marketing pages, ALREADY gate-filtered by the caller
+   *  (the shell holds the SiteGates). [] / omitted → output is bit-identical
+   *  to the pre-template nav. */
+  extraPages?: ExtraNavPage[]
 }): SiteNavLink[] {
   const {
     basePath,
@@ -193,7 +230,12 @@ export function buildClinicNavLinks(opts: {
     hasDentalPlans = false,
     hasTeam = false,
     hasCareers = false,
+    extraPages = [],
   } = opts
+  const extrasIn = (group: 'about' | 'patients' | 'top') =>
+    extraPages
+      .filter((p) => (p.navGroup ?? 'about') === group)
+      .map((p) => ({ label: p.label, href: `${basePath}${p.path}` }))
   const core = services.filter((s) => s.category !== 'special')
   const special = services.filter((s) => s.category === 'special')
 
@@ -238,6 +280,7 @@ export function buildClinicNavLinks(opts: {
       ...(hasDentalPlans
         ? [{ label: 'Dental Plans', href: `${basePath}/dental-plans` }]
         : []),
+      ...extrasIn('patients'),
     ],
   }
 
@@ -251,6 +294,7 @@ export function buildClinicNavLinks(opts: {
     ...(hasTeam ? [{ label: 'Meet Our Team', href: `${basePath}/team` }] : []),
     ...(hasBlog ? [{ label: 'Blog', href: `${basePath}/blog` }] : []),
     ...(hasCareers ? [{ label: 'Careers', href: `${basePath}/careers` }] : []),
+    ...extrasIn('about'),
     { label: 'FAQ', href: `${basePath}/faq` },
   ]
   const aboutLink: SiteNavLink = {
@@ -264,6 +308,7 @@ export function buildClinicNavLinks(opts: {
     ...(specialLink ? [specialLink] : []),
     patientsLink,
     aboutLink,
+    ...extrasIn('top'),
     // Footer carries phone / email / Book / address on every page + tier, so it
     // is the one contact destination that always resolves. (The old `#contact`
     // anchor only existed on the basic-tier homepage contact form.)
@@ -292,6 +337,8 @@ export function buildStudioPages(opts: {
   hasBlog: boolean
   hasCareers: boolean
   hasDentalPlans: boolean
+  /** Template-declared marketing pages (gate-filtered by the caller). */
+  extraPages?: Array<{ path: string; label: string }>
 }): StudioPage[] {
   return [
     { label: 'Home', path: '' },
@@ -305,6 +352,7 @@ export function buildStudioPages(opts: {
     ...(opts.hasDentalPlans ? [{ label: 'Dental plans', path: '/dental-plans' }] : []),
     ...(opts.hasBlog ? [{ label: 'Blog', path: '/blog' }] : []),
     ...(opts.hasCareers ? [{ label: 'Careers', path: '/careers' }] : []),
+    ...(opts.extraPages ?? []).map((p) => ({ label: p.label, path: p.path })),
     { label: 'Book a visit', path: '/book' },
   ]
 }

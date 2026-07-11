@@ -19,7 +19,7 @@ import {
  * field has appropriate text, they shouldn't have to add anything anywhere for
  * it to not be empty… even start with a service or two selected." This module
  * fills the TEXT + SERVICE side of that; brand-tinted hero placeholders (in
- * `modern-template.tsx`) cover the imagery side. A later wave layers AI
+ * `templates/modern/home.tsx`) cover the imagery side. A later wave layers AI
  * personalization on top of this floor.
  *
  * TRUST BOUNDARY (binding, from the launch audit): we NEVER pre-fill staff,

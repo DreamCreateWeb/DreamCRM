@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { ClinicPalette } from '@/lib/clinic-site-theme'
-import type { HomePageProps } from './page-props'
+import type { HomePageProps, SiteChromeProps, SiteChromeMobileProps } from './page-props'
 
 /**
  * The site-template system: every clinic public site renders from ONE
@@ -68,11 +68,20 @@ export interface SiteTemplateDef {
   label: string
   /** One-liner shown on the Studio design picker card. */
   description: string
+  /** The chrome every page wears — shared page shells render these through
+   *  the site-chrome dispatchers, so a template's header/footer follows the
+   *  visitor across ALL pages (including shared base pages it never
+   *  overrode). */
+  chrome: {
+    Header: ComponentType<SiteChromeProps>
+    Footer: ComponentType<SiteChromeProps>
+    MobileActions: ComponentType<SiteChromeMobileProps>
+  }
   pages: {
     Home: ComponentType<HomePageProps>
-    // Optional per-page renderer overrides land in Phase 2+ — an absent slot
-    // falls back to the shared base renderer restyled by this template's
-    // palette/fonts/chrome.
+    // Optional per-page renderer overrides land as templates need them — an
+    // absent slot falls back to the shared base renderer restyled by this
+    // template's palette/fonts/chrome.
   }
   /** Extra template-declared marketing pages ([] for most templates). */
   extraMarketingPages: TemplateMarketingPage[]

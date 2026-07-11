@@ -43,7 +43,7 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
     'app/site/[slug]/book/page.tsx',
   ],
   byTemplate: {
-    modern: ['components/clinic-site/modern-template.tsx'],
+    modern: ['components/clinic-site/templates/modern/home.tsx'],
     cosmetic: [],
   },
 }
