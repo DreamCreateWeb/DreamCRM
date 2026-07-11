@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { stripe } from '@/lib/stripe'
+import type Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, agencyProject, AGENCY_PROJECT_TYPE_LABELS, type AgencyProjectType } from '@/lib/db/schema/platform'
@@ -343,7 +344,7 @@ export async function getRecentRevenueTransactions(limit = 15): Promise<{ rows: 
     const custIds = Array.from(
       new Set(
         stripeInvs.data
-          .map((i) => (typeof i.customer === 'string' ? i.customer : i.customer?.id))
+          .map((i: Stripe.Invoice) => (typeof i.customer === 'string' ? i.customer : i.customer?.id))
           .filter(Boolean) as string[],
       ),
     )

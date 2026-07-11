@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
+import type Stripe from 'stripe'
 import {
   getSocialAddonPriceId,
   isSocialAddonPriceId,
@@ -214,7 +215,7 @@ export async function reconcileSocialAddonItem(orgId: string, desiredActive: boo
     expand: ['items.data.price'],
   })
 
-  const addonItems = (sub.items?.data ?? []).filter((it) =>
+  const addonItems = (sub.items?.data ?? []).filter((it: Stripe.SubscriptionItem) =>
     isSocialAddonPriceId(it.price?.id),
   )
 

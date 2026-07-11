@@ -1,6 +1,9 @@
 import Stripe from 'stripe'
 
-type StripeInstance = Stripe.Stripe
+// Under `moduleResolution: bundler` (Next 16.2+) the stripe ESM types expose
+// the client class as the default export itself — `Stripe.Stripe` no longer
+// exists, and referencing it silently degrades every downstream call to any.
+type StripeInstance = Stripe
 
 let cached: StripeInstance | null = null
 

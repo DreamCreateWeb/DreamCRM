@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm'
 import { stripe } from '@/lib/stripe'
+import type Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import {
@@ -64,9 +65,9 @@ export async function getAttentionItems(opts: { perKind?: number } = {}): Promis
   try {
     const open = await stripe.invoices.list({ status: 'open', limit: 25 })
     pastDueInvoiceCount = open.data.length
-    pastDueInvoiceCents = open.data.reduce((s, inv) => s + inv.amount_remaining, 0)
+    pastDueInvoiceCents = open.data.reduce((s: number, inv: Stripe.Invoice) => s + inv.amount_remaining, 0)
     invoiceCustomers = open.data
-      .map((inv) => ({
+      .map((inv: Stripe.Invoice) => ({
         customerId: typeof inv.customer === 'string' ? inv.customer : inv.customer?.id ?? '',
         amountCents: inv.amount_remaining,
         created: inv.created,
@@ -308,7 +309,7 @@ export async function getRecentPlatformActivity(limit = 12): Promise<{ rows: Act
       const custIds = Array.from(
         new Set(
           paid.data
-            .map((i) => (typeof i.customer === 'string' ? i.customer : i.customer?.id))
+            .map((i: Stripe.Invoice) => (typeof i.customer === 'string' ? i.customer : i.customer?.id))
             .filter(Boolean) as string[],
         ),
       )

@@ -2,6 +2,7 @@ import 'server-only'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
+import type Stripe from 'stripe'
 import {
   PLANS,
   getPlanByPriceId,
@@ -139,7 +140,7 @@ export async function updateSubscriptionPlan(args: {
   // fall through to a fresh Checkout.
   if (!['active', 'trialing', 'past_due'].includes(sub.status)) return false
 
-  const planItem = sub.items.data.find((it) => getPlanByPriceId(it.price?.id ?? ''))
+  const planItem = sub.items.data.find((it: Stripe.SubscriptionItem) => getPlanByPriceId(it.price?.id ?? ''))
   if (!planItem) return false
 
   if (planItem.price?.id !== priceId) {
@@ -239,7 +240,7 @@ export async function listOrgStripeInvoices(
 
   try {
     const res = await stripe.invoices.list({ customer: customerId, limit })
-    return res.data.map((inv) => ({
+    return res.data.map((inv: Stripe.Invoice) => ({
       id: inv.id ?? '',
       number: inv.number ?? null,
       amountPaidCents: inv.amount_paid ?? 0,
@@ -459,7 +460,7 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
   // the plan price among all items keeps the tier correct even when the add-on
   // sits at items.data[0].
   const planItem =
-    sub.items.data.find((it) => getPlanByPriceId(it.price?.id ?? '')) ?? sub.items.data[0]
+    sub.items.data.find((it: Stripe.SubscriptionItem) => getPlanByPriceId(it.price?.id ?? '')) ?? sub.items.data[0]
   const priceId = planItem?.price?.id
   const planMatch = priceId ? getPlanByPriceId(priceId) : undefined
   const planTier = resolvePlanTier(sub.status, planMatch)
@@ -471,7 +472,7 @@ export async function syncSubscriptionFromStripe(subscriptionId: string) {
   // When the subscription isn't active/trialing we treat the add-on as off
   // (a canceled/unpaid sub grants nothing).
   const subLive = sub.status === 'active' || sub.status === 'trialing'
-  const hasAddonItem = sub.items.data.some((it) => isSocialAddonPriceId(it.price?.id))
+  const hasAddonItem = sub.items.data.some((it: Stripe.SubscriptionItem) => isSocialAddonPriceId(it.price?.id))
   const socialAddonActive = subLive && hasAddonItem
 
   // Only stamp socialAddonSince when flipping ON from OFF; otherwise leave it.

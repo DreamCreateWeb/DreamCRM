@@ -1,6 +1,7 @@
 import 'server-only'
 import { eq, inArray } from 'drizzle-orm'
 import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
+import type Stripe from 'stripe'
 import { db, schema } from '@/lib/db'
 
 /**
@@ -41,7 +42,7 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
   })
 
   const customerIds = subs.data
-    .map((s) => (typeof s.customer === 'string' ? s.customer : s.customer?.id))
+    .map((s: Stripe.Subscription) => (typeof s.customer === 'string' ? s.customer : s.customer?.id))
     .filter(Boolean) as string[]
 
   // Resolve clinics linked to these Stripe customers in one round-trip.
@@ -238,13 +239,13 @@ export interface AdminProduct {
 
 export async function listAdminProducts(): Promise<AdminProduct[]> {
   const products = await stripe.products.list({ limit: 100, active: true })
-  const productIds = products.data.map((p) => p.id)
+  const productIds = products.data.map((p: Stripe.Product) => p.id)
   if (!productIds.length) return []
 
   // Fetch prices for these products. Stripe doesn't support filtering prices
   // by multiple product IDs in one call, so loop. Small N.
   const productMap = new Map<string, AdminProduct>(
-    products.data.map((p) => [
+    products.data.map((p: Stripe.Product) => [
       p.id,
       { id: p.id, name: p.name, description: p.description, active: p.active, prices: [] },
     ])

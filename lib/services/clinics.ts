@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { stripe } from '@/lib/stripe'
+import type Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { organization, member, user } from '@/lib/db/schema/auth'
 import {
@@ -314,7 +315,7 @@ export async function getClinicDetail(orgId: string): Promise<ClinicDetail | nul
         customer: profile.stripeCustomerId,
         limit: 50,
       })
-      invoices = list.data.map((i) => ({
+      invoices = list.data.map((i: Stripe.Invoice) => ({
         id: i.id ?? `inv_${i.created}`,
         number: i.number ?? null,
         status: i.status ?? 'unknown',
