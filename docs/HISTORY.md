@@ -7,6 +7,33 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Cosmetic/Luxury v2 — the charcoal-first redesign (2026-07-11).** Owner
+  verdict on the design pass: "I absolutely love the pediatric one… but the
+  cosmetic luxury one is rough, I don't really like that design at all."
+  Pediatric locked; Cosmetic rebuilt around a simple thesis: v1 was all-cream
+  and timid — luxury opens DARK. The new page: (1) a charcoal statement hero
+  (`SITE_DEEP` ground) — champagne eyebrow + hairline via new
+  `cosmeticAccentOnDeep()` (palette.ts: brand hue lifted toward candlelight
+  until AA on the deep ground, saturation tempered 24–46 so hostile brands
+  land soft), cream Fraunces-italic display headline, deepMuted statement,
+  cream-pill CTA, gold-star rating badge, and the arch portrait double-framed
+  by a champagne offset hairline; (2) a CREDENTIALS rule-row under the hero —
+  real facts only (doctor name·title / city,state / first static stat), hidden
+  below 2 items, hairline-separated microtype — the page now USES the stats
+  canon field; (3) the cream middle: magazine services index (unchanged),
+  then the doctor as a proper CREAM magazine profile spread — photo left in a
+  hairline offset rect frame, eyebrow + display-italic bio line + rule +
+  uppercase attribution right. The hero now prefers `heroImageUrl` over the
+  doctor portrait so the two sections never repeat a photo; when the doctor
+  photo IS the hero, her spread gracefully drops to a centered pull-quote
+  (no photo dupes, no fake content); (4) exactly one dark close — the footer
+  (v1.5's charcoal doctor band is gone, so dark = open + close only). Harness
+  note rediscovered the hard way: `paletteCss()` returns a full `:root{…}`
+  block — wrapping it in another `:root{}` silently kills every var and the
+  deep ground renders as the forest-teal FALLBACK; if a cosmetic shot ever
+  looks green, check the injector first. All 55 cosmetic/conformance tests +
+  full suite green; no schema/copy-key changes (same 7 cosmeticHome.* keys).
+
 - **Template design pass — Cosmetic + Pediatric earn their looks
   (2026-07-11).** Owner: "focus purely on the design and quality of the two
   new templates." Method: a real VISUAL loop — static-render both Homes with

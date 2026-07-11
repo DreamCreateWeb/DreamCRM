@@ -7,6 +7,7 @@ import {
   hslToHex,
   clamp,
   darkenUntilWhiteReadable,
+  lightenUntilReadable,
   readableInk,
 } from '@/lib/clinic-site-theme'
 
@@ -97,4 +98,13 @@ export function buildCosmeticPalette(brandHex: string | null | undefined): Clini
 export function cosmeticAccentInk(brandHex: string | null | undefined): string {
   const rgb = parseHex(brandHex ?? '') ?? parseHex(BRONZE)!
   return readableInk(toHex(rgb), CREAM_BG, 4.5)
+}
+
+/** Accent-as-text on the CHARCOAL hero/close — the brand hue lifted toward
+ *  champagne until it clears AA on the deep ground. Keeps the hue, tempers
+ *  the saturation so hostile brands (neon, near-black) land as candlelight. */
+export function cosmeticAccentOnDeep(brandHex: string | null | undefined): string {
+  const rgb = parseHex(brandHex ?? '') ?? parseHex(BRONZE)!
+  const { h, s } = rgbToHsl(rgb)
+  return hslToHex(lightenUntilReadable({ h, s: clamp(s, 24, 46), l: 62 }, CHARCOAL_DEEP, 4.5))
 }

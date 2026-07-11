@@ -1,6 +1,7 @@
 import type {
   ClinicService,
   ClinicStaff,
+  ClinicStat,
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
@@ -21,7 +22,7 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import CosmeticHeader from './header'
 import CosmeticFooter from './footer'
 import CosmeticMobileActions from './mobile-actions'
-import { cosmeticAccentInk } from '@/lib/site-templates/cosmetic/palette'
+import { cosmeticAccentInk, cosmeticAccentOnDeep } from '@/lib/site-templates/cosmetic/palette'
 import {
   SITE_BG,
   SITE_INK,
@@ -34,17 +35,19 @@ import {
 } from '@/components/clinic-site/tokens'
 
 /**
- * Cosmetic/Luxury homepage — the editorial register (DESIGN.md variant 2):
- * charcoal + cream, serif-italic display accents, magazine rhythm,
- * doctor-as-hero, "Book a Consultation" voice, and NO pricing anywhere on
+ * Cosmetic/Luxury homepage v2 — charcoal-first editorial (DESIGN.md variant 2):
+ * a dark statement hero (cream serif display on charcoal, champagne accent),
+ * a credentials rule-row, a disciplined light middle (magazine services index,
+ * doctor profile spread, gallery, pull-quote testimonials), and exactly one
+ * dark close (the footer). "Book a Consultation" voice; NO pricing anywhere on
  * this surface (dental-plans/shop remain reachable pages; luxury just never
- * leads with money). Pure presentation: everything renders from the
- * universal content canon via HomePageProps — no service imports.
+ * leads with money). Pure presentation: everything renders from the universal
+ * content canon via HomePageProps — no service imports.
  */
 
 const DISPLAY = 'var(--font-display, Georgia, serif)'
 
-/** The doctor the hero features: first credentialed staff member, else the
+/** The doctor the page features: first credentialed staff member, else the
  *  first staff member at all. Cosmetic practices are doctor-brands — the
  *  person IS the product. */
 export function pickHeroDoctor(staff: ClinicStaff[]): ClinicStaff | null {
@@ -64,6 +67,9 @@ export default function CosmeticHome(props: HomePageProps) {
 
   const staff = (p.staff as ClinicStaff[] | null) ?? []
   const services = ((p.services as ClinicService[] | null) ?? []).filter((s) => s.name?.trim())
+  const stats = ((p.stats as ClinicStat[] | null) ?? []).filter(
+    (s) => !s.dynamic && s.value?.trim() && s.label?.trim(),
+  )
   const testimonials = [
     ...(((p.testimonials as ClinicTestimonial[] | null) ?? []).filter((t) => t.quote?.trim())),
     ...props.featuredGoogleReviews,
@@ -71,12 +77,25 @@ export default function CosmeticHome(props: HomePageProps) {
   const officePhotos = ((p.officePhotos as ClinicOfficePhoto[] | null) ?? []).filter((o) => o.url)
   const carriers = (p.acceptedInsuranceCarriers as string[] | null) ?? []
   const accent = cosmeticAccentInk(p.brandColor)
+  const accentDeep = cosmeticAccentOnDeep(p.brandColor)
 
   const heroDoctor = pickHeroDoctor(staff)
-  const heroPhoto = heroDoctor?.photoUrl ?? p.heroImageUrl ?? null
+  // The hero leads with the practice's statement image; the doctor's portrait
+  // fills in only when there is no hero image — and then her profile spread
+  // below gracefully drops to the text variant instead of repeating the photo.
+  const heroPhoto = p.heroImageUrl ?? heroDoctor?.photoUrl ?? null
+  const heroIsDoctor = !!heroPhoto && heroPhoto === heroDoctor?.photoUrl
+  const doctorPhoto = heroDoctor?.photoUrl && !heroIsDoctor ? heroDoctor.photoUrl : null
   const rating = props.googleRating
   const showRating = !!rating && rating.average != null && rating.count >= GOOGLE_RATING_MIN_COUNT
   const navLinks = propsNav(props)
+
+  // Credentials rule-row under the hero — REAL facts only, or nothing.
+  const credentials = [
+    heroDoctor ? `${heroDoctor.name}${heroDoctor.title ? ` · ${heroDoctor.title}` : ''}` : null,
+    p.city ? `${p.city}${p.state ? `, ${p.state}` : ''}` : null,
+    stats[0] ? `${stats[0].value} ${stats[0].label}` : null,
+  ].filter((x): x is string => !!x)
 
   return (
     <div style={{ background: SITE_BG, color: SITE_INK }}>
@@ -89,113 +108,148 @@ export default function CosmeticHome(props: HomePageProps) {
         signInUrl={signInUrl}
       />
 
-      {/* ── Editorial hero — doctor as the subject ─────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-14 sm:pt-20 pb-16 sm:pb-24">
-        <div className="grid lg:grid-cols-[7fr_5fr] gap-10 lg:gap-16 items-center">
-          <div>
-            <div className="flex items-center gap-4 mb-6">
-              <span aria-hidden="true" className="h-px w-10" style={{ background: accent }} />
-              <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>
-                {name}
-                {p.city ? ` · ${p.city}` : ''}
-              </p>
-            </div>
-            <EditText
-              field="tagline"
-              as="h1"
-              label="Hero headline"
-              className="text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-7"
-              style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
-            >
-              {p.tagline ?? 'Dentistry, elevated to an art.'}
-            </EditText>
-            <EditText
-              field="copy:cosmeticHome.heroStatement"
-              as="p"
-              label="Hero statement"
-              className="text-lg leading-relaxed max-w-xl mb-8"
-              style={{ color: SITE_INK_MUTED }}
-            >
-              {copy(
-                'cosmeticHome.heroStatement',
-                'Unhurried appointments, meticulous craft, and a plan built around your face — never a template. No judgment, ever.',
-              )}
-            </EditText>
-            <div className="flex flex-wrap items-center gap-4">
-              <a
-                href={bookHref}
-                className="inline-flex items-center rounded-full px-7 py-3.5 text-sm font-semibold transition-transform hover:scale-[1.02]"
-                style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}
-              >
-                {bookLabel}
-              </a>
-              {p.phone && (
-                <a href={`tel:${p.phone}`} className="text-sm underline-offset-4 hover:underline" style={{ color: SITE_INK }}>
-                  or call {p.phone}
-                </a>
-              )}
-            </div>
-            {showRating && (
-              <div className="mt-7">
-                <GoogleRatingBadge average={rating!.average!} count={rating!.count} headingInk={SITE_INK} variant="hero" />
+      {/* ── The dark statement hero — cream serif on charcoal ─────────────── */}
+      <section style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-24">
+          <div className="grid lg:grid-cols-[7fr_5fr] gap-12 lg:gap-20 items-center">
+            <div>
+              <div className="flex items-center gap-4 mb-7">
+                <span aria-hidden="true" className="h-px w-10" style={{ background: accentDeep }} />
+                <p className="text-sm font-semibold uppercase tracking-[0.24em]" style={{ color: accentDeep }}>
+                  {name}
+                  {p.city ? ` · ${p.city}` : ''}
+                </p>
               </div>
-            )}
-          </div>
-
-          <EditImage field="heroImageUrl" label="Hero photo" className="relative">
-            {heroPhoto ? (
-              <figure>
-                <span className="relative block">
-                  {/* Offset hairline arch behind the portrait — the double-frame
-                      that reads "gallery", not "profile picture". Anchored to
-                      the IMAGE box only (never the caption). */}
-                  <span
-                    aria-hidden="true"
-                    className="absolute -top-4 -right-4 w-full h-full rounded-t-[999px] pointer-events-none"
-                    style={{ border: `1px solid ${accent}`, opacity: 0.55 }}
-                  />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={heroPhoto}
-                    alt={heroDoctor ? heroDoctor.name : `${name} — the practice`}
-                    className="relative w-full aspect-[4/5] object-cover rounded-t-[999px]"
-                    style={{ border: `1px solid ${SITE_BORDER}` }}
-                  />
-                </span>
-                {heroDoctor && (
-                  <figcaption className="mt-4 text-center">
-                    <span className="block text-base" style={{ fontFamily: DISPLAY, fontWeight: 600 }}>
-                      {heroDoctor.name}
-                    </span>
-                    {heroDoctor.title && (
-                      <span className="block text-sm mt-0.5" style={{ color: SITE_INK_MUTED }}>
-                        {heroDoctor.title}
-                      </span>
-                    )}
-                  </figcaption>
+              <EditText
+                field="tagline"
+                as="h1"
+                label="Hero headline"
+                className="text-5xl sm:text-7xl leading-[1.04] tracking-tight mb-7"
+                style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
+              >
+                {p.tagline ?? 'Dentistry, elevated to an art.'}
+              </EditText>
+              <EditText
+                field="copy:cosmeticHome.heroStatement"
+                as="p"
+                label="Hero statement"
+                className="text-lg leading-relaxed max-w-xl mb-9"
+                style={{ color: SITE_DEEP_MUTED }}
+              >
+                {copy(
+                  'cosmeticHome.heroStatement',
+                  'Unhurried appointments, meticulous craft, and a plan built around your face — never a template. No judgment, ever.',
                 )}
-              </figure>
-            ) : (
-              // Typographic no-photo hero — the real-photo rule means no stock
-              // fill-ins, so day-0 renders an intentional monogram plate.
-              <div
-                className="w-full aspect-[4/5] rounded-t-[999px] flex items-center justify-center"
-                style={{ background: SITE_SURFACE, border: `1px solid ${SITE_BORDER}` }}
-                aria-hidden="true"
-              >
-                <span className="text-8xl select-none" style={{ fontFamily: DISPLAY, fontStyle: 'italic', color: accent }}>
-                  {name.charAt(0).toUpperCase()}
-                </span>
+              </EditText>
+              <div className="flex flex-wrap items-center gap-5">
+                <a
+                  href={bookHref}
+                  className="inline-flex items-center rounded-full px-8 py-4 text-sm font-semibold transition-transform hover:scale-[1.02]"
+                  style={{ background: SITE_DEEP_INK, color: SITE_DEEP }}
+                >
+                  {bookLabel}
+                </a>
+                {p.phone && (
+                  <a
+                    href={`tel:${p.phone}`}
+                    className="text-sm underline-offset-4 hover:underline"
+                    style={{ color: SITE_DEEP_MUTED }}
+                  >
+                    or call {p.phone}
+                  </a>
+                )}
               </div>
-            )}
-          </EditImage>
+              {showRating && (
+                <div className="mt-9">
+                  <GoogleRatingBadge
+                    average={rating!.average!}
+                    count={rating!.count}
+                    headingInk={SITE_DEEP_INK}
+                    variant="hero"
+                  />
+                </div>
+              )}
+            </div>
+
+            <EditImage field="heroImageUrl" label="Hero photo" className="relative">
+              {heroPhoto ? (
+                <figure>
+                  <span className="relative block">
+                    {/* Offset champagne hairline arch behind the image — the
+                        double-frame that reads "gallery", not "profile
+                        picture". Anchored to the IMAGE box only. */}
+                    <span
+                      aria-hidden="true"
+                      className="absolute -top-4 -right-4 w-full h-full rounded-t-[999px] pointer-events-none"
+                      style={{ border: `1px solid ${accentDeep}`, opacity: 0.6 }}
+                    />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={heroPhoto}
+                      alt={heroIsDoctor && heroDoctor ? heroDoctor.name : `${name} — the practice`}
+                      className="relative w-full aspect-[4/5] object-cover rounded-t-[999px]"
+                      style={{ border: '1px solid rgba(244,240,231,0.25)' }}
+                    />
+                  </span>
+                  {heroIsDoctor && heroDoctor && (
+                    <figcaption className="mt-5 text-center">
+                      <span className="block text-base" style={{ fontFamily: DISPLAY, fontWeight: 600 }}>
+                        {heroDoctor.name}
+                      </span>
+                      {heroDoctor.title && (
+                        <span className="block text-sm mt-0.5" style={{ color: SITE_DEEP_MUTED }}>
+                          {heroDoctor.title}
+                        </span>
+                      )}
+                    </figcaption>
+                  )}
+                </figure>
+              ) : (
+                // Typographic no-photo hero — the real-photo rule means no
+                // stock fill-ins, so day-0 renders an intentional monogram
+                // plate on the charcoal ground.
+                <div
+                  className="w-full aspect-[4/5] rounded-t-[999px] flex items-center justify-center"
+                  style={{
+                    background: 'rgba(244,240,231,0.05)',
+                    border: '1px solid rgba(244,240,231,0.18)',
+                  }}
+                  aria-hidden="true"
+                >
+                  <span
+                    className="text-8xl select-none"
+                    style={{ fontFamily: DISPLAY, fontStyle: 'italic', color: accentDeep }}
+                  >
+                    {name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </EditImage>
+          </div>
         </div>
       </section>
+
+      {/* ── Credentials rule-row — quiet, factual, only when real ─────────── */}
+      {credentials.length >= 2 && (
+        <section
+          className="px-4 sm:px-6 py-5"
+          style={{ borderBottom: `1px solid ${SITE_BORDER}` }}
+        >
+          <p className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-center" style={{ color: SITE_INK_MUTED }}>
+            {credentials.map((c, i) => (
+              <span key={c} className="inline-flex items-center gap-4">
+                {i > 0 && <span aria-hidden="true" className="h-3 w-px" style={{ background: SITE_BORDER }} />}
+                {c}
+              </span>
+            ))}
+          </p>
+        </section>
+      )}
 
       {/* ── Services — numbered editorial index (max 6, never priced) ─────── */}
       {services.length > 0 && (
         <EditModal field="services" label="Services" section="services" as="section">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28" style={{ borderTop: `1px solid ${SITE_BORDER}` }}>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28">
             <div className="grid lg:grid-cols-[4fr_8fr] gap-10 lg:gap-20">
               {/* Sticky editorial intro — the index reads beside it like a
                   magazine table of contents. */}
@@ -259,46 +313,108 @@ export default function CosmeticHome(props: HomePageProps) {
         </EditModal>
       )}
 
-      {/* ── Doctor feature — the charcoal editorial band ───────────────────── */}
+      {/* ── The doctor — a cream magazine profile spread ───────────────────── */}
       {heroDoctor?.bio && (
-        <section style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
-          <ScrollReveal>
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
-              <span
-                aria-hidden="true"
-                className="block text-8xl leading-none mb-2 select-none"
-                style={{ fontFamily: DISPLAY, color: SITE_DEEP_MUTED, opacity: 0.5 }}
-              >
-                “
-              </span>
-              <blockquote
-                className="text-2xl sm:text-4xl leading-snug"
-                style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
-              >
-                {firstSentence(heroDoctor.bio)}
-              </blockquote>
-              <div className="flex items-center justify-center gap-4 mt-8">
-                <span aria-hidden="true" className="h-px w-8" style={{ background: SITE_DEEP_MUTED, opacity: 0.6 }} />
-                <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: SITE_DEEP_MUTED }}>
-                  {heroDoctor.name}
-                  {heroDoctor.title ? ` · ${heroDoctor.title}` : ''}
-                </p>
-                <span aria-hidden="true" className="h-px w-8" style={{ background: SITE_DEEP_MUTED, opacity: 0.6 }} />
+        <section style={{ borderTop: `1px solid ${SITE_BORDER}` }}>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28">
+            {doctorPhoto ? (
+              <div className="grid lg:grid-cols-[5fr_7fr] gap-12 lg:gap-20 items-center">
+                <ScrollReveal>
+                  <figure className="relative max-w-md mx-auto lg:mx-0">
+                    <span className="relative block">
+                      <span
+                        aria-hidden="true"
+                        className="absolute -top-4 -left-4 w-full h-full pointer-events-none"
+                        style={{ border: `1px solid ${accent}`, opacity: 0.5 }}
+                      />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={doctorPhoto}
+                        alt={heroDoctor.name}
+                        loading="lazy"
+                        className="relative w-full aspect-[3/4] object-cover"
+                        style={{ border: `1px solid ${SITE_BORDER}` }}
+                      />
+                    </span>
+                  </figure>
+                </ScrollReveal>
+                <div>
+                  <div className="flex items-center gap-4 mb-6">
+                    <span aria-hidden="true" className="h-px w-10" style={{ background: accent }} />
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>
+                      The doctor
+                    </p>
+                  </div>
+                  <p
+                    className="text-3xl sm:text-4xl leading-snug mb-8"
+                    style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
+                  >
+                    {firstSentence(heroDoctor.bio)}
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <span aria-hidden="true" className="h-px w-8" style={{ background: SITE_BORDER }} />
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: SITE_INK_MUTED }}>
+                      {heroDoctor.name}
+                      {heroDoctor.title ? ` · ${heroDoctor.title}` : ''}
+                    </p>
+                  </div>
+                  {gates.hasTeam && (
+                    <a
+                      href={`${basePath}/team`}
+                      className="inline-block mt-8 text-sm underline underline-offset-4"
+                      style={{ color: SITE_INK }}
+                    >
+                      Meet the whole team →
+                    </a>
+                  )}
+                </div>
               </div>
-              {gates.hasTeam && (
-                <a href={`${basePath}/team`} className="inline-block mt-8 text-sm underline-offset-4 underline" style={{ color: SITE_DEEP_MUTED }}>
-                  Meet the whole team →
-                </a>
-              )}
-            </div>
-          </ScrollReveal>
+            ) : (
+              // No second photo to give her — the profile drops to a centered
+              // pull-quote so the page never repeats the hero portrait.
+              <ScrollReveal>
+                <div className="max-w-3xl mx-auto text-center">
+                  <span
+                    aria-hidden="true"
+                    className="block text-8xl leading-none mb-2 select-none"
+                    style={{ fontFamily: DISPLAY, color: accent, opacity: 0.35 }}
+                  >
+                    “
+                  </span>
+                  <p
+                    className="text-2xl sm:text-4xl leading-snug"
+                    style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
+                  >
+                    {firstSentence(heroDoctor.bio)}
+                  </p>
+                  <div className="flex items-center justify-center gap-4 mt-8">
+                    <span aria-hidden="true" className="h-px w-8" style={{ background: SITE_BORDER }} />
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: SITE_INK_MUTED }}>
+                      {heroDoctor.name}
+                      {heroDoctor.title ? ` · ${heroDoctor.title}` : ''}
+                    </p>
+                    <span aria-hidden="true" className="h-px w-8" style={{ background: SITE_BORDER }} />
+                  </div>
+                  {gates.hasTeam && (
+                    <a
+                      href={`${basePath}/team`}
+                      className="inline-block mt-8 text-sm underline underline-offset-4"
+                      style={{ color: SITE_INK }}
+                    >
+                      Meet the whole team →
+                    </a>
+                  )}
+                </div>
+              </ScrollReveal>
+            )}
+          </div>
         </section>
       )}
 
       {/* ── The space — office gallery strip ──────────────────────────────── */}
       {officePhotos.length >= 2 && (
         <EditModal field="officePhotos" label="Office photos" section="officePhotos" as="section">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24" style={{ borderTop: `1px solid ${SITE_BORDER}` }}>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] mb-8" style={{ color: accent }}>
               <EditText field="copy:cosmeticHome.galleryHeading" label="Gallery eyebrow">
                 {copy('cosmeticHome.galleryHeading', 'The space')}
