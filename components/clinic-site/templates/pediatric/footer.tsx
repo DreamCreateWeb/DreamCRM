@@ -1,6 +1,7 @@
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
+import { EditText } from '@/components/clinic-site/editable'
 import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
-import { DAYS, DAY_LABEL, fmt12, type HoursMap } from '@/lib/clinic-site-helpers'
+import { DAYS, DAY_LABEL, fmt12, copyOverride, type HoursMap } from '@/lib/clinic-site-helpers'
 
 /** A sprinkle of stars for the night-sky footer band. Pure decor. */
 function Stars() {
@@ -39,6 +40,7 @@ export default function PediatricFooter({
   const state = loc?.state ?? data.profile.state
   const postal = loc?.postalCode ?? data.profile.postalCode
   const hours = (data.profile.hours as HoursMap | null) ?? null
+  const overrides = (data.profile.copyOverrides as Record<string, string> | null) ?? {}
   const year = new Date().getFullYear()
 
   return (
@@ -49,16 +51,24 @@ export default function PediatricFooter({
     >
       <Stars />
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5 pb-8 mb-8" style={{ borderBottom: '2px dashed rgba(255,255,255,0.18)' }}>
-          <h2 className="text-2xl sm:text-3xl font-bold" style={{ fontFamily: 'var(--font-display, sans-serif)' }}>
-            See you soon! 👋
+        <div className="text-center pb-10 mb-10" style={{ borderBottom: '2px dashed rgba(255,255,255,0.18)' }}>
+          <span className="text-4xl block mb-4" aria-hidden="true">🌙✨</span>
+          <h2 className="text-3xl sm:text-5xl font-bold mb-3 max-w-2xl mx-auto" style={{ fontFamily: 'var(--font-display, sans-serif)' }}>
+            <EditText field="copy:pediatricHome.closerHeading" label="Closing headline">
+              {copyOverride(overrides, 'pediatricHome.closerHeading', 'Ready for a visit that ends in high-fives?')}
+            </EditText>
           </h2>
+          <p className="text-base mb-8 max-w-xl mx-auto" style={{ color: SITE_DEEP_MUTED }}>
+            <EditText field="copy:pediatricHome.closerSub" label="Closing subhead">
+              {copyOverride(overrides, 'pediatricHome.closerSub', 'New families welcome — bring the whole crew.')}
+            </EditText>
+          </p>
           <a
             href={bookHref}
-            className="inline-flex items-center self-start rounded-full px-6 py-3 text-sm font-bold transition-transform hover:scale-105"
+            className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-bold transition-transform hover:scale-105"
             style={{ background: SITE_DEEP_INK, color: SITE_DEEP }}
           >
-            {bookLabel}
+            🗓️ {bookLabel}
           </a>
         </div>
 

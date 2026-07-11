@@ -93,15 +93,18 @@ export default function CosmeticHome(props: HomePageProps) {
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-14 sm:pt-20 pb-16 sm:pb-24">
         <div className="grid lg:grid-cols-[7fr_5fr] gap-10 lg:gap-16 items-center">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] mb-5" style={{ color: accent }}>
-              {name}
-              {p.city ? ` · ${p.city}` : ''}
-            </p>
+            <div className="flex items-center gap-4 mb-6">
+              <span aria-hidden="true" className="h-px w-10" style={{ background: accent }} />
+              <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>
+                {name}
+                {p.city ? ` · ${p.city}` : ''}
+              </p>
+            </div>
             <EditText
               field="tagline"
               as="h1"
               label="Hero headline"
-              className="text-4xl sm:text-6xl leading-[1.05] mb-6"
+              className="text-5xl sm:text-7xl leading-[1.02] tracking-tight mb-7"
               style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
             >
               {p.tagline ?? 'Dentistry, elevated to an art.'}
@@ -141,14 +144,24 @@ export default function CosmeticHome(props: HomePageProps) {
 
           <EditImage field="heroImageUrl" label="Hero photo" className="relative">
             {heroPhoto ? (
-              <figure className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={heroPhoto}
-                  alt={heroDoctor ? heroDoctor.name : `${name} — the practice`}
-                  className="w-full aspect-[4/5] object-cover rounded-t-[999px]"
-                  style={{ border: `1px solid ${SITE_BORDER}` }}
-                />
+              <figure>
+                <span className="relative block">
+                  {/* Offset hairline arch behind the portrait — the double-frame
+                      that reads "gallery", not "profile picture". Anchored to
+                      the IMAGE box only (never the caption). */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-4 -right-4 w-full h-full rounded-t-[999px] pointer-events-none"
+                    style={{ border: `1px solid ${accent}`, opacity: 0.55 }}
+                  />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={heroPhoto}
+                    alt={heroDoctor ? heroDoctor.name : `${name} — the practice`}
+                    className="relative w-full aspect-[4/5] object-cover rounded-t-[999px]"
+                    style={{ border: `1px solid ${SITE_BORDER}` }}
+                  />
+                </span>
                 {heroDoctor && (
                   <figcaption className="mt-4 text-center">
                     <span className="block text-base" style={{ fontFamily: DISPLAY, fontWeight: 600 }}>
@@ -182,54 +195,66 @@ export default function CosmeticHome(props: HomePageProps) {
       {/* ── Services — numbered editorial index (max 6, never priced) ─────── */}
       {services.length > 0 && (
         <EditModal field="services" label="Services" section="services" as="section">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24" style={{ borderTop: `1px solid ${SITE_BORDER}` }}>
-            <div className="flex items-end justify-between gap-6 mb-10">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] mb-3" style={{ color: accent }}>
-                  <EditText field="copy:cosmeticHome.servicesEyebrow" label="Services eyebrow">
-                    {copy('cosmeticHome.servicesEyebrow', 'The work')}
-                  </EditText>
-                </p>
-                <h2 className="text-3xl sm:text-5xl leading-tight" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28" style={{ borderTop: `1px solid ${SITE_BORDER}` }}>
+            <div className="grid lg:grid-cols-[4fr_8fr] gap-10 lg:gap-20">
+              {/* Sticky editorial intro — the index reads beside it like a
+                  magazine table of contents. */}
+              <div className="lg:sticky lg:top-24 self-start">
+                <div className="flex items-center gap-4 mb-5">
+                  <span aria-hidden="true" className="h-px w-10" style={{ background: accent }} />
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>
+                    <EditText field="copy:cosmeticHome.servicesEyebrow" label="Services eyebrow">
+                      {copy('cosmeticHome.servicesEyebrow', 'The work')}
+                    </EditText>
+                  </p>
+                </div>
+                <h2 className="text-4xl sm:text-5xl leading-[1.08]" style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}>
                   <EditText field="copy:cosmeticHome.servicesHeading" label="Services headline">
                     {copy('cosmeticHome.servicesHeading', 'A quiet mastery of the craft.')}
                   </EditText>
                 </h2>
+                <a href={`${basePath}/services`} className="inline-block mt-7 text-sm underline underline-offset-4" style={{ color: SITE_INK }}>
+                  All services →
+                </a>
               </div>
-              <a href={`${basePath}/services`} className="hidden sm:inline text-sm underline-offset-4 hover:underline whitespace-nowrap" style={{ color: SITE_INK }}>
-                All services →
-              </a>
-            </div>
-            <ol className="divide-y" style={{ borderColor: SITE_BORDER }}>
-              {services.slice(0, 6).map((s, i) => {
-                const slug = s.librarySlug || kebab(s.name) || s.id
-                return (
-                  <li key={s.id} style={{ borderColor: SITE_BORDER }}>
-                    <a
-                      href={`${basePath}/services/${slug}`}
-                      className="group flex items-baseline gap-6 py-6 transition-colors"
-                    >
-                      <span className="text-sm tabular-nums shrink-0" style={{ color: accent }}>
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-xl sm:text-2xl group-hover:italic" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>
-                          {s.name}
+              <ol>
+                {services.slice(0, 6).map((s, i) => {
+                  const slug = s.librarySlug || kebab(s.name) || s.id
+                  return (
+                    <li key={s.id} style={{ borderTop: i === 0 ? 'none' : `1px solid ${SITE_BORDER}` }}>
+                      <a
+                        href={`${basePath}/services/${slug}`}
+                        className="group grid grid-cols-[2.5rem_1fr_auto] items-baseline gap-4 sm:gap-6 py-7"
+                      >
+                        <span className="text-sm tabular-nums pt-1" style={{ color: accent }}>
+                          {String(i + 1).padStart(2, '0')}
                         </span>
-                        {s.description && (
-                          <span className="block text-sm mt-1 max-w-2xl" style={{ color: SITE_INK_MUTED }}>
-                            {firstSentence(s.description)}
+                        <span className="min-w-0">
+                          <span
+                            className="block text-2xl sm:text-[2rem] leading-snug transition-transform duration-200 group-hover:translate-x-1.5"
+                            style={{ fontFamily: DISPLAY, fontWeight: 500 }}
+                          >
+                            {s.name}
                           </span>
-                        )}
-                      </span>
-                      <span aria-hidden="true" className="text-lg opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: accent }}>
-                        →
-                      </span>
-                    </a>
-                  </li>
-                )
-              })}
-            </ol>
+                          {s.description && (
+                            <span className="block text-sm mt-1.5 max-w-xl leading-relaxed" style={{ color: SITE_INK_MUTED }}>
+                              {firstSentence(s.description)}
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="text-xl opacity-30 transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-1"
+                          style={{ color: accent }}
+                        >
+                          →
+                        </span>
+                      </a>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
           </div>
         </EditModal>
       )}
@@ -239,16 +264,27 @@ export default function CosmeticHome(props: HomePageProps) {
         <section style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
           <ScrollReveal>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] mb-6" style={{ color: SITE_DEEP_MUTED }}>
-                {heroDoctor.name}
-                {heroDoctor.title ? ` · ${heroDoctor.title}` : ''}
-              </p>
+              <span
+                aria-hidden="true"
+                className="block text-8xl leading-none mb-2 select-none"
+                style={{ fontFamily: DISPLAY, color: SITE_DEEP_MUTED, opacity: 0.5 }}
+              >
+                “
+              </span>
               <blockquote
                 className="text-2xl sm:text-4xl leading-snug"
                 style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
               >
-                “{firstSentence(heroDoctor.bio)}”
+                {firstSentence(heroDoctor.bio)}
               </blockquote>
+              <div className="flex items-center justify-center gap-4 mt-8">
+                <span aria-hidden="true" className="h-px w-8" style={{ background: SITE_DEEP_MUTED, opacity: 0.6 }} />
+                <p className="text-sm font-semibold uppercase tracking-[0.22em]" style={{ color: SITE_DEEP_MUTED }}>
+                  {heroDoctor.name}
+                  {heroDoctor.title ? ` · ${heroDoctor.title}` : ''}
+                </p>
+                <span aria-hidden="true" className="h-px w-8" style={{ background: SITE_DEEP_MUTED, opacity: 0.6 }} />
+              </div>
               {gates.hasTeam && (
                 <a href={`${basePath}/team`} className="inline-block mt-8 text-sm underline-offset-4 underline" style={{ color: SITE_DEEP_MUTED }}>
                   Meet the whole team →
@@ -268,17 +304,23 @@ export default function CosmeticHome(props: HomePageProps) {
                 {copy('cosmeticHome.galleryHeading', 'The space')}
               </EditText>
             </p>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-8 items-start">
               {officePhotos.slice(0, 3).map((photo, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={photo.id}
-                  src={photo.url}
-                  alt={photo.caption ?? `${name} — the office`}
-                  loading="lazy"
-                  className={`w-full object-cover ${i === 0 ? 'aspect-[3/4] rounded-t-[999px]' : 'aspect-[3/4] rounded-2xl'} ${i === 2 ? 'hidden lg:block' : ''}`}
-                  style={{ border: `1px solid ${SITE_BORDER}` }}
-                />
+                <figure key={photo.id} className={i === 1 ? 'lg:mt-14' : i === 2 ? 'hidden lg:block lg:mt-6' : ''}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.url}
+                    alt={photo.caption ?? `${name} — the office`}
+                    loading="lazy"
+                    className={`w-full object-cover aspect-[3/4] ${i === 0 ? 'rounded-t-[999px]' : 'rounded-2xl'}`}
+                    style={{ border: `1px solid ${SITE_BORDER}` }}
+                  />
+                  {photo.caption && (
+                    <figcaption className="mt-3 text-xs uppercase tracking-[0.18em]" style={{ color: SITE_INK_MUTED }}>
+                      {photo.caption}
+                    </figcaption>
+                  )}
+                </figure>
               ))}
             </div>
           </div>
@@ -295,24 +337,46 @@ export default function CosmeticHome(props: HomePageProps) {
                   {copy('cosmeticHome.testimonialsHeading', 'In their words')}
                 </EditText>
               </p>
-              <div className="grid sm:grid-cols-2 gap-x-12 gap-y-10">
-                {testimonials.map((t, i) => (
-                  <ScrollReveal key={t.id} delay={i * 80}>
-                    <figure>
-                      <blockquote
-                        className="text-xl sm:text-2xl leading-snug mb-4"
-                        style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
-                      >
-                        “{t.quote}”
-                      </blockquote>
-                      <figcaption className="text-sm" style={{ color: SITE_INK_MUTED }}>
-                        — {t.authorName}
-                        {t.authorLocation ? `, ${t.authorLocation}` : ''}
-                      </figcaption>
-                    </figure>
-                  </ScrollReveal>
-                ))}
-              </div>
+              {/* Lead voice carries the section; the rest sit smaller in two
+                  columns beneath a hairline — an editorial pull-quote page,
+                  not a card wall. */}
+              <ScrollReveal>
+                <figure className="text-center max-w-3xl mx-auto">
+                  <blockquote
+                    className="text-2xl sm:text-4xl leading-snug mb-5"
+                    style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
+                  >
+                    “{testimonials[0].quote}”
+                  </blockquote>
+                  <figcaption className="text-sm uppercase tracking-[0.18em]" style={{ color: SITE_INK_MUTED }}>
+                    {testimonials[0].authorName}
+                    {testimonials[0].authorLocation ? ` · ${testimonials[0].authorLocation}` : ''}
+                  </figcaption>
+                </figure>
+              </ScrollReveal>
+              {testimonials.length > 1 && (
+                <div
+                  className="grid sm:grid-cols-2 gap-x-14 gap-y-9 mt-12 pt-12"
+                  style={{ borderTop: `1px solid ${SITE_BORDER}` }}
+                >
+                  {testimonials.slice(1).map((t, i) => (
+                    <ScrollReveal key={t.id} delay={i * 80}>
+                      <figure>
+                        <blockquote
+                          className="text-lg leading-relaxed mb-3"
+                          style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}
+                        >
+                          “{t.quote}”
+                        </blockquote>
+                        <figcaption className="text-xs uppercase tracking-[0.18em]" style={{ color: SITE_INK_MUTED }}>
+                          {t.authorName}
+                          {t.authorLocation ? ` · ${t.authorLocation}` : ''}
+                        </figcaption>
+                      </figure>
+                    </ScrollReveal>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </EditModal>
@@ -331,32 +395,6 @@ export default function CosmeticHome(props: HomePageProps) {
           </p>
         </section>
       )}
-
-      {/* ── Closing consultation invitation ───────────────────────────────── */}
-      <section style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
-          <h2 className="text-3xl sm:text-5xl leading-tight mb-4" style={{ fontFamily: DISPLAY, fontStyle: 'italic', fontWeight: 500 }}>
-            <EditText field="copy:cosmeticHome.closerHeading" label="Closing headline">
-              {copy('cosmeticHome.closerHeading', 'Begin with a conversation.')}
-            </EditText>
-          </h2>
-          <p className="text-base mb-9 max-w-xl mx-auto" style={{ color: SITE_DEEP_MUTED }}>
-            <EditText field="copy:cosmeticHome.closerSub" label="Closing subhead">
-              {copy(
-                'cosmeticHome.closerSub',
-                'A consultation is simply that — your questions, honest answers, and a plan that is yours to keep.',
-              )}
-            </EditText>
-          </p>
-          <a
-            href={bookHref}
-            className="inline-flex items-center rounded-full px-8 py-4 text-sm font-semibold transition-transform hover:scale-[1.02]"
-            style={{ background: SITE_DEEP_INK, color: SITE_DEEP }}
-          >
-            {bookLabel}
-          </a>
-        </div>
-      </section>
 
       {/* ── Contact form — basic tier only (bookHref targets #contact) ────── */}
       {!gates.isPro && (

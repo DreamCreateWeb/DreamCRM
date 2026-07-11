@@ -7,6 +7,33 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Template design pass — Cosmetic + Pediatric earn their looks
+  (2026-07-11).** Owner: "focus purely on the design and quality of the two
+  new templates." Method: a real VISUAL loop — static-render both Homes with
+  rich fixtures (tests/__screenshot__/render-templates.test.tsx, gitignored)
+  → headless-Chromium full-page shots at 1440/390 (Google fonts load through
+  the proxy; shoot script scrolls first so lazy images land) → critique the
+  PNGs → redesign → reshoot. **Shared flaw fixed on both**: the standalone
+  closing band + footer stacked as two giant dark slabs with duplicate CTAs —
+  the closer now LIVES in the footer top (closer copy keys render there;
+  chrome reads copyOverrides directly), one dark close per page.
+  **Cosmetic**: hero to text-7xl w/ hairline-eyebrow + offset-hairline
+  double-framed arch (anchored to the image box, not the caption); services
+  became a magazine spread — sticky italic intro left, commanding numbered
+  index right (2rem serif entries, hover slide); doctor band gained the
+  oversized “ glyph + flanked-rule attribution; testimonials got hierarchy
+  (lead pull-quote large + smaller pair under a hairline); gallery staggers
+  arch/rect/rect with uppercase captions. **Pediatric**: the gray STORM
+  clouds (decor inherited ink via currentColor) became explicit soft
+  white/pastel clouds + four-point Sparkles; hero photo is a tilted organic
+  BLOB w/ sparkle badges; wavy SVG seams frame the services band; cards went
+  alternating pastel grounds w/ white emoji medallions + wobble hover; chips
+  cycle 🌟🎈🌈🦖 w/ alternating tilt; testimonial bubbles grew real TAILS +
+  tilt; team circles got thick pastel rings; and the coloring corner became
+  the showpiece — up to 3 REAL sheets fanned like paper w/ rotation +
+  hover-straighten, pulled from profile.coloringPages. All conformance/
+  wiring/a11y guards stayed green through the redesign (the harness held).
+
 - **The coloring LIBRARY — a vetted CC0 pack every clinic can use
   (2026-07-11).** Owner: "search for any open source coloring page packs…
   I want a rich library seeded in." Sourcing: a research agent evaluated

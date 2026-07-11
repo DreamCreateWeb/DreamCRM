@@ -1,6 +1,7 @@
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
+import { EditText } from '@/components/clinic-site/editable'
 import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
-import { DAYS, DAY_LABEL, fmt12, firstSentence, type HoursMap } from '@/lib/clinic-site-helpers'
+import { DAYS, DAY_LABEL, fmt12, firstSentence, copyOverride, type HoursMap } from '@/lib/clinic-site-helpers'
 
 /**
  * Cosmetic/Luxury footer — the charcoal editorial band. Same content slots as
@@ -26,21 +27,35 @@ export default function CosmeticFooter({
   const postal = loc?.postalCode ?? data.profile.postalCode
   const hours = (data.profile.hours as HoursMap | null) ?? null
   const about = data.profile.about ? firstSentence(data.profile.about) : null
+  const overrides = (data.profile.copyOverrides as Record<string, string> | null) ?? {}
   const year = new Date().getFullYear()
 
   return (
     <footer id="site-footer-contact" style={{ background: SITE_DEEP, color: SITE_DEEP_INK }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-20">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 pb-10 mb-10" style={{ borderBottom: '1px solid rgba(244,240,231,0.18)' }}>
-          <h2
-            className="text-3xl sm:text-4xl leading-tight max-w-xl"
-            style={{ fontFamily: 'var(--font-display, Georgia, serif)', fontStyle: 'italic', fontWeight: 500 }}
-          >
-            Ready when you are.
-          </h2>
+        <div className="grid sm:grid-cols-[1fr_auto] items-end gap-8 pb-12 mb-12" style={{ borderBottom: '1px solid rgba(244,240,231,0.18)' }}>
+          <div>
+            <h2
+              className="text-4xl sm:text-6xl leading-[1.05] tracking-tight max-w-2xl mb-4"
+              style={{ fontFamily: 'var(--font-display, Georgia, serif)', fontStyle: 'italic', fontWeight: 500 }}
+            >
+              <EditText field="copy:cosmeticHome.closerHeading" label="Closing headline">
+                {copyOverride(overrides, 'cosmeticHome.closerHeading', 'Begin with a conversation.')}
+              </EditText>
+            </h2>
+            <p className="text-base max-w-xl" style={{ color: SITE_DEEP_MUTED }}>
+              <EditText field="copy:cosmeticHome.closerSub" label="Closing subhead">
+                {copyOverride(
+                  overrides,
+                  'cosmeticHome.closerSub',
+                  'A consultation is simply that — your questions, honest answers, and a plan that is yours to keep.',
+                )}
+              </EditText>
+            </p>
+          </div>
           <a
             href={bookHref}
-            className="inline-flex items-center self-start rounded-full px-6 py-3 text-sm font-semibold transition-transform hover:scale-[1.02]"
+            className="inline-flex items-center self-start sm:self-end rounded-full px-8 py-4 text-sm font-semibold transition-transform hover:scale-[1.02] whitespace-nowrap"
             style={{ background: SITE_DEEP_INK, color: SITE_DEEP }}
           >
             {bookLabel}
