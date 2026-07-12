@@ -17,7 +17,8 @@ import {
 /**
  * The Design panel — templates (preview in the editor / apply), brand color,
  * hero media, intro video. Every save rides the Studio's scoped actions, so
- * everything here lands in the undo history and repaints the live site.
+ * everything here lands in the undo history and stages to the website draft
+ * (Publish makes it live).
  */
 
 interface Props {

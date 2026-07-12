@@ -350,7 +350,7 @@ export default async function WebsiteHubPage() {
             icon="star"
             title="Design"
             stat={templateDef.label}
-            description="The design picker, brand color, hero photos, and intro video."
+            description="Browse designs with live previews on your own content, plus brand color, hero photos, and intro video."
           />
         )}
         {canEdit && (

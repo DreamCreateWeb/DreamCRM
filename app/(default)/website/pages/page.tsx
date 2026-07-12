@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getEffectiveWebsiteProfile } from '@/lib/services/website-draft'
+import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import PagesManager, { type PageCopyGroup } from './pages-manager'
+import PublishCard from '../publish-card'
 import SeoMetaForm from './seo-meta-form'
 
 export const metadata = {
@@ -112,6 +113,7 @@ export default async function WebsitePagesPage() {
     copyByPath.set(k.page, group)
   }
 
+  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] as { column: string; label: string }[] }))
   const siteUrl = publicSiteUrl({ slug: ctx.organizationSlug, profile })
   const domain = siteUrl.replace(/^https?:\/\//, '')
   // The meta editor only offers overrides for pages that actually serve.
@@ -134,6 +136,11 @@ export default async function WebsitePagesPage() {
           </ActionButton>
         }
       />
+      {/* Publish state travels with every editing surface — saved-but-
+          unpublished changes are visible wherever they were made. */}
+      {draftStatus.count > 0 && (
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+      )}
       <PagesManager
         pages={index}
         copyByPath={Object.fromEntries(copyByPath)}

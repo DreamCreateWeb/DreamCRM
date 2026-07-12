@@ -47,7 +47,7 @@ export default function StudioWelcome() {
     {
       icon: '✏️',
       title: 'Click any text to edit it',
-      body: 'Headlines, paragraphs, buttons — click, type, done. Every save is live.',
+      body: 'Headlines, paragraphs, buttons — click, type, done. Saves go to your draft; Publish updates the live site.',
     },
     {
       icon: '🪄',

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getEffectiveWebsiteProfile } from '@/lib/services/website-draft'
+import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { contentSectionsFor } from '@/lib/website-content-sections'
 import ClinicSettingsNav, { type NavGroup } from '../../settings/clinic/clinic-settings-nav'
@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import ContentPanel from './content-panel'
+import PublishCard from '../publish-card'
 
 export const metadata = {
   title: 'Website Content - DreamCRM',
@@ -53,6 +54,8 @@ export default async function WebsiteContentPage() {
   }
 
   const library = await listLibraryForPicker(ctx.organizationId)
+  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] as { column: string; label: string }[] }))
+
   const sections = contentSectionsFor(profile.template)
   const navGroups: NavGroup[] = [
     {
@@ -85,6 +88,11 @@ export default async function WebsiteContentPage() {
           </ActionButton>
         }
       />
+      {/* Publish state travels with every editing surface — saved-but-
+          unpublished changes are visible wherever they were made. */}
+      {draftStatus.count > 0 && (
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+      )}
       <ClinicSettingsNav groups={navGroups} />
       <div className="v2-panel mb-8">
         <ContentPanel profile={profile} orgId={ctx.organizationId} library={library} />
