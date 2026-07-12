@@ -8,11 +8,11 @@ vi.mock('next/navigation', () => ({
 const actions = {
   syncFacebookReviewsAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, synced: 2 })),
 }
-vi.mock('@/app/(default)/reviews/actions', () => ({
+vi.mock('@/app/(default)/growth/reviews/actions', () => ({
   syncFacebookReviewsAction: (...a: unknown[]) => actions.syncFacebookReviewsAction(...a),
 }))
 
-import FacebookReviewsSection, { type FacebookReviewClientRow } from '@/app/(default)/reviews/received/facebook-reviews-section'
+import FacebookReviewsSection, { type FacebookReviewClientRow } from '@/app/(default)/growth/reviews/received/facebook-reviews-section'
 
 function row(overrides: Partial<FacebookReviewClientRow> = {}): FacebookReviewClientRow {
   return {

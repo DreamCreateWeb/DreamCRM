@@ -444,7 +444,7 @@ export async function promoteFiltersToAudienceAction(
       },
       ctx.userId,
     )
-    revalidatePath('/marketing/audiences')
+    revalidatePath('/growth/audiences')
     return { ok: true, audienceId: row.id, dropped }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not build the audience' }
@@ -705,7 +705,7 @@ export async function sendIntakeRequestAction(
  * sendIntakeRequestAction shape so the button can surface inline
  * feedback. The Reviews dashboard's Ready-to-ask list calls the service
  * directly; this wrapper exists so the patient page never has to leave
- * to /reviews to send a single request.
+ * to /growth/reviews to send a single request.
  *
  * The underlying service enforces every guard (no email, opted out, no
  * platforms configured, within rate-limit window) — we surface those
@@ -725,7 +725,7 @@ export async function sendReviewRequestForPatientAction(
       requestedByUserId: ctx.userId,
     })
     revalidatePath(`/patients/${patientId}`)
-    revalidatePath('/reviews')
+    revalidatePath('/growth/reviews')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: (err as Error).message }

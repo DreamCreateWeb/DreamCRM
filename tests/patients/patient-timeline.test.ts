@@ -119,7 +119,7 @@ describe('getPatientTimeline — commerce + review events', () => {
     const review = events.find((e) => e.kind === 'review')!
     expect(review.title).toBe('Left a 5★ review')
     expect(review.body).toBe('Loved it')
-    expect(review.href).toBe('/reviews/received')
+    expect(review.href).toBe('/growth/reviews/received')
   })
 })
 
@@ -155,7 +155,7 @@ describe('getPatientTimeline — unified relationship events', () => {
     const events = await getPatientTimeline('org_1', 'pat_1')
     const camp = events.find((e) => e.kind === 'campaign')!
     expect(camp.title).toBe('Received “Birthday greetings”')
-    expect(camp.href).toBe('/marketing/campaigns/42')
+    expect(camp.href).toBe('/growth/campaigns/42')
   })
 
   it('includes a tag-applied event', async () => {

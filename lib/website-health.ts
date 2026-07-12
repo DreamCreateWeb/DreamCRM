@@ -53,7 +53,7 @@ export function websiteHealthNotice(opts: {
       kind: 'traffic_drop',
       title: 'Website traffic dropped this week',
       body: `${total.toLocaleString('en-US')} visit${total === 1 ? '' : 's'} in the last 7 days — down ${pct}% from ${totalPrev.toLocaleString('en-US')} the week before. Worth a look: a broken link, a domain hiccup, or a search change can all do this quietly.`,
-      href: '/analytics',
+      href: '/growth/analytics',
       linkLabel: 'Open Analytics',
     }
   }

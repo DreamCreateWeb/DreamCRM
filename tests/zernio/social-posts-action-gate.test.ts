@@ -31,7 +31,7 @@ const { createSocialPost, deleteSocialPost } = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/services/social-posts', () => ({ createSocialPost, deleteSocialPost }))
 
-import { createSocialPostAction, deleteSocialPostAction } from '@/app/(default)/social-posts/actions'
+import { createSocialPostAction, deleteSocialPostAction } from '@/app/(default)/growth/social/actions'
 
 beforeEach(() => {
   createSocialPost.mockClear()

@@ -11,7 +11,7 @@ describe('websiteHealthNotice', () => {
     expect(n?.kind).toBe('traffic_drop')
     expect(n?.body).toContain('40 visits')
     expect(n?.body).toContain('down 67%')
-    expect(n?.href).toBe('/analytics')
+    expect(n?.href).toBe('/growth/analytics')
   })
 
   it('never flags a drop against a quiet prior week (volume floor)', () => {

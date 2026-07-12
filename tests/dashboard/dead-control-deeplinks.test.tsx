@@ -75,11 +75,11 @@ beforeEach(() => {
 })
 
 describe('Recall dashboard audience link pre-targets a new campaign', () => {
-  // Regression: this link used ?audience=, but /marketing/campaigns reads
+  // Regression: this link used ?audience=, but /growth/campaigns reads
   // ?prefill_audience= (and ignores ?audience=). The audience row therefore
   // landed on the campaign editor with nothing pre-selected. Param must match
   // the reader.
-  it('links a patient audience to /marketing/campaigns?prefill_audience={id}', async () => {
+  it('links a patient audience to /growth/campaigns?prefill_audience={id}', async () => {
     mockGetRecallStats.mockResolvedValueOnce(baseStats)
     mockListAudiences.mockResolvedValueOnce([
       { id: 42, name: 'Recall due', description: null, recipientSource: 'patients' },
@@ -87,7 +87,7 @@ describe('Recall dashboard audience link pre-targets a new campaign', () => {
     const ui = await ClinicRecallDashboard({ ctx: clinicCtx as never })
     render(ui)
     const link = screen.getByRole('link', { name: /Recall due/i })
-    expect(link).toHaveAttribute('href', '/marketing/campaigns?prefill_audience=42')
+    expect(link).toHaveAttribute('href', '/growth/campaigns?prefill_audience=42')
   })
 })
 

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 const createAction = vi.fn(async (..._a: unknown[]) => ({ ok: true, status: 'published' }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
-vi.mock('@/app/(default)/social-posts/actions', () => ({
+vi.mock('@/app/(default)/growth/social/actions', () => ({
   createSocialPostAction: (...a: unknown[]) => createAction(...a),
   deleteSocialPostAction: vi.fn(async () => ({ ok: true })),
 }))
@@ -12,7 +12,7 @@ vi.mock('@/lib/upload-with-progress', () => ({
   UploadCancelledError: class extends Error {},
 }))
 
-import Composer from '@/app/(default)/social-posts/composer'
+import Composer from '@/app/(default)/growth/social/composer'
 import type { ComposerChannel } from '@/lib/types/zernio'
 
 const GBP: ComposerChannel = { accountId: 'a_gbp', platform: 'googlebusiness', label: 'Google Business Profile', icon: '📍', handle: 'dream' }

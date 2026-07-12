@@ -218,7 +218,7 @@ export async function simulateDemoConnectAction(platform: string): Promise<Zerni
     const { simulateDemoConnect } = await import('@/lib/services/zernio')
     await simulateDemoConnect(ctx.organizationId, platform as ZernioPlatform)
     revalidatePath('/integrations')
-    revalidatePath('/social-posts')
+    revalidatePath('/growth/social')
     return { ok: true }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
@@ -312,7 +312,7 @@ export async function setPreferredGbpAccountAction(
   const r = await setPreferredGbpAccount(ctx.organizationId, accountId)
   if (r.ok) {
     revalidatePath('/integrations/google-business')
-    revalidatePath('/reviews')
+    revalidatePath('/growth/reviews')
     revalidatePath('/website/seo')
   }
   return r

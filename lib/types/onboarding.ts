@@ -74,7 +74,7 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
     id: 'connect_social',
     label: 'Connect your social channels',
     body: 'Link your Google Business and social accounts, then one post reaches them all.',
-    href: '/social-posts',
+    href: '/growth/social',
   },
   {
     id: 'add_patients',
@@ -101,7 +101,7 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
     id: 'reviews_setup',
     label: 'Turn on review collection',
     body: 'Add your Google link once — happy patients become public reviews from then on.',
-    href: '/reviews',
+    href: '/growth/reviews',
     minPlan: 'pro',
   },
   {

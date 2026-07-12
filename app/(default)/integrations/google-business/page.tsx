@@ -114,7 +114,7 @@ export default async function GoogleBusinessDetailPage() {
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Where this shows up</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <ValueLink
-              href="/reviews/received"
+              href="/growth/reviews/received"
               title="Reviews"
               body="Read &amp; reply to your Google reviews. They power your public star rating."
             />

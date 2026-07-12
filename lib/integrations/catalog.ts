@@ -304,7 +304,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     connectKind: 'zernio',
     detailHref: '/integrations/google-business',
     valueLinks: [
-      { href: '/reviews/received', label: 'Reviews' },
+      { href: '/growth/reviews/received', label: 'Reviews' },
       { href: '/website/seo', label: 'Local search' },
     ],
   },
@@ -321,7 +321,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'live',
     connectKind: 'zernio',
     countsTowardSocialCap: true,
-    valueLinks: [{ href: '/social-posts', label: 'Compose a post' }],
+    valueLinks: [{ href: '/growth/social', label: 'Compose a post' }],
   },
   {
     id: 'facebook',
@@ -334,7 +334,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'live',
     connectKind: 'zernio',
     countsTowardSocialCap: true,
-    valueLinks: [{ href: '/social-posts', label: 'Compose a post' }],
+    valueLinks: [{ href: '/growth/social', label: 'Compose a post' }],
   },
   {
     id: 'tiktok',
@@ -347,7 +347,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'live',
     connectKind: 'zernio',
     countsTowardSocialCap: true,
-    valueLinks: [{ href: '/social-posts', label: 'Compose a post' }],
+    valueLinks: [{ href: '/growth/social', label: 'Compose a post' }],
   },
   {
     id: 'youtube',
@@ -360,7 +360,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'live',
     connectKind: 'zernio',
     countsTowardSocialCap: true,
-    valueLinks: [{ href: '/social-posts', label: 'Compose a post' }],
+    valueLinks: [{ href: '/growth/social', label: 'Compose a post' }],
   },
   {
     id: 'linkedin',
@@ -373,7 +373,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'live',
     connectKind: 'zernio',
     countsTowardSocialCap: true,
-    valueLinks: [{ href: '/social-posts', label: 'Compose a post' }],
+    valueLinks: [{ href: '/growth/social', label: 'Compose a post' }],
   },
 
   // ── Communication ───────────────────────────────────────────────────────────

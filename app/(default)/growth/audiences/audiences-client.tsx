@@ -16,7 +16,7 @@ import {
   deleteAudienceAction,
   previewAudienceAction,
   updateAudienceAction,
-} from '../actions'
+} from '../../marketing/actions'
 
 export interface AudienceRow {
   id: number
@@ -117,7 +117,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
                 {/* The whole point of a segment: launch a campaign to it. Reuses
                     the ?prefill_audience param the recall dashboard already
                     uses to open the new-campaign modal pre-seeded with it. */}
-                <ActionButton variant="secondary" size="sm" href={`/marketing/campaigns?prefill_audience=${a.id}`}>
+                <ActionButton variant="secondary" size="sm" href={`/growth/campaigns?prefill_audience=${a.id}`}>
                   Send campaign →
                 </ActionButton>
                 <div className="flex gap-1">

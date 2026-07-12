@@ -5,7 +5,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: 
 const refreshAction = vi.fn(async () => ({ ok: true }))
 const buyAddon = vi.fn(async () => ({ ok: true }))
 const simulate = vi.fn(async () => ({ ok: true }))
-vi.mock('@/app/(default)/social-posts/actions', () => ({
+vi.mock('@/app/(default)/growth/social/actions', () => ({
   refreshChannelsAction: (...a: unknown[]) => refreshAction(...(a as [])),
 }))
 vi.mock('@/app/(default)/integrations/actions', () => ({
@@ -13,7 +13,7 @@ vi.mock('@/app/(default)/integrations/actions', () => ({
   simulateDemoConnectAction: (...a: unknown[]) => simulate(...(a as [])),
 }))
 
-import ConnectChannels, { type ConnectChannelsProps } from '@/app/(default)/social-posts/connect-channels'
+import ConnectChannels, { type ConnectChannelsProps } from '@/app/(default)/growth/social/connect-channels'
 
 function props(over: Partial<ConnectChannelsProps> = {}): ConnectChannelsProps {
   return {

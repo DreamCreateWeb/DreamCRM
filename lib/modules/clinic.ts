@@ -62,20 +62,13 @@ export const clinicModules: ModuleRegistry = {
     { id: 'intake_forms',      path: '/intake-forms',      label: 'Intake Forms',     section: 'Daily',    icon: 'pen',      status: 'live', minPlan: 'pro' },
 
     // ── Growth ─────────────────────────────────────────────────────────
-    { id: 'recall',            path: '/marketing',         label: 'Recall & Outreach',section: 'Growth',   icon: 'megaphone',status: 'live', minPlan: 'premium' },
-    { id: 'reviews',           path: '/reviews',           label: 'Reviews',          section: 'Growth',   icon: 'star',     status: 'live', minPlan: 'pro' },
-    // Social Posts is the unified multi-platform composer + content calendar —
-    // compose once → publish/schedule to Google Business + the connected socials.
-    // Auto-derived sidebar presence (no plan gate): it appears once the clinic
-    // has a postable channel — the Social bundle (a connected social account) OR
-    // the Google bundle (a connected GBP, which supports Google posting). Hidden
-    // when nothing's connected (no dead-end link). See lib/integrations/bundles.
-    { id: 'social_posts',      path: '/social-posts',      label: 'Social Posts',     section: 'Growth',   icon: 'megaphone',status: 'live', requiresBundle: ['social', 'google'] },
-    // (The "Channels" connect surface folded into Integrations — the app-library
-    //  there is now the single place to connect Google Business + social, so
-    //  there's no separate sidebar entry. Connecting is owner/admin on any plan;
-    //  social is bounded by the per-plan cap. See lib/types/social-entitlements.ts.)
-    { id: 'analytics',         path: '/analytics',         label: 'Analytics',        section: 'Growth',   icon: 'chart',    status: 'live', minPlan: 'premium' },
+    // ONE workspace entry — the /growth hub is the marketing home (outreach,
+    // campaigns, audiences, reviews, social, analytics). No minPlan gate: the
+    // hub admits every plan and renders honest upsell cards for below-plan
+    // areas (mirrors the Website workspace). Sub-pages carry their own gates;
+    // the Social door reflects connected channels (see lib/integrations/
+    // bundles — the old bundle-gated sidebar entry folded into the hub).
+    { id: 'growth',            path: '/growth',            label: 'Growth',           section: 'Growth',   icon: 'chart',    status: 'live' },
 
     // ── Website (the trunk) ────────────────────────────────────────────
     // ONE workspace entry — the /website hub is the "Online Store"-style home

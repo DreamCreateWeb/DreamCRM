@@ -10,5 +10,5 @@ export const dynamic = 'force-dynamic'
  * is exactly ONE composer.
  */
 export default function GooglePostsRedirect() {
-  redirect('/social-posts')
+  redirect('/growth/social')
 }

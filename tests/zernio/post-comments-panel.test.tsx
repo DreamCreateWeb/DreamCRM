@@ -15,7 +15,7 @@ const actions = {
   hide: vi.fn(async () => ({ ok: true })),
   like: vi.fn(async () => ({ ok: true })),
 }
-vi.mock('@/app/(default)/social-posts/comment-actions', () => ({
+vi.mock('@/app/(default)/growth/social/comment-actions', () => ({
   loadPostEngagementAction: (...a: unknown[]) => actions.load(...(a as [])),
   replyToCommentAction: (...a: unknown[]) => actions.reply(...(a as [])),
   deleteCommentAction: (...a: unknown[]) => actions.del(...(a as [])),

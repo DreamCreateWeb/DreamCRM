@@ -43,6 +43,22 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
   const isPro = ctx.planTier === 'pro' || ctx.planTier === 'premium'
   const isPremium = ctx.planTier === 'premium'
   const canEditSite = ctx.role === 'owner' || ctx.role === 'admin'
+  // The Growth workspace's sub-pages — same treatment: the sidebar shows only
+  // the hub, so ⌘K carries the sub-areas with their plan gates.
+  const growthPages: SearchResult[] = [
+    ...(isPremium
+      ? [
+          { id: 'page-growth-outreach', label: 'Recall & Outreach', sublabel: 'Growth', href: '/growth/outreach', kind: 'page' as const },
+          { id: 'page-growth-campaigns', label: 'Campaigns', sublabel: 'Growth', href: '/growth/campaigns', kind: 'page' as const },
+          { id: 'page-growth-audiences', label: 'Audiences', sublabel: 'Growth', href: '/growth/audiences', kind: 'page' as const },
+          { id: 'page-growth-analytics', label: 'Analytics', sublabel: 'Growth', href: '/growth/analytics', kind: 'page' as const },
+        ]
+      : []),
+    ...(isPro
+      ? [{ id: 'page-growth-reviews', label: 'Reviews', sublabel: 'Growth', href: '/growth/reviews', kind: 'page' as const }]
+      : []),
+    { id: 'page-growth-social', label: 'Social posts', sublabel: 'Growth', href: '/growth/social', kind: 'page' as const },
+  ]
   const websitePages: SearchResult[] = [
     ...(canEditSite
       ? [{ id: 'page-website-editor', label: 'Website editor', sublabel: 'Website', href: '/website/editor', kind: 'page' as const }]
@@ -81,7 +97,7 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     { id: 'page-settings-plan', label: 'Plan & billing', sublabel: 'Settings', href: '/settings/billing', kind: 'page' },
     { id: 'page-settings-apps', label: 'Connected accounts', sublabel: 'Settings', href: '/settings/apps', kind: 'page' },
   ]
-  return [...modules, ...websitePages, ...settingsPages]
+  return [...modules, ...websitePages, ...growthPages, ...settingsPages]
 }
 
 /** The clinic's saved list views as one-click launches — "jump to No-shows"
@@ -409,7 +425,7 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         id: `rev-${r.id}`,
         label: r.reviewerName ?? 'Anonymous review',
         sublabel: r.comment ? r.comment.slice(0, 60) : null,
-        href: '/reviews/received',
+        href: '/growth/reviews/received',
         kind: 'review',
       })),
     })
@@ -421,7 +437,7 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         id: `camp-${c.id}`,
         label: c.name,
         sublabel: c.subject ? `${c.status} · ${c.subject}` : c.status,
-        href: `/marketing/campaigns/${c.id}`,
+        href: `/growth/campaigns/${c.id}`,
         kind: 'campaign',
       })),
     })

@@ -10,7 +10,7 @@ import {
   deleteCommentAction,
   setCommentHiddenAction,
   setCommentLikedAction,
-} from '@/app/(default)/social-posts/comment-actions'
+} from '@/app/(default)/growth/social/comment-actions'
 
 /**
  * Post-detail comment + engagement manager — opens over the Social Posts tablet
@@ -475,7 +475,7 @@ function UnsupportedState({ reason, platform }: { reason: string | null; platfor
       <>
         Google doesn’t use post comments — patient feedback comes in as <strong className="font-medium">reviews</strong>.
         Manage those in your{' '}
-        <a href="/reviews/received" className="font-medium text-teal-700 dark:text-teal-400 underline">
+        <a href="/growth/reviews/received" className="font-medium text-teal-700 dark:text-teal-400 underline">
           Reviews
         </a>{' '}
         module.

@@ -272,7 +272,7 @@ function ManageBar({ platform, onOpen }: { platform: string; onOpen: () => void 
     return (
       <div className="mt-1.5 flex justify-center">
         <a
-          href="/reviews/received"
+          href="/growth/reviews/received"
           className="inline-flex items-center gap-1.5 rounded-full bg-white ring-1 ring-gray-200 text-gray-700 px-3 py-1.5 text-[12px] font-medium hover:ring-gray-300 transition"
         >
           <span aria-hidden="true">★</span> Manage reviews →

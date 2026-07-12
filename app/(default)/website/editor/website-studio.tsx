@@ -158,7 +158,7 @@ const SECTION_TITLES: Record<string, string> = {
  */
 const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
   testimonials: {
-    href: '/reviews',
+    href: '/growth/reviews',
     cta: 'Open the Reviews module',
     desc: 'Featured reviews are managed in the Reviews module now. Patients leave real reviews on Google, and your best ones (4★ and up) show up here automatically — no more typing a quote by hand. Hide or manage what\'s featured from there.',
   },

@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 
-import CalendarView from '@/app/(default)/social-posts/calendar-view'
+import CalendarView from '@/app/(default)/growth/social/calendar-view'
 import type { SocialPostView, SocialPostTargetView } from '@/lib/types/zernio'
 
 function target(over: Partial<SocialPostTargetView> = {}): SocialPostTargetView {

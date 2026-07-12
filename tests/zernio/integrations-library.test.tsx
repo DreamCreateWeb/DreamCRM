@@ -286,7 +286,7 @@ describe('IntegrationsLibrary — Google Business bundle', () => {
     expect(within(section).queryByRole('link', { name: /Connect Google Business/i })).toBeNull()
     // The bundle header carries the "where it shows up" links once (not per card).
     expect((within(section).getByRole('link', { name: /Reviews/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
-      '/reviews/received',
+      '/growth/reviews/received',
     )
     expect((within(section).getByRole('link', { name: /Local search/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
       '/website/seo',
@@ -349,7 +349,7 @@ describe('IntegrationsLibrary — Social cards + cap', () => {
     expect(within(section).getAllByRole('button', { name: /Disconnect/i }).length).toBeGreaterThan(0)
     // Active bundle → the composer link lives in the bundle header.
     expect((within(section).getByRole('link', { name: /Social Posts/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
-      '/social-posts',
+      '/growth/social',
     )
   })
 

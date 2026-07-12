@@ -101,7 +101,7 @@ const REVIEWS: DemoBeat = {
   title: 'The review loop',
   talkTrack:
     'Visit completes → review request → Google. 4-star-plus reviews auto-feature on the website. {clinicName} builds reputation on autopilot.',
-  href: '/reviews',
+  href: '/growth/reviews',
   group: 'grow',
   moves: ['Show a 5★ auto-featured on the site', 'Point at the 1–2★ escalation path'],
 }
@@ -131,7 +131,7 @@ const ANALYTICS: DemoBeat = {
   title: 'Proof it works',
   talkTrack:
     'New patients, retention, reputation, search visibility — one honest scorecard. This is what you check monthly to know it paid for itself.',
-  href: '/analytics',
+  href: '/growth/analytics',
   group: 'close',
   moves: ['Walk the scorecard top to bottom — end on new patients'],
 }
@@ -249,7 +249,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         title: 'Post once, everywhere',
         talkTrack:
           'One composer for Google, Facebook, Instagram — write once, preview each platform, schedule the month in one sitting.',
-        href: '/social-posts',
+        href: '/growth/social',
         group: 'run',
         moves: ['Write one post → flip through the per-platform previews'],
       },
@@ -286,7 +286,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         title: 'Every channel, one composer',
         talkTrack:
           'Google, Facebook, Instagram, TikTok, YouTube — write once, preview each platform, post or schedule. This is the whole workflow.',
-        href: '/social-posts',
+        href: '/growth/social',
         group: 'open',
         moves: ['Write one post → flip through the per-platform previews'],
       },
@@ -295,7 +295,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         title: 'The month at a glance',
         talkTrack:
           'Flip to the calendar — plan the month, drag the gaps closed. A practice that posts weekly looks alive; this makes weekly effortless.',
-        href: '/social-posts',
+        href: '/growth/social',
         group: 'run',
         moves: ['Switch calendar ⇄ showcase views'],
       },
@@ -304,7 +304,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         title: 'Comments, answered',
         talkTrack:
           'Every comment across channels lands in one queue — nothing sits unanswered under {clinicName}’s name.',
-        href: '/social-posts',
+        href: '/growth/social',
         group: 'run',
         moves: ['Answer one comment live'],
       },

@@ -834,7 +834,7 @@ export async function submitReviewText(input: {
             type: 'review_low_rating',
             title: `⚠️ ${rating}★ review from ${who} — reach out before it goes public`,
             body: `“${text.slice(0, 120)}” — a quick personal follow-up now is the best save.`,
-            linkPath: '/reviews/received',
+            linkPath: '/growth/reviews/received',
             forceEmail: true,
             meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
           }
@@ -843,7 +843,7 @@ export async function submitReviewText(input: {
             type: 'review_submitted',
             title: `New review — ${stars}from ${who}`.replace('  ', ' '),
             body: text.slice(0, 140),
-            linkPath: '/reviews/received',
+            linkPath: '/growth/reviews/received',
             meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
           },
       // Never notify the reviewer about their own review — when the acting
@@ -933,7 +933,7 @@ export async function submitPrivateFeedback(input: {
           ? `⚠️ Private feedback from ${who} — worth a personal reach-out`
           : `Private feedback from ${who}`,
         body: text.slice(0, 140),
-        linkPath: '/reviews',
+        linkPath: '/growth/reviews',
         linkLabel: 'Open the private feedback inbox →',
         forceEmail: lowRating,
         meta: { reviewRequestId: row.id, patientId: row.patientId, rating },
@@ -1055,7 +1055,7 @@ export async function getReviewStats(
           // Private feedback ("tell us privately") never became a public
           // review — counting it made the "Reviewed" headline exceed the
           // platform-mix bars beneath it. It has its own inbox on
-          // /reviews/received.
+          // /growth/reviews/received.
           or(
             isNull(schema.reviewRequest.selectedSite),
             ne(schema.reviewRequest.selectedSite, 'private_feedback'),

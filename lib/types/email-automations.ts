@@ -291,7 +291,7 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
     description: 'Sent after a completed visit to ask the patient for a review.',
     category: 'reviews',
     enableSource: 'review_config',
-    moduleHref: '/reviews',
+    moduleHref: '/growth/reviews',
     moduleLabel: 'Reviews',
     tokens: [T_FIRST, T_CLINIC],
     slotFields: [
@@ -309,7 +309,7 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
     includesNote: ['A “Leave a review” button linking to your review page'],
     timingHint: {
       text: 'Whether this sends automatically after a completed visit (and how soon) is set in the Reviews module.',
-      href: '/reviews',
+      href: '/growth/reviews',
       linkLabel: 'Open Reviews',
     },
   },

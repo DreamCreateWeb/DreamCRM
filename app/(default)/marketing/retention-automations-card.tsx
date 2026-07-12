@@ -54,7 +54,7 @@ export function RetentionAutomationsCard({
               ? `${preview.birthdaysThisMonth} birthday${preview.birthdaysThisMonth === 1 ? '' : 's'} this month`
               : 'No birthdays this month'
           }
-          countHref={preview.birthdaysThisMonth > 0 ? '/marketing/outreach?tier=birthday' : null}
+          countHref={preview.birthdaysThisMonth > 0 ? '/growth/outreach/queue?tier=birthday' : null}
           initialOn={initial.birthdayAutoSend}
           canManage={canManage}
         />
@@ -69,7 +69,7 @@ export function RetentionAutomationsCard({
               ? `${preview.newlyLapsed} patient${preview.newlyLapsed === 1 ? '' : 's'} in the window now`
               : 'Nobody in the window right now'
           }
-          countHref={preview.newlyLapsed > 0 ? '/marketing/outreach?tier=lapsed' : null}
+          countHref={preview.newlyLapsed > 0 ? '/growth/outreach/queue?tier=lapsed' : null}
           initialOn={initial.lapsedReactivation}
           canManage={canManage}
         />

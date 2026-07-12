@@ -3,12 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 const deleteAction = vi.fn(async () => ({ ok: true }))
-vi.mock('@/app/(default)/social-posts/actions', () => ({
+vi.mock('@/app/(default)/growth/social/actions', () => ({
   createSocialPostAction: vi.fn(async () => ({ ok: true })),
   deleteSocialPostAction: (...a: unknown[]) => deleteAction(...(a as [])),
 }))
 
-import PostHistory from '@/app/(default)/social-posts/post-history'
+import PostHistory from '@/app/(default)/growth/social/post-history'
 import type { SocialPostView, SocialPostTargetView } from '@/lib/types/zernio'
 
 function target(over: Partial<SocialPostTargetView> = {}): SocialPostTargetView {

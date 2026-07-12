@@ -724,7 +724,7 @@ export async function getPatientTimeline(
       subtitle: r.selectedSite ? `via ${r.selectedSite}` : 'Review',
       status: null,
       direction: null,
-      href: '/reviews/received',
+      href: '/growth/reviews/received',
       body: r.reviewText,
       agingDays: null,
     })
@@ -776,7 +776,7 @@ export async function getPatientTimeline(
       subtitle: 'Outreach',
       status: null,
       direction: 'out',
-      href: c.campaignId ? `/marketing/campaigns/${c.campaignId}` : '/marketing',
+      href: c.campaignId ? `/growth/campaigns/${c.campaignId}` : '/marketing',
       body: null,
       agingDays: null,
     })

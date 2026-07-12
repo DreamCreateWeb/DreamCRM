@@ -1,5 +1,5 @@
 /**
- * /analytics page — Schedule-health drill targets + Reputation honesty.
+ * /growth/analytics page — Schedule-health drill targets + Reputation honesty.
  *
  * Proves (UI-level):
  *  - every Schedule-health headline KPI is drillable into the filtered
@@ -82,7 +82,7 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-import AnalyticsPage from '@/app/(default)/analytics/page'
+import AnalyticsPage from '@/app/(default)/growth/analytics/page'
 
 function baseAnalytics(over: Partial<ClinicAnalytics> = {}): ClinicAnalytics {
   return {
@@ -176,7 +176,7 @@ describe('Reputation proof — what reviews put on the site', () => {
     await renderPage('30', baseAnalytics())
     expect(screen.getByText(/testimonials live on your site/i)).toBeInTheDocument()
     expect(screen.getByText(/4\.8★/)).toBeInTheDocument()
-    expect(hrefOf(/Mia H\./)).toContain('/reviews/received')
+    expect(hrefOf(/Mia H\./)).toContain('/growth/reviews/received')
   })
 
   it('shows the empty state when nothing is showcased yet', async () => {
@@ -333,7 +333,7 @@ describe('Reputation band honesty + window', () => {
 
   it('Reviews-left step deep-links into the received reviews', async () => {
     await renderPage('30', baseAnalytics())
-    expect(hrefOf(/Reviews left/i)).toContain('/reviews/received')
+    expect(hrefOf(/Reviews left/i)).toContain('/growth/reviews/received')
   })
 })
 

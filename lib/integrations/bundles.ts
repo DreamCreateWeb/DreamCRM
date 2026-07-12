@@ -110,9 +110,9 @@ export const BUNDLES: BundleDef[] = [
     availability: 'live',
     detailHref: '/integrations/google-business',
     valueLinks: [
-      { href: '/reviews/received', label: 'Reviews' },
+      { href: '/growth/reviews/received', label: 'Reviews' },
       { href: '/website/seo', label: 'Local search' },
-      { href: '/social-posts', label: 'Posts' },
+      { href: '/growth/social', label: 'Posts' },
     ],
     note: 'Free on every plan. Never counts toward your social connections.',
   },
@@ -127,8 +127,8 @@ export const BUNDLES: BundleDef[] = [
     minPlan: 'pro',
     hasPaidAddon: true,
     valueLinks: [
-      { href: '/social-posts', label: 'Social Posts' },
-      { href: '/analytics', label: 'Performance' },
+      { href: '/growth/social', label: 'Social Posts' },
+      { href: '/growth/analytics', label: 'Performance' },
     ],
     note: 'Pro & up. Plan includes some connections; add more any time.',
   },

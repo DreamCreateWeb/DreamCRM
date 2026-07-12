@@ -110,7 +110,7 @@ describe('submitPrivateFeedback', () => {
     expect(res.ok).toBe(true)
     expect(notifyOrgMembersMock).toHaveBeenCalledWith(
       'org_1',
-      expect.objectContaining({ type: 'review_low_rating', forceEmail: true, linkPath: '/reviews' }),
+      expect.objectContaining({ type: 'review_low_rating', forceEmail: true, linkPath: '/growth/reviews' }),
       { roles: ['owner', 'admin'], excludeEmail: null },
     )
   })

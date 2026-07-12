@@ -110,7 +110,7 @@ describe('Google Business detail page — content', () => {
     expect(screen.getByText('Where this shows up')).toBeTruthy()
 
     const reviews = screen.getByRole('link', { name: /Reviews/i }) as HTMLAnchorElement
-    expect(reviews.getAttribute('href')).toBe('/reviews/received')
+    expect(reviews.getAttribute('href')).toBe('/growth/reviews/received')
     const search = screen.getByRole('link', { name: /Local search/i }) as HTMLAnchorElement
     expect(search.getAttribute('href')).toBe('/website/seo')
   })

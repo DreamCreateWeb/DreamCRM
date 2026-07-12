@@ -150,8 +150,8 @@ describe('resolveTrailLabel — precedence', () => {
   it('exact subroute map beats the owning module label', () => {
     // /shop/orders is owned by the /shop module ("Shop") but should read "Orders".
     expect(resolveTrailLabel('/shop/orders', MODULES)).toBe('Orders')
-    expect(resolveTrailLabel('/reviews/received', MODULES)).toBe('Reviews')
-    expect(resolveTrailLabel('/marketing/outreach', MODULES)).toBe('Outreach')
+    expect(resolveTrailLabel('/growth/reviews/received', MODULES)).toBe('Reviews')
+    expect(resolveTrailLabel('/growth/outreach/queue', MODULES)).toBe('Outreach')
     expect(resolveTrailLabel('/inbox', MODULES)).toBe('Mailbox')
   })
 

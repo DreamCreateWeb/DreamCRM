@@ -192,12 +192,12 @@ describe('globalSearch — querying', () => {
     })
     expect(groups.find((g) => g.label === 'Reviews')!.results[0]).toMatchObject({
       label: 'Happy Patient',
-      href: '/reviews/received',
+      href: '/growth/reviews/received',
       kind: 'review',
     })
     expect(groups.find((g) => g.label === 'Campaigns')!.results[0]).toMatchObject({
       label: 'Reactivation March',
-      href: '/marketing/campaigns/7',
+      href: '/growth/campaigns/7',
       kind: 'campaign',
     })
   })

@@ -33,10 +33,13 @@ describe('QuickCreateMenu — gating', () => {
   })
 
   it('includes campaign + post when those modules are visible', () => {
-    render(<QuickCreateMenu moduleIds={['recall', 'blog']} />)
+    // 'campaigns' + 'blog' are plan-derived capability ids (their areas are
+    // folded into the Growth/Website workspaces; dashboard-shell appends them
+    // for Premium/Pro+ clinics).
+    render(<QuickCreateMenu moduleIds={['campaigns', 'blog']} />)
     fireEvent.click(screen.getByRole('button', { name: /New|create/i }))
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByText('New campaign')).toHaveAttribute('href', '/marketing/campaigns')
+    expect(within(menu).getByText('New campaign')).toHaveAttribute('href', '/growth/campaigns')
     expect(within(menu).getByText('New post')).toHaveAttribute('href', '/website/blog')
   })
 

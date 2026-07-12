@@ -34,7 +34,7 @@ interface QuickCreateEntry {
 const ENTRIES: QuickCreateEntry[] = [
   { module: 'appointments', label: 'New booking', href: '/appointments?new=1', matchPath: '/appointments' },
   { module: 'patients', label: 'New patient', href: '/patients?new=1', matchPath: '/patients' },
-  { module: 'recall', label: 'New campaign', href: '/marketing/campaigns' },
+  { module: 'campaigns', label: 'New campaign', href: '/growth/campaigns' },
   { module: 'blog', label: 'New post', href: '/website/blog' },
 ]
 

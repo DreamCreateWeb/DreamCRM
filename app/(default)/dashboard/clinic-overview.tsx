@@ -443,7 +443,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                   : `${siteDeltaPct >= 0 ? '+' : ''}${siteDeltaPct}% vs prior week`
               }
               tone={siteDeltaPct == null ? undefined : siteDeltaPct >= 0 ? 'ok' : 'urgent'}
-              href="/analytics"
+              href="/growth/analytics"
               countUp
             />
           )}
@@ -642,7 +642,7 @@ function ReviewsReceivedCard({ completed, sent }: { completed: number; sent: num
         </span>
       </div>
       <Link
-        href="/reviews/received"
+        href="/growth/reviews/received"
         className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 hover:underline"
       >
         {completed > 0 ? 'Read reviews & feature them' : 'Open Reviews'} →

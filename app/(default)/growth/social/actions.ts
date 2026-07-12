@@ -34,7 +34,7 @@ export async function createSocialPostAction(input: CreateSocialPostFormInput): 
     ensureSocialPostAdmin(ctx)
     const result = await createSocialPost(ctx.organizationId, input)
     if (result.ok) {
-      revalidatePath('/social-posts')
+      revalidatePath('/growth/social')
       return { ok: true, status: result.status }
     }
     return { ok: false, error: result.error }
@@ -49,7 +49,7 @@ export async function deleteSocialPostAction(postId: string): Promise<{ ok: bool
     ensureSocialPostAdmin(ctx)
     const result = await deleteSocialPost(ctx.organizationId, postId)
     if (result.ok) {
-      revalidatePath('/social-posts')
+      revalidatePath('/growth/social')
       return { ok: true }
     }
     return { ok: false, error: result.error }
@@ -60,7 +60,7 @@ export async function deleteSocialPostAction(postId: string): Promise<{ ok: bool
 
 /**
  * Re-pull the org's connected Zernio accounts (all platforms) and persist them,
- * then refresh /social-posts. The in-place Connect-channels cards call this on
+ * then refresh /growth/social. The in-place Connect-channels cards call this on
  * window focus after a connect attempt + via a Refresh button, so a connection
  * completed on the platform's own page (Zernio's default return target) is
  * detected when the clinic tabs back here — without sending them to
@@ -72,7 +72,7 @@ export async function refreshChannelsAction(): Promise<{ ok: boolean; error?: st
     ensureSocialPostAdmin(ctx)
     const { syncConnectedAccounts } = await import('@/lib/services/zernio')
     await syncConnectedAccounts(ctx.organizationId)
-    revalidatePath('/social-posts')
+    revalidatePath('/growth/social')
     return { ok: true }
   } catch (e) {
     return { ok: false, error: (e as Error).message }

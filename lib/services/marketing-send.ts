@@ -313,7 +313,7 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
         body: success
           ? `Delivered to ${result.sent} recipient${result.sent === 1 ? '' : 's'}.`
           : `${result.sent} delivered, ${result.failed} failed. Click to review per-recipient status.`,
-        linkPath: `/marketing/campaigns/${campaign.id}`,
+        linkPath: `/growth/campaigns/${campaign.id}`,
         meta: { campaignId: campaign.id, sent: result.sent, failed: result.failed },
       })
     }

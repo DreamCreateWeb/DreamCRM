@@ -44,16 +44,18 @@ export function getModuleLabel(tenantType: TenantType, idOrPath: string): string
     (m) => m.id === needle || m.path === needle || m.path === withSlash,
   )
   if (hit) return hit.label
-  if (tenantType === 'clinic') return FOLDED_WEBSITE_AREAS[needle] ?? FOLDED_WEBSITE_AREAS[withSlash] ?? null
+  if (tenantType === 'clinic') return FOLDED_AREAS[needle] ?? FOLDED_AREAS[withSlash] ?? null
   return null
 }
 
 /**
- * Sub-areas folded into the Website workspace — the sidebar registry carries
- * only the hub entry, but `requirePlan` still tags redirects with these ids
- * (`?upgrade=blog`) and the Plans upgrade panel still needs their names.
+ * Sub-areas folded into the Website + Growth workspaces — the sidebar
+ * registry carries only the hub entries, but `requirePlan` still tags
+ * redirects with these ids (`?upgrade=blog`) and the Plans upgrade panel
+ * still needs their names.
  */
-const FOLDED_WEBSITE_AREAS: Record<string, string> = {
+const FOLDED_AREAS: Record<string, string> = {
+  // Website workspace
   blog: 'Blog Posts',
   '/posts': 'Blog Posts',
   '/website/blog': 'Blog Posts',
@@ -63,6 +65,19 @@ const FOLDED_WEBSITE_AREAS: Record<string, string> = {
   careers: 'Careers',
   '/careers': 'Careers',
   '/website/careers': 'Careers',
+  // Growth workspace
+  recall: 'Recall & Outreach',
+  '/marketing': 'Recall & Outreach',
+  '/growth/outreach': 'Recall & Outreach',
+  reviews: 'Reviews',
+  '/reviews': 'Reviews',
+  '/growth/reviews': 'Reviews',
+  social_posts: 'Social Posts',
+  '/social-posts': 'Social Posts',
+  '/growth/social': 'Social Posts',
+  analytics: 'Analytics',
+  '/analytics': 'Analytics',
+  '/growth/analytics': 'Analytics',
 }
 
 /**

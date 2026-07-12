@@ -4,7 +4,7 @@ import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
-import { cancelScheduledCampaignAction } from '../actions'
+import { cancelScheduledCampaignAction } from '../../marketing/actions'
 
 /**
  * Inline "cancel" affordance on a Scheduled campaign row — pulls it back to

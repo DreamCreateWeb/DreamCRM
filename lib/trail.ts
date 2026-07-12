@@ -78,9 +78,14 @@ export const SUBROUTE_LABELS: Record<string, string> = {
   '/shop/coupons': 'Coupons',
   '/shop/payments': 'Payments',
   '/shop/products': 'Products',
-  '/reviews/received': 'Reviews',
-  '/marketing/outreach': 'Outreach',
-  '/marketing/campaigns': 'Campaigns',
+  '/growth/reviews': 'Reviews',
+  '/growth/reviews/received': 'Reviews',
+  '/growth/outreach': 'Recall & Outreach',
+  '/growth/outreach/queue': 'Outreach',
+  '/growth/campaigns': 'Campaigns',
+  '/growth/audiences': 'Audiences',
+  '/growth/social': 'Social Posts',
+  '/growth/analytics': 'Analytics',
   '/inbox': 'Mailbox',
 }
 

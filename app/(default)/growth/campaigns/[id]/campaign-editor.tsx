@@ -22,7 +22,7 @@ import {
   scheduleCampaignAction,
   sendCampaignAction,
   updateCampaignAction,
-} from '../../actions'
+} from '../../../marketing/actions'
 import type { CampaignStats } from '@/lib/services/marketing-campaigns'
 
 export interface CampaignEditorData {
@@ -153,7 +153,7 @@ export default function CampaignEditor({
     if (!(await askConfirm({ title: 'Delete this campaign?', message: 'This also deletes all its analytics.', confirmLabel: 'Delete', danger: true }))) return
     startTransition(async () => {
       await deleteCampaignAction(draft.id)
-      router.push('/marketing/campaigns')
+      router.push('/growth/campaigns')
     })
   }
 
@@ -319,7 +319,7 @@ export default function CampaignEditor({
           </select>
           {audiences.length === 0 ? (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">
-              No audiences yet. <a className="underline" href="/marketing/audiences">Create one</a>.
+              No audiences yet. <a className="underline" href="/growth/audiences">Create one</a>.
             </p>
           ) : audience ? (
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 tabular-nums font-mono-num">

@@ -10,7 +10,7 @@ import {
 } from '@/lib/services/marketing'
 import { getSubscriptionStats } from '@/lib/services/projects'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
-import ClinicRecallDashboard from './clinic-recall-dashboard'
+import { permanentRedirect } from 'next/navigation'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -28,12 +28,11 @@ export default async function MarketingDashboard() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
-  // Clinic tenants get a research-backed recall dashboard (morning-huddle
-  // pattern matching /dashboard). Platform tenants keep the SaaS pipeline
-  // funnel — the same data layer powers both, but the surfaces are wildly
-  // different by design.
+  // The clinic recall dashboard moved into the Growth workspace — old links
+  // and bookmarks land there permanently. Platform tenants keep the SaaS
+  // pipeline funnel here (their "Marketing" module still points at this path).
   if (ctx.tenantType === 'clinic') {
-    return <ClinicRecallDashboard ctx={ctx} />
+    permanentRedirect('/growth/outreach')
   }
 
   return <PlatformMarketingDashboard ctx={ctx} />
@@ -75,10 +74,10 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
         subtitle="Track prospects, run campaigns, and grow the platform."
         actions={
           <>
-            <ActionButton variant="secondary" href="/marketing/audiences">
+            <ActionButton variant="secondary" href="/growth/audiences">
               Audiences
             </ActionButton>
-            <ActionButton variant="secondary" href="/marketing/campaigns">
+            <ActionButton variant="secondary" href="/growth/campaigns">
               Campaigns
             </ActionButton>
             <ActionButton variant="primary" breath href="/marketing/pipeline">
@@ -105,7 +104,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
           label="Audiences"
           value={formatNumberShort(audiences.length)}
           sub="Saved segments"
-          href="/marketing/audiences"
+          href="/growth/audiences"
         />
         <KpiStat
           label="MRR"
@@ -180,7 +179,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Audiences</h2>
             <Link
-              href="/marketing/audiences"
+              href="/growth/audiences"
               className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
             >
               Manage →
@@ -192,7 +191,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
               title="No saved segments yet."
               body="Save a segment to turn the pipeline into reusable lists you can send a campaign to."
               action={
-                <ActionButton variant="secondary" size="sm" href="/marketing/audiences">
+                <ActionButton variant="secondary" size="sm" href="/growth/audiences">
                   Create a segment
                 </ActionButton>
               }

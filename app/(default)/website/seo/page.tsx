@@ -336,7 +336,7 @@ export default async function SeoPage({ searchParams }: Props) {
       <section className="v2-card mb-8 p-5">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Reviews — a top local ranking signal</h2>
-          <Link href="/reviews" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+          <Link href="/growth/reviews" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
             Manage reviews →
           </Link>
         </div>
@@ -356,7 +356,7 @@ export default async function SeoPage({ searchParams }: Props) {
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Google Business Profile</h2>
           {gbp?.connected ? (
-            <Link href="/reviews/received" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+            <Link href="/growth/reviews/received" className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
               Manage reviews →
             </Link>
           ) : (

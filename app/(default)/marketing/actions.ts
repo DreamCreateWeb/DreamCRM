@@ -102,7 +102,7 @@ export async function createAudienceAction(input: unknown) {
   const ctx = await requireClinicStaff()
   const data = AudienceInput.parse(input)
   const row = await createAudience(ctx.organizationId, data, ctx.userId)
-  revalidatePath('/marketing/audiences')
+  revalidatePath('/growth/audiences')
   revalidatePath('/marketing')
   return row
 }
@@ -111,14 +111,14 @@ export async function updateAudienceAction(id: number, input: unknown) {
   const ctx = await requireClinicStaff()
   const data = AudienceInput.partial().parse(input)
   const row = await updateAudience(ctx.organizationId, id, data)
-  revalidatePath('/marketing/audiences')
+  revalidatePath('/growth/audiences')
   return row
 }
 
 export async function deleteAudienceAction(id: number) {
   const ctx = await requireClinicStaff()
   await deleteAudience(ctx.organizationId, id)
-  revalidatePath('/marketing/audiences')
+  revalidatePath('/growth/audiences')
   revalidatePath('/marketing')
 }
 
@@ -154,23 +154,23 @@ export async function createCampaignAction(input: unknown) {
   const ctx = await requireClinicStaff()
   const data = CampaignInput.parse(input)
   const row = await createMarketingCampaign(ctx.organizationId, data, ctx.userId)
-  revalidatePath('/marketing/campaigns')
-  redirect(`/marketing/campaigns/${row.id}`)
+  revalidatePath('/growth/campaigns')
+  redirect(`/growth/campaigns/${row.id}`)
 }
 
 export async function updateCampaignAction(id: number, input: unknown) {
   const ctx = await requireClinicStaff()
   const data = CampaignUpdate.parse(input)
   const row = await updateMarketingCampaign(ctx.organizationId, id, data)
-  revalidatePath('/marketing/campaigns')
-  revalidatePath(`/marketing/campaigns/${id}`)
+  revalidatePath('/growth/campaigns')
+  revalidatePath(`/growth/campaigns/${id}`)
   return row
 }
 
 export async function deleteCampaignAction(id: number) {
   const ctx = await requireClinicStaff()
   await deleteMarketingCampaign(ctx.organizationId, id)
-  revalidatePath('/marketing/campaigns')
+  revalidatePath('/growth/campaigns')
 }
 
 /** "Send later" — queue a campaign for a future send (status → scheduled).
@@ -179,8 +179,8 @@ export async function scheduleCampaignAction(id: number, scheduledAtIso: string)
   const ctx = await requireClinicStaff()
   const result = await scheduleCampaign(ctx.organizationId, id, scheduledAtIso)
   if (result.ok) {
-    revalidatePath('/marketing/campaigns')
-    revalidatePath(`/marketing/campaigns/${id}`)
+    revalidatePath('/growth/campaigns')
+    revalidatePath(`/growth/campaigns/${id}`)
   }
   return result
 }
@@ -190,8 +190,8 @@ export async function cancelScheduledCampaignAction(id: number): Promise<Schedul
   const ctx = await requireClinicStaff()
   const result = await cancelScheduledCampaign(ctx.organizationId, id)
   if (result.ok) {
-    revalidatePath('/marketing/campaigns')
-    revalidatePath(`/marketing/campaigns/${id}`)
+    revalidatePath('/growth/campaigns')
+    revalidatePath(`/growth/campaigns/${id}`)
   }
   return result
 }
@@ -203,8 +203,8 @@ export async function createNewsletterDraftAction(): Promise<{ ok: false; error:
   const { buildNewsletterDraft } = await import('@/lib/services/newsletter')
   const r = await buildNewsletterDraft(ctx.organizationId, ctx.userId)
   if (!r.ok) return r
-  revalidatePath('/marketing/campaigns')
-  redirect(`/marketing/campaigns/${r.campaignId}`)
+  revalidatePath('/growth/campaigns')
+  redirect(`/growth/campaigns/${r.campaignId}`)
 }
 
 // ---------- AI ----------
@@ -299,7 +299,7 @@ export async function sendCampaignAction(
     campaignId: id,
     ...opts,
   })
-  revalidatePath('/marketing/campaigns')
-  revalidatePath(`/marketing/campaigns/${id}`)
+  revalidatePath('/growth/campaigns')
+  revalidatePath(`/growth/campaigns/${id}`)
   return result
 }

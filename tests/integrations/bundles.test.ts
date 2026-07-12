@@ -112,39 +112,29 @@ describe('applyBundleGate — sidebar wiring against the real clinic registry', 
   const premium = () => getVisibleModules('clinic', 'premium', 'owner')
   const ids = (set: ReadonlySet<BundleId>) => new Set(applyBundleGate(premium(), set).map((m) => m.id))
 
-  it('Social Posts + Shop are gated; nothing connected hides BOTH', () => {
+  // Social Posts folded into the Growth workspace (its hub door reflects
+  // connected channels instead of a bundle-gated sidebar entry) — Shop is the
+  // one remaining bundle-gated clinic module.
+  it('Shop is gated; nothing connected hides it (Growth hub is always present)', () => {
     const visible = ids(new Set())
-    expect(visible.has('social_posts')).toBe(false)
     expect(visible.has('shop')).toBe(false)
     // Ungated core modules are unaffected.
     expect(visible.has('overview')).toBe(true)
     expect(visible.has('patients')).toBe(true)
-    expect(visible.has('reviews')).toBe(true)
+    expect(visible.has('growth')).toBe(true)
     expect(visible.has('integrations')).toBe(true)
-  })
-
-  it('Social bundle active → Social Posts appears, Shop still hidden', () => {
-    const visible = ids(new Set<BundleId>(['social']))
-    expect(visible.has('social_posts')).toBe(true)
-    expect(visible.has('shop')).toBe(false)
-  })
-
-  it('Google bundle alone reveals Social Posts (OR semantics — GBP is postable)', () => {
-    const visible = ids(new Set<BundleId>(['google']))
-    expect(visible.has('social_posts')).toBe(true)
-    expect(visible.has('shop')).toBe(false)
   })
 
   it('Payments bundle active → Shop appears', () => {
     const visible = ids(new Set<BundleId>(['payments']))
     expect(visible.has('shop')).toBe(true)
-    expect(visible.has('social_posts')).toBe(false)
   })
 
-  it('all bundles active → both surface', () => {
+  it('all bundles active → Shop surfaces alongside the always-on hubs', () => {
     const visible = ids(new Set<BundleId>(['pms', 'google', 'social', 'communication', 'payments']))
-    expect(visible.has('social_posts')).toBe(true)
     expect(visible.has('shop')).toBe(true)
+    expect(visible.has('growth')).toBe(true)
+    expect(visible.has('website')).toBe(true)
   })
 
   it('the gate is a no-op for tenants with no requiresBundle modules (platform)', () => {

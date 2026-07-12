@@ -88,13 +88,13 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
         subtitle={`Patients who need a nudge, what's scheduled to send, and how recent sends performed — for ${fmtDate(now)}.`}
         actions={
           <>
-            <ActionButton variant="secondary" href="/marketing/audiences">
+            <ActionButton variant="secondary" href="/growth/audiences">
               Audiences
             </ActionButton>
-            <ActionButton variant="secondary" href="/marketing/campaigns">
+            <ActionButton variant="secondary" href="/growth/campaigns">
               Campaigns
             </ActionButton>
-            <ActionButton variant="primary" breath href="/marketing/outreach">
+            <ActionButton variant="primary" breath href="/growth/outreach/queue">
               Open outreach queue
             </ActionButton>
           </>
@@ -107,7 +107,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           <RecallKpi
             label="Recall due"
             count={stats.recallDueCount}
-            href={stats.recallDueCount > 0 ? '/marketing/outreach?tier=recall_due' : undefined}
+            href={stats.recallDueCount > 0 ? '/growth/outreach/queue?tier=recall_due' : undefined}
             sub={
               stats.recallDueCount > 0
                 ? `${stats.recallDueReachableCount} reachable by email · send a recall`
@@ -118,7 +118,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           <RecallKpi
             label="Lapsed"
             count={stats.lapsedCount}
-            href={stats.lapsedCount > 0 ? '/marketing/outreach?tier=lapsed' : undefined}
+            href={stats.lapsedCount > 0 ? '/growth/outreach/queue?tier=lapsed' : undefined}
             sub={
               stats.lapsedCount > 0
                 ? `${stats.lapsedReachableCount} reachable · send a reactivation`
@@ -129,7 +129,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           <RecallKpi
             label="Birthday this month"
             count={stats.birthdayThisMonthCount}
-            href={stats.birthdayThisMonthCount > 0 ? '/marketing/outreach?tier=birthday' : undefined}
+            href={stats.birthdayThisMonthCount > 0 ? '/growth/outreach/queue?tier=birthday' : undefined}
             sub={
               stats.birthdayThisMonthCount > 0
                 ? 'A warm, low-key hello.'
@@ -140,7 +140,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           <RecallKpi
             label="New patient welcome"
             count={stats.newPatientsCount}
-            href={stats.newPatientsCount > 0 ? '/marketing/outreach?tier=new_patient' : undefined}
+            href={stats.newPatientsCount > 0 ? '/growth/outreach/queue?tier=new_patient' : undefined}
             sub={
               stats.newPatientsCount > 0
                 ? 'First 60 days · catch first-visit follow-ups.'
@@ -157,7 +157,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Upcoming sends · next 14 days</h2>
             <Link
-              href="/marketing/campaigns"
+              href="/growth/campaigns"
               className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
             >
               All campaigns →
@@ -169,7 +169,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               title="Nothing scheduled."
               body="Draft a campaign to queue your next recall or newsletter send."
               action={
-                <ActionButton variant="secondary" size="sm" href="/marketing/campaigns">
+                <ActionButton variant="secondary" size="sm" href="/growth/campaigns">
                   Draft a campaign
                 </ActionButton>
               }
@@ -178,7 +178,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
             <ul className="divide-y divide-[color:var(--color-hairline)]">
               {stats.upcomingSends.map((s) => (
                 <li key={s.id} className="py-2.5">
-                  <Link href={`/marketing/campaigns/${s.id}`} className="block hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1 rounded">
+                  <Link href={`/growth/campaigns/${s.id}`} className="block hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1 rounded">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{s.name}</p>
@@ -209,7 +209,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               {/* Drill from the operational funnel into the proof: who actually
                   came back, and what brought them (Analytics, the deeper layer). */}
               <Link
-                href="/analytics"
+                href="/growth/analytics"
                 className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 whitespace-nowrap"
               >
                 Who came back →
@@ -227,7 +227,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               {stats.recentSends.map((r) => (
                 <li key={r.id}>
                   <Link
-                    href={`/marketing/campaigns/${r.id}`}
+                    href={`/growth/campaigns/${r.id}`}
                     className="block hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1.5 rounded"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -262,7 +262,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Saved segments</h2>
             <Link
-              href="/marketing/audiences"
+              href="/growth/audiences"
               className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
             >
               Manage →
@@ -274,7 +274,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               title="No patient segments yet."
               body="Save a segment to turn your patient list into reusable groups you can send a campaign to."
               action={
-                <ActionButton variant="secondary" size="sm" href="/marketing/audiences">
+                <ActionButton variant="secondary" size="sm" href="/growth/audiences">
                   Create a segment
                 </ActionButton>
               }
@@ -284,7 +284,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               {patientAudiences.slice(0, 6).map((a) => (
                 <li key={a.id}>
                   <Link
-                    href={`/marketing/campaigns?prefill_audience=${a.id}`}
+                    href={`/growth/campaigns?prefill_audience=${a.id}`}
                     className="flex items-center justify-between text-sm hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1.5 rounded"
                   >
                     <span className="font-medium text-gray-700 dark:text-gray-200">{a.name}</span>

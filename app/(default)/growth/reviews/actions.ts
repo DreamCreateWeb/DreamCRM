@@ -45,7 +45,7 @@ export async function sendReviewRequestAction(input: {
     channel: input.channel ?? 'email',
     requestedByUserId: ctx.userId,
   })
-  revalidatePath('/reviews')
+  revalidatePath('/growth/reviews')
   return result
 }
 
@@ -53,14 +53,14 @@ export async function skipReviewAction(requestId: string) {
   const ctx = await requireTenant()
   ensureClinicStaff(ctx)
   await skipReviewRequest(ctx.organizationId, requestId)
-  revalidatePath('/reviews')
+  revalidatePath('/growth/reviews')
 }
 
 export async function updateReviewConfigAction(updates: Partial<Omit<ReviewConfig, 'organizationId'>>) {
   const ctx = await requireTenant()
   ensureClinicStaff(ctx)
   await updateReviewConfig(ctx.organizationId, updates)
-  revalidatePath('/reviews')
+  revalidatePath('/growth/reviews')
 }
 
 // ── Google Business reviews (synced via Zernio) ──────────────────────────────
@@ -78,8 +78,8 @@ export async function syncGoogleReviewsAction(): Promise<
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot sync reviews.' }
   const r = await syncGoogleReviews(ctx.organizationId)
   if (!r.ok) return { ok: false, error: r.error ?? 'Sync failed.' }
-  revalidatePath('/reviews')
-  revalidatePath('/reviews/received')
+  revalidatePath('/growth/reviews')
+  revalidatePath('/growth/reviews/received')
   revalidatePath(`/site/${ctx.organizationSlug}`)
   return { ok: true, synced: r.synced, skipped: r.skipped }
 }
@@ -93,7 +93,7 @@ export async function replyToGoogleReviewAction(input: {
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot reply to reviews.' }
   const r = await replyToGoogleReview(ctx.organizationId, input.externalReviewId, input.text)
-  if (r.ok) revalidatePath('/reviews/received')
+  if (r.ok) revalidatePath('/growth/reviews/received')
   return r
 }
 
@@ -121,7 +121,7 @@ export async function deleteGoogleReviewReplyAction(
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot manage replies.' }
   const r = await deleteGoogleReviewReply(ctx.organizationId, externalReviewId)
-  if (r.ok) revalidatePath('/reviews/received')
+  if (r.ok) revalidatePath('/growth/reviews/received')
   return r
 }
 
@@ -138,8 +138,8 @@ export async function setGoogleReviewHiddenAction(input: {
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot manage reviews.' }
   const r = await setGoogleReviewHidden(ctx.organizationId, input.externalReviewId, input.hidden)
   if (r.ok) {
-    revalidatePath('/reviews/received')
-    revalidatePath('/reviews')
+    revalidatePath('/growth/reviews/received')
+    revalidatePath('/growth/reviews')
     revalidatePath(`/site/${ctx.organizationSlug}`)
   }
   return r
@@ -161,7 +161,7 @@ export async function syncFacebookReviewsAction(): Promise<
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot sync reviews.' }
   const r = await syncFacebookReviews(ctx.organizationId)
   if (!r.ok) return { ok: false, error: r.error ?? 'Sync failed.' }
-  revalidatePath('/reviews')
-  revalidatePath('/reviews/received')
+  revalidatePath('/growth/reviews')
+  revalidatePath('/growth/reviews/received')
   return { ok: true, synced: r.synced, skipped: r.skipped }
 }

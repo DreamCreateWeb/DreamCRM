@@ -7,6 +7,49 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **The Growth workspace — the Website playbook applied to the next area
+  (2026-07-12).** Owner: "do one more pass over the website system… then
+  expand out into the next part of the platform." The Growth sidebar group
+  was four sibling modules (Recall & Outreach /marketing · Reviews /reviews
+  · Social Posts /social-posts · Analytics /analytics) — the same
+  fragmentation the Website area had. Now: ONE `growth` sidebar entry →
+  `/growth` hub (doors with honest below-plan upsell cards — Recall/
+  Campaigns/Audiences Premium, Reviews Pro w/ a real Google-rating stat,
+  Social reflecting connected channels with a connect-prompt door, Analytics
+  Premium). Clinic surfaces moved whole-directory: `/growth/outreach`
+  (recall dashboard; component stays in app/(default)/marketing/ — it
+  shares its data layer with the platform tenant), `/growth/outreach/queue`,
+  `/growth/campaigns(+[id])` + `/growth/audiences` (serve both tenants),
+  `/growth/reviews(+/received)`, `/growth/social`, `/growth/analytics`.
+  Every old path is a 308 stub (param-forwarding for ?tier, campaign ids,
+  prefill_audience) so the 10+ notification-email deep links
+  (reviews.ts, patient-timeline, website-health, integrations catalog/
+  bundles) keep working forever; `/marketing` + `/marketing/pipeline`
+  remain the platform tenant's marketing home (clinic 308s to
+  /growth/outreach). Plumbing: `FOLDED_AREAS` in lib/modules/index.ts
+  (renamed from FOLDED_WEBSITE_AREAS, now carries recall/reviews/social/
+  analytics labels for requirePlan upgrade panels), trail SUBROUTE_LABELS,
+  ⌘K growth sub-page entries, and plan-derived quick-create capability ids
+  ('campaigns' Premium, 'blog' Pro+) appended in dashboard-shell — which
+  also fixed a latent regression where "New post" vanished from quick-create
+  when the blog module folded into Website. In-context settings stayed put
+  by design (review config on Reviews, retention automations + newsletter
+  on the recall dashboard — that's the real-SaaS pattern, per the area map).
+  ~20 pinned-path tests updated; bundles sidebar-wiring test rewritten
+  (Shop is now the only bundle-gated module). Also fixed in the sweep: a
+  path-rewrite tool bug that briefly corrupted the Facebook reviews URL and
+  a regex literal (caught by typecheck + the reviews-helpers test before
+  commit).
+
+- **Website workspace polish — publish state on every editing surface
+  (2026-07-12).** The structural audit after the Draft→Publish + gallery
+  ships: the shared PublishCard now mounts on Content, Design, Templates,
+  Forms, and Pages whenever unpublished changes exist (previously only the
+  hub + Studio carried the state — a real SaaS shows it wherever you edit;
+  source-guard test pins all five), the hub's Design card names the live-
+  preview gallery, and the last two instant-live copy claims (Studio welcome
+  tip, a design-panel comment) were corrected.
+
 - **The template gallery — live previews on your own content
   (2026-07-12).** Owner: "a surface with all of the templates organized into
   their practice type with filters and categories and sorting, and iframe

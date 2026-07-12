@@ -103,7 +103,7 @@ describe('submitReviewText status gate', () => {
 })
 
 describe('submitReviewText notifications', () => {
-  it('pings owners/admins with the rating → /reviews/received on a completed submit', async () => {
+  it('pings owners/admins with the rating → /growth/reviews/received on a completed submit', async () => {
     reqWithStatus('sent')
     const res = await submitReviewText({ token: 'tok', text: 'Best cleaning ever.', rating: 5 })
     expect(res.ok).toBe(true)
@@ -112,7 +112,7 @@ describe('submitReviewText notifications', () => {
       expect.objectContaining({
         type: 'review_submitted',
         title: expect.stringContaining('5★'),
-        linkPath: '/reviews/received',
+        linkPath: '/growth/reviews/received',
       }),
       { roles: ['owner', 'admin'], excludeEmail: null },
     )
@@ -128,7 +128,7 @@ describe('submitReviewText notifications', () => {
         type: 'review_low_rating',
         forceEmail: true,
         title: expect.stringContaining('before it goes public'),
-        linkPath: '/reviews/received',
+        linkPath: '/growth/reviews/received',
       }),
       { roles: ['owner', 'admin'], excludeEmail: null },
     )

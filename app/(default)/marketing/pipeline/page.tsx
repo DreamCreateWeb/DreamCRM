@@ -28,7 +28,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   // (research: 0 of 8 mature dental products do this — lifecycle is
   // activity-derived, not staff-curated). Redirect to the Outreach Queue,
   // which is the dental-shaped surface for "patients needing action."
-  if (ctx.tenantType === 'clinic') redirect('/marketing/outreach')
+  if (ctx.tenantType === 'clinic') redirect('/growth/outreach/queue')
   const params = await searchParams
   const t = marketingTerminology(ctx.tenantType)
 

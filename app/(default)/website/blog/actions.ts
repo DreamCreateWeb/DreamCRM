@@ -205,5 +205,5 @@ export async function emailThisPostAction(id: string) {
     },
     ctx.userId,
   )
-  redirect(`/marketing/campaigns/${campaign.id}`)
+  redirect(`/growth/campaigns/${campaign.id}`)
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { createCampaignAction } from '../actions'
+import { createCampaignAction } from '../../marketing/actions'
 import { ActionButton } from '@/components/ui/action-button'
 
 interface Props {
