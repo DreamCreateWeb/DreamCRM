@@ -11,6 +11,7 @@ import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { buildStudioPages, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
+import { isSiteTemplateId } from '@/lib/site-templates/catalog'
 import { getLastWebsiteEdit } from '@/lib/services/website-history'
 import type { ClinicStaff } from '@/lib/types/clinic-content'
 import WebsiteStudio from './website-studio'
@@ -33,7 +34,11 @@ export const dynamic = 'force-dynamic'
  * website-studio.tsx; the in-canvas editing is driven by the EditBridge that
  * the public site mounts when opened with `?edit=1` (owner/admin only).
  */
-export default async function WebsiteEditorPage() {
+export default async function WebsiteEditorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ previewTemplate?: string; page?: string }>
+}) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/dashboard')
@@ -95,6 +100,17 @@ export default async function WebsiteEditorPage() {
     extraPages: templateDef.extraMarketingPages.filter((p) => !p.gate || p.gate(gates)),
   })
 
+  // Deep-link params from the Design/Pages surfaces: ?previewTemplate=<id>
+  // starts the canvas in a template preview (the studio's Apply/Discard bar
+  // takes over); ?page=<path> opens the canvas on that page. Both validated —
+  // an unknown value is simply ignored.
+  const { previewTemplate, page } = await searchParams
+  const initialPreviewTemplate =
+    previewTemplate && isSiteTemplateId(previewTemplate) && previewTemplate !== (profile.template ?? 'modern')
+      ? previewTemplate
+      : null
+  const initialPage = page != null && pages.some((p) => p.path === page) ? page : null
+
   return (
     <WebsiteStudio
       slug={slug}
@@ -105,6 +121,8 @@ export default async function WebsiteEditorPage() {
       initialAiUsage={aiUsage}
       pages={pages}
       lastEditLabel={lastEdit?.label ?? null}
+      initialPreviewTemplate={initialPreviewTemplate}
+      initialPage={initialPage}
     />
   )
 }

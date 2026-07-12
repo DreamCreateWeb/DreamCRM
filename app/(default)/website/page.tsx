@@ -113,7 +113,7 @@ export default async function WebsiteHubPage() {
           {
             label: profile.template && profile.template !== 'modern' ? `Design: ${templateDef.label}` : 'Try a design',
             done: !!profile.template && profile.template !== 'modern',
-            href: '/website/editor',
+            href: '/website/design',
             optional: true,
             hint: 'Preview any design on your own content — switching is instant and reversible.',
           },
@@ -312,9 +312,18 @@ export default async function WebsiteHubPage() {
           <SectionCard
             href="/website/editor"
             icon="pen"
-            title="Editor & design"
+            title="Editor"
             stat={lastEdit?.label ? `Last edit: ${lastEdit.label}` : 'Ready to edit'}
-            description="Edit your site in place — text, photos, sections, brand color, and the design picker."
+            description="Edit your site in place — click any text or section on the real page."
+          />
+        )}
+        {canEdit && (
+          <SectionCard
+            href="/website/design"
+            icon="star"
+            title="Design"
+            stat={templateDef.label}
+            description="The design picker, brand color, hero photos, and intro video."
           />
         )}
         {canEdit && (

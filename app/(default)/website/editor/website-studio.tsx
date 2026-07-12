@@ -68,6 +68,11 @@ interface Props {
   pages: StudioPage[]
   /** Label of the newest undo-history entry (null = nothing to undo yet). */
   lastEditLabel: string | null
+  /** Deep-link: start the canvas previewing this template (validated by the
+   *  page; the existing Apply/Discard bar takes over). */
+  initialPreviewTemplate?: string | null
+  /** Deep-link: open the canvas on this site-relative page ('' = home). */
+  initialPage?: string | null
 }
 
 import type { StudioPage } from '@/lib/clinic-site-helpers'
@@ -197,7 +202,7 @@ const btnSecondary =
  * half: it calls the server actions (persistence is always gated server-side),
  * reloads the canvas on success, and renders the image / section modals on top.
  */
-export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, pages, lastEditLabel }: Props) {
+export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, pages, lastEditLabel, initialPreviewTemplate = null, initialPage = null }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   // The undo-history head. Server-seeded; any successful save arms it (the
@@ -211,7 +216,15 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   // Apply (writes clinic_profile.template, undo-able) or Discard. Content is
   // universal, so edits made during a preview are REAL and survive either way.
   const [showDesign, setShowDesign] = useState(false)
-  const [previewingId, setPreviewingId] = useState<string | null>(null)
+  const [previewingId, setPreviewingId] = useState<string | null>(initialPreviewTemplate)
+  // The canvas's FIRST src — deep-links from Design/Pages start the iframe in
+  // a template preview or on a specific page; after mount the canvas owns its
+  // own navigation (this value is only read on the initial render).
+  const [initialCanvasSrc] = useState(() =>
+    initialPreviewTemplate
+      ? `/site/${slug}/template-preview?template=${encodeURIComponent(initialPreviewTemplate)}&return=${encodeURIComponent(`${initialPage || '/'}?edit=1`)}`
+      : `/site/${slug}${initialPage || ''}?edit=1`,
+  )
   const [designBusy, setDesignBusy] = useState(false)
   // Desktop vs phone canvas width. Most patients see the site on a phone, so
   // the owner should be able to check that view without leaving the Studio —
@@ -808,7 +821,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         >
           <iframe
             ref={iframeRef}
-            src={`/site/${slug}?edit=1`}
+            src={initialCanvasSrc}
             title="Your website — edit mode"
             className="w-full h-full border-0 bg-white"
           />
