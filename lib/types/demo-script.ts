@@ -111,7 +111,7 @@ const WEBSITE: DemoBeat = {
   title: 'The website',
   talkTrack:
     "This is the site we'd build for {clinicName} — edit it live, right here. AI rewrites copy in your voice. No web guy, no tickets.",
-  href: '/website',
+  href: '/website/editor',
   group: 'grow',
   moves: ['Click a section → edit → AI rewrite in their voice'],
 }

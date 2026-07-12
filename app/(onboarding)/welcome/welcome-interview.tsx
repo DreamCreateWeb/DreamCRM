@@ -73,7 +73,7 @@ export default function WelcomeInterview({
   }, [index, phase, isServicesStep])
 
   function goToStudio() {
-    window.location.assign('/website')
+    window.location.assign('/website/editor')
   }
   function viewSite() {
     window.open(siteUrl, '_blank', 'noopener,noreferrer')

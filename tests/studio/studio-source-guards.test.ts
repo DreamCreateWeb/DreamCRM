@@ -15,8 +15,8 @@ import { resolve } from 'node:path'
 const ROOT = resolve(__dirname, '../..')
 const read = (rel: string) => readFileSync(resolve(ROOT, rel), 'utf8')
 
-const studio = read('app/(default)/website/website-studio.tsx')
-const aiBar = read('app/(default)/website/studio-ai-bar.tsx')
+const studio = read('app/(default)/website/editor/website-studio.tsx')
+const aiBar = read('app/(default)/website/editor/studio-ai-bar.tsx')
 const picker = read('app/(default)/settings/clinic/services-library-picker.tsx')
 
 describe('services picker toast z-order', () => {
@@ -128,7 +128,7 @@ describe('page navigator', () => {
 })
 
 describe('Studio undo history (the walk-back safety net)', () => {
-  const actions = read('app/(default)/website/website-actions.ts')
+  const actions = read('app/(default)/website/editor/website-actions.ts')
   const history = read('lib/services/website-history.ts')
   it('every writeSection records the overwritten values BEFORE the update, best-effort', () => {
     // recordWebsiteEdit must appear inside writeSection, before the db.update,
@@ -159,8 +159,8 @@ describe('Studio undo history (the walk-back safety net)', () => {
 })
 
 describe('brand color in the Studio', () => {
-  const actions = read('app/(default)/website/website-actions.ts')
-  const popover = read('app/(default)/website/brand-color-popover.tsx')
+  const actions = read('app/(default)/website/editor/website-actions.ts')
+  const popover = read('app/(default)/website/editor/brand-color-popover.tsx')
   it('saveBrandColor validates strict #RRGGBB before any write (junk can never poison the palette)', () => {
     expect(actions).toMatch(/saveBrandColor/)
     expect(actions).toMatch(/\^#\[0-9a-fA-F\]\{6\}\$/)

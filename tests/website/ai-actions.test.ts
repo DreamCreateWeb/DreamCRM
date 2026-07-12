@@ -29,7 +29,7 @@ vi.mock('@/lib/services/ai-website', () => ({
   incrementAiUsage: (...a: unknown[]) => incrementAiUsage(...a),
 }))
 
-import { aiRewriteSection } from '@/app/(default)/website/ai-actions'
+import { aiRewriteSection } from '@/app/(default)/website/editor/ai-actions'
 
 beforeEach(() => {
   generateSectionCopy.mockReset()

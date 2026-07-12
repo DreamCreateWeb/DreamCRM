@@ -329,7 +329,7 @@ export default function ClinicProfilePanel({ profile, orgName, orgId, library, g
               Preview and switch designs in the Website Studio — your content carries over untouched.
             </p>
           </div>
-          <a href="/website" className="text-sm text-violet-600 dark:text-violet-400 hover:underline whitespace-nowrap ml-4">
+          <a href="/website/editor" className="text-sm text-violet-600 dark:text-violet-400 hover:underline whitespace-nowrap ml-4">
             Open the Studio →
           </a>
         </div>

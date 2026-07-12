@@ -52,7 +52,7 @@ import {
   savePaymentFinancing,
   saveInsurance,
   saveInlineField,
-} from '@/app/(default)/website/website-actions'
+} from '@/app/(default)/website/editor/website-actions'
 
 beforeEach(() => {
   ops.length = 0

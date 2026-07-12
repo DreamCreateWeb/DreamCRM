@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
-import LeadFormBuilder from '@/app/(default)/website/lead-form-builder'
-import HoursEditor from '@/app/(default)/website/hours-editor'
+import LeadFormBuilder from '@/app/(default)/website/editor/lead-form-builder'
+import HoursEditor from '@/app/(default)/website/editor/hours-editor'
 import type { LeadFormField } from '@/lib/types/lead-forms'
 
 /**

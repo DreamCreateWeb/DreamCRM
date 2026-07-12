@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dayHoursError } from '@/app/(default)/website/hours-editor'
+import { dayHoursError } from '@/app/(default)/website/editor/hours-editor'
 import { isValidVideoUrl } from '@/lib/website-url'
 
 /**

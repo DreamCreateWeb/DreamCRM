@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import StudioWelcome from '@/app/(default)/website/studio-welcome'
+import StudioWelcome from '@/app/(default)/website/editor/studio-welcome'
 
 const SEEN_KEY = 'dc-studio-welcome-done'
 

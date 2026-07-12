@@ -43,7 +43,23 @@ export function getModuleLabel(tenantType: TenantType, idOrPath: string): string
   const hit = getRegistry(tenantType).modules.find(
     (m) => m.id === needle || m.path === needle || m.path === withSlash,
   )
-  return hit?.label ?? null
+  if (hit) return hit.label
+  if (tenantType === 'clinic') return FOLDED_WEBSITE_AREAS[needle] ?? FOLDED_WEBSITE_AREAS[withSlash] ?? null
+  return null
+}
+
+/**
+ * Sub-areas folded into the Website workspace — the sidebar registry carries
+ * only the hub entry, but `requirePlan` still tags redirects with these ids
+ * (`?upgrade=blog`) and the Plans upgrade panel still needs their names.
+ */
+const FOLDED_WEBSITE_AREAS: Record<string, string> = {
+  blog: 'Blog Posts',
+  '/posts': 'Blog Posts',
+  seo: 'SEO',
+  '/seo': 'SEO',
+  careers: 'Careers',
+  '/careers': 'Careers',
 }
 
 /**

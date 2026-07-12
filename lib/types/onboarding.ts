@@ -50,7 +50,7 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
     id: 'brand_website',
     label: 'Make your website yours',
     body: 'Add your logo or a real photo — your site instantly stops looking like a template.',
-    href: '/website',
+    href: '/website/editor',
   },
   {
     id: 'add_team',

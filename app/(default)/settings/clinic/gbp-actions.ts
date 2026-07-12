@@ -38,6 +38,7 @@ async function gate(): Promise<Gate> {
 function revalidateSynced(slug: string) {
   revalidatePath('/settings/clinic')
   revalidatePath('/website')
+  revalidatePath('/website/editor')
   revalidatePath(`/site/${slug}`, 'layout')
 }
 

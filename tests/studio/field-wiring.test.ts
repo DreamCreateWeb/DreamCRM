@@ -36,8 +36,8 @@ const filesForTemplate = (id: (typeof TEMPLATE_IDS)[number]) => [
   ...SITE_TEMPLATE_MANIFEST.byTemplate[id],
 ]
 
-const studioSrc = read('app/(default)/website/website-studio.tsx')
-const actionsSrc = read('app/(default)/website/website-actions.ts')
+const studioSrc = read('app/(default)/website/editor/website-studio.tsx')
+const actionsSrc = read('app/(default)/website/editor/website-actions.ts')
 
 /**
  * Pull (field, kind) pairs out of a source file. Handles both emission styles:

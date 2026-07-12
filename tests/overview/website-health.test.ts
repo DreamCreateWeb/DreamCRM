@@ -27,7 +27,7 @@ describe('websiteHealthNotice', () => {
   it('flags silent forms — real traffic, zero leads in 14 days', () => {
     const n = websiteHealthNotice({ total: NO_LEADS_MIN_VISITS, totalPrev: 60, leads14d: 0 })
     expect(n?.kind).toBe('no_leads')
-    expect(n?.href).toBe('/website')
+    expect(n?.href).toBe('/website/editor')
   })
 
   it('never flags silent forms on a low-traffic site', () => {

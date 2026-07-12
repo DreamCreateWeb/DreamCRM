@@ -47,7 +47,7 @@ export function websiteHealthNotice(opts: {
       kind: 'no_leads',
       title: 'Visitors, but no leads in two weeks',
       body: `Your site had ${total.toLocaleString('en-US')} visits this week, but no form submissions in 14 days. Check that your forms still work and the book/contact buttons are easy to find.`,
-      href: '/website',
+      href: '/website/editor',
       linkLabel: 'Open the Studio',
     }
   }

@@ -38,6 +38,26 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     kind: 'page' as const,
   }))
   if (ctx.tenantType !== 'clinic') return modules
+  // The Website workspace's sub-pages — the sidebar shows only the hub entry,
+  // so ⌘K carries the sub-areas (same plan/role guards their pages enforce).
+  const isPro = ctx.planTier === 'pro' || ctx.planTier === 'premium'
+  const isPremium = ctx.planTier === 'premium'
+  const canEditSite = ctx.role === 'owner' || ctx.role === 'admin'
+  const websitePages: SearchResult[] = [
+    ...(canEditSite
+      ? [{ id: 'page-website-editor', label: 'Website editor', sublabel: 'Website', href: '/website/editor', kind: 'page' as const }]
+      : []),
+    ...(isPro
+      ? [{ id: 'page-website-blog', label: 'Blog posts', sublabel: 'Website', href: '/posts', kind: 'page' as const }]
+      : []),
+    ...(isPro
+      ? [{ id: 'page-website-seo', label: 'SEO', sublabel: 'Website', href: '/seo', kind: 'page' as const }]
+      : []),
+    ...(isPremium
+      ? [{ id: 'page-website-careers', label: 'Careers', sublabel: 'Website', href: '/careers', kind: 'page' as const }]
+      : []),
+    { id: 'page-website-share', label: 'QR share cards', sublabel: 'Website', href: '/website/share', kind: 'page' },
+  ]
   const settingsPages: SearchResult[] = [
     { id: 'page-settings-clinic', label: 'Clinic profile settings', sublabel: 'Settings', href: '/settings/clinic', kind: 'page' },
     { id: 'page-settings-portal', label: 'Patient portal settings', sublabel: 'Settings', href: '/settings/portal', kind: 'page' },
@@ -46,7 +66,7 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     { id: 'page-settings-plan', label: 'Plan & billing', sublabel: 'Settings', href: '/settings/billing', kind: 'page' },
     { id: 'page-settings-apps', label: 'Connected accounts', sublabel: 'Settings', href: '/settings/apps', kind: 'page' },
   ]
-  return [...modules, ...settingsPages]
+  return [...modules, ...websitePages, ...settingsPages]
 }
 
 /** The clinic's saved list views as one-click launches — "jump to No-shows"
@@ -87,7 +107,7 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
   const actions: SearchResult[] = [
     { id: 'act-add-patient', label: 'Add a patient', sublabel: 'Quick action', href: '/patients?new=1', kind: 'action' },
     { id: 'act-agenda-today', label: 'Open today’s agenda', sublabel: 'Quick action', href: '/appointments?window=today', kind: 'action' },
-    { id: 'act-edit-site', label: 'Edit my website', sublabel: 'Quick action', href: '/website', kind: 'action' },
+    { id: 'act-edit-site', label: 'Edit my website', sublabel: 'Quick action', href: '/website/editor', kind: 'action' },
     { id: 'act-preview-portal', label: 'Preview the patient portal', sublabel: 'Quick action', href: '/settings/portal/preview', kind: 'action' },
   ]
   // Quick actions follow the same plan + bundle gates as their pages.
@@ -97,6 +117,8 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
   return actions.filter((a) => {
     if (a.href.startsWith('/patients')) return visible.has('/patients')
     if (a.href.startsWith('/appointments')) return visible.has('/appointments')
+    // Editing the site is owner/admin-only (the editor page redirects members).
+    if (a.id === 'act-edit-site') return ctx.role === 'owner' || ctx.role === 'admin'
     return true
   })
 }

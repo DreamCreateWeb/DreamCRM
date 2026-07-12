@@ -78,13 +78,12 @@ export const clinicModules: ModuleRegistry = {
     { id: 'analytics',         path: '/analytics',         label: 'Analytics',        section: 'Growth',   icon: 'chart',    status: 'live', minPlan: 'premium' },
 
     // ── Website (the trunk) ────────────────────────────────────────────
-    // Editing the site is owner/admin-only (every studio save action enforces
-    // it) — hide the module from members instead of showing an editor whose
-    // saves all fail.
-    { id: 'website',           path: '/website',           label: 'Website Editor',   section: 'Website',  icon: 'globe',    status: 'live', roles: ['owner', 'admin'] },
-    { id: 'blog',              path: '/posts',              label: 'Blog Posts',       section: 'Website',  icon: 'pen',      status: 'live', minPlan: 'pro' },
-    { id: 'seo',               path: '/seo',               label: 'SEO',              section: 'Website',  icon: 'search',   status: 'live', minPlan: 'pro' },
-    { id: 'careers',           path: '/careers',           label: 'Careers',          section: 'Website',  icon: 'briefcase',status: 'live', minPlan: 'premium' },
+    // ONE workspace entry — the /website hub is the "Online Store"-style home
+    // (live site + editor + blog + SEO + careers + domain + share). No roles
+    // or minPlan gate: members have always been able to use blog/SEO/careers,
+    // so the hub must admit them; the editor page enforces its own owner/admin
+    // gate and plan-gated sub-areas render honest upsell cards on the hub.
+    { id: 'website',           path: '/website',           label: 'Website',          section: 'Website',  icon: 'globe',    status: 'live' },
 
     // ── Business ───────────────────────────────────────────────────────
     // Shop is the Ecommerce & Payments bundle's feature surface. Premium-tier

@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import React from 'react'
-import type { AiRewriteResult } from '@/app/(default)/website/ai-actions'
+import type { AiRewriteResult } from '@/app/(default)/website/editor/ai-actions'
 import type { AiUsageSnapshot, GeneratedContent } from '@/lib/types/ai-website'
 
 // Mock the server action — the button just calls it and routes the result.
 const aiRewriteSection = vi.fn<(s: string) => Promise<AiRewriteResult>>()
-vi.mock('@/app/(default)/website/ai-actions', () => ({
+vi.mock('@/app/(default)/website/editor/ai-actions', () => ({
   aiRewriteSection: (s: string) => aiRewriteSection(s),
 }))
 
-import RewriteWithAiButton from '@/app/(default)/website/rewrite-with-ai-button'
+import RewriteWithAiButton from '@/app/(default)/website/editor/rewrite-with-ai-button'
 
 const usage = (remaining: number): AiUsageSnapshot => ({
   used: 10 - remaining,

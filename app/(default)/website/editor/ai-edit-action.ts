@@ -20,6 +20,7 @@ export async function runAiWebsiteEdit(instruction: string): Promise<AiEditResul
   const res = await applyAiWebsiteEdit(ctx.organizationId, instruction)
   if (res.ok) {
     revalidatePath('/website')
+    revalidatePath('/website/editor')
     revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
   }
   return res
@@ -36,6 +37,7 @@ export async function undoAiWebsiteEdit(
   const res = await revertAiWebsiteEdit(ctx.organizationId, before)
   if (res.ok) {
     revalidatePath('/website')
+    revalidatePath('/website/editor')
     revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
   }
   return res

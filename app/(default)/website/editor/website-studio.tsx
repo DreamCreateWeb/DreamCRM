@@ -25,13 +25,13 @@ import { Field, TagListEditor, inputCls, textareaCls } from '@/components/ui/edi
 import FocalPointPicker from '@/components/ui/focal-point-picker'
 import LeadFormBuilder from './lead-form-builder'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
-import StatsEditor from '../settings/clinic/stats-editor'
-import StaffEditor from '../settings/clinic/staff-editor'
-import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
-import FinancingPartnersEditor from '../settings/clinic/financing-partners-editor'
+import StatsEditor from '../../settings/clinic/stats-editor'
+import StaffEditor from '../../settings/clinic/staff-editor'
+import OfficePhotosEditor from '../../settings/clinic/office-photos-editor'
+import FinancingPartnersEditor from '../../settings/clinic/financing-partners-editor'
 import FaqEditor from './faq-editor'
 import HoursEditor from './hours-editor'
-import ServicesLibraryPicker from '../settings/clinic/services-library-picker'
+import ServicesLibraryPicker from '../../settings/clinic/services-library-picker'
 import ColoringPagesEditor from './coloring-pages-editor'
 import {
   saveInlineField,
@@ -63,9 +63,6 @@ interface Props {
   orgId: string
   library: ServiceLibraryEntryWithStatus[]
   initialAiUsage: AiUsageSnapshot
-  /** 30-day website performance (visits, top pages, leads, conversion) —
-   *  null when the read failed; the 📊 button simply doesn't render. */
-  performance: SitePerformance | null
   /** The page-navigator entries (gated server-side, same truth as the public
    *  nav) — paths relative to /site/<slug>, '' = homepage. */
   pages: StudioPage[]
@@ -73,7 +70,6 @@ interface Props {
   lastEditLabel: string | null
 }
 
-import type { SitePerformance } from '@/lib/services/site-analytics'
 import type { StudioPage } from '@/lib/clinic-site-helpers'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -201,7 +197,7 @@ const btnSecondary =
  * half: it calls the server actions (persistence is always gated server-side),
  * reloads the canvas on success, and renders the image / section modals on top.
  */
-export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, performance, pages, lastEditLabel }: Props) {
+export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, pages, lastEditLabel }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   // The undo-history head. Server-seeded; any successful save arms it (the
@@ -210,7 +206,6 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
   const [undoLabel, setUndoLabel] = useState<string | null>(lastEditLabel)
   const [undoBusy, setUndoBusy] = useState(false)
   const confirmUndo = useConfirm()
-  const [showPerf, setShowPerf] = useState(false)
   // The Design picker: preview a different site template on the canvas (a
   // slug-scoped, owner-only cookie the resolver re-gates per request), then
   // Apply (writes clinic_profile.template, undo-able) or Discard. Content is
@@ -570,7 +565,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     <div className="fixed inset-0 z-[60] flex flex-col bg-gray-900">
       <div className="aura-chrome h-12 shrink-0 flex items-center justify-between gap-3 px-4 bg-gray-900 text-gray-100 border-b border-[color:var(--color-hairline-strong)]">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/dashboard" className="text-sm text-gray-300 hover:text-white whitespace-nowrap">
+          <Link href="/website" className="text-sm text-gray-300 hover:text-white whitespace-nowrap">
             ← Exit
           </Link>
           {/* Page navigator — jump the canvas to any page of the site without
@@ -762,116 +757,6 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
               📱
             </button>
           </div>
-          {performance && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowPerf((v) => !v)}
-                aria-expanded={showPerf}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors ${
-                  showPerf ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
-                title="Your website's last 30 days"
-              >
-                📊 <span className="tabular-nums">{performance.traffic.total.toLocaleString()}</span>
-                <span className="hidden lg:inline text-gray-400">visits · 30d</span>
-              </button>
-              {showPerf && (
-                <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-gray-700 bg-gray-900 p-4 shadow-2xl z-20">
-                  <div className="flex items-baseline justify-between mb-1">
-                    <span className="text-sm font-semibold text-white">Last 30 days</span>
-                    {performance.traffic.totalPrev > 0 && (
-                      <span
-                        className={`text-xs tabular-nums ${
-                          performance.traffic.total >= performance.traffic.totalPrev
-                            ? 'text-emerald-400'
-                            : 'text-rose-400'
-                        }`}
-                      >
-                        {performance.traffic.total >= performance.traffic.totalPrev ? '▲' : '▼'}{' '}
-                        {Math.abs(
-                          Math.round(
-                            ((performance.traffic.total - performance.traffic.totalPrev) /
-                              performance.traffic.totalPrev) *
-                              100,
-                          ),
-                        )}
-                        % vs prior 30
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-end gap-4 mb-3">
-                    <div>
-                      <div className="text-2xl font-bold text-white tabular-nums leading-none">
-                        {performance.traffic.total.toLocaleString()}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5">visits</div>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-white tabular-nums leading-none">
-                        {performance.leads30d.toLocaleString()}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5">leads</div>
-                    </div>
-                    {performance.conversionPct != null && (
-                      <div>
-                        <div className="text-2xl font-bold text-white tabular-nums leading-none">
-                          {performance.conversionPct}%
-                        </div>
-                        <div className="text-xs text-gray-400 mt-0.5">visit → lead</div>
-                      </div>
-                    )}
-                  </div>
-                  {/* 30-bar sparkline straight from the zero-filled dailies. */}
-                  <div className="flex items-end gap-[2px] h-8 mb-3" aria-hidden="true">
-                    {performance.traffic.daily.map((d) => {
-                      const max = Math.max(1, ...performance.traffic.daily.map((x) => x.views))
-                      return (
-                        <div
-                          key={d.day}
-                          className="flex-1 rounded-sm bg-teal-500/70"
-                          style={{ height: `${Math.max(6, (d.views / max) * 100)}%` }}
-                        />
-                      )
-                    })}
-                  </div>
-                  {performance.traffic.topPages.length > 0 ? (
-                    <div>
-                      <div className="text-xs font-medium text-gray-400 mb-1.5">Top pages</div>
-                      <ul className="space-y-1">
-                        {performance.traffic.topPages.slice(0, 5).map((tp) => (
-                          <li key={tp.path} className="flex items-center justify-between text-xs">
-                            <span className="truncate text-gray-200">{tp.path === '/' ? 'Home' : tp.path}</span>
-                            <span className="tabular-nums text-gray-400 ml-3">{tp.views.toLocaleString()}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-400">
-                      No visits recorded yet — share your site and this fills in.
-                    </p>
-                  )}
-                  <Link
-                    href="/analytics"
-                    className="mt-3 inline-block text-xs text-teal-400 hover:text-teal-300"
-                  >
-                    Full analytics →
-                  </Link>
-                </div>
-              )}
-            </div>
-          )}
-          <Link
-            href="/website/share"
-            className="hidden md:inline text-xs text-gray-300 hover:text-white"
-            title="Printable QR cards for the front desk — booking, reviews, portal"
-          >
-            🖨 QR cards
-          </Link>
-          <Link href="/settings/clinic" className="hidden sm:inline text-xs text-gray-300 hover:text-white">
-            Advanced edits
-          </Link>
           <ActionButton variant="secondary" size="sm" href={siteUrl} target="_blank">
             View live ↗
           </ActionButton>

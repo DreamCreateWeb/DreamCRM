@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { tourStops } from '@/app/(default)/website/website-studio'
+import { tourStops } from '@/app/(default)/website/editor/website-studio'
 
 /**
  * The Follow-along tour reduces the AI's edit list to the ordered, de-duplicated

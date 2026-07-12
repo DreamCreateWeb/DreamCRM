@@ -139,6 +139,7 @@ export async function updateClinicProfile(formData: FormData) {
   // Live: any teammate viewing settings sees the change without a refresh.
   await publishRealtime(orgId, 'settings', { section: 'clinic' })
   revalidatePath('/website')
+  revalidatePath('/website/editor')
   // 'layout' cascades to every public subpage (/about, /team, /faq, /insurance,
   // /payment-financing, /services/*, …) — without it only the home page
   // refreshed, so a hours/tagline/about/staff edit looked stale everywhere else.

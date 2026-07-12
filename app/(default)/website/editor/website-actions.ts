@@ -120,6 +120,7 @@ async function writeSection(
     .set({ ...set, updatedAt: new Date() })
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
   revalidatePath('/website')
+  revalidatePath('/website/editor')
   // 'layout' revalidates the entire /site/[slug] subtree (home + /faq +
   // /insurance + /team + /payment-financing + …) in one call.
   revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
@@ -180,6 +181,7 @@ export async function undoLastEditAction(): Promise<
     const res = await undoLastWebsiteEdit(gated.ctx.organizationId)
     if (!res) return { ok: false, error: 'Nothing to undo yet' }
     revalidatePath('/website')
+    revalidatePath('/website/editor')
     revalidatePath(`/site/${gated.ctx.organizationSlug}`, 'layout')
     return { ok: true, undone: res.undone, more: !!res.next, nextLabel: res.next?.label ?? null }
   } catch {
