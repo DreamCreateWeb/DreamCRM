@@ -11,6 +11,7 @@ import { listRecentBalancePayments } from '@/lib/services/balance-payments'
 import ShopClient from './shop-client'
 import LoyaltyConfigCard from './loyalty-config-card'
 import { getLoyaltySettings } from '@/lib/services/loyalty'
+import { getCollectionsSnapshot } from '@/lib/services/collections'
 import ModuleHint from '@/components/onboarding/module-hint'
 
 export const metadata = { title: 'Shop - DreamCRM' }
@@ -25,7 +26,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   // Flip pending → active without a manual reconnect once onboarding finishes.
   await refreshConnectStatus(ctx.organizationId)
 
-  const [config, products, stats, orderStats, topProducts, membershipStats, coupons, payments, orgRow, loyalty] = await Promise.all([
+  const [config, products, stats, orderStats, topProducts, membershipStats, coupons, payments, orgRow, loyalty, collections] = await Promise.all([
     getShopConfig(ctx.organizationId),
     listProducts(ctx.organizationId),
     getShopStats(ctx.organizationId),
@@ -36,6 +37,8 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
     listRecentBalancePayments(ctx.organizationId),
     db.select({ slug: organization.slug }).from(organization).where(eq(organization.id, ctx.organizationId)).limit(1),
     getLoyaltySettings(ctx.organizationId),
+    // Best-effort — the hub renders even if the balances read hiccups.
+    getCollectionsSnapshot(ctx.organizationId).catch(() => ({ patientCount: 0, totalOutstandingCents: 0 })),
   ])
 
   const publicBase = orgRow[0] ? `/site/${orgRow[0].slug}/shop` : null
@@ -58,6 +61,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       topProducts={topProducts}
       membershipStats={membershipStats}
       couponStats={couponStats}
+      collections={collections}
       paymentStats={paymentStats}
       publicBase={publicBase}
       connectConfigured={shopConnectConfigured()}

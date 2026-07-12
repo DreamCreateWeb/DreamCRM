@@ -101,8 +101,8 @@ export default async function CollectionsPage() {
           buckets aren&rsquo;t shown yet — we&rsquo;d rather wait for real aging data than guess.
           {!paymentsReady && (
             <>
-              {' '}Connect Stripe in{' '}
-              <Link href="/integrations" className="font-medium underline">Integrations</Link>{' '}
+              {' '}Connect Stripe from{' '}
+              <Link href="/shop" className="font-medium underline">your Shop page</Link>{' '}
               to send pay links from this board.
             </>
           )}

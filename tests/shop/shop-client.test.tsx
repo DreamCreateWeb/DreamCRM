@@ -50,6 +50,7 @@ interface RenderOpts {
   topProducts?: Array<{ productName: string; unitsSold: number; revenueCents: number }>
   membershipStats?: { activeMembers: number; mrrCents: number }
   couponStats?: { activeCount: number }
+  collections?: { patientCount: number; totalOutstandingCents: number }
   paymentStats?: { count: number }
   connectConfigured?: boolean
   connectBanner?: string | null
@@ -73,6 +74,7 @@ function renderHub(opts: RenderOpts = {}) {
       topProducts={opts.topProducts ?? []}
       membershipStats={opts.membershipStats ?? { activeMembers: 0, mrrCents: 0 }}
       couponStats={opts.couponStats ?? { activeCount: 0 }}
+      collections={opts.collections ?? { patientCount: 0, totalOutstandingCents: 0 }}
       paymentStats={opts.paymentStats ?? { count: 0 }}
       publicBase="/site/acme/shop"
       connectConfigured={opts.connectConfigured ?? true}
@@ -229,3 +231,18 @@ describe('ShopClient — catalog + header', () => {
     expect(screen.getByText('No products yet')).toBeInTheDocument()
   })
 })
+describe('Collections doorway card (the AR board is first-class on the hub)', () => {
+  it('shows the open-balance count + total, warn-toned', () => {
+    renderHub({ collections: { patientCount: 3, totalOutstandingCents: 42500 } })
+    expect(screen.getByText('Collections')).toBeTruthy()
+    expect(screen.getByText(/3 open balances · \$425/)).toBeTruthy()
+    const link = screen.getByText('Collections').closest('a')
+    expect(link?.getAttribute('href')).toBe('/shop/collections')
+  })
+
+  it('says so plainly when nothing is outstanding', () => {
+    renderHub()
+    expect(screen.getByText('Nothing outstanding')).toBeTruthy()
+  })
+})
+

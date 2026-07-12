@@ -7,6 +7,25 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Business-area verdict + polish (2026-07-12).** The workspace audit's
+  third stop. Verdict: `/shop` already IS the Shopify-style workspace (one
+  sidebar entry → hub with doorway cards + honest Stripe/upsell panels), and
+  `/integrations` is one coherent bundle-driven catalog — no path migration
+  warranted (the area map counted 15+ deep links + 9 pinned test files that
+  a move would churn for zero user value). What was actually wrong, fixed:
+  **Collections was hidden from its own workspace** — the AR workboard
+  lived at /shop/collections but had no hub doorway card and no trail label
+  (back-nav mislabeled it "Shop"). Now: a 5th doorway card with a real
+  one-query aggregate (`getCollectionsSnapshot` — open-balance count +
+  total, warn-toned), `'/shop/collections'` in SUBROUTE_LABELS, the
+  collections page's Stripe CTA re-pointed at /shop (where the Connect
+  button actually lives — it said Integrations), and the memberships page
+  now says its plans power the website's /dental-plans page. Rode along:
+  the Growth follow-up fixing the analytics recall-funnel link to
+  /growth/outreach (it pointed at the old /marketing path — worked via the
+  308 stub, but direct is right).
+
+
 - **The Growth workspace — the Website playbook applied to the next area
   (2026-07-12).** Owner: "do one more pass over the website system… then
   expand out into the next part of the platform." The Growth sidebar group

@@ -460,7 +460,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
                   label: 'Booked',
                   value: a.recall.outreach.booked,
                   note: convNote(a.recall.outreach.booked, a.recall.outreach.sent, 'sent'),
-                  href: '/marketing',
+                  href: '/growth/outreach',
                 },
               ]}
             />

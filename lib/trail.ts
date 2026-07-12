@@ -77,6 +77,7 @@ export const SUBROUTE_LABELS: Record<string, string> = {
   '/shop/memberships': 'Memberships',
   '/shop/coupons': 'Coupons',
   '/shop/payments': 'Payments',
+  '/shop/collections': 'Collections',
   '/shop/products': 'Products',
   '/growth/reviews': 'Reviews',
   '/growth/reviews/received': 'Reviews',

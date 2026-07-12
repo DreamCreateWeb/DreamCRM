@@ -62,6 +62,8 @@ interface Props {
   topProducts: TopProduct[]
   membershipStats: { activeMembers: number; mrrCents: number }
   couponStats: { activeCount: number }
+  /** Open PMS balances (the Collections board's aggregate). */
+  collections: { patientCount: number; totalOutstandingCents: number }
   paymentStats: { count: number }
   publicBase: string | null
   connectConfigured: boolean
@@ -77,6 +79,7 @@ export default function ShopClient({
   topProducts,
   membershipStats,
   couponStats,
+  collections,
   paymentStats,
   publicBase,
   connectConfigured,
@@ -148,6 +151,17 @@ export default function ShopClient({
           ? `${couponStats.activeCount} active ${couponStats.activeCount === 1 ? 'code' : 'codes'}`
           : 'No active codes',
       description: 'Promo and birthday codes for your storefront.',
+    },
+    {
+      href: '/shop/collections',
+      icon: 'flag',
+      title: 'Collections',
+      stat:
+        collections.patientCount > 0
+          ? `${collections.patientCount} open balance${collections.patientCount === 1 ? '' : 's'} · ${formatCents(collections.totalOutstandingCents)}`
+          : 'Nothing outstanding',
+      statTone: collections.patientCount > 0 ? 'warn' : 'ok',
+      description: 'Every open PMS balance with its dunning state — send pay links, propose plans.',
     },
     {
       href: '/shop/payments',

@@ -39,6 +39,36 @@ export interface CollectionsBoard {
   rows: CollectionsRow[]
 }
 
+/** Light aggregate for the Shop hub's Collections doorway card — one query,
+ *  no rows: how many active patients carry a PMS balance, and the total. */
+export interface CollectionsSnapshot {
+  patientCount: number
+  totalOutstandingCents: number
+}
+
+export async function getCollectionsSnapshot(
+  organizationId: string,
+): Promise<CollectionsSnapshot> {
+  const [row] = await db
+    .select({
+      patientCount: sql<number>`count(*)::int`,
+      totalOutstandingCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::int`,
+    })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        eq(schema.patient.isActive, 1),
+        isNull(schema.patient.mergedIntoPatientId),
+        gt(schema.patient.pmsBalanceCents, 0),
+      ),
+    )
+  return {
+    patientCount: row?.patientCount ?? 0,
+    totalOutstandingCents: row?.totalOutstandingCents ?? 0,
+  }
+}
+
 const BOARD_LIMIT = 200
 
 export async function getCollectionsBoard(
