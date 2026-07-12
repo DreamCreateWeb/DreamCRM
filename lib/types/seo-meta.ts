@@ -34,6 +34,23 @@ export const SEO_PAGE_KEYS = [
 
 export type SeoPageKey = (typeof SEO_PAGE_KEYS)[number]
 
+/** Site-relative path per SEO page key ('' = home) — the one path truth the
+ *  meta editor, the Pages index, and the preview snippets all share. */
+export const SEO_PAGE_PATHS: Record<SeoPageKey, string> = {
+  home: '',
+  about: '/about',
+  'new-patients': '/new-patients',
+  book: '/book',
+  services: '/services',
+  team: '/team',
+  insurance: '/insurance',
+  'payment-financing': '/payment-financing',
+  'dental-plans': '/dental-plans',
+  faq: '/faq',
+  careers: '/careers',
+  'blog-index': '/blog',
+}
+
 /** Per-page override. Either field may be set independently; an unset field
  *  falls back to the page's derived value. */
 export interface PageSeoOverride {

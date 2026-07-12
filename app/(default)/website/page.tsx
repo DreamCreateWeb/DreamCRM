@@ -14,6 +14,9 @@ import { getNewLeadsSince } from '@/lib/services/leads'
 import { getClinicSeoPerformance } from '@/lib/services/gsc'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
 import { contentCompleteness } from '@/lib/website-content-sections'
+import { buildSitePagesIndex, hasColoringPages } from '@/lib/clinic-site-helpers'
+import { listActivePlans } from '@/lib/services/membership'
+import type { ClinicStaff } from '@/lib/types/clinic-content'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -76,7 +79,7 @@ export default async function WebsiteHubPage() {
   const siteHost = siteUrl.replace(/^https?:\/\//, '')
 
   // Every read is best-effort — the hub must render even when a stat hiccups.
-  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d] = await Promise.all([
+  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d, activePlans] = await Promise.all([
     getSitePerformance(ctx.organizationId).catch(() => null),
     isPro ? getBlogStats(ctx.organizationId).catch(() => null) : null,
     isPro ? getSiteHealth(ctx.organizationId).catch(() => null) : null,
@@ -85,9 +88,24 @@ export default async function WebsiteHubPage() {
     // Only the checklist reads this — owner/admin only, best-effort.
     canEdit ? getClinicSeoPerformance(ctx.organizationId, 28).catch(() => null) : null,
     getNewLeadsSince(ctx.organizationId, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).catch(() => 0),
+    listActivePlans(ctx.organizationId).catch(() => []),
   ])
 
   const completeness = contentCompleteness(profile)
+  // The real live-page count — same index the Pages manager renders.
+  const pageGates = {
+    hasTeam: ((profile.staff as ClinicStaff[] | null) ?? []).length > 0,
+    hasBlog: (blogStats?.published ?? 0) > 0,
+    hasCareers: (careersStats?.openRoles ?? 0) > 0,
+    hasDentalPlans: activePlans.length > 0,
+    hasColoringPages: hasColoringPages(profile),
+    isPro,
+    selfBooking: profile.selfBookingEnabled !== false,
+  }
+  const livePages = buildSitePagesIndex({
+    ...pageGates,
+    extraPages: templateDefExtras(profile.template, pageGates),
+  }).filter((pg) => pg.live).length
   const domain = (profile.customDomainStatus as CustomDomainStatus | null) ?? null
   const domainPill: { tone: Tone; label: string } = domain
     ? domain.state === 'active'
@@ -328,6 +346,15 @@ export default async function WebsiteHubPage() {
         )}
         {canEdit && (
           <SectionCard
+            href="/website/pages"
+            icon="folder"
+            title="Pages"
+            stat={`${livePages} page${livePages === 1 ? '' : 's'} live`}
+            description="Every page of your site — what’s live, what would publish the rest, and each page’s words."
+          />
+        )}
+        {canEdit && (
+          <SectionCard
             href="/website/content"
             icon="doc"
             title="Content"
@@ -520,4 +547,15 @@ function UpsellCard({
       </div>
     </Link>
   )
+}
+
+// The template's gate-filtered extra marketing pages (client-safe shape for
+// the live-page count — same filtering the Pages manager applies).
+function templateDefExtras(
+  template: string | null,
+  gates: Parameters<typeof buildSitePagesIndex>[0] & { hasColoringPages: boolean; isPro: boolean; selfBooking: boolean },
+): Array<{ path: string; label: string }> {
+  return getSiteTemplate(template)
+    .extraMarketingPages.filter((p) => !p.gate || p.gate(gates))
+    .map((p) => ({ path: p.path, label: p.label }))
 }

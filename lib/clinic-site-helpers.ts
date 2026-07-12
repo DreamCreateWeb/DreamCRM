@@ -380,6 +380,62 @@ export function buildStudioPages(opts: {
   ]
 }
 
+/**
+ * The Pages manager's unified index — every page the public site can serve,
+ * as ONE list: the live pages (same truth as buildStudioPages / the public
+ * nav) PLUS the gated-off known pages as honest `live:false` rows with a
+ * plain-language "what publishes this" reason. Pure + client-safe.
+ */
+export interface SitePageIndexEntry {
+  /** Stable row key (the path, '_home' for ''). */
+  key: string
+  label: string
+  /** Site-relative path ('' = home). */
+  path: string
+  live: boolean
+  /** Anti-shame reason when not live ("Add team members to publish this page"). */
+  needs: string | null
+  /** Where this page's content is managed when it's not the profile (blog/careers/plans). */
+  manager: { href: string; label: string } | null
+}
+
+export function buildSitePagesIndex(opts: {
+  hasTeam: boolean
+  hasBlog: boolean
+  hasCareers: boolean
+  hasDentalPlans: boolean
+  /** Template-declared marketing pages, ALREADY gate-filtered (live ones). */
+  extraPages?: Array<{ path: string; label: string }>
+}): SitePageIndexEntry[] {
+  const managerFor = (path: string): SitePageIndexEntry['manager'] => {
+    if (path === '/blog') return { href: '/website/blog', label: 'Blog manager' }
+    if (path === '/careers') return { href: '/website/careers', label: 'Careers manager' }
+    if (path === '/dental-plans') return { href: '/shop/memberships', label: 'Membership manager' }
+    if (path === '/team') return { href: '/website/content#staff', label: 'Team section' }
+    return null
+  }
+  const live = buildStudioPages(opts).map((p) => ({
+    key: p.path || '_home',
+    label: p.label,
+    path: p.path,
+    live: true,
+    needs: null,
+    manager: managerFor(p.path),
+  }))
+  // The gated-off known pages — listed so the owner can SEE what would
+  // publish them (the whole point of a Pages surface).
+  const off: SitePageIndexEntry[] = []
+  if (!opts.hasTeam)
+    off.push({ key: '/team', label: 'Meet the team', path: '/team', live: false, needs: 'Add team members to publish this page', manager: managerFor('/team') })
+  if (!opts.hasDentalPlans)
+    off.push({ key: '/dental-plans', label: 'Dental plans', path: '/dental-plans', live: false, needs: 'Add an active membership plan to publish this page', manager: managerFor('/dental-plans') })
+  if (!opts.hasBlog)
+    off.push({ key: '/blog', label: 'Blog', path: '/blog', live: false, needs: 'Publish a blog post to add a blog to your site', manager: managerFor('/blog') })
+  if (!opts.hasCareers)
+    off.push({ key: '/careers', label: 'Careers', path: '/careers', live: false, needs: 'Post an open role to publish this page', manager: managerFor('/careers') })
+  return [...live, ...off]
+}
+
 // Slug map of the canonical seed → category, for client-safe category lookup
 // without a DB call (the server resolver `resolveClinicServices` is the
 // authoritative path; this mirrors it for sync server components like the

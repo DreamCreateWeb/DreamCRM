@@ -1733,6 +1733,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         recallDefaultMonths: schema.clinicProfile.recallDefaultMonths,
         onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
         leadForms: schema.clinicProfile.leadForms,
+        copyOverrides: schema.clinicProfile.copyOverrides,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1749,6 +1750,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Forms surface then shows a real "Customized" state next to the default
     // insurance-check form. The fields mirror the defaults plus one select.
     if (!profile?.leadForms) patch.leadForms = DEMO_CONTACT_LEAD_FORM
+    // Backfill a couple of copy overrides (only-when-unset) — the Pages
+    // manager then shows real "customized" copy next to template defaults.
+    if (!profile?.copyOverrides) patch.copyOverrides = DEMO_COPY_OVERRIDES
 
     // one-time (2026-06): Acme→Dream Dental — force-refresh the clinic identity
     // on existing demos. backfill-when-null never fires here (these fields were
@@ -2571,6 +2575,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // this to show the "site personalized" state a real mature clinic has.
     onboardingInterviewCompletedAt: new Date(),
     leadForms: DEMO_CONTACT_LEAD_FORM,
+    copyOverrides: DEMO_COPY_OVERRIDES,
     // Tagline is now the hero H1, so it carries the real value-prop weight.
     tagline: 'Dental care that finally feels human.',
     about:
@@ -4315,6 +4320,13 @@ async function renameDemoAcmeArtifacts(orgId: string): Promise<void> {
         .where(eq(schema.clinicProfile.organizationId, orgId))
     }
   }
+}
+
+// A couple of hand-voiced copy overrides — enough for the Pages manager to
+// show the real customized-vs-default contrast without rewriting the site.
+const DEMO_COPY_OVERRIDES = {
+  'home.contactTitle': 'Come say hi — no pressure, ever',
+  'about.cta.heading': 'Ready when you are',
 }
 
 // The demo's customized contact form — the stock fields plus one select, so

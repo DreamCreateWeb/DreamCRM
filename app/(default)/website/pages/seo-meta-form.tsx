@@ -8,6 +8,7 @@ import {
   SEO_DESCRIPTION_RECOMMENDED,
   type PageSeoMeta,
   type SeoPageKey,
+  SEO_PAGE_PATHS,
 } from '@/lib/types/seo-meta'
 import { saveSeoMetaAction } from './meta-actions'
 import { ActionButton } from '@/components/ui/action-button'
@@ -44,20 +45,6 @@ interface Props {
 }
 
 /** Path each page key maps to on the public site (for the preview URL). */
-const PAGE_PATH: Record<SeoPageKey, string> = {
-  home: '',
-  about: '/about',
-  'new-patients': '/new-patients',
-  book: '/book',
-  services: '/services',
-  team: '/team',
-  insurance: '/insurance',
-  'payment-financing': '/payment-financing',
-  'dental-plans': '/dental-plans',
-  faq: '/faq',
-  careers: '/careers',
-  'blog-index': '/blog',
-}
 
 function firstSentence(s: string): string {
   const m = s.match(/^[^.!?]*[.!?]/)
@@ -233,7 +220,7 @@ export default function SeoMetaForm({
           const descVal = draft[key].description ?? ''
           const effTitle = titleVal.trim() || d.title
           const effDesc = descVal.trim() || d.description
-          const previewUrl = `${domain}${PAGE_PATH[key]}`
+          const previewUrl = `${domain}${SEO_PAGE_PATHS[key]}`
           const customized = !!(titleVal.trim() || descVal.trim())
           const isOpen = open === key
           const panelId = `seo-panel-${key}`

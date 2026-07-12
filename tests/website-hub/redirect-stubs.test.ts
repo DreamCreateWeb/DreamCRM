@@ -76,8 +76,8 @@ describe('fold-in 308 stubs', () => {
     )
     expect(await targetAsync(SeoRedirect({ searchParams: p({}) }))).toBe('308:/website/seo')
   })
-  it('/settings/seo → /website/seo#meta (the absorbed meta editor)', () => {
-    expect(target(() => SettingsSeoRedirect())).toBe('308:/website/seo#meta')
+  it('/settings/seo → /website/pages (search appearance lives with Pages now)', () => {
+    expect(target(() => SettingsSeoRedirect())).toBe('308:/website/pages')
   })
   it('/careers, /careers/new, /careers/[id] → /website/careers…', async () => {
     expect(target(() => CareersRedirect())).toBe('308:/website/careers')

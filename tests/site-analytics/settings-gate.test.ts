@@ -19,7 +19,7 @@ vi.mock('@/lib/services/site-analytics', () => ({
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { saveSeoMetaAction } from '@/app/(default)/website/seo/meta-actions'
+import { saveSeoMetaAction } from '@/app/(default)/website/pages/meta-actions'
 
 beforeEach(() => {
   requirePlan.mockClear()

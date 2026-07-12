@@ -17,14 +17,6 @@ import {
 } from '@/lib/services/gsc'
 import { getGbpLocalMetrics, type GbpLocalMetrics } from '@/lib/services/gbp-metrics'
 import { setGscSiteAction, disconnectGscAction } from './actions'
-import { getSeoMeta } from '@/lib/services/site-analytics'
-import { getClinicSiteBySlug } from '@/lib/services/clinic-site'
-import { listPublishedPosts } from '@/lib/services/blog'
-import { listActivePlans } from '@/lib/services/membership'
-import { getOpenJobs } from '@/lib/services/careers'
-import type { ClinicService, ClinicStaff } from '@/lib/types/clinic-content'
-import { SEO_PAGE_KEYS, type SeoPageKey } from '@/lib/types/seo-meta'
-import SeoMetaForm from './seo-meta-form'
 import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 
@@ -106,55 +98,6 @@ export default async function SeoPage({ searchParams }: Props) {
       gscLoadError = clinicResult.err.message
     }
     gbp = gbpMetrics
-  }
-
-  // ── Search appearance (per-page title/description overrides) — absorbed
-  //    from the old /settings/seo page so search stuff lives in ONE place.
-  //    Clinic surface only; gated to pages the public site actually renders
-  //    (same truth as buildClinicNavLinks). ──────────────────────────────────
-  let metaEditor: {
-    initial: Awaited<ReturnType<typeof getSeoMeta>>
-    clinicName: string
-    tagline: string | null
-    about: string | null
-    domain: string
-    applicablePages: SeoPageKey[]
-  } | null = null
-  if (!isManage) {
-    const site = await getClinicSiteBySlug(ctx.organizationSlug)
-    const [publishedPosts, membershipPlans, openJobs] = site
-      ? await Promise.all([
-          listPublishedPosts(site.orgId, { limit: 1 }).catch(() => []),
-          listActivePlans(site.orgId).catch(() => []),
-          getOpenJobs(site.orgId).catch(() => []),
-        ])
-      : [[], [], []]
-    const services = (site?.profile.services as ClinicService[] | null) ?? []
-    const staff = (site?.profile.staff as ClinicStaff[] | null) ?? []
-    const pageExists: Record<SeoPageKey, boolean> = {
-      home: true,
-      about: true,
-      'new-patients': true,
-      book: true,
-      insurance: true,
-      'payment-financing': true,
-      faq: true,
-      services: services.length > 0,
-      team: staff.length > 0,
-      'dental-plans': membershipPlans.length > 0,
-      careers: openJobs.length > 0,
-      'blog-index': publishedPosts.length > 0,
-    }
-    metaEditor = {
-      initial: await getSeoMeta(ctx.organizationId),
-      clinicName: site?.profile.displayName ?? ctx.organizationName,
-      tagline: site?.profile.tagline ?? null,
-      about: (site?.profile.about as string | null) ?? null,
-      domain:
-        (site?.profile.websiteDomain as string | null) ??
-        `${ctx.organizationSlug}.${process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'}`,
-      applicablePages: SEO_PAGE_KEYS.filter((k) => pageExists[k]),
-    }
   }
 
   const scoreTone = health.score >= 80 ? 'ok' : health.score >= 60 ? 'warn' : 'bad'
@@ -498,27 +441,17 @@ export default async function SeoPage({ searchParams }: Props) {
         )}
       </section>
 
-      {/* ── Search appearance — per-page title/description overrides ────
-          (was /settings/seo; #meta keeps old deep links landing here) ─── */}
-      {metaEditor && (
-        <section id="meta" className="v2-card mb-8 p-5 scroll-mt-28">
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Search appearance</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-2xl">
-            The title + description Google shows for each page of your site. Leave a field blank to use the
-            smart default we generate from your content.
-          </p>
-          <div className="max-w-2xl">
-            <SeoMetaForm
-              initial={metaEditor.initial}
-              clinicName={metaEditor.clinicName}
-              tagline={metaEditor.tagline}
-              about={metaEditor.about}
-              domain={metaEditor.domain}
-              applicablePages={metaEditor.applicablePages}
-            />
-          </div>
-        </section>
-      )}
+      {/* ── Search appearance moved to Pages — the #meta anchor keeps old
+          deep links landing somewhere honest. ─────────────────────────── */}
+      <section id="meta" className="v2-well mb-8 p-4 scroll-mt-28">
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          Per-page titles &amp; descriptions moved to the Pages manager —{' '}
+          <Link href="/website/pages" className="font-medium text-teal-700 dark:text-teal-400 hover:underline underline-offset-4">
+            open Pages →
+          </Link>
+        </p>
+      </section>
+
 
       {/* ── Coming next ───────────────────────────────────────────────── */}
       <section>

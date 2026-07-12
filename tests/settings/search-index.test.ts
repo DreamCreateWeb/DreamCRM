@@ -20,9 +20,8 @@ const KNOWN_PAGES = new Set([
   '/settings/team',
   '/settings/plans',
   '/settings/billing',
-  // Search appearance folded into the Website workspace's SEO page — the
-  // index deep-links straight to the meta section there.
-  '/website/seo',
+  // Search appearance lives with the Pages manager in the Website workspace.
+  '/website/pages',
   '/settings/feedback',
   '/settings/account',
   '/settings/notifications',
