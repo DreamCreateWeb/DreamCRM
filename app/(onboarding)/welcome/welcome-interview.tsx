@@ -217,6 +217,13 @@ export default function WelcomeInterview({
             Open the editor
           </button>
         </div>
+        <p className="mt-5 text-xs text-stone-500 dark:text-stone-400">
+          Own a domain like yourpractice.com? Connect it anytime under{' '}
+          <a href="/website/domain" className="underline underline-offset-2 hover:text-stone-700 dark:hover:text-stone-200">
+            Website &rarr; Domain
+          </a>
+          .
+        </p>
       </div>
     )
   }

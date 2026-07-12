@@ -81,7 +81,7 @@ export default async function OnboardingComplete() {
                   <p className="mt-6 text-xs text-gray-500 dark:text-gray-400">
                     Own a domain like <span className="font-medium">yourpractice.com</span>?{' '}
                     <Link
-                      href="/settings/clinic#custom-domain"
+                      href="/website/domain"
                       className="font-medium text-gray-700 dark:text-gray-200 underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
                     >
                       Connect it to your site

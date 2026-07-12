@@ -282,7 +282,7 @@ export default async function WebsiteHubPage() {
         )}
         {canEdit && (
           <SectionCard
-            href="/settings/clinic#custom-domain"
+            href="/website/domain"
             icon="globe"
             title="Domain"
             stat={domain ? domain.domain : `${slug}.dreamcreatestudio.com`}

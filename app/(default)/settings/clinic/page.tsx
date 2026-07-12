@@ -14,7 +14,6 @@ import { listLibraryForPicker } from '@/lib/services/service-library'
 import { listClinicGmailAccounts } from '@/lib/services/clinic-sender'
 import { getGbpSyncState } from '@/lib/services/gbp-sync'
 import ClinicProfilePanel from './clinic-profile-panel'
-import CustomDomainCard from './custom-domain-card'
 import GbpSyncCard from './gbp-sync-card'
 import CalendarFeedCard from './calendar-feed-card'
 import ClinicSettingsNav, { type NavGroup } from './clinic-settings-nav'
@@ -50,9 +49,6 @@ export default async function ClinicSettings() {
   const siteUrl = profile?.websiteDomain
     ? `https://${profile.websiteDomain}`
     : `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
-  // The custom-domain card always shows the subdomain as the free fallback
-  // address (not the custom domain, which may not be live yet).
-  const subdomainUrl = `https://${ctx.organizationSlug}.${SITE_DOMAIN}`
   const customDomainStatus = (profile?.customDomainStatus as CustomDomainStatus | null) ?? null
   // Canonical app origin for the calendar-feed subscribe URL.
   const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') || `https://www.${SITE_DOMAIN}`
@@ -132,11 +128,24 @@ export default async function ClinicSettings() {
               canManage={canManageClinic}
             />
           </div>
+          {/* The domain manager moved to the Website workspace — this stub
+              keeps the old #custom-domain deep links landing somewhere honest. */}
           <div
             id="custom-domain"
             className="scroll-mt-28 border-t border-gray-200 dark:border-gray-700/60"
           >
-            <CustomDomainCard initialStatus={customDomainStatus} subdomainUrl={subdomainUrl} />
+            <div className="p-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Custom domain</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Your domain now lives in the Website workspace
+                  {customDomainStatus ? <> — currently <strong>{customDomainStatus.domain}</strong></> : null}.
+                </p>
+              </div>
+              <ActionButton variant="secondary" size="sm" href="/website/domain">
+                Manage your domain →
+              </ActionButton>
+            </div>
           </div>
         </div>
       </SettingsPage>

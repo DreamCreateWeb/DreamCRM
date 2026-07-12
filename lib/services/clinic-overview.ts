@@ -533,7 +533,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d] = await Promise.all([
+  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState] = await Promise.all([
     getIntegrationsHealth(organizationId, now),
     // Paid shop orders still awaiting fulfillment (our move).
     db
@@ -560,6 +560,19 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       .where(and(eq(schema.lead.organizationId, organizationId), gte(schema.lead.createdAt, new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000))))
       .then((r) => Number(r[0]?.count ?? 0))
       .catch(() => null as number | null),
+    // Custom-domain state for the stuck-DNS / failed-domain banner branches —
+    // best-effort; null (no domain / read hiccup) simply skips those signals.
+    db
+      .select({ status: schema.clinicProfile.customDomainStatus })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+      .then((r) => {
+        const st = r[0]?.status as { state?: string } | null | undefined
+        const state = st?.state
+        return state === 'pending_dns' || state === 'active' || state === 'failed' ? state : null
+      })
+      .catch(() => null),
   ])
 
   return {
@@ -579,7 +592,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     followups,
     siteTraffic,
     siteHealth: siteTraffic
-      ? websiteHealthNotice({ total: siteTraffic.total, totalPrev: siteTraffic.totalPrev, leads14d })
+      ? websiteHealthNotice({ total: siteTraffic.total, totalPrev: siteTraffic.totalPrev, leads14d, domainState })
       : null,
   }
 }

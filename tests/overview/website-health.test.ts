@@ -48,4 +48,25 @@ describe('websiteHealthNotice', () => {
   it('healthy site → null', () => {
     expect(websiteHealthNotice({ total: 100, totalPrev: 90, leads14d: 4 })).toBeNull()
   })
+
+  it('flags a stuck custom domain (pending_dns) → the domain page', () => {
+    const n = websiteHealthNotice({ total: 100, totalPrev: 90, leads14d: 4, domainState: 'pending_dns' })
+    expect(n?.kind).toBe('domain_pending')
+    expect(n?.href).toBe('/website/domain')
+  })
+
+  it('flags a failed domain as the top-priority signal (beats traffic drop)', () => {
+    const n = websiteHealthNotice({ total: 40, totalPrev: 120, leads14d: 0, domainState: 'failed' })
+    expect(n?.kind).toBe('domain_failed')
+    expect(n?.href).toBe('/website/domain')
+  })
+
+  it('traffic drop outranks a merely-pending domain', () => {
+    const n = websiteHealthNotice({ total: 40, totalPrev: 120, leads14d: 5, domainState: 'pending_dns' })
+    expect(n?.kind).toBe('traffic_drop')
+  })
+
+  it('an active domain never flags', () => {
+    expect(websiteHealthNotice({ total: 100, totalPrev: 90, leads14d: 4, domainState: 'active' })).toBeNull()
+  })
 })
