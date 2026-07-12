@@ -33,7 +33,7 @@ vi.mock('@/lib/services/service-library', () => ({
 }))
 
 const { actionMocks } = vi.hoisted(() => {
-  const mk = () => vi.fn(async () => ({ ok: true as const }))
+  const mk = () => vi.fn(async (_fd: FormData) => ({ ok: true as const }))
   return {
     actionMocks: {
       saveStory: mk(),

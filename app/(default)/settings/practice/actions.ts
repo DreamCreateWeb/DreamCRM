@@ -191,6 +191,9 @@ export async function saveChatWidgetAction(enabled: boolean): Promise<Result> {
       .set({ chatWidgetEnabled: Boolean(enabled), updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
     revalidatePath('/settings/practice')
+    revalidatePath('/website/forms')
+    // The bubble renders on every public page — repaint the whole site subtree.
+    revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
     await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
     return { ok: true }
   } catch (err) {

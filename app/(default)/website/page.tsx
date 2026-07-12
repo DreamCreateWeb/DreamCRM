@@ -10,6 +10,7 @@ import { getBlogStats } from '@/lib/services/blog'
 import { getSiteHealth } from '@/lib/services/seo'
 import { getCareersStats } from '@/lib/services/careers'
 import { getLastWebsiteEdit } from '@/lib/services/website-history'
+import { getNewLeadsSince } from '@/lib/services/leads'
 import { getClinicSeoPerformance } from '@/lib/services/gsc'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
 import { contentCompleteness } from '@/lib/website-content-sections'
@@ -75,7 +76,7 @@ export default async function WebsiteHubPage() {
   const siteHost = siteUrl.replace(/^https?:\/\//, '')
 
   // Every read is best-effort — the hub must render even when a stat hiccups.
-  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope] = await Promise.all([
+  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d] = await Promise.all([
     getSitePerformance(ctx.organizationId).catch(() => null),
     isPro ? getBlogStats(ctx.organizationId).catch(() => null) : null,
     isPro ? getSiteHealth(ctx.organizationId).catch(() => null) : null,
@@ -83,6 +84,7 @@ export default async function WebsiteHubPage() {
     getLastWebsiteEdit(ctx.organizationId).catch(() => null),
     // Only the checklist reads this — owner/admin only, best-effort.
     canEdit ? getClinicSeoPerformance(ctx.organizationId, 28).catch(() => null) : null,
+    getNewLeadsSince(ctx.organizationId, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).catch(() => 0),
   ])
 
   const completeness = contentCompleteness(profile)
@@ -323,6 +325,16 @@ export default async function WebsiteHubPage() {
             stat={`${completeness.filled} of ${completeness.total} sections filled`}
             statTone={completeness.filled >= completeness.total ? 'ok' : undefined}
             description="Everything your site says — services, team, photos, FAQ, and policies, as plain forms."
+          />
+        )}
+        {canEdit && (
+          <SectionCard
+            href="/website/forms"
+            icon="inbox"
+            title="Forms"
+            stat={`${leads7d} submission${leads7d === 1 ? '' : 's'} · 7d`}
+            statTone={leads7d > 0 ? 'ok' : undefined}
+            description="The contact + insurance-check forms, the chat bubble, and where submissions land."
           />
         )}
         {isPro ? (

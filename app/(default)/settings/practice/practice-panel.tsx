@@ -17,7 +17,6 @@ import {
   saveVisitTypesAction,
   savePracticeOpsAction,
   saveSelfBookingAction,
-  saveChatWidgetAction,
 } from './actions'
 
 // Client-safe copy of the provider roles (the service module is server-only).
@@ -62,7 +61,7 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
       )}
       <SettingsTabs
         tabs={[
-          { id: 'booking', label: 'Online booking', content: gate(<SelfBookingSection enabled={initial.selfBookingEnabled} chatEnabled={initial.chatWidgetEnabled} flash={flash} />) },
+          { id: 'booking', label: 'Online booking', content: gate(<SelfBookingSection enabled={initial.selfBookingEnabled} flash={flash} />) },
           { id: 'providers', label: 'Providers', content: gate(<ProvidersSection providers={initial.providers} flash={flash} />) },
           { id: 'visit-types', label: 'Visit types', content: gate(<VisitTypesSection initial={initial.visitTypes} depositsAvailable={initial.depositsAvailable} flash={flash} />) },
           { id: 'recall', label: 'Chairs & recall', content: gate(<OpsSection chairCount={initial.chairCount} recallDefaultMonths={initial.recallDefaultMonths} lapsedAfterMonths={initial.lapsedAfterMonths} flash={flash} />) },
@@ -121,25 +120,10 @@ function SaveBar({
 
 // ───────────────────────── Patient self-scheduling ─────────────────────────
 
-function SelfBookingSection({ enabled, chatEnabled, flash }: { enabled: boolean; chatEnabled: boolean; flash: (m: string) => void }) {
+function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: string) => void }) {
   const router = useRouter()
   const [on, setOn] = useState(enabled)
-  const [chatOn, setChatOn] = useState(chatEnabled)
   const [pending, start] = useTransition()
-
-  function toggleChat(next: boolean) {
-    setChatOn(next)
-    start(async () => {
-      const r = await saveChatWidgetAction(next)
-      if (r.ok) {
-        flash(next ? '“Message us” bubble is on.' : '“Message us” bubble removed from your site.')
-        router.refresh()
-      } else {
-        setChatOn(!next)
-        flash(r.error)
-      }
-    })
-  }
 
   function toggle(next: boolean) {
     // A switch commits immediately (it IS its own Save) — flip optimistically,
@@ -194,30 +178,13 @@ function SelfBookingSection({ enabled, chatEnabled, flash }: { enabled: boolean;
           </span>
         </label>
       </div>
-      <div className="v2-well p-4 mt-4">
-        <label className="flex cursor-pointer items-start gap-3">
-          <span className="mt-0.5">
-            <Toggle
-              checked={chatOn}
-              onChange={toggleChat}
-              disabled={pending}
-              srLabel="Show the “Message us” bubble on your website"
-            />
-          </span>
-          <span className="text-sm">
-            <span className="font-medium text-gray-800 dark:text-gray-100">
-              “Message us” bubble on your website
-            </span>
-            <span className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              A small chat bubble on every page of your public site. A visitor&rsquo;s message lands
-              in <span className="font-medium">Messages</span> like any patient conversation, and your
-              reply goes to the email they leave — no account needed on their end.
-            </span>
-          </span>
-        </label>
-      </div>
       <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-        These switches save the moment you flip them — no separate Save needed.
+        The switch saves the moment you flip it — no separate Save needed. The website
+        &ldquo;Message us&rdquo; bubble moved to{' '}
+        <a href="/website/forms" className="font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4">
+          Website → Forms
+        </a>
+        .
       </p>
     </section>
   )

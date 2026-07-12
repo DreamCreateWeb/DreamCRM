@@ -82,6 +82,8 @@ export interface LeadRow {
 export interface LeadListFilters {
   status?: LeadStatus | 'all'
   search?: string
+  /** Cap the rows returned (newest first) — the Forms page's latest-5 glance. */
+  limit?: number
 }
 
 export interface LeadCounts {
@@ -122,7 +124,7 @@ export async function listLeads(
     )
   }
 
-  const rows = await db
+  const query = db
     .select({
       id: schema.lead.id,
       name: schema.lead.name,
@@ -149,6 +151,8 @@ export async function listLeads(
     .leftJoin(schema.patient, eq(schema.lead.convertedToPatientId, schema.patient.id))
     .where(and(...where))
     .orderBy(desc(schema.lead.createdAt))
+
+  const rows = filters.limit && filters.limit > 0 ? await query.limit(filters.limit) : await query
 
   const now = Date.now()
   return rows.map((r) => ({

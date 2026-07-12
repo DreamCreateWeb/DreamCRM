@@ -1732,6 +1732,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         visitTypeSettings: schema.clinicProfile.visitTypeSettings,
         recallDefaultMonths: schema.clinicProfile.recallDefaultMonths,
         onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
+        leadForms: schema.clinicProfile.leadForms,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1744,6 +1745,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Backfill the interview stamp on legacy demos (seeded before the hub's
     // go-live checklist read it) — the demo site was always "personalized".
     if (!profile?.onboardingInterviewCompletedAt) patch.onboardingInterviewCompletedAt = new Date()
+    // Backfill a customized contact form (only-when-unset) — the Website →
+    // Forms surface then shows a real "Customized" state next to the default
+    // insurance-check form. The fields mirror the defaults plus one select.
+    if (!profile?.leadForms) patch.leadForms = DEMO_CONTACT_LEAD_FORM
 
     // one-time (2026-06): Acme→Dream Dental — force-refresh the clinic identity
     // on existing demos. backfill-when-null never fires here (these fields were
@@ -2565,6 +2570,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // The demo ships fully personalized — the hub's go-live checklist reads
     // this to show the "site personalized" state a real mature clinic has.
     onboardingInterviewCompletedAt: new Date(),
+    leadForms: DEMO_CONTACT_LEAD_FORM,
     // Tagline is now the hero H1, so it carries the real value-prop weight.
     tagline: 'Dental care that finally feels human.',
     about:
@@ -4309,6 +4315,33 @@ async function renameDemoAcmeArtifacts(orgId: string): Promise<void> {
         .where(eq(schema.clinicProfile.organizationId, orgId))
     }
   }
+}
+
+// The demo's customized contact form — the stock fields plus one select, so
+// the Website → Forms surface shows a real "Customized" pill (the insurance
+// check form stays on its defaults for the contrasting state).
+const DEMO_CONTACT_LEAD_FORM = {
+  contact: [
+    { id: 'name', type: 'text', label: 'Full name', required: true, systemKey: 'name' },
+    { id: 'phone', type: 'tel', label: 'Phone', required: true, systemKey: 'phone' },
+    { id: 'email', type: 'email', label: 'Email', required: false, systemKey: 'email' },
+    { id: 'preferredDate', type: 'date', label: 'Preferred date', required: false, systemKey: 'preferredDate' },
+    {
+      id: 'message',
+      type: 'textarea',
+      label: 'Message or reason for visit',
+      placeholder: 'e.g. Annual cleaning, tooth pain, new patient…',
+      required: false,
+      systemKey: 'message',
+    },
+    {
+      id: 'demo_hear_about',
+      type: 'select',
+      label: 'How did you hear about us?',
+      required: false,
+      options: ['A friend or family member', 'Google search', 'Insurance directory', 'Drove past the office'],
+    },
+  ],
 }
 
 // ── Persona-identity anchoring + misattribution cleanup ─────────────────
