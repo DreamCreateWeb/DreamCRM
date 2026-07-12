@@ -7,6 +7,33 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **The template gallery — live previews on your own content
+  (2026-07-12).** Owner: "a surface with all of the templates organized into
+  their practice type with filters and categories and sorting, and iframe
+  renders of each templates card." Until now template management was three
+  static text cards on /website/design. New surface `/website/templates`:
+  practice-type category chips + style-tag filters + a sort control
+  (metadata now lives on `SITE_TEMPLATE_CATALOG` — practiceTypes/styleTags/
+  bestFor, with a completeness test so no design can ship uncategorized),
+  and every card carries a LIVE scaled iframe of the clinic's OWN homepage
+  rendered in that template. The hard part was a side-effect-free per-card
+  render: the existing preview route SETS the preview cookie (shared across
+  iframes — six cards would clobber each other, last one wins, and hijack
+  the owner's real preview session). Solution: a frame route
+  `/site/[slug]/tf/[template]` (re-renders ClinicSitePage, the demo-brand
+  pattern) + the middleware stamps an `x-dc-template-frame` request header
+  for exactly that path (stripping any inbound copy) +
+  `resolveActiveSiteTemplate` honors the header per-request for a verified
+  editor at highest precedence — the layout's palette/fonts/chrome follow
+  automatically, and the new `isFrame` flag suppresses the pageview beacon
+  (cards never count as traffic), chat bubble, banners, and EditBridge.
+  Cards scale the 1360px frame via ResizeObserver-measured transform,
+  pointer-events-none/tabIndex −1/lazy. Preview → the editor's existing
+  `?previewTemplate=` flow; Apply stages the design to the draft (publish
+  makes it live). The Design page slimmed to a current-design summary + the
+  gallery door; the Studio's 🎨 popover links "Browse all designs"; ⌘K gets
+  a Website templates entry.
+
 - **Draft→Publish for the clinic website (2026-07-12).** Owner: "there needs
   to be a publish/republish system so clinics can update content and finish
   before updating the live site rather than the live site showing them

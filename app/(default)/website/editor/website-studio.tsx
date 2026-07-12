@@ -756,11 +756,12 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
                     )
                   })}
                 </ul>
-                {SITE_TEMPLATE_CATALOG.length === 1 && (
-                  <p className="text-xs text-gray-500 mt-3">
-                    More designs are on the way — they'll appear here.
-                  </p>
-                )}
+                <Link
+                  href="/website/templates"
+                  className="mt-3 inline-block text-xs font-medium text-teal-300 hover:text-teal-200 underline-offset-4 hover:underline"
+                >
+                  Browse all designs with live previews →
+                </Link>
               </div>
             )}
           </div>

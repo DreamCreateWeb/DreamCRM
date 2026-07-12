@@ -28,7 +28,7 @@ describe('WEBSITE_DRAFT_COLUMNS — the draftable set', () => {
   })
 
   it('every draftable column has an owner-readable label', () => {
-    for (const col of WEBSITE_DRAFT_COLUMNS) {
+    for (const col of Array.from(WEBSITE_DRAFT_COLUMNS)) {
       expect(WEBSITE_COLUMN_LABELS[col], col).toBeTruthy()
     }
   })

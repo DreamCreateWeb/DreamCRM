@@ -18,6 +18,9 @@ vi.mock('next/headers', () => ({
     get: (name: string) =>
       name === 'dc-template-preview' && cookieValue != null ? { name, value: cookieValue } : undefined,
   }),
+  // No gallery-frame header in these scenarios (frame precedence has its own
+  // suite: tests/website-templates/frame-resolve.test.ts).
+  headers: async () => ({ get: () => null }),
 }))
 vi.mock('@/lib/services/clinic-site', () => ({
   getClinicThemeBySlug: async () => themeRow,

@@ -2,20 +2,16 @@
 
 import { useState, useTransition, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
 import BrandColorField from '../../settings/clinic/brand-color-field'
 import DifferenceVideoField from '../../settings/clinic/difference-video-field'
 import ImageUploader from '@/components/ui/image-uploader'
-import { useConfirm } from '@/components/ui/confirm-dialog'
 import { StatusPill } from '@/components/ui/status-pill'
 import { isValidVideoUrl } from '@/lib/website-url'
 import {
-  saveTemplate,
   saveBrandColor,
   saveImageField,
   saveDifferenceVideo,
-  type SectionResult,
 } from '../editor/website-actions'
 
 /**
@@ -75,68 +71,37 @@ export default function DesignPanel({
   )
 }
 
+/** A slim current-design summary — the full browsing experience (live
+ *  previews on your own content, practice-type categories, filters, sorting)
+ *  lives in the Templates gallery. */
 function TemplatesCard({ currentTemplate }: { currentTemplate: string }) {
-  const router = useRouter()
-  const confirm = useConfirm()
-  const [applying, setApplying] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  async function apply(id: string, label: string) {
-    const ok = await confirm({
-      title: `Switch to the ${label} design?`,
-      message:
-        'Your content stays exactly as it is — switching designs is instant, live, and undoable from the editor.',
-      confirmLabel: 'Switch design',
-    })
-    if (!ok) return
-    setApplying(id)
-    setError(null)
-    const res: SectionResult = await saveTemplate(id)
-    setApplying(null)
-    if (res.ok) router.refresh()
-    else setError(res.error)
-  }
-
+  const current = SITE_TEMPLATE_CATALOG.find((t) => t.id === currentTemplate)
   return (
     <section className="v2-card p-4 sm:p-5">
-      <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Design</h2>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        Preview any design on your own content in the editor, then apply it — nothing migrates,
-        nothing breaks, and you can switch back anytime.
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Design</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-gray-700 dark:text-gray-200">
+              {current?.label ?? currentTemplate}
+            </span>
+            <StatusPill tone="ok" label="Current design" />
+          </div>
+          {current && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-prose">{current.description}</p>
+          )}
+        </div>
+        <Link
+          href="/website/templates"
+          className="shrink-0 text-xs font-semibold px-3 py-2 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors"
+        >
+          Browse all designs →
+        </Link>
+      </div>
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        Every design previews live on your own content — nothing migrates, nothing breaks, and you
+        can switch back anytime.
       </p>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {SITE_TEMPLATE_CATALOG.map((t) => {
-          const isCurrent = currentTemplate === t.id
-          return (
-            <li key={t.id} className="v2-well p-4 flex flex-col">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{t.label}</span>
-                {isCurrent && <StatusPill tone="ok" label="Current design" />}
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug flex-1">{t.description}</p>
-              {!isCurrent && (
-                <div className="mt-3 flex items-center gap-2">
-                  <Link
-                    href={`/website/editor?previewTemplate=${encodeURIComponent(t.id)}`}
-                    className="text-xs font-medium px-3 py-1.5 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600"
-                  >
-                    Preview in the editor
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => apply(t.id, t.label)}
-                    disabled={applying !== null}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 disabled:opacity-60"
-                  >
-                    {applying === t.id ? 'Switching…' : 'Apply'}
-                  </button>
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-      {error && <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
     </section>
   )
 }

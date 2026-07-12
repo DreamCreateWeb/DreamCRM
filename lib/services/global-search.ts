@@ -57,6 +57,9 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
       ? [{ id: 'page-website-design', label: 'Website design', sublabel: 'Website', href: '/website/design', kind: 'page' as const }]
       : []),
     ...(canEditSite
+      ? [{ id: 'page-website-templates', label: 'Website templates', sublabel: 'Website', href: '/website/templates', kind: 'page' as const }]
+      : []),
+    ...(canEditSite
       ? [{ id: 'page-website-pages', label: 'Website pages', sublabel: 'Website', href: '/website/pages', kind: 'page' as const }]
       : []),
     ...(isPro

@@ -134,6 +134,24 @@ function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
+/**
+ * Serve a /site/* request, stamping the gallery-frame header when the path is
+ * a template frame (`/site/<slug>/tf/<template>`). The header is how the
+ * layout's template resolver (which can't read the pathname) knows to force
+ * that template for THIS request only — no cookie, so six preview iframes
+ * can't clobber each other. Any inbound copy of the header is stripped: only
+ * the middleware may set it (it's harmless anyway — the resolver re-verifies
+ * canEditClinic, so it only ever affects the clinic's own editor).
+ */
+function siteResponse(request: NextRequest, pathname: string) {
+  const frame = pathname.match(/^\/site\/[^/]+\/tf\/([a-z0-9-]+)$/)
+  if (!frame && !request.headers.has('x-dc-template-frame')) return NextResponse.next()
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.delete('x-dc-template-frame')
+  if (frame) requestHeaders.set('x-dc-template-frame', frame[1])
+  return NextResponse.next({ request: { headers: requestHeaders } })
+}
+
 export async function middleware(request: NextRequest) {
   // Behind App Runner's proxy the public host arrives in x-forwarded-host;
   // fall back to the Host header, then the parsed URL. (nextUrl.host alone is
@@ -202,7 +220,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isPublicPath(pathname)) return NextResponse.next()
-  if (pathname.startsWith('/site/')) return NextResponse.next()
+  if (pathname.startsWith('/site/')) return siteResponse(request, pathname)
 
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {

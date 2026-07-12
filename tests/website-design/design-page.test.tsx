@@ -1,9 +1,10 @@
 /**
- * Website → Design (deep-carve Phase 3). Proves: every catalog design renders
- * as a card with the REAL current one pinned; preview links deep-link the
- * editor's ?previewTemplate param; Apply calls saveTemplate behind a confirm;
- * brand color / hero images / intro video save through the Studio's scoped
- * actions (hero saves thread the existing focal point through); role gate.
+ * Website → Design (deep-carve Phase 3; slimmed when the Templates gallery
+ * shipped). Proves: the REAL current design renders on the summary card with
+ * the door to the gallery (browsing/preview/apply now live at
+ * /website/templates); brand color / hero images / intro video save through
+ * the Studio's scoped actions (hero saves thread the existing focal point
+ * through); role gate.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
@@ -73,30 +74,22 @@ beforeEach(() => {
 })
 
 describe('WebsiteDesignPage', () => {
-  it('renders every catalog design with the real current one pinned', async () => {
-    render(await WebsiteDesignPage())
-    for (const t of SITE_TEMPLATE_CATALOG) {
-      expect(screen.getByText(t.label)).toBeTruthy()
-    }
-    expect(screen.getByText('Current design')).toBeTruthy()
-    cleanup()
-  })
-
-  it('preview links deep-link the editor with ?previewTemplate', async () => {
+  it('shows the REAL current design on the summary card with the gallery door', async () => {
     const { container } = render(await WebsiteDesignPage())
-    const others = SITE_TEMPLATE_CATALOG.filter((t) => t.id !== 'cosmetic')
-    for (const t of others) {
-      expect(container.querySelector(`a[href="/website/editor?previewTemplate=${t.id}"]`)).toBeTruthy()
-    }
-    // The current design gets no preview/apply affordances.
-    expect(container.querySelector('a[href="/website/editor?previewTemplate=cosmetic"]')).toBeNull()
+    const current = SITE_TEMPLATE_CATALOG.find((t) => t.id === 'cosmetic')!
+    expect(screen.getByText(current.label)).toBeTruthy()
+    expect(screen.getByText('Current design')).toBeTruthy()
+    // Browsing/preview/apply live in the gallery now.
+    expect(container.querySelector('a[href="/website/templates"]')).toBeTruthy()
+    expect(container.querySelector('a[href^="/website/editor?previewTemplate="]')).toBeNull()
+    expect(saveTemplateMock).not.toHaveBeenCalled()
     cleanup()
   })
 
-  it('Apply calls saveTemplate (behind the confirm)', async () => {
+  it('the summary reflects a draft-staged design (effective view)', async () => {
+    profileRow = { ...profileRow, template: 'modern', websiteDraft: { template: 'pediatric' } }
     render(await WebsiteDesignPage())
-    fireEvent.click(screen.getAllByText('Apply')[0])
-    await waitFor(() => expect(saveTemplateMock).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('Pediatric Play')).toBeTruthy()
     cleanup()
   })
 

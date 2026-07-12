@@ -41,13 +41,14 @@ export default async function ClinicSiteLayout({
 }) {
   const { slug } = await params
   const { orgId, brand, hasEditorDraft } = await getClinicThemeBySlug(slug)
-  const { def, isPreview } = await resolveActiveSiteTemplate(slug)
+  const { def, isPreview, isFrame } = await resolveActiveSiteTemplate(slug)
   const canEdit = orgId ? await canEditClinic(orgId) : false
   const palette = def.buildPalette(brand)
   // The "Message us" bubble (site-wide, so it lives here, not per-page).
-  // Default ON; Settings → Practice is the off switch.
+  // Default ON; Settings → Practice is the off switch. Never in a gallery
+  // frame — a scaled preview card gets no interactive chrome.
   let chatWidget: { enabled: boolean; clinicName: string } | null = null
-  if (orgId) {
+  if (orgId && !isFrame) {
     const [prof] = await db
       .select({ enabled: clinicProfile.chatWidgetEnabled, displayName: clinicProfile.displayName })
       .from(clinicProfile)
@@ -102,7 +103,8 @@ export default async function ClinicSiteLayout({
         }
       `}</style>
       {children}
-      {orgId && <SiteViewBeacon orgId={orgId} slug={slug} />}
+      {/* Never count gallery-frame renders as site traffic. */}
+      {orgId && !isFrame && <SiteViewBeacon orgId={orgId} slug={slug} />}
       {chatWidget && (
         // Brand through the template's recipe when set (so e.g. a luxury
         // template's accent harmonizes); the historical sage default when the
@@ -122,9 +124,9 @@ export default async function ClinicSiteLayout({
       )}
       {/* Draft overlay pill — only a verified editor with staged edits ever
           gets the overlay, so only they ever see this. Hidden in the Studio
-          canvas (its publish bar owns the state there). */}
-      {hasEditorDraft && !isPreview && <DraftPreviewBanner appUrl={appBaseUrl()} />}
-      <EditBridgeGate canEdit={canEdit} />
+          canvas (its publish bar owns the state there) and in gallery frames. */}
+      {hasEditorDraft && !isPreview && !isFrame && <DraftPreviewBanner appUrl={appBaseUrl()} />}
+      {!isFrame && <EditBridgeGate canEdit={canEdit} />}
     </>
   )
 }
