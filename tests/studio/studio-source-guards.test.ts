@@ -130,15 +130,20 @@ describe('page navigator', () => {
 describe('Studio undo history (the walk-back safety net)', () => {
   const actions = read('app/(default)/website/editor/website-actions.ts')
   const history = read('lib/services/website-history.ts')
-  it('every writeSection records the overwritten values BEFORE the update, best-effort', () => {
-    // recordWebsiteEdit must appear inside writeSection, before the db.update,
-    // wrapped in try/catch (a history hiccup must never block a save).
+  it('every writeSection records the overwritten values BEFORE the write, best-effort', () => {
+    // recordWebsiteEdit must appear inside writeSection, before the routed
+    // write (stageWebsiteValues — the Draft→Publish splitter), wrapped in
+    // try/catch (a history hiccup must never block a save).
     const body = actions.slice(actions.indexOf('async function writeSection'))
     const record = body.indexOf('recordWebsiteEdit')
-    const update = body.indexOf('.update(clinicProfile)')
+    const write = body.indexOf('stageWebsiteValues(')
     expect(record).toBeGreaterThan(-1)
-    expect(update).toBeGreaterThan(record)
+    expect(write).toBeGreaterThan(record)
     expect(body.slice(0, record)).toContain('try {')
+  })
+  it('writeSection records the EFFECTIVE (draft-merged) previous values', () => {
+    const body = actions.slice(actions.indexOf('async function writeSection'))
+    expect(body.slice(0, body.indexOf('recordWebsiteEdit'))).toContain('mergeWebsiteDraft(')
   })
   it('undo restores the head entry and deletes it (one-way walk back, no redo)', () => {
     expect(history).toMatch(/undoLastWebsiteEdit/)

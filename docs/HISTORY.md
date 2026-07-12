@@ -7,6 +7,42 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Draft→Publish for the clinic website (2026-07-12).** Owner: "there needs
+  to be a publish/republish system so clinics can update content and finish
+  before updating the live site rather than the live site showing them
+  essentially work in real time." Until now every save was instantly live
+  ("Saved ✓ live"). The Wix/Squarespace model shipped in one green push:
+  migration **0127** adds `clinic_profile.website_draft` jsonb; the pure
+  core `lib/website-draft.ts` defines WEBSITE_DRAFT_COLUMNS (content +
+  presentation stage; IDENTITY — names/contact/address/hours/logo/timezone,
+  plus the functional chat toggle — stays live-immediate because it drives
+  booking, reminders, and the email From) with merge/split/honest-diff
+  helpers; `lib/services/website-draft.ts` is the server plumbing —
+  `stageWebsiteValues` atomically merges staged values SQL-side
+  (`COALESCE(website_draft,'{}') || $json`) and EVERY writer routes through
+  it: the Studio's writeSection, saveInlineField/copy/image (which now read
+  the draft-merged map before merging), the AI edit bar (apply + its undo),
+  the services picker, and the SEO-meta form. A verified editor sees the
+  merged view everywhere via the overlay in `loadSite` +
+  `getClinicThemeBySlug` (canEditClinic re-verified per request; the session
+  lookup only happens when a draft exists) — so the Studio canvas, the
+  workspace forms (`getEffectiveWebsiteProfile`), and the owner's own site
+  visit all agree, with a fixed "Unpublished changes" pill
+  (DraftPreviewBanner, hidden in the ?edit=1 canvas) keeping it honest.
+  Publish applies the blob in one write + records ONE history entry marked
+  `__publish` (undo-after-publish restores the LIVE columns); normal undo
+  routes draftable columns back INSIDE the draft so undoing a staged edit
+  can never accidentally publish it. Surfaces: hub PublishCard ("N
+  unpublished changes" w/ per-column labels + Publish/Discard), Studio
+  top-bar publish button (count refreshes after every save/AI edit/undo),
+  "Saved ✓ — publish to go live" copy across Content/Forms/Design/Pages.
+  The Pages manager + hub live-pills deliberately read the RAW row (a
+  staged team list hasn't published /team yet). Demo resync clears stray
+  demo drafts. Tests: pure-core truth table, service routing/publish/
+  discard, undo routing, site-overlay gating (visitor never sees a draft),
+  plus the four existing write-path suites updated through a shared
+  staged-JSON unwrap helper (`tests/helpers/website-draft.ts`).
+
 - **The Website workspace deep-carve — Content, Forms, Design, Pages, and
   the Business-profile shrink (2026-07-12).** Owner: "the website side needs
   to go much further — so many things still need their own surface… a ton of

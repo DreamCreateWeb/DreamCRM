@@ -7,6 +7,8 @@ import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, clinicLocation } from '@/lib/db/schema/platform'
 import type { ClinicProfile, ClinicLocation } from '@/lib/db/schema/platform'
 import { expandServedHosts } from '@/lib/services/custom-domain'
+import { canEditClinic } from '@/lib/clinic-site-edit'
+import { mergeWebsiteDraft, websiteDraftKeys } from '@/lib/website-draft'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -135,20 +137,43 @@ export const getClinicOrgIdBySlug = cache(async (slug: string): Promise<string |
 export const getClinicThemeBySlug = cache(
   async (
     slug: string,
-  ): Promise<{ orgId: string | null; brand: string | null; template: string | null }> => {
+  ): Promise<{
+    orgId: string | null
+    brand: string | null
+    template: string | null
+    /** True when THIS viewer is a verified editor with staged (unpublished)
+     *  edits — the layout mounts the "you're seeing your draft" banner. */
+    hasEditorDraft: boolean
+  }> => {
     const [row] = await db
       .select({
         id: organization.id,
         type: organization.type,
         brand: clinicProfile.brandColor,
         template: clinicProfile.template,
+        websiteDraft: clinicProfile.websiteDraft,
       })
       .from(organization)
       .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
       .where(eq(organization.slug, slug))
       .limit(1)
-    if (!row || row.type !== 'clinic') return { orgId: null, brand: null, template: null }
-    return { orgId: row.id, brand: row.brand ?? null, template: row.template ?? null }
+    if (!row || row.type !== 'clinic') {
+      return { orgId: null, brand: null, template: null, hasEditorDraft: false }
+    }
+    let brand = row.brand ?? null
+    let template = row.template ?? null
+    let hasEditorDraft = false
+    // Draft→Publish overlay for the palette + template — same gate as
+    // loadSite's content overlay, so a staged brand color / design shows for
+    // the editor (and only the editor) on every page.
+    const draftKeys = websiteDraftKeys(row.websiteDraft)
+    if (draftKeys.length > 0 && (await canEditClinic(row.id))) {
+      hasEditorDraft = true
+      const draft = row.websiteDraft as Record<string, unknown>
+      if (draftKeys.includes('brandColor')) brand = (draft.brandColor as string | null) ?? null
+      if (draftKeys.includes('template')) template = (draft.template as string | null) ?? null
+    }
+    return { orgId: row.id, brand, template, hasEditorDraft }
   },
 )
 
@@ -239,13 +264,23 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
 }
 
 async function loadSite(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {
-  const [profile] = await db
+  let [profile] = await db
     .select()
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
 
   if (!profile) return null
+
+  // Draft→Publish overlay: a verified editor of THIS clinic sees their staged
+  // (unpublished) edits merged over the live columns — everywhere on the site,
+  // including generateMetadata / OG / JSON-LD, because every render flows
+  // through this one load. `canEditClinic` re-verifies the session on every
+  // request, so a visitor can never see a draft; and we only pay the session
+  // lookup when a draft actually exists.
+  if (websiteDraftKeys(profile.websiteDraft).length > 0 && (await canEditClinic(orgId))) {
+    profile = mergeWebsiteDraft(profile, profile.websiteDraft)
+  }
 
   const locations = await db
     .select()

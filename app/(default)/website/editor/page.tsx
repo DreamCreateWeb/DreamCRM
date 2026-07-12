@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation'
-import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
-import { db } from '@/lib/db'
-import { clinicProfile } from '@/lib/db/schema/platform'
+import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { getAiUsage } from '@/lib/services/ai-website'
@@ -46,11 +44,11 @@ export default async function WebsiteEditorPage({
   // a member the full studio where every Save would error.
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/dashboard')
 
-  const [profile] = await db
-    .select()
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
+  // The Studio edits the EFFECTIVE (draft-merged) profile — its canvas shows
+  // the same merged view via the site's editor overlay, so fields + canvas
+  // always agree. The draft status arms the publish bar.
+  const effective = await getEffectiveWebsiteProfile(ctx.organizationId)
+  const profile = effective?.profile
 
   if (!profile) {
     return (
@@ -83,6 +81,8 @@ export default async function WebsiteEditorPage({
   ])
   // Undo-history head — arms the Studio's ↩ Undo button on load.
   const lastEdit = await getLastWebsiteEdit(ctx.organizationId).catch(() => null)
+  // What's staged and unpublished — the Studio's publish bar.
+  const draftStatus = await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] }))
   const gates = {
     hasTeam: ((profile.staff as ClinicStaff[] | null) ?? []).length > 0,
     hasBlog: posts.length > 0,
@@ -121,6 +121,7 @@ export default async function WebsiteEditorPage({
       initialAiUsage={aiUsage}
       pages={pages}
       lastEditLabel={lastEdit?.label ?? null}
+      initialDraftStatus={draftStatus}
       initialPreviewTemplate={initialPreviewTemplate}
       initialPage={initialPage}
     />

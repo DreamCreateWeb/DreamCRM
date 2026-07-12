@@ -41,6 +41,7 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+import { stagedJson, writtenSet as unwrapSet } from '../helpers/website-draft'
 import {
   saveHero,
   saveTemplate,
@@ -72,10 +73,17 @@ function form(fields: Record<string, string>) {
   return fd
 }
 
-/** Keys a section wrote, excluding the always-present updatedAt bookkeeping. */
-function setKeys(table = 'clinic_profile') {
+/** What a save wrote, as the editor sees it: live column writes + keys staged
+ *  into the websiteDraft jsonb merge (the Draft→Publish layer), unwrapped by
+ *  the shared helper so section-isolation assertions stay flat. */
+function writtenSet(table = 'clinic_profile') {
   const op = ops.find((o) => o.table === table)!
-  return Object.keys(op.set).filter((k) => k !== 'updatedAt').sort()
+  return unwrapSet(op.set)
+}
+
+/** Keys a section wrote (live + staged), minus updatedAt bookkeeping. */
+function setKeys(table = 'clinic_profile') {
+  return Object.keys(writtenSet(table)).sort()
 }
 
 describe('website section actions — gating', () => {
@@ -99,7 +107,7 @@ describe('website section actions — section isolation', () => {
     const res = await saveHero(form({ displayName: '  Acme Dental  ', legalName: 'Acme LLC', tagline: 'Smiles' }))
     expect(res).toEqual({ ok: true })
     expect(setKeys('clinic_profile')).toEqual(['displayName', 'legalName', 'tagline'])
-    const profileSet = ops.find((o) => o.table === 'clinic_profile')!.set
+    const profileSet = writtenSet('clinic_profile')
     expect(profileSet.displayName).toBe('Acme Dental') // trimmed
     // org name sync
     const orgOp = ops.find((o) => o.table === 'organization')!
@@ -126,7 +134,7 @@ describe('website section actions — section isolation', () => {
   it('saveInsurance writes ONLY acceptedInsuranceCarriers', async () => {
     await saveInsurance(form({ acceptedInsuranceCarriers: 'Aetna\nCigna' }))
     expect(setKeys()).toEqual(['acceptedInsuranceCarriers'])
-    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    const set = writtenSet('clinic_profile')
     expect(set.acceptedInsuranceCarriers).toEqual(['Aetna', 'Cigna'])
   })
 
@@ -148,7 +156,7 @@ describe('website section actions — FAQ + hours', () => {
       form({ faq: JSON.stringify([{ category: 'Insurance', question: 'Q', answer: 'A' }]) }),
     )
     expect(setKeys()).toEqual(['faq'])
-    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    const set = writtenSet('clinic_profile')
     expect((set.faq as unknown[])).toHaveLength(1)
   })
 
@@ -158,7 +166,7 @@ describe('website section actions — FAQ + hours', () => {
     fd.set('hours[mon].close', '17:00')
     const res = await saveHours(fd)
     expect(res).toEqual({ ok: true })
-    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    const set = writtenSet('clinic_profile')
     expect((set.hours as Record<string, { open: string }>).mon.open).toBe('09:00')
   })
 
@@ -178,27 +186,27 @@ describe('Google-sync source flags flip to manual on edit', () => {
     fd.set('hours[mon].open', '09:00')
     fd.set('hours[mon].close', '17:00')
     await saveHours(fd)
-    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    const set = writtenSet('clinic_profile')
     expect(set.hoursSource).toBe('manual')
   })
 
   it('saveContact flags addressSource + phoneSource manual', async () => {
     await saveContact(form({ phone: '555-0100', addressLine1: '1 Main St', city: 'Austin' }))
-    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    const set = writtenSet('clinic_profile')
     expect(set.addressSource).toBe('manual')
     expect(set.phoneSource).toBe('manual')
   })
 
   it('inline phone edit flags phoneSource manual', async () => {
     await saveInlineField('phone', '(512) 555-0100')
-    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    const set = writtenSet('clinic_profile')
     expect(set.phone).toBe('(512) 555-0100')
     expect(set.phoneSource).toBe('manual')
   })
 
   it('inline tagline edit does NOT touch any source flag', async () => {
     await saveInlineField('tagline', 'Gentle care')
-    const set = ops.find((o) => o.table === 'clinic_profile')!.set
+    const set = writtenSet('clinic_profile')
     expect(set.phoneSource).toBeUndefined()
     expect(set.hoursSource).toBeUndefined()
     expect(set.addressSource).toBeUndefined()
@@ -222,12 +230,12 @@ describe('saveInlineField (Website Studio click-to-edit)', () => {
     const res = await saveInlineField('tagline', '  Gentle care  ')
     expect(res).toEqual({ ok: true })
     expect(setKeys('clinic_profile')).toEqual(['tagline'])
-    expect(ops.find((o) => o.table === 'clinic_profile')!.set.tagline).toBe('Gentle care')
+    expect(writtenSet('clinic_profile').tagline).toBe('Gentle care')
   })
 
   it('persists null when the value is blank (falls back to the site default)', async () => {
     await saveInlineField('about', '   ')
-    expect(ops.find((o) => o.table === 'clinic_profile')!.set.about).toBeNull()
+    expect(writtenSet('clinic_profile').about).toBeNull()
   })
 
   it('syncs organization.name when displayName is edited', async () => {
@@ -244,12 +252,39 @@ describe('saveInlineField (Website Studio click-to-edit)', () => {
 })
 
 
+describe('Draft→Publish write routing', () => {
+  it('a mixed save splits: identity live, content staged (saveHero)', async () => {
+    await saveHero(form({ displayName: 'Acme', legalName: 'Acme LLC', tagline: 'Smiles' }))
+    const raw = ops.find((o) => o.table === 'clinic_profile')!.set
+    // Identity writes the live column directly…
+    expect(raw.displayName).toBe('Acme')
+    expect(raw.legalName).toBe('Acme LLC')
+    // …content never touches its live column — it stages into the draft.
+    expect(raw.tagline).toBeUndefined()
+    expect(stagedJson(raw)).toEqual({ tagline: 'Smiles' })
+  })
+
+  it('a pure-content save touches NO live columns (saveAbout)', async () => {
+    await saveAbout(form({ about: 'Warm and judgment-free.' }))
+    const raw = ops.find((o) => o.table === 'clinic_profile')!.set
+    const liveKeys = Object.keys(raw).filter((k) => k !== 'updatedAt' && k !== 'websiteDraft')
+    expect(liveKeys).toEqual([])
+    expect(stagedJson(raw)).toEqual({ about: 'Warm and judgment-free.' })
+  })
+
+  it('an identity-only save never creates a draft (saveContact)', async () => {
+    await saveContact(form({ phone: '555-0100', addressLine1: '1 Main St', city: 'Austin' }))
+    const raw = ops.find((o) => o.table === 'clinic_profile')!.set
+    expect(raw.websiteDraft).toBeUndefined()
+  })
+})
+
 describe('saveTemplate (Design picker apply)', () => {
   it('writes the template column and clears the preview cookie', async () => {
     const res = await saveTemplate('modern')
     expect(res).toEqual({ ok: true })
     expect(setKeys()).toEqual(['template'])
-    expect(ops[0].set.template).toBe('modern')
+    expect(writtenSet().template).toBe('modern')
     expect(cookieDeletes).toContain('dc-template-preview')
   })
 

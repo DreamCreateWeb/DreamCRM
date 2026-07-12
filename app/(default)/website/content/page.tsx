@@ -1,9 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
-import { db } from '@/lib/db'
-import { clinicProfile } from '@/lib/db/schema/platform'
+import { getEffectiveWebsiteProfile } from '@/lib/services/website-draft'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import { contentSectionsFor } from '@/lib/website-content-sections'
 import ClinicSettingsNav, { type NavGroup } from '../../settings/clinic/clinic-settings-nav'
@@ -32,11 +30,10 @@ export default async function WebsiteContentPage() {
   if (ctx.tenantType === 'platform') redirect('/dashboard')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/website')
 
-  const [profile] = await db
-    .select()
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
+  // The EFFECTIVE (draft-merged) profile — a staged edit reads back exactly
+  // like a saved one on every editing surface.
+  const effective = await getEffectiveWebsiteProfile(ctx.organizationId)
+  const profile = effective?.profile
 
   if (!profile) {
     return (

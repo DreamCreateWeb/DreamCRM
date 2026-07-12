@@ -51,19 +51,24 @@ vi.mock('@/lib/services/ai-website', () => ({
   getAiUsage: async () => state.usage,
 }))
 vi.mock('@/lib/services/service-library-ai', () => ({ CORE_VOICE_RULES: '' }))
-vi.mock('@/lib/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({ where: () => ({ limit: async () => [profileRow] }) }),
-    }),
-    update: () => ({
-      set: (p: Record<string, unknown>) => {
-        capturedPatch = p
-        return { where: async () => {} }
-      },
-    }),
-  },
-}))
+vi.mock('@/lib/db', async () => {
+  // Draft→Publish: the service stages draftable columns into the websiteDraft
+  // jsonb merge — unwrap at capture so assertions keep reading flat columns.
+  const { writtenSet } = await import('../helpers/website-draft')
+  return {
+    db: {
+      select: () => ({
+        from: () => ({ where: () => ({ limit: async () => [profileRow] }) }),
+      }),
+      update: () => ({
+        set: (p: Record<string, unknown>) => {
+          capturedPatch = writtenSet(p)
+          return { where: async () => {} }
+        },
+      }),
+    },
+  }
+})
 
 import { applyAiWebsiteEdit, revertAiWebsiteEdit } from '@/lib/services/ai-website-edit'
 

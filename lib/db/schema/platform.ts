@@ -96,6 +96,14 @@ export const clinicProfile = pgTable('clinic_profile', {
   // resolveSeoMeta() in lib/types/seo-meta.ts so junk can't poison the column
   // and a new page key never needs a backfill.
   seoMeta: jsonb('seo_meta'),
+  // Staged-but-unpublished website edits (the Draft→Publish layer). Shape:
+  // Partial<clinic_profile> keyed by TS column name, restricted to
+  // WEBSITE_DRAFT_COLUMNS (lib/website-draft.ts). Every Website-workspace
+  // save stages here instead of writing the live column; "Publish" applies
+  // the blob to the live columns and clears it. A verified editor sees the
+  // merged view on their own site (loadSite/getClinicThemeBySlug overlay);
+  // visitors always see published values. Null/empty = everything is live.
+  websiteDraft: jsonb('website_draft'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

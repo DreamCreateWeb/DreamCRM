@@ -2,11 +2,13 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { getClinicThemeBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
+import { appBaseUrl } from '@/lib/clinic-site-helpers'
 import { canEditClinic } from '@/lib/clinic-site-edit'
 import { paletteCss } from '@/lib/clinic-site-theme'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import TemplateFontLinks from '@/components/clinic-site/template-fonts'
 import TemplatePreviewBanner from '@/components/clinic-site/template-preview-banner'
+import DraftPreviewBanner from '@/components/clinic-site/draft-preview-banner'
 import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
 import SiteViewBeacon from '@/components/clinic-site/site-view-beacon'
 import SiteChatWidget from '@/components/clinic-site/site-chat-widget'
@@ -38,7 +40,7 @@ export default async function ClinicSiteLayout({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const { orgId, brand } = await getClinicThemeBySlug(slug)
+  const { orgId, brand, hasEditorDraft } = await getClinicThemeBySlug(slug)
   const { def, isPreview } = await resolveActiveSiteTemplate(slug)
   const canEdit = orgId ? await canEditClinic(orgId) : false
   const palette = def.buildPalette(brand)
@@ -118,6 +120,10 @@ export default async function ClinicSiteLayout({
           label={def.label}
         />
       )}
+      {/* Draft overlay pill — only a verified editor with staged edits ever
+          gets the overlay, so only they ever see this. Hidden in the Studio
+          canvas (its publish bar owns the state there). */}
+      {hasEditorDraft && !isPreview && <DraftPreviewBanner appUrl={appBaseUrl()} />}
       <EditBridgeGate canEdit={canEdit} />
     </>
   )

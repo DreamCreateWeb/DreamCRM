@@ -1,9 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
-import { db } from '@/lib/db'
-import { clinicProfile } from '@/lib/db/schema/platform'
+import { getEffectiveWebsiteProfile } from '@/lib/services/website-draft'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -39,13 +37,14 @@ export default async function WebsitePagesPage() {
   if (ctx.tenantType === 'platform') redirect('/dashboard')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/website')
 
-  const [profile] = await db
-    .select()
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
+  // Two views on purpose: the Live/Not-published pills describe the LIVE site
+  // (raw row — a staged team list hasn't published /team yet), while the copy
+  // forms + search appearance edit the EFFECTIVE (draft-merged) values.
+  const effective = await getEffectiveWebsiteProfile(ctx.organizationId)
+  const profile = effective?.profile
+  const liveProfile = effective?.raw
 
-  if (!profile) {
+  if (!profile || !liveProfile) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-10 max-w-3xl mx-auto">
         <EmptyState
@@ -71,15 +70,15 @@ export default async function WebsitePagesPage() {
     getSeoMeta(ctx.organizationId),
   ])
   const gates = {
-    hasTeam: ((profile.staff as ClinicStaff[] | null) ?? []).length > 0,
+    hasTeam: ((liveProfile.staff as ClinicStaff[] | null) ?? []).length > 0,
     hasBlog: posts.length > 0,
     hasCareers: jobs.length > 0,
     hasDentalPlans: plans.length > 0,
-    hasColoringPages: hasColoringPages(profile),
-    isPro: profile.planTier === 'pro' || profile.planTier === 'premium',
-    selfBooking: profile.selfBookingEnabled !== false,
+    hasColoringPages: hasColoringPages(liveProfile),
+    isPro: liveProfile.planTier === 'pro' || liveProfile.planTier === 'premium',
+    selfBooking: liveProfile.selfBookingEnabled !== false,
   }
-  const templateDef = getSiteTemplate(profile.template)
+  const templateDef = getSiteTemplate(liveProfile.template)
   const index = buildSitePagesIndex({
     ...gates,
     extraPages: templateDef.extraMarketingPages

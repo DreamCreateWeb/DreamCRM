@@ -1734,6 +1734,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
         leadForms: schema.clinicProfile.leadForms,
         copyOverrides: schema.clinicProfile.copyOverrides,
+        websiteDraft: schema.clinicProfile.websiteDraft,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1753,6 +1754,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Backfill a couple of copy overrides (only-when-unset) — the Pages
     // manager then shows real "customized" copy next to template defaults.
     if (!profile?.copyOverrides) patch.copyOverrides = DEMO_COPY_OVERRIDES
+    // Reset any lingering website draft: the demo's content is seeded as
+    // PUBLISHED, and a stray staged edit left by a demo session would
+    // otherwise pin an "unpublished changes" card on the hub forever.
+    if (profile?.websiteDraft) patch.websiteDraft = null
 
     // one-time (2026-06): Acme→Dream Dental — force-refresh the clinic identity
     // on existing demos. backfill-when-null never fires here (these fields were

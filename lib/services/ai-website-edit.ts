@@ -6,6 +6,8 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { CORE_VOICE_RULES } from '@/lib/services/service-library-ai'
 import { incrementAiUsage, getAiUsage } from '@/lib/services/ai-website'
+import { mergeWebsiteDraft } from '@/lib/website-draft'
+import { stageWebsiteValues } from '@/lib/services/website-draft'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
 import type { AiUsageSnapshot } from '@/lib/types/ai-website'
 
@@ -461,12 +463,17 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   const text = instruction.trim()
   if (!text) return { ok: false, error: 'Type what you’d like to change.' }
 
-  const [profile] = await db
+  const [liveProfile] = await db
     .select()
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
-  if (!profile) return { ok: false, error: 'No website found for this clinic.' }
+  if (!liveProfile) return { ok: false, error: 'No website found for this clinic.' }
+  // The AI edits what the OWNER currently sees — the draft-merged view. Its
+  // snapshot, merge guards, and undo `before` all read effective values, and
+  // the patch stages back into the draft (below), so an AI edit behaves
+  // exactly like a hand edit: staged until Publish.
+  const profile = mergeWebsiteDraft(liveProfile, liveProfile.websiteDraft)
 
   // The AI bar spends Claude tokens on every edit, so it's metered against the
   // monthly allowance (editing by hand stays free + uncounted). Gate BEFORE the
@@ -650,8 +657,11 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
 
   // Every edit may have been a suspect-keep (we intentionally wrote nothing) —
   // don't issue an empty UPDATE, but still count the spend + report the guard.
+  // Draftable columns stage to the website draft (publish makes them live);
+  // identity columns (name/phone/hours) write live — same routing as the
+  // Studio's section saves.
   if (Object.keys(patch).length > 0) {
-    await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, orgId))
+    await stageWebsiteValues(orgId, patch as Record<string, unknown>)
   }
   // Count this successful edit against the allowance — best-effort so a counter
   // hiccup never fails an edit that already applied. Return the fresh snapshot
@@ -694,7 +704,9 @@ export async function revertAiWebsiteEdit(
   }
   if (Object.keys(patch).length === 0) return { ok: false, error: 'Nothing to undo.' }
   try {
-    await db.update(clinicProfile).set(patch).where(eq(clinicProfile.organizationId, orgId))
+    // Same routing as the apply: draftable columns walk back inside the
+    // draft, identity columns walk back live.
+    await stageWebsiteValues(orgId, patch)
     return { ok: true }
   } catch {
     return { ok: false, error: 'Could not undo — try again.' }

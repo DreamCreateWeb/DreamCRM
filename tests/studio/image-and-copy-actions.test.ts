@@ -51,6 +51,7 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+import { writtenSet } from '../helpers/website-draft'
 import {
   saveImageField,
   saveInlineField,
@@ -68,7 +69,9 @@ beforeEach(() => {
   }
 })
 
-const profileSet = () => ops.find((o) => o.table === 'clinic_profile')!.set
+// Draft→Publish: image/copy columns stage into the websiteDraft jsonb merge —
+// unwrap so the assertions keep reading flat column values.
+const profileSet = () => writtenSet(ops.find((o) => o.table === 'clinic_profile')!.set)
 
 describe('saveDifferenceVideo — URL-validated single column', () => {
   it('rejects a malformed URL without writing', async () => {

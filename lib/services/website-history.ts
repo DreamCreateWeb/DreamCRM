@@ -1,15 +1,23 @@
 import 'server-only'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { websiteEditHistory } from '@/lib/db/schema/domain'
+import { splitWebsiteValues } from '@/lib/website-draft'
 
 /**
- * Website Studio edit history — the safety net under a Studio where every
- * save goes live instantly. Each save records the previous value of every
- * column it overwrote; "Undo" restores the newest row's columns and deletes
- * the row (a one-way walk back through time — no redo, by design: simple to
+ * Website Studio edit history — the safety net under every Studio save.
+ * Each save records the previous EFFECTIVE value of every column it
+ * overwrote; "Undo" restores the newest row's columns and deletes the row
+ * (a one-way walk back through time — no redo, by design: simple to
  * reason about, impossible to tangle).
+ *
+ * Draft→Publish routing: a normal entry's draftable columns restore into the
+ * `website_draft` blob (undoing a STAGED edit must never push its previous
+ * value straight to the live site); identity columns restore live, matching
+ * where the original save wrote. A publish entry (previous carries the
+ * `__publish` marker) restores LIVE columns — undoing a publish genuinely
+ * reverts the live site, while any edits staged after the publish stay put.
  */
 
 /** Newest rows kept per org — deep-enough history without unbounded growth. */
@@ -73,12 +81,32 @@ export async function undoLastWebsiteEdit(
     .limit(1)
   if (!head) return null
 
-  const previous = (head.previous ?? {}) as Record<string, unknown>
+  const previous = { ...((head.previous ?? {}) as Record<string, unknown>) }
+  const isPublish = previous.__publish === true
+  // Strip markers — they're history metadata, never column names.
+  for (const key of Object.keys(previous)) {
+    if (key.startsWith('__')) delete previous[key]
+  }
   if (Object.keys(previous).length > 0) {
-    await db
-      .update(clinicProfile)
-      .set({ ...(previous as Partial<typeof clinicProfile.$inferInsert>), updatedAt: new Date() })
-      .where(eq(clinicProfile.organizationId, organizationId))
+    if (isPublish) {
+      // Undo a publish: put the prior values back on the LIVE columns.
+      await db
+        .update(clinicProfile)
+        .set({ ...(previous as Partial<typeof clinicProfile.$inferInsert>), updatedAt: new Date() })
+        .where(eq(clinicProfile.organizationId, organizationId))
+    } else {
+      // Undo a save: draftable columns walk back inside the draft, identity
+      // columns walk back live — exactly where the save wrote them.
+      const { staged, direct } = splitWebsiteValues(previous)
+      const update: Record<string, unknown> = { ...direct, updatedAt: new Date() }
+      if (Object.keys(staged).length > 0) {
+        update.websiteDraft = sql`COALESCE(${clinicProfile.websiteDraft}, '{}'::jsonb) || ${JSON.stringify(staged)}::jsonb`
+      }
+      await db
+        .update(clinicProfile)
+        .set(update as Partial<typeof clinicProfile.$inferInsert>)
+        .where(eq(clinicProfile.organizationId, organizationId))
+    }
   }
   await db.delete(websiteEditHistory).where(eq(websiteEditHistory.id, head.id))
   const next = await getLastWebsiteEdit(organizationId)

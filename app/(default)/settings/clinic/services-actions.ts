@@ -10,6 +10,8 @@ import {
   submitNewLibraryEntry,
 } from '@/lib/services/service-library'
 import { customizeServiceForClinic } from '@/lib/services/service-library-ai'
+import { mergeWebsiteDraft } from '@/lib/website-draft'
+import { stageWebsiteValues } from '@/lib/services/website-draft'
 import type {
   ClinicService,
   ClinicServiceCustomization,
@@ -47,14 +49,17 @@ async function loadOwnerCtxAndProfile(): Promise<
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
     return { ok: false, error: 'Only owners and admins can edit services' }
   }
-  const [profile] = await db
+  const [liveProfile] = await db
     .select()
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
-  if (!profile) {
+  if (!liveProfile) {
     return { ok: false, error: 'Clinic profile not found' }
   }
+  // The picker edits what the owner SEES — the draft-merged view. Basing the
+  // mutation on the live column would silently drop services staged earlier.
+  const profile = mergeWebsiteDraft(liveProfile, liveProfile.websiteDraft)
   const services = Array.isArray(profile.services)
     ? (profile.services as ClinicService[])
     : []
@@ -62,11 +67,12 @@ async function loadOwnerCtxAndProfile(): Promise<
 }
 
 async function writeServices(ctx: TenantContext, services: ClinicService[]) {
-  await db
-    .update(clinicProfile)
-    .set({ services, updatedAt: new Date() })
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
+  // Services are website content → they STAGE to the draft (Publish makes
+  // them live), same routing as every Studio section save.
+  await stageWebsiteValues(ctx.organizationId, { services })
   revalidatePath('/settings/clinic')
+  revalidatePath('/website')
+  revalidatePath('/website/content')
   // 'layout' cascades to the services index AND every /services/[serviceSlug]
   // detail page — editing/regenerating a service left those detail pages stale.
   revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { mergeWebsiteDraft } from '@/lib/website-draft'
 import { listLeads, getNewLeadsSince } from '@/lib/services/leads'
 import { resolveLeadForm, LEAD_FORM_LABELS, type LeadFormsConfig, type LeadFormKey } from '@/lib/types/lead-forms'
 import { PageHeader } from '@/components/ui/page-header'
@@ -30,14 +31,18 @@ export default async function WebsiteFormsPage() {
   if (ctx.tenantType === 'platform') redirect('/dashboard')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/website')
 
-  const [profile] = await db
+  // Draft merge so a staged form edit reads back as saved (the chat toggle is
+  // functional, not content — it stays live and never stages).
+  const [row] = await db
     .select({
       leadForms: clinicProfile.leadForms,
       chatWidgetEnabled: clinicProfile.chatWidgetEnabled,
+      websiteDraft: clinicProfile.websiteDraft,
     })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
+  const profile = row ? mergeWebsiteDraft(row, row.websiteDraft) : undefined
 
   if (!profile) {
     return (

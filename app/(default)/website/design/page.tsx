@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
+import { mergeWebsiteDraft } from '@/lib/website-draft'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -29,7 +30,9 @@ export default async function WebsiteDesignPage() {
   if (ctx.tenantType === 'platform') redirect('/dashboard')
   if (ctx.role !== 'owner' && ctx.role !== 'admin') redirect('/website')
 
-  const [profile] = await db
+  // Narrow select + draft merge: the design surface shows what the editor
+  // has staged (a saved-but-unpublished design/color reads back as current).
+  const [row] = await db
     .select({
       template: clinicProfile.template,
       brandColor: clinicProfile.brandColor,
@@ -37,10 +40,12 @@ export default async function WebsiteDesignPage() {
       heroImageUrl2: clinicProfile.heroImageUrl2,
       differenceVideoUrl: clinicProfile.differenceVideoUrl,
       imagePositions: clinicProfile.imagePositions,
+      websiteDraft: clinicProfile.websiteDraft,
     })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
+  const profile = row ? mergeWebsiteDraft(row, row.websiteDraft) : undefined
 
   if (!profile) {
     return (

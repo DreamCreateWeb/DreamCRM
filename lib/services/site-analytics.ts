@@ -5,6 +5,7 @@ import { sitePageview } from '@/lib/db/schema/domain'
 import { lead } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { resolveSeoMeta, compactSeoMeta, type PageSeoMeta } from '@/lib/types/seo-meta'
+import { stageWebsiteValues } from '@/lib/services/website-draft'
 
 /**
  * Public-site traffic — the clinic's first real "how many people visit my
@@ -175,30 +176,31 @@ export async function getSiteTraffic(organizationId: string, days = 30): Promise
 // (every page key present) so the editor + each page's generateMetadata can
 // index without guards.
 
-/** Read the clinic's per-page SEO overrides as a full resolved map. */
+/** Read the clinic's per-page SEO overrides as a full resolved map — the
+ *  EFFECTIVE (draft-merged) view, since this feeds the editing form. */
 export async function getSeoMeta(organizationId: string): Promise<PageSeoMeta> {
   const [row] = await db
-    .select({ seoMeta: clinicProfile.seoMeta })
+    .select({ seoMeta: clinicProfile.seoMeta, websiteDraft: clinicProfile.websiteDraft })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, organizationId))
     .limit(1)
-  return resolveSeoMeta(row?.seoMeta ?? null)
+  const draft = (row?.websiteDraft ?? null) as Record<string, unknown> | null
+  const effective = draft && 'seoMeta' in draft ? draft.seoMeta : row?.seoMeta
+  return resolveSeoMeta(effective ?? null)
 }
 
 /**
  * Persist per-page SEO overrides. The form submits the full map; we sanitize +
  * compact it (only keys with a set field are stored; all-empty → null) so junk
- * can't poison the column. Returns the re-resolved map.
+ * can't poison the column. Stages to the website draft — meta goes live on
+ * Publish, like every other website edit. Returns the re-resolved map.
  */
 export async function updateSeoMeta(
   organizationId: string,
   meta: PageSeoMeta,
 ): Promise<PageSeoMeta> {
   const cleaned = compactSeoMeta(resolveSeoMeta(meta))
-  await db
-    .update(clinicProfile)
-    .set({ seoMeta: cleaned, updatedAt: new Date() })
-    .where(eq(clinicProfile.organizationId, organizationId))
+  await stageWebsiteValues(organizationId, { seoMeta: cleaned })
   return resolveSeoMeta(cleaned)
 }
 

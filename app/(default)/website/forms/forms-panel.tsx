@@ -168,7 +168,7 @@ function FormBuilderCard({ form }: { form: FormCard }) {
           >
             {pending ? 'Saving…' : 'Save form'}
           </button>
-          {saved && !dirty && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved ✓ live</span>}
+          {saved && !dirty && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved ✓ — publish to go live</span>}
           {error && <span className="text-sm text-rose-600 dark:text-rose-400">{error}</span>}
         </div>
       </form>

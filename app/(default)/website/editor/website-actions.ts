@@ -21,6 +21,13 @@ import {
   clean,
 } from '@/lib/clinic-content-parse'
 import { recordWebsiteEdit, undoLastWebsiteEdit } from '@/lib/services/website-history'
+import { mergeWebsiteDraft, WEBSITE_COLUMN_LABELS } from '@/lib/website-draft'
+import {
+  stageWebsiteValues,
+  publishWebsiteDraft,
+  discardWebsiteDraft,
+  getWebsiteDraftStatus,
+} from '@/lib/services/website-draft'
 import { cookies } from 'next/headers'
 import { isSiteTemplateId } from '@/lib/site-templates/catalog'
 import { TEMPLATE_PREVIEW_COOKIE } from '@/lib/site-templates/resolve'
@@ -55,46 +62,18 @@ async function gate(): Promise<
   return { ok: true, ctx }
 }
 
-// Owner-readable labels for the undo history ("Undo: About your practice").
-// Single-column saves get their column's label; multi-column saves join them.
-const COLUMN_LABELS: Record<string, string> = {
-  about: 'About your practice',
-  stats: 'Trust stats',
-  staff: 'Meet the team',
-  officePhotos: 'Office photos',
-  faq: 'FAQ',
-  acceptedInsuranceCarriers: 'Insurance carriers',
-  paymentMethods: 'Payment methods',
-  financingPartners: 'Financing partners',
-  cancellationPolicy: 'Cancellation policy',
-  differenceChips: '“Why us” highlights',
-  leadForms: 'Form fields',
-  hours: 'Office hours',
-  differenceVideoUrl: 'Intro video',
-  coloringPages: 'Coloring pages',
-  heroImageUrl: 'Hero image',
-  heroImageUrl2: 'Second hero image',
-  logoUrl: 'Logo',
-  brandColor: 'Brand color',
-  tagline: 'Hero tagline',
-  copyOverrides: 'Text edit',
-  imagePositions: 'Photo focus point',
-  template: 'Site design',
-  addressLine1: 'Address',
-  addressLine2: 'Address',
-  city: 'Address',
-  state: 'Address',
-  postalCode: 'Address',
-}
-
+// Owner-readable labels for the undo history ("Undo: About your practice") —
+// the shared registry in lib/website-draft.ts, so the hub publish card and
+// the history speak the same names.
 function editLabel(set: Partial<typeof clinicProfile.$inferInsert>): string {
-  const labels = Object.keys(set).map((k) => COLUMN_LABELS[k] ?? k)
+  const labels = Object.keys(set).map((k) => WEBSITE_COLUMN_LABELS[k] ?? k)
   return Array.from(new Set(labels)).slice(0, 3).join(' + ') || 'Website edit'
 }
 
-/** Scoped column write + revalidate the editor and the whole public-site
- *  subtree. Records the overwritten values in the undo history first —
- *  best-effort: a history hiccup must never block a save. */
+/** Scoped section save: draftable columns STAGE to the website draft (publish
+ *  makes them live), identity columns write live — routed by
+ *  stageWebsiteValues. Records the overwritten EFFECTIVE values in the undo
+ *  history first — best-effort: a history hiccup must never block a save. */
 async function writeSection(
   ctx: TenantContext,
   set: Partial<typeof clinicProfile.$inferInsert>,
@@ -106,24 +85,80 @@ async function writeSection(
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
       .limit(1)
     if (current) {
+      // Previous = what the editor SAW (draft-merged), so undo walks back one
+      // visible step — not to a live value the draft had already replaced.
+      const effective = mergeWebsiteDraft(current, current.websiteDraft) as Record<string, unknown>
       const previous: Record<string, unknown> = {}
       for (const key of Object.keys(set)) {
-        previous[key] = (current as Record<string, unknown>)[key] ?? null
+        previous[key] = effective[key] ?? null
       }
       await recordWebsiteEdit(ctx.organizationId, editLabel(set), previous)
     }
   } catch {
     /* history is a safety net, not a gate */
   }
-  await db
-    .update(clinicProfile)
-    .set({ ...set, updatedAt: new Date() })
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
+  await stageWebsiteValues(ctx.organizationId, set as Record<string, unknown>)
   revalidatePath('/website')
   revalidatePath('/website/editor')
   // 'layout' revalidates the entire /site/[slug] subtree (home + /faq +
   // /insurance + /team + /payment-financing + …) in one call.
   revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
+}
+
+/** Revalidate every surface a publish/discard changes. */
+function revalidateWebsite(slug: string) {
+  revalidatePath('/website')
+  revalidatePath('/website/editor')
+  revalidatePath(`/site/${slug}`, 'layout')
+}
+
+/**
+ * Publish: apply everything staged in the website draft to the live site.
+ * One undo-history entry ("Published site changes") restores the prior live
+ * values, so even a publish is reversible.
+ */
+export async function publishWebsiteAction(): Promise<
+  { ok: true; published: number } | { ok: false; error: string }
+> {
+  const gated = await gate()
+  if (!gated.ok) return gated
+  try {
+    const res = await publishWebsiteDraft(gated.ctx.organizationId)
+    revalidateWebsite(gated.ctx.organizationSlug)
+    return { ok: true, published: res.published }
+  } catch {
+    return { ok: false, error: 'Could not publish — try again' }
+  }
+}
+
+/** Fresh draft state for the Studio's publish bar (refetched after saves). */
+export async function getWebsiteDraftStatusAction(): Promise<
+  | { ok: true; count: number; changes: { column: string; label: string }[] }
+  | { ok: false; error: string }
+> {
+  const gated = await gate()
+  if (!gated.ok) return gated
+  try {
+    const s = await getWebsiteDraftStatus(gated.ctx.organizationId)
+    return { ok: true, count: s.count, changes: s.changes }
+  } catch {
+    return { ok: false, error: 'Could not load the draft state' }
+  }
+}
+
+/** Throw away everything staged; the live site was never touched. */
+export async function discardWebsiteAction(): Promise<
+  { ok: true; discarded: number } | { ok: false; error: string }
+> {
+  const gated = await gate()
+  if (!gated.ok) return gated
+  try {
+    const res = await discardWebsiteDraft(gated.ctx.organizationId)
+    revalidateWebsite(gated.ctx.organizationSlug)
+    return { ok: true, discarded: res.discarded }
+  } catch {
+    return { ok: false, error: 'Could not discard the draft — try again' }
+  }
 }
 
 /**
@@ -406,12 +441,16 @@ export async function saveLeadForm(formData: FormData): Promise<SectionResult> {
   }
 
   return runSection(async (ctx) => {
+    // Merge over the EFFECTIVE map (draft-first) — merging over the live
+    // column would silently drop a form staged earlier in the draft.
     const [row] = await db
-      .select({ leadForms: clinicProfile.leadForms })
+      .select({ leadForms: clinicProfile.leadForms, websiteDraft: clinicProfile.websiteDraft })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
       .limit(1)
-    const current = (row?.leadForms as Record<string, unknown> | null) ?? {}
+    const draft = (row?.websiteDraft ?? null) as Record<string, unknown> | null
+    const effective = draft && 'leadForms' in draft ? draft.leadForms : row?.leadForms
+    const current = (effective as Record<string, unknown> | null) ?? {}
     await writeSection(ctx, {
       leadForms: { ...current, [key]: clean },
     } as Partial<typeof clinicProfile.$inferInsert>)
@@ -485,12 +524,16 @@ export async function saveImageField(
     return { ok: false, error: 'That image cannot be edited here' }
   }
   return runSection(async (ctx) => {
+    // Merge over the EFFECTIVE map (draft-first) so a focal point staged
+    // earlier in the draft is never dropped by this save.
     const [row] = await db
-      .select({ imagePositions: clinicProfile.imagePositions })
+      .select({ imagePositions: clinicProfile.imagePositions, websiteDraft: clinicProfile.websiteDraft })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
       .limit(1)
-    const current = (row?.imagePositions as Record<string, string> | null) ?? {}
+    const draft = (row?.websiteDraft ?? null) as Record<string, unknown> | null
+    const effective = draft && 'imagePositions' in draft ? draft.imagePositions : row?.imagePositions
+    const current = (effective as Record<string, string> | null) ?? {}
     const next: Record<string, string> = { ...current }
     const v = typeof url === 'string' && url.trim() ? url.trim() : null
     const pos = typeof position === 'string' && position.trim() ? position.trim() : null
@@ -527,12 +570,16 @@ export async function saveInlineField(field: string, value: string): Promise<Sec
     const key = field.slice(5).trim()
     if (!key) return { ok: false, error: 'Invalid copy key' }
     return runSection(async (ctx) => {
+      // Merge over the EFFECTIVE map (draft-first) — a copy edit staged
+      // earlier in the draft must survive this one.
       const [row] = await db
-        .select({ copyOverrides: clinicProfile.copyOverrides })
+        .select({ copyOverrides: clinicProfile.copyOverrides, websiteDraft: clinicProfile.websiteDraft })
         .from(clinicProfile)
         .where(eq(clinicProfile.organizationId, ctx.organizationId))
         .limit(1)
-      const current = (row?.copyOverrides as Record<string, string> | null) ?? {}
+      const draft = (row?.websiteDraft ?? null) as Record<string, unknown> | null
+      const effective = draft && 'copyOverrides' in draft ? draft.copyOverrides : row?.copyOverrides
+      const current = (effective as Record<string, string> | null) ?? {}
       const next: Record<string, string> = { ...current }
       const v = typeof value === 'string' ? value.trim() : ''
       if (v) next[key] = v

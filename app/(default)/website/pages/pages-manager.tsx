@@ -197,7 +197,7 @@ function CopyField({
           {pending ? 'Saving…' : 'Save'}
         </button>
       </div>
-      {saved && !dirty && <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">Saved ✓ live</p>}
+      {saved && !dirty && <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">Saved ✓ — publish to go live</p>}
       {error && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       {!value && savedValue && !dirty && null}
     </div>

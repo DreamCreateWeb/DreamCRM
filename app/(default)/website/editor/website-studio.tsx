@@ -51,6 +51,9 @@ import {
   saveAddress,
   saveTemplate,
   undoLastEditAction,
+  publishWebsiteAction,
+  discardWebsiteAction,
+  getWebsiteDraftStatusAction,
   type SectionResult,
 } from './website-actions'
 import { isValidVideoUrl } from '@/lib/website-url'
@@ -68,6 +71,8 @@ interface Props {
   pages: StudioPage[]
   /** Label of the newest undo-history entry (null = nothing to undo yet). */
   lastEditLabel: string | null
+  /** What's staged and unpublished on load — arms the publish bar. */
+  initialDraftStatus: { count: number; changes: { column: string; label: string }[] }
   /** Deep-link: start the canvas previewing this template (validated by the
    *  page; the existing Apply/Discard bar takes over). */
   initialPreviewTemplate?: string | null
@@ -202,9 +207,22 @@ const btnSecondary =
  * half: it calls the server actions (persistence is always gated server-side),
  * reloads the canvas on success, and renders the image / section modals on top.
  */
-export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, pages, lastEditLabel, initialPreviewTemplate = null, initialPage = null }: Props) {
+export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, initialAiUsage, pages, lastEditLabel, initialDraftStatus, initialPreviewTemplate = null, initialPage = null }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [status, setStatus] = useState<Status>('idle')
+  // Draft→Publish: what's staged and unpublished. Server-seeded; refetched
+  // after every successful save/undo so the Publish button's count stays
+  // honest without threading a column name through every save path.
+  const [draftStatus, setDraftStatus] = useState(initialDraftStatus)
+  const [publishBusy, setPublishBusy] = useState(false)
+  const refreshDraftStatus = async () => {
+    try {
+      const s = await getWebsiteDraftStatusAction()
+      if (s.ok) setDraftStatus({ count: s.count, changes: s.changes })
+    } catch {
+      /* the next save refreshes it */
+    }
+  }
   // The undo-history head. Server-seeded; any successful save arms it (the
   // exact label is only known server-side, so post-save it reads generically
   // until the next undo response refreshes it).
@@ -340,6 +358,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     if (res.ok) {
       setPreviewingId(null)
       setUndoLabel('your last change')
+      void refreshDraftStatus()
       reloadFrame()
     } else {
       setStatus('error')
@@ -479,6 +498,8 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
     // previous edit. runTour bumps the token itself, but the single-jump and
     // follow-off branches below don't — so cancel here to cover every path.
     cancelTour()
+    // AI edits stage to the draft like hand edits — keep the publish bar honest.
+    void refreshDraftStatus()
     if (!opts.follow) {
       reloadFrame()
       return
@@ -514,6 +535,8 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
       setStatus('saved')
       // Every successful save pushes a new undo-history head server-side.
       setUndoLabel('your last change')
+      // …and (usually) stages a draft change — refresh the publish bar.
+      void refreshDraftStatus()
       // Fire any pre-reload hook (e.g. the inline saved-tick) while the canvas
       // still holds the edited element, before the reload re-renders it.
       onOkBeforeReload?.()
@@ -627,7 +650,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {status === 'saving' && <span className="text-xs text-gray-300">Saving…</span>}
-          {status === 'saved' && <span className="text-xs text-emerald-400">Saved ✓ live</span>}
+          {status === 'saved' && <span className="text-xs text-emerald-400">Saved ✓</span>}
           {status === 'error' && (
             <span className="text-xs text-rose-400 max-w-[16rem] truncate">{errorMsg ?? 'Could not save'}</span>
           )}
@@ -660,6 +683,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
               setUndoBusy(false)
               if (res.ok) {
                 setUndoLabel(res.more ? (res.nextLabel ?? 'previous change') : null)
+                void refreshDraftStatus()
                 reloadFrame()
               } else {
                 setStatus('error')
@@ -773,6 +797,68 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
           <ActionButton variant="secondary" size="sm" href={siteUrl} target="_blank">
             View live ↗
           </ActionButton>
+          {/* Draft→Publish — saves stage to a draft; this is the one button
+              that updates the live site. Count refreshes after every save. */}
+          {draftStatus.count > 0 ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (publishBusy) return
+                  setPublishBusy(true)
+                  const res = await publishWebsiteAction()
+                  setPublishBusy(false)
+                  if (res.ok) {
+                    setDraftStatus({ count: 0, changes: [] })
+                    setUndoLabel('Published site changes')
+                    reloadFrame()
+                  } else {
+                    setStatus('error')
+                    setErrorMsg(res.error)
+                  }
+                }}
+                disabled={publishBusy}
+                title={`Make ${draftStatus.count} saved change${draftStatus.count === 1 ? '' : 's'} live: ${draftStatus.changes
+                  .slice(0, 6)
+                  .map((c) => c.label)
+                  .join(', ')}`}
+                className="inline-flex items-center gap-1.5 rounded-md bg-teal-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-400 transition-colors disabled:opacity-60"
+              >
+                {publishBusy ? 'Publishing…' : `Publish ${draftStatus.count} change${draftStatus.count === 1 ? '' : 's'}`}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (publishBusy) return
+                  const ok = await confirmUndo({
+                    title: 'Discard your unpublished changes?',
+                    message: `Throws away ${draftStatus.count} saved-but-unpublished change${draftStatus.count === 1 ? '' : 's'}. Your live site was never touched, so it stays exactly as patients see it now.`,
+                    confirmLabel: 'Discard draft',
+                  })
+                  if (!ok) return
+                  setPublishBusy(true)
+                  const res = await discardWebsiteAction()
+                  setPublishBusy(false)
+                  if (res.ok) {
+                    setDraftStatus({ count: 0, changes: [] })
+                    reloadFrame()
+                  } else {
+                    setStatus('error')
+                    setErrorMsg(res.error)
+                  }
+                }}
+                disabled={publishBusy}
+                title="Discard the unpublished draft"
+                className="rounded-md px-2 py-1.5 text-xs text-gray-300 hover:text-white hover:bg-gray-800 transition-colors disabled:opacity-40"
+              >
+                Discard
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-gray-400 whitespace-nowrap" title="Everything you've saved is on your live site">
+              Published ✓
+            </span>
+          )}
         </div>
       </div>
 

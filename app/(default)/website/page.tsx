@@ -1,9 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
-import { db } from '@/lib/db'
-import { clinicProfile } from '@/lib/db/schema/platform'
+import { getEffectiveWebsiteProfile, getWebsiteDraftStatus } from '@/lib/services/website-draft'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { getSitePerformance } from '@/lib/services/site-analytics'
 import { getBlogStats } from '@/lib/services/blog'
@@ -21,6 +19,7 @@ import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
+import PublishCard from './publish-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { NavIcon } from '@/components/ui/nav-icons'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
@@ -48,13 +47,13 @@ export default async function WebsiteHubPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/dashboard')
 
-  const [profile] = await db
-    .select()
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    .limit(1)
+  // Effective (draft-merged) profile for editing-progress stats; the raw row
+  // for what actually serves (live pages, domain state).
+  const effectiveLoad = await getEffectiveWebsiteProfile(ctx.organizationId)
+  const profile = effectiveLoad?.profile
+  const liveProfile = effectiveLoad?.raw
 
-  if (!profile) {
+  if (!profile || !liveProfile) {
     return (
       <div className="px-4 sm:px-6 lg:px-8 py-10 max-w-3xl mx-auto">
         <EmptyState
@@ -92,19 +91,24 @@ export default async function WebsiteHubPage() {
   ])
 
   const completeness = contentCompleteness(profile)
-  // The real live-page count — same index the Pages manager renders.
+  // What's staged and not yet live — the publish card (owner/admin only).
+  const draftStatus = canEdit
+    ? await getWebsiteDraftStatus(ctx.organizationId).catch(() => ({ count: 0, changes: [] }))
+    : { count: 0, changes: [] }
+  // The real live-page count — same index the Pages manager renders; the RAW
+  // row on purpose (a staged team list hasn't published /team yet).
   const pageGates = {
-    hasTeam: ((profile.staff as ClinicStaff[] | null) ?? []).length > 0,
+    hasTeam: ((liveProfile.staff as ClinicStaff[] | null) ?? []).length > 0,
     hasBlog: (blogStats?.published ?? 0) > 0,
     hasCareers: (careersStats?.openRoles ?? 0) > 0,
     hasDentalPlans: activePlans.length > 0,
-    hasColoringPages: hasColoringPages(profile),
+    hasColoringPages: hasColoringPages(liveProfile),
     isPro,
-    selfBooking: profile.selfBookingEnabled !== false,
+    selfBooking: liveProfile.selfBookingEnabled !== false,
   }
   const livePages = buildSitePagesIndex({
     ...pageGates,
-    extraPages: templateDefExtras(profile.template, pageGates),
+    extraPages: templateDefExtras(liveProfile.template, pageGates),
   }).filter((pg) => pg.live).length
   const domain = (profile.customDomainStatus as CustomDomainStatus | null) ?? null
   const domainPill: { tone: Tone; label: string } = domain
@@ -206,12 +210,17 @@ export default async function WebsiteHubPage() {
               <StatusPill tone={domainPill.tone} label={domainPill.label} />
             </div>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              Your site is live — every save in the editor publishes instantly.
+              Your site is live — edits save to a draft, and Publish updates it when you’re ready.
               {lastEdit?.label ? <> Last edit: {lastEdit.label}.</> : null}
             </p>
           </div>
         </div>
       </div>
+
+      {/* ── Unpublished changes — the Publish button's home on the hub ────── */}
+      {canEdit && draftStatus.count > 0 && (
+        <PublishCard count={draftStatus.count} labels={draftStatus.changes.map((c) => c.label)} />
+      )}
 
       {/* ── Go-live checklist — hides once everything's done ─────────────── */}
       {showChecklist && (
