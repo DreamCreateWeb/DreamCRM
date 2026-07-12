@@ -25,6 +25,6 @@ export async function saveSeoMetaAction(raw: unknown): Promise<SaveSeoMetaResult
   const cleaned: PageSeoMeta = resolveSeoMeta(raw)
   await updateSeoMeta(ctx.organizationId, cleaned)
 
-  revalidatePath('/settings/seo')
+  revalidatePath('/website/seo')
   return { ok: true }
 }

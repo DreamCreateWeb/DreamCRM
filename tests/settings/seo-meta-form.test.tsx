@@ -12,14 +12,14 @@ import { render, fireEvent, waitFor } from '@testing-library/react'
  */
 
 const saveSeoMetaAction = vi.fn(async (_draft: unknown) => ({ ok: true as const }))
-vi.mock('@/app/(default)/settings/seo/actions', () => ({
+vi.mock('@/app/(default)/website/seo/meta-actions', () => ({
   saveSeoMetaAction: (d: unknown) => saveSeoMetaAction(d),
 }))
 
 // The form is wrapped in SettingsTabs, which reaches for useSearchParams.
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
-import SeoMetaForm from '@/app/(default)/settings/seo/seo-meta-form'
+import SeoMetaForm from '@/app/(default)/website/seo/seo-meta-form'
 import { SEO_PAGE_KEYS, type PageSeoMeta, type SeoPageKey } from '@/lib/types/seo-meta'
 
 function emptyMeta(): PageSeoMeta {

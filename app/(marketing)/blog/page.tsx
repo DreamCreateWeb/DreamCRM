@@ -24,7 +24,7 @@ export default async function MarketingBlogPage() {
   // (matching the /calendar → /appointments convention). Platform staff and
   // signed-out visitors see the public marketing blog.
   const ctx = await getTenantContext()
-  if (ctx?.tenantType === 'clinic') redirect('/posts')
+  if (ctx?.tenantType === 'clinic') redirect('/website/blog')
 
   const posts = await getMarketingPosts()
 

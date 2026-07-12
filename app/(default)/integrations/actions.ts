@@ -313,7 +313,7 @@ export async function setPreferredGbpAccountAction(
   if (r.ok) {
     revalidatePath('/integrations/google-business')
     revalidatePath('/reviews')
-    revalidatePath('/seo')
+    revalidatePath('/website/seo')
   }
   return r
 }

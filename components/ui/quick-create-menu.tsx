@@ -35,7 +35,7 @@ const ENTRIES: QuickCreateEntry[] = [
   { module: 'appointments', label: 'New booking', href: '/appointments?new=1', matchPath: '/appointments' },
   { module: 'patients', label: 'New patient', href: '/patients?new=1', matchPath: '/patients' },
   { module: 'recall', label: 'New campaign', href: '/marketing/campaigns' },
-  { module: 'blog', label: 'New post', href: '/posts' },
+  { module: 'blog', label: 'New post', href: '/website/blog' },
 ]
 
 export default function QuickCreateMenu({ moduleIds }: { moduleIds: string[] }) {

@@ -153,12 +153,12 @@ const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
     desc: 'Featured reviews are managed in the Reviews module now. Patients leave real reviews on Google, and your best ones (4★ and up) show up here automatically — no more typing a quote by hand. Hide or manage what\'s featured from there.',
   },
   blog: {
-    href: '/posts',
+    href: '/website/blog',
     cta: 'Open the blog manager',
     desc: 'Your blog posts — drafts, scheduling, and publishing — live in the blog manager, which has the full editor and a publishing calendar. Anything you publish there appears on your site automatically.',
   },
   careers: {
-    href: '/careers',
+    href: '/website/careers',
     cta: 'Open the careers manager',
     desc: 'Your open roles and applicants live in the careers manager. Post, edit, or close roles there; published roles appear on your site (and Google for Jobs) automatically.',
   },

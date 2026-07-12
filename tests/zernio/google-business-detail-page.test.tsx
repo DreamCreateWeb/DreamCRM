@@ -112,7 +112,7 @@ describe('Google Business detail page — content', () => {
     const reviews = screen.getByRole('link', { name: /Reviews/i }) as HTMLAnchorElement
     expect(reviews.getAttribute('href')).toBe('/reviews/received')
     const search = screen.getByRole('link', { name: /Local search/i }) as HTMLAnchorElement
-    expect(search.getAttribute('href')).toBe('/seo')
+    expect(search.getAttribute('href')).toBe('/website/seo')
   })
 
   it('disconnected → shows "what you get" + the connect control (new tab)', async () => {

@@ -192,7 +192,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     keywords: ['invoices', 'receipts', 'past charges', 'history'],
   },
   {
-    surface: 'clinic', href: '/settings/seo', page: 'Search appearance',
+    surface: 'clinic', href: '/website/seo#meta', page: 'Search appearance',
     tab: 'seo', sub: 'meta', label: 'Search appearance (SEO)',
     keywords: ['seo', 'meta', 'title', 'description', 'google', 'search results', 'snippet'],
   },

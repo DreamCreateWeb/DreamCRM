@@ -61,8 +61,8 @@ export async function createJobAction(formData: FormData) {
   const input = parseJobForm(formData)
   if (!input.title) throw new Error('Title is required')
   await createJob(ctx.organizationId, input)
-  revalidatePath('/careers')
-  redirect('/careers')
+  revalidatePath('/website/careers')
+  redirect('/website/careers')
 }
 
 export async function updateJobAction(formData: FormData) {
@@ -72,30 +72,30 @@ export async function updateJobAction(formData: FormData) {
   const input = parseJobForm(formData)
   if (!input.title) throw new Error('Title is required')
   await updateJob(ctx.organizationId, id, input)
-  revalidatePath('/careers')
-  redirect('/careers')
+  revalidatePath('/website/careers')
+  redirect('/website/careers')
 }
 
 export async function setJobStatusAction(id: string, status: JobStatus) {
   const ctx = await ensureClinicAdmin()
   await setJobStatus(ctx.organizationId, id, status)
-  revalidatePath('/careers')
+  revalidatePath('/website/careers')
 }
 
 export async function deleteJobAction(id: string) {
   const ctx = await ensureClinicAdmin()
   await deleteJob(ctx.organizationId, id)
-  revalidatePath('/careers')
+  revalidatePath('/website/careers')
 }
 
 export async function setApplicationStatusAction(id: string, status: ApplicationStatus) {
   const ctx = await ensureClinicAdmin()
   await setApplicationStatus(ctx.organizationId, id, status)
-  revalidatePath('/careers')
+  revalidatePath('/website/careers')
 }
 
 export async function updateApplicationNotesAction(id: string, notes: string | null, rating: number | null) {
   const ctx = await ensureClinicAdmin()
   await updateApplicationNotes(ctx.organizationId, id, { notes, rating })
-  revalidatePath('/careers')
+  revalidatePath('/website/careers')
 }

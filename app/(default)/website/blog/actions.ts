@@ -37,8 +37,8 @@ export async function createBlogPostAction() {
   const ctx = await requireTenant()
   ensureClinicAdmin(ctx)
   const post = await createBlankBlogPost(ctx.organizationId)
-  revalidatePath('/posts')
-  redirect(`/posts/${post.id}`)
+  revalidatePath('/website/blog')
+  redirect(`/website/blog/${post.id}`)
 }
 
 /** "Draft with AI" — create an empty draft and open the editor with the AI
@@ -47,8 +47,8 @@ export async function createAiBlogPostAction() {
   const ctx = await requireTenant()
   ensureClinicAdmin(ctx)
   const post = await createBlankBlogPost(ctx.organizationId)
-  revalidatePath('/posts')
-  redirect(`/posts/${post.id}?ai=1`)
+  revalidatePath('/website/blog')
+  redirect(`/website/blog/${post.id}?ai=1`)
 }
 
 export async function updateBlogPostAction(id: string, input: BlogPostInputT) {
@@ -56,8 +56,8 @@ export async function updateBlogPostAction(id: string, input: BlogPostInputT) {
   ensureClinicAdmin(ctx)
   const data = BlogPostInput.parse(input)
   const row = await updateBlogPost(ctx.organizationId, id, data)
-  revalidatePath('/posts')
-  revalidatePath(`/posts/${id}`)
+  revalidatePath('/website/blog')
+  revalidatePath(`/website/blog/${id}`)
   return row
 }
 
@@ -72,8 +72,8 @@ export async function publishBlogPostAction(id: string): Promise<PublishResult> 
     if (err instanceof BlogPublishError) return { ok: false, error: err.message }
     throw err
   }
-  revalidatePath('/posts')
-  revalidatePath(`/posts/${id}`)
+  revalidatePath('/website/blog')
+  revalidatePath(`/website/blog/${id}`)
   return { ok: true }
 }
 
@@ -81,16 +81,16 @@ export async function unpublishBlogPostAction(id: string) {
   const ctx = await requireTenant()
   ensureClinicAdmin(ctx)
   await unpublishBlogPost(ctx.organizationId, id)
-  revalidatePath('/posts')
-  revalidatePath(`/posts/${id}`)
+  revalidatePath('/website/blog')
+  revalidatePath(`/website/blog/${id}`)
 }
 
 export async function archiveBlogPostAction(id: string) {
   const ctx = await requireTenant()
   ensureClinicAdmin(ctx)
   await archiveBlogPost(ctx.organizationId, id)
-  revalidatePath('/posts')
-  redirect('/posts')
+  revalidatePath('/website/blog')
+  redirect('/website/blog')
 }
 
 // ── AI (clinician-gated — never publishes) ──────────────────────────────────
@@ -135,8 +135,8 @@ export async function createTopicStubsAction(
   ensureClinicAdmin(ctx)
   if (!Array.isArray(ideas) || ideas.length === 0) return { created: 0 }
   const created = await createTopicStubs(ctx.organizationId, ideas.slice(0, 12))
-  revalidatePath('/posts')
-  revalidatePath('/posts/calendar')
+  revalidatePath('/website/blog')
+  revalidatePath('/website/blog/calendar')
   return { created }
 }
 
@@ -149,9 +149,9 @@ export async function scheduleBlogPostAction(id: string, scheduledForISO: string
     if (err instanceof BlogPublishError) return { ok: false, error: err.message }
     throw err
   }
-  revalidatePath('/posts')
-  revalidatePath('/posts/calendar')
-  revalidatePath(`/posts/${id}`)
+  revalidatePath('/website/blog')
+  revalidatePath('/website/blog/calendar')
+  revalidatePath(`/website/blog/${id}`)
   return { ok: true }
 }
 
@@ -159,9 +159,9 @@ export async function unscheduleBlogPostAction(id: string) {
   const ctx = await requireTenant()
   ensureClinicAdmin(ctx)
   await unscheduleBlogPost(ctx.organizationId, id)
-  revalidatePath('/posts')
-  revalidatePath('/posts/calendar')
-  revalidatePath(`/posts/${id}`)
+  revalidatePath('/website/blog')
+  revalidatePath('/website/blog/calendar')
+  revalidatePath(`/website/blog/${id}`)
 }
 
 /** AI-generate 3-5 FAQs grounded in the post (the editor previews them

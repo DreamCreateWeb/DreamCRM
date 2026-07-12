@@ -14,7 +14,7 @@ function redirectUri(req: NextRequest): string {
 }
 
 function backTo(req: NextRequest, params: Record<string, string>): NextResponse {
-  const url = new URL('/seo', appBase(req))
+  const url = new URL('/website/seo', appBase(req))
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   const res = NextResponse.redirect(url)
   res.cookies.delete('gsc_oauth_state')

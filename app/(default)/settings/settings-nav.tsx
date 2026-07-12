@@ -54,9 +54,6 @@ const cardIcon = (
 const heartIcon = (
   <path d="M14.3.3c.4-.4 1-.4 1.4 0 .4.4.4 1 0 1.4l-8 8c-.2.2-.4.3-.7.3-.3 0-.5-.1-.7-.3-.4-.4-.4-1 0-1.4l8-8zM15 7c.6 0 1 .4 1 1 0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8c.6 0 1 .4 1 1s-.4 1-1 1C4.7 2 2 4.7 2 8s2.7 6 6 6 6-2.7 6-6c0-.6.4-1 1-1z" />
 )
-const searchIcon = (
-  <path d="M7 14a7 7 0 1 1 4.94-2.06l3.56 3.56a1 1 0 0 1-1.42 1.42l-3.56-3.56A6.97 6.97 0 0 1 7 14Zm0-2a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" />
-)
 const calendarIcon = (
   <path d="M4 0a1 1 0 0 1 1 1v1h6V1a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h1V1a1 1 0 0 1 1-1Zm10 6H2v8h12V6Z" />
 )
@@ -81,7 +78,6 @@ const HREF_ICON: Record<string, ReactNode> = {
   '/settings/message-templates': chatIcon,
   '/settings/team': teamIcon,
   '/settings/apps': plugIcon,
-  '/settings/seo': searchIcon,
   '/settings/billing': cardIcon,
   '/settings/feedback': helpIcon,
   '/settings/account': userIcon,
@@ -120,12 +116,6 @@ const CLINIC_GROUPS: SettingsNavGroup[] = [
     items: [
       { href: '/settings/team', label: 'Team', desc: 'Invite teammates and manage access.', icon: teamIcon },
       { href: '/settings/apps', label: 'Connected accounts', desc: 'Gmail, Stripe, and other connections.', icon: plugIcon },
-    ],
-  },
-  {
-    title: 'Website',
-    items: [
-      { href: '/settings/seo', label: 'Search appearance', desc: 'How your site shows up in Google.', icon: searchIcon },
     ],
   },
   {

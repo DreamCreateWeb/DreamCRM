@@ -60,7 +60,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
         subtitle="Generate ideas tailored to your services and town, draft them in a click, then schedule them to publish on their own. Every post is your clinic's own — never recycled."
         actions={
           <>
-            <ActionButton variant="secondary" size="sm" href="/posts">
+            <ActionButton variant="secondary" size="sm" href="/website/blog">
               All posts
             </ActionButton>
             <ActionButton variant="primary" size="sm" onClick={() => setShowIdeas(true)}>
@@ -78,7 +78,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
         >
           {ideasToDraft.map((i) => (
             <Row key={i.id} item={i}>
-              <ActionButton variant="secondary" size="sm" href={`/posts/${i.id}?ai=1`}>
+              <ActionButton variant="secondary" size="sm" href={`/website/blog/${i.id}?ai=1`}>
                 ✨ Draft this
               </ActionButton>
             </Row>
@@ -159,7 +159,7 @@ function Row({ item, children }: { item: CalendarItem; children: React.ReactNode
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <Link
-            href={`/posts/${item.id}`}
+            href={`/website/blog/${item.id}`}
             className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-400"
           >
             {item.title}

@@ -119,7 +119,7 @@ export default async function GoogleBusinessDetailPage() {
               body="Read &amp; reply to your Google reviews. They power your public star rating."
             />
             <ValueLink
-              href="/seo"
+              href="/website/seo"
               title="Local search"
               body="Impressions, calls, directions &amp; website clicks from Google."
             />

@@ -135,7 +135,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
         subtitle="Post openings on your own site — they get picked up by Google for Jobs and Indeed for free. Applications land here, ready to sort through."
         legend={<EncodingLegend aging="applicants" pills={APP_PILL_LEGEND} />}
         actions={
-          <ActionButton variant="primary" breath size="sm" href="/careers/new">
+          <ActionButton variant="primary" breath size="sm" href="/website/careers/new">
             + New role
           </ActionButton>
         }
@@ -178,7 +178,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
               title="No roles yet"
               body="Post your first opening — it goes live on your site and shows up on Google for Jobs and Indeed for free."
               action={
-                <ActionButton variant="primary" size="sm" href="/careers/new">
+                <ActionButton variant="primary" size="sm" href="/website/careers/new">
                   + New role
                 </ActionButton>
               }
@@ -211,7 +211,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
                       View ↗
                     </a>
                   )}
-                  <ActionButton variant="ghost" size="sm" href={`/careers/${j.id}`}>
+                  <ActionButton variant="ghost" size="sm" href={`/website/careers/${j.id}`}>
                     Edit
                   </ActionButton>
                   {j.status !== 'open' ? (

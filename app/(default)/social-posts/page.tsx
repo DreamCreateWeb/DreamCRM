@@ -113,7 +113,7 @@ export default async function SocialPostsPage() {
             <ActionButton variant="secondary" size="sm" href="/analytics">
               Social reach
             </ActionButton>
-            <ActionButton variant="secondary" size="sm" href="/seo">
+            <ActionButton variant="secondary" size="sm" href="/website/seo">
               Local performance
             </ActionButton>
           </>

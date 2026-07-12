@@ -56,10 +56,13 @@ export function getModuleLabel(tenantType: TenantType, idOrPath: string): string
 const FOLDED_WEBSITE_AREAS: Record<string, string> = {
   blog: 'Blog Posts',
   '/posts': 'Blog Posts',
+  '/website/blog': 'Blog Posts',
   seo: 'SEO',
   '/seo': 'SEO',
+  '/website/seo': 'SEO',
   careers: 'Careers',
   '/careers': 'Careers',
+  '/website/careers': 'Careers',
 }
 
 /**

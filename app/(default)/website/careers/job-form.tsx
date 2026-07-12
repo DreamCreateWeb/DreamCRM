@@ -12,7 +12,7 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
       <div className="mb-5">
-        <Link href="/careers" className="text-xs text-gray-500 dark:text-gray-400 hover:underline">
+        <Link href="/website/careers" className="text-xs text-gray-500 dark:text-gray-400 hover:underline">
           ← Back to Careers
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight mt-1">
@@ -118,7 +118,7 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
           <ActionButton type="submit" variant="primary">
             {editing ? 'Save changes' : 'Create role'}
           </ActionButton>
-          <Link href="/careers" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
+          <Link href="/website/careers" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
             Cancel
           </Link>
         </div>

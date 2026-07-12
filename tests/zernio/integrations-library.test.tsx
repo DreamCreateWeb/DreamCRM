@@ -289,7 +289,7 @@ describe('IntegrationsLibrary — Google Business bundle', () => {
       '/reviews/received',
     )
     expect((within(section).getByRole('link', { name: /Local search/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
-      '/seo',
+      '/website/seo',
     )
   })
 

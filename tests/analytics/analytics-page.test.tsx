@@ -287,7 +287,7 @@ describe('Acquisition — Google Business local-actions tile', () => {
     expect(within(card).getByText(/Listing views/i)).toBeTruthy()
     expect(within(card).getByText(/Directions/i)).toBeTruthy()
     // Connected → the header link points at the SEO details, not a connect CTA.
-    expect(hrefOf(/^Details →$/)).toContain('/seo')
+    expect(hrefOf(/^Details →$/)).toContain('/website/seo')
   })
 
   it('shows a connect prompt to /integrations when no GBP is connected', async () => {

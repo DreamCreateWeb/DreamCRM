@@ -214,7 +214,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         title: 'Found on Google',
         talkTrack:
           'Search Console and the Google Business Profile wired in — {clinicName} sees exactly what patients search and where the site ranks.',
-        href: '/seo',
+        href: '/website/seo',
         group: 'grow',
         moves: ['Show what patients searched to find them'],
       },
@@ -239,7 +239,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
         title: 'Your Google listing, synced',
         talkTrack:
           '{clinicName}’s Google Business Profile managed right from the dashboard — hours, photos, posts. Most listings drift; yours stays true.',
-        href: '/seo',
+        href: '/website/seo',
         group: 'open',
         moves: ['Show the GBP listing synced from the dashboard'],
       },

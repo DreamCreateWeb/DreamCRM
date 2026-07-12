@@ -18,12 +18,12 @@ export async function setGscSiteAction(formData: FormData) {
   const siteUrl = formData.get('siteUrl')?.toString()
   if (!siteUrl) return
   await setGscSite(ctx.organizationId, siteUrl)
-  revalidatePath('/seo')
+  revalidatePath('/website/seo')
 }
 
 export async function disconnectGscAction() {
   const ctx = await requireTenant()
   ensureClinicAdmin(ctx)
   await disconnectGsc(ctx.organizationId)
-  revalidatePath('/seo')
+  revalidatePath('/website/seo')
 }

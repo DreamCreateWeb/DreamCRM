@@ -176,7 +176,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           </p>
           <Funnel
             steps={[
-              { label: 'Clicks from search', value: a.acquisition.websiteFunnel.clicks, note: a.acquisition.websiteFunnel.clicks == null ? 'Connect Search Console' : undefined, href: '/seo' },
+              { label: 'Clicks from search', value: a.acquisition.websiteFunnel.clicks, note: a.acquisition.websiteFunnel.clicks == null ? 'Connect Search Console' : undefined, href: '/website/seo' },
               { label: 'Website leads', value: a.acquisition.websiteFunnel.leads, href: '/leads' },
               { label: 'Contacted', value: a.acquisition.websiteFunnel.contacted },
               {
@@ -216,7 +216,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               Google Business — local actions
             </p>
             <Link
-              href={a.acquisition.gbp?.connected ? '/seo' : '/integrations'}
+              href={a.acquisition.gbp?.connected ? '/website/seo' : '/integrations'}
               className="text-xs font-medium text-teal-700 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 hover:underline"
             >
               {a.acquisition.gbp?.connected ? 'Details →' : 'Connect →'}
@@ -225,9 +225,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           {a.acquisition.gbp?.connected ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <KpiStat label="Listing views" value={a.acquisition.gbp.impressions.toLocaleString()} />
-              <KpiStat label="Calls" value={a.acquisition.gbp.calls.toLocaleString()} href="/seo" />
-              <KpiStat label="Directions" value={a.acquisition.gbp.directions.toLocaleString()} href="/seo" />
-              <KpiStat label="Bookings" value={a.acquisition.gbp.bookings.toLocaleString()} href="/seo" />
+              <KpiStat label="Calls" value={a.acquisition.gbp.calls.toLocaleString()} href="/website/seo" />
+              <KpiStat label="Directions" value={a.acquisition.gbp.directions.toLocaleString()} href="/website/seo" />
+              <KpiStat label="Bookings" value={a.acquisition.gbp.bookings.toLocaleString()} href="/website/seo" />
             </div>
           ) : (
             <p className="text-xs text-gray-500 dark:text-gray-400">

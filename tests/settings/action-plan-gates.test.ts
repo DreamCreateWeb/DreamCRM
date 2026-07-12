@@ -47,7 +47,7 @@ vi.mock('@/lib/services/pms', () => ({
   setSyncDirection: vi.fn(),
 }))
 
-import { createJobAction } from '@/app/(default)/careers/actions'
+import { createJobAction } from '@/app/(default)/website/careers/actions'
 import { connectOpenDentalAction, syncNowAction } from '@/app/(default)/integrations/actions'
 
 beforeEach(() => {

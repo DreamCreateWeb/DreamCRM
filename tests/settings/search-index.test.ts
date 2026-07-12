@@ -20,7 +20,9 @@ const KNOWN_PAGES = new Set([
   '/settings/team',
   '/settings/plans',
   '/settings/billing',
-  '/settings/seo',
+  // Search appearance folded into the Website workspace's SEO page — the
+  // index deep-links straight to the meta section there.
+  '/website/seo',
   '/settings/feedback',
   '/settings/account',
   '/settings/notifications',
@@ -34,7 +36,7 @@ describe('settings search-index — shape / drift guard', () => {
     for (const e of SETTINGS_SEARCH_INDEX) {
       expect(SURFACES).toContain(e.surface)
       // Entries may deep-link with a query (?tab=/?email=) — validate the page.
-      expect(KNOWN_PAGES.has(e.href.split('?')[0]), `unknown href: ${e.href}`).toBe(true)
+      expect(KNOWN_PAGES.has(e.href.split('?')[0].split('#')[0]), `unknown href: ${e.href}`).toBe(true)
       expect(e.label.length).toBeGreaterThan(0)
       expect(e.page.length).toBeGreaterThan(0)
       if (e.sub) expect(e.tab, `entry "${e.label}" has a sub but no tab`).toBeTruthy()
@@ -44,7 +46,7 @@ describe('settings search-index — shape / drift guard', () => {
   it('covers every clinic + user nav destination so search never dead-ends', () => {
     // The pages the sidebar nav surfaces must each be reachable via search.
     const clinicPages = new Set(
-      SETTINGS_SEARCH_INDEX.filter((e) => e.surface === 'clinic').map((e) => e.href.split('?')[0]),
+      SETTINGS_SEARCH_INDEX.filter((e) => e.surface === 'clinic').map((e) => e.href.split('?')[0].split('#')[0]),
     )
     for (const p of [
       '/settings/clinic',
@@ -60,7 +62,8 @@ describe('settings search-index — shape / drift guard', () => {
       // /settings/plans merged into /settings/billing (redirect) — no longer
       // a distinct search destination.
       '/settings/billing',
-      '/settings/seo',
+      // /settings/seo folded into /website/seo#meta (redirect stub) — the
+      // search entry now points at the workspace page directly.
       '/settings/feedback',
     ]) {
       expect(clinicPages.has(p), `clinic search missing ${p}`).toBe(true)

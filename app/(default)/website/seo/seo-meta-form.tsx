@@ -9,11 +9,11 @@ import {
   type PageSeoMeta,
   type SeoPageKey,
 } from '@/lib/types/seo-meta'
-import { saveSeoMetaAction } from './actions'
+import { saveSeoMetaAction } from './meta-actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
-import { SettingsTabs } from '../settings-tabs'
+import { SettingsTabs } from '../../settings/settings-tabs'
 
 /**
  * Settings → Search appearance. Per-page title + description overrides for the

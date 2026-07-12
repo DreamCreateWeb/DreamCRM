@@ -305,7 +305,7 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     detailHref: '/integrations/google-business',
     valueLinks: [
       { href: '/reviews/received', label: 'Reviews' },
-      { href: '/seo', label: 'Local search' },
+      { href: '/website/seo', label: 'Local search' },
     ],
   },
 

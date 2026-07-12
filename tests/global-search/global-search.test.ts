@@ -182,7 +182,7 @@ describe('globalSearch — querying', () => {
 
     expect(groups.find((g) => g.label === 'Applicants')!.results[0]).toMatchObject({
       label: 'Jordan Lee',
-      href: '/careers',
+      href: '/website/careers',
       kind: 'applicant',
     })
     expect(groups.find((g) => g.label === 'Products')!.results[0]).toMatchObject({

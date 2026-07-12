@@ -37,7 +37,7 @@ describe('QuickCreateMenu — gating', () => {
     fireEvent.click(screen.getByRole('button', { name: /New|create/i }))
     const menu = screen.getByRole('menu')
     expect(within(menu).getByText('New campaign')).toHaveAttribute('href', '/marketing/campaigns')
-    expect(within(menu).getByText('New post')).toHaveAttribute('href', '/posts')
+    expect(within(menu).getByText('New post')).toHaveAttribute('href', '/website/blog')
   })
 
   it('renders nothing when the tenant has no creatable surfaces (e.g. platform)', () => {

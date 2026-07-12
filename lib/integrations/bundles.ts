@@ -111,7 +111,7 @@ export const BUNDLES: BundleDef[] = [
     detailHref: '/integrations/google-business',
     valueLinks: [
       { href: '/reviews/received', label: 'Reviews' },
-      { href: '/seo', label: 'Local search' },
+      { href: '/website/seo', label: 'Local search' },
       { href: '/social-posts', label: 'Posts' },
     ],
     note: 'Free on every plan. Never counts toward your social connections.',

@@ -41,7 +41,16 @@ vi.mock('@/lib/services/reviews', () => ({
 }))
 vi.mock('@/lib/services/site-analytics', () => ({
   getSiteTraffic: vi.fn(async () => ({ windowDays: 30, total: 200, totalPrev: 150, daily: [], topPages: [] })),
+  getSeoMeta: vi.fn(async () => ({})),
 }))
+// The absorbed Search-appearance section loads the site for page gating —
+// null keeps the meta editor on its no-site floor without touching the db.
+vi.mock('@/lib/services/clinic-site', () => ({
+  getClinicSiteBySlug: vi.fn(async () => null),
+}))
+vi.mock('@/lib/services/blog', () => ({ listPublishedPosts: vi.fn(async () => []) }))
+vi.mock('@/lib/services/membership', () => ({ listActivePlans: vi.fn(async () => []) }))
+vi.mock('@/lib/services/careers', () => ({ getOpenJobs: vi.fn(async () => []) }))
 vi.mock('@/lib/services/gsc', () => ({
   // Clinic read view: a connected platform property with scoped clicks.
   getClinicSeoPerformance: vi.fn(async () => ({
@@ -64,7 +73,7 @@ vi.mock('./actions', () => ({
 }))
 vi.mock('@/components/onboarding/module-hint', () => ({ default: () => null }))
 
-import SeoPage from '@/app/(default)/seo/page'
+import SeoPage from '@/app/(default)/website/seo/page'
 
 function baseGbp(over: Partial<GbpLocalMetrics> = {}): GbpLocalMetrics {
   return {

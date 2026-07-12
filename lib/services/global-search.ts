@@ -48,13 +48,13 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
       ? [{ id: 'page-website-editor', label: 'Website editor', sublabel: 'Website', href: '/website/editor', kind: 'page' as const }]
       : []),
     ...(isPro
-      ? [{ id: 'page-website-blog', label: 'Blog posts', sublabel: 'Website', href: '/posts', kind: 'page' as const }]
+      ? [{ id: 'page-website-blog', label: 'Blog posts', sublabel: 'Website', href: '/website/blog', kind: 'page' as const }]
       : []),
     ...(isPro
-      ? [{ id: 'page-website-seo', label: 'SEO', sublabel: 'Website', href: '/seo', kind: 'page' as const }]
+      ? [{ id: 'page-website-seo', label: 'SEO', sublabel: 'Website', href: '/website/seo', kind: 'page' as const }]
       : []),
     ...(isPremium
-      ? [{ id: 'page-website-careers', label: 'Careers', sublabel: 'Website', href: '/careers', kind: 'page' as const }]
+      ? [{ id: 'page-website-careers', label: 'Careers', sublabel: 'Website', href: '/website/careers', kind: 'page' as const }]
       : []),
     { id: 'page-website-share', label: 'QR share cards', sublabel: 'Website', href: '/website/share', kind: 'page' },
   ]
@@ -370,7 +370,7 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
         id: `appl-${a.id}`,
         label: a.name,
         sublabel: a.email ? `${a.status} · ${a.email}` : a.status,
-        href: '/careers',
+        href: '/website/careers',
         kind: 'applicant',
       })),
     })

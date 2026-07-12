@@ -220,7 +220,7 @@ export default async function WebsiteHubPage() {
         )}
         {isPro ? (
           <SectionCard
-            href="/posts"
+            href="/website/blog"
             icon="doc"
             title="Blog"
             stat={
@@ -242,7 +242,7 @@ export default async function WebsiteHubPage() {
         )}
         {isPro ? (
           <SectionCard
-            href="/seo"
+            href="/website/seo"
             icon="search"
             title="SEO"
             stat={siteHealth ? `Site health ${siteHealth.score}/100` : '—'}
@@ -260,7 +260,7 @@ export default async function WebsiteHubPage() {
         )}
         {isPremium ? (
           <SectionCard
-            href="/careers"
+            href="/website/careers"
             icon="briefcase"
             title="Careers"
             stat={

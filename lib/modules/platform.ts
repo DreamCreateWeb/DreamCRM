@@ -20,8 +20,8 @@ export const platformModules: ModuleRegistry = {
     { id: 'sales_pipeline',   path: '/ecommerce/orders',              label: 'Projects',         section: 'Pages', icon: 'flag',     status: 'live' },
     { id: 'prospecting',      path: '/platform/prospecting', label: 'Sales Pipeline',   section: 'Pages', icon: 'search',   status: 'live' },
     { id: 'campaigns',        path: '/marketing',           label: 'Marketing',        section: 'Pages', icon: 'megaphone',status: 'live' },
-    { id: 'marketing_blog',   path: '/posts',               label: 'Platform Blog',    section: 'Pages', icon: 'pen',      status: 'live' },
-    { id: 'search_console',   path: '/seo',                 label: 'Search Console',   section: 'Settings', icon: 'search', status: 'live' },
+    { id: 'marketing_blog',   path: '/website/blog',               label: 'Platform Blog',    section: 'Pages', icon: 'pen',      status: 'live' },
+    { id: 'search_console',   path: '/website/seo',                 label: 'Search Console',   section: 'Settings', icon: 'search', status: 'live' },
     { id: 'service_library',  path: '/platform/service-library', label: 'Service Library', section: 'Settings', icon: 'gear', status: 'live' },
     { id: 'settings',         path: '/settings',            label: 'Settings',         section: 'Settings', icon: 'gear', status: 'live' },
     // Removed 2026-07-07 (platform declutter): the generic Mosaic Calendar
