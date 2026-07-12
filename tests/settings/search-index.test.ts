@@ -20,8 +20,11 @@ const KNOWN_PAGES = new Set([
   '/settings/team',
   '/settings/plans',
   '/settings/billing',
-  // Search appearance lives with the Pages manager in the Website workspace.
+  // Search appearance lives with the Pages manager in the Website workspace;
+  // the carved content/design surfaces carry the moved mega-form sections.
   '/website/pages',
+  '/website/content',
+  '/website/design',
   '/settings/feedback',
   '/settings/account',
   '/settings/notifications',
@@ -85,7 +88,7 @@ describe('settingsEntryHref', () => {
 
   it('emits tab without sub', () => {
     expect(
-      settingsEntryHref({ surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile', tab: 'branding', label: 'Branding' }),
+      settingsEntryHref({ surface: 'clinic', href: '/settings/clinic', page: 'Business profile', tab: 'branding', label: 'Branding' }),
     ).toBe('/settings/clinic?tab=branding')
   })
 })
@@ -98,9 +101,9 @@ describe('searchSettings', () => {
     expect(settingsEntryHref(hours!)).toBe('/settings/clinic?tab=profile&sub=hours')
   })
 
-  it('matches synonyms not present in the label (logo → Branding)', () => {
+  it('matches synonyms not present in the label (logo → the Logo entry)', () => {
     const hits = searchSettings('logo', 'clinic')
-    expect(hits.some((h) => h.label === 'Branding')).toBe(true)
+    expect(hits.some((h) => h.label === 'Logo')).toBe(true)
   })
 
   it('requires all whitespace-separated terms to match', () => {

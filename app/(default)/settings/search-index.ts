@@ -36,66 +36,76 @@ export interface SettingsSearchEntry {
 export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   // ─── Clinic profile ──────────────────────────────────────────────────
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'profile', sub: 'basics', label: 'Clinic name & tagline',
-    keywords: ['name', 'tagline', 'about', 'display name', 'timezone', 'time zone', 'description'],
+    surface: 'clinic', href: '/settings/clinic', page: 'Business profile',
+    tab: 'profile', sub: 'basics', label: 'Clinic name',
+    keywords: ['name', 'display name', 'legal name', 'timezone', 'time zone'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
+    surface: 'clinic', href: '/settings/clinic', page: 'Business profile',
     tab: 'profile', sub: 'contact', label: 'Contact details',
     keywords: ['email', 'phone', 'address', 'location', 'contact', 'sender'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
+    surface: 'clinic', href: '/settings/clinic', page: 'Business profile',
     tab: 'profile', sub: 'hours', label: 'Opening hours',
     keywords: ['hours', 'open', 'close', 'closing', 'schedule', 'times', 'hours of operation', 'business hours', 'days'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'branding', label: 'Branding',
-    keywords: ['brand', 'color', 'colour', 'logo', 'hero image', 'theme', 'accent'],
+    surface: 'clinic', href: '/settings/clinic', page: 'Business profile',
+    tab: 'profile', sub: 'logo', label: 'Logo',
+    keywords: ['logo', 'letter mark', 'brand mark'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'website', sub: 'services', label: 'Services',
+    surface: 'clinic', href: '/website/design', page: 'Website design',
+    label: 'Brand color & design',
+    keywords: ['brand', 'color', 'colour', 'hero image', 'theme', 'accent', 'design', 'template'],
+  },
+  {
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'story', label: 'Tagline & about',
+    keywords: ['tagline', 'about', 'description', 'story'],
+  },
+  {
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'services', label: 'Services',
     keywords: ['services', 'treatments', 'procedures', 'offerings'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'website', sub: 'staff', label: 'Staff & team',
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'staff', label: 'Staff & team',
     keywords: ['staff', 'team', 'dentists', 'hygienists', 'bios', 'headshots', 'people'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'website', sub: 'stats', label: 'Stats',
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'stats', label: 'Stats',
     keywords: ['stats', 'numbers', 'figures', 'trust'],
   },
   // Testimonials moved to the Reviews module (staff feature them from
   // /reviews/received), so the Clinic profile no longer has a testimonials
   // section — no deep-link entry here (it would scroll nowhere).
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'website', sub: 'photos', label: 'Office photos',
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'photos', label: 'Office photos',
     keywords: ['photos', 'gallery', 'images', 'office tour', 'pictures'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'payments', sub: 'insurance', label: 'Insurance carriers',
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'insurance', label: 'Insurance carriers',
     keywords: ['insurance', 'carriers', 'accepted plans', 'in-network', 'ppo'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'payments', sub: 'methods', label: 'Payment methods',
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'methods', label: 'Payment methods',
     keywords: ['payment', 'methods', 'cash', 'card', 'how patients pay'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'payments', sub: 'financing', label: 'Financing',
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'financing', label: 'Financing',
     keywords: ['financing', 'carecredit', 'sunbit', 'payment plans', 'loans'],
   },
   {
-    surface: 'clinic', href: '/settings/clinic', page: 'Clinic profile',
-    tab: 'payments', sub: 'cancellation', label: 'Cancellation policy',
+    surface: 'clinic', href: '/website/content', page: 'Website content',
+    tab: 'content', sub: 'cancellation', label: 'Cancellation policy',
     keywords: ['cancellation', 'policy', 'no-show', 'no show', 'late', 'fee'],
   },
 

@@ -81,14 +81,22 @@ describe('modern wraps the founding implementation with zero drift', () => {
 })
 
 describe('settings mega-form cannot stomp the template choice', () => {
-  it('the hidden template input round-trips the saved value, never a hardcoded literal', () => {
+  it('the Business-profile form no longer touches template at all (footgun retired)', () => {
+    // The historical bug: a hidden value="modern" here reverted every
+    // non-default design on the next profile save. Post-carve the form has NO
+    // template input AND the action's identity-only payload ignores one even
+    // if a stale client submits it (clinic-actions.test.ts pins the payload).
     const src = readFileSync(
       resolve(__dirname, '../..', 'app/(default)/settings/clinic/clinic-profile-panel.tsx'),
       'utf8',
     )
-    // The historical footgun: value="modern" reverted every non-default
-    // template on the next profile save.
-    expect(src).not.toMatch(/name="template"\s+value="modern"/)
-    expect(src).toMatch(/name="template"\s+value=\{profile\?\.template \?\? 'modern'\}/)
+    expect(src).not.toMatch(/name="template"/)
+    const actions = readFileSync(
+      resolve(__dirname, '../..', 'app/(default)/settings/clinic/actions.ts'),
+      'utf8',
+    )
+    // No template read (clean('template'…)) and no template payload key.
+    expect(actions).not.toMatch(/clean\('template'/)
+    expect(actions).not.toMatch(/\btemplate\s*[,:]/)
   })
 })

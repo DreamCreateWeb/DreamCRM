@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Clinic Profile - DreamCRM',
-  description: 'Edit your clinic name, contact details, and branding',
+  title: 'Business Profile - DreamCRM',
+  description: 'Your clinic name, contact details, hours, and logo',
 }
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +10,6 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
-import { listLibraryForPicker } from '@/lib/services/service-library'
 import { listClinicGmailAccounts } from '@/lib/services/clinic-sender'
 import { getGbpSyncState } from '@/lib/services/gbp-sync'
 import ClinicProfilePanel from './clinic-profile-panel'
@@ -32,10 +31,6 @@ export default async function ClinicSettings() {
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
     .limit(1)
-
-  // Library available to this clinic's picker — every `active` entry plus
-  // any `pending` entries this org submitted (1B own-pending visibility).
-  const library = await listLibraryForPicker(ctx.organizationId)
 
   // Connected Google mailboxes the clinic can send patient email from (Tier 2).
   const gmailAccounts = await listClinicGmailAccounts(ctx.organizationId)
@@ -59,30 +54,12 @@ export default async function ClinicSettings() {
   // wrappers below. "Sync from Google" only appears when a GBP card renders.
   const navGroups: NavGroup[] = [
     {
-      label: 'Your clinic',
+      label: 'Your business',
       items: [
         { id: 'basics', label: 'Basics' },
         { id: 'contact', label: 'Contact & email' },
         { id: 'hours', label: 'Hours' },
-      ],
-    },
-    {
-      label: 'Website content',
-      items: [
-        { id: 'branding', label: 'Branding & media' },
-        { id: 'services', label: 'Services' },
-        { id: 'staff', label: 'Team' },
-        { id: 'stats', label: 'Trust stats' },
-        { id: 'photos', label: 'Office photos' },
-      ],
-    },
-    {
-      label: 'Insurance & payments',
-      items: [
-        { id: 'insurance', label: 'Insurance carriers' },
-        { id: 'methods', label: 'Payment methods' },
-        { id: 'financing', label: 'Financing' },
-        { id: 'cancellation', label: 'Cancellation policy' },
+        { id: 'logo', label: 'Logo' },
       ],
     },
     {
@@ -98,8 +75,8 @@ export default async function ClinicSettings() {
   return (
     <>
       <SettingsPage
-        title="Clinic profile"
-        subtitle="Your clinic name, contact details, branding, and website content."
+        title="Business profile"
+        subtitle="Your clinic name, contact details, hours, and logo — the identity every module shares."
         actions={
           <ActionButton href={siteUrl} variant="secondary" target="_blank">
             Preview your website ↗
@@ -112,8 +89,6 @@ export default async function ClinicSettings() {
           <ClinicProfilePanel
             profile={profile ?? null}
             orgName={ctx.organizationName}
-            orgId={ctx.organizationId}
-            library={library}
             gmailAccounts={gmailAccounts}
           />
           {gbpState && (

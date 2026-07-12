@@ -456,15 +456,6 @@ export default async function WebsiteHubPage() {
           stat="Print-ready"
           description="Printable QR cards for the front desk — booking, reviews, and the patient portal."
         />
-        {canEdit && (
-          <SectionCard
-            href="/settings/clinic"
-            icon="gear"
-            title="Advanced edits"
-            stat="Every field, one form"
-            description="The deep-edit fallback: all site content as a plain form, plus connections."
-          />
-        )}
       </div>
     </div>
   )

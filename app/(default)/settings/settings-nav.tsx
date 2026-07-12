@@ -98,7 +98,7 @@ const CLINIC_GROUPS: SettingsNavGroup[] = [
   {
     title: 'Clinic',
     items: [
-      { href: '/settings/clinic', label: 'Clinic profile', desc: 'Name, contact, hours, branding, and website content.', icon: buildingIcon },
+      { href: '/settings/clinic', label: 'Business profile', desc: 'Name, contact, hours, and logo.', icon: buildingIcon },
       { href: '/settings/practice', label: 'Practice setup', desc: 'Providers, visit types, chairs, and recall.', icon: calendarIcon },
       { href: '/settings/locations', label: 'Locations', desc: 'Your physical practice locations.', icon: pinIcon },
     ],

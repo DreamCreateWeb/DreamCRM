@@ -15,7 +15,7 @@ describe('SettingsHome', () => {
     expect(screen.getByText('Clinic')).toBeTruthy()
     expect(screen.getByText('Patients')).toBeTruthy()
     expect(screen.getByText('Your account')).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Clinic profile/ }).getAttribute('href')).toBe('/settings/clinic')
+    expect(screen.getByRole('link', { name: /Business profile/ }).getAttribute('href')).toBe('/settings/clinic')
     expect(screen.getByRole('link', { name: /Automated emails/ }).getAttribute('href')).toBe(
       '/settings/automations/emails',
     )

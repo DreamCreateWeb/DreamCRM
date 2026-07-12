@@ -8,17 +8,7 @@ import { clinicProfile } from '@/lib/db/schema/platform'
 import { emailAccount } from '@/lib/db/schema/email'
 import { organization } from '@/lib/db/schema/auth'
 import { requireTenant } from '@/lib/auth/context'
-import {
-  parseServices,
-  parseStaff,
-  parseStats,
-  parseOfficePhotos,
-  parseFaq,
-  parseStringList,
-  parseFinancingPartners,
-  parseHours,
-  clean,
-} from '@/lib/clinic-content-parse'
+import { parseHours, clean } from '@/lib/clinic-content-parse'
 
 // Re-exported for back-compat with any importer that pulled the type from here.
 export type { HoursEntry } from '@/lib/clinic-content-parse'
@@ -33,8 +23,6 @@ export async function updateClinicProfile(formData: FormData) {
   const orgId = ctx.organizationId
   const displayName = clean('displayName', formData)
   const legalName = clean('legalName', formData)
-  const tagline = clean('tagline', formData)
-  const about = clean('about', formData)
   const phone = clean('phone', formData)
   const email = clean('email', formData)
   // Display name patients see in the "From" of clinic→patient email. Null falls
@@ -57,40 +45,27 @@ export async function updateClinicProfile(formData: FormData) {
   const state = clean('state', formData)
   const postalCode = clean('postalCode', formData)
   const country = clean('country', formData, 'US')
-  const brandColor = clean('brandColor', formData)
-  const template = clean('template', formData, 'modern')
   const logoUrl = clean('logoUrl', formData)
-  const heroImageUrl = clean('heroImageUrl', formData)
-  // URL only for v1 — no in-product video uploader yet. Clinics paste a public
-  // mp4/webm URL; when set, the public "Why us?" media plays as an ambient loop.
-  const differenceVideoUrl = clean('differenceVideoUrl', formData)
-  const services = parseServices(formData.get('services')?.toString())
-  const staff = parseStaff(formData.get('staff')?.toString())
-  const stats = parseStats(formData.get('stats')?.toString())
-  const officePhotos = parseOfficePhotos(formData.get('officePhotos')?.toString())
-  const faq = parseFaq(formData.get('faq')?.toString())
-  const acceptedInsuranceCarriers = parseStringList(
-    formData.get('acceptedInsuranceCarriers')?.toString(),
-  )
-  const paymentMethods = parseStringList(formData.get('paymentMethods')?.toString())
-  const financingPartners = parseFinancingPartners(
-    formData.get('financingPartners')?.toString(),
-  )
-  const cancellationPolicy = clean('cancellationPolicy', formData)
   const hours = parseHours(formData)
   const timezone = clean('timezone', formData)
 
+  // IDENTITY ONLY. This form owns the shared business identity (names,
+  // contact, address, hours, timezone, logo) — every website-content column
+  // (tagline/about/brand/hero/services/staff/stats/photos/faq/carriers/
+  // payments/financing/cancellation/template) now lives in the Website
+  // workspace with per-section scoped saves. Keeping them out of this payload
+  // is load-bearing: this action writes whatever is in the payload, so a
+  // website column here would be NULLED by every identity save that doesn't
+  // round-trip it. tests/settings/clinic-actions.test.ts pins the exclusion.
   const payload = {
-    // This mega-form is the clinic deliberately authoring hours/address/phone,
-    // so flag all three as manually-edited. A later automatic Google sync then
-    // respects the edit (only an explicit "Sync from Google" force overrides).
+    // The clinic deliberately authoring hours/address/phone flags all three
+    // manually-edited so an automatic Google sync respects the edit (an
+    // explicit "Sync from Google" force still overrides).
     hoursSource: 'manual' as const,
     addressSource: 'manual' as const,
     phoneSource: 'manual' as const,
     displayName,
     legalName,
-    tagline,
-    about,
     phone,
     email,
     emailSenderName,
@@ -101,26 +76,9 @@ export async function updateClinicProfile(formData: FormData) {
     state,
     postalCode,
     country,
-    brandColor,
-    template,
     logoUrl,
-    heroImageUrl,
-    differenceVideoUrl,
     hours,
     timezone,
-    services,
-    staff,
-    stats,
-    // testimonials is deliberately NOT here — clinic_profile.testimonials is
-    // now owned by the Reviews module (Google auto-feature + patient-linked
-    // legacy entries). This mega-form must never touch it, or every save here
-    // would silently overwrite/null it out from under Reviews.
-    officePhotos,
-    faq,
-    acceptedInsuranceCarriers,
-    paymentMethods,
-    financingPartners,
-    cancellationPolicy,
   }
 
   await db

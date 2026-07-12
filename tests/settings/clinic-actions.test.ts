@@ -72,11 +72,10 @@ describe('updateClinicProfile', () => {
     await expect(updateClinicProfile(form({ displayName: 'X' }))).rejects.toThrow(/owner|admin/i)
   })
 
-  it('writes clinic_profile row with sanitized fields', async () => {
+  it('writes clinic_profile row with sanitized identity fields', async () => {
     await updateClinicProfile(
       form({
         displayName: '  Test Dental  ',
-        tagline: 'Caring smiles',
         phone: '555',
         email: 'hi@x.com',
         city: 'Austin',
@@ -87,7 +86,6 @@ describe('updateClinicProfile', () => {
     expect(insertOp).toBeDefined()
     const set = (insertOp.values as { set: Record<string, unknown> }).set
     expect(set.displayName).toBe('Test Dental') // trimmed
-    expect(set.tagline).toBe('Caring smiles')
     expect(set.country).toBe('US') // default
   })
 
@@ -135,133 +133,71 @@ describe('updateClinicProfile', () => {
     expect(set.hours.sat.closed).toBe(true)
   })
 
-  it('persists logoUrl and heroImageUrl', async () => {
-    await updateClinicProfile(
-      form({
-        displayName: 'X',
-        logoUrl: 'https://blob/logo.png',
-        heroImageUrl: 'https://blob/hero.jpg',
-      }),
-    )
+  it('persists logoUrl (the one shared image this form still owns)', async () => {
+    await updateClinicProfile(form({ displayName: 'X', logoUrl: 'https://blob/logo.png' }))
     const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as { set: { logoUrl: string; heroImageUrl: string } }).set
+    const set = (insertOp.values as { set: { logoUrl: string } }).set
     expect(set.logoUrl).toBe('https://blob/logo.png')
-    expect(set.heroImageUrl).toBe('https://blob/hero.jpg')
   })
 
-  it('parses services JSON, drops items with missing name', async () => {
+  it('IDENTITY ONLY: a save never touches (or nulls) any website-content column', async () => {
+    // The website columns live in the Website workspace with per-section
+    // scoped saves. This action writes whatever is in its payload — so a
+    // website column here would be NULLED by every identity save that
+    // doesn't round-trip it. The exclusion is the load-bearing contract.
     await updateClinicProfile(
       form({
         displayName: 'X',
-        services: JSON.stringify([
-          { id: 'a', name: 'Cleanings', icon: '🦷' },
-          { id: 'b', name: '', icon: '?' }, // dropped
-          { id: 'c', name: 'Whitening', description: 'Brighter' },
-        ]),
+        // A hostile/stale client submitting website fields must be IGNORED:
+        tagline: 'stale tagline',
+        about: 'stale about',
+        brandColor: '#123456',
+        template: 'cosmetic',
+        heroImageUrl: 'https://blob/hero.jpg',
+        differenceVideoUrl: 'https://blob/v.mp4',
+        services: JSON.stringify([{ id: 'a', name: 'Cleanings' }]),
+        staff: JSON.stringify([{ id: 'a', name: 'Dr. Smith' }]),
+        stats: JSON.stringify([{ id: 's1', value: '8,000+', label: 'reviews' }]),
+        officePhotos: JSON.stringify([{ id: 'op1', url: 'https://blob/op1.jpg' }]),
+        faq: JSON.stringify([{ id: 'f1', question: 'Q', answer: 'A' }]),
+        acceptedInsuranceCarriers: 'Aetna',
+        paymentMethods: 'Cash',
+        financingPartners: JSON.stringify([{ name: 'CareCredit' }]),
+        cancellationPolicy: '24 hours',
+        testimonials: JSON.stringify([{ id: 't1', quote: 'Great.', authorName: 'S.' }]),
       }),
     )
     const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as { set: { services: Array<{ name: string }> } }).set
-    expect(set.services).toHaveLength(2)
-    expect(set.services.map((s) => s.name)).toEqual(['Cleanings', 'Whitening'])
-  })
-
-  it('stores null services for empty array', async () => {
-    await updateClinicProfile(form({ displayName: 'X', services: '[]' }))
-    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as { set: { services: unknown } }).set
-    expect(set.services).toBeNull()
-  })
-
-  it('stores null services for malformed JSON', async () => {
-    await updateClinicProfile(form({ displayName: 'X', services: 'not json' }))
-    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as { set: { services: unknown } }).set
-    expect(set.services).toBeNull()
-  })
-
-  it('parses staff JSON with optional fields', async () => {
-    await updateClinicProfile(
-      form({
-        displayName: 'X',
-        staff: JSON.stringify([
-          { id: 'a', name: 'Dr. Smith', title: 'Dentist', bio: '15 yrs', photoUrl: 'p1.jpg' },
-          { id: 'b', name: '  ', title: 'Skipped' }, // dropped (empty name)
-          { id: 'c', name: 'Dr. Lee' },
-        ]),
-      }),
-    )
-    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as {
-      set: { staff: Array<{ name: string; photoUrl: string | null }> }
-    }).set
-    expect(set.staff).toHaveLength(2)
-    expect(set.staff[0].name).toBe('Dr. Smith')
-    expect(set.staff[0].photoUrl).toBe('p1.jpg')
-    expect(set.staff[1].name).toBe('Dr. Lee')
-  })
-
-  it('parses stats JSON, drops fully-empty rows', async () => {
-    await updateClinicProfile(
-      form({
-        displayName: 'X',
-        stats: JSON.stringify([
-          { id: 's1', value: '8,000+', label: 'reviews' },
-          { id: 's2', value: '', label: '' }, // dropped
-          { id: 's3', value: 'Same-week', label: 'appointments' },
-        ]),
-      }),
-    )
-    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as { set: { stats: Array<{ value: string }> } }).set
-    expect(set.stats).toHaveLength(2)
-    expect(set.stats.map((s) => s.value)).toEqual(['8,000+', 'Same-week'])
-  })
-
-  it('never touches testimonials — even when a testimonials field is submitted', async () => {
-    // clinic_profile.testimonials is owned by the Reviews module (Google
-    // auto-feature + legacy patient-linked entries). This mega-form must NEVER
-    // parse or write it, or every settings save would silently wipe/overwrite
-    // whatever Reviews put there. Regression guard for exactly that bug class.
-    await updateClinicProfile(
-      form({
-        displayName: 'X',
-        testimonials: JSON.stringify([{ id: 't1', quote: 'Great visit.', authorName: 'Sarah K.' }]),
-      }),
-    )
-    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = insertOp.values as { set: Record<string, unknown> }
-    expect('testimonials' in set.set).toBe(false)
-  })
-
-  it('parses office photos JSON, requires url', async () => {
-    await updateClinicProfile(
-      form({
-        displayName: 'X',
-        officePhotos: JSON.stringify([
-          { id: 'op1', url: 'https://blob/op1.jpg', alt: 'Reception', caption: 'Front desk' },
-          { id: 'op2', url: '', alt: 'No url' }, // dropped
-          { id: 'op3', url: 'https://blob/op2.jpg' },
-        ]),
-      }),
-    )
-    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as {
-      set: { officePhotos: Array<{ url: string; alt: string | null; caption: string | null }> }
-    }).set
-    expect(set.officePhotos).toHaveLength(2)
-    expect(set.officePhotos[0].url).toBe('https://blob/op1.jpg')
-    expect(set.officePhotos[0].caption).toBe('Front desk')
-  })
-
-  it('stores null for the new content fields when not provided', async () => {
-    await updateClinicProfile(form({ displayName: 'X' }))
-    const insertOp = ops.find((o) => o.kind === 'insert' && o.table === 'clinic_profile')!
-    const set = (insertOp.values as {
-      set: { stats: unknown; officePhotos: unknown }
-    }).set
-    expect(set.stats).toBeNull()
-    expect(set.officePhotos).toBeNull()
+    const set = (insertOp.values as { set: Record<string, unknown> }).set
+    for (const col of [
+      'tagline',
+      'about',
+      'brandColor',
+      'template',
+      'heroImageUrl',
+      'heroImageUrl2',
+      'differenceVideoUrl',
+      'services',
+      'staff',
+      'stats',
+      'officePhotos',
+      'faq',
+      'acceptedInsuranceCarriers',
+      'paymentMethods',
+      'financingPartners',
+      'cancellationPolicy',
+      'testimonials',
+      'copyOverrides',
+      'leadForms',
+      'coloringPages',
+      'imagePositions',
+    ]) {
+      expect(col in set, `website column '${col}' must not be in the identity payload`).toBe(false)
+    }
+    // The identity fields it DOES own are present.
+    for (const col of ['displayName', 'phone', 'email', 'logoUrl', 'hours', 'timezone']) {
+      expect(col in set, `identity column '${col}' missing from the payload`).toBe(true)
+    }
   })
 
   it('flags hours/address/phone source as manual (so a later Google sync respects the edit)', async () => {

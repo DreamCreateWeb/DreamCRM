@@ -7,6 +7,47 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **The Website workspace deep-carve — Content, Forms, Design, Pages, and
+  the Business-profile shrink (2026-07-12).** Owner: "the website side needs
+  to go much further — so many things still need their own surface… a ton of
+  restructuring left to bring it up to real SaaS standards." The inventory
+  agreed: the settings mega-form and the Studio were two full parallel
+  editors over the same clinic_profile columns (13 pieces double-homed);
+  FAQ/why-us/coloring/lead-forms/copyOverrides were modal-or-canvas-ONLY; no
+  Pages surface existed (page identity scattered across 4 lists); the
+  site-facing chat toggle hid in Practice → Online booking. Five green
+  pushes: **P1 `/website/content`** — every website-only content piece as
+  per-section plain forms riding the Studio's scoped actions (one saver, two
+  doors; new `saveStory` writes tagline+about without the identity names;
+  `CONTENT_SECTIONS` registry drives the rail + the hub's honest
+  completeness stat). **P2 `/website/forms`** — both LeadFormBuilders w/
+  Customized/standard pills, the chat toggle moved from Practice (its action
+  now revalidates the public-site subtree — the bubble renders on every
+  page), a latest-5 + 7-day submissions glance → /leads; the demo seeds one
+  customized contact field. **P3 `/website/design`** — template cards
+  (preview via the editor's new `?previewTemplate=` param — ONE preview
+  path; apply behind a confirm), brand color, hero images (URL swaps thread
+  the existing focal point through so they never clear an editor-set
+  focus), intro video; logo deliberately stays with identity. **P4
+  `/website/pages`** — `buildSitePagesIndex` unifies the 4 page lists into
+  live + honest not-published-yet rows ("Add team members to publish this
+  page") w/ open-in-editor (`?page=`)/view-live/manager chips; expanding a
+  row edits that page's copy overrides (first non-canvas home) via
+  `saveInlineField`; Search appearance moved here (SEO page keeps a #meta
+  pointer; /settings/seo stub retargeted; shared `SEO_PAGE_PATHS`); demo
+  seeds two hand-voiced overrides. **P5 the destructive step, last** —
+  `updateClinicProfile` shrank to an identity-only payload IN LOCKSTEP with
+  the panel (the old FormData-reads-everything shape meant a shrunken form
+  would NULL every website column on the next identity save — the exclusion
+  is now the headline regression test); `/settings/clinic` became "Business
+  profile" (basics/contact/hours/logo + connections) w/ a calm pointer
+  banner; settings search-index deep links repointed to
+  /website/content#<section> (ClinicSettingsNav's ?sub= scrolling works on
+  the new page unchanged); the hub dropped "Advanced edits" (final cards:
+  Editor, Design, Pages, Content, Forms, Blog, SEO, Careers, Domain,
+  Share); the retired template-footgun guard now pins the ABSENCE of any
+  template handling in the identity form.
+
 - **The Website workspace — the Shopify-style consolidation (2026-07-12).**
   Owner: "everything is so fragmented and squished into the top bar with
   weird ways to access them and their settings… consider the structure real

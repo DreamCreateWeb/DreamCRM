@@ -27,9 +27,10 @@ async function requirePlatformAdmin() {
 
 function revalidate() {
   revalidatePath('/platform/service-library')
-  // Picker is rendered server-side in settings; revalidate so a newly
-  // approved entry appears on the next clinic's load.
-  revalidatePath('/settings/clinic')
+  // The picker renders on the Content surface (and the editor's services
+  // modal); revalidate so a newly approved entry appears on the next load.
+  revalidatePath('/website/content')
+  revalidatePath('/website/editor')
 }
 
 export async function approveLibraryEntryAction(

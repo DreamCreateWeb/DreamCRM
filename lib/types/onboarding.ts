@@ -56,7 +56,7 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
     id: 'add_team',
     label: 'Introduce your team',
     body: 'Patients pick practices with faces. Add your people and they appear on your site.',
-    href: '/settings/clinic',
+    href: '/website/content#staff',
   },
   {
     id: 'set_hours',
