@@ -10,6 +10,8 @@ import { getBlogStats } from '@/lib/services/blog'
 import { getSiteHealth } from '@/lib/services/seo'
 import { getCareersStats } from '@/lib/services/careers'
 import { getLastWebsiteEdit } from '@/lib/services/website-history'
+import { getClinicSeoPerformance } from '@/lib/services/gsc'
+import { getSiteTemplate } from '@/lib/site-templates/registry'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -72,12 +74,14 @@ export default async function WebsiteHubPage() {
   const siteHost = siteUrl.replace(/^https?:\/\//, '')
 
   // Every read is best-effort — the hub must render even when a stat hiccups.
-  const [performance, blogStats, siteHealth, careersStats, lastEdit] = await Promise.all([
+  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope] = await Promise.all([
     getSitePerformance(ctx.organizationId).catch(() => null),
     isPro ? getBlogStats(ctx.organizationId).catch(() => null) : null,
     isPro ? getSiteHealth(ctx.organizationId).catch(() => null) : null,
     isPremium ? getCareersStats(ctx.organizationId).catch(() => null) : null,
     getLastWebsiteEdit(ctx.organizationId).catch(() => null),
+    // Only the checklist reads this — owner/admin only, best-effort.
+    canEdit ? getClinicSeoPerformance(ctx.organizationId, 28).catch(() => null) : null,
   ])
 
   const domain = (profile.customDomainStatus as CustomDomainStatus | null) ?? null
@@ -88,6 +92,55 @@ export default async function WebsiteHubPage() {
         ? { tone: 'urgent', label: 'Domain needs attention' }
         : { tone: 'warn', label: 'Domain waiting on DNS' }
     : { tone: 'neutral', label: 'Free address' }
+
+  // ── Go-live checklist — REAL stored states only, anti-shame copy. Rows a
+  //    plan doesn't cover are omitted (the upsell cards below own that story);
+  //    optional rows say so. Fully-done checklists hide (calm chrome). ───────
+  const templateDef = getSiteTemplate(profile.template)
+  const checklist: { label: string; done: boolean; href: string; optional?: boolean; hint?: string }[] =
+    canEdit
+      ? [
+          {
+            label: 'Personalize your site',
+            done: !!profile.onboardingInterviewCompletedAt,
+            href: '/welcome',
+            hint: 'A 3-minute interview drafts every page in your voice.',
+          },
+          {
+            label: profile.template && profile.template !== 'modern' ? `Design: ${templateDef.label}` : 'Try a design',
+            done: !!profile.template && profile.template !== 'modern',
+            href: '/website/editor',
+            optional: true,
+            hint: 'Preview any design on your own content — switching is instant and reversible.',
+          },
+          {
+            label: 'Connect your own domain',
+            done: domain?.state === 'active',
+            href: '/website/domain',
+            optional: true,
+            hint: 'Two DNS records put your site on yourpractice.com.',
+          },
+          ...(isPro
+            ? [
+                {
+                  label: 'Search data flowing',
+                  done: !!gscScope?.platformConnected && !gscScope.customDomain,
+                  href: '/website/seo',
+                  hint: 'Google Search Console clicks + queries, scoped to your pages.',
+                },
+                {
+                  label: 'Publish your first blog post',
+                  done: (blogStats?.published ?? 0) > 0,
+                  href: '/website/blog',
+                  optional: true,
+                  hint: 'Posts feed your site and the patient newsletter.',
+                },
+              ]
+            : []),
+        ]
+      : []
+  const checklistOpen = checklist.filter((c) => !c.done)
+  const showChecklist = checklist.length > 0 && checklistOpen.length > 0
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
@@ -137,6 +190,48 @@ export default async function WebsiteHubPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Go-live checklist — hides once everything's done ─────────────── */}
+      {showChecklist && (
+        <div className="v2-card p-4 sm:p-5 mb-6">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+            Make the most of your site
+          </h2>
+          <ul className="space-y-2">
+            {checklist.map((c) => (
+              <li key={c.label}>
+                <Link href={c.href} className="group flex items-start gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className={`mt-0.5 inline-flex items-center justify-center w-4.5 h-4.5 rounded-full text-xs font-bold shrink-0 ${
+                      c.done
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                        : 'border border-gray-300 dark:border-gray-600 text-transparent'
+                    }`}
+                  >
+                    ✓
+                  </span>
+                  <span className="min-w-0">
+                    <span
+                      className={`text-sm font-medium group-hover:underline underline-offset-4 ${
+                        c.done ? 'text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-gray-100'
+                      }`}
+                    >
+                      {c.label}
+                      {c.optional && !c.done && (
+                        <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">optional</span>
+                      )}
+                    </span>
+                    {c.hint && !c.done && (
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">{c.hint}</span>
+                    )}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ── Last 30 days ──────────────────────────────────────────────────── */}
       {performance && (

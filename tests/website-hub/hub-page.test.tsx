@@ -61,6 +61,15 @@ vi.mock('@/lib/services/careers', () => ({
 vi.mock('@/lib/services/website-history', () => ({
   getLastWebsiteEdit: vi.fn(async () => ({ label: 'Hero image', createdAt: new Date() })),
 }))
+const gscScopeMock = vi.fn(async () => ({
+  perf: null,
+  platformConnected: false,
+  customDomain: false,
+  scopeLabel: '/site/acme',
+}))
+vi.mock('@/lib/services/gsc', () => ({
+  getClinicSeoPerformance: (...a: unknown[]) => gscScopeMock(...(a as [])),
+}))
 
 import WebsiteHubPage from '@/app/(default)/website/page'
 import { clinicModules } from '@/lib/modules/clinic'
@@ -132,6 +141,42 @@ describe('WebsiteHubPage', () => {
     expect(container.querySelector('a[href="/settings/billing?upgrade=careers"]')).toBeTruthy()
     // The gated pages themselves are never linked below-plan.
     expect(container.querySelector('a[href="/posts"]')).toBeNull()
+    cleanup()
+  })
+})
+
+describe('the go-live checklist', () => {
+  it('shows real undone states with anti-shame copy (owner, nothing set up)', async () => {
+    render(await WebsiteHubPage())
+    expect(screen.getByText('Make the most of your site')).toBeTruthy()
+    expect(screen.getByText('Personalize your site')).toBeTruthy()
+    expect(screen.getByText('Connect your own domain')).toBeTruthy()
+    // Optional rows say so instead of nagging.
+    expect(screen.getAllByText('optional').length).toBeGreaterThan(0)
+    cleanup()
+  })
+
+  it('hides entirely once every row is done (calm chrome)', async () => {
+    profileRow = makeProfile({
+      onboardingInterviewCompletedAt: new Date(),
+      template: 'cosmetic',
+      customDomainStatus: { state: 'active', domain: 'www.acmedental.com', requestedAt: 'x' },
+    })
+    gscScopeMock.mockResolvedValueOnce({
+      perf: null,
+      platformConnected: true,
+      customDomain: false,
+      scopeLabel: '/site/acme',
+    })
+    render(await WebsiteHubPage())
+    expect(screen.queryByText('Make the most of your site')).toBeNull()
+    cleanup()
+  })
+
+  it('never renders for members', async () => {
+    ctx = { ...ctx, role: 'member' }
+    render(await WebsiteHubPage())
+    expect(screen.queryByText('Make the most of your site')).toBeNull()
     cleanup()
   })
 })

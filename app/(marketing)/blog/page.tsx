@@ -19,7 +19,8 @@ function fmtDate(d: Date | null): string {
 }
 
 export default async function MarketingBlogPage() {
-  // /blog was the clinic dashboard's post manager before it moved to /posts —
+  // /blog was the clinic dashboard's post manager before it moved into the
+  // Website workspace (/website/blog) —
   // signed-in clinic staff following old bookmarks get a breadcrumb redirect
   // (matching the /calendar → /appointments convention). Platform staff and
   // signed-out visitors see the public marketing blog.

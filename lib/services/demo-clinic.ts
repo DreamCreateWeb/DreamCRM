@@ -1731,6 +1731,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         chairCount: schema.clinicProfile.chairCount,
         visitTypeSettings: schema.clinicProfile.visitTypeSettings,
         recallDefaultMonths: schema.clinicProfile.recallDefaultMonths,
+        onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, existing.id))
@@ -1740,6 +1741,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     if (profile?.brandColor === '#0ea5e9') patch.brandColor = '#9CAF9F'
     // Backfill the clinic timezone on legacy demos (seeded before the column).
     if (!profile?.timezone) patch.timezone = 'America/Chicago'
+    // Backfill the interview stamp on legacy demos (seeded before the hub's
+    // go-live checklist read it) — the demo site was always "personalized".
+    if (!profile?.onboardingInterviewCompletedAt) patch.onboardingInterviewCompletedAt = new Date()
 
     // one-time (2026-06): Acme→Dream Dental — force-refresh the clinic identity
     // on existing demos. backfill-when-null never fires here (these fields were
@@ -2558,6 +2562,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     organizationId: orgId,
     legalName: 'Dream Dental, PLLC',
     displayName: 'Dream Dental',
+    // The demo ships fully personalized — the hub's go-live checklist reads
+    // this to show the "site personalized" state a real mature clinic has.
+    onboardingInterviewCompletedAt: new Date(),
     // Tagline is now the hero H1, so it carries the real value-prop weight.
     tagline: 'Dental care that finally feels human.',
     about:

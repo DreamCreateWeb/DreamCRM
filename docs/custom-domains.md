@@ -2,11 +2,11 @@
 
 Clinics can point their **own** domain (e.g. `www.smilebright.com`) at their
 DreamCRM public site. This is the operator-facing companion to the in-app
-"Custom domain" card (Settings → Clinic profile).
+"Custom domain" card (**Website → Domain** in the dashboard; the old Settings → Clinic profile anchor now links there).
 
 ## What the clinic does
 
-1. In **Settings → Clinic profile → Custom domain**, they enter a host — with
+1. In **Website → Domain**, they enter a host — with
    OR without the `www.` (e.g. `nwasmiles.com` or `www.nwasmiles.com`). We treat
    an apex + its `www.` sibling as a **pair**: whichever they type, we resolve to
    the apex and associate it in App Runner with `EnableWWWSubdomain: true`, so one

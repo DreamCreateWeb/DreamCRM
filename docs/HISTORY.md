@@ -7,6 +7,46 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **The Website workspace — the Shopify-style consolidation (2026-07-12).**
+  Owner: "everything is so fragmented and squished into the top bar with
+  weird ways to access them and their settings… consider the structure real
+  platforms have, like Wix, Duda, Shopify." Ground truth agreed: 4 flat
+  sidebar entries, a 13-control 48px Studio top bar, content editable in 3
+  places, the custom-domain card buried behind `/settings/clinic#custom-domain`
+  and absent from the whole signup journey, SEO split across `/seo` +
+  `/settings/seo`. Shipped in four green pushes: **A — the hub + editor
+  move**: `/website` became the workspace home (live-site card w/ real URL +
+  domain-state pill, 30-day performance snapshot ported from the Studio
+  popover, doorway cards w/ live stats, honest below-plan upsell cards →
+  `?upgrade=`); the Studio moved to `/website/editor` with its top bar
+  slimmed to pure editing controls (Exit→hub; 📊/🖨/Advanced-edits now live
+  on the hub); the sidebar Website group collapsed to ONE role/plan-
+  unrestricted entry (editor keeps its own owner/admin gate);
+  `getModuleLabel` learned the folded sub-area names; ⌘K gained a
+  `websitePages` block so nothing fell out of search. **B — the domain
+  earned its place**: `/website/domain` hosts the auto-polling connect card
+  (settings keeps an honest "it moved" stub at the old anchor); onboarding-
+  complete + the welcome reveal now mention it; the Overview website banner
+  gained two real stored-state branches (domain_failed outranks everything;
+  domain_pending nudges after traffic problems). **C — the fold-in**:
+  `/posts`→`/website/blog`, `/seo`→`/website/seo` (absorbing the Search-
+  appearance meta editor as an anchored `#meta` section — beware: the moved
+  form's `./actions` import would have silently bound to the GSC actions
+  file; it now imports `./meta-actions`), `/careers`→`/website/careers`;
+  route-level `permanentRedirect` stubs for every old path incl. sub-routes
+  + param forwarding (`?ai=1`, `gscConnected/gscError`) — route-level
+  deliberately, next.config redirects run BEFORE the middleware subdomain
+  rewrite and would hijack the public clinic sites' `/careers`+`/blog`;
+  platform-tenant registry paths moved too (Platform Blog + Search Console
+  share these routes); GSC OAuth callback repointed directly. **D — polish**:
+  hub go-live checklist (real states only: interview stamp, non-default
+  template, active domain, GSC scope flowing, first post; optional rows say
+  "optional"; fully-done hides), demo seeder stamps
+  `onboardingInterviewCompletedAt` (insert + legacy self-heal), docs updated.
+  Testing note: `expect(fn).toThrow()` mis-fires against a throwing vi.fn
+  under the global `clearAllMocks` setup — the redirect-stub tests assert
+  via try/catch sentinels instead.
+
 - **Cosmetic/Luxury v2 — the charcoal-first redesign (2026-07-11).** Owner
   verdict on the design pass: "I absolutely love the pediatric one… but the
   cosmetic luxury one is rough, I don't really like that design at all."
