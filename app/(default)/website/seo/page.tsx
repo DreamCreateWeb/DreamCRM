@@ -228,8 +228,8 @@ export default async function SeoPage({ searchParams }: Props) {
               )
             })}
           </ul>
-          <Link href="/settings/clinic" className="inline-block mt-4 text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
-            Fix the gaps in Settings → Clinic →
+          <Link href="/website/content" className="inline-block mt-4 text-xs font-medium text-teal-700 dark:text-teal-400 hover:underline">
+            Fix the gaps in Website → Content →
           </Link>
         </section>
 

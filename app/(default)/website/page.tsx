@@ -12,6 +12,7 @@ import { getCareersStats } from '@/lib/services/careers'
 import { getLastWebsiteEdit } from '@/lib/services/website-history'
 import { getClinicSeoPerformance } from '@/lib/services/gsc'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
+import { contentCompleteness } from '@/lib/website-content-sections'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -84,6 +85,7 @@ export default async function WebsiteHubPage() {
     canEdit ? getClinicSeoPerformance(ctx.organizationId, 28).catch(() => null) : null,
   ])
 
+  const completeness = contentCompleteness(profile)
   const domain = (profile.customDomainStatus as CustomDomainStatus | null) ?? null
   const domainPill: { tone: Tone; label: string } = domain
     ? domain.state === 'active'
@@ -311,6 +313,16 @@ export default async function WebsiteHubPage() {
             title="Editor & design"
             stat={lastEdit?.label ? `Last edit: ${lastEdit.label}` : 'Ready to edit'}
             description="Edit your site in place — text, photos, sections, brand color, and the design picker."
+          />
+        )}
+        {canEdit && (
+          <SectionCard
+            href="/website/content"
+            icon="doc"
+            title="Content"
+            stat={`${completeness.filled} of ${completeness.total} sections filled`}
+            statTone={completeness.filled >= completeness.total ? 'ok' : undefined}
+            description="Everything your site says — services, team, photos, FAQ, and policies, as plain forms."
           />
         )}
         {isPro ? (

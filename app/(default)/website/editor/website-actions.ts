@@ -250,6 +250,19 @@ export async function saveAbout(formData: FormData): Promise<SectionResult> {
   })
 }
 
+// ── Your story (tagline + about) ────────────────────────────────────────────
+// The Content surface's story section: website voice only — deliberately NOT
+// saveHero, which also writes the identity names (those live in the Business
+// profile).
+export async function saveStory(formData: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    await writeSection(ctx, {
+      tagline: clean('tagline', formData),
+      about: clean('about', formData),
+    })
+  })
+}
+
 // ── Contact + address ───────────────────────────────────────────────────────
 export async function saveContact(formData: FormData): Promise<SectionResult> {
   return runSection(async (ctx) => {

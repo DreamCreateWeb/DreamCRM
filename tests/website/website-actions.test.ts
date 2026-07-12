@@ -45,6 +45,7 @@ import {
   saveHero,
   saveTemplate,
   saveAbout,
+  saveStory,
   saveStats,
   saveFaq,
   saveHours,
@@ -108,6 +109,13 @@ describe('website section actions — section isolation', () => {
   it('saveAbout writes ONLY about', async () => {
     await saveAbout(form({ about: 'We are warm.', displayName: 'IGNORED', stats: 'IGNORED' }))
     expect(setKeys()).toEqual(['about'])
+  })
+
+  it('saveStory writes ONLY tagline + about — never the identity names', async () => {
+    await saveStory(form({ tagline: 'Smiles', about: 'We are warm.', displayName: 'IGNORED' }))
+    expect(setKeys()).toEqual(['about', 'tagline'])
+    // No org-name sync — story is website voice, not identity.
+    expect(ops.find((o) => o.table === 'organization')).toBeUndefined()
   })
 
   it('saveStats writes ONLY stats', async () => {
