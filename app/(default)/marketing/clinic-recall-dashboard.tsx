@@ -6,6 +6,7 @@ import { getRetentionSettings, previewRetentionAudiences } from '@/lib/services/
 import { RetentionAutomationsCard } from './retention-automations-card'
 import { NewsletterCard } from './newsletter-card'
 import { listPublishedPosts } from '@/lib/services/blog'
+import { getReferralProgramStats } from '@/lib/services/patient-referrals'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -63,12 +64,13 @@ const ACTIVITY_ICON: Record<RecallActivityKind, string> = {
 }
 
 export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContext }) {
-  const [stats, audiences, retentionSettings, retentionPreview, publishedPosts] = await Promise.all([
+  const [stats, audiences, retentionSettings, retentionPreview, publishedPosts, referralStats] = await Promise.all([
     getRecallStats(ctx.organizationId),
     listAudiences(ctx.organizationId),
     getRetentionSettings(ctx.organizationId),
     previewRetentionAudiences(ctx.organizationId),
     listPublishedPosts(ctx.organizationId, { limit: 3 }),
+    getReferralProgramStats(ctx.organizationId),
   ])
   const publishedPostCount = publishedPosts.length
 
@@ -254,6 +256,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           canManage={canManageAutomations}
         />
         <NewsletterCard publishedPostCount={publishedPostCount} />
+        <ReferralProgramCard referredPatients={referralStats.referredPatients} referrers={referralStats.referrers} />
       </section>
 
       {/* ── Row 3 — Audiences + Activity ───────────────────────────────── */}
@@ -346,6 +349,55 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
  * (KpiStat's drillable model). Urgency is carried by the tone'd `sub`
  * line, never by dimming/coloring the digits (DESIGN-SYSTEM rule 4).
  */
+/**
+ * The refer-a-friend program's Growth-side door. The program itself lives
+ * where its pieces run — patients share from the portal, attribution shows on
+ * the patient record, thank-you points sit in Shop → Loyalty — but a
+ * growth-minded owner looks HERE, so this card is the map to those homes plus
+ * the live pulse (structure-audit finding: the program was invisible from
+ * Growth).
+ */
+function ReferralProgramCard({ referredPatients, referrers }: { referredPatients: number; referrers: number }) {
+  return (
+    <div className="v2-card p-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Refer-a-friend</h2>
+            <span className="text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 rounded-full px-2 py-0.5">
+              Patients share from their portal
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 max-w-prose">
+            Every patient has a personal share link in their portal; friends who book through it
+            are stamped &ldquo;referred by&rdquo; on their record automatically.{' '}
+            {referredPatients > 0 ? (
+              <span className="tabular-nums">
+                {referredPatients} patient{referredPatients === 1 ? '' : 's'} came in this way, brought by{' '}
+                {referrers} referrer{referrers === 1 ? '' : 's'}.
+              </span>
+            ) : (
+              'No referred bookings yet — it counts up here as friends book.'
+            )}{' '}
+            Thank-you points live in{' '}
+            <Link href="/shop" className="font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4">
+              Shop → Loyalty
+            </Link>
+            ; the portal switch is in{' '}
+            <Link href="/settings/portal" className="font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4">
+              Portal settings
+            </Link>
+            .
+          </p>
+        </div>
+        <ActionButton variant="secondary" size="sm" href="/settings/portal">
+          Portal share settings
+        </ActionButton>
+      </div>
+    </div>
+  )
+}
+
 function RecallKpi({
   label,
   count,

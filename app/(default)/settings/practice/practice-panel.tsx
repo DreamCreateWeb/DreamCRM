@@ -186,6 +186,14 @@ function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: s
         </a>
         .
       </p>
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        The portal&rsquo;s booking rules — which visit types patients can pick, how much
+        notice you need, and the reschedule/cancel cutoff — live in{' '}
+        <a href="/settings/portal" className="font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4">
+          Settings → Patient portal
+        </a>
+        .
+      </p>
     </section>
   )
 }

@@ -306,6 +306,15 @@ export default function PortalSettingsForm({
           />
         }
       />
+
+      <p className="pt-3.5 text-xs text-gray-500 dark:text-gray-400">
+        The supply side of booking — visit types and durations, providers, chairs, and the
+        master self-scheduling switch — lives in{' '}
+        <a href="/settings/practice" className="font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4">
+          Settings → Practice
+        </a>
+        .
+      </p>
     </SettingsSection>
   )
 

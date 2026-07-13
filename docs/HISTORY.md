@@ -3781,3 +3781,27 @@ seed persona-anchored with `*_demo`/`demo*` markers + cleanup-sweep entries.
 
 Remaining in COMPETITIVE-GAPS: only the P3/📵 tail (SMS-gated + post-OD +
 partnership items) — every P1 and P2 vendor gap is shipped.
+
+## 2026-07-13 — Deep purpose-audit vs competitors (docs/STRUCTURE-AUDIT.md)
+
+Full three-stage audit before any further module work: (1) inventoried every
+clinic-dashboard feature + setting by purpose (15+ purpose areas, exact
+placement); (2) benchmarked how NexHealth / Weave / RevenueWell /
+Solutionreach / YAPI / Adit / Birdeye / Podium / Dental Intelligence /
+Kleer / BoomCloud / Pearly / Wix / Squarespace / Shopify structure the same
+purposes; (3) synthesized purpose-by-purpose verdicts. Result: the house
+pattern (behavior config in-feature, copy+timing in the Automations hub,
+account-wide config in pinned Settings) matches the strongest cross-vendor
+norms — 15 of 17 purpose areas verdict "keep". The 4 adjustments shipped:
+
+1. Booking-split bridge: Practice→Online booking ⇄ Portal→Booking now
+   cross-link (verified the two homes are semantically real — portal rules
+   are consumed only by portal surfaces — so a merge would be wrong).
+2. Refer-a-friend Growth door: ReferralProgramCard on the outreach hub
+   (live org-wide pulse via new getReferralProgramStats in
+   lib/services/patient-referrals.ts; demo org already seeds attribution).
+3. Appointments header action now deep-links the reminder-journey card
+   (?email=appointment_reminder) instead of only the confirmation email.
+4. Chat-widget action moved next to its route
+   (app/(default)/website/forms/actions.ts); dead chatWidgetEnabled field
+   dropped from getPracticeSettings.

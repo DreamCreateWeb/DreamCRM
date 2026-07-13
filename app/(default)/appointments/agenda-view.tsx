@@ -363,8 +363,8 @@ export default function AgendaView({
         }
         actions={
           <>
-            <ActionButton variant="secondary" href="/settings/automations/emails?email=booking_confirmation">
-              Edit confirmation email
+            <ActionButton variant="secondary" href="/settings/automations/emails?email=appointment_reminder">
+              Reminders &amp; emails
             </ActionButton>
             {totalRows > 0 && (
               <ActionButton

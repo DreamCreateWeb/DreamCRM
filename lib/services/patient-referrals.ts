@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomBytes, randomUUID } from 'crypto'
-import { and, eq, isNull, ne } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 
@@ -202,6 +202,30 @@ export async function getReferralContext(
   return {
     referredBy,
     referred: referredRows.map((r) => ({ id: r.id, name: `${r.firstName} ${r.lastName}`.trim() })),
+  }
+}
+
+/**
+ * Org-wide program pulse for the Growth outreach hub: how many patients were
+ * brought in by another patient, and how many distinct patients did the
+ * bringing. Merged records are excluded like every other referral read.
+ */
+export async function getReferralProgramStats(
+  organizationId: string,
+): Promise<{ referredPatients: number; referrers: number }> {
+  const rows = await db
+    .select({ referredBy: schema.patient.referredByPatientId })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        isNull(schema.patient.mergedIntoPatientId),
+        isNotNull(schema.patient.referredByPatientId),
+      ),
+    )
+  return {
+    referredPatients: rows.length,
+    referrers: new Set(rows.map((r) => r.referredBy)).size,
   }
 }
 

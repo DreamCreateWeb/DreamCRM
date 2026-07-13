@@ -23,6 +23,10 @@ vi.mock('@/lib/services/marketing', () => ({
 }))
 // The newsletter card counts published posts — not what this suite tests.
 vi.mock('@/lib/services/blog', () => ({ listPublishedPosts: vi.fn(async () => []) }))
+// The refer-a-friend card reads the org-wide program pulse — also not under test.
+vi.mock('@/lib/services/patient-referrals', () => ({
+  getReferralProgramStats: vi.fn(async () => ({ referredPatients: 0, referrers: 0 })),
+}))
 
 vi.mock('@/lib/services/retention-automation', () => ({
   getRetentionSettings: vi.fn(async () => ({ birthdayAutoSend: false, lapsedReactivation: false })),

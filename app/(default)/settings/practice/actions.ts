@@ -181,25 +181,8 @@ export async function saveSelfBookingAction(enabled: boolean): Promise<Result> {
   }
 }
 
-/** Toggle the public-site "Message us" chat bubble. Default ON; a visitor's
- *  message lands as an inbound thread in /messages (reply goes out by email). */
-export async function saveChatWidgetAction(enabled: boolean): Promise<Result> {
-  const ctx = await requirePracticeAdmin()
-  try {
-    await db
-      .update(clinicProfile)
-      .set({ chatWidgetEnabled: Boolean(enabled), updatedAt: new Date() })
-      .where(eq(clinicProfile.organizationId, ctx.organizationId))
-    revalidatePath('/settings/practice')
-    revalidatePath('/website/forms')
-    // The bubble renders on every public page — repaint the whole site subtree.
-    revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
-    await publishRealtime(ctx.organizationId, 'settings', { section: 'practice' })
-    return { ok: true }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not save chat setting' }
-  }
-}
+// The chat-widget toggle's action moved to app/(default)/website/forms/actions.ts
+// — its only control renders on Website → Forms (structure pass, 2026-07-13).
 
 export async function savePracticeOpsAction(input: {
   chairCount: number
@@ -241,8 +224,6 @@ export interface PracticeSettingsData {
   canEdit: boolean
   /** Clinic's Stripe Connect can charge — deposits only collect when true. */
   depositsAvailable: boolean
-  /** The public-site "Message us" chat bubble (default ON). */
-  chatWidgetEnabled: boolean
 }
 
 export async function getPracticeSettings(): Promise<PracticeSettingsData> {
@@ -256,7 +237,6 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
         lapsedAfterMonths: clinicProfile.lapsedAfterMonths,
         visitTypeSettings: clinicProfile.visitTypeSettings,
         selfBookingEnabled: clinicProfile.selfBookingEnabled,
-        chatWidgetEnabled: clinicProfile.chatWidgetEnabled,
       })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, ctx.organizationId))
@@ -273,6 +253,5 @@ export async function getPracticeSettings(): Promise<PracticeSettingsData> {
     selfBookingEnabled: profile?.selfBookingEnabled !== false,
     canEdit: ctx.role === 'owner' || ctx.role === 'admin',
     depositsAvailable,
-    chatWidgetEnabled: profile?.chatWidgetEnabled !== false,
   }
 }

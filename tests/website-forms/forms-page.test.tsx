@@ -44,7 +44,7 @@ const { saveLeadFormMock, saveChatMock } = vi.hoisted(() => ({
 vi.mock('@/app/(default)/website/editor/website-actions', () => ({
   saveLeadForm: saveLeadFormMock,
 }))
-vi.mock('@/app/(default)/settings/practice/actions', () => ({
+vi.mock('@/app/(default)/website/forms/actions', () => ({
   saveChatWidgetAction: saveChatMock,
 }))
 
