@@ -43,9 +43,6 @@ import {
   type PatientViewRow,
 } from '@/lib/services/patient-views'
 import { normalizeViewFilters, type SavedViewFilters } from '@/lib/types/patient-views'
-import { setFollowupRule } from '@/lib/services/followup-rules'
-import type { FollowupRuleId, FollowupRuleConfig } from '@/lib/types/followup-rules'
-import { setDigestEnabled } from '@/lib/services/daily-digest'
 import { createAudience } from '@/lib/services/marketing'
 import { planAllows } from '@/lib/modules'
 import { MAX_DOCUMENT_BYTES } from '@/lib/types/patient-documents'
@@ -321,26 +318,6 @@ export async function bulkFollowupForFilteredAction(
   }
 }
 
-/** Create one follow-up per (deduped, org-owned) patient from an explicit id
- *  list — the appointments-agenda "follow up with these N patients" bulk
- *  action (e.g. everyone who no-showed today). */
-export async function bulkCreateFollowupsForPatientsAction(
-  patientIds: string[],
-  input: { title: string; dueDate?: string | null },
-): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
-  const ctx = await requireTenant()
-  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can add follow-ups' }
-  if (!input.title.trim()) return { ok: false, error: 'Give the follow-up a title.' }
-  try {
-    const { created } = await bulkCreateFollowups(ctx.organizationId, patientIds, input, ctx.userId)
-    revalidatePath('/followups')
-    revalidatePath('/dashboard')
-    return { ok: true, created }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not add follow-ups' }
-  }
-}
-
 /** Apply a tag to every patient matching the current view. */
 export async function bulkTagForFilteredAction(
   filters: SavedViewFilters,
@@ -356,38 +333,6 @@ export async function bulkTagForFilteredAction(
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not apply the tag' }
   }
-}
-
-// ---------- Smart follow-up rules ----------
-
-export async function setFollowupRuleAction(
-  rule: FollowupRuleId,
-  enabled: boolean,
-): Promise<{ ok: true; config: FollowupRuleConfig } | { ok: false; error: string }> {
-  const ctx = await requireTenant()
-  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Automations are a clinic feature.' }
-  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-    return { ok: false, error: 'Only an owner or admin can change automations.' }
-  }
-  if (rule !== 'balance' && rule !== 'recall' && rule !== 'unconfirmed') {
-    return { ok: false, error: 'Unknown rule.' }
-  }
-  const config = await setFollowupRule(ctx.organizationId, rule, enabled)
-  revalidatePath('/followups')
-  return { ok: true, config }
-}
-
-export async function setDigestEnabledAction(
-  enabled: boolean,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const ctx = await requireTenant()
-  if (ctx.tenantType !== 'clinic') return { ok: false, error: 'The digest is a clinic feature.' }
-  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-    return { ok: false, error: 'Only an owner or admin can change the digest.' }
-  }
-  await setDigestEnabled(ctx.organizationId, enabled)
-  revalidatePath('/followups')
-  return { ok: true }
 }
 
 // ---------- Saved views ----------

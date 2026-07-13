@@ -123,7 +123,11 @@ export default async function ReviewsPage() {
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <ModuleHint id="reviews" />
       <PageHeader
-        eyebrow={`Growth · ${ctx.organizationName}`}
+        eyebrow={
+          <Link href="/growth" className="hover:underline underline-offset-4">
+            ‹ Growth
+          </Link>
+        }
         title="Reviews & Reputation"
         subtitle="Ask your real patients for a review after their visit — on Google, Healthgrades, and Facebook. Same results as Birdeye, Weave, or Podium, without the separate $300/mo bill or the review-gating the FTC just banned."
         legend={

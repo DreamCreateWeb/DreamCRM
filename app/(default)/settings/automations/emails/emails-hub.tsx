@@ -18,7 +18,7 @@ import {
   type ReminderSettings,
 } from '@/lib/types/reminders'
 import { saveEmailAutomationAction } from './actions'
-import { saveReminderSettingsAction } from '../../reminders/actions'
+import { saveReminderSettingsAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import { FlashToast } from '@/components/ui/flash-toast'

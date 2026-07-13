@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
@@ -90,7 +91,11 @@ export default async function SocialPostsPage() {
       <ModuleHint id="social_posts" />
 
       <PageHeader
-        eyebrow="Growth · Social"
+        eyebrow={
+          <Link href="/growth" className="hover:underline underline-offset-4">
+            ‹ Growth
+          </Link>
+        }
         title="Social Posts"
         subtitle="Compose once and publish — or schedule — to Google Business and your social channels at the same time. See everything on a content calendar."
         legend={

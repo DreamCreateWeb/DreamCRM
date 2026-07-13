@@ -313,6 +313,16 @@ Closed 2026-07-02 (round 5):
   connected mailbox's push watch has lapsed ("real-time paused — new email
   arrives when you open the inbox"), instead of degrading silently.
 
+## Class 6 — Cross-surface rule drift (opened 2026-07-13, structure audit)
+
+- ☐ Public-site booking ignores the portal booking rules: `minNoticeHours`
+  ("earliest online booking") and the bookable-type allowlist are consumed
+  only by the PORTAL surfaces (slot-picker, book-form, visit actions) — the
+  public /site/[slug]/book flow gates on `bookablePublic` visit-type flags
+  but honors no notice window, so a visitor can grab a slot 30 minutes out
+  while a portal patient can’t. Decide: apply the same notice window to
+  public booking, or split the settings copy to say "portal only".
+
 ## How to keep hunting (method)
 
 1. Pick a surface a real clinic hits daily (patient detail, agenda, Overview,

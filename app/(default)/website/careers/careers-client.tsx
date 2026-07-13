@@ -130,7 +130,11 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
       <PageHeader
-        eyebrow={`Website · ${orgName}`}
+        eyebrow={
+          <Link href="/website" className="hover:underline underline-offset-4">
+            ‹ Website
+          </Link>
+        }
         title="Careers"
         subtitle="Post openings on your own site — they get picked up by Google for Jobs and Indeed for free. Applications land here, ready to sort through."
         legend={<EncodingLegend aging="applicants" pills={APP_PILL_LEGEND} />}

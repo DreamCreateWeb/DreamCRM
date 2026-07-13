@@ -76,7 +76,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
         subtitle={`Saved groups of ${leadsLabel} you can send a campaign to.`}
         actions={
           <>
-            <ActionButton variant="secondary" href="/marketing">
+            <ActionButton variant="secondary" href={tenantType === 'clinic' ? '/growth/outreach' : '/marketing'}>
               ← Recall dashboard
             </ActionButton>
             <ActionButton variant="primary" breath onClick={() => setEditing('new')}>

@@ -53,6 +53,7 @@ export default async function InboxSettings({
           connectedEmail: params.connected ?? null,
           error: friendlyOAuthError(params.error ?? null),
         }}
+        orgName={ctx.organizationName ?? 'Your clinic'}
         patientSender={{
           accountId: profileRow?.emailSendingAccountId ?? null,
           offerDesignation:

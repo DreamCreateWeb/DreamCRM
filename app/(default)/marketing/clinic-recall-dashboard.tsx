@@ -85,7 +85,11 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           leverage next step: it's where the recall sends actually start).
           Audiences + Campaigns are secondary. ──────────────────────────── */}
       <PageHeader
-        eyebrow={`Growth · ${orgName}`}
+        eyebrow={
+          <Link href="/growth" className="hover:underline underline-offset-4">
+            ‹ Growth
+          </Link>
+        }
         title="Recall & Outreach"
         subtitle={`Patients who need a nudge, what's scheduled to send, and how recent sends performed — for ${fmtDate(now)}.`}
         actions={

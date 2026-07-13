@@ -81,7 +81,11 @@ export default async function CampaignsPage({
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
-        eyebrow={`Growth · ${ctx.organizationName}`}
+        eyebrow={
+          <Link href="/growth" className="hover:underline underline-offset-4">
+            ‹ Growth
+          </Link>
+        }
         title="Campaigns"
         subtitle="Email campaigns you've drafted, scheduled, or sent."
         legend={

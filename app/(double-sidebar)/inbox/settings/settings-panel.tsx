@@ -17,9 +17,11 @@ interface Props {
   /** Tier-2 patient-sender designation — offered to clinic owners/admins right
    *  here (post-connect) so the capability isn't buried in Settings → Clinic. */
   patientSender: { accountId: string | null; offerDesignation: boolean }
+  /** Clinic name for the orientation eyebrow (Daily · <clinic>). */
+  orgName: string
 }
 
-export default function SettingsPanel({ accounts, configured, flash, patientSender }: Props) {
+export default function SettingsPanel({ accounts, configured, flash, patientSender, orgName }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [senderPending, startSenderTransition] = useTransition()
@@ -105,7 +107,7 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
   return (
     <div className="px-6 py-8 max-w-3xl">
       <PageHeader
-        eyebrow="Daily · Inbox"
+        eyebrow={`Daily · ${orgName}`}
         title="Inbox accounts"
         subtitle="Connect Gmail accounts to bring their inboxes into DreamCRM. Connect as many addresses as you need — info@, billing@, support@, and more."
         actions={

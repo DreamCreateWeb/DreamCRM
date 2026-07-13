@@ -80,7 +80,11 @@ export default async function BlogPage() {
       <ModuleHint id="blog" />
 
       <PageHeader
-        eyebrow={`Website · ${ctx.organizationName}`}
+        eyebrow={
+          <Link href="/website" className="hover:underline underline-offset-4">
+            ‹ Website
+          </Link>
+        }
         title="Blog"
         subtitle="Original posts on your own website — written by your team (with AI help) and reviewed before they go live. Not the recycled content library most dental sites use, which Google quietly discounts."
         legend={<EncodingLegend pills={PILL_LEGEND} />}

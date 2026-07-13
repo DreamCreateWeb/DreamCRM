@@ -58,6 +58,9 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('@/lib/db/schema/platform', () => ({ clinicProfile: 'clinic_profile' }))
+// bulkCreateFollowupsForPatientsAction moved into appointments/actions.ts —
+// its service builds a select shape from schema at import time; stub it out.
+vi.mock('@/lib/services/patient-followups', () => ({ bulkCreateFollowups: vi.fn() }))
 vi.mock('@/lib/services/providers', () => ({ listProviders: vi.fn(async () => []) }))
 
 import { createInternalAppointmentAction } from '@/app/(default)/appointments/actions'

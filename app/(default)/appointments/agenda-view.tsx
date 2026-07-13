@@ -34,10 +34,9 @@ import {
   type AppointmentViewFilters,
 } from '@/lib/types/appointment-views'
 import SavedViewsBar, { type SavedViewChip } from '@/components/saved-views/saved-views-bar'
-import { bulkCreateFollowupsForPatientsAction } from '../patients/actions'
 import NewBookingDrawer from './new-booking-drawer'
 import AppointmentDrawer from './appointment-drawer'
-import { confirmAppointmentAction, markCompletedAction, bulkSendRemindersAction, bulkSetAppointmentStatusAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
+import { confirmAppointmentAction, markCompletedAction, bulkSendRemindersAction, bulkSetAppointmentStatusAction, bulkCreateFollowupsForPatientsAction, createAppointmentViewAction, deleteAppointmentViewAction } from './actions'
 
 // Status carries categorical state only (timing lives on the aging border,
 // per-row flags on the glyphs). Tones from the semantic contract:

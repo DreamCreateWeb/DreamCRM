@@ -90,9 +90,14 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
         subtitle="Recurring cash-pay plans for uninsured patients — predictable revenue, and members visit far more often. Active plans also power the Dental plans page on your website."
         legend={<EncodingLegend pills={tab === 'plans' ? PLAN_PILL_LEGEND : MEMBER_PILL_LEGEND} />}
         actions={
-          <ActionButton variant="primary" breath size="sm" href="/shop/memberships/new">
-            + New plan
-          </ActionButton>
+          <>
+            <ActionButton variant="secondary" size="sm" href="/shop">
+              ← Back to Shop
+            </ActionButton>
+            <ActionButton variant="primary" breath size="sm" href="/shop/memberships/new">
+              + New plan
+            </ActionButton>
+          </>
         }
       />
 

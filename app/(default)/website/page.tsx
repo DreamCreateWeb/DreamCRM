@@ -171,6 +171,7 @@ export default async function WebsiteHubPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
       <PageHeader
+        eyebrow={`Website · ${ctx.organizationName}`}
         title="Website"
         subtitle="Your site, design, blog, search presence, and domain — all in one place."
         actions={

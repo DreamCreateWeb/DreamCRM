@@ -91,7 +91,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       <PageHeader
         eyebrow={
           <span className="inline-flex items-center gap-2">
-            Practice · {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            <Link href="/growth" className="hover:underline underline-offset-4">
+              ‹ Growth
+            </Link>
             <StatusPill tone="warn" label="Premium" />
           </span>
         }

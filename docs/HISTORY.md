@@ -3805,3 +3805,34 @@ norms — 15 of 17 purpose areas verdict "keep". The 4 adjustments shipped:
 4. Chat-widget action moved next to its route
    (app/(default)/website/forms/actions.ts); dead chatWidgetEnabled field
    dropped from getPracticeSettings.
+
+## 2026-07-13 (later) — Internal-structure conformance pass
+
+Second depth level of the structure audit: two exhaustive module-internals
+sweeps (Daily group; Growth/Website/Business/Settings) against a fixed
+conformance checklist (cross-route action seams, list spines, config
+placement + deep links, back paths, header convention, orphans, hub parity,
+upsell honesty). Verified conforming with no change: Automations deep-link
+pattern (all 5 modules), list spines (orders/campaigns/leads/patients/
+appointments/messages), hub↔sub-page parity on all three workspaces, zero
+orphan pages, honest upsell doors. Fixes shipped:
+
+1. Action-home seams (the chat-widget class, 3 more): agenda's
+   `bulkCreateFollowupsForPatientsAction` → appointments/actions.ts;
+   `setFollowupRuleAction` + `setDigestEnabledAction` → new
+   followups/actions.ts; `saveReminderSettingsAction` → the Emails hub's
+   actions.ts (was on the /settings/reminders redirect stub, revalidating
+   the stub path).
+2. Back-path class (11 pages): Growth first-level sub-pages (outreach,
+   campaigns, reviews, social, analytics) adopt the workspace breadcrumb
+   eyebrow (`‹ Growth`); website/blog + seo + careers adopt `‹ Website`
+   like their siblings; shop memberships/coupons/collections get
+   `← Back to Shop`; audiences' back link is tenant-aware
+   (/growth/outreach for clinics).
+3. Eyebrow convention: growth/analytics ("Practice · date"),
+   website/seo ("Search · date"), inbox settings ("Daily · Inbox"),
+   growth/social, both integration detail pages, website/share — all now
+   follow the group-or-breadcrumb convention; Growth + Website hubs gain
+   the same eyebrow the Shop hub already had.
+4. FINISHING.md Class 6 opened: public-site booking ignores the portal
+   notice windows (decide: apply or relabel "portal only").

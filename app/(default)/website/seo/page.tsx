@@ -109,9 +109,13 @@ export default async function SeoPage({ searchParams }: Props) {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <PageHeader
         eyebrow={
-          isManage
-            ? 'Platform · Search Console'
-            : `Search · ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`
+          isManage ? (
+            'Platform · Search Console'
+          ) : (
+            <Link href="/website" className="hover:underline underline-offset-4">
+              ‹ Website
+            </Link>
+          )
         }
         title={isManage ? 'Search Console' : 'SEO'}
         subtitle={

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Toggle } from '@/components/ui/toggle'
 import { FOLLOWUP_RULE_META, type FollowupRuleConfig, type FollowupRuleId } from '@/lib/types/followup-rules'
-import { setFollowupRuleAction, setDigestEnabledAction } from '../patients/actions'
+import { setFollowupRuleAction, setDigestEnabledAction } from './actions'
 
 /**
  * Smart-rules card on the /followups page. Each toggle opts the clinic into an

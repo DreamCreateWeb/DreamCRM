@@ -67,9 +67,14 @@ export default async function CollectionsPage() {
         title="Collections"
         subtitle="Every open balance and where its follow-up stands — send pay links from here, and watch the paid ones clear on the next PMS sync."
         actions={
-          <ActionButton variant="secondary" size="sm" href="/shop/payments">
-            Online payments →
-          </ActionButton>
+          <>
+            <ActionButton variant="secondary" size="sm" href="/shop/payments">
+              Online payments →
+            </ActionButton>
+            <ActionButton variant="secondary" size="sm" href="/shop">
+              ← Back to Shop
+            </ActionButton>
+          </>
         }
       />
 

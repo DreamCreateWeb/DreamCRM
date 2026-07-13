@@ -14,8 +14,6 @@ vi.mock('@/app/(default)/appointments/actions', () => ({
   markCompletedAction: vi.fn(async () => ({ ok: true, reviewSent: true })),
   bulkSendRemindersAction: vi.fn(async () => ({ attempted: 0, sent: 0, skipped: 0, errors: [] })),
   bulkSetAppointmentStatusAction: bulkStatusMock,
-}))
-vi.mock('@/app/(default)/patients/actions', () => ({
   bulkCreateFollowupsForPatientsAction: bulkFollowupMock,
 }))
 vi.mock('@/app/(default)/appointments/appointment-drawer', () => ({

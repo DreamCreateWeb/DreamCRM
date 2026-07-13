@@ -40,6 +40,7 @@ export default async function GrowthHubPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
       <PageHeader
+        eyebrow={`Growth · ${ctx.organizationName}`}
         title="Growth"
         subtitle="How your practice grows — outreach, campaigns, reviews, social, and the numbers behind them."
       />

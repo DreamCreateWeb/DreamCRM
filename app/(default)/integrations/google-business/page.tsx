@@ -65,7 +65,7 @@ export default async function GoogleBusinessDetailPage() {
       <div className="mb-4">{backLink}</div>
 
       <PageHeader
-        eyebrow={`Google · ${ctx.organizationName}`}
+        eyebrow={`Business · ${ctx.organizationName}`}
         title="Google Business Profile"
         subtitle="Pull your reviews, verified hours, photos, and local search performance — through Zernio's secure sign-in. Free on every plan."
       />

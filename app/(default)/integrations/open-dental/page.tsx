@@ -90,7 +90,7 @@ export default async function OpenDentalDetailPage() {
       <div className="mb-4">{backLink}</div>
 
       <PageHeader
-        eyebrow={`Practice management · ${ctx.organizationName}`}
+        eyebrow={`Business · ${ctx.organizationName}`}
         title="Open Dental"
         subtitle="The relationship layer over your PMS — synced both directions through the official API, so every change lands in your Open Dental Audit Trail. We never touch your database directly."
         actions={connected && canManage ? <SyncNowButton /> : null}

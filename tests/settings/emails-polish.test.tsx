@@ -13,8 +13,6 @@ import { REMINDER_DEFAULTS } from '@/lib/types/reminders'
 
 vi.mock('@/app/(default)/settings/automations/emails/actions', () => ({
   saveEmailAutomationAction: vi.fn(async () => ({ ok: true as const })),
-}))
-vi.mock('@/app/(default)/settings/reminders/actions', () => ({
   saveReminderSettingsAction: vi.fn(async () => ({ ok: true as const })),
 }))
 

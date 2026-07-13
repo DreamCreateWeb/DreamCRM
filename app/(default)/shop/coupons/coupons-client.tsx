@@ -75,9 +75,14 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
         subtitle="Promo codes for your storefront, plus one-click birthday codes for patients celebrating this month."
         legend={<EncodingLegend pills={PILL_LEGEND} />}
         actions={
-          <ActionButton variant="primary" breath size="sm" onClick={() => codeRef.current?.focus()}>
-            + New coupon
-          </ActionButton>
+          <>
+            <ActionButton variant="secondary" size="sm" href="/shop">
+              ← Back to Shop
+            </ActionButton>
+            <ActionButton variant="primary" breath size="sm" onClick={() => codeRef.current?.focus()}>
+              + New coupon
+            </ActionButton>
+          </>
         }
       />
 

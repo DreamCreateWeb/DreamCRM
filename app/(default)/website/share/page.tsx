@@ -99,7 +99,7 @@ export default async function ShareCardsPage() {
       `}</style>
       <div className="no-print">
         <PageHeader
-          eyebrow="Website · Share"
+          eyebrow={`Website · ${clinicName}`}
           title="Put your website in patients’ hands"
           subtitle="Print these QR cards for the front desk, checkout counter, and waiting room — each one links a physical moment to the right page."
           actions={
