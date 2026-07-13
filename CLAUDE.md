@@ -209,7 +209,7 @@ Sidebar groups: **Daily** / **Growth** / **Website** / **Business** + a pinned
 | Business | Integrations | `/integrations` | Catalog-driven marketplace + **feature bundles** (activating one surfaces its modules in the sidebar). PMS: Open Dental two-way (detail page = full sync dashboard); GBP + socials via Zernio; Gmail; Stripe. Social caps + paid add-on live here. |
 | Settings | Settings | `/settings` | Card-grid home → 13 focused pages (clinic = the identity-only Business profile, practice, locations, portal, automations/emails, message-templates, team, apps, billing, account, notifications, security, feedback) + 3 redirect stubs (plans, reminders, seo → /website/pages). |
 
-**Platform tenant** (`lib/modules/platform.ts`): overview, clinics (+ managed
+**Platform tenant** (`lib/modules/platform.ts`; sidebar sections Daily / Customers / Sales / Insights / Content since 2026-07-13; the redundant Marketing funnel row dropped; prospecting has a persistent sub-nav layout): overview, clinics (+ managed
 provisioning + demo entry), client messaging, MRR/subscriptions (`/ecommerce/
 invoices`), **partners** (`/partners`), sales pipeline, **prospecting**
 (`/platform/prospecting` — Dream Create's own outbound engine, "The
