@@ -37,7 +37,7 @@ import type { ModuleRegistry } from './types'
  *     surfaces this contextually (Overview attention cards, Patients
  *     needs-attention panel, Appointments aging-color, Leads rot). When
  *     a unified followups view is wanted, ship it as a "Followups" tab
- *     inside Patients detail — not a top-level module.
+ *     inside Patients detail — later promoted to the top-level Daily module below.
  *   - Invoices (/invoices) — Mosaic stub that 404s. Clinical billing
  *     belongs to the PMS (out of scope per DESIGN.md). Shop payments +
  *     booking deposits + memberships will live inside Shop (Phase 3)
@@ -52,7 +52,10 @@ export const clinicModules: ModuleRegistry = {
     // zone (⌘1/⌘2/⌘3) — see ModuleDef.pinned/shortcut + DESIGN-SYSTEM Part 4.
     // Inbox is intentionally absent: it folds into Messages at nav level (the
     // /inbox route stays alive; Messages exposes a Mailbox tab to it).
-    { id: 'overview',          path: '/',                  label: 'Overview',         section: 'Daily',    icon: 'home',     status: 'live', pinned: true, shortcut: '⌘1' },
+    // Overview lives at /dashboard (the marketing site owns '/', redirecting
+    // signed-in users there) — the registry must carry the RENDERED path or
+    // the sidebar active-state + trail label never match the home page.
+    { id: 'overview',          path: '/dashboard',         label: 'Overview',         section: 'Daily',    icon: 'home',     status: 'live', pinned: true, shortcut: '⌘1' },
     { id: 'my_day',            path: '/my-day',            label: 'My Day',           section: 'Daily',    icon: 'user',     status: 'live', minPlan: 'pro' },
     { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', minPlan: 'pro', pinned: true, shortcut: '⌘2' },
     { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', minPlan: 'pro', pinned: true, shortcut: '⌘3' },

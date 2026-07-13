@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { getVisitForPatients, getMyPendingForms, getVisitPrep } from '@/lib/services/patient-portal'
 import { getPortalPageContext, toVisitCardData, mapsQueryFor } from '../../portal-data'
 import VisitCard from '@/components/patient-portal/visit-card'
-import { PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_WARN_BG, PORTAL_WARN_INK } from '@/components/patient-portal/ui'
+import { PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_WARN_BG, PORTAL_WARN_INK, PortalBackLink } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort, fmtVisitTime } from '@/components/patient-portal/format'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
 
@@ -47,13 +47,7 @@ export default async function VisitDetailPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Link
-        href="/patient/appointments"
-        className="text-[0.85rem] font-semibold"
-        style={{ color: PORTAL_MUTED }}
-      >
-        ← All visits
-      </Link>
+      <PortalBackLink href="/patient/appointments" label="All visits" brand={brand} />
       <div className="mt-2">
         <PortalHeading color={brand}>
           {typeLabel}

@@ -12,7 +12,7 @@ describe('buildPortalNav', () => {
   it('default settings: Home/Visits/Messages/Billing primary, rest in More', () => {
     const nav = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, hasDependents: false })
     expect(nav.primary.map((i) => i.label)).toEqual(['Home', 'Visits', 'Messages', 'Billing'])
-    expect(nav.more.map((i) => i.label)).toEqual(['Records', 'Forms', 'My info'])
+    expect(nav.more.map((i) => i.label)).toEqual(['Records', 'Forms', 'Family', 'My info'])
   })
 
   it('a toggled-off feature produces NO nav item anywhere', () => {
@@ -25,12 +25,14 @@ describe('buildPortalNav', () => {
     expect(nav.primary.map((i) => i.label)).toEqual(['Home', 'Visits', 'Records', 'Forms'])
   })
 
-  it('Family appears only when the feature is on AND dependents exist', () => {
+  it('Family gates on the feature ONLY — day-0 patients need the nav path to request their first link', () => {
     const on = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, hasDependents: true })
     expect([...on.primary, ...on.more].map((i) => i.label)).toContain('Family')
 
+    // No dependents yet → Family STILL shows (the page's day-0 value is the
+    // link-request form; hiding it left no nav path to ever get a dependent).
     const noDeps = buildPortalNav({ settings: DEFAULT_PORTAL_SETTINGS, hasShop: false, hasDependents: false })
-    expect([...noDeps.primary, ...noDeps.more].map((i) => i.label)).not.toContain('Family')
+    expect([...noDeps.primary, ...noDeps.more].map((i) => i.label)).toContain('Family')
 
     const off = buildPortalNav({
       settings: resolvePortalSettings({ features: { family: false } }),

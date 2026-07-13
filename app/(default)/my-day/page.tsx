@@ -37,7 +37,7 @@ export default async function MyDayPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
-        eyebrow="Daily"
+        eyebrow={`Daily · ${ctx.organizationName}`}
         title={`Good day, ${firstName}`}
         subtitle="Your follow-ups and conversations, plus today's schedule — everything waiting on you in one place."
         actions={

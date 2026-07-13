@@ -91,17 +91,18 @@ describe('Recall dashboard audience link pre-targets a new campaign', () => {
   })
 })
 
-describe('Clinic Revenue placeholder links to real money surfaces', () => {
-  // Regression: the clinic branch linked to /invoices, which 404s (it's an
-  // un-routed Mosaic stub; clinical billing is PMS-owned). The live clinic
-  // money surfaces are /shop/payments and /shop/orders.
-  it('points "Payments" + "Orders" at routes that exist', async () => {
+describe('Clinic Revenue legacy path goes straight to the real money surface', () => {
+  // The clinic branch used to render a placeholder card (before that, a dead
+  // /invoices link). Clinic revenue is a real surface now — the legacy Mosaic
+  // path redirects to it instead of describing it.
+  it('redirects clinic tenants to /shop/payments', async () => {
     mockRequireTenant.mockResolvedValueOnce(clinicCtx)
-    const ui = await RevenuePage()
-    render(ui)
-    expect(screen.getByRole('link', { name: /Payments/i })).toHaveAttribute('href', '/shop/payments')
-    expect(screen.getByRole('link', { name: /Orders/i })).toHaveAttribute('href', '/shop/orders')
-    // The dead /invoices link is gone.
-    expect(screen.queryByRole('link', { name: /^Invoices$/i })).not.toBeInTheDocument()
+    let thrown = ''
+    try {
+      await RevenuePage()
+    } catch (e) {
+      thrown = e instanceof Error ? e.message : String(e)
+    }
+    expect(thrown).toBe('REDIRECT:/shop/payments')
   })
 })

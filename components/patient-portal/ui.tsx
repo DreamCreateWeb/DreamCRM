@@ -326,3 +326,38 @@ export function QuietButton({
     </button>
   )
 }
+
+/** The portal's ONE back-to-parent affordance for sub-pages (visit detail,
+ *  receipt, …) — brand-colored chevron + parent label. Both existing
+ *  sub-pages used to hand-roll different styles; new sub-pages use this. */
+export function PortalBackLink({
+  href,
+  label,
+  brand,
+}: {
+  href: string
+  label: string
+  brand: string
+}) {
+  return (
+    <a
+      href={href}
+      className="inline-flex items-center gap-1.5 text-[0.88rem] font-semibold"
+      style={{ color: brand }}
+    >
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M10 3.5 5.5 8l4.5 4.5" />
+      </svg>
+      {label}
+    </a>
+  )
+}

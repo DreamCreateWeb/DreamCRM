@@ -46,7 +46,10 @@ export function buildPortalNav(opts: {
     { href: '/patient/invoices', label: 'Billing', icon: 'card', enabled: f.billing },
     { href: '/patient/records', label: 'Records', icon: 'folder', enabled: f.records },
     { href: '/patient/intake', label: 'Forms', icon: 'doc', enabled: f.forms },
-    { href: '/patient/family', label: 'Family', icon: 'users', enabled: f.family && opts.hasDependents },
+    // Feature-gated only (not && hasDependents): the page's day-0 value is
+    // requesting your first family link — hiding it until a dependent exists
+    // left no nav path to ever get one.
+    { href: '/patient/family', label: 'Family', icon: 'users', enabled: f.family },
     { href: '/patient/shop', label: 'Shop', icon: 'bag', enabled: f.shopLink && opts.hasShop },
     { href: '/patient/profile', label: 'My info', icon: 'user', enabled: true },
   ]

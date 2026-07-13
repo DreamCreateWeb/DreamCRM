@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 import { notFound } from 'next/navigation'
 import { getMyBills, getMyBalancePayments } from '@/lib/services/patient-portal'
 import { getPortalPageContext, requirePortalFeature } from '../../portal-data'
-import { PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER } from '@/components/patient-portal/ui'
+import { PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER, PortalBackLink } from '@/components/patient-portal/ui'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
 import PrintReceiptButton from './print-button'
 
@@ -102,16 +102,7 @@ export default async function PortalReceiptPage({
       }`}</style>
 
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-        <a
-          href="/patient/invoices"
-          className="inline-flex items-center gap-1.5 text-[0.88rem] font-semibold"
-          style={{ color: brand }}
-        >
-          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M10 3.5 5.5 8l4.5 4.5" />
-          </svg>
-          Billing
-        </a>
+        <PortalBackLink href="/patient/invoices" label="Billing" brand={brand} />
         <PrintReceiptButton brand={brand} />
       </div>
 

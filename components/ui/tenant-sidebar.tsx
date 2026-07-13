@@ -222,6 +222,10 @@ export default function TenantSidebar({
 
   function isActive(path: string) {
     if (path === '/') return pathname === '/'
+    // Overview roots ('/dashboard') match exact-only: sibling modules own the
+    // deeper paths (/dashboard/analytics, /dashboard/fintech) and a prefix
+    // match would light BOTH rows at once.
+    if (path === '/dashboard') return pathname === '/dashboard'
     return pathname === path || pathname.startsWith(`${path}/`)
   }
 
