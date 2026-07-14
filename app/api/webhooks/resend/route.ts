@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Webhook } from 'svix'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { handleInboundReply } from '@/lib/services/inbound-reply'
 
 /**
  * Resend webhook handler. Signed via Svix; verifies the signature using
@@ -36,6 +37,23 @@ export async function POST(req: NextRequest) {
     evt = wh.verify(raw, { 'svix-id': id, 'svix-timestamp': ts, 'svix-signature': sig }) as ResendEvent
   } catch (err) {
     return NextResponse.json({ error: 'bad signature' }, { status: 400 })
+  }
+
+  // ── Inbound patient replies (Resend Inbound → /messages) ─────────────────
+  // Tier-1 email carries Reply-To {slug}@INBOUND_REPLY_DOMAIN; a patient's
+  // reply arrives here as `email.received`. Route it into the patient's
+  // message thread; anything unroutable is forwarded to the clinic's own
+  // inbox so no reply is ever silently lost.
+  if (evt.type === 'email.received') {
+    try {
+      const result = await handleInboundReply(evt.data)
+      return NextResponse.json({ ok: true, inbound: result })
+    } catch (err) {
+      console.warn('[webhook.resend.inbound]', err)
+      // 200 on handler errors — svix retries won't fix a routing miss, and the
+      // failure path already fell back to forwarding where possible.
+      return NextResponse.json({ ok: true, inbound: 'error' })
+    }
   }
 
   const tags = evt.data?.tags ?? {}

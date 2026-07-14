@@ -3853,3 +3853,19 @@ optional minNoticeHours; public slot list + submit and the portal slot list
 pass the clinic's "Earliest online booking" value (staff paths omit it —
 walk-ins unaffected); settings copy says "website and portal"; notice-window
 tests in tests/booking/availability.test.ts.
+
+## 2026-07-14 (later) — Inbound email replies → /messages (shipped dark)
+
+Open item #3 closed in code: Tier-1 patient replies can now land in the
+patient's /messages thread instead of only the clinic's own inbox.
+`INBOUND_REPLY_DOMAIN` (unset = old behavior) flips Tier-1 Reply-To to
+`{slug}@{domain}`; Resend Inbound webhooks `email.received` into the existing
+svix-verified /api/webhooks/resend; `lib/services/inbound-reply.ts` routes:
+known patient → recordInboundMessage (email channel, quoted history stripped
+via `lib/inbound-email.ts` pure helpers, Resend email_id as externalId for
+replay-safe dedupe); unknown sender → forwarded verbatim to the clinic's
+inbox; foreign/junk → ignored. Gmail Tier-2 untouched (transport ignores
+Reply-To). Owner runbook (MX + Resend inbound domain + secret) in
+docs/inbound-email.md. Also: session-start hook now self-heals the recurring
+container stale-snapshot revert (fetch + hard-reset to origin/main when HEAD
+is strictly behind).

@@ -17,7 +17,7 @@ system, don't replace it.
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log (moved out of this file 2026-07-02). Per-session implementation detail lives there. |
 | [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. |
 | [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc., prioritized. **The current focus** — working module by module, Appointments first. |
-| `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` | Deep-dive specs for those systems. |
+| `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` · `docs/inbound-email.md` | Deep-dive specs for those systems. |
 
 ## Stack
 
@@ -426,8 +426,9 @@ sitemap/robots/OG.
 2. **The finishing pass is CLEAR** (2026-07-02) — every item in
    `docs/FINISHING.md` is fixed, decided, or accepted. Log NEW seam bugs
    there as they surface (hunting method at the bottom of that doc).
-3. **Inbound email replies → `/messages`** for Tier-1 senders (Gmail Tier 2
-   already loops back; a dedicated inbound-parse path is the full fix).
+3. **Inbound email replies → `/messages`** — CODE SHIPPED dark (2026-07-14,
+   `docs/inbound-email.md`): set the MX record + Resend inbound domain +
+   `INBOUND_REPLY_DOMAIN` secret to turn it on (owner runbook in that doc).
 4. **OD vendor portal approval** (in flight) — unblocks schedule-driven booking
    availability (`/schedules`) + real-office Customer Keys. On approval: swap
    `PMS_OPEN_DENTAL_DEVELOPER_KEY`, generate per-office Customer Keys, office

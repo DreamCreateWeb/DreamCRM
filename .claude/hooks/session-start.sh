@@ -10,6 +10,26 @@ fi
 
 cd "$CLAUDE_PROJECT_DIR"
 
+# ── Stale-snapshot self-heal ─────────────────────────────────────────────────
+# The remote container is sometimes recycled mid-session and restored from an
+# OLD workspace snapshot, silently rewinding HEAD (and the working tree) to a
+# commit that predates work already pushed to origin/main. Anything uncommitted
+# was lost in the recycle itself, so when we detect HEAD strictly BEHIND
+# origin/main on the main branch, hard-resetting to origin/main discards only
+# stale-snapshot junk and restores the real state. (A diverged/ahead HEAD is
+# left alone — that's genuine local work, not a stale snapshot.)
+if git fetch origin main --quiet 2>/dev/null; then
+  BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')
+  if [ "$BRANCH" = "main" ]; then
+    LOCAL=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse origin/main)
+    if [ "$LOCAL" != "$REMOTE" ] && git merge-base --is-ancestor "$LOCAL" origin/main; then
+      git reset --hard origin/main --quiet
+      echo "git: stale snapshot detected — reset to origin/main ($(git rev-parse --short HEAD))"
+    fi
+  fi
+fi
+
 # Ensure pnpm is available (Corepack ships with Node; packageManager is pinned).
 if ! command -v pnpm >/dev/null 2>&1; then
   corepack enable >/dev/null 2>&1 || true

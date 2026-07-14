@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicSenderFrom, deliverableReplyTo, formatFromHeader, type ClinicSender } from '@/lib/email-identity'
+import { inboundReplyAddress } from '@/lib/inbound-email'
 import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
 
 /**
@@ -44,7 +45,11 @@ export async function getClinicSenderIdentity(organizationId: string): Promise<C
   const sender: ClinicSender = {
     name,
     from: clinicSenderFrom(name, org?.slug || 'clinic', SENDING_DOMAIN),
-    replyTo: deliverableReplyTo(profile?.email),
+    // When the inbound-parse domain is configured, patient replies route into
+    // /messages via the Resend inbound webhook; otherwise they go straight to
+    // the clinic's own inbox (the pre-inbound behavior). Gmail Tier-2 sends
+    // ignore replyTo entirely — replies loop back through the Gmail sync.
+    replyTo: inboundReplyAddress(org?.slug) ?? deliverableReplyTo(profile?.email),
     timeZone: resolveClinicTimeZone(profile?.timezone),
   }
 
