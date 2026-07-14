@@ -57,6 +57,31 @@ export async function POST(req: NextRequest) {
   }
 
   const tags = evt.data?.tags ?? {}
+
+  // ── Patient-message receipts ──────────────────────────────────────────────
+  // Staff→patient thread emails carry a patientMessageId tag; delivery events
+  // become the thread's receipt ladder (Delivered → Opened, bounce → staff
+  // bell). Handled before the campaign/prospect branches — and with its own
+  // event map, because those paths don't track `email.opened`.
+  if (tags.patientMessageId) {
+    const receiptMap: Record<string, 'delivered' | 'opened' | 'bounce' | 'complaint'> = {
+      'email.delivered': 'delivered',
+      'email.opened': 'opened',
+      'email.bounced': 'bounce',
+      'email.complained': 'complaint',
+    }
+    const receiptEvent = receiptMap[evt.type]
+    if (!receiptEvent) return NextResponse.json({ ok: true, ignored: evt.type })
+    const { recordPatientMessageReceipt } = await import('@/lib/services/patient-messaging')
+    const outcome = await recordPatientMessageReceipt({
+      patientMessageId: tags.patientMessageId,
+      organizationId: tags.organizationId ?? null,
+      event: receiptEvent,
+      bounceType: evt.data?.bounce?.type ?? null,
+    })
+    return NextResponse.json({ ok: true, receipt: outcome })
+  }
+
   const campaignId = Number(tags.campaignId)
   const customerId = tags.customerId ? Number(tags.customerId) : null
   const patientId = tags.patientId ?? null

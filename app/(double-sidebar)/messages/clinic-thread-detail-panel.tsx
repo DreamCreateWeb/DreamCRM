@@ -65,9 +65,12 @@ interface SerializedMessage {
   sentByUserId?: string | null
   sentByUserName?: string | null
   externalId?: string | null
-  /** Outbound delivery receipts (in-app channel), ISO strings. */
+  /** Outbound delivery receipts (in-app: portal write/read; email: Resend
+   *  delivered/opened webhook events), ISO strings. */
   deliveredAt?: string | null
   readByPatientAt?: string | null
+  /** Email bounce/complaint stamp — renders the red "Not delivered" receipt. */
+  deliveryFailed?: { type: string; bounceType?: string | null; at: string } | null
   /** Image attachments on this message. */
   attachments?: MessageAttachment[]
 }
@@ -1025,11 +1028,26 @@ export default function ThreadDetailPanel({
                           })}
 
                           {/* Timestamp once per group, on the last bubble —
-                              outbound carries a delivery receipt (Delivered ✓ /
-                              Read ✓✓ for in-app; email shows just the time). */}
+                              outbound carries a delivery receipt. In-app:
+                              Delivered ✓ (portal write) / Read ✓✓ (portal
+                              open). Email: Delivered ✓ / Opened ✓✓ from the
+                              Resend webhook — and a red "Not delivered" when
+                              the email bounced, so staff re-reach the patient
+                              another way instead of assuming it landed. */}
                           <span className="flex items-center gap-1 px-0.5 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
                             {fmtClock(last.sentAt)}
-                            {outbound && (last.readByPatientAt || last.deliveredAt) && (
+                            {outbound && last.deliveryFailed ? (
+                              <span
+                                className="inline-flex items-center gap-0.5 font-medium text-rose-600 dark:text-rose-400"
+                                title={
+                                  last.deliveryFailed.type === 'complaint'
+                                    ? 'They marked the email as spam — reach them another way'
+                                    : 'The email bounced — check the address or use the in-app channel'
+                                }
+                              >
+                                ⚠ Not delivered
+                              </span>
+                            ) : outbound && (last.readByPatientAt || last.deliveredAt) ? (
                               <span
                                 className={`inline-flex items-center gap-0.5 ${
                                   last.readByPatientAt
@@ -1037,15 +1055,23 @@ export default function ThreadDetailPanel({
                                     : 'text-gray-400 dark:text-gray-500'
                                 }`}
                                 title={
-                                  last.readByPatientAt
-                                    ? 'Read by the patient in their portal'
-                                    : 'Delivered to the patient portal'
+                                  last.channel === 'email'
+                                    ? last.readByPatientAt
+                                      ? 'They opened the email'
+                                      : 'Delivered to their inbox'
+                                    : last.readByPatientAt
+                                      ? 'Read by the patient in their portal'
+                                      : 'Delivered to the patient portal'
                                 }
                               >
                                 {last.readByPatientAt ? <IconCheckDouble /> : <IconCheck />}
-                                {last.readByPatientAt ? 'Read' : 'Delivered'}
+                                {last.readByPatientAt
+                                  ? last.channel === 'email'
+                                    ? 'Opened'
+                                    : 'Read'
+                                  : 'Delivered'}
                               </span>
-                            )}
+                            ) : null}
                           </span>
                         </div>
                       </li>

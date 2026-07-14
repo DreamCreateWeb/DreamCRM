@@ -96,6 +96,9 @@ export interface ThreadMessage {
   sentByUserId?: string | null
   sentByUserName?: string | null
   externalId?: string | null
+  /** Email bounce/complaint stamp from the Resend webhook (meta.deliveryFailed) —
+   *  the thread renders a red "Not delivered" receipt from it. */
+  deliveryFailed?: { type: string; bounceType?: string | null; at: string } | null
   /** Outbound delivery receipts — set for the in-app channel: delivered to the
    *  portal the instant it's written, read when the patient opens the
    *  conversation. Null for inbound and for email (no read tracking there). */
@@ -564,6 +567,9 @@ export async function listMessagesInThread(
     sentByUserId: m.sentByUserId,
     sentByUserName: m.sentByName,
     externalId: m.externalId,
+    deliveryFailed:
+      ((m.meta as { deliveryFailed?: { type: string; bounceType?: string | null; at: string } } | null)
+        ?.deliveryFailed) ?? null,
     attachments: sanitizeAttachments((m.meta as { attachments?: unknown } | null)?.attachments),
   }))
 
@@ -664,6 +670,9 @@ async function deliverPatientMessageEmail(
   patientId: string,
   body: string,
   attachments: MessageAttachment[] = [],
+  /** Pre-minted patient_message id — rides the Resend tags so webhook
+   *  receipt events (delivered/opened/bounced) map back to the row. */
+  messageId?: string,
 ): Promise<void> {
   const [p] = await db
     .select({ email: schema.patient.email, firstName: schema.patient.firstName })
@@ -686,6 +695,12 @@ async function deliverPatientMessageEmail(
     // deliverableReplyTo (inside getClinicSenderIdentity) skips a non-deliverable
     // clinic email (e.g. the demo's *.example placeholder) so replies don't bounce.
     replyTo: sender.replyTo,
+    tags: messageId
+      ? [
+          { name: 'patientMessageId', value: messageId },
+          { name: 'organizationId', value: organizationId },
+        ]
+      : undefined,
   })
 }
 
@@ -723,15 +738,19 @@ export async function sendMessageToPatient(input: {
   // Cross-tenant patient check lives inside getOrCreatePatientThread (and, for
   // the email channel, inside deliverPatientMessageEmail which runs first).
 
+  // The id is minted BEFORE delivery so the email can carry it as a Resend
+  // tag — webhook receipt events (delivered/opened/bounced) map back to the
+  // row by this id.
+  const messageId = newMessageId()
+
   // For the email channel, deliver the actual email first — if it fails we throw
   // before recording the row, so the thread never shows a "sent" email that
   // never went out.
   if (input.channel === 'email') {
-    await deliverPatientMessageEmail(input.organizationId, input.patientId, input.body.trim(), attachments)
+    await deliverPatientMessageEmail(input.organizationId, input.patientId, input.body.trim(), attachments, messageId)
   }
 
   const threadId = await getOrCreatePatientThread(input.organizationId, input.patientId)
-  const messageId = newMessageId()
   const now = new Date()
 
   await db.insert(schema.patientMessage).values({
@@ -745,7 +764,8 @@ export async function sendMessageToPatient(input: {
     sentByUserId: input.sentByUserId,
     sentAt: now,
     // In-app is delivered the instant it's written (it lands in the portal).
-    // Email delivery/read isn't tracked yet, so leave null → the UI reads "Sent".
+    // Email starts null — the Resend webhook fills deliveredAt/readByPatientAt
+    // (opened) via recordPatientMessageReceipt as receipt events arrive.
     deliveredAt: input.channel === 'in_app' ? now : null,
     ...(attachments.length > 0 ? { meta: { attachments } } : {}),
   })
@@ -783,6 +803,121 @@ export async function sendMessageToPatient(input: {
   }
 
   return { threadId, messageId }
+}
+
+/**
+ * Record an email receipt event (from the Resend webhook) against the
+ * patient_message row its tags name. The receipt ladder mirrors the in-app
+ * one so the thread UI needs no new fields:
+ *   delivered → deliveredAt
+ *   opened    → readByPatientAt (+ deliveredAt — opened implies delivered)
+ *   bounce / complaint → meta.deliveryFailed + a staff bell (FIRST failure
+ *   only), because a message the patient never got is an action item.
+ * Idempotent: set-once semantics per field, so svix replays are no-ops.
+ * Best-effort by contract — returns an outcome string, never throws.
+ */
+export async function recordPatientMessageReceipt(input: {
+  patientMessageId: string
+  /** Org tag from the send — when present it scopes the lookup (defense in
+   *  depth; the pmsg_ id is already globally unique). */
+  organizationId?: string | null
+  event: 'delivered' | 'opened' | 'bounce' | 'complaint'
+  bounceType?: string | null
+}): Promise<'updated' | 'ignored'> {
+  try {
+    const where = input.organizationId
+      ? and(
+          eq(schema.patientMessage.id, input.patientMessageId),
+          eq(schema.patientMessage.organizationId, input.organizationId),
+        )
+      : eq(schema.patientMessage.id, input.patientMessageId)
+    const [row] = await db
+      .select({
+        id: schema.patientMessage.id,
+        organizationId: schema.patientMessage.organizationId,
+        patientId: schema.patientMessage.patientId,
+        threadId: schema.patientMessage.threadId,
+        deliveredAt: schema.patientMessage.deliveredAt,
+        readByPatientAt: schema.patientMessage.readByPatientAt,
+        meta: schema.patientMessage.meta,
+      })
+      .from(schema.patientMessage)
+      .where(where)
+      .limit(1)
+    if (!row) return 'ignored'
+
+    const now = new Date()
+
+    if (input.event === 'delivered') {
+      if (row.deliveredAt) return 'ignored'
+      await db
+        .update(schema.patientMessage)
+        .set({ deliveredAt: now })
+        .where(eq(schema.patientMessage.id, row.id))
+      return 'updated'
+    }
+
+    if (input.event === 'opened') {
+      if (row.readByPatientAt) return 'ignored'
+      await db
+        .update(schema.patientMessage)
+        .set({ readByPatientAt: now, ...(row.deliveredAt ? {} : { deliveredAt: now }) })
+        .where(eq(schema.patientMessage.id, row.id))
+      return 'updated'
+    }
+
+    // bounce / complaint — stamp the failure into meta (attachments preserved)
+    // and ring the bell ONCE so staff re-reach the patient another way.
+    const meta = (row.meta ?? {}) as Record<string, unknown>
+    const alreadyFailed = !!meta.deliveryFailed
+    if (!alreadyFailed) {
+      await db
+        .update(schema.patientMessage)
+        .set({
+          meta: {
+            ...meta,
+            deliveryFailed: { type: input.event, bounceType: input.bounceType ?? null, at: now.toISOString() },
+          },
+        })
+        .where(eq(schema.patientMessage.id, row.id))
+      try {
+        const [p] = await db
+          .select({ firstName: schema.patient.firstName, lastName: schema.patient.lastName })
+          .from(schema.patient)
+          .where(
+            and(
+              eq(schema.patient.id, row.patientId),
+              eq(schema.patient.organizationId, row.organizationId),
+            ),
+          )
+          .limit(1)
+        const who = p ? `${p.firstName} ${p.lastName}`.trim() : 'a patient'
+        const { notifyOrgMembers } = await import('@/lib/services/notifications')
+        await notifyOrgMembers(
+          row.organizationId,
+          {
+            bucket: 'comments',
+            type: 'patient_message_bounce',
+            title: `Your message to ${who} didn’t get through`,
+            body:
+              input.event === 'complaint'
+                ? 'They marked the email as spam — best to reach them another way.'
+                : 'The email bounced — check the address or use the in-app channel.',
+            linkPath: `/messages?thread=${row.threadId}`,
+            meta: { threadId: row.threadId, messageId: row.id },
+          },
+          { roles: ['owner', 'admin', 'member'] },
+        )
+      } catch {
+        /* best-effort — the meta stamp above is the record */
+      }
+      return 'updated'
+    }
+    return 'ignored'
+  } catch (err) {
+    console.warn('[patient-messaging.recordPatientMessageReceipt] failed', err)
+    return 'ignored'
+  }
 }
 
 /**

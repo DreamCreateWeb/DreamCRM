@@ -114,6 +114,10 @@ export async function deliver(msg: {
   /** Tier 2: send via the clinic's connected Gmail account AS their real
    *  address. On any Gmail failure we fall back to the platform sender below. */
   gmail?: { accountId: string; from: string }
+  /** Resend tags — echoed back on webhook events (delivered/opened/bounced),
+   *  which is how per-message receipts map back to our rows. Ignored by the
+   *  Gmail + SES transports. */
+  tags?: Array<{ name: string; value: string }>
 }): Promise<void> {
   // Config errors (missing key) throw raw — they're an ops problem, not a
   // delivery failure. Only actual SEND failures get the friendly remap so the
@@ -168,6 +172,7 @@ export async function deliver(msg: {
       subject: msg.subject,
       html: msg.html,
       ...(replyTo ? { replyTo } : {}),
+      ...(msg.tags?.length ? { tags: msg.tags } : {}),
     })
     if (res?.error) throw res.error
   } catch (err) {
@@ -795,6 +800,9 @@ export interface PatientMessageEmailData {
   /** Clinic inbox the patient's reply should reach (clinic_profile.email). When
    *  set, replies go to the clinic instead of the unattended platform From. */
   replyTo?: string | null
+  /** Resend tags (patientMessageId + organizationId) so webhook receipt
+   *  events map back to the message row. */
+  tags?: Array<{ name: string; value: string }>
   /** Per-clinic From header so the message comes FROM the clinic, not the
    *  platform. Falls back to the default platform identity when absent. */
   from?: string
@@ -836,6 +844,7 @@ export async function sendPatientMessageEmail(data: PatientMessageEmailData) {
     from: data.from,
     replyTo: data.replyTo,
     gmail: data.gmail,
+    tags: data.tags,
     subject: `A message from ${data.clinicName}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1c1917">

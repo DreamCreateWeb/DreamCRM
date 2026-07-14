@@ -45,3 +45,23 @@ before.
 
 Rollback = remove the env var and redeploy; Reply-To reverts to the clinic's
 own inbox instantly. The MX record can stay.
+
+## Email delivery receipts (same webhook — shipped 2026-07-14)
+
+Staff→patient thread emails now carry a `patientMessageId` Resend tag; the
+same `/api/webhooks/resend` endpoint turns delivery events into thread
+receipts:
+
+- `email.delivered` → the bubble shows **Delivered ✓**
+- `email.opened` → **Opened ✓✓** (requires **open tracking enabled for the
+  sending domain** in Resend → Domains — a dashboard toggle)
+- `email.bounced` / `email.complained` → a red **⚠ Not delivered** receipt
+  + ONE staff bell ("Your message to {patient} didn't get through") so the
+  front desk re-reaches the patient another way
+
+One-time dashboard step (do it in the same visit as the inbound setup):
+make sure the webhook endpoint is subscribed to `email.delivered`,
+`email.opened`, `email.bounced`, `email.complained` (bounce/complaint are
+likely already on for campaign suppression), and flip on **open tracking**
+for `dreamcreatestudio.com`. Gmail Tier-2 sends have no Resend events —
+those bubbles honestly stay at "Sent".

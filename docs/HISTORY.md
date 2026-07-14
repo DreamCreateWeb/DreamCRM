@@ -3914,3 +3914,20 @@ candidates query now carries a 7-day ask-while-fresh floor
 + missed ticks) while making stale asks impossible. Also verified
 `push_everything` was already dropped (0114) and de-staled the open-items
 list.
+
+## 2026-07-14 (later) — Email delivery receipts in /messages
+
+Prompted by the first REAL beta interaction (a staff email reply to a
+patient appointment request): "did it actually reach them?" is now
+answerable in-app. Staff→patient thread emails carry patientMessageId +
+organizationId Resend tags (deliver() gained a tags param; the message id
+is minted BEFORE delivery); the existing svix webhook maps
+email.delivered → deliveredAt, email.opened → readByPatientAt
+(+deliveredAt backfill), email.bounced/complained → meta.deliveryFailed +
+ONE staff bell ("Your message to {patient} didn't get through") via
+recordPatientMessageReceipt (idempotent set-once, replay-safe). The thread
+receipt UI is channel-aware: in-app Delivered/Read, email
+Delivered/Opened, red "⚠ Not delivered" on failure. Gmail Tier-2 sends
+stay at "Sent" (no Resend events — honest). Owner dashboard steps (webhook
+event subscriptions + domain open-tracking toggle) appended to
+docs/inbound-email.md.
