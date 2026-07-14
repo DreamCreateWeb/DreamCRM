@@ -111,3 +111,28 @@ the stored state to `active`.
   or the clinic forwards the apex → `https://www.…` at their registrar. Both
   hosts route to the site via the middleware map (`servedHosts`), and the site's
   canonical/OG/sitemap URLs use the `www.` host.
+
+---
+
+## Platform domain DNS inventory (dreamcreatestudio.com — snapshot 2026-07-15)
+
+Registrar: **name.com, via Replit's reseller integration** (Replit UI manages
+it today; claim path = name.com support "push" into a retail account — zero
+downtime, records untouched). Nameservers: ns1cny/ns2ckr/ns3jkl/ns4hny.name.com.
+
+| Record | Type | Value |
+|---|---|---|
+| `@` (apex) | A | `216.150.1.1` (Replit-side apex→www redirect) |
+| `www` | CNAME | `hq7ygyvjdp.us-east-1.awsapprunner.com` |
+| `app` | CNAME | `hq7ygyvjdp.us-east-1.awsapprunner.com` |
+| `*` (wildcard, clinic sites) | CNAME | `hq7ygyvjdp.us-east-1.awsapprunner.com` |
+| `@` | TXT | `google-site-verification=3g0gSj_XXESfS5PFzu4urBoLzhpK37JfMzDpnbENAtA` |
+| `send` | TXT | `v=spf1 include:amazonses.com ~all` (Resend) |
+| `send` | MX | `10 feedback-smtp.us-east-1.amazonses.com` (Resend) |
+| `resend._domainkey` | TXT | DKIM public key (full value in Resend dashboard) |
+| (+ ACM validation CNAMEs for the wildcard cert — values in ACM console) |
+
+TO ADD (pending, 2026-07-15): `in` MX → Resend Inbound (value shown when the
+inbound domain is added in Resend — enables replies→/messages); `_dmarc` TXT →
+`v=DMARC1; p=none; rua=mailto:dustin@dreamcreateweb.com` (none exists today —
+the wildcard shadows the query; explicit record wins once added).
