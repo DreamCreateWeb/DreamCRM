@@ -5,9 +5,10 @@ Working document (2026-07-13). Three stages:
 2. **Competitor benchmark** — how the comparable products structure the same purpose (nav placement, naming, sub-pages, where settings live).
 3. **Adjustments** — the change list that falls out of comparing 1 against 2.
 
-Status: COMPLETE (2026-07-13). All three stages done; the 4-item change list
-at the bottom shipped in the same session. Log future placement findings in
-docs/FINISHING.md.
+Status: COMPLETE (2026-07-14). Stages 1–3 done + a Stage 4 redesign log
+(Payments split, rejected moves). This is the standing IA reference — consult
+it before moving, renaming, or adding any dashboard surface; log future
+placement decisions in Stage 4.
 
 ---
 

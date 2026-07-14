@@ -100,7 +100,7 @@ nudge (My Day), balance follow-up rule.
   (skips no-balance/no-email); clinic-editable copy (Emails hub, Billing
   category); the email's button lands on the public `/b/[token]` pay page
   (token-is-auth, live PMS balance, partial payments, Connect direct
-  charge, idempotent finalize + webhook backstop, /shop/payments
+  charge, idempotent finalize + webhook backstop, /payments/online
   reconciliation). SMS sibling when the SMS channel lands.
 - ✅ **Automated balance-reminder cadence** — SHIPPED 2026-07-02. Opt-in
   (default OFF) at Shop → Payments: balance ≥ $X → the same pay-link email
@@ -125,7 +125,7 @@ nudge (My Day), balance follow-up rule.
   cancel). Later: patient-portal plan visibility, card-update flow, SMS
   nudges.
 - ✅ **Collections/AR board** (DI) — SHIPPED 2026-07-02 as an honest
-  WORKBOARD at /shop/collections: every open PMS balance sorted largest
+  WORKBOARD at /payments/collections: every open PMS balance sorted largest
   first with its dunning state (pay link sent/paid + when, last online
   payment), send-pay-link per row (same guards as the patient record),
   header stats (outstanding total, pay-link coverage, collected-online

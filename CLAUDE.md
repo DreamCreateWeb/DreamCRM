@@ -16,7 +16,8 @@ system, don't replace it.
 | **This file** | Current implementation state: architecture, module map, subsystem reference, conventions, ops. |
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log (moved out of this file 2026-07-02). Per-session implementation detail lives there. |
 | [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. |
-| [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc., prioritized. **The current focus** — working module by module, Appointments first. |
+| [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc. Every P1 + P2 shipped; only the P3/SMS-gated tail remains. |
+| [`docs/STRUCTURE-AUDIT.md`](./docs/STRUCTURE-AUDIT.md) | The information-architecture reference: full feature inventory by purpose, competitor IA benchmarks (NexHealth/Weave/Birdeye/Kleer/Shopify/…), placement verdicts, and the redesign log (Payments split, rejected moves). Read before moving/renaming any surface. |
 | `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` · `docs/inbound-email.md` | Deep-dive specs for those systems. |
 
 ## Stack
@@ -32,6 +33,9 @@ system, don't replace it.
   denied twice). Per-clinic sender identity Tier 1 (platform domain, clinic name)
   + Tier 2 (clinic's connected Gmail) — see `lib/email-identity.ts` +
   `lib/services/clinic-sender.ts`; `deliver()` in `lib/email.ts` routes it.
+  Inbound patient replies → /messages ships DARK behind `INBOUND_REPLY_DOMAIN`
+  (`lib/inbound-email.ts` pure helpers + `lib/services/inbound-reply.ts` +
+  the Resend `email.received` webhook; runbook `docs/inbound-email.md`).
 - **Storage: AWS S3** (`STORAGE_DRIVER=s3`, bucket `dreamcrm-uploads-prod`); Vercel
   Blob kept as fallback driver
 - **AI: Anthropic API (direct)** — `lib/ai.ts` (+ inert Bedrock driver
@@ -117,6 +121,8 @@ lib/
   stripe.ts / stripe-config.ts   Lazy Stripe client + PLANS/add-on price config
   zernio.ts          Lazy Zernio client (all GBP/social wrappers, defensive parse)
   trial.ts           No-card 7-day trial state (resolveTrialState)
+  inbound-email.ts   Pure inbound-reply helpers (recipient slug, quoted-reply
+                     strip, payload normalize) — dark behind INBOUND_REPLY_DOMAIN
 
 components/ui/       dashboard-shell.tsx (all authed layouts go through it),
                      tenant-sidebar.tsx, the 10 v2 primitives (PageHeader,
@@ -188,7 +194,8 @@ recognizable seed marker, and extend the cleanup sweep.
 
 ## Module status snapshot (clinic dashboard)
 
-Sidebar groups: **Daily** / **Growth** / **Website** / **Business** + a pinned
+Sidebar groups: **Daily** / **Growth** (workspace hub) / **Website** (workspace
+hub) / **Business** (Payments · Shop · Integrations) + a pinned
 **Settings** entry (card-grid home). All modules are **live** — there are no
 `status:'soon'` placeholders left. Deep implementation history per module:
 `docs/HISTORY.md`.
@@ -363,6 +370,17 @@ sitemap/robots/OG.
   runs keyless.
 - **Timezone rules above are conventions** — new server-side time renders and
   day windows must use the clinic-tz helpers.
+- **Tenant voice is a convention (2026-07-14).** Any surface serving two
+  tenants (blog manager, campaigns, audiences, team/notification settings)
+  must branch EVERY reader-addressed string — the platform owner must never
+  read "your patients"/"your clinic". Branch on ctx.tenantType / a
+  recipientNoun-style prop / marketingTerminology.
+- **Orientation is a convention (structure passes, 2026-07-13/14).** Top-level
+  module pages carry the `<Group> · <clinic name>` eyebrow; workspace
+  sub-pages carry a `‹ Workspace` link eyebrow (Growth/Website families) or a
+  "← Back to <hub>" action (Payments/Shop families); every workspace sub-page
+  must have a path back to its hub. Server actions live next to their ONLY
+  consumer's route (see docs/STRUCTURE-AUDIT.md for the audited system).
 - **Demo persona anchoring above is a convention** — new seeded artifacts ride
   `getPersonaAlignedPatientIds` + a cleanup marker.
 - **For UI / public-site / font / next-config PRs run `pnpm build`, not just
@@ -419,6 +437,11 @@ sitemap/robots/OG.
 
 ## Open items (priority order)
 
+0. **NEXT BUILD: dentistry-type site templates** (task #69, design-first —
+   own session). The rails are live: template registry +
+   `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live
+   iframes, /site/[slug]/tf/[template] preview frames, Draft→Publish.
+   Read DESIGN.md + DESIGN-SYSTEM.md + docs/STRUCTURE-AUDIT.md first.
 1. **ROTATE / REVOKE secrets shared in chat** (user's action item): the Stripe
    restricted key `rk_live_…` (revoke — no longer needed); AWS keys
    `AKIA53LCNZ3YTC3H5M55` (rotate), `AKIA53LCNZ3Y2IP4CWFS` (dead — delete),
@@ -446,7 +469,21 @@ sitemap/robots/OG.
 ## Working in a new session (Claude Code on the web)
 
 - Deps auto-install via the SessionStart hook (`.claude/hooks/session-start.sh`);
-  `pnpm dev` / `test` / `typecheck` work immediately.
+  `pnpm dev` / `test` / `typecheck` work immediately. The hook also self-heals
+  the recurring CONTAINER STALE-SNAPSHOT REVERT (HEAD silently rewinds to an
+  old commit mid-session, ~15 observed): it fetches + hard-resets to
+  origin/main when HEAD is strictly behind. If it happens MID-session
+  (symptoms: files "missing", tests failing in untouched files, `git log`
+  showing ancient commits), run
+  `git fetch origin main && git reset --hard origin/main && pnpm install
+  --frozen-lockfile` — save any uncommitted work first with `git diff >
+  patch` and re-apply with `git apply -3`. Push early, push often.
+- Verify deploys via the Actions API: the `mcp__github__actions_list` result
+  is ~400KB — it auto-saves to a file; parse `workflow_runs[0]`
+  head_sha/status/conclusion with python. A CodeBuild provisioning flake
+  (~40s FAIL) is retried by pushing an empty commit.
+- `rm -rf .next` if `pnpm typecheck` errors on `.next/types/validator.ts`
+  referencing deleted routes (stale build artifacts after a route move).
 - AWS CLI is not preinstalled — install on demand (see HISTORY.md for the
   one-liner); credentials come from the environment settings (never paste keys
   into chat; rotate anything that was).
