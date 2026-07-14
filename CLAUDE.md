@@ -437,11 +437,11 @@ sitemap/robots/OG.
 5. **Phase B — SMS** (AWS End User Messaging + A2P 10DLC): unlocks Recall,
    Messages, and Reviews SMS. Schema stubs exist (`clinic_sms_config`,
    `twilio_*`-named columns kept, channel enum in place).
-6. **Platform webhook idempotency** shipped; remaining billing nicety: review
-   auto-send timing anchored to `completedAt` vs visit time.
+6. **Platform webhook idempotency** shipped; review auto-send is anchored to
+   `completedAt` with a 7-day ask-while-fresh floor (2026-07-14) — CLOSED.
 7. Misc deferred: Zernio review webhooks (hourly cron covers today), FB reply
    (no Zernio endpoint), per-staff booking widgets, patient-view audit log, 2FA,
-   per-location booking, `notification_prefs.push_everything` drop.
+   per-location booking. (`push_everything` was already dropped in 0114.)
 
 ## Working in a new session (Claude Code on the web)
 

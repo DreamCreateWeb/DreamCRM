@@ -215,4 +215,22 @@ describe('autoSendDueReviewRequests', () => {
       { organizationId: 'org_1', appointmentId: 'apt_1', error: 'Resend 503 — backend boom' },
     ])
   })
+
+  it('applies the 7-day ask-while-fresh floor to the candidates scan', async () => {
+    // Flipping auto-send ON (or a long cron outage) must never blast requests
+    // for months-old visits — the query carries a completedAt >= now-7d floor.
+    state.orgs = [{ organizationId: 'org_1', autoSendDelayHours: 24 }]
+    state.config = COMPLETE_CONFIG
+    state.candidates = []
+    const { gte } = await import('drizzle-orm')
+    const gteMock = gte as unknown as ReturnType<typeof vi.fn>
+    gteMock.mockClear()
+    await callAutoSend()
+    const now = new Date('2026-05-28T12:00:00Z')
+    const expectedFloor = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const floorCall = gteMock.mock.calls.find(
+      (c: unknown[]) => c[1] instanceof Date && (c[1] as Date).getTime() === expectedFloor.getTime(),
+    )
+    expect(floorCall).toBeTruthy()
+  })
 })

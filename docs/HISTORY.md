@@ -3903,3 +3903,14 @@ tests split (shop-client suite trimmed to commerce, new
 tests/payments/hub-doors.test.tsx carries the money-door assertions).
 Considered + rejected: Leads → Growth (it's a daily triage queue with a
 live sidebar badge — recorded in docs/STRUCTURE-AUDIT.md Stage 4).
+
+## 2026-07-14 (later) — Polish tail: review auto-send freshness floor
+
+Closed CLAUDE.md open item #6: the auto-send sweep was already anchored to
+`completedAt`, but had NO lower bound — flipping auto-send ON (or a long
+cron outage) would have blasted review requests for months-old visits. The
+candidates query now carries a 7-day ask-while-fresh floor
+(completedAt ≥ now−7d), covering every real safety-net case (48h max delay
++ missed ticks) while making stale asks impossible. Also verified
+`push_everything` was already dropped (0114) and de-staled the open-items
+list.

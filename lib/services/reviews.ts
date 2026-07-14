@@ -1397,6 +1397,12 @@ export async function autoSendDueReviewRequests(opts?: {
     }
 
     const cutoff = new Date(now.getTime() - (org.autoSendDelayHours ?? 24) * 60 * 60 * 1000)
+    // Ask-while-fresh floor: never auto-request a review for a visit completed
+    // more than 7 days ago. Without it, flipping auto-send ON (or a long cron
+    // outage) would blast requests for months-old visits — embarrassing asks
+    // the patient no longer connects to anything. 7 days generously covers the
+    // real safety-net cases (configured delays up to 48h + missed ticks).
+    const freshFloor = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
     const candidates = await db
       .select({
@@ -1413,6 +1419,7 @@ export async function autoSendDueReviewRequests(opts?: {
           eq(schema.appointment.organizationId, org.organizationId),
           eq(schema.appointment.status, 'completed'),
           lte(schema.appointment.completedAt, cutoff),
+          gte(schema.appointment.completedAt, freshFloor),
           isNull(schema.reviewRequest.id),
         ),
       )
