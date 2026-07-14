@@ -42,7 +42,7 @@ import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
  * lifting the plan-cards + join form into a shared component would have
  * been more refactor than rewriting the chrome here. Membership-module
  * concerns (Stripe checkout, plan CRUD, member dashboards) stay in
- * /shop/memberships + /membership/actions.
+ * /payments/memberships + /membership/actions.
  */
 
 

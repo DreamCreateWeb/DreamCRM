@@ -29,7 +29,7 @@ export async function proposePlanAction(input: {
       ctx.userId,
     )
     if (!r.ok) return r
-    revalidatePath('/shop/collections')
+    revalidatePath('/payments/collections')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
@@ -43,7 +43,7 @@ export async function cancelPlanAction(
     const ctx = await requireManager()
     const r = await cancelPaymentPlan(ctx.organizationId, planId)
     if (!r.ok) return r
-    revalidatePath('/shop/collections')
+    revalidatePath('/payments/collections')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }

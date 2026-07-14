@@ -74,10 +74,10 @@ export interface TrailModule {
  */
 export const SUBROUTE_LABELS: Record<string, string> = {
   '/shop/orders': 'Orders',
-  '/shop/memberships': 'Memberships',
+  '/payments/memberships': 'Memberships',
   '/shop/coupons': 'Coupons',
-  '/shop/payments': 'Payments',
-  '/shop/collections': 'Collections',
+  '/payments/online': 'Online payments',
+  '/payments/collections': 'Collections',
   '/shop/products': 'Products',
   '/website/editor': 'Editor',
   '/website/content': 'Content',

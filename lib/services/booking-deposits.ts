@@ -217,7 +217,7 @@ export async function finalizeBookingDepositFromSession(
           type: 'booking_deposit_paid',
           title: `Booking deposit — ${amount}`,
           body: `${who} paid a ${amount} deposit with their online booking. It's credited toward their visit — post it to your PMS ledger when you get a chance.`,
-          linkPath: '/shop/payments',
+          linkPath: '/payments/online',
         },
         // The paying patient never gets the staff alert about their own deposit.
         { roles: ['owner', 'admin'], excludeEmail: pat?.email ?? null },

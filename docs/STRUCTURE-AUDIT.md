@@ -203,3 +203,23 @@ Everything else verified in place. Non-structural observations parked for
 docs/FINISHING.md: public-site booking does not consume the portal notice
 windows (behavior gap, not placement); review auto-send timing anchor already
 tracked in CLAUDE.md open items.
+
+---
+
+## Stage 4 — Redesign pass (2026-07-14, owner-sanctioned)
+
+**Payments workspace shipped.** The audit's Weave/Pearly benchmark (payments
+first-class; membership revenue nested inside payments) now applies: /payments
+hub (KPI story: outstanding → to-reconcile → open plans → MRR + doors) with
+/payments/online, /payments/collections, /payments/memberships moved out of
+/shop (old paths 308). Shop is pure commerce (products, orders, coupons,
+storefront, loyalty). Same gates as before (premium + payments bundle) — pure
+reorganization, zero access change. Sidebar Business group: Payments · Shop ·
+Integrations.
+
+**Considered and REJECTED — Leads → Growth.** Conceptually acquisition, but
+operationally a front-desk triage queue: it carries the live new-lead sidebar
+badge, a keyboard shortcut, and rot borders tuned to response speed. NexHealth
+routes the same requests into its DAILY communications surface. Folding it
+into the Growth workspace would demote a daily queue to save one nav slot —
+churn, not structure. Daily keeps 8 entries; every one is an operational queue.

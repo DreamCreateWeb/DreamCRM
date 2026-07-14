@@ -5,7 +5,7 @@ import { clinicMonthStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 /**
- * The Collections board (/shop/collections) — every patient carrying a PMS
+ * The Collections board (/payments/collections) — every patient carrying a PMS
  * balance, with their dunning state in one glance: how much, whether a pay
  * link has gone out (and whether it got paid), and when they last paid
  * online. This is a WORKBOARD, not an aging report: the PMS gives us a

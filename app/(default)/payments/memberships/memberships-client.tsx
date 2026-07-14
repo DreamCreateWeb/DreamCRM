@@ -91,10 +91,10 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
         legend={<EncodingLegend pills={tab === 'plans' ? PLAN_PILL_LEGEND : MEMBER_PILL_LEGEND} />}
         actions={
           <>
-            <ActionButton variant="secondary" size="sm" href="/shop">
-              ← Back to Shop
+            <ActionButton variant="secondary" size="sm" href="/payments">
+              ← Back to Payments
             </ActionButton>
-            <ActionButton variant="primary" breath size="sm" href="/shop/memberships/new">
+            <ActionButton variant="primary" breath size="sm" href="/payments/memberships/new">
               + New plan
             </ActionButton>
           </>
@@ -130,7 +130,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
               title="No plans yet"
               body="Create your first plan to start enrolling members — set a price, the benefits, and an in-house discount."
               action={
-                <ActionButton variant="primary" size="sm" href="/shop/memberships/new">
+                <ActionButton variant="primary" size="sm" href="/payments/memberships/new">
                   + New plan
                 </ActionButton>
               }
@@ -167,7 +167,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                       View ↗
                     </ActionButton>
                   )}
-                  <ActionButton variant="ghost" size="sm" href={`/shop/memberships/${p.id}`}>
+                  <ActionButton variant="ghost" size="sm" href={`/payments/memberships/${p.id}`}>
                     Edit
                   </ActionButton>
                   {p.status === 'active' ? (

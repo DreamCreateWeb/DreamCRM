@@ -396,7 +396,7 @@ export async function finalizeMembershipFromSession(organizationId: string, sess
       organizationId,
       title: `New member — ${planName}`,
       body: `${who} just joined ${planName}.`,
-      linkPath: '/shop/memberships',
+      linkPath: '/payments/memberships',
       excludeEmail: pat?.email ?? null,
     })
   }

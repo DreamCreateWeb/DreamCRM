@@ -196,7 +196,7 @@ export async function finalizeBalancePaymentFromSession(
       excludeEmail: pat?.email ?? null,
       title: `Online payment — ${amount}`,
       body: `${who} paid ${amount} toward their balance online. Post it to your PMS ledger when you get a chance.`,
-      linkPath: '/shop/payments',
+      linkPath: '/payments/online',
     })
   }
 }

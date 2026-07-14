@@ -98,7 +98,7 @@ describe('getPatientTimeline — commerce + review events', () => {
     const events = await getPatientTimeline('org_1', 'pat_1')
     const mem = events.find((e) => e.kind === 'membership')!
     expect(mem.title).toBe('Joined Smile Club')
-    expect(mem.href).toBe('/shop/memberships')
+    expect(mem.href).toBe('/payments/memberships')
   })
 
   it('includes an online balance payment', async () => {
@@ -108,7 +108,7 @@ describe('getPatientTimeline — commerce + review events', () => {
     const events = await getPatientTimeline('org_1', 'pat_1')
     const pay = events.find((e) => e.kind === 'balance_payment')!
     expect(pay.title).toBe('Paid $120.00 toward balance online')
-    expect(pay.href).toBe('/shop/payments')
+    expect(pay.href).toBe('/payments/online')
   })
 
   it('includes a completed review with its star rating + text', async () => {

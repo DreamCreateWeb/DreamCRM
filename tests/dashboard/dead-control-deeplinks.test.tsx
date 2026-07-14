@@ -99,7 +99,7 @@ describe('Clinic Revenue legacy path goes straight to the real money surface', (
   // The clinic branch used to render a placeholder card (before that, a dead
   // /invoices link). Clinic revenue is a real surface now — the legacy Mosaic
   // path redirects to it instead of describing it.
-  it('redirects clinic tenants to /shop/payments', async () => {
+  it('redirects clinic tenants to /payments/online', async () => {
     mockRequireTenant.mockResolvedValueOnce(clinicCtx)
     let thrown = ''
     try {
@@ -107,6 +107,6 @@ describe('Clinic Revenue legacy path goes straight to the real money surface', (
     } catch (e) {
       thrown = e instanceof Error ? e.message : String(e)
     }
-    expect(thrown).toBe('REDIRECT:/shop/payments')
+    expect(thrown).toBe('REDIRECT:/payments/online')
   })
 })

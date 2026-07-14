@@ -516,7 +516,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
       occurredAt: p.paidAt,
       title: `${p.customerName ?? 'Customer'} paid ${p.invoiceNumber}`,
       subtitle: `$${(p.totalCents / 100).toFixed(2)}`,
-      href: '/shop/payments',
+      href: '/payments/online',
     })
   }
   for (const p of recentPatients) {

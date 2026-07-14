@@ -21,7 +21,7 @@ import {
  * sign-in between a willing payer and their payment. The landing always shows
  * the LIVE PMS balance and the money itself rides the existing
  * patient_balance_payment rails (Connect direct charge, idempotent finalize,
- * /shop/payments reconciliation). The PMS keeps owning the ledger.
+ * /payments/online reconciliation). The PMS keeps owning the ledger.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000

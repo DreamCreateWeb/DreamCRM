@@ -17,6 +17,10 @@ vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () =>
 import ShopClient from '@/app/(default)/shop/shop-client'
 import type { ShopConfigView, ShopStats } from '@/lib/types/shop'
 
+/** Money surfaces (payments / collections / memberships) moved to the
+ *  Payments workspace (2026-07-14) — their door tests live in
+ *  tests/payments/hub-doors.test.tsx. This suite covers the commerce hub. */
+
 function config(over: Partial<ShopConfigView> = {}): ShopConfigView {
   return {
     stripeAccountStatus: 'active',
@@ -50,8 +54,6 @@ interface RenderOpts {
   topProducts?: Array<{ productName: string; unitsSold: number; revenueCents: number }>
   membershipStats?: { activeMembers: number; mrrCents: number }
   couponStats?: { activeCount: number }
-  collections?: { patientCount: number; totalOutstandingCents: number }
-  paymentStats?: { count: number }
   connectConfigured?: boolean
   connectBanner?: string | null
 }
@@ -74,8 +76,6 @@ function renderHub(opts: RenderOpts = {}) {
       topProducts={opts.topProducts ?? []}
       membershipStats={opts.membershipStats ?? { activeMembers: 0, mrrCents: 0 }}
       couponStats={opts.couponStats ?? { activeCount: 0 }}
-      collections={opts.collections ?? { patientCount: 0, totalOutstandingCents: 0 }}
-      paymentStats={opts.paymentStats ?? { count: 0 }}
       publicBase="/site/acme/shop"
       connectConfigured={opts.connectConfigured ?? true}
       connectBanner={opts.connectBanner ?? null}
@@ -87,78 +87,49 @@ function renderHub(opts: RenderOpts = {}) {
 /** Find the section-navigation card whose link points at `href`. */
 function sectionCard(href: string): HTMLElement {
   const links = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === href)
-  // The hub may link to a path more than once (e.g. catalog "+ Add product");
-  // the section card is the one carrying the section title + stat line. Pick the
-  // first link that wraps the section card layout (has the title element).
   const card = links.find((a) => a.querySelector('.v2-card-interactive'))
   if (!card) throw new Error(`No section card linking to ${href}`)
   return card as HTMLElement
 }
 
 describe('ShopClient — section navigation cards', () => {
-  it('renders a section card for each shop area linking to the right route', () => {
+  it('renders the commerce section cards — money doors live on /payments now', () => {
     renderHub()
-    for (const href of ['/shop/orders', '/shop/memberships', '/shop/coupons', '/shop/payments']) {
+    for (const href of ['/shop/orders', '/shop/coupons']) {
       expect(sectionCard(href)).toBeInTheDocument()
+    }
+    // The moved money surfaces must NOT have hub doors here anymore.
+    for (const gone of ['/payments/collections', '/payments/online']) {
+      const links = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === gone)
+      expect(links.find((a) => a.querySelector('.v2-card-interactive'))).toBeUndefined()
     }
   })
 
   it('each section card shows its title and live stat line', () => {
     renderHub({
       orderStats: { paidCount: 9, unfulfilledCount: 4, revenueCents: 50000 },
-      membershipStats: { activeMembers: 12, mrrCents: 39900 },
       couponStats: { activeCount: 3 },
-      paymentStats: { count: 2 },
     })
 
     const orders = within(sectionCard('/shop/orders'))
     expect(orders.getByText('Orders')).toBeInTheDocument()
     expect(orders.getByText('4 to fulfill')).toBeInTheDocument()
 
-    const memberships = within(sectionCard('/shop/memberships'))
-    expect(memberships.getByText('Memberships')).toBeInTheDocument()
-    expect(memberships.getByText(/12 active/)).toBeInTheDocument()
-    expect(memberships.getByText(/\$399\.00\/mo/)).toBeInTheDocument()
-
     const coupons = within(sectionCard('/shop/coupons'))
     expect(coupons.getByText('Coupons')).toBeInTheDocument()
     expect(coupons.getByText('3 active codes')).toBeInTheDocument()
-
-    const payments = within(sectionCard('/shop/payments'))
-    expect(payments.getByText('Payments')).toBeInTheDocument()
-    expect(payments.getByText('2 to reconcile')).toBeInTheDocument()
   })
 
   it('Orders card surfaces the unfulfilled count (warn) — the founder\'s "view orders" need', () => {
     renderHub({ orderStats: { paidCount: 7, unfulfilledCount: 3, revenueCents: 9000 } })
     const orders = within(sectionCard('/shop/orders'))
     const stat = orders.getByText('3 to fulfill')
-    // Warn tone (needs our action) when there are unfulfilled orders.
     expect(stat.className).toMatch(/amber/)
   })
 
   it('Orders card falls back to the paid count when nothing is unfulfilled', () => {
     renderHub({ orderStats: { paidCount: 5, unfulfilledCount: 0, revenueCents: 12000 } })
     expect(within(sectionCard('/shop/orders')).getByText('5 paid')).toBeInTheDocument()
-  })
-
-  it('shows calm zero-state stats when each area is empty', () => {
-    renderHub({
-      orderStats: { paidCount: 0, unfulfilledCount: 0, revenueCents: 0 },
-      membershipStats: { activeMembers: 0, mrrCents: 0 },
-      couponStats: { activeCount: 0 },
-      paymentStats: { count: 0 },
-    })
-    expect(within(sectionCard('/shop/orders')).getByText('0 paid')).toBeInTheDocument()
-    expect(within(sectionCard('/shop/memberships')).getByText('No members yet')).toBeInTheDocument()
-    expect(within(sectionCard('/shop/coupons')).getByText('No active codes')).toBeInTheDocument()
-    // Connected + nothing to reconcile reads as a calm "Connected".
-    expect(within(sectionCard('/shop/payments')).getByText('Connected')).toBeInTheDocument()
-  })
-
-  it('Payments card reads "Not connected" when Stripe is not ready', () => {
-    renderHub({ config: { stripeAccountStatus: 'none', chargesEnabled: false } })
-    expect(within(sectionCard('/shop/payments')).getByText('Not connected')).toBeInTheDocument()
   })
 
   it('uses the singular "code" label for a single active coupon', () => {
@@ -170,10 +141,6 @@ describe('ShopClient — section navigation cards', () => {
 describe('ShopClient — Stripe Connect status panel', () => {
   it('shows the teal Connect CTA when configured but not yet connected', () => {
     renderHub({ config: { stripeAccountStatus: 'none', chargesEnabled: false }, connectConfigured: true })
-    // When not connected, both the page primary (header) and the status panel
-    // surface a "Connect Stripe" CTA — both point at the OAuth start route.
-    // (Exact name match excludes the Payments section card, whose description
-    // also mentions connecting Stripe.)
     const connect = screen.getAllByRole('link', { name: 'Connect Stripe' })
     expect(connect.length).toBeGreaterThan(0)
     expect(connect.every((a) => a.getAttribute('href') === '/api/connect/shop/start')).toBe(true)
@@ -201,9 +168,14 @@ describe('ShopClient — sales overview', () => {
     expect(screen.getByText('Best sellers')).toBeInTheDocument()
     expect(screen.getByText('Whitening Kit')).toBeInTheDocument()
     expect(screen.getByText('7 sold')).toBeInTheDocument()
-    // Revenue KPI drills into the paid-orders view.
     const revenueTile = screen.getByText('Revenue · 30 days').closest('a')
     expect(revenueTile).toHaveAttribute('href', '/shop/orders?status=paid')
+  })
+
+  it('the Recurring KPI drills into the Payments workspace (memberships moved there)', () => {
+    renderHub({ membershipStats: { activeMembers: 12, mrrCents: 39900 } })
+    const tile = screen.getByText('Recurring').closest('a')
+    expect(tile).toHaveAttribute('href', '/payments/memberships')
   })
 
   it('hides the sales band entirely for a brand-new shop with no sales', () => {
@@ -220,7 +192,6 @@ describe('ShopClient — sales overview', () => {
 describe('ShopClient — catalog + header', () => {
   it('keeps the page primary action (Add product) when payments are ready', () => {
     renderHub()
-    // Header + catalog both expose an Add-product link to the new-product route.
     const addLinks = screen.getAllByRole('link', { name: /\+ Add product/i })
     expect(addLinks.length).toBeGreaterThan(0)
     expect(addLinks.every((a) => a.getAttribute('href') === '/shop/products/new')).toBe(true)
@@ -231,18 +202,3 @@ describe('ShopClient — catalog + header', () => {
     expect(screen.getByText('No products yet')).toBeInTheDocument()
   })
 })
-describe('Collections doorway card (the AR board is first-class on the hub)', () => {
-  it('shows the open-balance count + total, warn-toned', () => {
-    renderHub({ collections: { patientCount: 3, totalOutstandingCents: 42500 } })
-    expect(screen.getByText('Collections')).toBeTruthy()
-    expect(screen.getByText(/3 open balances · \$425/)).toBeTruthy()
-    const link = screen.getByText('Collections').closest('a')
-    expect(link?.getAttribute('href')).toBe('/shop/collections')
-  })
-
-  it('says so plainly when nothing is outstanding', () => {
-    renderHub()
-    expect(screen.getByText('Nothing outstanding')).toBeTruthy()
-  })
-})
-

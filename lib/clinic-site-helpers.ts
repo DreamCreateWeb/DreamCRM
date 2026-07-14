@@ -410,7 +410,7 @@ export function buildSitePagesIndex(opts: {
   const managerFor = (path: string): SitePageIndexEntry['manager'] => {
     if (path === '/blog') return { href: '/website/blog', label: 'Blog manager' }
     if (path === '/careers') return { href: '/website/careers', label: 'Careers manager' }
-    if (path === '/dental-plans') return { href: '/shop/memberships', label: 'Membership manager' }
+    if (path === '/dental-plans') return { href: '/payments/memberships', label: 'Membership manager' }
     if (path === '/team') return { href: '/website/content#staff', label: 'Team section' }
     return null
   }

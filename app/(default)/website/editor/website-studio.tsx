@@ -173,7 +173,7 @@ const LINK_OUTS: Record<string, { href: string; cta: string; desc: string }> = {
     desc: 'Your open roles and applicants live in the careers manager. Post, edit, or close roles there; published roles appear on your site (and Google for Jobs) automatically.',
   },
   dental_plans: {
-    href: '/shop/memberships',
+    href: '/payments/memberships',
     cta: 'Open the membership manager',
     desc: 'Your in-house dental plans live in the membership manager — set pricing, benefits, and which plans are active. Active plans appear on your site automatically.',
   },

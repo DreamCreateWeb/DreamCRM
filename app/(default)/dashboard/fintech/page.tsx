@@ -17,5 +17,5 @@ export default async function RevenuePage() {
 
   // Clinic revenue is a real surface now (Shop → Payments) — this legacy
   // Mosaic path used to show a "coming soon" card.
-  redirect('/shop/payments')
+  redirect('/payments/online')
 }

@@ -575,7 +575,7 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
       // otherwise fall back to the reconciliation page.
       ...(header.email
         ? { sendPayLink: true }
-        : { cta: { label: 'See online payments', href: '/shop/payments' } }),
+        : { cta: { label: 'See online payments', href: '/payments/online' } }),
     })
   }
   if (header.flags.lapsed) {

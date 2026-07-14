@@ -83,7 +83,7 @@ export default async function MyDayPage() {
           tone={data.balances.count > 0 ? 'warn' : 'neutral'}
           // The Collections board is the purpose-built landing for this stat —
           // balances + dunning state + send-pay-link in one place.
-          href="/shop/collections"
+          href="/payments/collections"
         />
         <KpiStat
           label="New leads"

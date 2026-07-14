@@ -687,7 +687,7 @@ export async function getPatientTimeline(
       subtitle: 'Membership',
       status: m.status,
       direction: null,
-      href: '/shop/memberships',
+      href: '/payments/memberships',
       body: null,
       agingDays: null,
     })
@@ -706,7 +706,7 @@ export async function getPatientTimeline(
       subtitle: 'Online payment',
       status: p.status,
       direction: null,
-      href: '/shop/payments',
+      href: '/payments/online',
       body: null,
       agingDays: null,
     })

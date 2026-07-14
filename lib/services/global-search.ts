@@ -97,18 +97,19 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     { id: 'page-settings-plan', label: 'Plan & billing', sublabel: 'Settings', href: '/settings/billing', kind: 'page' },
     { id: 'page-settings-apps', label: 'Connected accounts', sublabel: 'Settings', href: '/settings/apps', kind: 'page' },
   ]
-  // Shop sub-pages + the Gmail mailbox — same treatment as Website/Growth:
-  // folded surfaces stay one ⌘K jump away. Shop pages only when the module
-  // itself is visible (premium + payments bundle — mirror the sidebar gate).
+  // Shop + Payments sub-pages + the Gmail mailbox — same treatment as
+  // Website/Growth: folded surfaces stay one ⌘K jump away. Money pages moved
+  // into the Payments workspace (2026-07-14) but keep the same visibility gate
+  // (premium + payments bundle — mirror the sidebar).
   const shopVisible = modules.some((m) => m.href === '/shop')
   const shopPages: SearchResult[] = shopVisible
     ? [
         { id: 'page-shop-orders', label: 'Orders', sublabel: 'Shop', href: '/shop/orders', kind: 'page' as const },
         { id: 'page-shop-products', label: 'Products', sublabel: 'Shop', href: '/shop/products', kind: 'page' as const },
-        { id: 'page-shop-memberships', label: 'Memberships', sublabel: 'Shop', href: '/shop/memberships', kind: 'page' as const },
         { id: 'page-shop-coupons', label: 'Coupons', sublabel: 'Shop', href: '/shop/coupons', kind: 'page' as const },
-        { id: 'page-shop-payments', label: 'Payments', sublabel: 'Shop', href: '/shop/payments', kind: 'page' as const },
-        { id: 'page-shop-collections', label: 'Collections (balances)', sublabel: 'Shop', href: '/shop/collections', kind: 'page' as const },
+        { id: 'page-payments-online', label: 'Online payments', sublabel: 'Payments', href: '/payments/online', kind: 'page' as const },
+        { id: 'page-payments-collections', label: 'Collections (balances)', sublabel: 'Payments', href: '/payments/collections', kind: 'page' as const },
+        { id: 'page-payments-memberships', label: 'Memberships', sublabel: 'Payments', href: '/payments/memberships', kind: 'page' as const },
       ]
     : []
   const mailboxPages: SearchResult[] = modules.some((m) => m.href === '/messages')

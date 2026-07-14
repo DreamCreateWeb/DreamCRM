@@ -321,7 +321,7 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
       'Sent when you email a patient their balance with a secure pay link — and by the automatic balance reminder, if you turn that on.',
     category: 'billing',
     enableSource: null,
-    moduleHref: '/shop/payments',
+    moduleHref: '/payments/online',
     moduleLabel: 'Online payments',
     tokens: [
       T_FIRST,
@@ -343,7 +343,7 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
     ],
     timingHint: {
       text: 'Sent on demand from a patient’s record or the patient list — and automatically on a schedule when you turn on Automatic balance reminders.',
-      href: '/shop/payments',
+      href: '/payments/online',
       linkLabel: 'Online payments',
     },
   },

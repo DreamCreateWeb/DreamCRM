@@ -63,8 +63,6 @@ interface Props {
   membershipStats: { activeMembers: number; mrrCents: number }
   couponStats: { activeCount: number }
   /** Open PMS balances (the Collections board's aggregate). */
-  collections: { patientCount: number; totalOutstandingCents: number }
-  paymentStats: { count: number }
   publicBase: string | null
   connectConfigured: boolean
   connectBanner: string | null
@@ -79,8 +77,6 @@ export default function ShopClient({
   topProducts,
   membershipStats,
   couponStats,
-  collections,
-  paymentStats,
   publicBase,
   connectConfigured,
   connectBanner,
@@ -132,17 +128,6 @@ export default function ShopClient({
           : 'Track and fulfill product orders.',
     },
     {
-      href: '/shop/memberships',
-      icon: 'star',
-      title: 'Memberships',
-      stat:
-        membershipStats.activeMembers > 0
-          ? `${membershipStats.activeMembers} active · ${formatCents(membershipStats.mrrCents)}/mo`
-          : 'No members yet',
-      statTone: membershipStats.activeMembers > 0 ? 'ok' : undefined,
-      description: 'In-house dental plans with recurring billing.',
-    },
-    {
       href: '/shop/coupons',
       icon: 'receipt',
       title: 'Coupons',
@@ -151,31 +136,6 @@ export default function ShopClient({
           ? `${couponStats.activeCount} active ${couponStats.activeCount === 1 ? 'code' : 'codes'}`
           : 'No active codes',
       description: 'Promo and birthday codes for your storefront.',
-    },
-    {
-      href: '/shop/collections',
-      icon: 'flag',
-      title: 'Collections',
-      stat:
-        collections.patientCount > 0
-          ? `${collections.patientCount} open balance${collections.patientCount === 1 ? '' : 's'} · ${formatCents(collections.totalOutstandingCents)}`
-          : 'Nothing outstanding',
-      statTone: collections.patientCount > 0 ? 'warn' : 'ok',
-      description: 'Every open PMS balance with its dunning state — send pay links, propose plans.',
-    },
-    {
-      href: '/shop/payments',
-      icon: 'wallet',
-      title: 'Payments',
-      stat: connectReady
-        ? paymentStats.count > 0
-          ? `${paymentStats.count} to reconcile`
-          : 'Connected'
-        : 'Not connected',
-      statTone: connectReady ? (paymentStats.count > 0 ? 'warn' : 'ok') : 'warn',
-      description: connectReady
-        ? 'Online balance payments to post to your PMS.'
-        : 'Connect Stripe to take online payments.',
     },
   ]
 
@@ -334,6 +294,7 @@ export default function ShopClient({
               label="Recurring"
               value={`${formatCents(membershipStats.mrrCents)}/mo`}
               tone={membershipStats.activeMembers > 0 ? 'ok' : undefined}
+              href="/payments/memberships"
               sub={`${membershipStats.activeMembers} member${membershipStats.activeMembers === 1 ? '' : 's'}`}
             />
           </div>

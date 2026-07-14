@@ -24,24 +24,24 @@ export async function savePlanAction(input: PlanInput): Promise<{ id: string }> 
   if (!input.name?.trim()) throw new Error('Plan name is required')
   if (!(Number(input.priceDollars) > 0)) throw new Error('Set a price above $0')
   const id = await savePlan(ctx.organizationId, input)
-  revalidatePath('/shop/memberships')
+  revalidatePath('/payments/memberships')
   return { id }
 }
 
 export async function setPlanStatusAction(id: string, status: PlanStatus) {
   const ctx = await ensureClinicAdmin()
   await setPlanStatus(ctx.organizationId, id, status)
-  revalidatePath('/shop/memberships')
+  revalidatePath('/payments/memberships')
 }
 
 export async function deletePlanAction(id: string) {
   const ctx = await ensureClinicAdmin()
   await deletePlan(ctx.organizationId, id)
-  revalidatePath('/shop/memberships')
+  revalidatePath('/payments/memberships')
 }
 
 export async function markBenefitUsedAction(membershipId: string, benefitLabel: string) {
   const ctx = await ensureClinicAdmin()
   await markBenefitUsed(ctx.organizationId, membershipId, benefitLabel)
-  revalidatePath('/shop/memberships')
+  revalidatePath('/payments/memberships')
 }

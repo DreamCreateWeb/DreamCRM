@@ -76,7 +76,7 @@ vi.mock('@/lib/services/marketing-send', () => ({ sendCampaign: vi.fn() }))
 vi.mock('@/lib/services/ai-marketing', () => ({ draftCampaign: vi.fn(), improveCopy: vi.fn() }))
 
 import { saveProductAction } from '@/app/(default)/shop/actions'
-import { savePlanAction } from '@/app/(default)/shop/memberships/actions'
+import { savePlanAction } from '@/app/(default)/payments/memberships/actions'
 import { createCouponAction } from '@/app/(default)/shop/coupons/actions'
 import { createAudienceAction } from '@/app/(default)/marketing/actions'
 

@@ -43,7 +43,7 @@ export default async function InvoicesOrSubscriptions({
   // Clinic tenants: the legacy Mosaic invoices table is dead (no dental flow
   // writes it). Real clinic money lives in Shop — send them to the online-
   // payments reconciliation surface. (Platform keeps the Stripe table below.)
-  if (ctx.tenantType === 'clinic') redirect('/shop/payments')
+  if (ctx.tenantType === 'clinic') redirect('/payments/online')
 
   // Platform admin: render Stripe management surface.
   if (ctx.tenantType === 'platform') {

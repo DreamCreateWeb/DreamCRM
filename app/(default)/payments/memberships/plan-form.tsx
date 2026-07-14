@@ -52,7 +52,7 @@ export default function PlanForm({ plan }: { plan?: PlanRow }) {
           featured,
           benefits: benefits.map((b) => ({ label: b.label.trim(), qty: b.qty != null && !isNaN(b.qty) ? Number(b.qty) : undefined })).filter((b) => b.label),
         })
-        router.push('/shop/memberships')
+        router.push('/payments/memberships')
         router.refresh()
       } catch (err) {
         setError((err as Error).message)
@@ -63,7 +63,7 @@ export default function PlanForm({ plan }: { plan?: PlanRow }) {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-2xl mx-auto">
       <div className="mb-5">
-        <Link href="/shop/memberships" className="text-xs text-gray-500 dark:text-gray-400 hover:underline">← Back to memberships</Link>
+        <Link href="/payments/memberships" className="text-xs text-gray-500 dark:text-gray-400 hover:underline">← Back to memberships</Link>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight mt-1">{plan ? 'Edit plan' : 'New membership plan'}</h1>
       </div>
 
@@ -131,7 +131,7 @@ export default function PlanForm({ plan }: { plan?: PlanRow }) {
           <ActionButton variant="primary" disabled={isPending} onClick={submit}>
             {isPending ? 'Saving…' : plan ? 'Save changes' : 'Create plan'}
           </ActionButton>
-          <Link href="/shop/memberships" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">Cancel</Link>
+          <Link href="/payments/memberships" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">Cancel</Link>
         </div>
       </div>
     </div>

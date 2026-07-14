@@ -20,7 +20,7 @@ import { platformFeeCents } from '@/lib/types/shop'
  * off-session the moment setup finalizes, the rest via the daily cron.
  *
  * Money truth: every successful charge records a patient_balance_payment row
- * — the same reconciliation list /shop/payments and the Collections board
+ * — the same reconciliation list /payments/online and the Collections board
  * already read. The PMS ledger still rules; pms_balance_cents is never
  * touched here. Declines mark the plan past_due and retry every 3 days, up
  * to 3 attempts, then park it for staff follow-up (never infinite retries
@@ -508,7 +508,7 @@ async function notifyPlanEvent(
       .limit(1)
     await notifyOrgMembers(
       organizationId,
-      { bucket: 'comments', type: 'payment_plan', title: input.title, body: input.body, linkPath: '/shop/collections' },
+      { bucket: 'comments', type: 'payment_plan', title: input.title, body: input.body, linkPath: '/payments/collections' },
       { roles: ['owner', 'admin'], excludeEmail: pat?.email ?? null },
     )
   } catch {
@@ -526,7 +526,7 @@ async function notifyPlanEvent(
         name: null,
         title: input.title,
         body: input.body,
-        linkPath: '/shop/collections',
+        linkPath: '/payments/collections',
       })
     }
   } catch {

@@ -37,7 +37,7 @@ describe('buildSitePagesIndex', () => {
     const on = buildSitePagesIndex(ALL_ON)
     expect(on.find((p) => p.path === '/blog')?.manager?.href).toBe('/website/blog')
     expect(on.find((p) => p.path === '/careers')?.manager?.href).toBe('/website/careers')
-    expect(on.find((p) => p.path === '/dental-plans')?.manager?.href).toBe('/shop/memberships')
+    expect(on.find((p) => p.path === '/dental-plans')?.manager?.href).toBe('/payments/memberships')
     const off = buildSitePagesIndex(ALL_OFF)
     expect(off.find((p) => p.path === '/team')?.manager?.href).toBe('/website/content#staff')
   })

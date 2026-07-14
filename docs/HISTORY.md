@@ -3886,3 +3886,20 @@ leadsLabel; back button says "← Sales pipeline" for platform),
 Settings→Team subtitle, Settings→Notifications (alerts description +
 pause-all note now use the platform register). Convention reinforced:
 any surface serving two tenants must branch every reader-addressed string.
+
+## 2026-07-14 (later) — Payments workspace: the money split (redesign pass 1)
+
+Owner-sanctioned structure redesign. Money management left Shop:
+new /payments workspace (Business group, wallet icon, same premium +
+payments-bundle gates) — hub with the money KPI story (Outstanding → To
+reconcile → Payment plans → Recurring MRR) + Stripe status, doors into
+/payments/online (was /shop/payments), /payments/collections
+(was /shop/collections), /payments/memberships (was /shop/memberships);
+all old paths 308. Shop hub is pure commerce now (Orders + Coupons doors,
+catalog, storefront/loyalty config; the Recurring KPI stays as a drill into
+Payments). ~30 files re-pointed (overview cards, My Day, patient detail,
+email deep links, services' linkPaths, trail, ⌘K entries, demo seeds);
+tests split (shop-client suite trimmed to commerce, new
+tests/payments/hub-doors.test.tsx carries the money-door assertions).
+Considered + rejected: Leads → Growth (it's a daily triage queue with a
+live sidebar badge — recorded in docs/STRUCTURE-AUDIT.md Stage 4).

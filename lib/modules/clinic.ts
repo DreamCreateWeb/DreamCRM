@@ -88,6 +88,11 @@ export const clinicModules: ModuleRegistry = {
     // so a clinic with a live shop never loses it). Hidden for a Premium clinic
     // that hasn't started commerce; reachable via the Ecommerce bundle on
     // /integrations. See lib/integrations/bundles.
+    // Payments is the money workspace (online payments, collections + plans,
+    // memberships) — split out of Shop in the 2026-07-14 structure redesign so
+    // AR management stops reading as e-commerce (Weave/Pearly pattern: payments
+    // first-class, membership revenue nested inside it). Same gates as Shop.
+    { id: 'payments_hub',      path: '/payments',          label: 'Payments',         section: 'Business', icon: 'wallet',   status: 'live', minPlan: 'premium', requiresBundle: ['payments'] },
     { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', minPlan: 'premium', requiresBundle: ['payments'] },
     // The /integrations page hosts BOTH the Premium PMS sync AND the free
     // Google Business card (free on every tier). The page renders the GBP card

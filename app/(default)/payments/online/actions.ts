@@ -17,7 +17,7 @@ export async function saveBalanceOutreachAction(
   }
   try {
     await updateBalanceOutreachSettings(ctx.organizationId, settings)
-    revalidatePath('/shop/payments')
+    revalidatePath('/payments/online')
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not save' }

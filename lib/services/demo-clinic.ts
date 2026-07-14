@@ -2474,7 +2474,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
-    // /shop/payments page, and the commerce timeline events on legacy demos).
+    // /payments/online page, and the commerce timeline events on legacy demos).
     await seedDemoMoneyCoherence(existing.id)
 
     // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
@@ -5109,7 +5109,7 @@ async function seedDemoPreferredLanguage(
 /**
  * Seed the payment-plan showcase: an ACTIVE 6-month autopay plan on Marcus
  * (persona 3, the outstanding-balance persona) with 2 installments already
- * paid, so the Collections board's plans table + the /shop/payments
+ * paid, so the Collections board's plans table + the /payments/online
  * reconciliation rows demo real states. Anchored on his live PMS balance
  * (missing/zero → skip); idempotent by the deterministic `ppl_demo…` id. The
  * row carries NO Stripe ids, so the charge cron can never touch it (it also
@@ -5931,7 +5931,7 @@ async function seedDemoShop(orgId: string, now: Date, patientIds: string[] = [])
   ])
 
   // An online balance payment (patient paid toward their PMS balance) so the
-  // /shop/payments reconciliation page + the patient timeline have real data.
+  // /payments/online reconciliation page + the patient timeline have real data.
   // FK requires a patient, so only when one exists.
   if (patientIds[0]) {
     await db.insert(schema.patientBalancePayment).values({
@@ -6032,7 +6032,7 @@ async function seedDemoMemberships(orgId: string, now: Date, patientIds: string[
 // ── Money-coherence self-heal (idempotent) ──────────────────────────────────
 // Ensures a legacy demo has the data the new money surfaces render against:
 //   • a PAID + UNFULFILLED shop order (Overview "Orders to fulfill" card)
-//   • an online balance payment (the /shop/payments reconciliation page +
+//   • an online balance payment (the /payments/online reconciliation page +
 //     the patient timeline "Paid $X toward balance online" event)
 // Both link to a real seeded patient so the patient-detail timeline shows them.
 // No-ops when the rows already exist, so it's safe to run on every entry.
