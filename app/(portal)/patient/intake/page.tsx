@@ -18,6 +18,7 @@ import {
   PORTAL_INK,
   PORTAL_MUTED,
   PORTAL_BORDER,
+  PortalBackLink,
 } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort } from '@/components/patient-portal/format'
 
@@ -42,9 +43,7 @@ export default async function PortalFormsPage({
         : {}
       return (
         <div className="mx-auto max-w-2xl">
-          <Link href="/patient/intake" className="text-[0.85rem] font-semibold" style={{ color: brand }}>
-            ← All forms
-          </Link>
+          <PortalBackLink href="/patient/intake" label="All forms" brand={brand} />
           <div className="mb-6 mt-3">
             <PortalHeading color={brand}>{template.title}</PortalHeading>
             {template.description && (

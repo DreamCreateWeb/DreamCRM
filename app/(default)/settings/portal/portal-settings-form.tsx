@@ -283,7 +283,7 @@ export default function PortalSettingsForm({
 
       <SettingsRow
         label="Earliest online booking"
-        description="How much notice you need before the first slot a patient can grab. None = they can book the very next open slot."
+        description="How much notice you need before the first slot a patient can grab — on your website and in the portal. None = they can book the very next open slot."
         control={
           <NoticePicker
             idBase="booking-notice"

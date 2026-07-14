@@ -8,9 +8,7 @@ import {
   resendPartnerInvite,
   updatePartnerTerms,
   setPartnerStatus,
-  assignClinicReferral,
   updateClinicReferralTerms,
-  clearClinicReferral,
   getPartnerLifecycleInfo,
   deletePartner,
   archivePartner,
@@ -171,29 +169,9 @@ export async function reactivatePartnerAction(
   return { ok: false, error }
 }
 
-// ── Clinic attribution (clinic detail "Referral" card + partner detail) ──────
-
-const AssignInput = z.object({
-  organizationId: z.string().min(1),
-  partnerId: z.string().min(1),
-  percentBps: z.number().int().min(0).max(10000).nullable().optional(),
-  termMonths: z.number().int().min(1).max(120).nullable().optional(),
-})
-
-export async function assignClinicReferralAction(input: unknown): Promise<{ ok: true }> {
-  await requirePlatformAdmin()
-  const data = AssignInput.parse(input)
-  await assignClinicReferral(
-    data.organizationId,
-    data.partnerId,
-    data.percentBps ?? undefined,
-    data.termMonths !== undefined ? data.termMonths : undefined,
-  )
-  revalidatePath(`/ecommerce/customers/${data.organizationId}`)
-  revalidatePath(`/partners/${data.partnerId}`)
-  revalidatePath('/partners')
-  return { ok: true }
-}
+// Clinic attribution (assign/clear for ONE clinic) moved to
+// app/(default)/ecommerce/customers/[id]/actions.ts — the clinic-detail
+// referral card is its only UI (structure pass, 2026-07-13).
 
 const UpdateClinicTermsInput = z.object({
   organizationId: z.string().min(1),
@@ -211,14 +189,3 @@ export async function updateClinicReferralTermsAction(input: unknown): Promise<{
   return { ok: true }
 }
 
-export async function clearClinicReferralAction(
-  organizationId: string,
-  partnerId?: string,
-): Promise<{ ok: true }> {
-  await requirePlatformAdmin()
-  await clearClinicReferral(z.string().min(1).parse(organizationId))
-  revalidatePath(`/ecommerce/customers/${organizationId}`)
-  if (partnerId) revalidatePath(`/partners/${partnerId}`)
-  revalidatePath('/partners')
-  return { ok: true }
-}

@@ -235,3 +235,48 @@ describe('getAvailableSlots back-compat wrapper', () => {
     expect(wrapper).toEqual(rich.slots)
   })
 })
+
+describe('patient-facing notice window (minNoticeHours)', () => {
+  // Pin "now" to 08:00 on the Monday being queried so the window math is
+  // deterministic: with 9–5 hours, no notice leaves 9:00 first; a 4h notice
+  // (cutoff 12:00) makes 12:00 the first bookable start.
+  function pinMondayMorning() {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(`${MONDAY}T08:00:00.000Z`))
+  }
+
+  it('filters slots inside now+N hours when minNoticeHours is passed', async () => {
+    setMon9to5()
+    pinMondayMorning()
+    const slots = await getAvailableSlots('org_1', MONDAY, undefined, undefined, 4)
+    expect(slots[0]?.startIso).toBe(`${MONDAY}T12:00:00.000Z`)
+    vi.useRealTimers()
+  })
+
+  it('omitting the param keeps the staff behavior (walk-ins bookable now)', async () => {
+    setMon9to5()
+    pinMondayMorning()
+    const slots = await getAvailableSlots('org_1', MONDAY)
+    expect(slots[0]?.startIso).toBe(`${MONDAY}T09:00:00.000Z`)
+    vi.useRealTimers()
+  })
+
+  it('zero / junk notice values behave like no window', async () => {
+    setMon9to5()
+    pinMondayMorning()
+    const zero = await getAvailableSlots('org_1', MONDAY, undefined, undefined, 0)
+    const nan = await getAvailableSlots('org_1', MONDAY, undefined, undefined, Number.NaN)
+    expect(zero[0]?.startIso).toBe(`${MONDAY}T09:00:00.000Z`)
+    expect(nan[0]?.startIso).toBe(`${MONDAY}T09:00:00.000Z`)
+    vi.useRealTimers()
+  })
+
+  it('isSlotAvailable rejects a too-soon slot only when the window is passed', async () => {
+    setMon9to5()
+    pinMondayMorning()
+    const nineAm = new Date(`${MONDAY}T09:00:00.000Z`)
+    expect(await isSlotAvailable('org_1', nineAm)).toBe(true)
+    expect(await isSlotAvailable('org_1', nineAm, undefined, undefined, 4)).toBe(false)
+    vi.useRealTimers()
+  })
+})

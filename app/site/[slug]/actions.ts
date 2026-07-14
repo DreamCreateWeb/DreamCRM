@@ -8,6 +8,7 @@ import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
 import { formatClinicDateTime } from '@/lib/format-datetime'
+import { getPortalSettings } from '@/lib/services/portal-settings'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
@@ -357,12 +358,16 @@ export async function listBookingSlots(
   // interpreted in the CLINIC's timezone server-side. Tolerate a full ISO from
   // a stale client (pre-deploy) by converting to a Date. The visit duration
   // makes the slot check span the whole appointment against the clinic's chairs.
+  // The clinic's "Earliest online booking" notice window applies to the public
+  // site exactly like the portal — the setting is one rule for all
+  // patient-facing booking (FINISHING Class 6: public booking used to skip it).
+  const { booking } = await getPortalSettings(orgId)
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
-    return getSlotsForDay(orgId, dateIso, undefined, durationMinutes)
+    return getSlotsForDay(orgId, dateIso, undefined, durationMinutes, booking.minNoticeHours)
   }
   const date = new Date(dateIso)
   if (isNaN(date.getTime())) return { slots: [], closedReason: 'invalid_hours' }
-  return getSlotsForDay(orgId, date, undefined, durationMinutes)
+  return getSlotsForDay(orgId, date, undefined, durationMinutes, booking.minNoticeHours)
 }
 
 /**
@@ -479,6 +484,14 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   const startTime = new Date(startTimeRaw)
   if (isNaN(startTime.getTime())) throw new Error('Invalid date/time')
   if (startTime.getTime() < Date.now()) throw new Error('Appointment must be in the future')
+  // Enforce the clinic's notice window at submit too — the slot list already
+  // filters it, so tripping this means a stale tab or a hand-crafted request.
+  const { booking: bookingRules } = await getPortalSettings(orgId)
+  if (startTime.getTime() < Date.now() + bookingRules.minNoticeHours * 3_600_000) {
+    throw new Error(
+      'That time is too soon to book online — please pick a later slot or give the office a call.',
+    )
+  }
 
   // Resolve the visit-type duration from the clinic's catalog so the race-guard
   // checks the whole appointment window and endTime reflects the real length.

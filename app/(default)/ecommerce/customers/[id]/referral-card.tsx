@@ -5,11 +5,9 @@ import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { formatBps, formatTerm } from '@/lib/types/referrals'
-import {
-  assignClinicReferralAction,
-  updateClinicReferralTermsAction,
-  clearClinicReferralAction,
-} from '@/app/(default)/partners/admin-actions'
+import { assignClinicReferralAction, clearClinicReferralAction } from './actions'
+// Shared with the partner detail page — terms editing stays a partners action.
+import { updateClinicReferralTermsAction } from '@/app/(default)/partners/admin-actions'
 
 interface PartnerOption {
   id: string

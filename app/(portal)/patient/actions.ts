@@ -63,10 +63,13 @@ function revalidateVisits() {
   revalidatePath('/patient/appointments')
 }
 
-/** Slot lookup for the portal book + reschedule pickers. Read-only. */
+/** Slot lookup for the portal book + reschedule pickers. Read-only. The
+ *  notice window is applied server-side too (the picker also filters
+ *  client-side for the countdown UX) so a stale tab can't list too-soon slots. */
 export async function getPortalSlotsAction(dateKey: string): Promise<SlotsForDay> {
   const ctx = await requirePatient()
-  return getSlotsForDay(ctx.organizationId, dateKey)
+  const settings = await getPortalSettings(ctx.organizationId)
+  return getSlotsForDay(ctx.organizationId, dateKey, undefined, undefined, settings.booking.minNoticeHours)
 }
 
 export async function confirmMyVisitAction(visitId: string): Promise<PortalActionResult> {

@@ -81,9 +81,13 @@ export default async function BlogPage() {
 
       <PageHeader
         eyebrow={
-          <Link href="/website" className="hover:underline underline-offset-4">
-            ‹ Website
-          </Link>
+          ctx.tenantType === 'platform' ? (
+            `Platform · ${ctx.organizationName}`
+          ) : (
+            <Link href="/website" className="hover:underline underline-offset-4">
+              ‹ Website
+            </Link>
+          )
         }
         title="Blog"
         subtitle="Original posts on your own website — written by your team (with AI help) and reviewed before they go live. Not the recycled content library most dental sites use, which Google quietly discounts."

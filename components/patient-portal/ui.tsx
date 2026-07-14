@@ -340,7 +340,7 @@ export function PortalBackLink({
   brand: string
 }) {
   return (
-    <a
+    <Link
       href={href}
       className="inline-flex items-center gap-1.5 text-[0.88rem] font-semibold"
       style={{ color: brand }}
@@ -358,6 +358,6 @@ export function PortalBackLink({
         <path d="M10 3.5 5.5 8l4.5 4.5" />
       </svg>
       {label}
-    </a>
+    </Link>
   )
 }

@@ -315,13 +315,13 @@ Closed 2026-07-02 (round 5):
 
 ## Class 6 — Cross-surface rule drift (opened 2026-07-13, structure audit)
 
-- ☐ Public-site booking ignores the portal booking rules: `minNoticeHours`
-  ("earliest online booking") and the bookable-type allowlist are consumed
-  only by the PORTAL surfaces (slot-picker, book-form, visit actions) — the
-  public /site/[slug]/book flow gates on `bookablePublic` visit-type flags
-  but honors no notice window, so a visitor can grab a slot 30 minutes out
-  while a portal patient can’t. Decide: apply the same notice window to
-  public booking, or split the settings copy to say "portal only".
+- ☑ Public-site booking ignores the notice window — FIXED (2026-07-13):
+  `getSlotsForDay`/`isSlotAvailable` take an optional `minNoticeHours`; the
+  public slot list + submit and the portal slot list now pass the clinic's
+  "Earliest online booking" value (the portal submit already enforced it).
+  Staff paths omit it, so walk-ins book right now. Settings copy updated to
+  say "on your website and in the portal". Bookable-TYPE lists stay
+  intentionally separate (`bookablePublic` flags vs the portal allowlist).
 
 ## How to keep hunting (method)
 

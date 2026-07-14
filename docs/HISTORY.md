@@ -3836,3 +3836,20 @@ orphan pages, honest upsell doors. Fixes shipped:
    the same eyebrow the Shop hub already had.
 4. FINISHING.md Class 6 opened: public-site booking ignores the portal
    notice windows (decide: apply or relabel "portal only").
+
+## 2026-07-14 — Structure pass 3: other tenants + Class 6 closed
+
+Extended the conformance sweep to the PLATFORM tenant, patient PORTAL,
+partner portal, auth + onboarding (two more checklist audits; token-IS-auth
+pages, portal nav parity, chrome consistency, tenant branching all verified
+conforming). Fixes: clinic-referral assign/clear actions moved next to their
+only UI (ecommerce/customers/[id]/actions.ts — partners keeps the shared
+terms action); platform /marketing eyebrow → "Platform · …"; /website/blog
+eyebrow tenant-branched (platform admins authoring the marketing blog no
+longer get a clinic-workspace breadcrumb); PortalBackLink now renders
+next/link (client nav) and the intake page uses it instead of a hand-rolled
+link. FINISHING Class 6 CLOSED: getSlotsForDay/isSlotAvailable take an
+optional minNoticeHours; public slot list + submit and the portal slot list
+pass the clinic's "Earliest online booking" value (staff paths omit it —
+walk-ins unaffected); settings copy says "website and portal"; notice-window
+tests in tests/booking/availability.test.ts.

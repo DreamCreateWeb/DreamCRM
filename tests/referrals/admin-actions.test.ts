@@ -46,12 +46,13 @@ vi.mock('@/lib/services/referral-payouts', () => ({ payoutPartner: vi.fn(async (
 import {
   createPartnerAction,
   setPartnerStatusAction,
-  assignClinicReferralAction,
   deletePartnerAction,
   archivePartnerAction,
   reactivatePartnerAction,
   getPartnerLifecycleAction,
 } from '@/app/(default)/partners/admin-actions'
+// Moved next to its only UI (the clinic-detail referral card).
+import { assignClinicReferralAction } from '@/app/(default)/ecommerce/customers/[id]/actions'
 
 beforeEach(() => {
   tenantCtx = null

@@ -100,6 +100,11 @@ export async function getSlotsForDay(
    *  duration (not just the leading 30-min slot). Defaults to one slot so the
    *  public picker keeps showing 30-min start times. */
   durationMinutes?: number,
+  /** Patient-facing notice window ("Earliest online booking", Settings →
+   *  Patient portal): slots inside now+N hours are dropped. Pass ONLY from
+   *  patient-facing callers (public site + portal) — staff booking paths omit
+   *  it so the front desk can always book a walk-in right now. */
+  minNoticeHours?: number,
 ): Promise<SlotsForDay> {
   const [profile] = await db
     .select({
@@ -202,10 +207,15 @@ export async function getSlotsForDay(
       ? Math.max(SLOT_MS, Math.round(durationMinutes) * 60_000)
       : SLOT_MS
   const now = Date.now()
+  // The patient-facing floor: the later of "now" and "now + notice window".
+  const earliestBookable =
+    minNoticeHours && Number.isFinite(minNoticeHours) && minNoticeHours > 0
+      ? now + minNoticeHours * 3_600_000
+      : now
   const slots: BookingSlot[] = []
   for (let t = dayStart.getTime(); t + SLOT_MS <= dayEnd.getTime(); t += SLOT_MS) {
     const slotStart = new Date(t)
-    if (slotStart.getTime() < now) continue
+    if (slotStart.getTime() < earliestBookable) continue
     // The WHOLE visit must fit before closing — not just the leading 30-min
     // slot. A 60-min visit at 16:30 (close 17:00) would otherwise read as
     // available and book a patient into hours the clinic isn't staffed.
@@ -232,8 +242,9 @@ export async function getAvailableSlots(
   date: Date | string,
   excludeAppointmentId?: string,
   durationMinutes?: number,
+  minNoticeHours?: number,
 ): Promise<BookingSlot[]> {
-  const { slots } = await getSlotsForDay(organizationId, date, excludeAppointmentId, durationMinutes)
+  const { slots } = await getSlotsForDay(organizationId, date, excludeAppointmentId, durationMinutes, minNoticeHours)
   return slots
 }
 
@@ -283,8 +294,10 @@ export async function isSlotAvailable(
   startTime: Date,
   durationMinutes?: number,
   excludeAppointmentId?: string,
+  /** Patient-facing notice window — see getSlotsForDay. Staff paths omit it. */
+  minNoticeHours?: number,
 ): Promise<boolean> {
-  const slots = await getAvailableSlots(organizationId, startTime, excludeAppointmentId, durationMinutes)
+  const slots = await getAvailableSlots(organizationId, startTime, excludeAppointmentId, durationMinutes, minNoticeHours)
   const target = startTime.toISOString()
   return slots.some((s) => s.startIso === target && s.available)
 }
