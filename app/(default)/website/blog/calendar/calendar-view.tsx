@@ -38,7 +38,7 @@ function defaultScheduleValue(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export default function CalendarView({ items, orgName = 'Your clinic' }: { items: CalendarItem[]; orgName?: string }) {
+export default function CalendarView({ items, orgName = 'Your clinic', isPlatform = false }: { items: CalendarItem[]; orgName?: string; isPlatform?: boolean }) {
   const router = useRouter()
   const [showIdeas, setShowIdeas] = useState(false)
 
@@ -55,9 +55,13 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
-        eyebrow={`Website · ${orgName}`}
+        eyebrow={isPlatform ? `Platform · ${orgName}` : `Website · ${orgName}`}
         title="Plan your posts"
-        subtitle="Generate ideas tailored to your services and town, draft them in a click, then schedule them to publish on their own. Every post is your clinic's own — never recycled."
+        subtitle={
+          isPlatform
+            ? 'Generate marketing-blog ideas, draft them in a click, then schedule them to publish on their own.'
+            : "Generate ideas tailored to your services and town, draft them in a click, then schedule them to publish on their own. Every post is your clinic's own — never recycled."
+        }
         actions={
           <>
             <ActionButton variant="secondary" size="sm" href="/website/blog">
@@ -119,7 +123,7 @@ export default function CalendarView({ items, orgName = 'Your clinic' }: { items
         </Section>
       </div>
 
-      {showIdeas && <GenerateIdeasModal onClose={() => setShowIdeas(false)} onAdded={() => router.refresh()} />}
+      {showIdeas && <GenerateIdeasModal isPlatform={isPlatform} onClose={() => setShowIdeas(false)} onAdded={() => router.refresh()} />}
     </div>
   )
 }
@@ -225,7 +229,7 @@ function UnscheduleButton({ id, onDone }: { id: string; onDone: () => void }) {
   )
 }
 
-function GenerateIdeasModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+function GenerateIdeasModal({ onClose, onAdded, isPlatform = false }: { onClose: () => void; onAdded: () => void; isPlatform?: boolean }) {
   const [busy, setBusy] = useState(false)
   const [pending, startTransition] = useTransition()
   const [ideas, setIdeas] = useState<Idea[] | null>(null)
@@ -272,8 +276,9 @@ function GenerateIdeasModal({ onClose, onAdded }: { onClose: () => void; onAdded
       >
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">✨ Generate ideas</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-          Original topic ideas tailored to your services, town, and the season. Pick the ones you like — each becomes a
-          draft you finish with one click. Nothing publishes on its own.
+          {isPlatform
+            ? 'Original topic ideas for the marketing blog. Pick the ones you like — each becomes a draft you finish with one click. Nothing publishes on its own.'
+            : 'Original topic ideas tailored to your services, town, and the season. Pick the ones you like — each becomes a draft you finish with one click. Nothing publishes on its own.'}
         </p>
 
         {!generated ? (

@@ -26,7 +26,7 @@ export default async function TeamSettings() {
     <>
       <SettingsPage
         title="Team"
-        subtitle="Invite teammates and manage access. Everyone in your clinic can see this; owners and admins can make changes."
+        subtitle={`Invite teammates and manage access. Everyone in your ${ctx.tenantType === 'platform' ? 'team' : 'clinic'} can see this; owners and admins can make changes.`}
       >
         <TeamPanel
           canManage={ctx.role === 'owner' || ctx.role === 'admin'}

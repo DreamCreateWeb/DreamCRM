@@ -63,9 +63,11 @@ interface Props {
   categorySuggestions: string[]
   baseUrl: string
   openAi: boolean
+  /** Platform org authoring the marketing blog — swaps the patient-voiced copy. */
+  isPlatform?: boolean
 }
 
-export default function BlogEditor({ post, authors, categorySuggestions, baseUrl, openAi }: Props) {
+export default function BlogEditor({ post, authors, categorySuggestions, baseUrl, openAi, isPlatform = false }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const toast = useToast()
@@ -397,11 +399,11 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             {justPublished && (
               <div className="mt-3 rounded-lg border border-teal-200 dark:border-teal-800/60 bg-teal-50 dark:bg-teal-950/40 p-3">
                 <p className="text-xs font-semibold text-teal-900 dark:text-teal-200">
-                  It’s live 🎉 Want your patients to see it?
+                  It’s live 🎉 Want {isPlatform ? 'your audience' : 'your patients'} to see it?
                 </p>
                 <p className="text-xs text-teal-800/90 dark:text-teal-300/90 mt-0.5 leading-snug">
-                  One click drafts a patient email from this post — you pick the audience and
-                  review before anything sends.
+                  One click drafts {isPlatform ? 'an email campaign' : 'a patient email'} from this post — you
+                  pick the audience and review before anything sends.
                 </p>
                 <div className="mt-2 flex items-center gap-2">
                   <button
@@ -410,7 +412,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     disabled={pending}
                     className="text-xs font-semibold px-2.5 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-500 disabled:opacity-50"
                   >
-                    ✉️ Email it to patients
+                    ✉️ {isPlatform ? 'Email it to your list' : 'Email it to patients'}
                   </button>
                   <button
                     type="button"
@@ -546,7 +548,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 <input
                   value={draft.coverImageAlt}
                   onChange={(e) => field('coverImageAlt', e.target.value)}
-                  placeholder="e.g. A dental hygienist smiling with a patient"
+                  placeholder={isPlatform ? 'e.g. A front desk using the DreamCRM dashboard' : 'e.g. A dental hygienist smiling with a patient'}
                   className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                 />
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
@@ -603,9 +605,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 onClick={() => startTransition(async () => { await emailThisPostAction(post.id) })}
                 disabled={pending}
                 className="w-full text-xs font-medium px-2 py-1.5 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
-                title="Create a Recall & Outreach email from this post"
+                title={isPlatform ? 'Create a Marketing email from this post' : 'Create a Recall & Outreach email from this post'}
               >
-                ✉️ Email to patients
+                ✉️ {isPlatform ? 'Email to your list' : 'Email to patients'}
               </button>
             )}
             <button
@@ -634,6 +636,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       {showAi && (
         <AiDraftModal
           busy={aiBusy}
+          isPlatform={isPlatform}
           defaultTopic={
             draft.bodyHtml.replace(/<[^>]*>/g, '').trim()
               ? ''
@@ -685,11 +688,13 @@ function AiDraftModal({
   defaultTopic,
   onClose,
   onApply,
+  isPlatform = false,
 }: {
   busy: boolean
   defaultTopic?: string
   onClose: () => void
   onApply: (topic: string) => void | Promise<void>
+  isPlatform?: boolean
 }) {
   const [topic, setTopic] = useState(defaultTopic ?? '')
   return (
@@ -705,7 +710,7 @@ function AiDraftModal({
           ✨ Draft with AI
         </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          Give a topic — Claude writes a first draft in your clinic&apos;s warm, no-judgment voice.
+          Give a topic — Claude writes a first draft in {isPlatform ? 'Dream Create’s warm, plain voice' : <>your clinic&apos;s warm, no-judgment voice</>}.
           You review and edit it, add an author, and publish when it&apos;s right.{' '}
           <strong>It never publishes on its own.</strong>
         </p>
@@ -713,7 +718,11 @@ function AiDraftModal({
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           rows={4}
-          placeholder="e.g. Why electric toothbrushes are worth it, for nervous patients. Keep it reassuring and practical."
+          placeholder={
+            isPlatform
+              ? 'e.g. Why a practice website should own its booking flow. Keep it practical, for dentists comparing platforms.'
+              : 'e.g. Why electric toothbrushes are worth it, for nervous patients. Keep it reassuring and practical.'
+          }
           className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 resize-none"
         />
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">

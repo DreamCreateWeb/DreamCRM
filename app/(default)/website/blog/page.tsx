@@ -41,11 +41,15 @@ function statusKey(s: string): 'draft' | 'scheduled' | 'published' {
   return s === 'published' ? 'published' : s === 'scheduled' ? 'scheduled' : 'draft'
 }
 
-const PILL_LEGEND: PillLegendRow[] = [
-  { tone: 'ok', label: 'Published', meaning: 'Live on your website' },
-  { tone: 'info', label: 'Scheduled', meaning: 'Queued to publish on a future date' },
-  { tone: 'neutral', label: 'Draft', meaning: 'A work in progress — only you can see it' },
-]
+// One manager, two voices: clinics blog on THEIR public site; the platform
+// org authors the Dream Create marketing blog through the same surface.
+function pillLegend(isPlatform: boolean): PillLegendRow[] {
+  return [
+    { tone: 'ok', label: 'Published', meaning: isPlatform ? 'Live on the marketing site' : 'Live on your website' },
+    { tone: 'info', label: 'Scheduled', meaning: 'Queued to publish on a future date' },
+    { tone: 'neutral', label: 'Draft', meaning: 'A work in progress — only you can see it' },
+  ]
+}
 
 function freshness(d: Date | null): { label: string; tone: Tone } {
   if (!d) return { label: 'Never', tone: 'urgent' }
@@ -63,6 +67,7 @@ export default async function BlogPage() {
   const ctx = await requireTenant()
   const dest = postsAccessRedirect(ctx)
   if (dest) redirect(dest)
+  const isPlatform = ctx.tenantType === 'platform'
 
   const [posts, stats, baseUrl] = await Promise.all([
     listBlogPosts(ctx.organizationId),
@@ -81,7 +86,7 @@ export default async function BlogPage() {
 
       <PageHeader
         eyebrow={
-          ctx.tenantType === 'platform' ? (
+          isPlatform ? (
             `Platform · ${ctx.organizationName}`
           ) : (
             <Link href="/website" className="hover:underline underline-offset-4">
@@ -90,8 +95,12 @@ export default async function BlogPage() {
           )
         }
         title="Blog"
-        subtitle="Original posts on your own website — written by your team (with AI help) and reviewed before they go live. Not the recycled content library most dental sites use, which Google quietly discounts."
-        legend={<EncodingLegend pills={PILL_LEGEND} />}
+        subtitle={
+          isPlatform
+            ? 'The Dream Create marketing blog — posts you draft (with AI help) and review before they go live on the public site.'
+            : 'Original posts on your own website — written by your team (with AI help) and reviewed before they go live. Not the recycled content library most dental sites use, which Google quietly discounts.'
+        }
+        legend={<EncodingLegend pills={pillLegend(isPlatform)} />}
         actions={
           <>
             {stats.published > 0 && liveBlogUrl && (
@@ -240,7 +249,7 @@ export default async function BlogPage() {
             <li>· Schedule a post to publish on a future date</li>
             <li>· Cover-image generation + alt-text suggestions</li>
             <li>· Rankings + page-health for each post (lands with the SEO dashboard)</li>
-            <li>· Email a new post to a Recall &amp; Outreach audience in one click</li>
+            <li>· Email a new post to {isPlatform ? 'a Marketing' : 'a Recall & Outreach'} audience in one click</li>
           </ul>
         </div>
       </section>

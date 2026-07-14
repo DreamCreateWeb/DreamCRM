@@ -108,6 +108,7 @@ export default async function CampaignEditorPage({
       </div>
 
       <CampaignEditor
+        recipientNoun={ctx.tenantType === 'platform' ? 'recipients' : 'patients'}
         campaign={{
           id: campaign.id,
           name: campaign.name,

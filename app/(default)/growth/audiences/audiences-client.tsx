@@ -77,7 +77,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
         actions={
           <>
             <ActionButton variant="secondary" href={tenantType === 'clinic' ? '/growth/outreach' : '/marketing'}>
-              ← Recall dashboard
+              {tenantType === 'clinic' ? '← Recall dashboard' : '← Sales pipeline'}
             </ActionButton>
             <ActionButton variant="primary" breath onClick={() => setEditing('new')}>
               + New audience
@@ -90,7 +90,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
         <EmptyState
           icon="🎯"
           title="No saved segments yet."
-          body='Use "+ New audience" above to turn your patient list into a reusable group you can send a campaign to.'
+          body={`Use "+ New audience" above to turn your ${leadsLabel} list into a reusable group you can send a campaign to.`}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

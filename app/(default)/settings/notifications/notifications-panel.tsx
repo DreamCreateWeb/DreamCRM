@@ -160,7 +160,7 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
             id: 'alerts',
             label: 'In-app alerts',
             content: (
-              <SettingsSection description="Pick which activity shows up in your notification bell. These control the bell (and, with Email digest on, a summary email) — never transactional email like appointment reminders or booking confirmations, which always send.">
+              <SettingsSection description={`Pick which activity shows up in your notification bell. These control the bell (and, with Email digest on, a summary email) — never transactional email${tenantType === 'clinic' ? ' like appointment reminders or booking confirmations' : ''}, which always sends.`}>
                 {prefRow('comments', labels.comments.title, labels.comments.description, labels.comments.includes)}
                 {prefRow('candidates', labels.candidates.title, labels.candidates.description, labels.candidates.includes)}
                 {prefRow('offers', labels.offers.title, labels.offers.description, labels.offers.includes)}
@@ -188,8 +188,9 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
                     </svg>
                     <span>
                       <strong className="font-semibold">Pause all silences the notification bell and the email digest.</strong>{' '}
-                      Transactional patient email — appointment reminders, booking confirmations, and clinic
-                      replies — still sends through its own pipeline and is unaffected.
+                      {tenantType === 'clinic'
+                        ? 'Transactional patient email — appointment reminders, booking confirmations, and clinic replies — still sends through its own pipeline and is unaffected.'
+                        : 'Transactional email (billing receipts, invites, account email) still sends through its own pipeline and is unaffected.'}
                     </span>
                   </div>
                 )}

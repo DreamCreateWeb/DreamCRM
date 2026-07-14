@@ -35,6 +35,7 @@ export default async function BlogPostEditorPage({ params, searchParams }: Props
 
   return (
     <BlogEditor
+      isPlatform={ctx.tenantType === 'platform'}
       post={{
         id: post.id,
         title: post.title,

@@ -3869,3 +3869,20 @@ Reply-To). Owner runbook (MX + Resend inbound domain + secret) in
 docs/inbound-email.md. Also: session-start hook now self-heals the recurring
 container stale-snapshot revert (fetch + hard-reset to origin/main when HEAD
 is strictly behind).
+
+## 2026-07-14 (later) — Tenant-voice pass: platform surfaces stop sounding like a clinic
+
+Owner feedback: shared surfaces leaked clinic voice to the PLATFORM tenant.
+Full sweep of every platform-reachable surface; verified clean voice on the
+dedicated platform components (overview, clinics, pipeline, partners,
+prospecting, invoices, SEO manage, settings home/nav, messages, shell
+chrome). Fixed the 8 leak sites on SHARED surfaces: blog manager (subtitle,
+legend, "Coming next" module name), blog editor (post-publish nudge,
+email-to-patients buttons, AI-draft voice/placeholder, cover-alt example —
+new isPlatform prop), blog calendar (subtitle, ideas modal — isPlatform
+threaded), campaign editor (Gmail-channel help + scheduler timezone label —
+new recipientNoun/orgNoun), audiences (empty state uses the branched
+leadsLabel; back button says "← Sales pipeline" for platform),
+Settings→Team subtitle, Settings→Notifications (alerts description +
+pause-all note now use the platform register). Convention reinforced:
+any surface serving two tenants must branch every reader-addressed string.

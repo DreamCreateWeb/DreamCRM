@@ -60,6 +60,9 @@ interface Props {
   /** Clinic IANA timezone — surfaced as a hint next to the scheduler so the
    *  staff member knows the picked wall-clock is interpreted in their zone. */
   clinicTimeZone: string
+  /** Who this org emails: 'patients' for clinics, 'recipients' for the
+   *  platform tenant (whose audiences are clinic owners, not patients). */
+  recipientNoun?: string
 }
 
 export default function CampaignEditor({
@@ -69,6 +72,7 @@ export default function CampaignEditor({
   defaultFromEmail,
   stats,
   clinicTimeZone,
+  recipientNoun = 'patients',
 }: Props) {
   const router = useRouter()
   // Named askConfirm to avoid shadowing the local schedule-picker `confirm()`.
@@ -296,7 +300,7 @@ export default function CampaignEditor({
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
             {draft.sendChannel === 'resend'
               ? `Branded email from ${defaultFromEmail || 'a verified sender'}. Best for large sends; needs DNS records set up on your domain.`
-              : 'From your connected Gmail / Workspace mailbox. Patients see a familiar address and replies land in your inbox. Lower daily limit (~500/day).'}
+              : `From your connected Gmail / Workspace mailbox. ${recipientNoun === 'patients' ? 'Patients' : 'Recipients'} see a familiar address and replies land in your inbox. Lower daily limit (~500/day).`}
           </p>
         </div>
 
@@ -462,6 +466,7 @@ export default function CampaignEditor({
         <ScheduleModal
           audience={audience ?? null}
           timeZone={clinicTimeZone}
+          orgNoun={recipientNoun === 'patients' ? 'clinic' : 'organization'}
           dirty={dirty}
           onClose={() => setShowSchedule(false)}
           onConfirm={async (whenLocal) => {
@@ -990,12 +995,14 @@ function toLocalInputValue(d: Date): string {
 function ScheduleModal({
   audience,
   timeZone,
+  orgNoun = 'clinic',
   dirty,
   onClose,
   onConfirm,
 }: {
   audience: AudienceOption | null
   timeZone: string
+  orgNoun?: string
   dirty: boolean
   onClose: () => void
   onConfirm: (whenLocal: string) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -1045,7 +1052,7 @@ function ScheduleModal({
           />
         </label>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-          Times are in your clinic timezone ({timeZone}). It sends automatically — no need to keep this open.
+          Times are in your {orgNoun} timezone ({timeZone}). It sends automatically — no need to keep this open.
         </p>
         {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
         <div className="flex justify-end gap-2">
