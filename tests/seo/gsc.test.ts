@@ -110,8 +110,12 @@ describe('getClinicSeoPerformance (shared platform connection, scoped per clinic
 
     const totals = bodies.find((b) => !b.dimensions)!
     expect(totals.dimensionFilterGroups[0].filters[0].dimension).toBe('page')
-    expect(totals.dimensionFilterGroups[0].filters[0].operator).toBe('contains')
-    expect(totals.dimensionFilterGroups[0].filters[0].expression).toBe('/site/acme-dental-demo')
+    // ANCHORED regex (RE2), not a substring `contains` — so one clinic's slug
+    // can never match a longer-slug clinic's pages via the shared property.
+    expect(totals.dimensionFilterGroups[0].filters[0].operator).toBe('includingRegex')
+    expect(totals.dimensionFilterGroups[0].filters[0].expression).toBe('^https?://[^/]+/site/acme-dental-demo(/|$)')
+    // The human-facing scope label is still the plain path.
+    expect(out.scopeLabel).toBe('/site/acme-dental-demo')
     vi.unstubAllGlobals()
   })
 

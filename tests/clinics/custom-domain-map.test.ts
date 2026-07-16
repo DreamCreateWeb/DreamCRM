@@ -15,7 +15,13 @@ vi.mock('@/lib/db', () => ({
     select: () => ({
       from: () => ({
         innerJoin: () => ({
-          where: async () => state.rows,
+          // `.where(...)` is followed by `.orderBy(...)` (deterministic
+          // first-write-wins routing), so it must be both awaitable and chainable.
+          where: () => {
+            const res: any = Promise.resolve(state.rows)
+            res.orderBy = async () => state.rows
+            return res
+          },
         }),
       }),
     }),

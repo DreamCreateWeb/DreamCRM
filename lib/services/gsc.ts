@@ -194,8 +194,13 @@ async function queryGscPerformance(
   const startDate = ymd(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
   const base = `${WEBMASTERS_API}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  // `includingRegex` (RE2), NOT `contains`: a substring match let a clinic whose
+  // slug is a substring of another's (e.g. "smile" ⊂ "smiledental", or subdomain
+  // "smile." ⊂ "mysmile.…") read that other clinic's Search Console rows through
+  // the shared platform property. clinicPageFilter returns an ANCHORED regex so
+  // one clinic's scope can never match another clinic's pages.
   const filter = pageFilter
-    ? { dimensionFilterGroups: [{ filters: [{ dimension: 'page', operator: 'contains', expression: pageFilter }] }] }
+    ? { dimensionFilterGroups: [{ filters: [{ dimension: 'page', operator: 'includingRegex', expression: pageFilter }] }] }
     : {}
 
   const [totalsRes, queriesRes] = await Promise.all([
@@ -243,10 +248,21 @@ export const getPlatformOrgId = cache(async (): Promise<string | null> => {
   return org?.id ?? null
 })
 
-/** The `page contains` substring scoping the shared domain property to one
- * clinic. Path-based sites match `/site/<slug>`; subdomain sites match
- * `<slug>.`. Custom-domain clinics aren't covered (handled by the caller). */
-function clinicPageFilter(slug: string): string {
+/** ANCHORED RE2 regex scoping the shared domain property to exactly one clinic's
+ * pages (fed to GSC as `includingRegex`). Path sites: `…/site/<slug>` followed
+ * by `/` or end — so `/site/smile` never matches `/site/smiledental`. Subdomain
+ * sites: the host must START with `<slug>.` — so `smile.` never matches
+ * `mysmile.…`. The slug is regex-escaped defensively (slugs are [a-z0-9-] so this
+ * is belt-and-suspenders). Custom-domain clinics aren't covered (caller handles). */
+export function clinicPageFilter(slug: string): string {
+  const esc = slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN === 'true'
+    ? `^https?://${esc}\\.`
+    : `^https?://[^/]+/site/${esc}(/|$)`
+}
+
+/** Human-readable scope label for the SEO UI (the regex above is machine-facing). */
+export function clinicScopeLabel(slug: string): string {
   return process.env.NEXT_PUBLIC_SITE_USE_SUBDOMAIN === 'true' ? `${slug}.` : `/site/${slug}`
 }
 
@@ -283,7 +299,7 @@ export async function getClinicSeoPerformance(clinicOrgId: string, days = 28): P
     return { perf: null, platformConnected: true, customDomain: true, scopeLabel: profile.websiteDomain }
   }
 
-  const pageFilter = clinicPageFilter(org?.slug ?? '')
-  const perf = await queryGscPerformance(platformOrgId, view.siteUrl, days, pageFilter)
-  return { perf, platformConnected: true, customDomain: false, scopeLabel: pageFilter }
+  const pageRegex = clinicPageFilter(org?.slug ?? '')
+  const perf = await queryGscPerformance(platformOrgId, view.siteUrl, days, pageRegex)
+  return { perf, platformConnected: true, customDomain: false, scopeLabel: clinicScopeLabel(org?.slug ?? '') }
 }

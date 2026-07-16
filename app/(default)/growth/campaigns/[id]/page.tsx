@@ -72,8 +72,8 @@ export default async function CampaignEditorPage({
   const [audiences, gmailAccounts, stats, recipients, sender] = await Promise.all([
     listAudiences(ctx.organizationId),
     listOrgEmailAccounts(ctx.organizationId).catch(() => []),
-    getCampaignStats(id),
-    getRecipientBreakdown(id),
+    getCampaignStats(ctx.organizationId, id),
+    getRecipientBreakdown(ctx.organizationId, id),
     // Only the clinic timezone is needed here (a hint next to the scheduler).
     getClinicSenderIdentity(ctx.organizationId).catch(() => null),
   ])

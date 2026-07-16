@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
@@ -221,12 +221,23 @@ export interface NotificationListItem {
 
 export async function listNotifications(
   userId: string,
-  opts: { limit?: number; unreadOnly?: boolean } = {},
+  opts: { limit?: number; unreadOnly?: boolean; organizationId?: string | null } = {},
 ): Promise<NotificationListItem[]> {
   const limit = Math.min(opts.limit ?? 20, 100)
-  const where = opts.unreadOnly
-    ? and(eq(schema.notifications.userId, userId), isNull(schema.notifications.readAt))
-    : eq(schema.notifications.userId, userId)
+  // Tenant scope: when an active org is known, only that org's rows (plus
+  // legacy org-less notifications) are visible — a user who belongs to more
+  // than one org never sees another org's bell while active elsewhere.
+  const orgScope = opts.organizationId
+    ? or(
+        eq(schema.notifications.organizationId, opts.organizationId),
+        isNull(schema.notifications.organizationId),
+      )
+    : undefined
+  const where = and(
+    eq(schema.notifications.userId, userId),
+    opts.unreadOnly ? isNull(schema.notifications.readAt) : undefined,
+    orgScope,
+  )
   const rows = await db
     .select()
     .from(schema.notifications)
@@ -245,12 +256,18 @@ export async function listNotifications(
   }))
 }
 
-export async function countUnread(userId: string): Promise<number> {
+export async function countUnread(userId: string, organizationId?: string | null): Promise<number> {
+  const orgScope = organizationId
+    ? or(
+        eq(schema.notifications.organizationId, organizationId),
+        isNull(schema.notifications.organizationId),
+      )
+    : undefined
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.notifications)
     .where(
-      and(eq(schema.notifications.userId, userId), isNull(schema.notifications.readAt)),
+      and(eq(schema.notifications.userId, userId), isNull(schema.notifications.readAt), orgScope),
     )
   return row?.n ?? 0
 }

@@ -897,6 +897,13 @@
       "when": 1783869712825,
       "tag": "0127_violet_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1784230834423,
+      "tag": "0128_wooden_blade",
+      "breakpoints": true
     }
   ]
 }

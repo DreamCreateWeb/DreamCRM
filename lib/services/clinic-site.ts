@@ -1,7 +1,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import { eq, and, desc, isNotNull } from 'drizzle-orm'
+import { eq, and, asc, desc, isNotNull } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, clinicLocation } from '@/lib/db/schema/platform'
@@ -235,6 +235,11 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
     .from(clinicProfile)
     .innerJoin(organization, eq(organization.id, clinicProfile.organizationId))
     .where(isNotNull(clinicProfile.websiteDomain))
+    // Deterministic order so, if a legacy duplicate host ever exists (pre-dates
+    // the requestCustomDomain ownership guard + the unique index), routing is
+    // STABLE first-write-wins rather than nondeterministic last-write-wins — a
+    // duplicate can never silently flip a live domain to a different clinic.
+    .orderBy(asc(clinicProfile.organizationId))
 
   const map: Record<string, string> = {}
   for (const r of rows) {

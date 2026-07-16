@@ -160,7 +160,12 @@ export const clinicProfile = pgTable('clinic_profile', {
   // Contact
   phone: text('phone'),
   email: text('email'),
-  websiteDomain: text('website_domain'),
+  // Unique across clinics: a custom domain routes exactly one clinic's public
+  // site (see the middleware host→slug map). Postgres treats NULLs as distinct,
+  // so the many clinics on the default subdomain (websiteDomain NULL) are
+  // unaffected — only a non-null host is one-clinic-only. Backstops the
+  // app-level ownership guard in requestCustomDomain against races.
+  websiteDomain: text('website_domain').unique(),
   // Custom-domain provisioning state for `websiteDomain`. Null until the clinic
   // requests a custom domain. Shape: CustomDomainStatus in
   // lib/services/custom-domain.ts —

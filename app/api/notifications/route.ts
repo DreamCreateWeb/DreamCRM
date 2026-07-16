@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireUser } from '@/lib/session'
+import { getServerSession, requireUser } from '@/lib/session'
 import { countUnread, listNotifications } from '@/lib/services/notifications'
 
 /**
@@ -10,12 +10,14 @@ import { countUnread, listNotifications } from '@/lib/services/notifications'
  */
 export async function GET(req: Request) {
   const user = await requireUser()
+  const session = await getServerSession()
+  const activeOrg = session?.session?.activeOrganizationId ?? null
   const url = new URL(req.url)
   const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') ?? 10)))
   const unreadOnly = url.searchParams.get('unread') === '1'
   const [items, unread] = await Promise.all([
-    listNotifications(user.id, { limit, unreadOnly }),
-    countUnread(user.id),
+    listNotifications(user.id, { limit, unreadOnly, organizationId: activeOrg }),
+    countUnread(user.id, activeOrg),
   ])
   return NextResponse.json({ items, unread }, { headers: { 'Cache-Control': 'no-store' } })
 }

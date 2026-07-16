@@ -7,6 +7,65 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Cross-tenant isolation security sweep — three live clinics (2026-07-16).**
+  Owner signed a third clinic (demo + two real orgs now share prod); asked for
+  a security + bug sweep proving no clinic sees ANY of another's data. Audit
+  method: verified the FOUNDATION is sound first — `getTenantContext` resolves
+  the org from the server-side better-auth membership (session
+  `activeOrganizationId` → member row → org), NEVER from client input, so a
+  clinic cannot spoof its `organizationId`; `requireTenant/requireRole/`
+  `requirePartner/requirePlan` gates confirmed. Then ran parallel read-only
+  sweeps over the highest-yield leak class (IDOR: a service that queries/mutates
+  by a client-supplied entity id WITHOUT `AND organizationId = ctx.org`) and
+  verified every hit at source before fixing. Findings + fixes:
+  - **CRITICAL — custom-domain hijack (`lib/services/custom-domain.ts`).**
+    `requestCustomDomain` persisted `clinicProfile.websiteDomain = <host>` on
+    every path with NO ownership check, and the column had no unique
+    constraint; the middleware host→slug map was last-write-wins. Clinic A
+    could claim Clinic B's live domain and serve B's real visitors A's public
+    site. Fix: a cross-org conflict scan (`ne(organizationId, orgId)` over
+    every clinic's `websiteDomain`) rejects a domain already connected to
+    another clinic; a `.unique()` constraint on `website_domain` (migration
+    **0128**) is the structural backstop; `listActiveCustomDomains()` now
+    `orderBy(asc(organizationId))` so routing is deterministic first-write-wins
+    even if a legacy dup slipped in.
+  - **HIGH — Search Console cross-read (`lib/services/gsc.ts`).** The shared
+    platform GSC property was scoped per clinic by `operator:'contains'` with a
+    bare `/site/<slug>` (or `<slug>.`) substring — slug "smile" leaked
+    "smiledental"'s query/click/impression data, and the slug is
+    attacker-chosen at onboarding. Fix: `includingRegex` (RE2) with an ANCHORED
+    regex (`^https?://[^/]+/site/<slug>(/|$)` for path sites, `^https?://`
+    `<slug>\.` for subdomain sites), slug regex-escaped; new `clinicScopeLabel`
+    for the human-facing display string.
+  - **MEDIUM — shop variant destruction (`lib/services/shop.ts`).**
+    `saveProduct`'s variant delete + the `variantsByProduct` read joined by
+    `productId` alone (no org filter); a foreign product id could delete/replace
+    another clinic's variants. Fix: `variantsByProduct` takes `organizationId` +
+    filters on it; `saveProduct` verifies the product is owned before touching
+    variants (throws "Product not found in this organization") and org-scopes
+    the delete.
+  - **MEDIUM (latent) — campaign events (`lib/services/marketing-campaigns.ts`).**
+    `getCampaignStats`/`getRecipientBreakdown` read `campaign_events` (which has
+    no `organization_id` of its own) by `campaignId` alone — safe only because
+    the one caller pre-checked the org. Hardened: both take `organizationId` and
+    inner-join `campaigns` filtered on it, so a foreign (guessable serial) id
+    can never return another org's recipient emails; caller updated.
+  - **LOW — notification bell (`lib/services/notifications.ts`).**
+    `listNotifications`/`countUnread` scoped by `userId` only; a user in two
+    orgs would see org A's bell while active in org B. Scoped to the active org
+    (`organization_id = active OR NULL` so legacy org-less rows still show); the
+    `/api/notifications` route passes `session.activeOrganizationId`.
+  - Verified CLEAN at source (no change): `patient-messaging` (`assertPatientInOrg`
+    gates every thread write), `patient-merge` (both patients fetched
+    org-constrained up front), public intake submit (`getFormTemplate` re-checks
+    org so a foreign templateId returns null), the domain.ts commerce services
+    (all carry + filter `organizationId`).
+  - Guard tests: new `tests/tenant-scoping/security-sweep-2026-07.test.ts`
+    (anchored-regex non-substring proof for gsc, org-scoped variant
+    delete + foreign-id rejection for shop, org-scoped campaign_events reads).
+    The `custom-domain.test.ts` db mock updated so `.where()` is awaitable (the
+    conflict scan) while still `.limit()`-terminable (the profile read).
+
 - **Business-area verdict + polish (2026-07-12).** The workspace audit's
   third stop. Verdict: `/shop` already IS the Shopify-style workspace (one
   sidebar entry → hub with doorway cards + honest Stripe/upsell panels), and

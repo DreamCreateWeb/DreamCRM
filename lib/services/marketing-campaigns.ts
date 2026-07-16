@@ -184,8 +184,12 @@ export async function cancelScheduledCampaign(organizationId: string, id: number
   return { ok: true }
 }
 
-/** Aggregate counts across all event rows for one campaign. */
-export async function getCampaignStats(campaignId: number): Promise<CampaignStats> {
+/** Aggregate counts across all event rows for one campaign. Org-scoped by an
+ *  inner join to `campaigns` — `campaign_events` has no organization_id of its
+ *  own, so a bare `campaignId` filter would be a cross-tenant read if any caller
+ *  ever passed a foreign (guessable serial) id. The join makes it impossible to
+ *  return another org's events regardless of the caller. */
+export async function getCampaignStats(organizationId: string, campaignId: number): Promise<CampaignStats> {
   const rows = await db
     .select({
       type: schema.campaignEvents.type,
@@ -193,7 +197,13 @@ export async function getCampaignStats(campaignId: number): Promise<CampaignStat
       unique: sql<number>`count(distinct ${schema.campaignEvents.recipientEmail})::int`,
     })
     .from(schema.campaignEvents)
-    .where(eq(schema.campaignEvents.campaignId, campaignId))
+    .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.campaignEvents.campaignId))
+    .where(
+      and(
+        eq(schema.campaignEvents.campaignId, campaignId),
+        eq(schema.campaigns.organizationId, organizationId),
+      ),
+    )
     .groupBy(schema.campaignEvents.type)
 
   const stats: CampaignStats = {
@@ -220,8 +230,11 @@ export async function getCampaignStats(campaignId: number): Promise<CampaignStat
 }
 
 /** Per-recipient breakdown: 1 row per email that received this campaign,
- * with timestamps of their last-known event of each type. */
-export async function getRecipientBreakdown(campaignId: number) {
+ * with timestamps of their last-known event of each type. Org-scoped by the
+ * same `campaigns` inner join as getCampaignStats — this returns recipient
+ * emails + customer ids, so a bare campaignId filter would be a cross-tenant
+ * PHI-adjacent leak if a foreign id ever reached it. */
+export async function getRecipientBreakdown(organizationId: string, campaignId: number) {
   const rows = await db
     .select({
       email: schema.campaignEvents.recipientEmail,
@@ -230,7 +243,13 @@ export async function getRecipientBreakdown(campaignId: number) {
       customerId: schema.campaignEvents.customerId,
     })
     .from(schema.campaignEvents)
-    .where(eq(schema.campaignEvents.campaignId, campaignId))
+    .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.campaignEvents.campaignId))
+    .where(
+      and(
+        eq(schema.campaignEvents.campaignId, campaignId),
+        eq(schema.campaigns.organizationId, organizationId),
+      ),
+    )
     .orderBy(desc(schema.campaignEvents.occurredAt))
 
   const byEmail = new Map<

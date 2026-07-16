@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD CONSTRAINT "clinic_profile_website_domain_unique" UNIQUE("website_domain");

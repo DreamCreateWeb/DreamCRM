@@ -166,13 +166,18 @@ function toProductRow(p: typeof schema.shopProduct.$inferSelect, variants: Produ
   }
 }
 
-async function variantsByProduct(productIds: string[]): Promise<Map<string, ProductVariantRow[]>> {
+async function variantsByProduct(organizationId: string, productIds: string[]): Promise<Map<string, ProductVariantRow[]>> {
   const out = new Map<string, ProductVariantRow[]>()
   if (productIds.length === 0) return out
   const rows = await db
     .select()
     .from(schema.shopProductVariant)
-    .where(inArray(schema.shopProductVariant.productId, productIds))
+    .where(
+      and(
+        eq(schema.shopProductVariant.organizationId, organizationId),
+        inArray(schema.shopProductVariant.productId, productIds),
+      ),
+    )
     .orderBy(asc(schema.shopProductVariant.position))
   for (const r of rows) {
     const list = out.get(r.productId) ?? []
@@ -188,7 +193,7 @@ export async function listProducts(organizationId: string): Promise<ProductRow[]
     .from(schema.shopProduct)
     .where(eq(schema.shopProduct.organizationId, organizationId))
     .orderBy(asc(schema.shopProduct.position), desc(schema.shopProduct.createdAt))
-  const variants = await variantsByProduct(products.map((p) => p.id))
+  const variants = await variantsByProduct(organizationId, products.map((p) => p.id))
   return products.map((p) => toProductRow(p, variants.get(p.id) ?? []))
 }
 
@@ -199,7 +204,7 @@ export async function getProduct(organizationId: string, id: string): Promise<Pr
     .where(and(eq(schema.shopProduct.organizationId, organizationId), eq(schema.shopProduct.id, id)))
     .limit(1)
   if (!p) return null
-  const variants = await variantsByProduct([p.id])
+  const variants = await variantsByProduct(organizationId, [p.id])
   return toProductRow(p, variants.get(p.id) ?? [])
 }
 
@@ -220,7 +225,7 @@ export async function getActiveProductBySlug(organizationId: string, slug: strin
     )
     .limit(1)
   if (!p) return null
-  const variants = await variantsByProduct([p.id])
+  const variants = await variantsByProduct(organizationId, [p.id])
   return toProductRow(p, variants.get(p.id) ?? [])
 }
 
@@ -275,11 +280,26 @@ export async function saveProduct(organizationId: string, input: ProductInput): 
   }
 
   if (input.id) {
+    // Tenant guard: refuse to touch a product that isn't ours (a client-supplied
+    // foreign productId must never reach the variant delete/insert below).
+    const [owned] = await db
+      .select({ id: schema.shopProduct.id })
+      .from(schema.shopProduct)
+      .where(and(eq(schema.shopProduct.organizationId, organizationId), eq(schema.shopProduct.id, productId)))
+      .limit(1)
+    if (!owned) throw new Error('Product not found in this organization')
     await db.update(schema.shopProduct).set(base).where(
       and(eq(schema.shopProduct.organizationId, organizationId), eq(schema.shopProduct.id, productId)),
     )
     // Replace variants wholesale — simplest correct approach for v1.
-    await db.delete(schema.shopProductVariant).where(eq(schema.shopProductVariant.productId, productId))
+    await db
+      .delete(schema.shopProductVariant)
+      .where(
+        and(
+          eq(schema.shopProductVariant.organizationId, organizationId),
+          eq(schema.shopProductVariant.productId, productId),
+        ),
+      )
   } else {
     await db.insert(schema.shopProduct).values({ id: productId, organizationId, ...base })
   }

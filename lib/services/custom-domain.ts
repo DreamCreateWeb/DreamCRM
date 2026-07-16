@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 
@@ -336,6 +336,30 @@ export async function requestCustomDomain(
   const { plan } = v
   const host = plan.canonical
   const now = new Date().toISOString()
+
+  // TENANT ISOLATION: refuse a host another clinic already claims. Without this
+  // any clinic owner could set websiteDomain = a rival's live domain; the
+  // middleware host→slug map (listActiveCustomDomains) is last-write-wins, so
+  // the rival's real visitors would then be served THIS clinic's public site —
+  // a cross-tenant domain takeover. We reject BOTH served hosts (an apex + its
+  // www. sibling) so the pair can't be split across orgs. A DB unique index on
+  // website_domain backstops this against races.
+  const claimedHosts = Array.from(new Set([host, ...plan.servedHosts.map((h) => h.toLowerCase())]))
+  const conflicts = await db
+    .select({ organizationId: clinicProfile.organizationId, domain: clinicProfile.websiteDomain })
+    .from(clinicProfile)
+    .where(ne(clinicProfile.organizationId, orgId))
+  const takenByAnother = conflicts.some(
+    (r) => r.domain && claimedHosts.includes(r.domain.trim().toLowerCase()),
+  )
+  if (takenByAnother) {
+    return {
+      ok: false,
+      error:
+        'That domain is already connected to another clinic on Dream Create. ' +
+        'If it belongs to you, contact support so we can move it.',
+    }
+  }
 
   const manualStatus: CustomDomainStatus = {
     state: 'pending_dns',

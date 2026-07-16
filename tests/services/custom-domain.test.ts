@@ -17,7 +17,14 @@ vi.mock('@/lib/db', () => ({
   db: {
     select: () => ({
       from: () => ({
-        where: () => ({ limit: async () => (state.profile ? [state.profile] : []) }),
+        // `.where(...).limit(1)` is the single-profile read; awaiting `.where(...)`
+        // directly is the cross-org conflict scan (`ne(organizationId, orgId)`),
+        // which in this single-org fixture correctly yields no other clinics.
+        where: () => {
+          const res: any = Promise.resolve([])
+          res.limit = async () => (state.profile ? [state.profile] : [])
+          return res
+        },
       }),
     }),
     update: () => ({
