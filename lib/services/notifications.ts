@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
@@ -272,7 +272,19 @@ export async function countUnread(userId: string, organizationId?: string | null
   return row?.n ?? 0
 }
 
-export async function markRead(userId: string, ids: number[]): Promise<void> {
+/** Active-org scope shared by every per-user read/mutate: the active org's
+ * rows plus legacy org-less ones. Undefined when no active org is known (a
+ * user with a single membership never needs it). */
+function userOrgScope(organizationId?: string | null) {
+  return organizationId
+    ? or(
+        eq(schema.notifications.organizationId, organizationId),
+        isNull(schema.notifications.organizationId),
+      )
+    : undefined
+}
+
+export async function markRead(userId: string, ids: number[], organizationId?: string | null): Promise<void> {
   if (!ids.length) return
   await db
     .update(schema.notifications)
@@ -282,15 +294,59 @@ export async function markRead(userId: string, ids: number[]): Promise<void> {
         eq(schema.notifications.userId, userId),
         inArray(schema.notifications.id, ids),
         isNull(schema.notifications.readAt),
+        userOrgScope(organizationId),
       ),
     )
 }
 
-export async function markAllRead(userId: string): Promise<void> {
+export async function markAllRead(userId: string, organizationId?: string | null): Promise<void> {
   await db
     .update(schema.notifications)
     .set({ readAt: new Date() })
     .where(
-      and(eq(schema.notifications.userId, userId), isNull(schema.notifications.readAt)),
+      and(
+        eq(schema.notifications.userId, userId),
+        isNull(schema.notifications.readAt),
+        userOrgScope(organizationId),
+      ),
+    )
+}
+
+/** Permanently remove specific notifications — the per-item ✕ in the tray.
+ * Deleting (not just marking read) is what keeps the tray from growing
+ * unbounded; there's no separate archive surface. */
+export async function dismissNotifications(
+  userId: string,
+  ids: number[],
+  organizationId?: string | null,
+): Promise<void> {
+  if (!ids.length) return
+  await db
+    .delete(schema.notifications)
+    .where(
+      and(
+        eq(schema.notifications.userId, userId),
+        inArray(schema.notifications.id, ids),
+        userOrgScope(organizationId),
+      ),
+    )
+}
+
+/** Clear the tray. Defaults to removing everything for the user in the active
+ * org; `readOnly` keeps anything still unread (so a "clear the ones I've seen"
+ * action can't silently drop an un-actioned alert). */
+export async function dismissAllNotifications(
+  userId: string,
+  organizationId?: string | null,
+  opts: { readOnly?: boolean } = {},
+): Promise<void> {
+  await db
+    .delete(schema.notifications)
+    .where(
+      and(
+        eq(schema.notifications.userId, userId),
+        opts.readOnly ? isNotNull(schema.notifications.readAt) : undefined,
+        userOrgScope(organizationId),
+      ),
     )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Menu, MenuButton, MenuItems, MenuItem, Transition } from '@headlessui/react'
 import { useRealtime } from '@/components/realtime/realtime-provider'
@@ -94,6 +94,42 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
     }
   }
 
+  // Per-item ✕. Stop propagation so the row's click (navigate + close menu)
+  // never fires — dismissing one leaves the tray open to dismiss more.
+  async function handleDismiss(item: NotificationItem, e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setItems((rows) => rows.filter((r) => r.id !== item.id))
+    if (!item.readAt) setUnread((n) => Math.max(0, n - 1))
+    try {
+      await fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [item.id] }),
+      })
+      // A dismissal may reveal the next item beyond the shown 10 — resync.
+      refresh()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function handleClearAll() {
+    setLoading(true)
+    setItems([])
+    setUnread(0)
+    try {
+      await fetch('/api/notifications/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true }),
+      })
+      refresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Menu as="div" className="relative inline-flex">
       {({ open }) => (
@@ -136,7 +172,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
           >
             <div className="flex items-center justify-between pt-1.5 pb-2 px-4">
               <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">
-                Notifications {unread > 0 && <span className="text-rose-500 normal-case font-medium">({unread} new)</span>}
+                Notifications {unread > 0 && <span className="text-amber-600 dark:text-amber-500 normal-case font-medium">({unread} new)</span>}
               </div>
               {unread > 0 && (
                 <button
@@ -157,38 +193,69 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                 items.map((n) => (
                   <MenuItem key={n.id} as="li" className="border-b border-gray-100 dark:border-gray-700/40 last:border-0">
                     {({ active }) => (
-                      <button
-                        type="button"
-                        onClick={() => handleItemClick(n)}
-                        className={`w-full text-left block py-2.5 px-4 ${active && 'bg-gray-50 dark:bg-gray-700/20'} ${n.readAt ? '' : 'bg-violet-50/40 dark:bg-violet-500/[0.06]'}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="text-base shrink-0 mt-0.5">{ICON_FOR_BUCKET[n.bucket] ?? '🔔'}</span>
-                          <div className="min-w-0 grow">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{n.title}</span>
-                              {!n.readAt && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />}
+                      <div className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => handleItemClick(n)}
+                          className={`w-full text-left block py-2.5 pl-4 pr-9 ${active && 'bg-gray-50 dark:bg-gray-700/20'} ${n.readAt ? '' : 'bg-violet-50/40 dark:bg-violet-500/[0.06]'}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="text-base shrink-0 mt-0.5">{ICON_FOR_BUCKET[n.bucket] ?? '🔔'}</span>
+                            <div className="min-w-0 grow">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{n.title}</span>
+                                {!n.readAt && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />}
+                              </div>
+                              {n.body && (
+                                <p className="text-[12px] text-gray-500 dark:text-gray-400 line-clamp-2">{n.body}</p>
+                              )}
+                              <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 mt-1 tabular-nums">
+                                {formatRelative(n.createdAt)}
+                              </p>
                             </div>
-                            {n.body && (
-                              <p className="text-[12px] text-gray-500 dark:text-gray-400 line-clamp-2">{n.body}</p>
-                            )}
-                            <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 mt-1 tabular-nums">
-                              {formatRelative(n.createdAt)}
-                            </p>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDismiss(n, e)}
+                          aria-label="Dismiss notification"
+                          title="Dismiss"
+                          className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-gray-600/50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 9 9" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path
+                              d="M1 1l7 7M8 1l-7 7"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              fill="none"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     )}
                   </MenuItem>
                 ))
               )}
             </MenuItems>
-            <div className="border-t border-gray-200 dark:border-gray-700/60 pt-1.5">
+            <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700/60 px-4 pt-1.5 pb-0.5">
+              {items.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  disabled={loading}
+                  className="py-1 text-[11px] font-medium text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 disabled:opacity-50"
+                >
+                  Clear all
+                </button>
+              ) : (
+                <span />
+              )}
               <Link
                 href="/settings/notifications"
-                className="block px-4 py-1.5 text-[11px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-center"
+                className="py-1 text-[11px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                Notification preferences →
+                Preferences →
               </Link>
             </div>
           </Transition>
