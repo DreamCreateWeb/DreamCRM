@@ -7,6 +7,26 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Notification tray — dismiss + clear-all tools (2026-07-16).** The header
+  bell (`components/dropdown-notifications.tsx`, used in the shared dashboard
+  header → clinic + platform tenants; the patient portal has separate chrome)
+  had no way to REMOVE a notification — read ones piled up forever, with only
+  "mark all read" (which keeps them). Added: a per-item ✕ (hover-reveal,
+  `stopPropagation` so it dismisses without closing the tray or navigating) and
+  a footer "Clear all" (wipes the active org's tray). Service
+  (`lib/services/notifications.ts`): `dismissNotifications` +
+  `dismissAllNotifications` (with a `readOnly` guard so a "clear the ones I've
+  seen" path can't drop an un-actioned unread alert), both scoped to
+  user + active org via a shared `userOrgScope` helper. New
+  `POST /api/notifications/dismiss`; both mutation routes now pass
+  `session.activeOrganizationId`. Rode along: `markRead`/`markAllRead` gained
+  the same org scope (they were user-only — a multi-org user's "mark all read"
+  would have silenced another org's bell), and the header "(N new)" recolored
+  rose → amber to match the unread badge (unread = warn/amber per
+  DESIGN-SYSTEM). Guard test `tests/notifications/tray-tools.test.ts`
+  (7 cases: dismiss/clear/mark all carry user + org scope, never another org;
+  no-op on empty ids; readOnly keeps unread).
+
 - **Cross-tenant isolation security sweep — three live clinics (2026-07-16).**
   Owner signed a third clinic (demo + two real orgs now share prod); asked for
   a security + bug sweep proving no clinic sees ANY of another's data. Audit
