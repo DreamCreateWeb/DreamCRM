@@ -77,8 +77,10 @@ export function DreamCreateMark({
 /**
  * Shared integrated-lockup renderer: the mark as the capital D + the rest
  * of the word on the D's baseline. Nunito's cap height is ~0.72em and the
- * D body is 58/76 of the mark box — the font-size/padding math below lines
- * the two up (verified visually at 44/30/16px).
+ * D body is 58/76 of the mark box, so fontSize = size·(58/76)/0.72 matches
+ * cap heights; the 0.055·size padding then seats the text baseline on the
+ * D body's bottom edge (tuned against guide lines in the 2026-07-18
+ * alignment lab — the naive 14/76 SVG-box math floated the text high).
  */
 function IntegratedLockup({
   size,
@@ -92,7 +94,7 @@ function IntegratedLockup({
   restClassName?: string
 }) {
   const fontSize = Math.round((size * (58 / 76)) / 0.72)
-  const baselineDrop = Math.round(size * (14 / 76))
+  const baselineDrop = Math.round(size * 0.055)
   return (
     <span className={`inline-flex items-end ${className ?? ''}`}>
       <DreamCreateMark size={size} className="shrink-0" />
