@@ -19,7 +19,7 @@ vi.mock('@/app/app-provider', () => ({
 }))
 
 // Brand mark + NavIcon pull in assets/icons we don't care about here.
-vi.mock('@/components/brand/dream-create-logo', () => ({ DreamCreateMark: () => <div data-testid="logo" /> }))
+vi.mock('@/components/brand/dream-create-logo', () => ({ DreamCreateMark: () => <div data-testid="logo" />, DreamCrmLogo: () => <div data-testid="logo-lockup" /> }))
 vi.mock('@/components/ui/nav-icons', () => ({ NavIcon: () => <svg /> }))
 vi.mock('@/components/dropdown-profile', () => ({ default: () => <div data-testid="profile" /> }))
 

@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({
 // Brand mark / icons / profile pull in assets we don't exercise here.
 vi.mock('@/components/brand/dream-create-logo', () => ({
   DreamCreateMark: () => <div data-testid="logo" />,
+  DreamCrmLogo: () => <div data-testid="logo-lockup" />,
 }))
 vi.mock('@/components/ui/nav-icons', () => ({ NavIcon: () => <svg /> }))
 vi.mock('@/components/dropdown-profile', () => ({ default: () => <div data-testid="profile" /> }))

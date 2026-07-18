@@ -1,17 +1,23 @@
 import { useId } from 'react'
 
 /**
- * Dream Create brand assets — the liquid capital D (droplet personality) +
- * a navy-ink wordmark. SVG so it stays crisp at every size and can re-tint
- * for dark surfaces. v3 rebrand (2026-07-18): the gradient moved from the
- * legacy teals to the dream-blue ramp (DESIGN-SYSTEM.md v3 "Cute Dream");
- * the drips now read as water droplets/bubbles, which suits the dream.
+ * Brand assets — the v3 "Dream Bubble" mark (2026-07-18 redesign, owner-
+ * approved): a plump thought-bubble capital D in the dream-blue gradient
+ * with a glossy shine and two trailing dream-bubbles (the comic-strip
+ * "dreaming…" trail). It doubles as a chat bubble — dreams + conversations.
+ *
+ * LOCKUP RULE: the mark IS the letter D. Full lockups render the mark
+ * followed by the REST of the word ("reamCRM" / "ream Create") — never
+ * "[D] DreamCRM" with a duplicated D. Collapsed/tiny contexts use the mark
+ * alone. The trailing bubbles hang below the baseline like a descender.
+ *
  * These are the canonical brand stops — reuse them, don't re-derive brand
- * colors elsewhere.
+ * colors elsewhere. (icon.tsx + opengraph-image.tsx inline this artwork for
+ * their SVG-string renderers; keep the three files' geometry in sync.)
  */
 
 export const BRAND = {
-  /** Liquid-D gradient, light → deep (dream-blue ramp: teal-400/500/700). */
+  /** Dream-bubble gradient, light → deep (dream-blue ramp: teal-400/500/700). */
   blueLight: '#7CA5FF',
   blue: '#4C7DF0',
   blueDeep: '#2F52B3',
@@ -19,10 +25,20 @@ export const BRAND = {
   ink: '#22304E',
 } as const
 
+/** The bubble-D artwork, shared by every renderer of the mark. */
+export const MARK_VIEWBOX = '0 0 80 76'
+export const MARK_D_PATH =
+  'M24 4h12c20.4 0 34 12.4 34 29s-13.6 29-34 29H24c-6.1 0-10-3.9-10-10V14c0-6.1 3.9-10 10-10Zm7 15.5c-2.6 0-4 1.4-4 4v19c0 2.6 1.4 4 4 4h5.5c11.6 0 18.5-5.2 18.5-13.5S48.1 19.5 36.5 19.5H31Z'
+
+/**
+ * The Dream Bubble D, standalone. `size` is the rendered HEIGHT; width is
+ * size·80/76. The D body spans the top ~82% of the box — the trailing
+ * bubbles below are a descender, which the lockups account for.
+ */
 export function DreamCreateMark({
   size = 32,
   className = '',
-  title = 'Dream Create',
+  title = 'DreamCRM',
 }: {
   size?: number
   className?: string
@@ -32,39 +48,88 @@ export function DreamCreateMark({
   const gid = useId()
   return (
     <svg
-      width={size}
+      width={(size * 80) / 76}
       height={size}
-      viewBox="0 0 64 68"
+      viewBox={MARK_VIEWBOX}
       role="img"
       aria-label={title}
       className={className}
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
-        <linearGradient id={gid} x1="46" y1="4" x2="16" y2="62" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gid} x1="0" y1="0" x2="56" y2="76" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor={BRAND.blueLight} />
           <stop offset="0.55" stopColor={BRAND.blue} />
           <stop offset="1" stopColor={BRAND.blueDeep} />
         </linearGradient>
       </defs>
-      {/* Liquid D — bowl with a melting lower-left stem */}
-      <path
-        fill={`url(#${gid})`}
-        fillRule="evenodd"
-        d="M20 5h11.5C48.3 5 58.8 15.8 58.8 31.5S48.3 58 31.5 58h-8.2c-3.1 0-4.4 3.1-7.1 2.1-2.3-.9-1.5-4-2.6-6.2-.5-1-.8-2.3-.8-3.9V11.8C12.8 7.5 15.5 5 20 5Zm5.6 12.6c-1.5 0-2.3.8-2.3 2.3v24.2c0 1.5.8 2.3 2.3 2.3h5.6c10.4 0 16.5-5.7 16.5-14.4S41.6 17.6 31.2 17.6h-5.6Z"
-      />
-      {/* Droplets */}
-      <circle cx="10.6" cy="64.2" r="2.3" fill={BRAND.blueDeep} />
-      <ellipse cx="19.4" cy="64.8" rx="1.7" ry="2.5" fill={BRAND.blue} transform="rotate(14 19.4 64.8)" />
-      <circle cx="7.4" cy="57.2" r="1.3" fill={BRAND.blue} />
+      {/* The bubble D */}
+      <path fill={`url(#${gid})`} fillRule="evenodd" d={MARK_D_PATH} />
+      {/* Glossy shine */}
+      <ellipse cx="30" cy="12.5" rx="9" ry="3.6" fill="#fff" opacity="0.35" transform="rotate(-10 30 12.5)" />
+      {/* Dream trail */}
+      <circle cx="15" cy="67" r="5" fill={`url(#${gid})`} />
+      <circle cx="6.5" cy="74" r="2.6" fill={BRAND.blueLight} />
     </svg>
   )
 }
 
 /**
- * Mark + wordmark lockup. The wordmark is set in the UI's heaviest sans
- * (visually matching the supplied logo's bold rounded geometry) and flips
- * to white on dark surfaces.
+ * Shared integrated-lockup renderer: the mark as the capital D + the rest
+ * of the word on the D's baseline. Nunito's cap height is ~0.72em and the
+ * D body is 58/76 of the mark box — the font-size/padding math below lines
+ * the two up (verified visually at 44/30/16px).
+ */
+function IntegratedLockup({
+  size,
+  rest,
+  className,
+  restClassName,
+}: {
+  size: number
+  rest: React.ReactNode
+  className?: string
+  restClassName?: string
+}) {
+  const fontSize = Math.round((size * (58 / 76)) / 0.72)
+  const baselineDrop = Math.round(size * (14 / 76))
+  return (
+    <span className={`inline-flex items-end ${className ?? ''}`}>
+      <DreamCreateMark size={size} className="shrink-0" />
+      <span
+        className={`font-extrabold leading-none tracking-tight ${restClassName ?? ''}`}
+        style={{ fontSize, paddingBottom: baselineDrop, marginLeft: Math.round(size * -0.05) }}
+      >
+        {rest}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * The PRODUCT lockup — "DreamCRM", with the mark as the D. Use in the
+ * dashboard chrome (expanded sidebar). "ream" is wordmark ink, "CRM" is
+ * the brand blue (dream-sky on dark).
+ */
+export function DreamCrmLogo({ size = 30, className = '' }: { size?: number; className?: string }) {
+  return (
+    <IntegratedLockup
+      size={size}
+      className={className}
+      restClassName="text-[--brand-ink,#22304E] dark:text-white"
+      rest={
+        <>
+          ream
+          <span className="text-teal-500 dark:text-teal-400">CRM</span>
+        </>
+      }
+    />
+  )
+}
+
+/**
+ * The COMPANY lockup — "Dream Create", with the mark as the D (same
+ * no-duplicate-D rule). Used by auth / partner / marketing chrome.
  */
 export function DreamCreateLogo({
   size = 28,
@@ -76,14 +141,11 @@ export function DreamCreateLogo({
   wordmarkClassName?: string
 }) {
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`}>
-      <DreamCreateMark size={size} />
-      <span
-        className={`font-extrabold tracking-tight text-[--brand-ink,#22304E] dark:text-white ${wordmarkClassName}`}
-        style={{ fontSize: Math.round(size * 0.68) }}
-      >
-        Dream&nbsp;Create
-      </span>
-    </span>
+    <IntegratedLockup
+      size={size}
+      className={className}
+      restClassName={`text-[--brand-ink,#22304E] dark:text-white ${wordmarkClassName}`}
+      rest={<>ream&nbsp;Create</>}
+    />
   )
 }

@@ -2,8 +2,8 @@ import { ImageResponse } from 'next/og'
 import { BRAND } from '@/components/brand/dream-create-logo'
 
 /**
- * Favicon — the Dream Create liquid-D mark rendered to a 64px PNG via
- * ImageResponse. The path + gradient stops mirror `DreamCreateMark`
+ * Favicon — the v3 Dream Bubble D rendered to a 64px PNG via ImageResponse.
+ * The path + gradient stops mirror `DreamCreateMark`
  * (components/brand/dream-create-logo); transparent background.
  *
  * We embed the mark as an inline SVG data-URI <img> (Satori renders that
@@ -13,18 +13,18 @@ export const size = { width: 64, height: 64 }
 export const contentType = 'image/png'
 
 const MARK_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 68">
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="61" viewBox="0 0 80 76">
   <defs>
-    <linearGradient id="d" x1="46" y1="4" x2="16" y2="62" gradientUnits="userSpaceOnUse">
+    <linearGradient id="d" x1="0" y1="0" x2="56" y2="76" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="${BRAND.blueLight}"/>
       <stop offset="0.55" stop-color="${BRAND.blue}"/>
       <stop offset="1" stop-color="${BRAND.blueDeep}"/>
     </linearGradient>
   </defs>
-  <path fill="url(#d)" fill-rule="evenodd" d="M20 5h11.5C48.3 5 58.8 15.8 58.8 31.5S48.3 58 31.5 58h-8.2c-3.1 0-4.4 3.1-7.1 2.1-2.3-.9-1.5-4-2.6-6.2-.5-1-.8-2.3-.8-3.9V11.8C12.8 7.5 15.5 5 20 5Zm5.6 12.6c-1.5 0-2.3.8-2.3 2.3v24.2c0 1.5.8 2.3 2.3 2.3h5.6c10.4 0 16.5-5.7 16.5-14.4S41.6 17.6 31.2 17.6h-5.6Z"/>
-  <circle cx="10.6" cy="64.2" r="2.3" fill="${BRAND.blueDeep}"/>
-  <ellipse cx="19.4" cy="64.8" rx="1.7" ry="2.5" fill="${BRAND.blue}" transform="rotate(14 19.4 64.8)"/>
-  <circle cx="7.4" cy="57.2" r="1.3" fill="${BRAND.blue}"/>
+  <path fill="url(#d)" fill-rule="evenodd" d="M24 4h12c20.4 0 34 12.4 34 29s-13.6 29-34 29H24c-6.1 0-10-3.9-10-10V14c0-6.1 3.9-10 10-10Zm7 15.5c-2.6 0-4 1.4-4 4v19c0 2.6 1.4 4 4 4h5.5c11.6 0 18.5-5.2 18.5-13.5S48.1 19.5 36.5 19.5H31Z"/>
+  <ellipse cx="30" cy="12.5" rx="9" ry="3.6" fill="#fff" opacity="0.35" transform="rotate(-10 30 12.5)"/>
+  <circle cx="15" cy="67" r="5" fill="url(#d)"/>
+  <circle cx="6.5" cy="74" r="2.6" fill="${BRAND.blueLight}"/>
 </svg>`
 
 export default function Icon() {

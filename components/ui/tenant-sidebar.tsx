@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAppProvider } from '@/app/app-provider'
 import { useRealtime } from '@/components/realtime/realtime-provider'
-import { DreamCreateMark } from '@/components/brand/dream-create-logo'
+import { DreamCreateMark, DreamCrmLogo } from '@/components/brand/dream-create-logo'
 import DropdownProfile from '@/components/dropdown-profile'
 import { NavIcon } from './nav-icons'
 import type { ModuleDef, TenantType } from '@/lib/modules/types'
@@ -267,13 +267,9 @@ export default function TenantSidebar({
           }`}
         >
           <Link href="/" aria-label="DreamCRM — home" className="flex items-center gap-2 shrink-0">
-            <DreamCreateMark size={30} />
-            {/* Wordmark — expanded mode only; the rail keeps the D alone. */}
-            {!railCollapsed && (
-              <span className="text-[17px] font-extrabold tracking-tight text-ink-900 whitespace-nowrap">
-                DreamCRM
-              </span>
-            )}
+            {/* Integrated lockup: the mark IS the D of "DreamCRM" (no
+                duplicate D). Rail keeps the bubble-D alone. */}
+            {railCollapsed ? <DreamCreateMark size={30} /> : <DreamCrmLogo size={30} />}
           </Link>
           {/* Collapse caret — ≥lg only (the `[` key does the same thing). */}
           <button
