@@ -169,7 +169,7 @@ export default async function ClinicDetailPage({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Contact + profile */}
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 lg:col-span-2">
+        <div className="v2-card p-6 lg:col-span-2">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
             Profile
           </h2>
@@ -216,7 +216,7 @@ export default async function ClinicDetailPage({
         </div>
 
         {/* Members */}
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
+        <div className="v2-card p-6">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
             Members ({clinic.members.length})
           </h2>
@@ -276,7 +276,7 @@ export default async function ClinicDetailPage({
       )}
 
       {/* Active projects */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+      <div className="v2-card p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Projects
@@ -322,7 +322,7 @@ export default async function ClinicDetailPage({
       </div>
 
       {/* Invoices */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
+      <div className="v2-card p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Subscription Invoices

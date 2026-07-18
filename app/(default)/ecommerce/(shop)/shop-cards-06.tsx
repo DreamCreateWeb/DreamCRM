@@ -8,7 +8,7 @@ export default function ShopCards06() {
   return (
     <>
       {/* Card 1 */}
-      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl dark:border-transparent overflow-hidden">
+      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 v2-card overflow-hidden">
         {/* Image */}
         <Image className="absolute w-full h-full object-cover" src={AppImage17} width={286} height={160} alt="Application 17" />
         {/* Gradient */}
@@ -21,7 +21,7 @@ export default function ShopCards06() {
       </div>
 
       {/* Card 2 */}
-      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl dark:border-transparent overflow-hidden">
+      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 v2-card overflow-hidden">
         {/* Image */}
         <Image className="absolute w-full h-full object-cover" src={AppImage18} width={286} height={160} alt="Application 18" />
         {/* Gradient */}
@@ -34,7 +34,7 @@ export default function ShopCards06() {
       </div>
 
       {/* Card 3 */}
-      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl dark:border-transparent overflow-hidden">
+      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 v2-card overflow-hidden">
         {/* Image */}
         <Image className="absolute w-full h-full object-cover" src={AppImage19} width={286} height={160} alt="Application 19" />
         {/* Gradient */}
@@ -47,7 +47,7 @@ export default function ShopCards06() {
       </div>
 
       {/* Card 4 */}
-      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl dark:border-transparent overflow-hidden">
+      <div className="relative col-span-full sm:col-span-6 xl:col-span-3 v2-card overflow-hidden">
         {/* Image */}
         <Image className="absolute w-full h-full object-cover" src={AppImage20} width={286} height={160} alt="Application 20" />
         {/* Gradient */}

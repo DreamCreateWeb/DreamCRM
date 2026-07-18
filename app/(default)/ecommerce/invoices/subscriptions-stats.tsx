@@ -40,7 +40,7 @@ export default function SubscriptionsStats({ stats }: Props) {
 export function PlanMixCard({ stats }: { stats: SubscriptionStats }) {
   if (stats.planMix.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+      <div className="v2-card px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
         No paying subscribers yet. Plan distribution will show up here.
       </div>
     )
@@ -48,7 +48,7 @@ export function PlanMixCard({ stats }: { stats: SubscriptionStats }) {
   const totalSubs = stats.planMix.reduce((acc, p) => acc + p.count, 0)
   const totalMrr = stats.planMix.reduce((acc, p) => acc + p.mrrCents, 0)
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+    <div className="v2-card">
       <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">Plan mix</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">

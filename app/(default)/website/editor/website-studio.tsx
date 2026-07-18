@@ -721,7 +721,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
               🎨 Design
             </button>
             {showDesign && (
-              <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-gray-700 bg-gray-900 p-4 shadow-2xl z-20">
+              <div className="absolute right-0 top-full mt-2 w-80 rounded-[var(--r-lg)] border border-gray-700 bg-gray-900 p-4 shadow-2xl z-20">
                 <div className="text-sm font-semibold text-white mb-1">Site design</div>
                 <p className="text-xs text-gray-400 mb-3">
                   Your content stays exactly as it is — switching designs is instant and reversible.

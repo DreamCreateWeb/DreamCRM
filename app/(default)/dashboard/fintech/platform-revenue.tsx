@@ -90,7 +90,7 @@ export default async function PlatformRevenue() {
       </div>
 
       {/* Combined revenue trend */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+      <div className="v2-card p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
@@ -130,7 +130,7 @@ export default async function PlatformRevenue() {
 
       {/* Top contributors + Outstanding breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 lg:col-span-2">
+        <div className="v2-card p-6 lg:col-span-2">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
             Top Revenue Contributors (lifetime)
           </h3>
@@ -181,7 +181,7 @@ export default async function PlatformRevenue() {
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
+        <div className="v2-card p-6">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
             Outstanding
           </h3>
@@ -229,7 +229,7 @@ export default async function PlatformRevenue() {
       </div>
 
       {/* Recent transactions */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+      <div className="v2-card">
         <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Recent Transactions

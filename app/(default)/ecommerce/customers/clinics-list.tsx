@@ -169,7 +169,7 @@ export default function ClinicsList({ rows }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden">
+      <div className="v2-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/30 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -393,7 +393,7 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-2xl w-full max-w-md flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
             {result ? 'Clinic deleted' : `Delete ${clinic.displayName ?? clinic.name}?`}

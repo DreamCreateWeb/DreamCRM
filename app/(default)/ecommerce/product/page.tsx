@@ -115,7 +115,7 @@ export default async function Product({
 
         {/* Sidebar */}
         <div>
-          <div className="bg-white dark:bg-gray-800 p-5 shadow-sm rounded-xl lg:w-[18rem] xl:w-[20rem]">
+          <div className="v2-card p-5 lg:w-[18rem] xl:w-[20rem]">
             <div className="text-2xl font-bold text-green-600 mb-1">{formatMoney(product.priceCents, product.currency)}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">{product.stock > 0 ? 'In stock' : 'Out of stock'}</div>
             <div className="mb-3">

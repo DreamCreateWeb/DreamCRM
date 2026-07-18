@@ -1,7 +1,7 @@
 export default function ShopSidebar() {
   return (
     <div>
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-5 min-w-[15rem]">
+      <div className="v2-card p-5 min-w-[15rem]">
         <div className="grid md:grid-cols-2 xl:grid-cols-1 gap-6">
           {/* Group 1 */}
           <div>

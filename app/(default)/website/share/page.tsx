@@ -117,7 +117,7 @@ export default async function ShareCardsPage() {
         {withQr.map((card) => (
           <div
             key={card.key}
-            className="dc-share-card rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 shadow-sm p-6 sm:p-8 flex flex-col items-center text-center"
+            className="dc-share-card v2-card p-6 sm:p-8 flex flex-col items-center text-center"
           >
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500 mb-4">
               {clinicName}

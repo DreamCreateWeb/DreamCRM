@@ -4051,3 +4051,29 @@ shipped as the v3 foundation in one pass:
 NEXT (the module "alive" pass, by class): sweep modules for lingering local
 card recipes/indigo literals, then add law-7 heartbeats (sparklines/rings/
 deltas from real columns) surface by surface. Overview first.
+
+## 2026-07-18 — v3 module sweep (part 1+2): tone literals + floating cards + first heartbeat
+
+The rebrand's module-by-module pass, run as two parallel scoped sweeps over
+disjoint file lists + one vertical slice:
+
+- **Indigo out (17 files):** every dashboard `indigo-*` literal re-toned to
+  the v3 registry (info→violet; Premium tier badge + follow-up intent dot →
+  fuchsia/special so tiers/dots stay distinct). Comments + one test name
+  de-staled; the data-tone-asserting tests needed nothing — the semantic
+  contract held.
+- **Cards float (27 of 33 files):** local `bg-white dark:bg-gray-800
+  shadow-sm rounded-xl` recipes → `.v2-card`; modal/popover panels →
+  `rounded-[var(--r-lg)]`; 6 files deliberately untouched (upload buttons,
+  highlight rings, thumbnails, hairline sub-sections — not cards).
+  Lingering follow-up noted: pipeline-board line ~261 rounded-lg card
+  recipe.
+- **First law-7 heartbeat:** `getClinicOverview` computes
+  `trends.bookingsPerDay14` (bookings CREATED per clinic-local day — same
+  semantics as the tile, clinic-tz buckets); `KpiStat` gained the `spark`
+  slot (aria-hidden decoration, ≥2 points, hidden <480px); the Overview
+  Bookings tile wears it. Primitive test pins render/no-render.
+
+Full suite 5,096 green + prod build green. NEXT heartbeats (each needs its
+real series/ring — no fake content): Overview confirmed-today ring,
+Patients/Leads/Payments hub tiles, platform overview.

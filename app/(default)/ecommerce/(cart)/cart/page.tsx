@@ -43,7 +43,7 @@ export default async function Cart() {
         </div>
 
         <div>
-          <div className="bg-white dark:bg-gray-800 p-5 shadow-sm rounded-xl lg:w-[18rem] xl:w-[20rem]">
+          <div className="v2-card p-5 lg:w-[18rem] xl:w-[20rem]">
             <div className="text-gray-800 dark:text-gray-100 font-semibold mb-2">Order Summary</div>
             <ul className="mb-4">
               <li className="text-sm w-full flex justify-between py-3 border-b border-gray-200 dark:border-gray-700/60">

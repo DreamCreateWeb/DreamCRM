@@ -30,7 +30,7 @@ export default function CustomersTable({ customers }: { customers: CustomerRow[]
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl relative">
+    <div className="v2-card relative">
       <header className="px-5 py-4">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">
           All Customers{' '}

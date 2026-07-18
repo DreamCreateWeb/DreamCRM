@@ -14,7 +14,7 @@ export default function SubscriptionsAttention({ attention }: Props) {
   const hasAny = trialEndingSoon.length || pastDue.length || scheduledCancel.length
   if (!hasAny) {
     return (
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl mb-6">
+      <div className="v2-card mb-6">
         <EmptyState
           icon="✅"
           title="No subscriptions need attention"
@@ -86,7 +86,7 @@ function AttentionBucket({
   labelFor: (s: AdminSubscription) => string
 }) {
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+    <div className="v2-card">
       <header className={`px-4 py-2.5 border-l-4 rounded-t-xl ${HEADER_ACCENT[tone]}`}>
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-sm">{title}</h3>

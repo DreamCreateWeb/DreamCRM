@@ -16,7 +16,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 
 export default function PlansPanel({ products }: { products: AdminProduct[] }) {
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+    <div className="v2-card">
       <header className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between gap-3">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">
           Plans & products{' '}

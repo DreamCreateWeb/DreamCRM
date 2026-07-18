@@ -77,7 +77,7 @@ export default function AddPartnerModal() {
             leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
           >
             <div className="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
-              <DialogPanel className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white dark:bg-gray-800 shadow-lg p-6">
+              <DialogPanel className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[var(--r-lg)] bg-white dark:bg-gray-800 shadow-lg p-6">
                 {createdEmail ? (
                   <div className="text-center py-4">
                     <div className="text-3xl mb-3" aria-hidden="true">📨</div>

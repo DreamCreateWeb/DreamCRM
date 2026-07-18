@@ -136,7 +136,7 @@ export default function FeedbackAdmin({ entries }: { entries: FeedbackEntry[] })
           {filtered.map((e) => (
             <li
               key={e.id}
-              className="border border-gray-200 dark:border-gray-700/60 rounded-xl p-4 bg-white dark:bg-gray-800/60"
+              className="v2-card p-4"
             >
               <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
                 <div className="min-w-0">

@@ -76,7 +76,7 @@ export default function StudioWelcome() {
         if (e.target === e.currentTarget) dismiss()
       }}
     >
-      <div className="w-full max-w-md rounded-2xl bg-gray-900 border border-gray-700 shadow-2xl p-6 sm:p-7">
+      <div className="w-full max-w-md rounded-[var(--r-lg)] bg-gray-900 border border-gray-700 shadow-2xl p-6 sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-400 mb-2">
           Your website, editable in place
         </p>

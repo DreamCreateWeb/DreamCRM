@@ -66,7 +66,7 @@ export default function MergeDuplicate({
 
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => !pending && setOpen(false)}>
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-gray-800 shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-[var(--r-lg)] bg-white dark:bg-gray-800 shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Merge a duplicate</h3>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Pick the duplicate record. Its appointments, messages, documents, tags, follow-ups, and history move onto{' '}

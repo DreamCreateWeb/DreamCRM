@@ -8,7 +8,7 @@ export default function ShopCards05() {
   return (
     <>
       {/* Card 1 */}
-      <div className="col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+      <div className="col-span-full sm:col-span-6 xl:col-span-3 v2-card">
         <div className="flex flex-col h-full text-center p-5">
           <div className="grow mb-1">
             <div className="inline-flex mb-2">
@@ -23,7 +23,7 @@ export default function ShopCards05() {
       </div>
 
       {/* Card 2 */}
-      <div className="col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+      <div className="col-span-full sm:col-span-6 xl:col-span-3 v2-card">
         <div className="flex flex-col h-full text-center p-5">
           <div className="grow mb-1">
             <div className="inline-flex mb-2">
@@ -38,7 +38,7 @@ export default function ShopCards05() {
       </div>
 
       {/* Card 3 */}
-      <div className="col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+      <div className="col-span-full sm:col-span-6 xl:col-span-3 v2-card">
         <div className="flex flex-col h-full text-center p-5">
           <div className="grow mb-1">
             <div className="inline-flex mb-2">
@@ -53,7 +53,7 @@ export default function ShopCards05() {
       </div>
 
       {/* Card 4 */}
-      <div className="col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+      <div className="col-span-full sm:col-span-6 xl:col-span-3 v2-card">
         <div className="flex flex-col h-full text-center p-5">
           <div className="grow mb-1">
             <div className="inline-flex mb-2">

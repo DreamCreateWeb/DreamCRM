@@ -103,7 +103,7 @@ export default function PipelineBoard({ projects }: Props) {
 
   if (projects.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl">
+      <div className="v2-card">
         <EmptyState
           icon="🗂"
           title="No projects in the pipeline yet"
@@ -116,7 +116,7 @@ export default function PipelineBoard({ projects }: Props) {
   return (
     <div>
       {/* Filter bar */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl px-4 py-3 mb-4">
+      <div className="v2-card px-4 py-3 mb-4">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
             <FilterChip active={typeFilter === 'all'} onClick={() => setTypeFilter('all')} count={projects.length}>

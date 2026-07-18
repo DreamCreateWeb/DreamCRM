@@ -6,7 +6,7 @@ import AddToCartButton from './add-to-cart-button'
 export default function ProductList({ products }: { products: Product[] }) {
   if (!products.length) {
     return (
-      <div className="col-span-full bg-white dark:bg-gray-800 shadow-sm rounded-xl px-5 py-10 text-center">
+      <div className="col-span-full v2-card px-5 py-10 text-center">
         <p className="text-sm text-gray-500 dark:text-gray-400">
           No products yet. Add some via the catalog admin.
         </p>
@@ -19,7 +19,7 @@ export default function ProductList({ products }: { products: Product[] }) {
       {products.map((p) => (
         <div
           key={p.id}
-          className="col-span-full sm:col-span-6 xl:col-span-3 bg-white dark:bg-gray-800 shadow-sm rounded-xl overflow-hidden"
+          className="col-span-full sm:col-span-6 xl:col-span-3 v2-card overflow-hidden"
         >
           <div className="flex flex-col h-full">
             {p.imageUrl ? (

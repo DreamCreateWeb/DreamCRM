@@ -20,7 +20,7 @@ export default function InvoicesTable({ invoices }: { invoices: InvoiceRow[] }) 
     useItemSelection(invoices)
 
   return (
-    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl relative">
+    <div className="v2-card relative">
       <header className="px-5 py-4">
         <h2 className="font-semibold text-gray-800 dark:text-gray-100">
           Invoices <span className="text-gray-400 dark:text-gray-500 font-medium">{invoices.length}</span>

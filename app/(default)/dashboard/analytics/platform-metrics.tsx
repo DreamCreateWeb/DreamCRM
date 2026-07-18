@@ -90,7 +90,7 @@ export default async function PlatformMetrics() {
       </div>
 
       {/* ── Subscription mix ─────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+      <div className="v2-card p-6 mb-8">
         <div className="flex items-center justify-between mb-4 gap-3">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Subscription Mix
@@ -136,7 +136,7 @@ export default async function PlatformMetrics() {
       </div>
 
       {/* ── Service mix — what kinds of project work do we sell? ─────── */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 mb-8">
+      <div className="v2-card p-6 mb-8">
         <div className="flex items-center justify-between mb-4 gap-3">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Service Mix
@@ -168,7 +168,7 @@ export default async function PlatformMetrics() {
       {/* ── Clinic growth ───────────────────────────────────────────── */}
       <h2 className={SECTION_LABEL}>Growth</h2>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 lg:col-span-2">
+        <div className="v2-card p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-2 gap-3">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">
               New Clinics — last 12 weeks
@@ -199,7 +199,7 @@ export default async function PlatformMetrics() {
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
+        <div className="v2-card p-6">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Health</h3>
           <ul className="space-y-3 text-sm">
             <li className="flex items-center justify-between">
@@ -237,7 +237,7 @@ export default async function PlatformMetrics() {
       {/* ── Project performance ────────────────────────────────────── */}
       <h2 className={SECTION_LABEL}>Project Performance</h2>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6 lg:col-span-2">
+        <div className="v2-card p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-2 gap-3">
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">
               Completed Projects — last 6 months
@@ -269,7 +269,7 @@ export default async function PlatformMetrics() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 shadow-sm rounded-xl p-6">
+        <div className="v2-card p-6">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">Funnel</h3>
           {funnel.totalCreated === 0 ? (
             <EmptyState
