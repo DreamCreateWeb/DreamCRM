@@ -266,8 +266,14 @@ export default function TenantSidebar({
             railCollapsed ? 'lg:flex-col lg:items-center lg:justify-center lg:gap-2' : ''
           }`}
         >
-          <Link href="/" aria-label="Dream Create — home" className="block shrink-0">
+          <Link href="/" aria-label="DreamCRM — home" className="flex items-center gap-2 shrink-0">
             <DreamCreateMark size={30} />
+            {/* Wordmark — expanded mode only; the rail keeps the D alone. */}
+            {!railCollapsed && (
+              <span className="text-[17px] font-extrabold tracking-tight text-ink-900 whitespace-nowrap">
+                DreamCRM
+              </span>
+            )}
           </Link>
           {/* Collapse caret — ≥lg only (the `[` key does the same thing). */}
           <button

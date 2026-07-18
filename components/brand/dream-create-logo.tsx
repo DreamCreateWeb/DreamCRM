@@ -1,21 +1,22 @@
 import { useId } from 'react'
 
 /**
- * Dream Create brand assets — vector recreation of the supplied logo:
- * a liquid teal-gradient capital D (paint-drip personality) + a navy-ink
- * wordmark. SVG so it stays crisp at every size and can re-tint for dark
- * surfaces. The gradient stops are the canonical brand teals; the wordmark
- * ink is the canonical brand navy. Reuse these tokens — don't re-derive
- * brand colors elsewhere.
+ * Dream Create brand assets — the liquid capital D (droplet personality) +
+ * a navy-ink wordmark. SVG so it stays crisp at every size and can re-tint
+ * for dark surfaces. v3 rebrand (2026-07-18): the gradient moved from the
+ * legacy teals to the dream-blue ramp (DESIGN-SYSTEM.md v3 "Cute Dream");
+ * the drips now read as water droplets/bubbles, which suits the dream.
+ * These are the canonical brand stops — reuse them, don't re-derive brand
+ * colors elsewhere.
  */
 
 export const BRAND = {
-  /** Liquid-D gradient, light → deep. */
-  tealLight: '#56D5CB',
-  teal: '#33A9AE',
-  tealDeep: '#1F6E7E',
-  /** Wordmark ink (near-navy). */
-  ink: '#1A2140',
+  /** Liquid-D gradient, light → deep (dream-blue ramp: teal-400/500/700). */
+  blueLight: '#7CA5FF',
+  blue: '#4C7DF0',
+  blueDeep: '#2F52B3',
+  /** Wordmark ink (v3 blue-lean navy — matches --color-ink-800). */
+  ink: '#22304E',
 } as const
 
 export function DreamCreateMark({
@@ -41,9 +42,9 @@ export function DreamCreateMark({
     >
       <defs>
         <linearGradient id={gid} x1="46" y1="4" x2="16" y2="62" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor={BRAND.tealLight} />
-          <stop offset="0.55" stopColor={BRAND.teal} />
-          <stop offset="1" stopColor={BRAND.tealDeep} />
+          <stop offset="0" stopColor={BRAND.blueLight} />
+          <stop offset="0.55" stopColor={BRAND.blue} />
+          <stop offset="1" stopColor={BRAND.blueDeep} />
         </linearGradient>
       </defs>
       {/* Liquid D — bowl with a melting lower-left stem */}
@@ -52,10 +53,10 @@ export function DreamCreateMark({
         fillRule="evenodd"
         d="M20 5h11.5C48.3 5 58.8 15.8 58.8 31.5S48.3 58 31.5 58h-8.2c-3.1 0-4.4 3.1-7.1 2.1-2.3-.9-1.5-4-2.6-6.2-.5-1-.8-2.3-.8-3.9V11.8C12.8 7.5 15.5 5 20 5Zm5.6 12.6c-1.5 0-2.3.8-2.3 2.3v24.2c0 1.5.8 2.3 2.3 2.3h5.6c10.4 0 16.5-5.7 16.5-14.4S41.6 17.6 31.2 17.6h-5.6Z"
       />
-      {/* Drips */}
-      <circle cx="10.6" cy="64.2" r="2.3" fill={BRAND.tealDeep} />
-      <ellipse cx="19.4" cy="64.8" rx="1.7" ry="2.5" fill={BRAND.teal} transform="rotate(14 19.4 64.8)" />
-      <circle cx="7.4" cy="57.2" r="1.3" fill={BRAND.teal} />
+      {/* Droplets */}
+      <circle cx="10.6" cy="64.2" r="2.3" fill={BRAND.blueDeep} />
+      <ellipse cx="19.4" cy="64.8" rx="1.7" ry="2.5" fill={BRAND.blue} transform="rotate(14 19.4 64.8)" />
+      <circle cx="7.4" cy="57.2" r="1.3" fill={BRAND.blue} />
     </svg>
   )
 }
@@ -78,7 +79,7 @@ export function DreamCreateLogo({
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <DreamCreateMark size={size} />
       <span
-        className={`font-extrabold tracking-tight text-[--brand-ink,#1A2140] dark:text-white ${wordmarkClassName}`}
+        className={`font-extrabold tracking-tight text-[--brand-ink,#22304E] dark:text-white ${wordmarkClassName}`}
         style={{ fontSize: Math.round(size * 0.68) }}
       >
         Dream&nbsp;Create
