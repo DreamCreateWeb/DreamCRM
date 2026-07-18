@@ -80,6 +80,10 @@ export interface ClinicOverviewData {
     newPatientsLastMTD: number
     upcomingNext7d: number
     activeIntakeForms: number
+    /** Bookings CREATED per clinic-local day, last 14 days (oldest first) —
+     *  the Bookings tile's heartbeat (DESIGN-SYSTEM v3 law 7). Same
+     *  `createdAt` semantics as `bookingsToday`. */
+    bookingsPerDay14: Array<{ bucket: string; value: number }>
   }
   recentActivity: ActivityRow[]
   integrationsHealth: IntegrationsHealth | null
@@ -359,8 +363,9 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     })),
   }
 
-  // ── Trend tiles — five independent counts, one parallel batch ──────────
-  const [bookingsTodayRow, newPatientsMTDRow, newPatientsLastMTDRow, upcomingRow, activeFormsRow] =
+  // ── Trend tiles — five independent counts + the booking pulse, one batch ──
+  const day14Start = clinicDayStart(now, timeZone, -13)
+  const [bookingsTodayRow, newPatientsMTDRow, newPatientsLastMTDRow, upcomingRow, activeFormsRow, bookingRows14] =
     await Promise.all([
       db
         .select({ count: count() })
@@ -414,7 +419,23 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         .from(schema.formTemplate)
         .where(and(eq(schema.formTemplate.organizationId, organizationId), sql`${schema.formTemplate.archivedAt} is null`))
         .then((r) => r[0]),
+      // Booking pulse: one createdAt-only scan over the last 14 clinic-local
+      // days, bucketed in JS against clinic-day boundaries (never UTC days).
+      db
+        .select({ createdAt: schema.appointment.createdAt })
+        .from(schema.appointment)
+        .where(and(eq(schema.appointment.organizationId, organizationId), gte(schema.appointment.createdAt, day14Start))),
     ])
+
+  const dayFmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone })
+  const bookingsPerDay14 = Array.from({ length: 14 }, (_, i) => {
+    const dayStart = clinicDayStart(now, timeZone, i - 13)
+    const dayEnd = clinicDayStart(now, timeZone, i - 12)
+    return {
+      bucket: dayFmt.format(dayStart),
+      value: bookingRows14.filter((r) => r.createdAt >= dayStart && r.createdAt < dayEnd).length,
+    }
+  })
 
   const trends = {
     bookingsToday: Number(bookingsTodayRow?.count ?? 0),
@@ -422,6 +443,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     newPatientsLastMTD: Number(newPatientsLastMTDRow?.count ?? 0),
     upcomingNext7d: Number(upcomingRow?.count ?? 0),
     activeIntakeForms: Number(activeFormsRow?.count ?? 0),
+    bookingsPerDay14,
   }
 
   // ── Recent activity (mixed feed, last 10) ───────────────────────────

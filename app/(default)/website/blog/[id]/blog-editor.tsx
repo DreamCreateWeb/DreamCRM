@@ -368,7 +368,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             ) : scheduled ? (
               <>
                 {post.scheduledFor && (
-                  <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-2 tabular-nums">
+                  <p className="text-xs text-violet-700 dark:text-violet-300 mb-2 tabular-nums">
                     Goes live{' '}
                     {new Date(post.scheduledFor).toLocaleString('en-US', {
                       month: 'short',

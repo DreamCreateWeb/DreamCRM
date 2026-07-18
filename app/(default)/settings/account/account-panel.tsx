@@ -231,8 +231,8 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                   }
                   control={
                     pendingEmail ? (
-                      <div className="w-full max-w-md rounded-[var(--r-md)] border-l-4 border-l-indigo-500 bg-indigo-500/10 px-4 py-3 text-sm text-gray-800 dark:text-gray-100">
-                        <p className="font-semibold text-indigo-700 dark:text-indigo-300">Confirm your new email</p>
+                      <div className="w-full max-w-md rounded-[var(--r-md)] border-l-4 border-l-violet-500 bg-violet-500/10 px-4 py-3 text-sm text-gray-800 dark:text-gray-100">
+                        <p className="font-semibold text-violet-700 dark:text-violet-300">Confirm your new email</p>
                         <p className="mt-1 leading-relaxed">
                           We emailed a confirmation link to your <span className="font-medium">current</span> inbox
                           (<span className="font-medium">{currentEmail}</span>). Open it and click the link to move your
@@ -244,7 +244,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                         </p>
                         <button
                           type="button"
-                          className="mt-2.5 text-indigo-700 dark:text-indigo-300 underline underline-offset-2 hover:no-underline"
+                          className="mt-2.5 text-violet-700 dark:text-violet-300 underline underline-offset-2 hover:no-underline"
                           onClick={() => {
                             setPendingEmail(null)
                             setEmail(currentEmail)

@@ -420,14 +420,14 @@ function RecallKpi({
 
 function FunnelStrip({ sent, opened, clicked, booked }: { sent: number; opened: number; clicked: number; booked: number }) {
   // Stage colors map to the tone contract: Sent = neutral (gray, inert
-  // baseline), Opened/Clicked = info (indigo, ball-in-their-court — v2 moved
-  // info sky→indigo so it can't collide with the teal brand), Booked = ok
+  // baseline), Opened/Clicked = info (violet, ball-in-their-court — v3 moved
+  // info indigo→violet so it can't collide with the dream-blue brand), Booked = ok
   // (emerald, the done-good outcome). Each stage carries a visible text
   // label + count, so color never stands alone.
   const stages = [
     { label: 'Sent', value: sent, color: 'bg-gray-300 dark:bg-gray-600' },
-    { label: 'Opened', value: opened, color: 'bg-indigo-400 dark:bg-indigo-500' },
-    { label: 'Clicked', value: clicked, color: 'bg-indigo-500 dark:bg-indigo-400' },
+    { label: 'Opened', value: opened, color: 'bg-violet-400 dark:bg-violet-500' },
+    { label: 'Clicked', value: clicked, color: 'bg-violet-500 dark:bg-violet-400' },
     { label: 'Booked', value: booked, color: 'bg-emerald-500 dark:bg-emerald-400' },
   ]
   const max = Math.max(1, sent)

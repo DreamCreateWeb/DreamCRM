@@ -227,7 +227,7 @@ export default function SubscriptionPanel({
   return (
     <div className="grow space-y-7 p-6">
       {upgradeModuleLabel && (
-        <div className="rounded-[var(--r-sm)] bg-indigo-500/10 px-4 py-3 text-sm text-indigo-900 ring-1 ring-inset ring-indigo-500/30 dark:text-indigo-200">
+        <div className="rounded-[var(--r-sm)] bg-violet-500/10 px-4 py-3 text-sm text-violet-900 ring-1 ring-inset ring-violet-500/30 dark:text-violet-200">
           <span className="font-semibold">{upgradeModuleLabel} is on a higher plan.</span>{' '}
           Pick a plan below to turn it on — your current data stays exactly as it is.
         </div>

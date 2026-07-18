@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import Sparkline from '@/components/ui/sparkline'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 
 /** sessionStorage flag — count-up runs once per session entry, never on
@@ -82,6 +83,7 @@ export function KpiStat({
   tone,
   href,
   countUp = false,
+  spark,
   className = '',
 }: {
   label: string
@@ -94,17 +96,26 @@ export function KpiStat({
   href?: string
   /** Count-up on first session entry — Overview hero KPIs only. */
   countUp?: boolean
+  /** The tile's heartbeat (v3 law 7): a small real-data trend series drawn
+   *  bottom-right in the brand hue. One heartbeat per tile — don't pair with
+   *  a delta `sub` carrying the same story. Hidden under 480px. */
+  spark?: Array<{ bucket: string; value: number }>
   className?: string
 }) {
   const card = (
     <div
-      className={`${href ? 'v2-card-interactive' : 'v2-card'} p-4 h-full ${className}`}
+      className={`${href ? 'v2-card-interactive' : 'v2-card'} relative p-4 h-full ${className}`}
     >
       <div className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300">{label}</div>
       <div className="mt-1 text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">
         {countUp && typeof value === 'number' ? <CountUp value={value} /> : value}
       </div>
       {sub && <div className={`mt-0.5 text-xs font-medium ${tone ? TONE_TEXT[tone] : 'text-gray-600 dark:text-gray-300'}`}>{sub}</div>}
+      {spark && spark.length > 1 && (
+        <div className="pointer-events-none absolute bottom-3 right-3 hidden xs:block" aria-hidden="true">
+          <Sparkline data={spark} color="var(--color-teal-500)" width={88} height={30} labels={false} />
+        </div>
+      )}
     </div>
   )
   if (href) {

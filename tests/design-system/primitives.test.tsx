@@ -175,6 +175,20 @@ describe('KpiStat', () => {
     expect(screen.getByText('3 need a reminder').className).toContain('amber')
   })
 
+  it('renders the heartbeat sparkline when spark data is provided (v3 law 7)', () => {
+    const spark = [
+      { bucket: 'Jul 1', value: 2 },
+      { bucket: 'Jul 2', value: 5 },
+    ]
+    const { container, rerender } = render(<KpiStat label="Bookings today" value={7} spark={spark} />)
+    expect(container.querySelector('svg')).toBeInTheDocument()
+    // Decorative layer: real data drawn, but aria-hidden and non-interactive.
+    expect(container.querySelector('[aria-hidden="true"] svg')).toBeInTheDocument()
+    // No/insufficient data → no heartbeat, no empty-state noise inside a tile.
+    rerender(<KpiStat label="Bookings today" value={7} spark={[]} />)
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+  })
+
   it('renders the hero number in Geist Mono with tabular figures, on an etched card', () => {
     const { container } = render(<KpiStat label="Recall due" value={12} />)
     const numeral = screen.getByText('12')

@@ -969,13 +969,13 @@ function ScheduledPanel({
       })
     : null
   return (
-    // Scheduled = info tone (ball-in-their-court / queued). v2 moved info
-    // sky→indigo so it reads distinct from the teal brand.
-    <div className="bg-indigo-50 dark:bg-indigo-500/10 rounded-[var(--r-lg)] border border-indigo-200 dark:border-indigo-500/30 p-4">
-      <h3 className="text-xs uppercase tracking-wider font-semibold text-indigo-700 dark:text-indigo-300 mb-1">
+    // Scheduled = info tone (ball-in-their-court / queued). v3 moved info
+    // indigo→violet so it reads distinct from the dream-blue brand.
+    <div className="bg-violet-50 dark:bg-violet-500/10 rounded-[var(--r-lg)] border border-violet-200 dark:border-violet-500/30 p-4">
+      <h3 className="text-xs uppercase tracking-wider font-semibold text-violet-700 dark:text-violet-300 mb-1">
         Scheduled
       </h3>
-      <p className="text-sm text-indigo-800 dark:text-indigo-200 mb-3">
+      <p className="text-sm text-violet-800 dark:text-violet-200 mb-3">
         {when ? <>Queued to send <strong>{when}</strong>.</> : 'Queued to send.'}
       </p>
       <ActionButton variant="secondary" size="sm" onClick={onCancel} disabled={pending} className="w-full justify-center">

@@ -106,7 +106,7 @@ export default function CalendarView({ items, orgName = 'Your clinic', isPlatfor
         <Section title="Scheduled" count={scheduled.length} empty="Nothing scheduled yet.">
           {scheduled.map((i) => (
             <Row key={i.id} item={i}>
-              <span className="text-xs text-indigo-700 dark:text-indigo-300 tabular-nums font-mono-num">
+              <span className="text-xs text-violet-700 dark:text-violet-300 tabular-nums font-mono-num">
                 Goes live {fmtDateTime(i.scheduledFor)}
               </span>
               <UnscheduleButton id={i.id} onDone={() => router.refresh()} />

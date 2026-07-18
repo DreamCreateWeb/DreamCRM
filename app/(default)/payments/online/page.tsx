@@ -56,8 +56,8 @@ export default async function ShopPaymentsPage() {
       />
 
       {/* Honest framing: these are collected, but reconciliation is still manual. */}
-      <div className="mb-5 rounded-[var(--r-md)] bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/30 px-4 py-3">
-        <p className="text-sm text-indigo-900 dark:text-indigo-200">
+      <div className="mb-5 rounded-[var(--r-md)] bg-violet-500/10 ring-1 ring-inset ring-violet-500/30 px-4 py-3">
+        <p className="text-sm text-violet-900 dark:text-violet-200">
           The money has settled to your connected Stripe account. These are a
           record for reconciliation — mark each amount against the patient&rsquo;s
           balance in your PMS so the clinical ledger stays accurate.

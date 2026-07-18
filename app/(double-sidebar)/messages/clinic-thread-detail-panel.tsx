@@ -1093,18 +1093,18 @@ export default function ThreadDetailPanel({
             {scheduledMessages.map((s) => (
               <div
                 key={s.id}
-                className="flex items-center gap-2 rounded-[var(--r-sm)] bg-indigo-500/[0.08] px-3 py-1.5 text-xs text-indigo-800 dark:text-indigo-200"
+                className="flex items-center gap-2 rounded-[var(--r-sm)] bg-violet-500/[0.08] px-3 py-1.5 text-xs text-violet-800 dark:text-violet-200"
               >
                 <span aria-hidden="true">⏰</span>
                 <span className="font-medium shrink-0">Scheduled · {fmtSchedule(s.scheduledFor)}</span>
-                <span className="text-indigo-700/70 dark:text-indigo-300/70 truncate">
+                <span className="text-violet-700/70 dark:text-violet-300/70 truncate">
                   {s.body || (s.attachments.length > 0 ? `${s.attachments.length} photo${s.attachments.length === 1 ? '' : 's'}` : '')}
                   {s.channel === 'email' ? ' · email' : ''}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleCancelScheduled(s.id)}
-                  className="ml-auto shrink-0 font-semibold text-indigo-700 hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-100 hover:underline"
+                  className="ml-auto shrink-0 font-semibold text-violet-700 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100 hover:underline"
                 >
                   Cancel
                 </button>
@@ -1298,7 +1298,7 @@ export default function ThreadDetailPanel({
                     title="Schedule this message to send later"
                     className={`inline-flex h-9 w-9 items-center justify-center rounded-[var(--r-sm)] border transition-colors disabled:opacity-50 ${
                       showSchedule
-                        ? 'border-indigo-300 bg-indigo-500/10 text-indigo-700 dark:border-indigo-400/40 dark:text-indigo-300'
+                        ? 'border-violet-300 bg-violet-500/10 text-violet-700 dark:border-violet-400/40 dark:text-violet-300'
                         : 'border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] text-gray-600 hover:text-gray-900 dark:text-gray-300'
                     }`}
                   >
@@ -1327,7 +1327,7 @@ export default function ThreadDetailPanel({
                           type="button"
                           onClick={handleSchedule}
                           disabled={scheduling || uploading > 0 || (!body.trim() && attachments.length === 0)}
-                          className="rounded-[var(--r-sm)] bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                          className="rounded-[var(--r-sm)] bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
                         >
                           {scheduling ? 'Scheduling…' : 'Schedule'}
                         </button>

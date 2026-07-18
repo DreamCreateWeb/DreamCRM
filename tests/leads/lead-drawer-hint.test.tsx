@@ -44,7 +44,7 @@ function makeRow(overrides: Partial<LeadRow> = {}): LeadRow {
 beforeEach(() => previewLeadConvertAction.mockReset())
 
 describe('LeadDrawer — existing-patient hint on open', () => {
-  it('shows the indigo info chip when the dedupe dry-run matches a patient', async () => {
+  it('shows the violet info chip when the dedupe dry-run matches a patient', async () => {
     previewLeadConvertAction.mockResolvedValue({ ok: true, matchedPatientName: 'Olivia Chen' })
     render(<LeadDrawer row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
     // Runs the preview on open (not just inside Convert).

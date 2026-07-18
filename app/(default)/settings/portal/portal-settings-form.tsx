@@ -192,7 +192,7 @@ export default function PortalSettingsForm({
               {!connectReady && (
                 <div
                   role="note"
-                  className="mb-3 flex items-start gap-2.5 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3.5 py-3 text-xs leading-relaxed text-indigo-900 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-200"
+                  className="mb-3 flex items-start gap-2.5 rounded-lg border border-violet-200 bg-violet-50/60 px-3.5 py-3 text-xs leading-relaxed text-violet-900 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-200"
                 >
                   <svg viewBox="0 0 16 16" className="mt-0.5 h-4 w-4 shrink-0 fill-current" aria-hidden="true">
                     <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm0 3.25A1.25 1.25 0 1 1 8 5.75 1.25 1.25 0 0 1 8 3.25ZM9.5 12h-3v-1h1V8h-1V7h2v4h1v1Z" />

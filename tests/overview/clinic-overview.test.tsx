@@ -67,6 +67,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
       newPatientsLastMTD: 0,
       upcomingNext7d: 0,
       activeIntakeForms: 0,
+          bookingsPerDay14: [],
     },
     recentActivity: [],
     integrationsHealth: null,
@@ -127,6 +128,7 @@ describe('Design System v2 migration', () => {
           newPatientsLastMTD: 4,
           upcomingNext7d: 11,
           activeIntakeForms: 2,
+          bookingsPerDay14: [],
         },
       }),
     )
@@ -416,6 +418,7 @@ describe('Trend tiles', () => {
           newPatientsLastMTD: 8,
           upcomingNext7d: 23,
           activeIntakeForms: 1,
+          bookingsPerDay14: [],
         },
       }),
     )
@@ -436,6 +439,7 @@ describe('Trend tiles', () => {
           newPatientsLastMTD: 0,
           upcomingNext7d: 0,
           activeIntakeForms: 0,
+          bookingsPerDay14: [],
         },
       }),
     )
@@ -457,6 +461,7 @@ describe('Trend tiles', () => {
           newPatientsLastMTD: 0,
           upcomingNext7d: 5,
           activeIntakeForms: 0,
+          bookingsPerDay14: [],
         },
       }),
     )

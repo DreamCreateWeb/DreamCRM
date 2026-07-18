@@ -406,6 +406,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             sub="across all channels"
             href="/appointments?window=today"
             countUp
+            spark={data.trends.bookingsPerDay14}
           />
           <KpiStat
             label="New patients MTD"

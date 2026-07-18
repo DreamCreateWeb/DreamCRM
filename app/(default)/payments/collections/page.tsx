@@ -100,8 +100,8 @@ export default async function CollectionsPage() {
       </div>
 
       {/* Honest deferral — same posture as the Analytics PMS block. */}
-      <div className="mb-5 rounded-[var(--r-md)] bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/30 px-4 py-3">
-        <p className="text-sm text-indigo-900 dark:text-indigo-200">
+      <div className="mb-5 rounded-[var(--r-md)] bg-violet-500/10 ring-1 ring-inset ring-violet-500/30 px-4 py-3">
+        <p className="text-sm text-violet-900 dark:text-violet-200">
           Balances come from your PMS as a single point-in-time number, so true 30/60/90 aging
           buckets aren&rsquo;t shown yet — we&rsquo;d rather wait for real aging data than guess.
           {!paymentsReady && (

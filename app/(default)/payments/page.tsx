@@ -57,8 +57,8 @@ export default async function PaymentsHubPage() {
       />
 
       {!connectReady && (
-        <div className="mb-5 rounded-[var(--r-md)] bg-indigo-500/10 ring-1 ring-inset ring-indigo-500/30 px-4 py-3">
-          <p className="text-sm text-indigo-900 dark:text-indigo-200">
+        <div className="mb-5 rounded-[var(--r-md)] bg-violet-500/10 ring-1 ring-inset ring-violet-500/30 px-4 py-3">
+          <p className="text-sm text-violet-900 dark:text-violet-200">
             Online payments need a connected Stripe account — payouts land in your bank, not ours.
             Until then you can still work the Collections board and track balances.
           </p>

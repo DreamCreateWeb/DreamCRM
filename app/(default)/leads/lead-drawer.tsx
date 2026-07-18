@@ -201,7 +201,7 @@ export default function LeadDrawer({
                 ball isn't ours, it's just useful context before converting.
                 v2 moved info sky→indigo so it can't read as the teal brand). */}
             {existingHint && (
-              <div data-tone="info" className="mt-2 inline-flex items-center gap-1.5 rounded-[var(--r-xs)] bg-indigo-500/10 px-2 py-1 text-xs text-indigo-700 dark:text-indigo-300">
+              <div data-tone="info" className="mt-2 inline-flex items-center gap-1.5 rounded-[var(--r-xs)] bg-violet-500/10 px-2 py-1 text-xs text-violet-700 dark:text-violet-300">
                 <span aria-hidden="true">↪</span>
                 <span>
                   Looks like an existing patient:{' '}

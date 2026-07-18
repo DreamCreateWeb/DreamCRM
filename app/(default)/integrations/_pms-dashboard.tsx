@@ -142,13 +142,13 @@ export function PmsConnectedDashboard({
 
       {/* ── First-import progress (renders only mid-import) ────── */}
       {importInProgress && (
-        <div className="mb-6 rounded-[var(--r-lg)] ring-1 ring-inset ring-indigo-500/30 bg-indigo-500/10 p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
+        <div className="mb-6 rounded-[var(--r-lg)] ring-1 ring-inset ring-violet-500/30 bg-violet-500/10 p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-[var(--r-md)] shrink-0 flex items-center justify-center bg-violet-500/15 text-violet-700 dark:text-violet-300">
             <RefreshIcon />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Importing your patients…</p>
-            <p className="text-sm mt-0.5 text-indigo-800/80 dark:text-indigo-300/80">
+            <p className="text-sm font-semibold text-violet-800 dark:text-violet-200">Importing your patients…</p>
+            <p className="text-sm mt-0.5 text-violet-800/80 dark:text-violet-300/80">
               Imported <span className="font-mono-num">{importCursor.toLocaleString()}</span> so far — large practices
               import in batches, and this continues automatically every hour. You can keep working; hit “Sync now” any
               time to push it along.

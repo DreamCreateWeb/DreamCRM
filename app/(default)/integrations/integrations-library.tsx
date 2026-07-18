@@ -393,9 +393,9 @@ function PricingBadge({ def }: { def: BundleDef }) {
   const label = bundlePlanLabel(def)
   const cls =
     def.minPlan === 'premium'
-      ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300'
+      ? 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300'
       : def.minPlan === 'pro'
-        ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+        ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300'
         : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
   return (
     <span className="inline-flex items-center gap-1.5">
