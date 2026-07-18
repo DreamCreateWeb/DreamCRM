@@ -29,10 +29,12 @@ describe('tone recipes', () => {
     expect(TONE_PILL.ok).toContain('emerald')
     expect(TONE_PILL.warn).toContain('amber')
     expect(TONE_PILL.urgent).toContain('rose')
-    // v2: info moved sky → indigo (teal/sky too close once the brand is teal).
-    expect(TONE_PILL.info).toContain('indigo')
+    // v3: brand moved teal → dream blue, so info vacated indigo (too close to
+    // a blue brand at pill size) for periwinkle violet; special went fuchsia.
+    expect(TONE_PILL.info).toContain('violet')
+    expect(TONE_PILL.info).not.toContain('indigo')
     expect(TONE_PILL.info).not.toContain('sky')
-    expect(TONE_PILL.special).toContain('violet')
+    expect(TONE_PILL.special).toContain('fuchsia')
   })
 })
 

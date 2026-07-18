@@ -31,42 +31,55 @@ describe('v2 color + surface tokens', () => {
     expect(css).toContain(token)
   })
 
-  it('replaces the teal ramp with the brand aqua (teal-500 = #28b3ad)', () => {
-    expect(css).toContain('--color-teal-500: #28b3ad')
-    expect(css).toContain('--color-teal-700: #2a7f8c') // logo deep / focus anchor
-    expect(css).toContain('--color-teal-400: #4dcdc4') // logo aqua / dark fill
+  it('re-points the teal-* ramp to the v3 dream blue (teal-500 = #4c7df0)', () => {
+    expect(css).toContain('--color-teal-500: #4c7df0')
+    expect(css).toContain('--color-teal-700: #2f52b3') // deep dream / focus anchor
+    expect(css).toContain('--color-teal-400: #7ca5ff') // dream sky / dark fill
   })
 
-  it('re-tints the legacy gray ramp to the cool-navy values', () => {
-    expect(css).toContain('--color-gray-50: #f6f8f9')
-    expect(css).toContain('--color-gray-900: #141a2e')
-    expect(css).toContain('--color-gray-950: #0e1320')
+  it('re-tints the legacy gray ramp to the blue-cool values', () => {
+    expect(css).toContain('--color-gray-50: #f3f7fe')
+    expect(css).toContain('--color-gray-900: #1a2440')
+    expect(css).toContain('--color-gray-950: #10182e')
   })
 
   it('ships radius + elevation + focus + motion tokens', () => {
     for (const t of ['--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-pill']) {
       expect(css).toContain(t)
     }
-    for (const t of ['--shadow-xs', '--shadow-pop', '--shadow-modal', '--focus-ring']) {
+    for (const t of ['--shadow-xs', '--shadow-card', '--shadow-pop', '--shadow-modal', '--focus-ring']) {
       expect(css).toContain(t)
     }
-    for (const t of ['--dur-fast', '--dur-base', '--ease-out', '--ease-ios', '--spring-gentle']) {
+    for (const t of ['--dur-fast', '--dur-base', '--ease-out', '--ease-ios', '--spring-gentle', '--spring-pop']) {
       expect(css).toContain(t)
     }
+  })
+
+  it('the bubble radius scale is soft (buttons 12px, cards 16px, panels 22px)', () => {
+    expect(css).toContain('--r-sm: 12px')
+    expect(css).toContain('--r-md: 16px')
+    expect(css).toContain('--r-lg: 22px')
   })
 
   it('overrides the same semantic tokens under .dark (no parallel palette)', () => {
     const darkBlock = css.slice(css.indexOf('.dark {'))
-    expect(darkBlock).toContain('--color-canvas: #0e1320')
-    expect(darkBlock).toContain('--color-surface-2: #1b2336')
-    expect(darkBlock).toContain('--color-hairline: rgb(255 255 255 / 0.06)')
+    expect(darkBlock).toContain('--color-canvas: #10182e')
+    expect(darkBlock).toContain('--color-surface-2: #1b2544')
+    expect(darkBlock).toContain('--color-hairline: rgb(124 163 255 / 0.1)')
   })
 
-  it('maps Geist families to dashboard + numeral font utilities', () => {
+  it('self-hosts Nunito and maps it + Geist to dashboard/numeral font utilities', () => {
     expect(css).toContain('--font-sans-dashboard')
     expect(css).toContain('--font-mono-num')
     expect(css).toContain('--font-geist-sans')
     expect(css).toContain('--font-geist-mono')
+    // v3 face: self-hosted variable Nunito, latin + latin-ext subsets, ahead
+    // of Geist in the dashboard stack. A Google Fonts URL would be a build/
+    // flash regression — pin the same-origin paths.
+    expect(css).toContain("--font-sans-dashboard: \"Nunito\"")
+    expect(css).toContain("/fonts/nunito-latin-var.woff2")
+    expect(css).toContain("/fonts/nunito-latin-ext-var.woff2")
+    expect(css).toContain('font-weight: 200 1000')
   })
 })
 
@@ -88,11 +101,10 @@ describe('v2 component + motion utility classes', () => {
     expect(css).toContain(cls)
   })
 
-  it('the etched card has an inset hairline ring and no resting drop-shadow', () => {
+  it('the v3 card floats on the soft resting shadow (etched inset ring retired)', () => {
     const block = css.slice(css.indexOf('.v2-card {'), css.indexOf('.v2-card {') + 200)
-    expect(block).toContain('inset 0 0 0 1px var(--color-hairline)')
-    // box-shadow is the inset ring only — no "0 Npx" outer offset on rest.
-    expect(block).not.toMatch(/box-shadow:[^;]*\b[1-9]\d*px\b[^;]*rgb/)
+    expect(block).toContain('box-shadow: var(--shadow-card)')
+    expect(block).not.toContain('inset 0 0 0 1px')
   })
 
   it('the skeleton shimmers (~1.4s) and stills under reduced-motion', () => {

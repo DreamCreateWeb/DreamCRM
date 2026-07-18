@@ -4,10 +4,11 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 export type ActionButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost'
 
 const VARIANT_CLASSES: Record<ActionButtonVariant, string> = {
-  // The ONE primary action per surface — brand TEAL, nothing else competes.
-  // Dark: the teal-400 aqua + ink-900 text keeps contrast on the navy world.
+  // The ONE primary action per surface — the dream-blue gradient bubble,
+  // nothing else competes. White text holds contrast in BOTH themes (the
+  // fill stays a saturated blue gradient at night; it just glows more).
   primary:
-    'bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900',
+    'bg-gradient-to-br from-teal-400 to-teal-600 hover:from-teal-500 hover:to-teal-600 text-white shadow-[0_8px_20px_rgb(76_125_240_/_0.35)] hover:shadow-[0_10px_26px_rgb(76_125_240_/_0.45)]',
   secondary:
     'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300',
   danger: 'bg-rose-600 hover:bg-rose-700 text-white',
@@ -16,12 +17,13 @@ const VARIANT_CLASSES: Record<ActionButtonVariant, string> = {
 }
 
 /**
- * Ambient-breath skin — a subtle teal gradient that the `.breath` keyframes
- * drift across (~6s, compositor-only). Reserved for the page's SINGLE primary
- * (PageHeader sets `breath` on its primary action). Reduced-motion stills it.
+ * Ambient-breath skin — a subtle dream-blue gradient that the `.breath`
+ * keyframes drift across (~6s, compositor-only). Reserved for the page's
+ * SINGLE primary (PageHeader sets `breath` on its primary action).
+ * Reduced-motion stills it.
  */
 const BREATH_CLASSES =
-  'breath bg-gradient-to-r from-teal-500 via-teal-600 to-teal-500 hover:from-teal-600 hover:to-teal-600 text-white dark:from-teal-400 dark:via-teal-300 dark:to-teal-400 dark:text-gray-900'
+  'breath bg-gradient-to-r from-teal-400 via-teal-600 to-teal-400 text-white shadow-[0_8px_20px_rgb(76_125_240_/_0.35)] hover:shadow-[0_10px_26px_rgb(76_125_240_/_0.45)]'
 
 const SIZE_CLASSES = { sm: 'btn-sm', md: 'btn' } as const
 

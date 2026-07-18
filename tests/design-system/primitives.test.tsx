@@ -10,10 +10,13 @@ import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 
 describe('ActionButton', () => {
-  it('renders the primary variant in brand teal (v2 — not violet)', () => {
+  it('renders the primary variant as the brand gradient bubble (v3 — not violet)', () => {
     render(<ActionButton variant="primary">+ Add patient</ActionButton>)
     const btn = screen.getByRole('button', { name: '+ Add patient' })
-    expect(btn.className).toContain('bg-teal-500')
+    // v3: the one primary per surface is the dream-blue gradient (the teal-*
+    // ramp IS the brand ramp — the hue it resolves to lives in style.css).
+    expect(btn.className).toContain('from-teal-400')
+    expect(btn.className).toContain('to-teal-600')
     expect(btn.className).not.toContain('bg-violet')
   })
 
@@ -73,10 +76,11 @@ describe('StatusPill', () => {
     expect(pill.getAttribute('title')).toBe('Needs a confirmation text')
   })
 
-  it('renders the info tone in indigo (v2 — moved off sky), never teal', () => {
+  it('renders the info tone in violet (v3 — moved off indigo), never the brand hue', () => {
     render(<StatusPill tone="info" label="Contacted" />)
     const pill = screen.getByText('Contacted')
-    expect(pill.className).toContain('indigo')
+    expect(pill.className).toContain('violet')
+    expect(pill.className).not.toContain('indigo')
     expect(pill.className).not.toContain('sky')
     expect(pill.className).not.toContain('teal')
   })

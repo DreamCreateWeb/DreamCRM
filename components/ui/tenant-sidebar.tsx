@@ -588,21 +588,17 @@ function NavItem({
         aria-current={active ? 'page' : undefined}
         aria-label={rail ? `${m.label}${ariaCount}` : undefined}
         title={rail ? undefined : isSoon ? `${m.label} — coming soon` : undefined}
-        className={`relative flex items-center rounded-md py-2 pl-3 pr-2 transition-colors ${
+        className={`relative flex items-center rounded-full py-2 pl-3 pr-2 transition-colors ${
           rail ? 'lg:justify-center lg:px-0' : ''
         } ${
           active
-            ? 'breath bg-teal-500/15 text-ink-900 font-semibold'
+            ? 'breath bg-gradient-to-r from-teal-400 to-teal-600 text-white font-bold shadow-[0_8px_20px_rgb(76_125_240_/_0.35)]'
             : 'text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900'
         } ${isSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        {/* Active 2px teal left bar */}
-        {active && (
-          <span className="absolute left-0 top-1 bottom-1 w-1 rounded-full bg-teal-500" aria-hidden="true" />
-        )}
         <NavIcon
           name={m.icon}
-          className={`shrink-0 fill-current ${active ? 'text-teal-600 dark:text-teal-400' : 'text-ink-400'}`}
+          className={`shrink-0 fill-current ${active ? 'text-white' : 'text-ink-400'}`}
         />
         {/* Inline label — expanded mode only. */}
         {!rail && (
@@ -612,7 +608,11 @@ function NavItem({
               {isSoon && <span className="ml-2 text-xs text-ink-400">soon</span>}
             </span>
             {showShortcut && m.shortcut && (
-              <kbd className="ml-2 shrink-0 rounded border border-hairline px-1 py-px text-xs font-medium tabular-nums text-ink-400">
+              <kbd
+                className={`ml-2 shrink-0 rounded border px-1 py-px text-xs font-medium tabular-nums ${
+                  active ? 'border-white/30 text-white/80' : 'border-hairline text-ink-400'
+                }`}
+              >
                 {m.shortcut}
               </kbd>
             )}

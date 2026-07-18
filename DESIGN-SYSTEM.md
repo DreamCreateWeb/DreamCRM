@@ -1,19 +1,27 @@
-# DreamCRM Dashboard Design System v2 — "Instrument Panel, Liquid Soul"
+# DreamCRM Dashboard Design System v3 — "Cute Dream, Living Data"
 
 The binding UI/UX system for the **authenticated dashboard** (`app/(default)`
-+ `app/(double-sidebar)`), plus auth/onboarding chrome where noted. v2 keeps
-v1's actions-first doctrine and the entire semantic-encoding contract, and
-replaces the visual language wholesale: Mosaic's flat white-card admin look
-gives way to an etched, navy-inked instrument panel with the Dream Create
-liquid-teal identity. Research-grounded (Linear's restraint + token system,
-Stripe's card-less 2025 dashboard + perceptual color, Mercury/Attio calm,
-healthcare-trust palette studies, Emil Kowalski / Linear motion doctrine) —
-the three cited research reports live in the 2026-06-11 session log.
++ `app/(double-sidebar)`), plus auth/onboarding chrome where noted. v3 keeps
+v2's actions-first doctrine, the entire semantic-encoding contract, the
+legibility rules, and the token ARCHITECTURE (names, single homes, CI
+guards) — and replaces the visual language: v2's etched navy instrument
+panel gives way to a soft, rounded, dream-blue world that matches the brand
+name and the product's warm anti-shame voice. Bubbles, soft blue shadows,
+rounded corners, springy micro-motion, and data that visibly lives
+(sparklines, rings, feeds). The owner-approved direction mockup lives in
+the 2026-07-17 session log ("Cute Dream — direction exploration 01").
 
-**Scope boundary:** NOT the public clinic sites (`app/site`), the patient
-portal (`app/(portal)`), or the marketing site (`app/(marketing)`). Those
-keep their own languages. Auth + onboarding receive the v2 *brand* (logo,
-teal, ink, fonts) but stay structurally simple.
+**Why v3 exists:** the product is named Dream, the copy says "3 still need
+a text," and the v2 chrome said "trading terminal." Competitors (Dental
+Intelligence) read as alive and premium mostly through data-richness and
+surface warmth. v3 aligns the visuals with the voice — friendly-premium,
+not austere-premium — and makes living data a first-class law.
+
+**Scope boundary (unchanged):** NOT the public clinic sites (`app/site`),
+the patient portal (`app/(portal)`), or the marketing site
+(`app/(marketing)`). Those keep their own languages. Auth + onboarding
+receive the v3 *brand* (logo, dream blue, ink, fonts) but stay structurally
+simple.
 
 ---
 
@@ -26,8 +34,8 @@ The five v1 rules still bind:
 1. **Lead with the action.** One solid primary in the PageHeader, attention
    surfaces before raw data, empty states say what to do next.
 2. **One primary per surface** (page header / drawer / modal). Primary is
-   now **teal**, not violet. Destructive = `danger`, never adjacent to the
-   primary.
+   now the **dream-blue gradient bubble**. Destructive = `danger`, never
+   adjacent to the primary.
 3. **Every encoding is explained** — `<EncodingLegend>` wherever glyphs,
    aging, or coded pills appear; every mark carries `title` + `aria-label`;
    color never carries meaning alone.
@@ -37,18 +45,22 @@ The five v1 rules still bind:
 5. **Same pattern everywhere** — one header, chip, pill, empty state, bulk
    bar across all modules.
 
-**Three new v2 laws:**
+**Three v3 laws (replacing v2's restraint laws 6–8):**
 
-6. **Restraint reads premium.** Hierarchy comes from ink weight, size, and
-   surface luminance — not color spray. Teal is rationed (Part 2). Resting
-   data surfaces carry **no drop-shadow**; separation is a 1px hairline +
-   luminance step. Shadows exist only on true overlays.
-7. **The brand lives in the chrome, never the data.** Gradient/aura/grain
-   belong to the shell (sidebar, header, page-title zone, auth). Tables,
-   cards, and forms stay flat and instantly legible.
+6. **Soft reads friendly; friendly reads premium here.** Cards FLOAT on
+   soft dream-blue shadows (the etched hairline-only doctrine is retired).
+   Corners are round (the bubble radius scale), chips are pills, and the
+   surface temperature is a morning sky. Hierarchy still comes from ink
+   weight, size, and elevation — never color spray. The brand hue stays
+   rationed (Part 2).
+7. **Every number wants a heartbeat.** A KPI without a sparkline, ring,
+   trend hint, or delta is a missed opportunity — the dashboard should
+   visibly LIVE (the Dental Intelligence lesson). Feeds animate in; counts
+   count up (once); "live" states pulse. Budgeted, not busy: per surface,
+   every stat may carry ONE heartbeat element.
 8. **Instant first, alive second.** Anything a front desk does 100×/day
    gets instant feedback and zero flourish. The motion budget is spent on
-   rare moments (Part 3).
+   entrances, heartbeats, and the two signature moments (Part 3).
 
 ---
 
@@ -63,23 +75,24 @@ Ball-in-court doctrine unchanged: warn/urgent only when the next move is
 OURS; once we've acted and they haven't replied, rows go quiet
 (`info`/`neutral`).
 
-**One change in v2:** `info` moves **sky → indigo** (`#6366F1` family). The
-brand is now teal — a teal/sky pair is too close in hue to disambiguate at
-a glance.
+**Two changes in v3:** the brand moved teal → dream blue, so `info` vacates
+**indigo → violet** (periwinkle — indigo is indistinguishable from a blue
+brand at pill size) and `special` moves **violet → fuchsia** (a pink
+"celebrate" accent that suits new arrivals and fits the dream).
 
-| Tone | Means (unchanged) | v2 hue |
+| Tone | Means (unchanged) | v3 hue |
 |---|---|---|
 | `ok` | healthy · done-good · confirmed | emerald (unchanged) |
 | `warn` | **needs OUR action** · aging · due | amber (unchanged) |
 | `urgent` | overdue · failed · problem NOW | rose (unchanged) |
-| `info` | in flight · ball in THEIR court | **indigo** (was sky) |
-| `special` | new arrival · featured | violet (unchanged — brand vacated it) |
+| `info` | in flight · ball in THEIR court | **violet** (was indigo) |
+| `special` | new arrival · featured · celebrated | **fuchsia** (was violet) |
 | `neutral` | inert · archived · draft | ink/gray ramp |
 
-**Teal is NEVER a status.** Identity only: primary actions, selection,
-focus, links, active nav, chart series 1. A teal pill is a contract
-violation. Badges meaning "needs attention" (sidebar counts included) are
-`warn` amber.
+**The brand hue is NEVER a status.** Identity only: primary actions,
+selection, focus, links, active nav, chart series 1. A brand-blue pill is a
+contract violation. Badges meaning "needs attention" (sidebar counts
+included) are `warn` amber.
 
 ---
 
@@ -88,302 +101,256 @@ violation. Badges meaning "needs attention" (sidebar counts included) are
 ### 2.1 Color tokens (Tailwind 4 `@theme` in `app/css/style.css`)
 
 Components reference tokens (or the re-tinted `gray` ramp) — never raw hex.
-`.dark` overrides the same custom properties; no parallel palette.
+`.dark` overrides the same custom properties; no parallel palette. **v3
+kept every token NAME from v2 — only values moved — so consumers reskinned
+without an edit.**
 
 ```css
-/* Canvas & surfaces — LIGHT */
---color-canvas:          #F6F8F9;  /* app background (cool, faintly teal) */
---color-surface-1:       #FBFCFD;  /* raised panel */
+/* Canvas & surfaces — LIGHT (soft morning sky) */
+--color-canvas:          #F3F7FE;  /* app background */
+--color-surface-1:       #F8FAFF;  /* raised panel */
 --color-surface-2:       #FFFFFF;  /* cards, inputs — top of stack */
---color-surface-sunk:    #EEF2F4;  /* wells, table headers */
---color-hairline:        #E3E9EC;  /* 1px separation everywhere */
---color-hairline-strong: #D2DBDF;
+--color-surface-sunk:    #E9F0FC;  /* wells, table headers */
+--color-hairline:        #E0E9F8;  /* 1px separation where needed */
+--color-hairline-strong: #CBD9F2;
 
-/* Ink — navy-tinted neutrals (the brand's temperature) */
---color-ink-900: #141A2E;  --color-ink-800: #1A2140;  /* brand navy */
---color-ink-700: #2E3650;  --color-ink-600: #4A5268;
---color-ink-500: #6B7488;  --color-ink-400: #97A0B2;  /* disabled only */
+/* Ink — blue-leaning navy neutrals */
+--color-ink-900: #1A2440;  --color-ink-800: #22304E;  /* brand navy */
+--color-ink-700: #33405F;  --color-ink-600: #4C5A78;
+--color-ink-500: #5E6E8C;  --color-ink-400: #93A0BC;  /* disabled only */
 
-/* Teal brand ramp (hue ~185–190 — aqua side, away from green) */
---color-teal-50:#ECFBFA; --color-teal-100:#D2F5F2; --color-teal-200:#A8ECE7;
---color-teal-300:#74DDD6; --color-teal-400:#4DCDC4; /* logo aqua */
---color-teal-500:#28B3AD; /* primary fill (light) */
---color-teal-600:#1F938F; /* hover/pressed */
---color-teal-700:#2A7F8C; /* logo deep — focus rings, gradient anchor */
---color-teal-800:#1E5E69; --color-teal-900:#163F47;
+/* Dream-blue brand ramp (hue ~222 — warm, friendly blue) */
+--color-teal-50:#EEF4FF; --color-teal-100:#DCE8FF; --color-teal-200:#C1D6FF;
+--color-teal-300:#9DBDFF; --color-teal-400:#7CA5FF; /* dream sky — dark fill */
+--color-teal-500:#4C7DF0; /* primary fill (light) */
+--color-teal-600:#3A67D9; /* hover/pressed */
+--color-teal-700:#2F52B3; /* deep dream — focus rings, gradient anchor */
+--color-teal-800:#27418A; --color-teal-900:#1F3266;
 
-/* DARK (.dark): navy-black world, luminance = elevation */
---color-canvas:#0E1320; --color-surface-1:#151B2B; --color-surface-2:#1B2336;
---color-surface-sunk:#0B0F1A;
---color-hairline:rgb(255 255 255 / .06);
---color-hairline-strong:rgb(255 255 255 / .10);
-/* teal fills brighten to the 400 aqua on dark */
+/* DARK (.dark): dream-at-night world — deep navy sky, luminance = elevation */
+--color-canvas:#10182E; --color-surface-1:#161F3A; --color-surface-2:#1B2544;
+--color-surface-sunk:#0C1226;
+--color-hairline:rgb(124 163 255 / .10);
+--color-hairline-strong:rgb(124 163 255 / .16);
+/* blue fills brighten to the 400 dream sky on dark */
 ```
 
-**The migration trick:** the legacy `--color-gray-*` ramp is RE-TINTED to
-the ink/cool neutrals (50:#F6F8F9 · 100:#EEF2F4 · 200:#E3E9EC · 300:#C6CEDA
-· 400:#97A0B2 · 500:#6B7488 · 600:#4A5268 · 700:#2E3650 · 800:#1A2140 ·
-900:#141A2E · 950:#0E1320) so the thousands of existing `gray-*` utilities
-inherit the new temperature for free, and `dark:bg-gray-800/900` literals
-land on the navy surfaces automatically. New/touched code prefers semantic
-tokens; the gray ramp is the compatibility layer.
+**The ramp trick, one level up:** the brand ramp rides the **`teal-*`
+variable names** on purpose. 151 dashboard files use `teal-*` utilities;
+re-pointing the ramp in ONE place reskinned every one of them. `teal-*` IS
+the brand ramp; the hue it resolves to is the design system's business.
+(Same mechanism as the re-tinted `gray-*` ramp, now blue-cool:
+50:#F3F7FE · 100:#E9F0FC · 200:#E0E9F8 · 300:#C3D0E8 · 400:#93A0BC ·
+500:#5E6E8C · 600:#4C5A78 · 700:#33405F · 800:#22304E · 900:#1A2440 ·
+950:#10182E.) New/touched code prefers semantic tokens; the gray ramp is
+the compatibility layer. A rename sweep (`teal-*` → `brand-*`) is optional
+future hygiene, mechanical, and low-priority.
 
-**Accent usage rules:** one teal primary action per surface; teal is also
-allowed for focus rings, links, selected/active states (nav item, selected
-row ring, toggle-on, active chip), and chart series 1. Everything else is
-neutral or hairline-ghost. Labels/eyebrows: `text-xs font-semibold
+**Accent usage rules:** one brand-gradient primary action per surface; the
+brand hue is also allowed for focus rings, links, selected/active states
+(nav pill, selected row ring, toggle-on, active chip), and chart series 1.
+Everything else is neutral. Labels/eyebrows: `text-xs font-semibold
 uppercase tracking-wider` ink-500; the page-title eyebrow may be teal-700.
 
 ### 2.2 Typography
 
-- **UI + body: Geist Sans** via the npm `geist` package (local font files —
-  NO Google fetch, build-safe per the CLAUDE.md font gotcha). Applied at
-  the dashboard root layouts. Display headings tracking ~-0.02em.
+- **UI + body: Nunito** — the v3 face: rounded terminals, friendly, warm.
+  SELF-HOSTED variable woff2 (weight 200–1000) in `public/fonts/`
+  (latin + latin-ext), declared via `@font-face` in style.css. NO
+  `next/font/google` (build env can't reach Google — banned in CLAUDE.md),
+  NO runtime Google `<link>` in the dashboard (flash + third-party fetch).
+  Geist Sans stays in the stack as fallback. Headings `font-extrabold`
+  (800) — Nunito's weight is its charm; tracking stays near 0 (rounded
+  faces don't want negative tracking).
 - **Numerals: Geist Mono** for KPI hero numbers, money, times, and count
-  columns — the "financial instrument" signature. Body numerals keep
-  `tabular-nums`.
-- Size ramp unchanged. **Visibility rules (2026-07-06 — binding, swept
-  and enforced):** the product is built for imperfect vision. Two tests
-  every screen must pass: **"Where am I? What am I doing?"** (location +
-  state always announced — strong active nav states, a PageHeader or
-  equivalent large title, a per-page browser title) and **"never
-  squint"** (nothing load-bearing is tiny or faint).
-  - **12px floor, enforced**: `text-[11px]`/`text-[10px]` and sub-0.75rem
-    literals are banned everywhere (dashboard AND portal — the portal's
-    warm world follows the same floor). Short state badges sit AT the
-    floor, never under it. Prefer rem-based Tailwind sizes over px
-    literals — px does not scale with the user text-size setting.
-  - **Contrast**: `gray-500` lightest meaningful on white,
-    `dark:gray-400` lightest on dark; portal muted ink is `PORTAL_MUTED`
-    (#6B635A) — never lighter literals; never dim a zero; no
-    hover-to-reveal for data values.
-  - **Text-size setting**: per-device Standard/Large/Extra-large scales
-    the ROOT font-size (`html.dc-text-lg`/`.dc-text-xl` in style.css,
-    pre-paint script in app/layout.tsx, control =
-    `components/ui/text-size-toggle.tsx` in Settings → Account + portal
-    My info). This only works because sizes are rem-based — another
-    reason the px ban matters.
+  columns — tabular figures stay crisp against the rounded text face. Body
+  numerals keep `tabular-nums`.
+- Size ramp unchanged. **Visibility rules (2026-07-06 — binding):** the
+  product is built for imperfect vision. Two tests every screen must pass:
+  **"Where am I? What am I doing?"** and **"never squint."**
+  - **12px floor, enforced** (CI): `text-[11px]`/`text-[10px]` and
+    sub-0.75rem literals banned everywhere. Badges sit AT the floor, never
+    under. Prefer rem sizes — px doesn't scale with the text-size setting.
+  - **Contrast**: `gray-500` lightest meaningful on white, `dark:gray-400`
+    lightest on dark; never dim a zero; no hover-to-reveal data.
+  - **Text-size setting**: per-device Standard/Large/Extra-large scales the
+    ROOT font-size (`html.dc-text-lg`/`.dc-text-xl`).
   - Every icon-only interactive has `aria-label`; truncations carry
     `title`; hit targets ≥40px for primary controls.
 - Public site keeps Fraunces/Inter; portal and marketing unchanged.
 
-### 2.3 Radius scale (kill the rounded-xl grab-bag)
+### 2.3 Radius scale (the bubble scale)
 
-`--r-xs:4px` chips/badges/inputs · `--r-sm:6px` buttons · `--r-md:8px`
-cards · `--r-lg:12px` panels/modals/drawers · `--r-pill:9999px` pills &
-avatars. Data surfaces never exceed 12px.
+`--r-xs:8px` chips/badges/inputs · `--r-sm:12px` buttons · `--r-md:16px`
+cards · `--r-lg:22px` panels/modals/drawers · `--r-pill:9999px` pills,
+avatars & nav items. Same names as v2 — only values moved. Squares are
+over; data tables keep straight rows inside rounded cards.
 
-### 2.4 Elevation & surfaces ("etched instrument panel")
+### 2.4 Elevation & surfaces (floating bubbles)
 
-- Resting card = `bg-surface-2` + inset hairline ring
-  (`inset 0 0 0 1px var(--color-hairline)`) + 8px radius + **no shadow**.
-- Panels = surface-1; wells/table-heads = surface-sunk.
-- Hover (pointer-fine only): hairline → hairline-strong + `--shadow-xs` +
-  `translateY(-2px)` on *interactive cards only*; plain rows get bg tint.
-- Overlay shadows (navy-tinted, never black):
-  `--shadow-xs: 0 1px 2px rgb(20 26 46/.06)` ·
-  `--shadow-pop: 0 4px 12px rgb(20 26 46/.10), 0 8px 24px rgb(20 26 46/.08), inset 0 0 0 1px var(--color-hairline)` ·
-  `--shadow-modal: 0 16px 48px rgb(20 26 46/.16), 0 32px 72px rgb(20 26 46/.20)`
-- Focus ring (teal, on every focusable):
-  `0 0 0 2px rgb(42 127 140/.45), 0 0 0 4px rgb(42 127 140/.20)`.
-- **Chrome aura (signature, chrome-only):** one soft radial teal→navy
-  gradient bleeding from the shell's top-left + a 2–3% noise/grain overlay
-  on the canvas (kills banding; echoes the logo's liquid texture). Never
-  behind data surfaces.
+- Resting card = `bg-surface-2` + `--r-md` + **`--shadow-card`** (soft
+  dream-blue). The v2 etched inset-hairline ring is RETIRED — separation is
+  elevation + the sky-tinted canvas, not borders.
+- Panels = surface-1 + `--r-lg`; wells/table-heads = surface-sunk.
+- Hover (pointer-fine only): shadow deepens to `--shadow-pop` +
+  `translateY(-3px)` on *interactive cards only*; plain rows get bg tint.
+- Shadows (dream-blue in light, deep navy-black at night — never pure
+  black in light):
+  `--shadow-xs: 0 1px 3px rgb(76 125 240/.07)` ·
+  `--shadow-card: 0 2px 6px rgb(76 125 240/.06), 0 10px 28px rgb(76 125 240/.11)` ·
+  `--shadow-pop: 0 4px 10px rgb(76 125 240/.10), 0 18px 44px rgb(76 125 240/.16)` ·
+  `--shadow-modal: 0 16px 48px rgb(30 42 74/.18), 0 32px 72px rgb(30 42 74/.20)`
+- Focus ring (dream blue, on every focusable):
+  `0 0 0 2px rgb(76 125 240/.50), 0 0 0 4px rgb(76 125 240/.22)`.
+- **Chrome aura (signature, chrome-only):** one soft radial dream-blue glow
+  bleeding from the shell's top-left + the 2–3% grain overlay on the canvas.
+  Never behind data surfaces. Decorative floating bubble circles are
+  allowed in CHROME zones only (page-header/hero bands), `--color-teal-*`
+  at ≤16% alpha, `pointer-events:none`, gentle float ≤10px.
 
 ---
 
-## Part 3 — Motion system ("considered fluidity")
+## Part 3 — Motion system ("springy, not bouncy-castle")
 
-CSS-first. **No animation library** — `@theme` tokens + `@starting-style` +
-CSS `linear()` springs cover the spec; Headless UI transitions re-point to
-these tokens. Hard ceiling 300ms for UI transitions. (View Transitions API:
-still experimental in Next 16.2 — do not adopt yet.)
+CSS-first. **No animation library.** Hard ceiling 300ms for UI transitions.
+All v2 tokens survive; v3 adds the cute overshoot:
 
 ```css
 --dur-instant:90ms; --dur-fast:140ms; --dur-base:200ms; --dur-slow:260ms;
 --dur-cinematic:480ms; /* signature moments only */
 --ease-out:cubic-bezier(.23,1,.32,1);         /* default (out-quint) */
---ease-out-soft:cubic-bezier(.215,.61,.355,1);
---ease-in-out:cubic-bezier(.77,0,.175,1);     /* on-screen moves */
 --ease-ios:cubic-bezier(.32,.72,0,1);         /* drawers */
 --ease-emphasis:cubic-bezier(.19,1,.22,1);    /* signature reveals */
---spring-gentle:linear(0,.1,.25,.5,.68,.8,.88,.94,.98,.995,1);
---spring-subtle:linear(0,.18,.5,.83,1.05,1.04,1.01,1,.999,1);
+--spring-gentle / --spring-subtle             /* linear() springs (v2) */
+--spring-pop:cubic-bezier(.34,1.56,.64,1);    /* v3 overshoot — small things */
 ```
 
-**Choreography:** drawer enter `translateX(100%→0)` base/ios, exit fast
-(exits always ~20% faster); modal `scale(.96→1)`+fade base/out, exit fast;
-popover/menu `scale(.97)`+`y(-4px)` fast, transform-origin = trigger; toast
-`y(8px→0)` fast (spring-subtle allowed); page/section content fade+`y(6px)`
-slow via `@starting-style`; list stagger ONLY on first reveal, 40–60ms,
-capped at 6–8 rows; button/card press `scale(.97)` instant; row hover = bg
-tint, instant, no transform.
+**Choreography (v2 rules survive, plus):** `--spring-pop` is for SMALL
+entrances only — feed icons, chips, badges, the confirmation-ring fill —
+never panels/pages (overshoot on big surfaces reads as wobble). Drawer/
+modal/popover/toast/skeleton/stagger rules unchanged. Button/card press
+`scale(.97)` instant; row hover = bg tint, instant.
 
-**Skeletons:** show nothing under ~250ms; shimmer (left→right ~1.4s) over
-pulse; shaped to the real layout; static under reduced-motion. Spinners
-only inside buttons ("Sending…").
+**KPI count-up:** once per session entry on the Overview, ≤700–900ms,
+ease-out, Geist Mono, snaps under reduced-motion. Never on
+re-query/filter/drawer.
 
-**KPI count-up:** once per session entry on the Overview, ≤700ms, ease-out,
-Geist Mono, snaps under reduced-motion. Never on re-query/filter/drawer.
+**Heartbeat elements (law 7, budgeted):** sparkline draw-in ≤1.1s once;
+ring fill ≤1.1s once; "live" dot pulse ~1.8s loop (compositor-only);
+activity-feed stagger 100–140ms, first reveal only, ≤6 rows.
 
 **Signature moments (exactly two — resist the third):**
-1. **Morning reveal** — on dashboard entry: the teal aura washes in behind
-   the page header (cinematic/emphasis), attention cards cascade once
-   (50ms stagger, spring-gentle, `y(8px)`+fade), KPIs count up in the same
-   beat.
-2. **Ambient breath** — the active nav item + the page's single primary
-   button carry a ~6s compositor-only gradient drift. Subliminal; the
-   brand alive at rest.
+1. **Morning reveal** — on dashboard entry: the blue aura washes in behind
+   the page header, attention cards cascade once, KPIs count up, sparklines
+   draw, the ring fills — one orchestrated beat.
+2. **Ambient breath** — the active nav pill + the page's single primary
+   carry a ~6s compositor-only gradient drift. Subliminal.
 
-**Never animate:** table/agenda re-sort/re-filter results (rows snap);
-text/numbers being read; keyboard-driven actions (⌘K nav, Enter, Esc);
-100×/day interactions beyond instant feedback; layout properties
-(transform/opacity/clip-path only); inline-validation appearance;
-`scale(0)` entrances; sidebar active-state on click.
+(Dark-mode canvas stars are a THEME property, not a motion moment — a
+static/very-slow-twinkle decorative layer behind everything, killed under
+reduced-motion. They live in the shell canvas only.)
+
+**Never animate (unchanged):** table/agenda re-sort/re-filter (rows snap);
+text being read; keyboard-driven actions; 100×/day interactions beyond
+instant feedback; layout properties (transform/opacity only);
+inline-validation appearance; `scale(0)` entrances; sidebar active-state on
+click.
 
 **A11y/perf:** global `prefers-reduced-motion: reduce` kills transforms,
-shimmer, count-up, and aura drift — keeps opacity/color fades. Hover motion
-gated `(hover:hover) and (pointer:fine)`. `will-change` only while an
-element actively animates.
+shimmer, count-up, pops, pulses, twinkle, and aura drift — keeps
+opacity/color fades. Hover motion gated `(hover:hover) and (pointer:fine)`.
+`will-change` only while actively animating.
 
 ---
 
-## Part 4 — Shell & navigation v2
+## Part 4 — Shell & navigation v3
 
-**Sidebar (3 states):** expanded 248px (default ≥`xl`), icon rail 64px
-(default `lg`→`xl`; user toggle **`[`** anywhere, persisted), overlay
-drawer (<`lg`). Rail mode REQUIRES hover-flyout labels (200ms delay)
-showing label + count — unlabeled icons are banned (fixes the
-iPad-landscape legibility gap).
+**Sidebar (3 states, structure unchanged):** expanded 248px, icon rail
+64px (`[` toggle), overlay drawer (<`lg`). Rail mode keeps hover-flyout
+labels. Anatomy (logo → org label → cockpit ⌘1/2/3 → groups → Settings +
+avatar) unchanged from v2 Part 4.
 
-Anatomy top→bottom:
-1. **Logo** — Dream Create liquid-D (`components/brand/dream-create-logo`),
-   collapse caret top-right.
-2. **Org switcher block** — a STATIC label: clinic name + plan pill (demo mode
-   adds an amber "Demo" pill). No dropdown — the old chevron menu with "Clinic
-   settings" / "Plan & billing" is gone; Settings has one entry point (see Bottom).
-3. **Cockpit zone** (label-less, subtle inset bg): Today `⌘1` ·
-   Messages `⌘2` (badge) · Appointments `⌘3`. Driven by
-   `ModuleDef.pinned`/`shortcut`; entries also remain in their groups.
-4. **Groups** (collapsible; headers stay): Daily (Patients, Leads, Intake) ·
-   Growth · Website · Business. **Inbox folds into Messages at nav level**
-   — one "Messages" entry; the messages surface exposes a "Mailbox" tab
-   linking to /inbox (true data-level merge is future work).
-5. **Bottom:** Settings (pinned slot, not a group) → the `/settings` card-grid
-   home · avatar + name → profile menu (name + Sign out only; the "Account
-   settings" item was removed — Settings is the single entry point). Focused
-   settings pages carry a "‹ Settings" back-to-home link in their own header
-   (shared `SettingsPage`); there is no cross-page settings rail.
+**v3 states:** active = **full gradient pill** (`rounded-full`,
+`from-teal-400 to-teal-600`, white text + white icon, soft blue glow
+shadow, + ambient breath) — the v2 left-bar + tint is retired; hover =
+ink/4% bg, `rounded-full`. Badges: **amber** count pills (warn semantics,
+never brand); rail shows a dot, the flyout shows the number.
 
-States: active = 2px teal left bar + `teal-500/10` tint + teal icon +
-ink-bold label (+ ambient breath); hover = ink/4% bg. Badges: **amber**
-count pills (warn semantics, not teal); rail shows a dot, the flyout shows
-the number.
+**Header (56px):** unchanged structurally — hamburger + title left;
+`+ New ▾` quick-create, bell, demo chip, help, theme, avatar right.
 
-**Header (56px):** left = hamburger (<lg) + page title (settings pages instead
-carry a "‹ Settings" back-to-home link in their own header — see nav Bottom);
-right = **`+ New ▾`
-quick-create** (context-aware default: booking on /appointments, patient
-on /patients; `C` opens it; entries plan-gated: Booking / Patient / Lead /
-Campaign / Post) · bell (amber unread) · demo "Exit demo" chip when active
-· help · theme · avatar.
-
-**Demo/billing banners → chrome chips:** the full-width orange strip dies.
-Demo = amber 3px top hairline + org-switcher pill + header exit chip.
-Dunning/activation banners become a slim header-adjacent chip row that
-expands on click (same logic/components, slimmer skin).
-
-**Keyboard:** `⌘K` palette · `[` sidebar · `⌘1/2/3` cockpit · `C` create ·
-`G then P/A/L` go-to Patients/Appointments/Leads · `Esc` closes the
-topmost surface.
+**Keyboard (unchanged):** `⌘K` · `[` · `⌘1/2/3` · `C` · `G then P/A/L` ·
+`Esc`.
 
 ---
 
-## Part 5 — Component inventory & v2 specs
+## Part 5 — Component inventory & v3 specs
 
-Import from `@/components/ui/...` — same inventory as v1, re-skinned:
+Import from `@/components/ui/...` — same inventory, re-skinned:
 
-| Component | File | v2 treatment |
+| Component | File | v3 treatment |
 |---|---|---|
-| `PageHeader` | `page-header.tsx` | eyebrow teal-700 caps · H1 ink-900 tracking-tight · subtitle ink-600 · legend slot · actions top-right (one primary). Aura halo behind this zone. |
-| `ActionButton` | `action-button.tsx` | primary = teal-500 fill (dark: teal-400 + ink-900 text), hover teal-600, radius 6px, press scale(.97), ambient breath on the page's single primary only · secondary = surface-2 + hairline ring · ghost = transparent ink-600 · danger = rose. |
-| `StatusPill` | `status-pill.tsx` | pill radius; tone fills per Part 1 (info = indigo); 12px floor; `title` explains. |
-| `FilterChip` | `filter-chip.tsx` | 4px radius; active = teal-500/10 bg + teal-700 text + hairline-strong ring (selection ≠ status); count inside; `aria-pressed`; `title` on emoji. |
+| `PageHeader` | `page-header.tsx` | eyebrow teal-700 caps · H1 ink-900 extrabold · subtitle ink-600 · legend slot · actions top-right (one primary). Aura halo + optional bubble decor behind this zone. |
+| `ActionButton` | `action-button.tsx` | primary = dream gradient (`from-teal-400 to-teal-600`, white text BOTH themes, soft glow shadow, hover deepens), radius 12px via `.btn`, press scale(.97), breath on the page's single primary only · secondary = surface-2 + hairline · ghost = transparent teal-700 text · danger = rose. |
+| `StatusPill` | `status-pill.tsx` | pill radius; tone fills per Part 1 (info = violet, special = fuchsia); 12px floor; `title` explains. |
+| `FilterChip` | `filter-chip.tsx` | pill radius (`--r-xs` ≥8px or full pill); active = teal-500/10 bg + teal-700 text (selection ≠ status); count inside; `aria-pressed`. |
 | `GlyphCluster` | `glyph-cluster.tsx` | mechanics unchanged; registry ids only. |
-| `EncodingLegend` | `encoding-legend.tsx` | popover = surface-1 + shadow-pop + 12px radius; indigo info swatch. |
-| `EmptyState` | `empty-state.tsx` | surface-sunk well; ink-600 copy; one primary CTA; no illustrations. |
-| `BulkBar` | `bulk-bar.tsx` | floating surface-2 + shadow-pop + 12px radius; slides up fast/ease-out; explicit verbs. |
-| `KpiStat` | `kpi-stat.tsx` | Geist Mono numerals (text-3xl ink-900), ink-500 caps label, etched card, hover lift only when drillable, count-up per Part 3. |
-| `FlashToast` | `flash-toast.tsx` | motion per Part 3; tone-tinted hairline edge, not full-bleed fills. |
+| `EncodingLegend` | `encoding-legend.tsx` | popover = surface-1 + shadow-pop + `--r-lg`; violet info swatch, fuchsia special swatch. |
+| `EmptyState` | `empty-state.tsx` | surface-sunk well, `--r-md`; ink-600 copy; one primary CTA. The ONE sanctioned mascot home: the small SVG tooth may appear in empty states and the schedule-gap card — nowhere else. |
+| `BulkBar` | `bulk-bar.tsx` | floating surface-2 + shadow-pop + `--r-lg` (or pill); slides up fast; explicit verbs. |
+| `KpiStat` | `kpi-stat.tsx` | Geist Mono numerals (text-3xl ink-900), ink-500 caps label, floating card, hover lift when drillable, count-up per Part 3, **heartbeat slot** (sparkline/ring/delta — law 7). |
+| `FlashToast` | `flash-toast.tsx` | motion per Part 3; tone-tinted edge (info edge = violet). |
 
 Tables/agenda rows: header row surface-sunk + ink-500 caps labels; row
-hover bg tint (instant); selected row = teal inner ring
+hover bg tint (instant); selected row = brand inner ring
 (`inset 0 0 0 1px teal-500/40` + teal-500/5 bg); aging left-borders
-unchanged. Drawers/modals: surface-2, 12px radius, shadow-modal, hairline
-separators, ✕ + Esc + scrim always. Skeletons: shared `.skeleton` shimmer
-shaped to real layout. Headless UI modals/drawer/Tooltip/`form-input`
-classes kept, re-skinned at the token level.
+unchanged. Drawers/modals: surface-2, `--r-lg`, shadow-modal, ✕ + Esc +
+scrim always. Skeletons: shared `.skeleton` shimmer. Headless UI kept,
+re-skinned at the token level.
 
 ---
 
 ## Part 6 — Page anatomy, interaction rules, migration, boundaries
 
-**Page anatomy v2:**
-
-```
-<PageHeader eyebrow="Daily · {Org}" title="Appointments"
-            subtitle="one calm line about what this page is for"
-            legend={<EncodingLegend …/>}
-            actions={<ActionButton variant="primary">+ New booking</ActionButton>} />
-[Attention band — what needs doing now, each item one-click actionable]
-[Filter row — FilterChips (multi-state) + selects (single-pick) + search]
-[Content — list/table/cards; aging borders; glyphs; inline quick actions]
-[BulkBar — when rows are selectable]
-[FlashToast — after any mutation]
-```
-
-Interaction rules (v1, unchanged): lists' primary scan target `text-sm
-font-medium` with ≤2 inline quick actions, whole row → drawer, names → the
-entity; drawers order identity → context stats → actions (primary first) →
-content → destructive separated at the bottom; chips = visible toggleable
-counted states, selects = single-pick from many; **every server action
-resolves to visible feedback** (FlashToast or inline error) — silent
-success is a bug. Voice: warm, plain, anti-shame — "3 still need a text,"
-never "3 records pending confirmation."
+**Page anatomy (unchanged):** PageHeader → attention band → filter row →
+content → BulkBar → FlashToast. Interaction rules unchanged (drawer order,
+chips-vs-selects, every server action resolves to visible feedback). Voice:
+warm, plain, anti-shame — "3 still need a text."
 
 **The legend requirement (unchanged):** any page rendering glyphs, aging
-borders, or non-self-labeled pills mounts `<EncodingLegend>` declaring
-exactly what it uses; the registry in `lib/ui/encodings.ts` is the only
-place marks are defined.
+borders, or non-self-labeled pills mounts `<EncodingLegend>`; the registry
+in `lib/ui/encodings.ts` is the only place marks are defined.
 
-**Migration checklist (per module — definition of done):**
-- [ ] Surfaces: `bg-white dark:bg-gray-800 shadow-sm rounded-xl` (and kin)
-      → the keystone's etched-surface utility; no resting shadows; radius
-      per scale
+**v3 migration checklist (per module — definition of done):**
+- [ ] Surfaces ride `.v2-card`/`.v2-panel`/tokens (they float now for
+      free); kill any lingering local `border`+`shadow-sm` card recipes
 - [ ] Numerals → Geist Mono where KPI/money/time/count
-- [ ] Primary buttons/links/active states → teal; one-primary rule holds
-- [ ] Info-tone surfaces verified indigo (legend included)
-- [ ] Motion only per Part 3 (drawer/modal/toast/skeleton classes);
-      never-animate list respected
-- [ ] PageHeader/ActionButton/StatusPill/FilterChip/GlyphCluster/
-      EmptyState/BulkBar/KpiStat/FlashToast used everywhere applicable
-- [ ] Typography floor + tabular-nums + aria-labels intact; dark mode
-      intact on every changed element
-- [ ] Module tests updated preserving INTENT; `pnpm typecheck` + tests +
-      **`pnpm build`** green (UI PRs always run the real build)
+- [ ] Primary buttons/links/active states → brand gradient/hue; one-primary
+      rule holds
+- [ ] Info-tone surfaces verified VIOLET, special verified FUCHSIA (legend
+      included) — no indigo literals left in the module
+- [ ] Law 7 pass: each KPI/stat surface carries its one heartbeat
+      (sparkline/ring/delta/live-dot) fed by REAL data (no fake content)
+- [ ] Motion per Part 3; never-animate list respected; `--spring-pop` only
+      on small elements
+- [ ] Primitives used everywhere applicable; typography floor +
+      tabular-nums + aria-labels intact; dark ("dream at night") verified
+- [ ] Module tests updated preserving INTENT; `pnpm typecheck` + full
+      `pnpm test` + **`pnpm build`** green
 
-**Hard boundaries for implementation agents:**
+**Hard boundaries for implementation agents (unchanged where not noted):**
 - UI layer only: do NOT change `lib/services/**` behavior, server-action
   semantics, routes/URLs, or DB schema.
 - Do NOT touch `app/site`, `app/(portal)`, `app/(marketing)`,
   `components/clinic-site`, `components/marketing`,
   `components/patient-portal` visuals.
 - Do NOT introduce an animation library or `next/font/google`.
-- Do NOT use teal for any status meaning, anywhere.
-- The encodings registry changes ONLY via the keystone (info→indigo);
-  module agents consume, never redefine.
+- Do NOT use the brand hue for any status meaning, anywhere.
+- The encodings registry changes ONLY via the keystone; module agents
+  consume, never redefine.
 - Module agents do NOT edit shared primitives (`components/ui/*`,
   `lib/ui/*`) — note shortfalls in your report instead.
-- Keep demo-data compatibility: the Acme demo must exercise every state
+- The tooth mascot appears ONLY in the two sanctioned homes (empty states,
+  schedule-gap). One flourish, everywhere = zero flourishes.
+- Keep demo-data compatibility: the demo clinic must exercise every state
   you render.

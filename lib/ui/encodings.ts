@@ -20,13 +20,15 @@
  * - ok      (emerald) healthy · done-good · confirmed · fresh
  * - warn    (amber)   needs OUR action · aging · unconfirmed · due
  * - urgent  (rose)    overdue · failed · problem — act now
- * - info    (indigo)  in flight · ball in the patient's court · FYI
- * - special (violet)  new arrival · featured · selected (brand vacated it)
+ * - info    (violet)  in flight · ball in the patient's court · FYI
+ * - special (fuchsia) new arrival · featured · celebrated
  * - neutral (gray)    archived · draft · n/a · terminal-neutral
  *
- * v2 change: `info` moved sky → indigo. The brand is now teal, and a
- * teal/sky pair is too close in hue to disambiguate at a glance. Teal is
- * NEVER a status — identity only (primary, selection, focus, links, nav).
+ * v3 change: the brand moved teal → dream blue, so `info` vacated indigo
+ * (indistinguishable from a blue brand at pill size) for the periwinkle
+ * violet ramp, and `special` moved violet → fuchsia (a pink "celebrate"
+ * accent that suits new arrivals). The brand hue is NEVER a status —
+ * identity only (primary, selection, focus, links, nav).
  */
 export type Tone = 'ok' | 'warn' | 'urgent' | 'info' | 'special' | 'neutral'
 
@@ -35,8 +37,8 @@ export const TONE_PILL: Record<Tone, string> = {
   ok: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
   warn: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
   urgent: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-  info: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
-  special: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+  info: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+  special: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300',
   neutral: 'bg-gray-500/15 text-gray-600 dark:text-gray-300',
 }
 
@@ -45,8 +47,8 @@ export const TONE_TEXT: Record<Tone, string> = {
   ok: 'text-emerald-700 dark:text-emerald-300',
   warn: 'text-amber-700 dark:text-amber-300',
   urgent: 'text-rose-700 dark:text-rose-300',
-  info: 'text-indigo-700 dark:text-indigo-300',
-  special: 'text-violet-700 dark:text-violet-300',
+  info: 'text-violet-700 dark:text-violet-300',
+  special: 'text-fuchsia-700 dark:text-fuchsia-300',
   neutral: 'text-gray-500 dark:text-gray-400',
 }
 
@@ -57,8 +59,8 @@ export const TONE_DOT: Record<Tone, string> = {
   ok: 'bg-emerald-500',
   warn: 'bg-amber-500',
   urgent: 'bg-rose-500',
-  info: 'bg-indigo-500',
-  special: 'bg-violet-500',
+  info: 'bg-violet-500',
+  special: 'bg-fuchsia-500',
   neutral: 'bg-gray-400',
 }
 
@@ -165,7 +167,7 @@ export const GLYPHS: Record<GlyphId, GlyphDef> = {
     symbol: '🆕',
     label: 'Booked in the last hour',
     description: 'This booking just landed. New bookings answered fast set the tone for the visit.',
-    className: 'text-violet-500',
+    className: 'text-fuchsia-500',
   },
   rescheduled: {
     id: 'rescheduled',

@@ -191,14 +191,14 @@ input[type="search"]::-webkit-search-results-decoration {
 }
 .v2-app *:not(.no-scrollbar)::-webkit-scrollbar-thumb,
 .dc-scroll::-webkit-scrollbar-thumb {
-  background-color: rgb(20 26 46 / 0.28);
+  background-color: rgb(30 42 74 / 0.28);
   border: 2px solid transparent;
   border-radius: 9999px;
   background-clip: padding-box;
 }
 .v2-app *:not(.no-scrollbar)::-webkit-scrollbar-thumb:hover,
 .dc-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(20 26 46 / 0.45);
+  background-color: rgb(30 42 74 / 0.45);
 }
 .v2-app *:not(.no-scrollbar)::-webkit-scrollbar-corner,
 .dc-scroll::-webkit-scrollbar-corner {
@@ -220,7 +220,7 @@ input[type="search"]::-webkit-search-results-decoration {
   .v2-app,
   .dc-scroll {
     scrollbar-width: thin;
-    scrollbar-color: rgb(20 26 46 / 0.4) transparent;
+    scrollbar-color: rgb(30 42 74 / 0.4) transparent;
   }
   .dark .v2-app,
   .dark .dc-scroll {

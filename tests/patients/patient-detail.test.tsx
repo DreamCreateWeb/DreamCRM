@@ -261,7 +261,7 @@ describe('PatientDetail v2 skin', () => {
     expect(mono.some((n) => n.textContent?.includes('$240'))).toBe(true)
   })
 
-  it('uses the indigo info tone on the inbound-message pill (ball in their court)', () => {
+  it('uses the violet info tone on the inbound-message pill (ball in their court)', () => {
     const h = header({ nextVisitAt: null, nextVisitType: null })
     render(
       <PatientDetail
@@ -272,7 +272,7 @@ describe('PatientDetail v2 skin', () => {
       />,
     )
     const pill = screen.getByText('From patient')
-    // info → indigo per the v2 encodings registry (was sky in v1).
-    expect(pill.className).toMatch(/indigo/)
+    // info → violet per the v3 encodings registry (indigo in v2, sky in v1).
+    expect(pill.className).toMatch(/violet/)
   })
 })

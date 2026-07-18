@@ -4010,3 +4010,44 @@ Delivered/Opened, red "⚠ Not delivered" on failure. Gmail Tier-2 sends
 stay at "Sent" (no Resend events — honest). Owner dashboard steps (webhook
 event subscriptions + domain open-tracking toggle) appended to
 docs/inbound-email.md.
+
+## 2026-07-17 — Design System v3: "Cute Dream, Living Data" (foundation)
+
+The owner compared the dashboard to Dental Intelligence's portal and named
+the real gap: theirs felt ALIVE (data everywhere) and premium; ours wore an
+austere instrument-panel skin that argued with the product's warm voice —
+and the owner hates green/teal, loves blue/bubbles/shadows/rounded/cute.
+Direction was prototyped as an interactive mockup (light + "dream at
+night" dark, palettes CVD-validated), approved on the big screen, then
+shipped as the v3 foundation in one pass:
+
+- **Token layer** (`app/css/style.css`): every v2 token NAME kept, values
+  moved — sky-blue canvas/surfaces, blue-lean ink, bubble radius scale
+  (8/12/16/22/pill), soft dream-blue shadows (+ new `--shadow-card`; cards
+  FLOAT — the etched inset-ring doctrine retired), blue focus ring, new
+  `--spring-pop` overshoot, "dream at night" dark world, blue aura.
+- **The ramp trick, one level up:** the brand ramp rides the `teal-*`
+  variable names; re-pointing it to the dream-blue ramp (500 #4C7DF0 /
+  400 #7CA5FF / 700 #2F52B3) reskinned all 151 teal-consuming dashboard
+  files in one move. Gray ramp re-tinted blue-cool the same way.
+- **Fonts:** Nunito (variable 200–1000, latin + latin-ext) self-hosted in
+  `public/fonts` + `@font-face`; leads `--font-sans-dashboard` with Geist
+  fallback; Geist Mono stays for numerals.
+- **Encodings** (`lib/ui/encodings.ts`): info indigo→violet (indigo is
+  unreadable next to a blue brand), special violet→fuchsia; flash-toast
+  edges follow; 4 color-literal tests updated (the data-tone-asserting
+  tests survived untouched — the semantic contract doing its job).
+- **Primitives:** ActionButton primary/breath = gradient bubble w/ glow
+  (white text both themes); tenant-sidebar active = full gradient pill
+  (rounded-full, white ink, glow; left-bar retired) w/ active-aware kbd
+  hints.
+- **Doctrine:** DESIGN-SYSTEM.md rewritten as v3 — actions-first, the
+  six-tone contract, legibility floor, and motion architecture survive;
+  new laws: soft-reads-friendly (float, bubbles), EVERY NUMBER WANTS A
+  HEARTBEAT (living-data law w/ per-surface budget), instant-first kept.
+  Mascot (SVG tooth) sanctioned in exactly two homes: empty states +
+  schedule-gap cards. tokens.test.ts guard re-pinned to v3 values.
+
+NEXT (the module "alive" pass, by class): sweep modules for lingering local
+card recipes/indigo literals, then add law-7 heartbeats (sparklines/rings/
+deltas from real columns) surface by surface. Overview first.

@@ -12,7 +12,7 @@ system, don't replace it.
 | Doc | What it is |
 |---|---|
 | [`DESIGN.md`](./DESIGN.md) | Durable strategy + design principles — what we're building, who for, positioning, module roadmap. Read before designing anything new. |
-| [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) | The binding dashboard UI system (v2 "Instrument Panel, Liquid Soul") — semantic tones, glyphs, motion, components. Read before touching dashboard UI. |
+| [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) | The binding dashboard UI system (v3 "Cute Dream, Living Data" — dream blue, bubbles, Nunito, living-data law; re-skinned from v2 2026-07-17) — semantic tones, glyphs, motion, components. Read before touching dashboard UI. |
 | **This file** | Current implementation state: architecture, module map, subsystem reference, conventions, ops. |
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log (moved out of this file 2026-07-02). Per-session implementation detail lives there. |
 | [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. |
