@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import type { TenantContext } from '@/lib/auth/context'
 import {
   getInboxStats,
+  getMessagesPerDay14,
   getPatientThreadById,
   getThreadPatientContext,
   listMessagesInThread,
@@ -18,6 +19,7 @@ import type { PatientTagView } from '@/lib/types/patient-tags'
 import { listAssignableStaff } from '@/lib/services/patient-followups'
 import { listScheduledForPatient, type ScheduledMessageView } from '@/lib/services/scheduled-messages'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
+import Sparkline from '@/components/ui/sparkline'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { CHANNEL_LEGEND } from './channel-meta'
@@ -83,12 +85,20 @@ export default async function ClinicMessagesView({
     starredOnly: searchParams.starred === '1',
   }
 
-  const [threads, stats, messageTemplates, members] = await Promise.all([
+  const [threads, stats, messageTemplates, members, perDay14] = await Promise.all([
     listPatientThreads(ctx.organizationId, ctx.userId, filters),
     getInboxStats(ctx.organizationId, ctx.userId),
     listMessageTemplates(ctx.organizationId),
     listAssignableStaff(ctx.organizationId),
+    getMessagesPerDay14(ctx.organizationId),
   ])
+
+  // The page's ONE heartbeat (law 7): the 14-day conversation pulse —
+  // patient messages sent + received per clinic-local day. Decorative —
+  // hidden from AT (the filter chips carry the real counts) and omitted
+  // entirely when fewer than 2 days carry any messages (a flat or
+  // single-blip line says nothing worth drawing).
+  const showPulse = perDay14.filter((p) => p.value > 0).length >= 2
 
   // Serialize the rows the selectable client list needs (dates → ISO, plus the
   // pre-built ?thread= href so the server keeps ownership of the querystring).
@@ -238,6 +248,17 @@ export default async function ClinicMessagesView({
               assignedTo={searchParams.assignedTo}
               unread={searchParams.unread}
             />
+            {showPulse && (
+              <div
+                className="mt-1.5 px-0.5 flex items-center justify-between gap-2"
+                title="Patient messages per day — sent and received — over the last 14 days"
+              >
+                <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">14-day pulse</span>
+                <span aria-hidden="true">
+                  <Sparkline data={perDay14} color="var(--color-teal-500)" width={120} height={28} labels={false} />
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             {threads.length === 0 ? (

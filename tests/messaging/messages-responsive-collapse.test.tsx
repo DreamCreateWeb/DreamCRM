@@ -7,17 +7,19 @@ import { render } from '@testing-library/react'
  * At lg+ both panes show. We render the real RSC with mocked services and
  * assert the responsive class contract on the list aside + detail section.
  */
-const { listThreads, inboxStats, threadById, listMessages, patientContext, markRead } = vi.hoisted(() => ({
+const { listThreads, inboxStats, threadById, listMessages, patientContext, markRead, perDay } = vi.hoisted(() => ({
   listThreads: vi.fn(),
   inboxStats: vi.fn(),
   threadById: vi.fn(),
   listMessages: vi.fn(),
   patientContext: vi.fn(),
   markRead: vi.fn(),
+  perDay: vi.fn(),
 }))
 
 vi.mock('@/lib/services/patient-messaging', () => ({
   getInboxStats: inboxStats,
+  getMessagesPerDay14: perDay,
   getPatientThreadById: threadById,
   getThreadPatientContext: patientContext,
   listMessagesInThread: listMessages,
@@ -83,6 +85,10 @@ beforeEach(() => {
   patientContext.mockResolvedValue(null)
   markRead.mockResolvedValue(undefined)
   threadById.mockResolvedValue({ ...threadRow, unreadCount: 0 })
+  // Quiet heartbeat by default — all-zero series renders no sparkline, so the
+  // layout assertions stay focused on the panes (pulse render guards live in
+  // messages-pulse.test.tsx).
+  perDay.mockResolvedValue(Array.from({ length: 14 }, (_, i) => ({ bucket: `Jul ${i + 1}`, value: 0 })))
 })
 
 describe('messages two-pane responsive collapse', () => {

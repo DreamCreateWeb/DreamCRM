@@ -6,7 +6,8 @@ import { sendPatientMessageEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
 import { resolvePortalSettings, DEFAULT_AUTO_REPLY_MESSAGE } from '@/lib/types/portal'
-import { isWithinOfficeHours, type ClinicHours } from '@/lib/clinic-timezone'
+import { clinicDayStart, isWithinOfficeHours, type ClinicHours } from '@/lib/clinic-timezone'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 /**
  * Patient Communications service. Unified per-patient threads across
@@ -382,6 +383,53 @@ export async function getInboxStats(
     snoozedAvailable: Number(snoozedAvail),
     archived: Number(archivedCount),
   }
+}
+
+// ── 14-day heartbeat series (Design System law 7) ────────────────────
+
+export interface MessagesPerDayPoint {
+  bucket: string
+  value: number
+}
+
+/**
+ * Patient-thread messages per clinic-local day over the trailing 14 days
+ * (today included, oldest first) — inbound and outbound combined, the
+ * conversation pulse behind the Messages inbox's single heartbeat
+ * sparkline (Design System law 7). Day boundaries are CLINIC-local via
+ * `clinicDayStart`, never the UTC server day: a patient reply at 8 PM
+ * Central is still "today" for the front desk even though it's already
+ * tomorrow in UTC. The DB query stays a plain org-scoped range scan
+ * (rides `patient_message_org_sent_idx`); bucketing happens in JS.
+ * Bucket labels read like 'Jul 5'.
+ */
+export async function getMessagesPerDay14(organizationId: string): Promise<MessagesPerDayPoint[]> {
+  const tz = await getClinicTimeZone(organizationId)
+  const now = new Date()
+  // 15 boundaries → 14 day buckets. bounds[0] is 13 local days back;
+  // bounds[14] is tomorrow's local midnight (today's bucket is still open).
+  const bounds = Array.from({ length: 15 }, (_, i) => clinicDayStart(now, tz, i - 13))
+  const rows = await db
+    .select({ sentAt: schema.patientMessage.sentAt })
+    .from(schema.patientMessage)
+    .where(
+      and(
+        eq(schema.patientMessage.organizationId, organizationId),
+        gte(schema.patientMessage.sentAt, bounds[0]),
+      ),
+    )
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  const points: MessagesPerDayPoint[] = bounds.slice(0, 14).map((b) => ({ bucket: label.format(b), value: 0 }))
+  for (const r of rows) {
+    const t = r.sentAt.getTime()
+    for (let i = 0; i < 14; i++) {
+      if (t >= bounds[i].getTime() && t < bounds[i + 1].getTime()) {
+        points[i].value += 1
+        break
+      }
+    }
+  }
+  return points
 }
 
 // ── Thread patient context (the thread-header context strip) ─────────

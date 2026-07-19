@@ -8,17 +8,19 @@ import { render, screen } from '@testing-library/react'
  * active row. The detail panel is stubbed so this stays focused on the rows.
  */
 
-const { listThreads, inboxStats, threadById, listMessages, patientContext, markRead } = vi.hoisted(() => ({
+const { listThreads, inboxStats, threadById, listMessages, patientContext, markRead, perDay } = vi.hoisted(() => ({
   listThreads: vi.fn(),
   inboxStats: vi.fn(),
   threadById: vi.fn(),
   listMessages: vi.fn(),
   patientContext: vi.fn(),
   markRead: vi.fn(),
+  perDay: vi.fn(),
 }))
 
 vi.mock('@/lib/services/patient-messaging', () => ({
   getInboxStats: inboxStats,
+  getMessagesPerDay14: perDay,
   getPatientThreadById: threadById,
   getThreadPatientContext: patientContext,
   listMessagesInThread: listMessages,
@@ -84,6 +86,10 @@ beforeEach(() => {
   patientContext.mockResolvedValue(null)
   markRead.mockResolvedValue(undefined)
   threadById.mockResolvedValue(null)
+  // Quiet heartbeat by default — all-zero series renders no sparkline, so
+  // these row-focused assertions stay untouched (pulse render guards live in
+  // messages-pulse.test.tsx).
+  perDay.mockResolvedValue(Array.from({ length: 14 }, (_, i) => ({ bucket: `Jul ${i + 1}`, value: 0 })))
 })
 
 describe('Thread list rows (v2)', () => {
