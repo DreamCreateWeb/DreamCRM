@@ -258,7 +258,7 @@ function ProjectCard({ project }: { project: PipelineProject }) {
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 shadow-sm rounded-lg p-3 border border-gray-100 dark:border-gray-700/60 ${pending ? 'opacity-60' : ''}`}
+      className={`v2-card p-3 ${pending ? 'opacity-60' : ''}`}
     >
       <div className="flex items-start gap-2">
         <span className="text-lg shrink-0" aria-hidden>{TYPE_ICONS[project.type as AgencyProjectType] ?? '📦'}</span>
