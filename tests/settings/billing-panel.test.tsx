@@ -133,7 +133,7 @@ describe('SubscriptionPanel — Stripe entry points intact', () => {
     render(<SubscriptionPanel {...baseProps()} />)
     expect(screen.getByRole('button', { name: /Manage billing in Stripe/i })).toBeInTheDocument()
     // The plan grid renders a switch/current control per plan.
-    const grid = screen.getByRole('heading', { name: /Change your plan/i }).closest('section')
+    const grid = screen.getByRole('heading', { name: /Your plan/i }).closest('section')
     expect(grid && within(grid).getAllByText(/Switch to|Current plan/i).length).toBeTruthy()
   })
 })

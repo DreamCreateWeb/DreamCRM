@@ -14,7 +14,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Toggle } from '@/components/ui/toggle'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
+import { PLANS, PURCHASABLE_PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { subscriptionStatusMeta } from '@/lib/billing-status'
 import { trialDaysLeft, trialUrgency, type TrialUrgency } from '@/lib/trial'
 
@@ -345,7 +345,7 @@ export default function SubscriptionPanel({
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
-            {onTrial ? 'Choose your plan' : 'Change your plan'}
+            {onTrial ? 'Set up your plan' : 'Your plan'}
           </h3>
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Monthly</span>
@@ -367,7 +367,10 @@ export default function SubscriptionPanel({
         )}
 
         <div className="grid grid-cols-12 gap-6">
-          {PLANS.map((p) => {
+          {/* 2026-07-19: one purchasable plan — the founding practice rate.
+              Legacy basic/pro tiers still resolve via PLANS for the
+              current-plan summary above, but are no longer offered. */}
+          {PURCHASABLE_PLANS.map((p) => {
             const isCurrent = !onTrial && p.id === planTier
             const isPending = pendingPlan === p.id
             const displayed = priceFor(p)
@@ -375,7 +378,7 @@ export default function SubscriptionPanel({
             return (
               <div
                 key={p.id}
-                className={`relative col-span-full v2-card rounded-[var(--r-md)] sm:col-span-6 xl:col-span-4 ${
+                className={`relative col-span-full v2-card rounded-[var(--r-md)] sm:col-span-8 xl:col-span-6 ${
                   isCurrent
                     ? 'shadow-[inset_0_0_0_2px_var(--color-teal-500)] dark:shadow-[inset_0_0_0_2px_var(--color-teal-400)]'
                     : ''
@@ -395,7 +398,18 @@ export default function SubscriptionPanel({
                       </span>
                     )}
                   </header>
+                  <div className="mb-0.5 text-xs font-bold uppercase tracking-wider text-teal-700 dark:text-teal-300">
+                    Founding practice rate
+                  </div>
                   <div className="mb-1 font-mono-num font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                    {(interval === 'annual' ? p.listAnnualPrice : p.listPrice) != null && (
+                      <span
+                        className="mr-2 text-xl font-semibold text-gray-400 line-through decoration-2 dark:text-gray-500"
+                        title="Regular price"
+                      >
+                        ${(interval === 'annual' ? p.listAnnualPrice : p.listPrice)!.toLocaleString('en-US')}
+                      </span>
+                    )}
                     <span className="text-2xl">$</span>
                     <span className="text-3xl">{displayed}</span>
                     <span className="font-sans text-sm font-medium text-gray-500 dark:text-gray-400">

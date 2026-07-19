@@ -105,7 +105,7 @@ describe('PlatformMetrics', () => {
     expect(screen.getByText('Subscription Mix')).toBeInTheDocument()
     expect(screen.getByText('$150')).toBeInTheDocument()
     expect(screen.getByText('$250')).toBeInTheDocument()
-    expect(screen.getByText('$500')).toBeInTheDocument()
+    expect(screen.getByText('$200')).toBeInTheDocument()
   })
 
   it('shows the Service Mix section with all project type labels', async () => {

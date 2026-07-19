@@ -6,14 +6,23 @@ export interface Plan {
   name: string
   price: number
   annualPrice: number
+  /** Struck-through list price on purchase surfaces (founding-rate framing). */
+  listPrice?: number
+  listAnnualPrice?: number
   color: string
   features: string[]
   priceIds: Record<BillingInterval, string>
 }
 
-// Pricing (2026-07-02 reprice): Basic $150 / Pro $250 / Premium $500 monthly;
-// annual = 2 months free. ⚠️ The Stripe Price ids come from env — after a
-// reprice, create the NEW prices in the Stripe dashboard and swap the six
+// Pricing (2026-07-19, single-plan collapse): only Premium is PURCHASABLE —
+// $200/mo ("founding practice rate"; list $500 shown struck through) /
+// $2,000 annual = 2 months free, matching the LIVE Stripe prices the env
+// ids already point at (the 2026-07-02 $150/250/500 reprice was never
+// executed Stripe-side, so display now tells the truth). Basic/Pro stay in
+// PLANS for legacy lookups + managed provisioning, but never render as
+// self-serve options — purchase surfaces map PURCHASABLE_PLANS.
+// ⚠️ The Stripe Price ids come from env — after any future reprice, create
+// the NEW prices in the Stripe dashboard and swap the six
 // STRIPE_PRICE_* values in `dreamcrm/app-secrets`, then redeploy. Existing
 // subscriptions keep their old price (Stripe never retro-changes a sub);
 // beta users are locked in via coupons on the new prices.
@@ -61,13 +70,14 @@ export const PLANS: Plan[] = [
   {
     id: 'premium',
     name: 'Premium',
-    price: 500,
-    annualPrice: 5000,
+    price: 200,
+    annualPrice: 2000,
+    listPrice: 500,
+    listAnnualPrice: 5000,
     color: 'violet',
     features: [
-      'Everything in Pro',
-      'Recall & outreach campaigns',
-      'Practice analytics',
+      'Every module included — website, booking, portal, messages, reviews',
+      'Recall & outreach campaigns + practice analytics',
       'Online shop + membership plans (payouts to your bank)',
       'Online balance payments + patient payment plans',
       'Careers page + applicant tracking',
@@ -80,6 +90,12 @@ export const PLANS: Plan[] = [
     },
   },
 ]
+
+/** The plans a clinic can actually BUY (2026-07-19: Premium only — the
+ *  founding practice rate). Purchase surfaces (billing panel, trial wall)
+ *  map this; PLANS stays complete for legacy-tier lookups + provisioning. */
+export const PURCHASABLE_PLANS: Plan[] = PLANS.filter((p) => p.id === 'premium')
+
 
 export function getPlanByPriceId(priceId: string): { plan: Plan; interval: BillingInterval } | undefined {
   for (const plan of PLANS) {

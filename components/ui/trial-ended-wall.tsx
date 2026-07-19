@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
+import { PURCHASABLE_PLANS, type BillingInterval, type PlanId } from '@/lib/stripe-config'
 import { startStripeCheckout } from '@/app/(default)/settings/actions'
 import { startActivationCheckout } from '@/app/(default)/billing/activate/actions'
 
@@ -89,7 +89,7 @@ export default function TrialEndedWall({
               </div>
             </div>
             <div className="space-y-2.5">
-              {PLANS.map((p) => {
+              {PURCHASABLE_PLANS.map((p) => {
                 const price = interval === 'annual' ? p.annualPrice : p.price
                 const suffix = interval === 'annual' ? '/yr' : '/mo'
                 return (

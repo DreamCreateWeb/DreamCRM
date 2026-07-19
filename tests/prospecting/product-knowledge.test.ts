@@ -17,9 +17,14 @@ import { buildDemoBriefPrompt } from '@/lib/demo-brief-prompt'
 describe('product knowledge — the facts the AI sells on', () => {
   it('carries the real pricing (both the full and short versions agree)', () => {
     for (const k of [PRODUCT_KNOWLEDGE, PRODUCT_KNOWLEDGE_SHORT]) {
-      expect(k).toContain('$150')
-      expect(k).toContain('$250')
+      // Single-plan collapse (2026-07-19): $200 founding rate, $500 list —
+      // and the retired tier prices must NOT resurface in the pitch.
+      expect(k).toContain('$200')
       expect(k).toContain('$500')
+      expect(k).toMatch(/founding practice rate/i)
+      expect(k).not.toContain('$150')
+      expect(k).not.toContain('$250')
+      expect(k).not.toMatch(/beta/i)
       expect(k).toMatch(/7-day free trial/i)
     }
   })
@@ -77,7 +82,7 @@ describe('effectiveProductKnowledge — the editable brain', () => {
       { short: true },
     )
     expect(out).toContain('CUSTOM BRAIN TEXT')
-    expect(out).not.toContain('$150') // canonical knowledge is gone
+    expect(out).not.toContain('$200') // canonical knowledge is gone
   })
 
   it('appends battle cards, skipping half-filled rows', () => {
@@ -116,7 +121,7 @@ describe('injection', () => {
       signals: null,
       verdict: null,
     })
-    expect(system).toContain('$150') // knowledge is present
+    expect(system).toContain('$200') // knowledge is present
     expect(system).toContain('Open Dental')
     expect(system).toContain('MIRROR') // original strategist framing preserved
   })
