@@ -2,9 +2,10 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
-import { getGoogleReviewStats } from '@/lib/services/google-reviews'
+import { getGoogleReviewStats, getReviewsReceivedPerWeek8 } from '@/lib/services/google-reviews'
 import { PageHeader } from '@/components/ui/page-header'
 import { NavIcon } from '@/components/ui/nav-icons'
+import Sparkline from '@/components/ui/sparkline'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 
 export const metadata = {
@@ -31,9 +32,10 @@ export default async function GrowthHubPage() {
   const isPremium = ctx.planTier === 'premium'
 
   // Best-effort reads — the hub must render even when a stat hiccups.
-  const [bundles, reviewStats] = await Promise.all([
+  const [bundles, reviewStats, reviewsPerWeek] = await Promise.all([
     getActiveBundlesForSidebar(ctx.organizationId).catch(() => new Set<string>()),
     isPro ? getGoogleReviewStats(ctx.organizationId).catch(() => null) : null,
+    isPro ? getReviewsReceivedPerWeek8(ctx.organizationId).catch(() => []) : [],
   ])
   const hasChannel = bundles.has('social') || bundles.has('google')
 
@@ -105,6 +107,7 @@ export default async function GrowthHubPage() {
                 : undefined
             }
             statTone={reviewStats && reviewStats.count > 0 ? 'ok' : undefined}
+            spark={reviewsPerWeek}
             description="The Google-first review loop — auto-requests after visits, synced reviews, private feedback."
           />
         ) : (
@@ -159,6 +162,7 @@ function SectionCard({
   title,
   stat,
   statTone,
+  spark,
   description,
 }: {
   href: string
@@ -166,10 +170,20 @@ function SectionCard({
   title: string
   stat?: string
   statTone?: Tone
+  /** The door's heartbeat (v3 law 7): a small real-data weekly series drawn
+   *  top-right in the brand hue. ONE heartbeat on this hub — the Reviews door
+   *  carries it; don't add sparks to the other doors. Decorative + silent to
+   *  AT (the stat line tells the story); hidden when the series is empty. */
+  spark?: Array<{ bucket: string; value: number }>
   description: string
 }) {
   return (
-    <Link href={href} className="v2-card p-4 sm:p-5 block group hover:shadow-[var(--shadow-pop)] transition-shadow">
+    <Link href={href} className="v2-card relative p-4 sm:p-5 block group hover:shadow-[var(--shadow-pop)] transition-shadow">
+      {spark && spark.length > 1 && (
+        <div className="pointer-events-none absolute top-4 right-4 hidden xs:block" aria-hidden="true">
+          <Sparkline data={spark} color="var(--color-teal-500)" width={72} height={24} labels={false} />
+        </div>
+      )}
       <div className="flex items-center gap-2.5 mb-1.5">
         <span className="inline-flex items-center justify-center w-8 h-8 rounded-[var(--r-sm)] bg-teal-500/10 text-teal-700 dark:text-teal-300">
           <NavIcon name={icon} className="shrink-0 fill-current w-4.5 h-4.5" />

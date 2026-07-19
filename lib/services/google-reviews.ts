@@ -1,6 +1,8 @@
 import 'server-only'
 import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { resolveGbpAccount } from '@/lib/services/zernio'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 import {
@@ -238,6 +240,63 @@ export async function getGoogleReviewStats(orgId: string): Promise<GoogleReviewS
   }
   const averageRating = count > 0 ? Math.round((sum / count) * 10) / 10 : null
   return { count, averageRating, needsReply }
+}
+
+/**
+ * Reviews received per clinic-local week, last 8 weeks, oldest first — the
+ * Growth hub's Reviews-door heartbeat series (DESIGN-SYSTEM v3 law 7).
+ *
+ * Counts every synced platform review (Google + Facebook) by
+ * `reviewCreatedAt` — the timestamp the review was POSTED on the platform.
+ * Deliberately NOT our `createdAt` (the sync-insert time): the first backfill
+ * sync would pile months of reviews into one week and the heartbeat would lie.
+ * Rows the platform shipped without a created date (rare rating-only edge)
+ * simply don't count — the `gte` filter excludes them.
+ *
+ * Week boundaries are CLINIC-LOCAL and DST-safe: same walk-back pattern as
+ * balance-payments getCollectedPerWeek8 — step to each prior week via "the
+ * instant just before this week's start" through clinicWeekStart, never naive
+ * -7*24h math. One org-scoped query; JS bucketing; labels like "Jun 2".
+ */
+export async function getReviewsReceivedPerWeek8(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<Array<{ bucket: string; value: number }>> {
+  const tz = await getClinicTimeZone(organizationId)
+
+  // The 8 clinic-local week starts, oldest first.
+  const boundaries: Date[] = []
+  let cursor = clinicWeekStart(now, tz)
+  for (let i = 0; i < 8; i++) {
+    boundaries.unshift(cursor)
+    cursor = clinicWeekStart(new Date(cursor.getTime() - 1), tz)
+  }
+
+  const rows = await db
+    .select({ reviewCreatedAt: schema.platformReview.reviewCreatedAt })
+    .from(schema.platformReview)
+    .where(
+      and(
+        eq(schema.platformReview.organizationId, organizationId),
+        gte(schema.platformReview.reviewCreatedAt, boundaries[0]),
+      ),
+    )
+
+  const counts = new Array<number>(8).fill(0)
+  for (const r of rows) {
+    if (!r.reviewCreatedAt) continue
+    const t = r.reviewCreatedAt.getTime()
+    // Last boundary <= reviewCreatedAt owns the review.
+    for (let i = boundaries.length - 1; i >= 0; i--) {
+      if (t >= boundaries[i].getTime()) {
+        counts[i]++
+        break
+      }
+    }
+  }
+
+  const labelFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  return boundaries.map((start, i) => ({ bucket: labelFmt.format(start), value: counts[i] }))
 }
 
 // ── Auto-feature on the public site ─────────────────────────────────────────────
