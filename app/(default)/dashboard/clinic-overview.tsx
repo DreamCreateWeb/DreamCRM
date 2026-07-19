@@ -385,10 +385,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               ).length
               return (
                 <span className="flex items-center gap-2.5">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
+                  {/* The count drills into today's agenda (every number opens
+                      the list behind it). */}
+                  <Link
+                    href="/appointments?window=today"
+                    className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num hover:underline"
+                  >
                     {total} {total === 1 ? 'appointment' : 'appointments'}
                     {total > 0 && ` · ${confirmed} confirmed`}
-                  </span>
+                  </Link>
                   {total > 0 && (
                     <ProgressRing
                       value={confirmed}

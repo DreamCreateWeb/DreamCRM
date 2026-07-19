@@ -75,17 +75,20 @@ export default async function PlatformOverview() {
           label="Active Clinics"
           value={formatNumberShort(subs.activeClinics)}
           sub={`${subs.newClinics30d} new in 30d`}
+          href="/ecommerce/customers"
           spark={clinicGrowth.buckets}
         />
         <KpiStat
           label="MRR"
           value={formatMoneyShort(subs.monthlyRecurringCents)}
           sub="From active plan tiers"
+          href="/ecommerce/invoices"
         />
         <KpiStat
           label="Open Projects"
           value={formatNumberShort(attention.stalledProjectCount + attention.overdueProjectCount + (activity.rows.filter((a) => a.kind === 'project_started').length))}
           sub="See Platform Metrics for trend"
+          href="/dashboard/analytics"
         />
         <KpiStat
           label="Needs Attention"
@@ -161,34 +164,51 @@ export default async function PlatformOverview() {
           />
         ) : (
           <ul className="divide-y divide-[color:var(--color-hairline)]">
-            {attention.items.map((item, i) => (
-              <li key={`${item.kind}-${i}`} className="flex items-center gap-4 py-3">
-                <span
-                  className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full text-sm ${KIND_COLOR[item.kind] ?? 'bg-gray-100 dark:bg-gray-700/60'}`}
-                  aria-hidden
-                >
-                  {KIND_ICONS[item.kind] ?? '•'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
-                    {item.title}
-                  </div>
-                  {item.subtitle && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {item.subtitle}
-                    </div>
-                  )}
-                </div>
-                {item.amountCents != null && (
-                  <span className="shrink-0 font-semibold text-rose-700 dark:text-rose-300 tabular-nums font-mono-num">
-                    {moneyFull(item.amountCents)}
+            {attention.items.map((item, i) => {
+              const inner = (
+                <div className="flex items-center gap-4">
+                  <span
+                    className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full text-sm ${KIND_COLOR[item.kind] ?? 'bg-gray-100 dark:bg-gray-700/60'}`}
+                    aria-hidden
+                  >
+                    {KIND_ICONS[item.kind] ?? '•'}
                   </span>
-                )}
-                <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 hidden sm:inline tabular-nums" suppressHydrationWarning>
-                  {formatRelativeDate(item.ts)}
-                </span>
-              </li>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
+                      {item.title}
+                    </div>
+                    {item.subtitle && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {item.subtitle}
+                      </div>
+                    )}
+                  </div>
+                  {item.amountCents != null && (
+                    <span className="shrink-0 font-semibold text-rose-700 dark:text-rose-300 tabular-nums font-mono-num">
+                      {moneyFull(item.amountCents)}
+                    </span>
+                  )}
+                  <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 hidden sm:inline tabular-nums" suppressHydrationWarning>
+                    {formatRelativeDate(item.ts)}
+                  </span>
+                </div>
+              )
+              // Rows drill into the surface that explains them (item.href from
+              // the service). '/dashboard' IS this page — no self-links.
+              const drillable = item.href && item.href !== '/dashboard'
+              return (
+                <li
+                  key={`${item.kind}-${i}`}
+                  className={`py-3 ${drillable ? 'hover:bg-gray-50 dark:hover:bg-gray-900/30' : ''}`}
+                >
+                  {drillable ? (
+                    <Link href={item.href!} className="block">{inner}</Link>
+                  ) : (
+                    inner
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
