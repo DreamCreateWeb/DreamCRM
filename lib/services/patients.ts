@@ -16,6 +16,9 @@ import {
   lapsedCutoff as lapsedCutoffDate,
 } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 
 /**
  * Patients service — the CRM-side relationship view.
@@ -472,6 +475,75 @@ export async function getPatientListMeta(organizationId: string): Promise<Patien
     sources: sources.map((r) => r.source!).filter(Boolean).sort(),
     tags,
   }
+}
+
+// ----- 12-week heartbeat series -----------------------------------------
+
+export interface NewPatientsPerWeekPoint {
+  bucket: string
+  value: number
+}
+
+/**
+ * New patients per clinic-local week over the trailing 12 weeks (current week
+ * included, oldest first) — the Patients page's single heartbeat sparkline
+ * (Design System law 7). Acquisition semantics match the Overview's
+ * newPatientsMTD tile exactly (lib/services/clinic-overview.ts →
+ * lib/services/analytics.ts): `firstSeenAt` is the honest acquisition field
+ * (never createdAt), archived patients don't count, and bulk backfills
+ * (PMS/CSV import — BACKFILL_PATIENT_SOURCES) are excluded so connecting a
+ * PMS doesn't spike the trend by the whole roster.
+ *
+ * Week boundaries are CLINIC-LOCAL via `clinicWeekStart` (the server runs
+ * UTC; a Saturday-night Central signup is already Sunday in UTC and must not
+ * jump a week). Boundaries walk back via "the instant just before this
+ * week's start" so every one is a true clinic-local Sunday midnight across
+ * DST — never naive -7*24h math. One org-scoped range scan; bucketing in
+ * JS. Bucket labels read like 'Jun 2' (the week's Sunday). `now` is
+ * injectable for tests only.
+ */
+export async function getNewPatientsPerWeek12(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<NewPatientsPerWeekPoint[]> {
+  const tz = await getClinicTimeZone(organizationId)
+
+  // The 12 clinic-local week starts, oldest first (DST-safe walk-back).
+  const boundaries: Date[] = []
+  let cursor = clinicWeekStart(now, tz)
+  for (let i = 0; i < 12; i++) {
+    boundaries.unshift(cursor)
+    cursor = clinicWeekStart(new Date(cursor.getTime() - 1), tz)
+  }
+
+  const rows = await db
+    .select({ firstSeenAt: schema.patient.firstSeenAt, source: schema.patient.source })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        isNotNull(schema.patient.firstSeenAt),
+        gte(schema.patient.firstSeenAt, boundaries[0]),
+        ne(schema.patient.lifecycle, 'archived'),
+      ),
+    )
+
+  const counts = new Array<number>(12).fill(0)
+  for (const r of rows) {
+    if (!r.firstSeenAt) continue
+    if (BACKFILL_PATIENT_SOURCES.has(r.source ?? '')) continue
+    const t = r.firstSeenAt.getTime()
+    // Last boundary <= firstSeenAt owns the patient.
+    for (let i = boundaries.length - 1; i >= 0; i--) {
+      if (t >= boundaries[i].getTime()) {
+        counts[i] += 1
+        break
+      }
+    }
+  }
+
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  return boundaries.map((b, i) => ({ bucket: label.format(b), value: counts[i] }))
 }
 
 // ----- Detail header ----------------------------------------------------

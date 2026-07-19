@@ -10,6 +10,7 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   listPatients,
   getPatientListMeta,
+  getNewPatientsPerWeek12,
   type PatientListFilters,
   type PatientListSort,
 } from '@/lib/services/patients'
@@ -55,10 +56,11 @@ export default async function PatientsPage({ searchParams }: PageProps) {
   }
   const sort = parseSort(params.sort)
 
-  const [rows, meta, views] = await Promise.all([
+  const [rows, meta, views, perWeek12] = await Promise.all([
     listPatients(ctx.organizationId, filters, sort),
     getPatientListMeta(ctx.organizationId),
     listPatientViews(ctx.organizationId),
+    getNewPatientsPerWeek12(ctx.organizationId),
   ])
 
     return (
@@ -69,6 +71,7 @@ export default async function PatientsPage({ searchParams }: PageProps) {
     <PatientsList
       rows={rows}
       meta={meta}
+      perWeek12={perWeek12}
       filters={filters}
       sort={sort}
       orgName={ctx.organizationName}

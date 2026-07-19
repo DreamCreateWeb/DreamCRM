@@ -4097,3 +4097,27 @@ Four vertical slices, three by parallel scoped agents + one keystone:
   test (10 PM Chicago lead lands in the clinic's day, not UTC's).
 
 Full suite 5,109 green + prod build green.
+
+## 2026-07-19 (later) — v3 heartbeats round 3: Patients · Growth hub · Messages
+
+Same playbook, three parallel slices + shared precedent from rounds 1–2:
+- **Patients**: `getNewPatientsPerWeek12` (Overview acquisition semantics —
+  firstSeenAt, no archived, backfill sources excluded; the constant
+  re-homed to pure-leaf `lib/patient-acquisition.ts` to break an
+  analytics↔patients import cycle, re-exported for existing importers);
+  spark at the end of the filter row, Leads-mirrored.
+- **Growth hub**: `getReviewsReceivedPerWeek8` bucketing platform_review by
+  reviewCreatedAt (posted-on-platform time — a backfill sync can't lie);
+  SectionCard spark slot; rides the Reviews door's isPro gate; hub test
+  pins EXACTLY ONE spark per page (the law-7 budget, machine-enforced).
+- **Messages**: `getMessagesPerDay14` (patient_message in+out, clinic-local
+  days) as the "14-day pulse" in the clinic thread-list header; platform
+  client-messaging untouched (tenant-voice honored).
+All series: DST-safe clinic-tz boundaries (the walk-back pattern), one
+org-scoped range scan, JS bucketing, honest-empty (hidden without ≥2
+signal-bearing points). Full suite 5,127 green.
+
+Remaining heartbeat candidates (round 4+): Followups board, Shop hub,
+Intake forms, My Day. Post-redesign roadmap seeded: action-links coverage
+audit (every number drillable) + the widget-registry direction (Overview
+as a composition of registered widgets).

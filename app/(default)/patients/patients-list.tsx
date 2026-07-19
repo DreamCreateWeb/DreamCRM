@@ -8,7 +8,9 @@ import type {
   PatientListFilters,
   PatientListSort,
   PatientFilterMeta,
+  NewPatientsPerWeekPoint,
 } from '@/lib/services/patients'
+import Sparkline from '@/components/ui/sparkline'
 import { patientFlagGlyphs, type PillLegendRow } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -104,6 +106,7 @@ const SOURCE_LABEL: Record<string, string> = {
 export default function PatientsList({
   rows,
   meta,
+  perWeek12 = [],
   filters,
   sort,
   orgName,
@@ -113,6 +116,8 @@ export default function PatientsList({
 }: {
   rows: PatientListRow[]
   meta: PatientFilterMeta
+  /** New patients per clinic-local week, last 12 weeks — the page's one heartbeat. */
+  perWeek12?: NewPatientsPerWeekPoint[]
   filters: PatientListFilters
   sort: PatientListSort
   orgName: string
@@ -256,6 +261,12 @@ export default function PatientsList({
     !filters.sources?.length &&
     !filters.tagIds?.length &&
     !filters.search
+
+  // The page's ONE heartbeat (law 7): the 12-week new-patient flow. Decorative —
+  // hidden from AT (the title + label carry the meaning) and omitted entirely
+  // when fewer than 2 weeks carry any new patients (a flat or single-blip line
+  // says nothing worth drawing). Mirrors the Leads page's 14-day spark.
+  const showFlow = perWeek12.filter((p) => p.value > 0).length >= 2
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -405,6 +416,19 @@ export default function PatientsList({
             </select>
           )}
         </div>
+        {showFlow && (
+          <div
+            className="hidden lg:flex items-center gap-2 shrink-0 ml-auto"
+            title="New patients per week over the last 12 weeks"
+          >
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              New patients · 12 weeks
+            </span>
+            <span aria-hidden="true">
+              <Sparkline data={perWeek12} color="var(--color-teal-500)" width={104} height={26} labels={false} />
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Table ────────────────────────────────────────────────────── */}

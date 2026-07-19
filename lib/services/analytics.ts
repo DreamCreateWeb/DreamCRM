@@ -25,16 +25,11 @@ const WEEK_MS = 7 * DAY_MS
 // Industry reference points (labeled as benchmarks in the UI, not clinic data).
 export const BENCHMARK_NO_SHOW_RATE = 0.135 // ~12-18% typical dental no-show
 
-/**
- * Patient sources that are a BULK BACKFILL, not a fresh acquisition. Both import
- * paths stamp `firstSeenAt` with the IMPORT time (the PMS adapter doesn't expose
- * a real first-visit date yet), so a clinic that connects its PMS or uploads a
- * CSV would otherwise see "New patients" spike by their whole roster the day
- * they onboard. Acquisition means patients newly WON through your channels, so
- * we exclude these from the new-patient count / source mix / trend. (Deeper fix:
- * read the PMS's real first-visit date — tracked separately.)
- */
-export const BACKFILL_PATIENT_SOURCES: ReadonlySet<string> = new Set(['pms_import', 'import'])
+// The backfill-source set moved to its single import-light home in
+// lib/patient-acquisition.ts (the patients service needs it without dragging
+// this module's heavy import graph); re-exported here for existing importers.
+import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
+export { BACKFILL_PATIENT_SOURCES }
 
 export interface TrendPoint {
   label: string
