@@ -272,8 +272,9 @@ export function MatrixMark({ value }: { value: 'yes' | 'no' | 'partial' }) {
 /* v3 "Cute Dream" chrome recipes (DESIGN-SYSTEM.md 2.1/2.3/2.4 + Part 4):
    sky canvas #F3F7FE, borderless white cards floating on a soft dream-blue
    shadow, and blue gradient pills for primary actions + the active nav item.
-   Mocks depicting CLINIC-BRANDED surfaces (portal, public-site booking)
-   deliberately keep the fictional clinic's sage/cream palette instead. */
+   The BookingMock (public-site booking) keeps the fictional clinic's
+   sage/cream palette; the PortalMock wears DreamCRM blue on the warm cream
+   canvas (owner call 2026-07-19). */
 const MOCK_FRAME_SHADOW =
   'shadow-[0_4px_10px_rgba(76,125,240,.10),0_18px_44px_rgba(76,125,240,.16)]'
 const MOCK_CARD_SHADOW =
@@ -462,9 +463,10 @@ export function DashboardMock() {
   )
 }
 
-/** Phone-framed clinic-branded patient portal — the fictional clinic's warm
- *  sage brand, executed at the real portal's polish: floating cards on warm
- *  shadows, serif greeting, membership progress, honest tab bar. */
+/** Phone-framed patient portal at the real portal's polish — floating cards
+ *  on warm shadows, serif greeting, membership progress, honest tab bar.
+ *  Accents wear the DreamCRM blue (owner call 2026-07-19; the warm cream
+ *  canvas stays). */
 export function PortalMock() {
   return (
     <div className="mx-auto w-[236px] overflow-hidden rounded-[2.6rem] border-[8px] border-gray-900 bg-[#FAF7F2] text-left shadow-2xl shadow-gray-500/30 ring-1 ring-black/5" aria-hidden="true">
@@ -490,9 +492,9 @@ export function PortalMock() {
       </div>
       {/* clinic-branded header */}
       <div className="flex items-center gap-2 px-3.5 pb-1 pt-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7E957F] text-[0.55rem] font-bold text-white shadow-[0_3px_8px_rgba(126,149,127,.4)]">D</span>
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4C7DF0] text-[0.55rem] font-bold text-white shadow-[0_3px_8px_rgba(76,125,240,.4)]">D</span>
         <span className="whitespace-nowrap text-[0.72rem] font-bold tracking-tight text-[#1C1A17]">Dream Dental</span>
-        <span className="ml-auto shrink-0 rounded-full bg-[#7E957F] px-2.5 py-1 text-[0.52rem] font-bold text-white shadow-[0_3px_8px_rgba(126,149,127,.35)]">Book</span>
+        <span className="ml-auto shrink-0 rounded-full bg-[#4C7DF0] px-2.5 py-1 text-[0.52rem] font-bold text-white shadow-[0_3px_8px_rgba(76,125,240,.35)]">Book</span>
       </div>
       <div className="space-y-2.5 px-3.5 pb-3 pt-1.5">
         <div>
@@ -504,11 +506,11 @@ export function PortalMock() {
         <div className="rounded-2xl bg-white p-3 shadow-[0_3px_8px_rgba(107,99,90,.06),0_12px_28px_rgba(107,99,90,.12)]">
           <div className="flex items-center justify-between">
             <p className="text-[0.5rem] font-bold uppercase tracking-wider text-[#6B635A]">Next visit</p>
-            <span className="rounded-full bg-[#EEF3EE] px-1.5 py-0.5 text-[0.48rem] font-bold text-[#5F7561]">Tomorrow</span>
+            <span className="rounded-full bg-[#EEF4FF] px-1.5 py-0.5 text-[0.48rem] font-bold text-[#2F52B3]">Tomorrow</span>
           </div>
           <div className="mt-1.5 flex items-center gap-2.5">
-            <span className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-[#EEF3EE] leading-none">
-              <span className="text-[0.44rem] font-bold uppercase text-[#5F7561]">Jun</span>
+            <span className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-[#EEF4FF] leading-none">
+              <span className="text-[0.44rem] font-bold uppercase text-[#2F52B3]">Jun</span>
               <span className="font-serif text-[0.8rem] font-bold text-[#1C1A17]">17</span>
             </span>
             <div className="min-w-0">
@@ -517,7 +519,7 @@ export function PortalMock() {
             </div>
           </div>
           <div className="mt-2.5 flex gap-1.5">
-            <span className="flex-1 rounded-full bg-[#7E957F] px-2.5 py-1.5 text-center text-[0.56rem] font-bold text-white shadow-[0_3px_8px_rgba(126,149,127,.35)]">
+            <span className="flex-1 rounded-full bg-[#4C7DF0] px-2.5 py-1.5 text-center text-[0.56rem] font-bold text-white shadow-[0_3px_8px_rgba(76,125,240,.35)]">
               Confirm visit
             </span>
             <span className="flex-1 rounded-full bg-[#F3EFE8] px-2.5 py-1.5 text-center text-[0.56rem] font-bold text-[#1C1A17]">
@@ -533,11 +535,11 @@ export function PortalMock() {
             <p className="text-[0.58rem] font-bold leading-tight text-[#1C1A17]">2 quick forms before your visit</p>
             <p className="text-[0.5rem] font-medium text-[#6B635A]">Saves you the clipboard at the desk.</p>
           </div>
-          <span className="shrink-0 text-[0.62rem] font-bold text-[#7E957F]">→</span>
+          <span className="shrink-0 text-[0.62rem] font-bold text-[#4C7DF0]">→</span>
         </div>
 
         {/* Membership */}
-        <div className="rounded-2xl bg-gradient-to-br from-[#7E957F] to-[#5F7561] p-3 text-white shadow-[0_6px_18px_rgba(95,117,97,.35)]">
+        <div className="rounded-2xl bg-gradient-to-br from-[#6C9CFF] to-[#2F52B3] p-3 text-white shadow-[0_6px_18px_rgba(47,82,179,.35)]">
           <div className="flex items-center justify-between">
             <p className="text-[0.5rem] font-bold uppercase tracking-wider opacity-90">Smile Club</p>
             <span className="text-[0.62rem]" aria-hidden="true">✨</span>
@@ -573,8 +575,8 @@ export function PortalMock() {
           ['Messages', false],
           ['More', false],
         ].map(([label, active]) => (
-          <span key={label as string} className={active ? 'text-[#7E957F]' : undefined}>
-            <span className="mx-auto mb-0.5 block h-1 w-1 rounded-full" style={{ background: active ? '#7E957F' : 'transparent' }} />
+          <span key={label as string} className={active ? 'text-[#4C7DF0]' : undefined}>
+            <span className="mx-auto mb-0.5 block h-1 w-1 rounded-full" style={{ background: active ? '#4C7DF0' : 'transparent' }} />
             {label}
           </span>
         ))}
