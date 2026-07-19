@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getCollectionsSnapshot } from '@/lib/services/collections'
 import { getMembershipStats } from '@/lib/services/membership'
-import { listRecentBalancePayments, canTakeBalancePayments } from '@/lib/services/balance-payments'
+import { listRecentBalancePayments, canTakeBalancePayments, getCollectedPerWeek8 } from '@/lib/services/balance-payments'
 import { listPaymentPlans } from '@/lib/services/payment-plans'
 import { formatCents } from '@/lib/types/shop'
 import { PageHeader } from '@/components/ui/page-header'
@@ -29,13 +29,14 @@ export default async function PaymentsHubPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const [collections, membershipStats, recentPayments, connectReady, plans] = await Promise.all([
+  const [collections, membershipStats, recentPayments, connectReady, plans, collectedPerWeek8] = await Promise.all([
     // Best-effort — the hub renders even if a read hiccups.
     getCollectionsSnapshot(ctx.organizationId).catch(() => ({ patientCount: 0, totalOutstandingCents: 0 })),
     getMembershipStats(ctx.organizationId).catch(() => ({ activeMembers: 0, mrrCents: 0 })),
     listRecentBalancePayments(ctx.organizationId).catch(() => []),
     canTakeBalancePayments(ctx.organizationId).catch(() => false),
     listPaymentPlans(ctx.organizationId).catch(() => []),
+    getCollectedPerWeek8(ctx.organizationId).catch(() => []),
   ])
   const openPlans = plans.filter((p) => p.status === 'active' || p.status === 'proposed' || p.status === 'past_due')
 
@@ -83,6 +84,7 @@ export default async function PaymentsHubPage() {
           tone={recentPayments.length > 0 ? 'warn' : undefined}
           href="/payments/online"
           sub={recentPayments.length > 0 ? 'online payments to post to your PMS' : 'all posted'}
+          spark={collectedPerWeek8}
         />
         <KpiStat
           label="Payment plans"

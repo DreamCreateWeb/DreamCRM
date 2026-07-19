@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, gte, ne } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
@@ -7,6 +7,8 @@ import { notifyOrgMembers } from './notifications'
 import { sendNotificationEmail } from '@/lib/email'
 import { toCsv, csvDollars } from '@/lib/csv'
 import { platformFeeCents } from '@/lib/types/shop'
+import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { getClinicTimeZone } from './clinic-timezone'
 
 /**
  * Online balance payments from the patient portal. Money moves through the
@@ -297,6 +299,65 @@ export async function listRecentBalancePayments(
     paidAt: r.paidAt,
     createdAt: r.createdAt,
     balanceCentsAtPayment: r.balanceCentsAtPayment,
+  }))
+}
+
+/**
+ * Online dollars collected per clinic-local week, last 8 weeks — the Payments
+ * hub's heartbeat sparkline (DESIGN-SYSTEM v3 law 7). Whole dollars per week,
+ * oldest week first, bucket labeled by the week's clinic-local Sunday
+ * ("Jun 2"). Week boundaries are CLINIC-LOCAL (clinicWeekStart — the server
+ * runs UTC; a Saturday-night Central payment is already Sunday in UTC and
+ * must not jump a week). One org-scoped query; bucketing in JS. `now` is
+ * injectable for tests only.
+ */
+export async function getCollectedPerWeek8(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<Array<{ bucket: string; value: number }>> {
+  const tz = await getClinicTimeZone(organizationId)
+
+  // The 8 clinic-local week starts, oldest first. Stepping via "the instant
+  // just before this week's start" keeps every boundary a true clinic-local
+  // Sunday midnight across DST (never naive -7*24h math).
+  const boundaries: Date[] = []
+  let cursor = clinicWeekStart(now, tz)
+  for (let i = 0; i < 8; i++) {
+    boundaries.unshift(cursor)
+    cursor = clinicWeekStart(new Date(cursor.getTime() - 1), tz)
+  }
+
+  const rows = await db
+    .select({
+      amountCents: schema.patientBalancePayment.amountCents,
+      paidAt: schema.patientBalancePayment.paidAt,
+    })
+    .from(schema.patientBalancePayment)
+    .where(
+      and(
+        eq(schema.patientBalancePayment.organizationId, organizationId),
+        eq(schema.patientBalancePayment.status, 'paid'),
+        gte(schema.patientBalancePayment.paidAt, boundaries[0]),
+      ),
+    )
+
+  const sums = new Array<number>(8).fill(0)
+  for (const r of rows) {
+    if (!r.paidAt) continue
+    const t = r.paidAt.getTime()
+    // Last boundary <= paidAt owns the payment.
+    for (let i = boundaries.length - 1; i >= 0; i--) {
+      if (t >= boundaries[i].getTime()) {
+        sums[i] += r.amountCents
+        break
+      }
+    }
+  }
+
+  const labelFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  return boundaries.map((start, i) => ({
+    bucket: labelFmt.format(start),
+    value: Math.round(sums[i] / 100),
   }))
 }
 
