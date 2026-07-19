@@ -309,7 +309,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'DreamCRM talks to Open Dental exclusively through its official API — every write lands in your OD audit trail, and nothing ever touches the database directly. You’ll need OD’s eConnector running (their standard remote-access service) and a Customer API key for your office.',
+          'DreamCRM talks to Open Dental through its official API — every write lands in your OD audit trail. You’ll need OD’s eConnector running (their standard remote-access service) and a Customer API key for your office.',
         ],
         steps: [
           'In Open Dental: Setup → Advanced Setup → API → Add Key to create your office’s Customer Key (OD bills API access ~$30/mo).',

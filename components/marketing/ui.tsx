@@ -299,31 +299,18 @@ function Avatar({ initials, color }: { initials: string; color: string }) {
   )
 }
 
-/** Browser-framed morning-huddle dashboard, populated like a real Tuesday —
- *  the grouped sidebar shows the platform's real module breadth. */
+/** Browser-framed morning-huddle dashboard — a faithful miniature of the
+ *  real v3 Overview (attention CARDS with action links, chair card with the
+ *  confirmed ring, trend tiles with the booking pulse), populated like a
+ *  healthy Tuesday. Sidebar mirrors the real IA: pinned cockpit + Daily +
+ *  workspace entries. */
 export function DashboardMock() {
-  const groups: Array<{ label: string; items: string[] }> = [
-    { label: 'Daily', items: ['Overview', 'Patients', 'Appointments', 'Leads', 'Messages'] },
-    { label: 'Growth', items: ['Recall', 'Reviews', 'Social Posts', 'Analytics'] },
-    { label: 'Website', items: ['Website', 'Blog', 'SEO'] },
-    { label: 'Business', items: ['Shop', 'Integrations'] },
-  ]
-  const kpis: Array<[string, string, string]> = [
-    ['Unconfirmed · 48h', '3', 'bg-amber-50 text-amber-800'],
-    ['New leads', '2', 'bg-fuchsia-50 text-fuchsia-800'],
-    ['Forms this week', '5', 'bg-emerald-50 text-emerald-800'],
-    ['Reviews to ask', '4', 'bg-violet-50 text-violet-800'],
-  ]
+  const daily = ['My Day', 'Patients', 'Follow-ups', 'Leads', 'Intake Forms']
   const chair: Array<{ t: string; n: string; v: string; s: 'Confirmed' | 'Unconfirmed'; i: string; c: string; g?: string }> = [
-    { t: '8:00', n: 'Mia Hayes', v: 'Cleaning', s: 'Confirmed', i: 'MH', c: 'bg-teal-400', g: '🎂' },
-    { t: '9:30', n: 'Liam Brooks', v: 'Checkup', s: 'Unconfirmed', i: 'LB', c: 'bg-sky-400', g: '$' },
-    { t: '10:00', n: 'Lily Lopez', v: 'Cleaning', s: 'Confirmed', i: 'LL', c: 'bg-emerald-400', g: '★ 📝' },
+    { t: '8:00', n: 'Mia Hayes', v: 'Cleaning · 60 min', s: 'Confirmed', i: 'MH', c: 'bg-[#7CA5FF]', g: '🎂' },
+    { t: '9:30', n: 'Liam Brooks', v: 'Checkup · 30 min', s: 'Unconfirmed', i: 'LB', c: 'bg-[#4C7DF0]', g: '$' },
+    { t: '10:00', n: 'Lily Lopez', v: 'Cleaning · 60 min', s: 'Confirmed', i: 'LL', c: 'bg-emerald-400', g: '★' },
     { t: '11:30', n: 'Marcus Johnson', v: 'Consultation', s: 'Unconfirmed', i: 'MJ', c: 'bg-amber-400' },
-  ]
-  const trends: Array<[string, string, string]> = [
-    ['New patients', '12', 'text-emerald-600'],
-    ['No-show rate', '3%', 'text-emerald-600'],
-    ['Recall booked', '9', 'text-teal-700'],
   ]
   return (
     <div className={`overflow-hidden rounded-2xl bg-[#F3F7FE] text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
@@ -336,86 +323,134 @@ export function DashboardMock() {
         </span>
       </div>
       <div className="flex">
-        <div className="hidden w-36 shrink-0 p-2.5 sm:block">
-          <div className={`mb-2.5 flex items-center gap-1.5 rounded-lg bg-white px-1.5 py-1 ${MOCK_TILE_SHADOW}`}>
-            <span className="flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-[#7CA5FF] to-[#3A67D9] text-[0.5rem] font-bold text-white">
+        {/* ── Sidebar (real IA: lockup → org → pinned cockpit → groups) ── */}
+        <div className="hidden w-[8.6rem] shrink-0 flex-col p-2.5 sm:flex">
+          <div className="mb-2 flex items-center gap-[3px] px-1">
+            <span className="flex h-[15px] w-[15px] items-center justify-center rounded-[5px] bg-gradient-to-br from-[#7CA5FF] to-[#3A67D9] text-[0.54rem] font-extrabold leading-none text-white">
               D
             </span>
-            <span className="truncate text-[0.6rem] font-bold text-gray-800">Dream Dental</span>
-            <span className="ml-auto rounded bg-teal-50 px-1 py-0.5 text-[0.46rem] font-bold text-teal-700">Pro</span>
+            <span className="text-[0.68rem] font-extrabold leading-none tracking-tight text-gray-900">
+              ream<span className="text-[#4C7DF0]">CRM</span>
+            </span>
           </div>
-          {groups.map((grp) => (
-            <div key={grp.label} className="mb-2 last:mb-0">
-              <p className="px-1 pb-0.5 text-[0.5rem] font-bold uppercase tracking-wider text-gray-400">{grp.label}</p>
-              <div className="space-y-0.5">
-                {grp.items.map((item) => (
-                  <div
-                    key={item}
-                    className={`rounded-full px-2 py-1 text-[0.62rem] font-semibold ${item === 'Overview' ? `${MOCK_PILL} shadow-[0_2px_8px_rgba(76,125,240,.35)]` : 'text-gray-500'}`}
-                  >
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex-1 space-y-3 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[0.58rem] font-bold uppercase tracking-wider text-teal-700">Morning huddle · Tue, Jun 16</p>
-              <p className="text-[0.85rem] font-bold text-gray-900">Dream Dental</p>
-            </div>
-            <span className={`rounded-full ${MOCK_PILL} px-2.5 py-1 text-[0.62rem] font-bold`}>Open agenda</span>
+          <div className={`mb-2.5 rounded-lg bg-white px-1.5 py-1 ${MOCK_TILE_SHADOW}`}>
+            <p className="truncate text-[0.58rem] font-bold text-gray-800">Dream Dental</p>
+            <p className="text-[0.48rem] font-semibold text-gray-400">Premium plan</p>
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {kpis.map(([label, n, tone]) => (
-              <div key={label} className={`rounded-xl p-2 ${tone} ${MOCK_TILE_SHADOW}`}>
-                <p className="text-[0.5rem] font-semibold leading-tight opacity-80">{label}</p>
-                <p className="text-[0.95rem] font-extrabold leading-tight">{n}</p>
+          <div className="mb-2 space-y-0.5 rounded-lg bg-[#E9F0FC]/60 p-1">
+            <div className={`flex items-center justify-between rounded-full px-2 py-1 text-[0.6rem] font-bold ${MOCK_PILL} shadow-[0_2px_8px_rgba(76,125,240,.35)]`}>
+              Overview <span className="text-[0.44rem] font-semibold opacity-80">⌘1</span>
+            </div>
+            <div className="flex items-center justify-between rounded-full px-2 py-1 text-[0.6rem] font-semibold text-gray-500">
+              Messages
+              <span className="flex h-3 min-w-3 items-center justify-center rounded-full bg-amber-500 px-1 text-[0.46rem] font-bold text-white">3</span>
+            </div>
+            <div className="rounded-full px-2 py-1 text-[0.6rem] font-semibold text-gray-500">Appointments</div>
+          </div>
+          <p className="px-1 pb-0.5 text-[0.48rem] font-bold uppercase tracking-wider text-gray-400">Daily</p>
+          <div className="space-y-0.5">
+            {daily.map((item) => (
+              <div key={item} className="rounded-full px-2 py-[3px] text-[0.6rem] font-semibold text-gray-500">
+                {item}
               </div>
             ))}
           </div>
-          <div className={`rounded-xl bg-white p-2.5 ${MOCK_CARD_SHADOW}`}>
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-400">Today&apos;s chair</p>
-              <p className="text-[0.54rem] font-semibold text-gray-400">8 booked · 5 confirmed</p>
+          {[
+            ['Growth', 'Growth'],
+            ['Website', 'Website'],
+            ['Business', 'Payments · Shop'],
+          ].map(([label, item]) => (
+            <div key={label} className="mt-1.5">
+              <p className="px-1 pb-0.5 text-[0.48rem] font-bold uppercase tracking-wider text-gray-400">{label}</p>
+              <div className="rounded-full px-2 py-[3px] text-[0.6rem] font-semibold text-gray-500">{item}</div>
             </div>
-            <div className="space-y-1">
+          ))}
+        </div>
+
+        {/* ── Main ── */}
+        <div className="min-w-0 flex-1 space-y-3 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[0.56rem] font-bold uppercase tracking-wider text-[#2F52B3]">Morning huddle · Tue, Jun 16</p>
+              <p className="text-[1rem] font-extrabold tracking-tight text-gray-900">Dream Dental</p>
+              <p className="text-[0.56rem] font-medium text-gray-400">
+                The six things worth your attention this morning — every number opens the list behind it.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className={`rounded-full bg-white px-2 py-1 text-[0.58rem] font-bold text-gray-600 ${MOCK_TILE_SHADOW}`}>Open agenda</span>
+              <span className={`rounded-full ${MOCK_PILL} px-2 py-1 text-[0.58rem] font-bold shadow-[0_2px_8px_rgba(76,125,240,.35)]`}>+ New booking</span>
+            </div>
+          </div>
+
+          {/* Attention cards — white, big number, action link (the real thing) */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Unconfirmed', n: '3', sub: 'visits in the next 48h', rows: ['Liam · 9:30 tomorrow', 'Marcus · 11:30'], link: 'Send confirmations →' },
+              { label: 'New leads', n: '2', sub: 'untouched inquiries', rows: ['Olivia Chen · implants', 'Noah Reed · whitening'], link: 'See new leads →' },
+              { label: 'Balances', n: '$523', sub: '3 patients owe', rows: ['Liam Brooks · $214', 'Ava Morgan · $180'], link: 'See who owes →' },
+            ].map((c) => (
+              <div key={c.label} className={`rounded-xl bg-white p-2 ${MOCK_CARD_SHADOW}`}>
+                <p className="text-[0.5rem] font-bold uppercase tracking-wider text-gray-400">{c.label}</p>
+                <p className="font-mono text-[0.92rem] font-extrabold leading-tight tracking-tight text-gray-900">
+                  {c.n} <span className="font-sans text-[0.5rem] font-semibold text-gray-400">{c.sub}</span>
+                </p>
+                <div className="mt-1 space-y-0.5">
+                  {c.rows.map((r) => (
+                    <p key={r} className="truncate rounded bg-[#F8FAFF] px-1.5 py-0.5 text-[0.52rem] font-medium text-gray-500">{r}</p>
+                  ))}
+                </div>
+                <p className="mt-1 text-[0.54rem] font-bold text-[#2F52B3]">{c.link}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Today's chair — plain rows, dividers, ring in the header */}
+          <div className={`rounded-xl bg-white ${MOCK_CARD_SHADOW}`}>
+            <div className="flex items-center justify-between rounded-t-xl bg-[#E9F0FC]/50 px-2.5 py-1.5">
+              <p className="text-[0.62rem] font-bold text-gray-800">Today&apos;s chair</p>
+              <span className="flex items-center gap-1.5">
+                <span className="font-mono text-[0.5rem] font-semibold text-gray-400">8 booked · 5 confirmed</span>
+                <svg viewBox="0 0 20 20" className="h-4 w-4 -rotate-90">
+                  <circle cx="10" cy="10" r="7.5" fill="none" stroke="#4C7DF0" strokeOpacity=".18" strokeWidth="2.6" />
+                  <circle cx="10" cy="10" r="7.5" fill="none" stroke="#4C7DF0" strokeWidth="2.6" strokeLinecap="round" strokeDasharray="47.1" strokeDashoffset="17.7" />
+                </svg>
+              </span>
+            </div>
+            <div className="divide-y divide-[#E9F0FC] px-2.5">
               {chair.map((r) => (
-                <div
-                  key={r.t}
-                  className={`flex items-center gap-2 rounded-lg border-l-[3px] bg-[#F8FAFF] px-2 py-1 ${r.s === 'Confirmed' ? 'border-l-emerald-400' : 'border-l-amber-400'}`}
-                >
-                  <span className="w-7 text-[0.6rem] font-bold text-gray-400">{r.t}</span>
+                <div key={r.t} className="flex items-center gap-2 py-1">
+                  <span className="w-7 font-mono text-[0.56rem] font-bold text-gray-400">{r.t}</span>
                   <Avatar initials={r.i} color={r.c} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1">
-                      <span className="truncate text-[0.66rem] font-semibold text-gray-800">{r.n}</span>
-                      {r.g && <span className="shrink-0 text-[0.56rem] leading-none">{r.g}</span>}
+                      <span className="truncate text-[0.64rem] font-bold text-gray-800">{r.n}</span>
+                      {r.g && <span className="shrink-0 text-[0.52rem] leading-none">{r.g}</span>}
                     </span>
-                    <span className="block text-[0.56rem] text-gray-400">{r.v}</span>
+                    <span className="block text-[0.52rem] text-gray-400">{r.v}</span>
                   </span>
                   <StatusPill tone={r.s === 'Confirmed' ? 'emerald' : 'amber'}>{r.s}</StatusPill>
                 </div>
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {trends.map(([label, n, tone]) => (
-              <div key={label} className={`rounded-xl bg-white px-2 py-1.5 ${MOCK_TILE_SHADOW}`}>
-                <p className="text-[0.5rem] font-semibold text-gray-400">{label}</p>
-                <p className={`text-[0.8rem] font-extrabold ${tone}`}>{n}</p>
-                {label === 'New patients' && (
-                  <svg viewBox="0 0 60 16" className="mt-1 h-2.5 w-full text-[#4C7DF0]" preserveAspectRatio="none">
-                    <polyline
-                      points="0,13 9,11 18,12 27,8 36,9 45,5 52,7 60,2"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
+
+          {/* Trend tiles — mono numbers + the booking pulse */}
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'Bookings today', n: '6', sub: 'across all channels', tone: 'text-gray-400', spark: true },
+              { label: 'New patients MTD', n: '12', sub: '+3 vs last month', tone: 'text-emerald-600' },
+              { label: 'Recall booked', n: '9', sub: 'this week', tone: 'text-gray-400' },
+              { label: 'Website visits', n: '214', sub: '+18% vs prior wk', tone: 'text-emerald-600' },
+            ].map((t) => (
+              <div key={t.label} className={`relative rounded-xl bg-white px-2 py-1.5 ${MOCK_TILE_SHADOW}`}>
+                <p className="truncate text-[0.48rem] font-bold uppercase tracking-wide text-gray-400">{t.label}</p>
+                <p className="font-mono text-[0.86rem] font-extrabold text-gray-900">{t.n}</p>
+                <p className={`truncate text-[0.48rem] font-semibold ${t.tone}`}>{t.sub}</p>
+                {t.spark && (
+                  <svg viewBox="0 0 60 16" className="absolute bottom-1.5 right-1.5 h-3 w-12 text-[#4C7DF0]" preserveAspectRatio="none">
+                    <polyline points="0,13 9,11 18,12 27,8 36,9 45,5 52,7 60,2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="60" cy="2" r="1.8" fill="currentColor" />
                   </svg>
                 )}
               </div>
@@ -427,12 +462,14 @@ export function DashboardMock() {
   )
 }
 
-/** Phone-framed clinic-branded patient portal (warm sage theme). */
+/** Phone-framed clinic-branded patient portal — the fictional clinic's warm
+ *  sage brand, executed at the real portal's polish: floating cards on warm
+ *  shadows, serif greeting, membership progress, honest tab bar. */
 export function PortalMock() {
   return (
-    <div className="mx-auto w-[230px] overflow-hidden rounded-[2.6rem] border-[8px] border-gray-900 bg-[#FAF7F2] text-left shadow-2xl shadow-gray-500/30 ring-1 ring-black/5" aria-hidden="true">
+    <div className="mx-auto w-[236px] overflow-hidden rounded-[2.6rem] border-[8px] border-gray-900 bg-[#FAF7F2] text-left shadow-2xl shadow-gray-500/30 ring-1 ring-black/5" aria-hidden="true">
       {/* status bar + notch */}
-      <div className="relative flex items-center justify-between bg-white px-4 pt-2 pb-1 text-[#1C1A17]">
+      <div className="relative flex items-center justify-between bg-[#FAF7F2] px-4 pt-2 pb-1 text-[#1C1A17]">
         <span className="text-[0.5rem] font-bold tabular-nums">9:41</span>
         <span className="absolute left-1/2 top-1.5 h-3 w-14 -translate-x-1/2 rounded-full bg-gray-900" />
         <span className="flex items-center gap-1">
@@ -451,60 +488,99 @@ export function PortalMock() {
           </span>
         </span>
       </div>
-      {/* app header */}
-      <div className="flex items-center gap-2 border-b border-[#E8E2D9] bg-white px-3 py-2.5">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7E957F] text-[0.55rem] font-bold text-white">D</span>
-        <span className="text-[0.7rem] font-bold text-[#1C1A17]">Dream Dental</span>
-        <span className="ml-auto rounded-full bg-[#7E957F] px-2 py-0.5 text-[0.5rem] font-bold text-white">Book</span>
+      {/* clinic-branded header */}
+      <div className="flex items-center gap-2 px-3.5 pb-1 pt-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7E957F] text-[0.55rem] font-bold text-white shadow-[0_3px_8px_rgba(126,149,127,.4)]">D</span>
+        <span className="whitespace-nowrap text-[0.72rem] font-bold tracking-tight text-[#1C1A17]">Dream Dental</span>
+        <span className="ml-auto shrink-0 rounded-full bg-[#7E957F] px-2.5 py-1 text-[0.52rem] font-bold text-white shadow-[0_3px_8px_rgba(126,149,127,.35)]">Book</span>
       </div>
-      <div className="space-y-2.5 p-3">
-        <p className="font-serif text-[0.92rem] font-semibold text-[#7E957F]">Good morning, Mia</p>
-        <div className="rounded-xl border border-l-4 border-[#E8E2D9] border-l-[#7E957F] bg-white p-2.5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7E957F] text-[0.5rem] font-bold text-white">MV</span>
-            <div>
-              <p className="text-[0.66rem] font-bold text-[#1C1A17]">Cleaning · Maria Vega</p>
-              <p className="text-[0.56rem] text-[#6B635A]">
-                Tomorrow · 9:30 AM <span className="rounded-full bg-[#FAF7F2] px-1 font-bold text-[#7E957F]">SOON</span>
-              </p>
+      <div className="space-y-2.5 px-3.5 pb-3 pt-1.5">
+        <div>
+          <p className="font-serif text-[1.05rem] font-semibold leading-tight text-[#1C1A17]">Good morning, Mia</p>
+          <p className="text-[0.54rem] font-medium text-[#6B635A]">Here&apos;s what&apos;s coming up for your family.</p>
+        </div>
+
+        {/* Next visit — the hero card */}
+        <div className="rounded-2xl bg-white p-3 shadow-[0_3px_8px_rgba(107,99,90,.06),0_12px_28px_rgba(107,99,90,.12)]">
+          <div className="flex items-center justify-between">
+            <p className="text-[0.5rem] font-bold uppercase tracking-wider text-[#6B635A]">Next visit</p>
+            <span className="rounded-full bg-[#EEF3EE] px-1.5 py-0.5 text-[0.48rem] font-bold text-[#5F7561]">Tomorrow</span>
+          </div>
+          <div className="mt-1.5 flex items-center gap-2.5">
+            <span className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-[#EEF3EE] leading-none">
+              <span className="text-[0.44rem] font-bold uppercase text-[#5F7561]">Jun</span>
+              <span className="font-serif text-[0.8rem] font-bold text-[#1C1A17]">17</span>
+            </span>
+            <div className="min-w-0">
+              <p className="text-[0.7rem] font-bold text-[#1C1A17]">Cleaning · 9:30 AM</p>
+              <p className="text-[0.54rem] font-medium text-[#6B635A]">Maria Vega · 45 min</p>
             </div>
           </div>
-          <div className="mt-2 flex gap-1.5">
-            <span className="rounded-full bg-[#7E957F] px-2.5 py-1 text-[0.55rem] font-bold text-white">Confirm visit</span>
-            <span className="rounded-full border border-[#E8E2D9] bg-white px-2.5 py-1 text-[0.55rem] font-semibold text-[#1C1A17]">Reschedule</span>
+          <div className="mt-2.5 flex gap-1.5">
+            <span className="flex-1 rounded-full bg-[#7E957F] px-2.5 py-1.5 text-center text-[0.56rem] font-bold text-white shadow-[0_3px_8px_rgba(126,149,127,.35)]">
+              Confirm visit
+            </span>
+            <span className="flex-1 rounded-full bg-[#F3EFE8] px-2.5 py-1.5 text-center text-[0.56rem] font-bold text-[#1C1A17]">
+              Reschedule
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 rounded-lg border border-[#EBDCB8] bg-[#FBF3E4] px-2 py-1.5">
-          <span className="text-[0.6rem]">📝</span>
-          <p className="text-[0.54rem] font-semibold leading-tight text-[#8A6116]">
-            A few questions before your visit — saves you the clipboard.
-          </p>
+
+        {/* Forms nudge */}
+        <div className="flex items-center gap-2 rounded-2xl bg-white p-2.5 shadow-[0_2px_6px_rgba(107,99,90,.05),0_8px_20px_rgba(107,99,90,.08)]">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#FBF3E4] text-[0.62rem]">📝</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.58rem] font-bold leading-tight text-[#1C1A17]">2 quick forms before your visit</p>
+            <p className="text-[0.5rem] font-medium text-[#6B635A]">Saves you the clipboard at the desk.</p>
+          </div>
+          <span className="shrink-0 text-[0.62rem] font-bold text-[#7E957F]">→</span>
         </div>
-        <div className="rounded-xl bg-gradient-to-br from-[#7E957F] to-[#5f7561] p-2.5 text-white">
+
+        {/* Membership */}
+        <div className="rounded-2xl bg-gradient-to-br from-[#7E957F] to-[#5F7561] p-3 text-white shadow-[0_6px_18px_rgba(95,117,97,.35)]">
           <div className="flex items-center justify-between">
-            <p className="text-[0.5rem] font-bold uppercase tracking-wider opacity-80">Smile Club</p>
-            <span className="text-[0.6rem]" aria-hidden="true">✨</span>
+            <p className="text-[0.5rem] font-bold uppercase tracking-wider opacity-90">Smile Club</p>
+            <span className="text-[0.62rem]" aria-hidden="true">✨</span>
           </div>
-          <p className="mt-0.5 text-[0.7rem] font-bold">Member · 2 cleanings left</p>
-          <p className="text-[0.5rem] opacity-80">Renews Jan 2027</p>
+          <p className="mt-1 font-serif text-[0.76rem] font-semibold">2 of 3 cleanings left</p>
+          <div className="mt-1.5 flex gap-1">
+            <span className="h-1 flex-1 rounded-full bg-white/90" />
+            <span className="h-1 flex-1 rounded-full bg-white/90" />
+            <span className="h-1 flex-1 rounded-full bg-white/30" />
+          </div>
+          <p className="mt-1 text-[0.48rem] font-medium opacity-80">Renews Jan 2027 · Family plan</p>
         </div>
+
+        {/* Quick actions */}
         <div className="grid grid-cols-3 gap-1.5">
-          {['Book', 'Message', 'Billing'].map((label) => (
-            <div key={label} className="rounded-lg border border-[#E8E2D9] bg-white px-1.5 py-2 text-center">
-              <p className="text-[0.55rem] font-bold text-[#1C1A17]">{label}</p>
+          {[
+            ['📅', 'Book'],
+            ['💬', 'Message'],
+            ['💳', 'Billing'],
+          ].map(([icon, label]) => (
+            <div key={label} className="rounded-2xl bg-white px-1.5 py-2 text-center shadow-[0_2px_6px_rgba(107,99,90,.05),0_8px_20px_rgba(107,99,90,.08)]">
+              <p className="text-[0.66rem] leading-none">{icon}</p>
+              <p className="mt-1 text-[0.52rem] font-bold text-[#1C1A17]">{label}</p>
             </div>
           ))}
         </div>
       </div>
       {/* bottom tab bar */}
-      <div className="flex justify-around border-t border-[#E8E2D9] bg-white px-2 py-1.5 text-[0.5rem] font-semibold text-gray-400">
-        <span className="text-[#7E957F]">Home</span>
-        <span>Visits</span>
-        <span>Messages</span>
-        <span>More</span>
+      <div className="flex justify-around border-t border-[#EFE9DF] bg-white px-2 pb-1 pt-1.5 text-center text-[0.48rem] font-bold text-[#B4AB9E]">
+        {[
+          ['Home', true],
+          ['Visits', false],
+          ['Messages', false],
+          ['More', false],
+        ].map(([label, active]) => (
+          <span key={label as string} className={active ? 'text-[#7E957F]' : undefined}>
+            <span className="mx-auto mb-0.5 block h-1 w-1 rounded-full" style={{ background: active ? '#7E957F' : 'transparent' }} />
+            {label}
+          </span>
+        ))}
       </div>
       {/* home indicator */}
-      <div className="flex justify-center bg-white pb-1.5 pt-1">
+      <div className="flex justify-center bg-white pb-1.5 pt-0.5">
         <span className="h-1 w-20 rounded-full bg-gray-900/70" />
       </div>
     </div>

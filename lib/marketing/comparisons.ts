@@ -110,14 +110,14 @@ export const COMPARISONS: VendorComparison[] = [
     category: 'Patient booking & sync platform',
     reportedPricing: 'Custom quotes; reported ~$300+/mo per location in third-party reviews (2025–2026)',
     summary:
-      'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real. The trade-offs: no website, no clinic-branded portal, custom pricing, and a sync approach that writes into PMS databases directly on server-based systems — something Open Dental has publicly cautioned its customers about. DreamCRM syncs Open Dental exclusively through the official API, so every write lands in your audit trail.',
+      'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real, and the sync infrastructure is genuinely strong engineering. The trade-offs are scope and terms: no practice website, no clinic-branded portal, no shop or memberships, and custom pricing. DreamCRM is the whole patient-facing stack — website through recall — on one published price.',
     theirStrengths: [
       { title: 'PMS breadth', body: 'NexHealth syncs many PMSs today — Dentrix, Eaglesoft, and more. DreamCRM ships Open Dental now, with Dentrix Ascend in approval; if you run another PMS, NexHealth covers it sooner.' },
       { title: 'Real-time sync', body: 'Their synchronizer pushes changes near-instantly. Our Open Dental sync is scheduled polling plus instant write-backs — honest minutes, not seconds.' },
       { title: 'Developer API', body: 'A public API product lets DSOs build custom tooling on the sync layer.' },
     ],
     ourStrengths: [
-      { title: 'Official-API sync only', body: 'Open Dental publicly warns customers about third parties inserting data directly into its database. Every DreamCRM write goes through OD’s sanctioned API and shows up in your audit trail — nothing touches the database behind its back.' },
+      { title: 'The whole front office, not booking + comms', body: 'NexHealth stops at booking, forms, reminders, and payments. DreamCRM adds the practice website, a clinic-branded portal, reviews that become website testimonials, recall campaigns, and an online store — the jobs around booking that otherwise stay with other vendors.' },
       { title: 'The storefront comes with it', body: 'Website, blog, SEO dashboard, careers page, shop — NexHealth assumes you have vendors for all of that. We replace them.' },
       { title: 'A portal patients recognize', body: 'NexHealth’s patient pages run under its own brand. DreamCRM’s portal wears your logo, your colors, your voice — with clinic-controlled feature toggles.' },
       { title: 'Published flat pricing', body: '$200/mo on the pricing page, month-to-month. No discovery call required to learn the number.' },
@@ -132,7 +132,7 @@ export const COMPARISONS: VendorComparison[] = [
       social: ['no'],
       shop: ['no'],
       careers: ['no'],
-      pms: ['yes', 'Many PMSs; direct-DB writes on server installs'],
+      pms: ['yes', 'Many PMSs via its Synchronizer'],
       phones: ['no'],
       sms: ['yes'],
       contract: ['partial', 'Custom quotes; terms vary'],

@@ -81,7 +81,7 @@ const PILLARS: Array<{ title: string; body: string; href: string; glyph: React.R
   },
   {
     title: 'Open Dental sync',
-    body: 'Two-way through the official API only — every write lands in your audit trail.',
+    body: 'Two-way through the official API — every write lands in your audit trail.',
     href: '/product#integrations',
     glyph: <path d="M9 7h6a4 4 0 0 1 0 8h-2m-4 2H5a4 4 0 0 1 0-8h2m1 4h8" />,
   },
@@ -97,8 +97,8 @@ const TENETS: Array<{ title: string; body: string }> = [
     body: 'No VoIP phones. No SMS texting yet — it\u2019s on the roadmap, not on the invoice. It says so on the pricing page and in every comparison — before you buy, not after.',
   },
   {
-    title: 'Official APIs only',
-    body: 'Open Dental has publicly warned about vendors writing into its database directly. Every write we make goes through the sanctioned API, into your audit trail.',
+    title: 'Audit-clean sync',
+    body: 'Every write we make into your PMS lands in its own audit trail under a sanctioned integration — visible, attributable, yours. The system of record stays the system of record.',
   },
   {
     title: 'Leaving is allowed',

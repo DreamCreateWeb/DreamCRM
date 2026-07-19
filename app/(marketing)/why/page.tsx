@@ -21,7 +21,7 @@ const BELIEFS: Array<{ title: string; body: string }> = [
   },
   {
     title: 'We wrap your PMS. We don’t replace it.',
-    body: 'Your practice management system is the system of record for clinical truth — charts, procedures, claims. It should stay that way. DreamCRM is the relationship layer around it: the website, booking, portal, messages, reviews, and recall that your PMS was never built to do well. Two-way sync through official APIs only, so every change lands in your own audit trail.',
+    body: 'Your practice management system is the system of record for clinical truth — charts, procedures, claims. It should stay that way. DreamCRM is the relationship layer around it: the website, booking, portal, messages, reviews, and recall that your PMS was never built to do well. Two-way sync through sanctioned integrations, so every change lands in your own audit trail.',
   },
   {
     title: 'Software for front desks, not analysts',

@@ -4186,3 +4186,20 @@ nav + MARKETING_PUBLIC_PATHS; tenets section links to it. Doctrine
 recorded in DESIGN.md (Positioning 2026-07-19): outbound leads with
 savings, the website leads with identity. Blog savings-campaign articles
 deferred to an owner/DB session (marketing blog content lives in the DB).
+
+## 2026-07-19 (later) — Mock truth pass 2 + NexHealth trash-talk retired
+
+Owner review of the live homepage: the mocks still undersold the real v3
+product. Both rebuilt BY HAND against real screenshots (rendered +
+screenshot-verified via a standalone react-dom/server + Tailwind-CLI +
+chromium harness): DashboardMock now mirrors the real Overview (correct
+post-consolidation sidebar IA w/ pinned cockpit + [D]reamCRM mini-lockup,
+white attention CARDS w/ big numbers + action links, chair card w/
+confirmed ring, mono trend tiles w/ booking pulse); PortalMock re-executed
+at the real portal's polish (floating warm cards, date-chip hero visit
+card, membership progress, honest tab bar) keeping the fictional clinic's
+sage brand. ALSO: all vendor-shaming about direct-DB sync removed
+(NexHealth compare rewritten to scope/terms differences + a genuine
+compliment; 'Official APIs only' tenet → 'Audit-clean sync' self-posture;
+/why + docs echoes softened) — we may ride NexHealth's Synchronizer soon,
+and the copy no longer throws stones at infrastructure we'd be renting.
