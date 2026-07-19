@@ -1,7 +1,9 @@
 import 'server-only'
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { formTemplate, formSubmission, formPacket, patient } from '@/lib/db/schema/clinic'
 import type { FormTemplate, FormSubmission } from '@/lib/db/schema/clinic'
 import { newId, slugify } from '@/lib/utils'
@@ -69,6 +71,71 @@ export async function getSubmissionStatsForTemplates(
     })
   }
   return map
+}
+
+// ----- 8-week heartbeat series -------------------------------------------
+
+export interface FormsCompletedPerWeekPoint {
+  bucket: string
+  value: number
+}
+
+/**
+ * Forms completed per clinic-local week over the trailing 8 weeks (current
+ * week included, oldest first) — the Intake Forms page's single heartbeat
+ * sparkline (Design System law 7). "Completed" buckets by
+ * `form_submission.submittedAt`: a submission row only exists once the
+ * patient finishes and submits (there is no draft state), so `submittedAt`
+ * IS the completion moment — the module's win.
+ *
+ * Week boundaries are CLINIC-LOCAL via `clinicWeekStart` (the server runs
+ * UTC; a Saturday-night Central submission is already Sunday in UTC and must
+ * not jump a week). Boundaries walk back via "the instant just before this
+ * week's start" so every one is a true clinic-local Sunday midnight across
+ * DST — never naive -7*24h math. One org-scoped range scan (rides the
+ * form_submission_org_template_idx composite); bucketing in JS. Bucket
+ * labels read like 'Jun 2' (the week's Sunday). `now` is injectable for
+ * tests only. Mirrors lib/services/patients.ts → getNewPatientsPerWeek12.
+ */
+export async function getFormsCompletedPerWeek8(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<FormsCompletedPerWeekPoint[]> {
+  const tz = await getClinicTimeZone(organizationId)
+
+  // The 8 clinic-local week starts, oldest first (DST-safe walk-back).
+  const boundaries: Date[] = []
+  let cursor = clinicWeekStart(now, tz)
+  for (let i = 0; i < 8; i++) {
+    boundaries.unshift(cursor)
+    cursor = clinicWeekStart(new Date(cursor.getTime() - 1), tz)
+  }
+
+  const rows = await db
+    .select({ submittedAt: formSubmission.submittedAt })
+    .from(formSubmission)
+    .where(
+      and(
+        eq(formSubmission.organizationId, organizationId),
+        gte(formSubmission.submittedAt, boundaries[0]),
+      ),
+    )
+
+  const counts = new Array<number>(8).fill(0)
+  for (const r of rows) {
+    if (!r.submittedAt) continue
+    const t = r.submittedAt.getTime()
+    // Last boundary <= submittedAt owns the submission.
+    for (let i = boundaries.length - 1; i >= 0; i--) {
+      if (t >= boundaries[i].getTime()) {
+        counts[i] += 1
+        break
+      }
+    }
+  }
+
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  return boundaries.map((b, i) => ({ bucket: label.format(b), value: counts[i] }))
 }
 
 export async function listFormTemplates(organizationId: string): Promise<FormTemplate[]> {

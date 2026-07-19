@@ -4,8 +4,14 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { listFormTemplates, getSubmissionStatsForTemplates, listPackets } from '@/lib/services/forms'
+import {
+  listFormTemplates,
+  getSubmissionStatsForTemplates,
+  getFormsCompletedPerWeek8,
+  listPackets,
+} from '@/lib/services/forms'
 import PacketsManager, { type PacketView } from './packets-manager'
+import CompletedHeartbeat from './completed-heartbeat'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { db } from '@/lib/db'
 import { eq } from 'drizzle-orm'
@@ -22,11 +28,12 @@ export default async function IntakeFormsListPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
 
-  // All five reads are independent — fire them in one wave instead of three
+  // All six reads are independent — fire them in one wave instead of
   // serial DB round-trips (the Promise.all + two trailing awaits before).
-  const [templates, submissionStats, packets, profileRows, orgRows] = await Promise.all([
+  const [templates, submissionStats, perWeek8, packets, profileRows, orgRows] = await Promise.all([
     listFormTemplates(ctx.organizationId),
     getSubmissionStatsForTemplates(ctx.organizationId),
+    getFormsCompletedPerWeek8(ctx.organizationId),
     listPackets(ctx.organizationId),
     db
       .select({ websiteDomain: clinicProfile.websiteDomain })
@@ -92,7 +99,10 @@ export default async function IntakeFormsListPage() {
           }
         />
       ) : (
-        <div className="v2-card overflow-hidden">
+        <>
+          {/* The page's ONE heartbeat (law 7) — hides itself without signal. */}
+          <CompletedHeartbeat series={perWeek8} />
+          <div className="v2-card overflow-hidden">
           <ul className="divide-y divide-[color:var(--color-hairline)]">
             {templates.map((t) => {
               const fillUrl = `${baseUrl}/intake/${t.slug}`
@@ -165,7 +175,8 @@ export default async function IntakeFormsListPage() {
               )
             })}
           </ul>
-        </div>
+          </div>
+        </>
       )}
 
       {templates.length > 0 && (
