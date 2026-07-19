@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // State the chain mock pulls from. Each select() pulls one row set off
 // selectQueue in order, then the chain resolves it via .limit() or .then().
-const state: { selectQueue: unknown[][] } = { selectQueue: [] }
+// Where clauses are captured so scoping tests can grep the SQL fragments
+// (same pattern as tests/tenant-scoping/ecommerce-services.test.ts).
+const state: { selectQueue: unknown[][]; wheres: unknown[] } = { selectQueue: [], wheres: [] }
 
 vi.mock('@/lib/db', () => {
   const chain = () => {
@@ -10,7 +12,10 @@ vi.mock('@/lib/db', () => {
     obj.from = () => obj
     obj.innerJoin = () => obj
     obj.leftJoin = () => obj
-    obj.where = () => obj
+    obj.where = (clause: unknown) => {
+      state.wheres.push(clause)
+      return obj
+    }
     obj.groupBy = () => obj
     obj.orderBy = () => obj
     obj.limit = async () => state.selectQueue.shift() ?? []
@@ -24,6 +29,31 @@ vi.mock('@/lib/db', () => {
   }
 })
 
+/** Walk a drizzle SQL clause object and join every primitive it carries —
+ *  enough to grep for column names + literal values in a where clause. */
+function captureSql(clause: unknown): string {
+  const seen = new Set<unknown>()
+  const parts: string[] = []
+  const queue: unknown[] = [clause]
+  while (queue.length) {
+    const v = queue.shift()
+    if (v == null) continue
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      parts.push(String(v))
+      continue
+    }
+    if (typeof v !== 'object' || seen.has(v)) continue
+    seen.add(v)
+    if (Array.isArray(v)) {
+      for (const item of v) queue.push(item)
+      continue
+    }
+    const obj = v as Record<string, unknown>
+    for (const k of Object.keys(obj)) queue.push(obj[k])
+  }
+  return parts.join('|')
+}
+
 import {
   getClinicGrowth,
   getMrrSnapshot,
@@ -35,6 +65,7 @@ import {
 
 beforeEach(() => {
   state.selectQueue.length = 0
+  state.wheres.length = 0
 })
 
 describe('getMrrSnapshot', () => {
@@ -121,6 +152,21 @@ describe('getClinicGrowth', () => {
     state.selectQueue.push([{ count: 0 }])
     const g = await getClinicGrowth(4)
     expect(g.pctChange).toBeNull()
+  })
+
+  it('scopes both queries to clinic orgs and excludes the demo org', async () => {
+    state.selectQueue.push([])
+    state.selectQueue.push([{ count: 0 }])
+    await getClinicGrowth(12)
+    // Two selects: weekly buckets + lifetime total — each must filter
+    // type='clinic' AND is_demo=false (the demo clinic isn't real growth).
+    expect(state.wheres).toHaveLength(2)
+    for (const clause of state.wheres) {
+      const sql = captureSql(clause)
+      expect(sql).toContain('clinic')
+      expect(sql).toContain('is_demo')
+      expect(sql).toContain('false')
+    }
   })
 })
 

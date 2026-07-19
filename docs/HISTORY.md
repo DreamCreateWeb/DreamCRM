@@ -4077,3 +4077,23 @@ disjoint file lists + one vertical slice:
 Full suite 5,096 green + prod build green. NEXT heartbeats (each needs its
 real series/ring — no fake content): Overview confirmed-today ring,
 Patients/Leads/Payments hub tiles, platform overview.
+
+## 2026-07-19 — Heartbeats round 2 (law-7 pass, four surfaces)
+
+Four vertical slices, three by parallel scoped agents + one keystone:
+- **ProgressRing primitive** (components/ui/progress-ring.tsx — fills once
+  on mount, % text, required aria label, hides at max≤0, reduced-motion
+  snaps; doctrine inventory row + tests) worn by the Overview "Today's
+  chair" header: "N appointments · M confirmed" + ring (completed counts
+  as confirmed).
+- **Payments hub**: `getCollectedPerWeek8` (paid balance payments, 8
+  DST-safe clinic-local weeks) → To reconcile tile spark; tz-boundary +
+  ORG_A/ORG_B tests.
+- **Platform overview**: Active Clinics tile wears the EXISTING
+  `getClinicGrowth(12)` series (reuse over duplication); demo-exclusion
+  now pinned by test.
+- **Leads**: `getLeadsPerDay14` (clinic-local days) → "Last 14 days"
+  sparkline beside the filter chips; hidden when <2 active days; UTC-trap
+  test (10 PM Chicago lead lands in the clinic's day, not UTC's).
+
+Full suite 5,109 green + prod build green.

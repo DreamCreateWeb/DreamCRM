@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getSubscriptionStats } from '@/lib/services/projects'
+import { getClinicGrowth } from '@/lib/services/platform-metrics'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { getPmsDemand } from '@/lib/services/pms-interest'
 import { PROVIDER_LABELS } from '@/lib/types/pms'
@@ -38,8 +39,12 @@ function moneyFull(cents: number): string {
 }
 
 export default async function PlatformOverview() {
-  const [subs, attention, activity, pmsDemand] = await Promise.all([
+  const [subs, clinicGrowth, attention, activity, pmsDemand] = await Promise.all([
     getSubscriptionStats(),
+    // New clinic signups per week, last 12 weeks — the Active Clinics tile's
+    // heartbeat (law 7). Same series the Platform Metrics dashboard plots;
+    // demo org excluded at the service.
+    getClinicGrowth(12),
     getAttentionItems({ perKind: 3 }),
     getRecentPlatformActivity(10),
     getPmsDemand(),
@@ -70,6 +75,7 @@ export default async function PlatformOverview() {
           label="Active Clinics"
           value={formatNumberShort(subs.activeClinics)}
           sub={`${subs.newClinics30d} new in 30d`}
+          spark={clinicGrowth.buckets}
         />
         <KpiStat
           label="MRR"

@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useOptimistic, useState, useTransition } from 'react'
-import type { LeadRow, LeadStatus, LeadCounts } from '@/lib/services/leads'
+import type { LeadRow, LeadStatus, LeadCounts, LeadsPerDayPoint } from '@/lib/services/leads'
+import Sparkline from '@/components/ui/sparkline'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -89,12 +90,15 @@ function emptyCopy(status: LeadStatus | 'all'): { icon: string; title: string; b
 export default function LeadsView({
   rows,
   counts,
+  perDay14 = [],
   status,
   search,
   orgName = 'Your clinic',
 }: {
   rows: LeadRow[]
   counts: LeadCounts
+  /** New leads per clinic-local day, last 14 days — the page's one heartbeat. */
+  perDay14?: LeadsPerDayPoint[]
   status: LeadStatus | 'all'
   search: string
   orgName?: string
@@ -184,6 +188,12 @@ export default function LeadsView({
 
   const openRow = useMemo(() => rows.find((r) => r.id === openId) ?? null, [rows, openId])
 
+  // The page's ONE heartbeat (law 7): the 14-day inquiry flow. Decorative —
+  // hidden from AT (the chips carry the real numbers) and omitted entirely
+  // when fewer than 2 days carry any leads (a flat or single-blip line says
+  // nothing worth drawing).
+  const showFlow = perDay14.filter((p) => p.value > 0).length >= 2
+
   // Export the current view — same status + search the table is showing.
   const exportHref = useMemo(() => {
     const p = new URLSearchParams()
@@ -250,6 +260,19 @@ export default function LeadsView({
               className="form-input w-full text-sm"
             />
           </form>
+          {showFlow && (
+            <div
+              className="hidden lg:flex items-center gap-2 shrink-0"
+              title="New inquiries per day over the last 14 days"
+            >
+              <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                Last 14 days
+              </span>
+              <span aria-hidden="true">
+                <Sparkline data={perDay14} color="var(--color-teal-500)" width={104} height={26} labels={false} />
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

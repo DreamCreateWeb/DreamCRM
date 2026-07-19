@@ -51,8 +51,20 @@ let stubActivity: {
 
 let stubPmsDemand: Array<{ provider: string; waiting: number; pending: number }> = []
 
+let stubGrowth: {
+  buckets: Array<{ bucket: string; value: number }>
+  total: number
+  newThisWeek: number
+  newPrevWeek: number
+  pctChange: number | null
+} = { buckets: [], total: 0, newThisWeek: 0, newPrevWeek: 0, pctChange: null }
+
 vi.mock('@/lib/services/projects', () => ({
   getSubscriptionStats: async () => stubSubs,
+}))
+
+vi.mock('@/lib/services/platform-metrics', () => ({
+  getClinicGrowth: async () => stubGrowth,
 }))
 
 vi.mock('@/lib/services/operations', () => ({
@@ -85,6 +97,7 @@ beforeEach(() => {
   }
   stubActivity = { rows: [], stripeUnavailable: false }
   stubPmsDemand = []
+  stubGrowth = { buckets: [], total: 0, newThisWeek: 0, newPrevWeek: 0, pctChange: null }
 })
 
 describe('PlatformOverview', () => {
@@ -111,6 +124,34 @@ describe('PlatformOverview', () => {
     render(ui)
     expect(screen.getByText('6')).toBeInTheDocument()
     expect(screen.getByText(/4 new in 30d/)).toBeInTheDocument()
+  })
+
+  it('draws the new-clinics-per-week heartbeat sparkline on the Active Clinics tile', async () => {
+    stubGrowth = {
+      buckets: [
+        { bucket: '2026-06-29', value: 1 },
+        { bucket: '2026-07-06', value: 0 },
+        { bucket: '2026-07-13', value: 2 },
+      ],
+      total: 3,
+      newThisWeek: 2,
+      newPrevWeek: 0,
+      pctChange: 100,
+    }
+    const ui = await PlatformOverview()
+    const { container } = render(ui)
+    // KpiStat renders the spark as an svg polyline (line variant) inside the tile
+    const tile = screen.getByText('Active Clinics').closest('div.v2-card, div.v2-card-interactive')
+    expect(tile).not.toBeNull()
+    expect(tile!.querySelector('svg polyline')).not.toBeNull()
+    // The heartbeat is budgeted to ONE tile — no other pulse tile carries a spark
+    expect(container.querySelectorAll('svg polyline')).toHaveLength(1)
+  })
+
+  it('hides the sparkline entirely when the series is empty (no fake data)', async () => {
+    const { container } = render(await PlatformOverview())
+    expect(container.querySelector('svg polyline')).toBeNull()
+    expect(screen.queryByText('No data yet')).toBeNull()
   })
 
   it('renders each kind of attention item with its icon class', async () => {

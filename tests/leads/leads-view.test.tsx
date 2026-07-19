@@ -196,6 +196,50 @@ describe('LeadsView — list + filters + drawer trigger', () => {
   })
 })
 
+describe('LeadsView — 14-day heartbeat sparkline (law 7)', () => {
+  // 14 buckets, oldest first — mirrors getLeadsPerDay14's shape.
+  const series = (values: number[]) =>
+    values.map((v, i) => ({ bucket: `Jul ${i + 1}`, value: v }))
+
+  it('renders the sparkline with its label when the series carries signal', () => {
+    const { container } = render(
+      <LeadsView
+        rows={[]}
+        counts={baseCounts}
+        status="new"
+        search=""
+        perDay14={series([0, 1, 0, 2, 0, 0, 3, 0, 0, 0, 1, 0, 0, 2])}
+      />,
+    )
+    expect(screen.getByText('Last 14 days')).toBeInTheDocument()
+    // Decorative: the svg is wrapped in aria-hidden; the adjacent text label
+    // carries the meaning.
+    const spark = container.querySelector('[aria-hidden="true"] svg')
+    expect(spark).not.toBeNull()
+    expect(spark!.querySelectorAll('circle')).toHaveLength(14)
+  })
+
+  it('stays hidden without the series or with fewer than 2 nonzero days', () => {
+    // No prop at all (default []) — nothing renders.
+    const { rerender, container } = render(
+      <LeadsView rows={[]} counts={baseCounts} status="new" search="" />,
+    )
+    expect(screen.queryByText('Last 14 days')).not.toBeInTheDocument()
+    // A single blip is not a trend — still hidden.
+    rerender(
+      <LeadsView
+        rows={[]}
+        counts={baseCounts}
+        status="new"
+        search=""
+        perDay14={series([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])}
+      />,
+    )
+    expect(screen.queryByText('Last 14 days')).not.toBeInTheDocument()
+    expect(container.querySelector('[aria-hidden="true"] svg')).toBeNull()
+  })
+})
+
 describe('LeadsView — bulk triage', () => {
   it('keeps the bulk bar hidden until a row is selected', () => {
     const rows = [makeRow({ id: 'l1', name: 'Olivia Chen', status: 'new' })]
