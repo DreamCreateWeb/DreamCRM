@@ -21,13 +21,13 @@ import {
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
-  title: 'DreamCRM — the front-office platform for dental practices',
+  title: 'DreamCRM — the patient-relationship platform for dental practices',
   description:
-    'Website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. $200/mo founding practice rate after (regularly $500), month-to-month.',
+    'The patient-relationship platform for dental practices: website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. $200/mo founding practice rate (regularly $500), month-to-month.',
   openGraph: {
-    title: 'DreamCRM — the front-office platform for dental practices',
+    title: 'DreamCRM — the patient-relationship platform for dental practices',
     description:
-      'Replace the website vendor, booking tool, portal, review tool, and recall service with one system. Keep your PMS.',
+      'Everything between you and your patients — website, booking, portal, messages, reviews, recall — in one calm system. Keep your PMS.',
     type: 'website',
     // A page-level openGraph block replaces the inherited one wholesale,
     // dropping the root file-convention image — re-add it explicitly
@@ -139,9 +139,10 @@ export default async function MarketingHome() {
               </span>
             </h1>
             <p className="mkt-enter mkt-d2 mx-auto mt-6 max-w-2xl text-[1.08rem] leading-relaxed text-gray-600">
-              The website, booking, portal, messages, reviews, recall, and shop your practice juggles
-              across five or six vendors — finally one system that just talks to itself. And your
-              PMS? It stays exactly where it is.
+              DreamCRM is the patient-relationship platform for dental practices — the
+              website, booking, portal, messages, reviews, and recall that run everything
+              between you and your patients, in one system that feels calm. And your PMS?
+              It stays exactly where it is.
             </p>
             <div className="mkt-enter mkt-d3 mt-8 flex flex-wrap items-center justify-center gap-3">
               <PrimaryCta href="/signup">Start your free trial</PrimaryCta>
@@ -173,54 +174,41 @@ export default async function MarketingHome() {
 
       <MarqueeStrip />
 
-      {/* ── The consolidation math ── */}
+      {/* ── What it feels like (2026-07-19: identity-first — the
+             consolidation-math table moved down-funnel to /compare) ── */}
       <ScrollReveal as="section" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div>
-            <Eyebrow>The problem</Eyebrow>
+            <Eyebrow>What it feels like</Eyebrow>
             <h2 className="text-[1.7rem] font-bold leading-tight tracking-tight sm:text-[2.1rem]">
-              Six tools. Six logins.
+              A Tuesday that runs itself
               <br />
-              Six invoices. Zero shared data.
+              is the whole product.
             </h2>
             <p className="mt-4 text-[0.98rem] leading-relaxed text-gray-600">
-              A typical practice spends $800–$2,000 a month across patient-facing tools that
-              don&apos;t talk to each other. DreamCRM does the same jobs as one product — so a
-              website lead becomes a patient, the patient gets a portal, and the visit triggers a
-              review request with nobody copying data between tabs.
+              Your front desk opens one screen and sees the morning in one breath: who&apos;s
+              in the chair, who still needs a text, which review just landed. A website
+              lead becomes a patient, the patient gets a portal, the visit asks for its
+              own review — nobody copies data between tabs, because there are no tabs.
             </p>
-            <div className="mt-6">
-              <GhostCta href="/compare">See the honest comparisons</GhostCta>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <GhostCta href="/why">What this platform believes</GhostCta>
             </div>
           </div>
-          <div className="rounded-xl border border-gray-200 p-2 shadow-sm">
-            <table className="w-full text-[0.875rem]">
-              <thead>
-                <tr className="text-left text-[0.72rem] font-bold uppercase tracking-wider text-gray-400">
-                  <th className="px-3 py-2">Replaces</th>
-                  <th className="px-3 py-2 text-right">Typical spend</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ['Website agency retainer', '$150–500/mo'],
-                  ['Online booking vendor', '$200–350/mo'],
-                  ['Patient communications suite', '$250–400/mo'],
-                  ['Review management tool', '$100–300/mo'],
-                  ['Recall / reactivation service', '$150–300/mo'],
-                  ['Job board listings', '$100–400/mo'],
-                ].map(([tool, price]) => (
-                  <tr key={tool} className="border-t border-gray-100">
-                    <td className="px-3 py-2.5 font-medium text-gray-800">{tool}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-400 line-through">{price}</td>
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-teal-200 bg-teal-50/60">
-                  <td className="px-3 py-3 font-bold text-gray-950">DreamCRM — all of it</td>
-                  <td className="px-3 py-3 text-right font-bold text-teal-700">$200/mo</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {[
+              ['One conversation, not six systems', 'The website, booking, portal, messages, reviews, and recall already know about each other — a change in one shows up in all of them.'],
+              ['Warm, plain language', '“3 still need a text,” never “3 records pending confirmation.” Software your team actually likes opening at 7:45am.'],
+              ['Numbers that live', 'Every stat carries its own pulse — bookings trending, confirmations filling, reviews arriving. You see the practice moving, not a report about where it used to be.'],
+            ].map(([title, body]) => (
+              <div key={title} className="rounded-2xl border border-gray-200 bg-white p-6">
+                <p className="flex items-center gap-2 text-[0.95rem] font-bold text-gray-950">
+                  <CheckIcon className="h-4 w-4 shrink-0 text-teal-700" />
+                  {title}
+                </p>
+                <p className="mt-2 text-[0.875rem] leading-relaxed text-gray-600">{body}</p>
+              </div>
+            ))}
           </div>
         </div>
       </ScrollReveal>
@@ -269,6 +257,9 @@ export default async function MarketingHome() {
               Dental software has a trust problem — surprise invoices, term contracts, sync agents
               that break quietly. We took the opposite position on every one of those, in writing.
             </p>
+            <div className="mt-5">
+              <GhostCta href="/why">Read the full manifesto</GhostCta>
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {TENETS.map((t) => (

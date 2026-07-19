@@ -32,7 +32,8 @@ import DocArticlePage from '@/app/(marketing)/docs/[slug]/page'
 import { PLANS } from '@/lib/stripe-config'
 import { COMPARISONS, getComparison } from '@/lib/marketing/comparisons'
 import { DOCS, DOC_CATEGORIES, getDoc } from '@/lib/marketing/docs'
-import { MARKETING_NAV } from '@/lib/marketing/site'
+import { MARKETING_NAV, MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
+import WhyPage from '@/app/(marketing)/why/page'
 
 describe('marketing home', () => {
   it('renders the hero + the single founding-rate teaser for signed-out visitors', async () => {
@@ -126,6 +127,22 @@ describe('docs pages', () => {
   })
 })
 
+describe('why page (the manifesto)', () => {
+  it('renders the identity claim and the beliefs, and is publicly routable', () => {
+    render(<WhyPage />)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      /patient-relationship platform for dental practices/i,
+    )
+    expect(screen.getByText('Dental-only, on purpose, forever')).toBeInTheDocument()
+    expect(screen.getByText(/We wrap your PMS/i)).toBeInTheDocument()
+    expect(screen.getByText('Our gaps are marked')).toBeInTheDocument()
+    expect(screen.getByText('Leaving is allowed')).toBeInTheDocument()
+    // Middleware allowlist: a nav'd marketing page absent from
+    // MARKETING_PUBLIC_PATHS ships auth-walled — pin the membership.
+    expect(MARKETING_PUBLIC_PATHS).toContain('/why')
+  })
+})
+
 describe('content config integrity', () => {
   it('comparison slugs are unique and resolvable', () => {
     const slugs = COMPARISONS.map((c) => c.slug)
@@ -162,7 +179,7 @@ describe('content config integrity', () => {
 
   it('nav links point at real top-level marketing routes', () => {
     const tops = MARKETING_NAV.map((n) => n.href)
-    expect(tops).toEqual(['/product', '/compare', '/pricing', '/docs'])
+    expect(tops).toEqual(['/product', '/compare', '/why', '/pricing', '/docs'])
     // Every Compare child resolves to a real comparison page.
     for (const child of MARKETING_NAV.find((n) => n.label === 'Compare')!.children!) {
       expect(getComparison(child.href.replace('/compare/', ''))).toBeDefined()

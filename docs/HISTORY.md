@@ -4174,3 +4174,15 @@ decision: retire tiers from marketing entirely.
   PortalMock already correct. Key discovery: the token-ramp re-point
   already recolored every teal-* class in the mocks — the work was
   structural.
+
+## 2026-07-19 (later) — Marketing positioning: identity first
+
+Owner call: "consolidation" demoted from site identity to down-funnel
+evidence. Homepage hero/meta/OG now claim the category ("the
+patient-relationship platform for dental practices") + the v3 feeling; the
+consolidation-math table moved to /compare ("The math, if you're
+counting"); new /why manifesto page (6 beliefs, anti-shame voice) added to
+nav + MARKETING_PUBLIC_PATHS; tenets section links to it. Doctrine
+recorded in DESIGN.md (Positioning 2026-07-19): outbound leads with
+savings, the website leads with identity. Blog savings-campaign articles
+deferred to an owner/DB session (marketing blog content lives in the DB).

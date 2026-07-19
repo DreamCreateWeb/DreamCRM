@@ -18,7 +18,7 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
  * makes it public + indexed in one move (a page that exists in nav but is
  * auth-walled has shipped twice before; see middleware.ts history).
  */
-export const MARKETING_PUBLIC_PATHS = ['/product', '/pricing', '/compare', '/docs', '/blog'] as const
+export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/pricing', '/compare', '/docs', '/blog'] as const
 export const DEMO_URL = `https://acme-dental-demo.${SITE_DOMAIN}`
 
 export interface MarketingNavChild {
@@ -61,6 +61,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
       { label: 'vs Adit', href: '/compare/adit', description: 'All-in-one comms & analytics' },
     ],
   },
+  { label: 'Why DreamCRM', href: '/why' },
   { label: 'Pricing', href: '/pricing' },
   {
     label: 'Resources',
@@ -80,7 +81,8 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
     title: 'Product',
     links: [
       { label: 'Platform tour', href: '/product' },
-      { label: 'Pricing', href: '/pricing' },
+      { label: 'Why DreamCRM', href: '/why' },
+  { label: 'Pricing', href: '/pricing' },
       { label: 'Live demo practice', href: DEMO_URL, external: true },
       { label: 'Patient portal', href: '/product#portal' },
       { label: 'Open Dental sync', href: '/product#integrations' },

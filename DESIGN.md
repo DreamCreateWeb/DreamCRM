@@ -490,3 +490,28 @@ This file is the durable source of truth. Update it when:
 
 Don't update it for transient implementation details — those go in
 `CLAUDE.md` or commit messages.
+
+---
+
+## Positioning (decided 2026-07-19): identity first, consolidation down-funnel
+
+The marketing site leads with WHAT THE PLATFORM IS, not what it replaces.
+The identity claim is the one this document already states as the goal:
+**"the patient-relationship platform for dental practices"** — wrapped in
+the v3 register (calm, warm, alive; "a Tuesday that runs itself").
+
+- **Homepage** = category claim → what it feels like → how we think (the
+  honesty tenets) → practical shape → proof. The `/why` manifesto page
+  carries the platform's beliefs (dental-only forever, wrap-don't-replace,
+  software for front desks, alive-not-archived, gaps marked, leaving
+  allowed).
+- **Consolidation economics are DEMOTED to evidence, not deleted** — they
+  are the proven wedge (see research above) and remain the OUTBOUND
+  door-opener (prospecting AI leads with savings; correct for cold
+  attention) and the down-funnel close (/compare pages carry the
+  replace-the-stack table; savings-math articles belong on the blog as a
+  campaign, authored via the platform org's blog — content lives in the
+  DB, so articles are an owner/session-with-DB task, not code).
+- Rule of thumb: **outbound leads with savings; the website leads with
+  identity.** Never scrub the savings math; never make it the homepage
+  thesis again.
