@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { getMyDay } from '@/lib/services/my-day'
+import { getMyDay, getMyClosedFollowupsPerWeek8 } from '@/lib/services/my-day'
 import { getDigestEnabled } from '@/lib/services/daily-digest'
 import { getDigestOptOut } from '@/lib/services/staff-notification-pref'
 import { PageHeader } from '@/components/ui/page-header'
@@ -16,6 +16,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
 import MyDayFollowups from './my-day-followups'
+import ClosedHeartbeat from './closed-heartbeat'
 import DigestToggle from './digest-toggle'
 import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -25,11 +26,14 @@ export default async function MyDayPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/')
 
-  const [data, digestEnabled, digestOptOut, timeZone] = await Promise.all([
+  const [data, digestEnabled, digestOptOut, timeZone, closedPerWeek8] = await Promise.all([
     getMyDay(ctx.organizationId, ctx.userId),
     getDigestEnabled(ctx.organizationId),
     getDigestOptOut(ctx.organizationId, ctx.userId),
     getClinicTimeZone(ctx.organizationId),
+    // The page's ONE heartbeat (law 7): the staffer's OWN closed follow-ups,
+    // 8 clinic-local weeks — org + user scoped.
+    getMyClosedFollowupsPerWeek8(ctx.organizationId, ctx.userId),
   ])
   const firstName = (ctx.userName ?? '').split(' ')[0] || 'there'
   const followupsDue = data.followups.overdue + data.followups.today
@@ -103,6 +107,7 @@ export default async function MyDayPage() {
               Open list →
             </Link>
           </div>
+          <ClosedHeartbeat series={closedPerWeek8} />
           <MyDayFollowups initial={data.followups.items} currentUserId={ctx.userId} />
         </section>
 

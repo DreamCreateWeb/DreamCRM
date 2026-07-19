@@ -1,6 +1,7 @@
 import 'server-only'
-import { and, count, eq, gt, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, isNotNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { listOpenFollowups, type PatientFollowupView } from '@/lib/services/patient-followups'
 import { listPatientThreads, type ThreadRow } from '@/lib/services/patient-messaging'
 import { listAppointments, type AppointmentRow } from '@/lib/services/appointments'
@@ -36,6 +37,76 @@ export interface MyDayData {
   balances: { count: number; totalCents: number }
   /** The per-patient audit of TOMORROW's schedule — who needs prep and why. */
   tomorrow: DayAudit
+}
+
+// ── 8-week personal heartbeat series (Design System law 7) ───────────
+
+export interface ClosedFollowupsPerWeekPoint {
+  bucket: string
+  value: number
+}
+
+/**
+ * Follow-ups the signed-in staffer closed per clinic-local week over the
+ * trailing 8 weeks (current week included, oldest first) — My Day's single
+ * heartbeat (Design System law 7). PERSONAL by design: My Day is a per-staff
+ * cockpit, and `patient_followup.completedBy` is stamped by
+ * `completeFollowup` on every close, so the attribution is honest — this is
+ * the staffer's own encouragement ("you closed 12 this week"), never a
+ * team-wide or manager metric. Scoped by organizationId AND completedBy —
+ * both non-negotiable.
+ *
+ * Week boundaries are CLINIC-LOCAL via `clinicWeekStart` (the server runs
+ * UTC; a Saturday-night Central close is already Sunday in UTC and must not
+ * jump into the next week). Boundaries walk back via "the instant just
+ * before this week's start" so each is a true clinic-local Sunday midnight
+ * across DST — never naive -7*24h math (mirrors getNewPatientsPerWeek12).
+ * One org+user-scoped range scan; bucketing in JS. Bucket labels read like
+ * 'Jun 7' (the week's Sunday). `now` is injectable for tests only.
+ */
+export async function getMyClosedFollowupsPerWeek8(
+  organizationId: string,
+  userId: string,
+  now: Date = new Date(),
+): Promise<ClosedFollowupsPerWeekPoint[]> {
+  const tz = await getClinicTimeZone(organizationId)
+
+  // The 8 clinic-local week starts, oldest first (DST-safe walk-back).
+  const boundaries: Date[] = []
+  let cursor = clinicWeekStart(now, tz)
+  for (let i = 0; i < 8; i++) {
+    boundaries.unshift(cursor)
+    cursor = clinicWeekStart(new Date(cursor.getTime() - 1), tz)
+  }
+
+  const rows = await db
+    .select({ completedAt: schema.patientFollowup.completedAt })
+    .from(schema.patientFollowup)
+    .where(
+      and(
+        eq(schema.patientFollowup.organizationId, organizationId),
+        eq(schema.patientFollowup.completedBy, userId),
+        eq(schema.patientFollowup.status, 'done'),
+        isNotNull(schema.patientFollowup.completedAt),
+        gte(schema.patientFollowup.completedAt, boundaries[0]),
+      ),
+    )
+
+  const counts = new Array<number>(8).fill(0)
+  for (const r of rows) {
+    if (!r.completedAt) continue
+    const t = r.completedAt.getTime()
+    // Last boundary <= completedAt owns the close.
+    for (let i = boundaries.length - 1; i >= 0; i--) {
+      if (t >= boundaries[i].getTime()) {
+        counts[i] += 1
+        break
+      }
+    }
+  }
+
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  return boundaries.map((b, i) => ({ bucket: label.format(b), value: counts[i] }))
 }
 
 export async function getMyDay(organizationId: string, userId: string): Promise<MyDayData> {
