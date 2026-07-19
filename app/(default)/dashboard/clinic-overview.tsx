@@ -8,6 +8,7 @@ import { readDemoSkin } from '@/lib/demo-skin'
 import { formatRelativeDate } from '@/lib/utils/format'
 import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
+import { ProgressRing } from '@/components/ui/progress-ring'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
@@ -374,10 +375,31 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
               Today&rsquo;s chair
             </h2>
-            <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
-              {data.todaysAppointments.length}{' '}
-              {data.todaysAppointments.length === 1 ? 'appointment' : 'appointments'}
-            </span>
+            {/* The section's heartbeat (law 7): confirmed share of today, ring +
+                explicit text (color never carries meaning alone). Completed
+                visits count as confirmed — a done visit isn't "needs a text". */}
+            {(() => {
+              const total = data.todaysAppointments.length
+              const confirmed = data.todaysAppointments.filter(
+                (a) => a.status === 'confirmed' || a.status === 'completed',
+              ).length
+              return (
+                <span className="flex items-center gap-2.5">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
+                    {total} {total === 1 ? 'appointment' : 'appointments'}
+                    {total > 0 && ` · ${confirmed} confirmed`}
+                  </span>
+                  {total > 0 && (
+                    <ProgressRing
+                      value={confirmed}
+                      max={total}
+                      size={34}
+                      label={`${confirmed} of ${total} confirmed`}
+                    />
+                  )}
+                </span>
+              )
+            })()}
           </div>
           {data.todaysAppointments.length === 0 ? (
             <EmptyState

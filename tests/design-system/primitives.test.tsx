@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { KpiStat } from '@/components/ui/kpi-stat'
+import { ProgressRing } from '@/components/ui/progress-ring'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 
@@ -248,5 +249,22 @@ describe('FlashToast', () => {
     vi.advanceTimersByTime(4100)
     expect(onDone).toHaveBeenCalledOnce()
     vi.useRealTimers()
+  })
+})
+
+describe('ProgressRing', () => {
+  it('renders the percent, the aria label, and a title (v3 law-7 heartbeat)', () => {
+    render(<ProgressRing value={11} max={14} label="11 of 14 confirmed" />)
+    const ring = screen.getByRole('img', { name: '11 of 14 confirmed' })
+    expect(ring).toBeInTheDocument()
+    expect(ring.getAttribute('title')).toBe('11 of 14 confirmed')
+    expect(screen.getByText('79')).toBeInTheDocument()
+  })
+
+  it('clamps overfull values to 100 and renders nothing for an empty whole', () => {
+    const { container, rerender } = render(<ProgressRing value={5} max={4} label="overfull" />)
+    expect(screen.getByText('100')).toBeInTheDocument()
+    rerender(<ProgressRing value={0} max={0} label="empty" />)
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
   })
 })

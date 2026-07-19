@@ -298,7 +298,8 @@ Import from `@/components/ui/...` — same inventory, re-skinned:
 | `EncodingLegend` | `encoding-legend.tsx` | popover = surface-1 + shadow-pop + `--r-lg`; violet info swatch, fuchsia special swatch. |
 | `EmptyState` | `empty-state.tsx` | surface-sunk well, `--r-md`; ink-600 copy; one primary CTA. The ONE sanctioned mascot home: the small SVG tooth may appear in empty states and the schedule-gap card — nowhere else. |
 | `BulkBar` | `bulk-bar.tsx` | floating surface-2 + shadow-pop + `--r-lg` (or pill); slides up fast; explicit verbs. |
-| `KpiStat` | `kpi-stat.tsx` | Geist Mono numerals (text-3xl ink-900), ink-500 caps label, floating card, hover lift when drillable, count-up per Part 3, **heartbeat slot** (sparkline/ring/delta — law 7). |
+| `KpiStat` | `kpi-stat.tsx` | Geist Mono numerals (text-3xl ink-900), ink-500 caps label, floating card, hover lift when drillable, count-up per Part 3, **heartbeat slot** (`spark` — law 7). |
+| `ProgressRing` | `progress-ring.tsx` | Share-of-whole heartbeat: brand ring fills once on mount (≤1.1s), % text inside, REQUIRED `label` aria + always paired with visible text; renders nothing at max ≤ 0; reduced-motion snaps. |
 | `FlashToast` | `flash-toast.tsx` | motion per Part 3; tone-tinted edge (info edge = violet). |
 
 Tables/agenda rows: header row surface-sunk + ink-500 caps labels; row
