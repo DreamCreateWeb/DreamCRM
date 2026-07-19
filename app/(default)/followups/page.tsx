@@ -7,7 +7,13 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { listOpenFollowups, listAssignableStaff, getFollowupSummary, type OpenFollowupFilters } from '@/lib/services/patient-followups'
+import {
+  listOpenFollowups,
+  listAssignableStaff,
+  getFollowupSummary,
+  getFollowupsCompletedPerWeek8,
+  type OpenFollowupFilters,
+} from '@/lib/services/patient-followups'
 import { getFollowupRuleConfig } from '@/lib/services/followup-rules'
 import { getDigestEnabled } from '@/lib/services/daily-digest'
 import ModuleHint from '@/components/onboarding/module-hint'
@@ -36,12 +42,13 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
     includeDone,
   }
 
-  const [rows, ruleConfig, digestEnabled, staff, summary] = await Promise.all([
+  const [rows, ruleConfig, digestEnabled, staff, summary, completedPerWeek8] = await Promise.all([
     listOpenFollowups(ctx.organizationId, filters),
     getFollowupRuleConfig(ctx.organizationId),
     getDigestEnabled(ctx.organizationId),
     listAssignableStaff(ctx.organizationId),
     getFollowupSummary(ctx.organizationId),
+    getFollowupsCompletedPerWeek8(ctx.organizationId),
   ])
 
   return (
@@ -53,6 +60,7 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
         rows={rows}
         orgName={ctx.organizationName ?? 'Your clinic'}
         dueNowCount={summary.overdue + summary.dueToday}
+        completedPerWeek8={completedPerWeek8}
         filters={{ mine, due, includeDone }}
         staff={staff}
         currentUserId={ctx.userId}

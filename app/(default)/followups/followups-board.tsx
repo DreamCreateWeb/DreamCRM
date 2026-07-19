@@ -7,6 +7,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import Sparkline from '@/components/ui/sparkline'
+import type { FollowupsCompletedPerWeekPoint } from '@/lib/services/patient-followups'
 import {
   followupDueState,
   formatDueLabel,
@@ -43,6 +45,7 @@ export default function FollowupsBoard({
   rows,
   orgName,
   dueNowCount = 0,
+  completedPerWeek8 = [],
   filters,
   staff,
   currentUserId,
@@ -55,6 +58,9 @@ export default function FollowupsBoard({
   /** overdue + due-today (clinic-local) — the same number the sidebar badge
    *  counts, so the board and the badge always agree at a glance. */
   dueNowCount?: number
+  /** Follow-ups completed per clinic-local week, last 8 weeks — the board's
+   *  one heartbeat (law 7): it celebrates work done, not backlog. */
+  completedPerWeek8?: FollowupsCompletedPerWeekPoint[]
   filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean }
   staff: Array<{ userId: string; name: string }>
   currentUserId: string
@@ -124,6 +130,14 @@ export default function FollowupsBoard({
   const doneItems = items.filter((f) => f.status === 'done')
   const openCount = items.filter((f) => f.status === 'open').length
 
+  // The board's ONE heartbeat (law 7): the 8-week completed-follow-ups flow —
+  // it celebrates the work the team finished, not the pile that's left.
+  // Decorative — hidden from AT (the title + label carry the meaning) and
+  // omitted entirely when fewer than 2 weeks carry any completions (a flat or
+  // single-blip line says nothing worth drawing). Mirrors the Patients page's
+  // 12-week spark.
+  const showFlow = completedPerWeek8.filter((p) => p.value > 0).length >= 2
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
@@ -150,6 +164,19 @@ export default function FollowupsBoard({
         <FilterChip active={filters.due === 'upcoming'} onClick={() => setParam('due', filters.due === 'upcoming' ? null : 'upcoming')}>Upcoming</FilterChip>
         <span className="mx-1 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
         <FilterChip active={filters.includeDone} onClick={() => setParam('done', filters.includeDone ? null : '1')}>Show done</FilterChip>
+        {showFlow && (
+          <div
+            className="hidden lg:flex items-center gap-2 shrink-0 ml-auto"
+            title="Follow-ups your team finished each week over the last 8 weeks"
+          >
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              Completed · 8 weeks
+            </span>
+            <span aria-hidden="true">
+              <Sparkline data={completedPerWeek8} color="var(--color-teal-500)" width={104} height={26} labels={false} />
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="mb-6">

@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   MAX_FOLLOWUP_TITLE_LEN,
@@ -10,6 +10,7 @@ import {
   type PatientFollowupView,
 } from '@/lib/types/followups'
 import { clinicDayKey } from '@/lib/format-datetime'
+import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 /** The clinic-local "today" key for due-date bucketing. `todayYmd(now)` is the
@@ -214,6 +215,75 @@ export async function getFollowupSummary(
     dueToday: Number(counts?.dueToday ?? 0),
     preview: preview.map(toView),
   }
+}
+
+// ----- 8-week heartbeat series ------------------------------------------
+
+export interface FollowupsCompletedPerWeekPoint {
+  bucket: string
+  value: number
+}
+
+/**
+ * Follow-ups completed per clinic-local week over the trailing 8 weeks
+ * (current week included, oldest first) — the /followups board's single
+ * heartbeat sparkline (Design System law 7). Completion is the win the board
+ * exists for, so the trend celebrates work DONE, not backlog size.
+ *
+ * Buckets by `completedAt` — the real completion timestamp `completeFollowup`
+ * stamps (and `reopenFollowup` clears), not `updatedAt` (which moves on
+ * reassign/edit) and not status alone. Only `status = 'done'` rows count, so a
+ * reopened follow-up leaves the trend until it's genuinely finished again.
+ *
+ * Week boundaries are CLINIC-LOCAL via `clinicWeekStart` (the server runs
+ * UTC; a Saturday-night Central tick-off is already Sunday in UTC and must
+ * not jump a week). Boundaries walk back via "the instant just before this
+ * week's start" so every one is a true clinic-local Sunday midnight across
+ * DST — never naive -7*24h math. One org-scoped range scan; bucketing in JS.
+ * Bucket labels read like 'Jun 2' (the week's Sunday). `now` is injectable
+ * for tests only. Mirrors lib/services/patients.ts → getNewPatientsPerWeek12.
+ */
+export async function getFollowupsCompletedPerWeek8(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<FollowupsCompletedPerWeekPoint[]> {
+  const tz = await getClinicTimeZone(organizationId)
+
+  // The 8 clinic-local week starts, oldest first (DST-safe walk-back).
+  const boundaries: Date[] = []
+  let cursor = clinicWeekStart(now, tz)
+  for (let i = 0; i < 8; i++) {
+    boundaries.unshift(cursor)
+    cursor = clinicWeekStart(new Date(cursor.getTime() - 1), tz)
+  }
+
+  const rows = await db
+    .select({ completedAt: schema.patientFollowup.completedAt })
+    .from(schema.patientFollowup)
+    .where(
+      and(
+        eq(schema.patientFollowup.organizationId, organizationId),
+        eq(schema.patientFollowup.status, 'done'),
+        isNotNull(schema.patientFollowup.completedAt),
+        gte(schema.patientFollowup.completedAt, boundaries[0]),
+      ),
+    )
+
+  const counts = new Array<number>(8).fill(0)
+  for (const r of rows) {
+    if (!r.completedAt) continue
+    const t = r.completedAt.getTime()
+    // Last boundary <= completedAt owns the follow-up.
+    for (let i = boundaries.length - 1; i >= 0; i--) {
+      if (t >= boundaries[i].getTime()) {
+        counts[i] += 1
+        break
+      }
+    }
+  }
+
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  return boundaries.map((b, i) => ({ bucket: label.format(b), value: counts[i] }))
 }
 
 /**
