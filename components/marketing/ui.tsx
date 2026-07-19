@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { FOOTER_COLUMNS, MARKETING } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
+import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 
 /**
  * Server-side primitives for the marketing site: footer, section scaffolds,
  * CTAs, motion styles, and the product mocks. SaaS register: white/gray-50
- * grounds, gray-950 ink, brand-teal accent, 12px radii, Inter.
+ * grounds, gray-950 ink, brand-blue accent, 12px radii, Inter.
  *
  * The mocks are deliberately built from real copy — names, times, message
  * text, prices — so they read as screenshots of the actual product, not
@@ -89,15 +90,8 @@ export function MarketingFooter() {
     <footer className="bg-gray-950 text-gray-400">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.2fr_repeat(4,1fr)]">
         <div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/images/dream-create-logo-inverse.webp"
-            alt={MARKETING.companyName}
-            width={470}
-            height={100}
-            className="h-7 w-auto"
-            decoding="async"
-          />
+          {/* Footer sits on gray-950 in both themes — force the wordmark to white ink. */}
+          <DreamCreateLogo size={28} wordmarkClassName="text-white [--brand-ink:#fff]" />
           <p className="mt-3 max-w-[16rem] text-[0.82rem] leading-relaxed">
             {MARKETING.tagline}. Website, booking, portal, comms, reviews, and shop — wrapped around
             the PMS you already run.
@@ -160,7 +154,7 @@ export function SectionTitle({ children, sub }: { children: React.ReactNode; sub
 /** The marketing brand texture — exported so the home hero and PageHero
  *  can never drift apart. */
 export const HERO_DOT_GRID = {
-  backgroundImage: 'radial-gradient(circle, #a8ece7 1px, transparent 1px)',
+  backgroundImage: 'radial-gradient(circle, #c1d6ff 1px, transparent 1px)',
   backgroundSize: '22px 22px',
 } as const
 

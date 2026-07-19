@@ -4121,3 +4121,35 @@ Remaining heartbeat candidates (round 4+): Followups board, Shop hub,
 Intake forms, My Day. Post-redesign roadmap seeded: action-links coverage
 audit (every number drillable) + the widget-registry direction (Overview
 as a composition of registered widgets).
+
+## 2026-07-19 (later) — The wide wave: heartbeats complete + action links pass 1 + marketing re-tint
+
+Six parallel slices ran the remaining rebrand rounds in one wave:
+- **Heartbeats round 4** (finishes law-7 coverage of the daily surfaces):
+  Follow-ups completed/wk (completedAt + status='done'); Intake forms
+  completed/wk (submittedAt IS completion — no draft state); My Day's
+  PERSONAL pulse ("follow-ups you closed", org+user-scoped via
+  completedBy, bar variant, warm no-shame voice); Shop paid-orders/wk on
+  the Paid-orders tile (test harness sharpened to assert bound drizzle
+  Params — substring SQL checks were passing vacuously).
+- **Action links pass 1**: platform tiles → customers/invoices/metrics;
+  platform attention rows honor service hrefs (self-links skipped); chair
+  header counts → today's agenda. Audit: all other scoped surfaces were
+  already drillable. Deferred (need service work): platform ActivityRow
+  has no href field; three attention hrefs point at the overview itself;
+  PMS-demand counts have no drillable surface.
+- **Marketing re-tint**: React DreamCreateLogo lockup replaces both teal
+  .webp imgs (footer forces white ink via --brand-ink override); CTA glow
+  + hero dot-grid + OG accent re-tinted hue-for-hue; fictional clinic-mock
+  palette + third-party brand colors deliberately untouched; JSON-LD
+  Organization.logo re-pointed to a freshly rendered
+  /images/dream-create-logo-blue.png (512px transparent raster of the
+  Dream Bubble).
+- Plus the logged pipeline-board straggler → v2-card.
+
+Heartbeat coverage is now: Overview (pulse+ring) · My Day · Messages ·
+Patients · Follow-ups · Leads · Intake · Growth · Payments · Shop ·
+platform cockpit — the living-data law holds on every daily surface.
+NEXT: action-links pass 2 (the deferred service-level hrefs), then the
+widget-registry groundwork (Overview as a composition, zero visual
+change).

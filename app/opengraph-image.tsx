@@ -8,7 +8,7 @@ export const contentType = 'image/png'
 
 /**
  * Branded OG card for the marketing site (link shares on social/Slack).
- * Same register as the site: ink ground, brand-teal accent, dense type.
+ * Same register as the site: ink ground, brand-blue accent, dense type.
  *
  * The mark is the v3 Dream Bubble D, inlined as an SVG data-URI <img>
  * (Satori can't run the useId-based React component — same pattern as
@@ -57,7 +57,7 @@ export default function OpengraphImage() {
           <div style={{ color: 'white', fontSize: 64, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2 }}>
             Your whole front office.
           </div>
-          <div style={{ color: '#4dcdc4', fontSize: 64, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2 }}>
+          <div style={{ color: BRAND.blueLight, fontSize: 64, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2 }}>
             One calm system.
           </div>
         </div>

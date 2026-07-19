@@ -403,7 +403,7 @@ export default async function MarketingHome() {
           <div className="relative overflow-hidden rounded-2xl bg-gray-950 px-8 py-16 text-center">
             <div
               className="absolute inset-0 opacity-[0.15]"
-              style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, #2a7f8c 0%, transparent 45%), radial-gradient(circle at 75% 85%, #4dcdc4 0%, transparent 40%)' }}
+              style={{ backgroundImage: 'radial-gradient(circle at 30% 20%, #2f52b3 0%, transparent 45%), radial-gradient(circle at 75% 85%, #7ca5ff 0%, transparent 40%)' }}
               aria-hidden="true"
             />
             <div className="relative">

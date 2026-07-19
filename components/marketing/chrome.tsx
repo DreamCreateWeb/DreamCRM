@@ -4,12 +4,13 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { MARKETING, MARKETING_NAV, type MarketingNavChild } from '@/lib/marketing/site'
+import { DreamCreateLogo } from '@/components/brand/dream-create-logo'
 
 /**
  * Marketing-site header: megamenu dropdowns for Product / Compare /
  * Resources, scroll-aware elevation, full mobile menu. B2B SaaS register —
- * ink on white, brand-teal accent, Inter, dense. The Dream Create lockup
- * (liquid-D mark + wordmark) is the company brand in the chrome; "DreamCRM"
+ * ink on white, brand-blue accent, Inter, dense. The Dream Create lockup
+ * (bubble-D mark + wordmark) is the company brand in the chrome; "DreamCRM"
  * stays the product name in copy.
  */
 
@@ -83,15 +84,7 @@ export function MarketingHeader() {
             aria-label={`${MARKETING.companyName} — home`}
             onClick={() => setMobileOpen(false)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/dream-create-logo.webp"
-              alt={MARKETING.companyName}
-              width={470}
-              height={100}
-              className="h-8 w-auto"
-              decoding="async"
-            />
+            <DreamCreateLogo size={32} />
           </Link>
 
           <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
