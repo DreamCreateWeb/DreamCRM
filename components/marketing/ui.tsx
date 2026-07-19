@@ -269,6 +269,18 @@ export function MatrixMark({ value }: { value: 'yes' | 'no' | 'partial' }) {
 
 /* ── Product mocks (real content, not wireframes) ───────────────────── */
 
+/* v3 "Cute Dream" chrome recipes (DESIGN-SYSTEM.md 2.1/2.3/2.4 + Part 4):
+   sky canvas #F3F7FE, borderless white cards floating on a soft dream-blue
+   shadow, and blue gradient pills for primary actions + the active nav item.
+   Mocks depicting CLINIC-BRANDED surfaces (portal, public-site booking)
+   deliberately keep the fictional clinic's sage/cream palette instead. */
+const MOCK_FRAME_SHADOW =
+  'shadow-[0_4px_10px_rgba(76,125,240,.10),0_18px_44px_rgba(76,125,240,.16)]'
+const MOCK_CARD_SHADOW =
+  'shadow-[0_2px_6px_rgba(76,125,240,.06),0_10px_28px_rgba(76,125,240,.11)]'
+const MOCK_TILE_SHADOW = 'shadow-[0_1px_3px_rgba(76,125,240,.07)]'
+const MOCK_PILL = 'bg-gradient-to-r from-[#7CA5FF] to-[#3A67D9] text-white'
+
 function StatusPill({ tone, children }: { tone: 'amber' | 'emerald' | 'rose' | 'teal'; children: React.ReactNode }) {
   const tones = {
     amber: 'bg-amber-50 text-amber-700',
@@ -297,10 +309,10 @@ export function DashboardMock() {
     { label: 'Business', items: ['Shop', 'Integrations'] },
   ]
   const kpis: Array<[string, string, string]> = [
-    ['Unconfirmed · 48h', '3', 'border-amber-200 bg-amber-50 text-amber-800'],
-    ['New leads', '2', 'border-sky-200 bg-sky-50 text-sky-800'],
-    ['Forms this week', '5', 'border-emerald-200 bg-emerald-50 text-emerald-800'],
-    ['Reviews to ask', '4', 'border-violet-200 bg-violet-50 text-violet-800'],
+    ['Unconfirmed · 48h', '3', 'bg-amber-50 text-amber-800'],
+    ['New leads', '2', 'bg-fuchsia-50 text-fuchsia-800'],
+    ['Forms this week', '5', 'bg-emerald-50 text-emerald-800'],
+    ['Reviews to ask', '4', 'bg-violet-50 text-violet-800'],
   ]
   const chair: Array<{ t: string; n: string; v: string; s: 'Confirmed' | 'Unconfirmed'; i: string; c: string; g?: string }> = [
     { t: '8:00', n: 'Mia Hayes', v: 'Cleaning', s: 'Confirmed', i: 'MH', c: 'bg-teal-400', g: '🎂' },
@@ -314,8 +326,8 @@ export function DashboardMock() {
     ['Recall booked', '9', 'text-teal-700'],
   ]
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
-      <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-3 py-2">
+    <div className={`overflow-hidden rounded-2xl bg-[#F3F7FE] text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+      <div className="flex items-center gap-1.5 bg-[#E9F0FC] px-3 py-2">
         <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
@@ -324,9 +336,9 @@ export function DashboardMock() {
         </span>
       </div>
       <div className="flex">
-        <div className="hidden w-36 shrink-0 border-r border-gray-100 bg-gray-50/40 p-2.5 sm:block">
-          <div className="mb-2.5 flex items-center gap-1.5 rounded-md border border-gray-100 bg-white px-1.5 py-1">
-            <span className="flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-teal-400 to-teal-700 text-[0.5rem] font-bold text-white">
+        <div className="hidden w-36 shrink-0 p-2.5 sm:block">
+          <div className={`mb-2.5 flex items-center gap-1.5 rounded-lg bg-white px-1.5 py-1 ${MOCK_TILE_SHADOW}`}>
+            <span className="flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-[#7CA5FF] to-[#3A67D9] text-[0.5rem] font-bold text-white">
               D
             </span>
             <span className="truncate text-[0.6rem] font-bold text-gray-800">Dream Dental</span>
@@ -339,7 +351,7 @@ export function DashboardMock() {
                 {grp.items.map((item) => (
                   <div
                     key={item}
-                    className={`rounded-md px-1.5 py-1 text-[0.62rem] font-semibold ${item === 'Overview' ? 'bg-teal-50 text-teal-700' : 'text-gray-500'}`}
+                    className={`rounded-full px-2 py-1 text-[0.62rem] font-semibold ${item === 'Overview' ? `${MOCK_PILL} shadow-[0_2px_8px_rgba(76,125,240,.35)]` : 'text-gray-500'}`}
                   >
                     {item}
                   </div>
@@ -354,17 +366,17 @@ export function DashboardMock() {
               <p className="text-[0.58rem] font-bold uppercase tracking-wider text-teal-700">Morning huddle · Tue, Jun 16</p>
               <p className="text-[0.85rem] font-bold text-gray-900">Dream Dental</p>
             </div>
-            <span className="rounded-md bg-teal-600 px-2.5 py-1 text-[0.62rem] font-bold text-white">Open agenda</span>
+            <span className={`rounded-full ${MOCK_PILL} px-2.5 py-1 text-[0.62rem] font-bold`}>Open agenda</span>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {kpis.map(([label, n, tone]) => (
-              <div key={label} className={`rounded-lg border p-2 ${tone}`}>
+              <div key={label} className={`rounded-xl p-2 ${tone} ${MOCK_TILE_SHADOW}`}>
                 <p className="text-[0.5rem] font-semibold leading-tight opacity-80">{label}</p>
                 <p className="text-[0.95rem] font-extrabold leading-tight">{n}</p>
               </div>
             ))}
           </div>
-          <div className="rounded-lg border border-gray-100 p-2.5">
+          <div className={`rounded-xl bg-white p-2.5 ${MOCK_CARD_SHADOW}`}>
             <div className="mb-1.5 flex items-center justify-between">
               <p className="text-[0.6rem] font-bold uppercase tracking-wider text-gray-400">Today&apos;s chair</p>
               <p className="text-[0.54rem] font-semibold text-gray-400">8 booked · 5 confirmed</p>
@@ -373,7 +385,7 @@ export function DashboardMock() {
               {chair.map((r) => (
                 <div
                   key={r.t}
-                  className={`flex items-center gap-2 rounded-md border border-l-[3px] border-gray-100 px-2 py-1 ${r.s === 'Confirmed' ? 'border-l-emerald-400' : 'border-l-amber-400'}`}
+                  className={`flex items-center gap-2 rounded-lg border-l-[3px] bg-[#F8FAFF] px-2 py-1 ${r.s === 'Confirmed' ? 'border-l-emerald-400' : 'border-l-amber-400'}`}
                 >
                   <span className="w-7 text-[0.6rem] font-bold text-gray-400">{r.t}</span>
                   <Avatar initials={r.i} color={r.c} />
@@ -391,9 +403,21 @@ export function DashboardMock() {
           </div>
           <div className="grid grid-cols-3 gap-2">
             {trends.map(([label, n, tone]) => (
-              <div key={label} className="rounded-lg border border-gray-100 px-2 py-1.5">
+              <div key={label} className={`rounded-xl bg-white px-2 py-1.5 ${MOCK_TILE_SHADOW}`}>
                 <p className="text-[0.5rem] font-semibold text-gray-400">{label}</p>
                 <p className={`text-[0.8rem] font-extrabold ${tone}`}>{n}</p>
+                {label === 'New patients' && (
+                  <svg viewBox="0 0 60 16" className="mt-1 h-2.5 w-full text-[#4C7DF0]" preserveAspectRatio="none">
+                    <polyline
+                      points="0,13 9,11 18,12 27,8 36,9 45,5 52,7 60,2"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
               </div>
             ))}
           </div>
@@ -490,19 +514,19 @@ export function PortalMock() {
 /** Edit-in-place website studio over the warm clinic site. */
 export function EditorMock() {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
-      <div className="flex items-center gap-1.5 border-b border-gray-100 bg-gray-50 px-3 py-2">
+    <div className={`overflow-hidden rounded-2xl bg-[#F3F7FE] text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+      <div className="flex items-center gap-1.5 bg-[#E9F0FC] px-3 py-2">
         <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
         <span className="ml-3 rounded-md bg-white px-2 py-0.5 text-[0.62rem] font-medium text-gray-400">
           acme-dental.dreamcreatestudio.com
         </span>
-        <span className="ml-auto rounded-md bg-teal-600 px-2 py-0.5 text-[0.6rem] font-bold text-white">Editing</span>
+        <span className={`ml-auto rounded-full ${MOCK_PILL} px-2 py-0.5 text-[0.6rem] font-bold`}>Editing</span>
       </div>
       <div className="bg-[#FAF7F2] p-4">
         <div className="relative rounded-lg border-2 border-dashed border-teal-400 bg-white/70 p-3.5">
-          <span className="absolute -top-2.5 right-3 rounded-full bg-teal-600 px-2 py-0.5 text-[0.58rem] font-bold text-white">
+          <span className={`absolute -top-2.5 right-3 rounded-full ${MOCK_PILL} px-2 py-0.5 text-[0.58rem] font-bold`}>
             ✎ Edit headline
           </span>
           <p className="font-serif text-[1.05rem] font-semibold leading-snug text-[#7E957F]">
@@ -543,14 +567,14 @@ export function BookingMock() {
     ['9:30 AM', 'open'], ['10:00 AM', 'selected'], ['10:30 AM', 'open'],
   ]
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
-      <p className="text-[0.85rem] font-bold text-gray-900">Book a visit — Cleaning</p>
-      <p className="mt-0.5 text-[0.66rem] text-gray-400">Real openings from Dream Dental&apos;s calendar</p>
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
+      <p className="font-serif text-[0.85rem] font-bold text-[#1C1A17]">Book a visit — Cleaning</p>
+      <p className="mt-0.5 text-[0.66rem] text-[#6B635A]">Real openings from Dream Dental&apos;s calendar</p>
       <div className="mt-3 flex gap-2">
         {days.map(([dow, d, active]) => (
           <div
             key={d}
-            className={`flex-1 rounded-lg border px-2 py-1.5 text-center ${active ? 'border-teal-600 bg-teal-600 text-white' : 'border-gray-200 text-gray-600'}`}
+            className={`flex-1 rounded-lg border px-2 py-1.5 text-center ${active ? 'border-[#7E957F] bg-[#7E957F] text-white' : 'border-[#E8E2D9] text-[#6B635A]'}`}
           >
             <p className="text-[0.56rem] font-semibold opacity-80">{dow}</p>
             <p className="text-[0.8rem] font-extrabold leading-tight">{d}</p>
@@ -563,20 +587,20 @@ export function BookingMock() {
             key={t}
             className={`rounded-lg border px-2 py-1.5 text-center text-[0.66rem] font-semibold ${
               state === 'taken'
-                ? 'border-gray-100 bg-gray-50 text-gray-300 line-through'
+                ? 'border-[#F0EBE2] bg-[#FAF7F2] text-[#C9C2B6] line-through'
                 : state === 'selected'
-                  ? 'border-teal-600 bg-teal-50 text-teal-700'
-                  : 'border-gray-200 text-gray-700'
+                  ? 'border-[#7E957F] bg-[#FAF7F2] text-[#5f7561]'
+                  : 'border-[#E8E2D9] text-[#1C1A17]'
             }`}
           >
             {t}
           </div>
         ))}
       </div>
-      <div className="mt-4 rounded-lg bg-teal-600 py-2 text-center text-[0.7rem] font-bold text-white">
+      <div className="mt-4 rounded-full bg-[#7E957F] py-2 text-center text-[0.7rem] font-bold text-white">
         Book Tuesday · 10:00 AM
       </div>
-      <p className="mt-2 text-center text-[0.58rem] text-gray-400">Confirmation + intake form sent automatically</p>
+      <p className="mt-2 text-center text-[0.58rem] text-[#6B635A]">Confirmation + intake form sent automatically</p>
     </div>
   )
 }
@@ -584,7 +608,7 @@ export function BookingMock() {
 /** One patient thread across portal + email. */
 export function MessagesMock() {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
       <div className="flex items-center gap-2.5 border-b border-gray-100 pb-3">
         <Avatar initials="SI" color="bg-teal-400" />
         <div>
@@ -613,10 +637,10 @@ export function MessagesMock() {
         <p className="pl-1 text-[0.54rem] font-bold uppercase tracking-wide text-gray-400">via email — same thread</p>
       </div>
       <div className="mt-3 flex gap-2">
-        <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-[0.66rem] text-gray-400">
-          Reply… <span className="text-gray-300">(templates ⌄)</span>
+        <div className="flex-1 rounded-lg bg-[#E9F0FC] px-3 py-1.5 text-[0.66rem] text-gray-500">
+          Reply… <span className="text-gray-400">(templates ⌄)</span>
         </div>
-        <span className="rounded-lg bg-teal-600 px-3 py-1.5 text-[0.66rem] font-bold text-white">Send</span>
+        <span className={`rounded-full ${MOCK_PILL} px-3 py-1.5 text-[0.66rem] font-bold`}>Send</span>
       </div>
     </div>
   )
@@ -626,7 +650,7 @@ export function MessagesMock() {
 export function ReviewsMock() {
   return (
     <div className="space-y-3 text-left" aria-hidden="true">
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xl shadow-gray-200/60">
+      <div className={`rounded-2xl bg-white p-4 ${MOCK_FRAME_SHADOW}`}>
         <div className="flex items-center gap-2">
           <Avatar initials="NM" color="bg-emerald-500" />
           <p className="text-[0.72rem] font-bold text-gray-900">Noah Mitchell</p>
@@ -644,12 +668,12 @@ export function ReviewsMock() {
         </p>
         <div className="mt-3 flex items-center justify-between">
           <p className="text-[0.6rem] text-gray-400">Completed visit · Jun 9</p>
-          <span className="rounded-full bg-teal-600 px-3 py-1 text-[0.62rem] font-bold text-white">
+          <span className={`rounded-full ${MOCK_PILL} px-3 py-1 text-[0.62rem] font-bold`}>
             Feature on website →
           </span>
         </div>
       </div>
-      <div className="ml-8 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5">
+      <div className={`ml-8 flex items-center gap-2 rounded-xl bg-emerald-50/70 px-3 py-2.5 ${MOCK_TILE_SHADOW}`}>
         <CheckIcon className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
         <p className="text-[0.64rem] font-bold text-emerald-800">
           Live on your testimonials as “Noah M. · Cedar Park” — and invited onward to Google.
@@ -668,7 +692,7 @@ export function RecallFunnelMock() {
     ['Booked', 18, 'w-[26%]', 'bg-teal-600 text-white'],
   ]
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
       <div className="flex items-center justify-between">
         <p className="text-[0.85rem] font-bold text-gray-900">“Time for your next cleaning”</p>
         <StatusPill tone="emerald">Sent Jun 2</StatusPill>
@@ -676,7 +700,7 @@ export function RecallFunnelMock() {
       <p className="mt-0.5 text-[0.66rem] text-gray-400">Audience: due or overdue · builds itself from patient data</p>
       <div className="mt-4 space-y-2">
         {stages.map(([label, n, width, tone]) => (
-          <div key={label} className={`flex items-center justify-between rounded-md px-2.5 py-1.5 ${width} ${tone}`}>
+          <div key={label} className={`flex items-center justify-between rounded-full px-3 py-1.5 ${width} ${tone}`}>
             <span className="text-[0.66rem] font-bold">{label}</span>
             <span className="text-[0.72rem] font-extrabold">{n}</span>
           </div>
@@ -698,7 +722,7 @@ export function ShopMock() {
     ['Retainer cleaner', '$14', 'bg-amber-50', '🫧'],
   ]
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
       <div className="flex items-center justify-between">
         <p className="text-[0.85rem] font-bold text-gray-900">Dream Dental Shop</p>
         <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[0.6rem] font-bold text-emerald-700">
@@ -707,12 +731,12 @@ export function ShopMock() {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2.5">
         {products.map(([name, price, tone, emoji]) => (
-          <div key={name} className="rounded-lg border border-gray-100 p-2.5">
-            <div className={`mb-2 flex h-12 items-center justify-center rounded-md text-base ${tone}`}>{emoji}</div>
+          <div key={name} className="rounded-xl bg-[#F8FAFF] p-2.5">
+            <div className={`mb-2 flex h-12 items-center justify-center rounded-lg text-base ${tone}`}>{emoji}</div>
             <p className="truncate text-[0.66rem] font-bold text-gray-800">{name}</p>
             <div className="mt-1 flex items-center justify-between">
               <p className="text-[0.7rem] font-extrabold text-gray-900">{price}</p>
-              <span className="rounded-md bg-teal-600 px-2 py-0.5 text-[0.56rem] font-bold text-white">Add</span>
+              <span className={`rounded-full ${MOCK_PILL} px-2 py-0.5 text-[0.56rem] font-bold`}>Add</span>
             </div>
           </div>
         ))}
@@ -734,7 +758,7 @@ export function GoogleSocialMock() {
     ['TikTok', 'bg-gray-900'],
   ]
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 text-left shadow-xl shadow-gray-200/60" aria-hidden="true">
+    <div className={`rounded-2xl bg-white p-5 text-left ${MOCK_FRAME_SHADOW}`} aria-hidden="true">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#4285F4] text-[0.66rem] font-bold text-white">G</span>
@@ -754,20 +778,20 @@ export function GoogleSocialMock() {
           4.9 · 128
         </span>
       </div>
-      <div className="mt-3 rounded-lg border border-gray-100 p-2.5">
+      <div className="mt-3 rounded-xl bg-[#F8FAFF] p-2.5">
         <p className="text-[0.64rem] leading-snug text-gray-700">
           &ldquo;Got me in same week and explained every step. Painless.&rdquo;
         </p>
         <div className="mt-1.5 flex items-center gap-1.5">
-          <span className="rounded-md bg-teal-600 px-2 py-0.5 text-[0.56rem] font-bold text-white">Reply</span>
+          <span className={`rounded-full ${MOCK_PILL} px-2 py-0.5 text-[0.56rem] font-bold`}>Reply</span>
           <span className="text-[0.56rem] text-gray-400">synced from Google — reply in one place</span>
         </div>
       </div>
-      <div className="mt-3 rounded-lg border border-gray-100 p-2.5">
+      <div className="mt-3 rounded-xl bg-[#F8FAFF] p-2.5">
         <p className="mb-1.5 text-[0.6rem] font-bold uppercase tracking-wider text-gray-400">New post · publish to</p>
         <div className="flex flex-wrap gap-1.5">
           {channels.map(([label, tone]) => (
-            <span key={label} className="flex items-center gap-1 rounded-full border border-gray-200 px-2 py-0.5 text-[0.58rem] font-semibold text-gray-700">
+            <span key={label} className={`flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[0.58rem] font-semibold text-gray-700 ${MOCK_TILE_SHADOW}`}>
               <span className={`h-2.5 w-2.5 rounded-full ${tone}`} />
               {label}
             </span>
@@ -775,7 +799,7 @@ export function GoogleSocialMock() {
         </div>
         <div className="mt-2 flex items-center justify-between">
           <p className="text-[0.62rem] text-gray-500">&ldquo;Now welcoming new patients ✨&rdquo;</p>
-          <span className="rounded-md bg-teal-600 px-2.5 py-1 text-[0.58rem] font-bold text-white">Schedule</span>
+          <span className={`rounded-full ${MOCK_PILL} px-2.5 py-1 text-[0.58rem] font-bold`}>Schedule</span>
         </div>
       </div>
     </div>

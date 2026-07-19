@@ -4153,3 +4153,24 @@ platform cockpit — the living-data law holds on every daily surface.
 NEXT: action-links pass 2 (the deferred service-level hrefs), then the
 widget-registry groundwork (Overview as a composition, zero visual
 change).
+
+## 2026-07-19 (later) — Marketing truth pass: one price + honest screenshots
+
+The marketing site was selling a product it no longer resembled, at prices
+Stripe never charged (the 2026-07-02 reprice's Stripe-side step never
+happened — code said $150/250/500, live Stripe still $50/150/200). Owner
+decision: retire tiers from marketing entirely.
+- **One plan**: $500 struck → $200/mo "Founding practice rate" (never the
+  word "beta" — a test enforces it); monthly/annual toggle ($2,000/yr = 2
+  months free); rate-lock promise; tier matrix → everything-included
+  checklist; homepage/docs/comparisons/blog/JSON-LD all single-price.
+  ⚠️ IN-APP BILLING STILL THREE-TIER — alignment pending the owner
+  creating the $200/$2,000 Stripe prices; then onboarding/billing collapse
+  to the single plan (Premium under the hood, gates untouched).
+- **Mocks tell the truth**: DashboardMock + chrome mocks restyled to v3
+  (sky canvas, floating cards, gradient pills, one sparkline heartbeat);
+  BookingMock un-blued to the fictional clinic's sage (it was riding
+  teal-* classes — clinic-branded surfaces must not wear our brand);
+  PortalMock already correct. Key discovery: the token-ramp re-point
+  already recolored every teal-* class in the mocks — the work was
+  structural.
