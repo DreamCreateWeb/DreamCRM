@@ -1,9 +1,11 @@
 import 'server-only'
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { slugify } from '@/lib/utils'
 import { toCsv, csvDollars } from '@/lib/csv'
+import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { getClinicTimeZone } from './clinic-timezone'
 import type {
   ProductRow,
   ProductVariantRow,
@@ -577,6 +579,61 @@ export async function getOrderStats(organizationId: string): Promise<OrderStats>
     }
   }
   return { paidCount, unfulfilledCount, fulfilledCount, revenueCents, last30Cents, last30Count }
+}
+
+/**
+ * Paid orders placed per clinic-local week for the trailing 8 weeks — the Shop
+ * hub's heartbeat sparkline series (DESIGN-SYSTEM v3 law 7), the Payments
+ * hub's getCollectedPerWeek8 pattern exactly. Counts PAID orders bucketed by
+ * `createdAt` (when the order was placed) — the same semantics as the hub's
+ * "Paid orders" tile and its 30-day window. Oldest week first; buckets are
+ * clinic-local week-start labels ("Jun 7").
+ */
+export async function getOrdersPerWeek8(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<Array<{ bucket: string; value: number }>> {
+  const tz = await getClinicTimeZone(organizationId)
+
+  // The 8 clinic-local week starts, oldest first. Stepping via "the instant
+  // just before this week's start" keeps every boundary a true clinic-local
+  // Sunday midnight across DST (never naive -7*24h math).
+  const boundaries: Date[] = []
+  let cursor = clinicWeekStart(now, tz)
+  for (let i = 0; i < 8; i++) {
+    boundaries.unshift(cursor)
+    cursor = clinicWeekStart(new Date(cursor.getTime() - 1), tz)
+  }
+
+  const rows = await db
+    .select({ createdAt: schema.shopOrder.createdAt })
+    .from(schema.shopOrder)
+    .where(
+      and(
+        eq(schema.shopOrder.organizationId, organizationId),
+        eq(schema.shopOrder.status, 'paid'),
+        gte(schema.shopOrder.createdAt, boundaries[0]),
+      ),
+    )
+
+  const counts = new Array<number>(8).fill(0)
+  for (const r of rows) {
+    if (!r.createdAt) continue
+    const t = r.createdAt.getTime()
+    // Last boundary <= createdAt owns the order.
+    for (let i = boundaries.length - 1; i >= 0; i--) {
+      if (t >= boundaries[i].getTime()) {
+        counts[i]++
+        break
+      }
+    }
+  }
+
+  const labelFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
+  return boundaries.map((start, i) => ({
+    bucket: labelFmt.format(start),
+    value: counts[i],
+  }))
 }
 
 /**

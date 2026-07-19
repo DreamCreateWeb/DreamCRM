@@ -51,6 +51,7 @@ interface RenderOpts {
     last30Cents: number
     last30Count: number
   }>
+  ordersPerWeek8?: Array<{ bucket: string; value: number }>
   topProducts?: Array<{ productName: string; unitsSold: number; revenueCents: number }>
   membershipStats?: { activeMembers: number; mrrCents: number }
   couponStats?: { activeCount: number }
@@ -73,6 +74,7 @@ function renderHub(opts: RenderOpts = {}) {
         last30Count: 5,
         ...opts.orderStats,
       }}
+      ordersPerWeek8={opts.ordersPerWeek8}
       topProducts={opts.topProducts ?? []}
       membershipStats={opts.membershipStats ?? { activeMembers: 0, mrrCents: 0 }}
       couponStats={opts.couponStats ?? { activeCount: 0 }}
@@ -176,6 +178,40 @@ describe('ShopClient — sales overview', () => {
     renderHub({ membershipStats: { activeMembers: 12, mrrCents: 39900 } })
     const tile = screen.getByText('Recurring').closest('a')
     expect(tile).toHaveAttribute('href', '/payments/memberships')
+  })
+
+  it('draws the orders-per-week heartbeat on the Paid-orders tile (and ONLY there), decorative', () => {
+    const { container } = renderHub({
+      orderStats: { paidCount: 9, unfulfilledCount: 4, fulfilledCount: 5, revenueCents: 50000, last30Cents: 30000, last30Count: 6 },
+      ordersPerWeek8: [
+        { bucket: 'Nov 16', value: 0 },
+        { bucket: 'Nov 23', value: 2 },
+        { bucket: 'Nov 30', value: 1 },
+        { bucket: 'Dec 7', value: 3 },
+        { bucket: 'Dec 14', value: 0 },
+        { bucket: 'Dec 21', value: 1 },
+        { bucket: 'Dec 28', value: 4 },
+        { bucket: 'Jan 4', value: 2 },
+      ],
+    })
+    // The Sparkline's polyline is unambiguous — NavIcon svgs draw paths only.
+    const tile = screen.getByText('Paid orders').closest('a') as HTMLElement
+    expect(tile.querySelectorAll('polyline').length).toBe(1)
+    // Law 7 budget: one heartbeat on this hub, total.
+    expect(container.querySelectorAll('polyline').length).toBe(1)
+    // Decorative + non-interactive: aria-hidden wrapper, pointer-events off.
+    const wrap = tile.querySelector('[aria-hidden="true"]') as HTMLElement
+    expect(wrap).toBeTruthy()
+    expect(wrap.className).toContain('pointer-events-none')
+  })
+
+  it('renders sparkless (not broken) when the weekly series is empty — the best-effort .catch', () => {
+    const { container } = renderHub({
+      orderStats: { paidCount: 9, unfulfilledCount: 4, fulfilledCount: 5, revenueCents: 50000, last30Cents: 30000, last30Count: 6 },
+      ordersPerWeek8: [],
+    })
+    expect(screen.getByText('Paid orders')).toBeInTheDocument()
+    expect(container.querySelectorAll('polyline').length).toBe(0)
   })
 
   it('hides the sales band entirely for a brand-new shop with no sales', () => {

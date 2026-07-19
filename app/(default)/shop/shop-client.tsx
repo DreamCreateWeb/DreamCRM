@@ -59,6 +59,10 @@ interface Props {
   products: ProductRow[]
   stats: ShopStats
   orderStats: OrderStatsView
+  /** Paid orders placed per clinic-local week, trailing 8 weeks — the Sales
+   *  band's ONE heartbeat (v3 law 7), drawn on the Paid-orders KPI. Empty on
+   *  a fetch hiccup (best-effort) — the tile simply renders sparkless. */
+  ordersPerWeek8?: Array<{ bucket: string; value: number }>
   topProducts: TopProduct[]
   membershipStats: { activeMembers: number; mrrCents: number }
   couponStats: { activeCount: number }
@@ -74,6 +78,7 @@ export default function ShopClient({
   products,
   stats,
   orderStats,
+  ordersPerWeek8 = [],
   topProducts,
   membershipStats,
   couponStats,
@@ -278,6 +283,10 @@ export default function ShopClient({
               value={orderStats.paidCount}
               href="/shop/orders?status=paid"
               sub={orderStats.last30Count > 0 ? `${orderStats.last30Count} in 30 days` : 'all time'}
+              // The hub's ONE heartbeat (v3 law 7): orders placed per
+              // clinic-local week, trailing 8 weeks — same paid-order
+              // semantics as this tile's count.
+              spark={ordersPerWeek8}
             />
             <KpiStat
               label="To fulfill"

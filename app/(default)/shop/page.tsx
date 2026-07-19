@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
-import { getShopConfig, listProducts, getShopStats, getOrderStats, getTopProducts, shopConnectConfigured } from '@/lib/services/shop'
+import { getShopConfig, listProducts, getShopStats, getOrderStats, getOrdersPerWeek8, getTopProducts, shopConnectConfigured } from '@/lib/services/shop'
 import { refreshConnectStatus } from '@/lib/services/shop-connect'
 import { getMembershipStats } from '@/lib/services/membership'
 import { listCoupons } from '@/lib/services/coupons'
@@ -24,11 +24,14 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   // Flip pending → active without a manual reconnect once onboarding finishes.
   await refreshConnectStatus(ctx.organizationId)
 
-  const [config, products, stats, orderStats, topProducts, membershipStats, coupons, orgRow, loyalty] = await Promise.all([
+  const [config, products, stats, orderStats, ordersPerWeek8, topProducts, membershipStats, coupons, orgRow, loyalty] = await Promise.all([
     getShopConfig(ctx.organizationId),
     listProducts(ctx.organizationId),
     getShopStats(ctx.organizationId),
     getOrderStats(ctx.organizationId),
+    // The Sales band's heartbeat (v3 law 7) — best-effort, the hub renders
+    // without its spark if the read hiccups (the Payments-hub pattern).
+    getOrdersPerWeek8(ctx.organizationId).catch(() => []),
     getTopProducts(ctx.organizationId, 5),
     getMembershipStats(ctx.organizationId),
     listCoupons(ctx.organizationId),
@@ -52,6 +55,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       products={products}
       stats={stats}
       orderStats={orderStats}
+      ordersPerWeek8={ordersPerWeek8}
       topProducts={topProducts}
       membershipStats={membershipStats}
       couponStats={couponStats}
