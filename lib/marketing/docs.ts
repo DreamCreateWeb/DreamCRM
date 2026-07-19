@@ -41,7 +41,7 @@ export const DOCS: DocArticle[] = [
         steps: [
           'Click Get started and create your login (you can switch to passwordless sign-in links later).',
           'Answer the onboarding questions — practice name, services, hours, contact details. These seed your website copy, your booking rules, and your portal.',
-          'Pick a plan. Basic is the website tier; Pro adds the daily front-desk tools; Premium adds analytics, shop, careers, and the PMS sync. Everything is month-to-month.',
+          'Add billing when you\u2019re ready. One plan with everything included \u2014 $200/mo at the founding practice rate (regularly $500), month-to-month, or annual with two months free.',
           'Finish checkout and you land on your dashboard. Your public site is already live on your subdomain.',
         ],
       },
@@ -355,7 +355,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'Basic ($150/mo) is the website tier: the site, the edit-in-place studio, AI copy help, and lead capture. Pro ($250/mo) adds the daily front office: patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO. Premium ($500/mo) adds recall campaigns, analytics, the shop and memberships, careers, and the Open Dental sync. Annual billing gives you two months free.',
+          'One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the Open Dental sync. $200/mo at the founding practice rate (regularly $500); annual billing gives you two months free.',
           'Switch tiers any time under Settings → Plan; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
         ],
       },

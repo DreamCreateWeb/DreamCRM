@@ -1,62 +1,65 @@
 import React from 'react'
-import Link from 'next/link'
-import { PLANS } from '@/lib/stripe-config'
-import { SectionTitle, PrimaryCta, CheckIcon, MatrixMark, PageHero } from '@/components/marketing/ui'
-import { JsonLd, faqPageLd } from '@/lib/marketing/seo'
+import { SectionTitle, PrimaryCta, CheckIcon, PageHero } from '@/components/marketing/ui'
+import { JsonLd, faqPageLd, softwareApplicationLd } from '@/lib/marketing/seo'
+import { PriceCard } from './price-card'
 
 export const metadata = {
   title: 'Pricing — DreamCRM',
   alternates: { canonical: '/pricing' },
   description:
-    'Flat, published pricing: Basic $150/mo (website tier), Pro $250/mo (front office), Premium $500/mo (growth + PMS sync). Month-to-month, no contract — or annual with 2 months free.',
+    'One plan, everything included: $200/mo founding practice rate (regularly $500). Website, booking, portal, messaging, reviews, recall, shop, PMS sync. Month-to-month, no contract — or annual with 2 months free.',
 }
 
-/** Tier matrix — mirrors the real module gating in lib/modules/clinic.ts. */
-const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolean, boolean, boolean] }> }> = [
+/**
+ * The single-plan feature list — mirrors the real module surface of the
+ * product. One column, everything included: the tier matrix retired
+ * 2026-07-19 when pricing collapsed to the founding practice rate.
+ */
+const INCLUDED: Array<{ group: string; rows: string[] }> = [
   {
     group: 'Website & brand',
     rows: [
-      { label: 'Practice website on your address', tiers: [true, true, true] },
-      { label: 'Edit-in-place Website Studio', tiers: [true, true, true] },
-      { label: 'AI copy assistant (monthly allowance)', tiers: [true, true, true] },
-      { label: 'Contact + insurance-check lead capture', tiers: [true, true, true] },
-      { label: 'SEO foundations (sitemap, schema, social cards)', tiers: [true, true, true] },
-      { label: 'Blog + AI-drafted posts', tiers: [false, true, true] },
-      { label: 'SEO dashboard (Google Search Console data)', tiers: [false, true, true] },
-      { label: 'Careers page + applicant tracking', tiers: [false, false, true] },
+      'Practice website on your address',
+      'Edit-in-place Website Studio',
+      'AI copy assistant (monthly allowance)',
+      'Contact + insurance-check lead capture',
+      'SEO foundations (sitemap, schema, social cards)',
+      'Blog + AI-drafted posts',
+      'SEO dashboard (Google Search Console data)',
+      'Careers page + applicant tracking',
     ],
   },
   {
     group: 'Front office',
     rows: [
-      { label: 'Patient records with action flags', tiers: [false, true, true] },
-      { label: 'Appointments agenda + reminders', tiers: [false, true, true] },
-      { label: 'Online booking from live availability', tiers: [false, true, true] },
-      { label: 'Website leads triage queue', tiers: [false, true, true] },
-      { label: 'Unified patient messages', tiers: [false, true, true] },
-      { label: 'Connected Gmail inbox', tiers: [false, true, true] },
-      { label: 'Digital intake forms', tiers: [false, true, true] },
+      'Patient records with action flags',
+      'Appointments agenda + reminders',
+      'Online booking from live availability',
+      'Website leads triage queue',
+      'Unified patient messages',
+      'Connected Gmail inbox',
+      'Digital intake forms',
     ],
   },
   {
     group: 'Patient experience',
     rows: [
-      { label: 'Clinic-branded patient portal', tiers: [false, true, true] },
-      { label: 'Self-serve reschedule & cancel', tiers: [false, true, true] },
-      { label: 'Family access (one login per household)', tiers: [false, true, true] },
-      { label: 'Review collection + website testimonials', tiers: [false, true, true] },
-      { label: 'Google reviews sync + reply', tiers: [false, true, true] },
+      'Clinic-branded patient portal',
+      'Self-serve reschedule & cancel',
+      'Family access (one login per household)',
+      'Review collection + website testimonials',
+      'Google reviews sync + reply',
     ],
   },
   {
     group: 'Growth & integrations',
     rows: [
-      { label: 'Recall & outreach campaigns', tiers: [false, false, true] },
-      { label: 'Google Business sync + social posting', tiers: [false, true, true] },
-      { label: 'Practice analytics', tiers: [false, false, true] },
-      { label: 'Online shop + membership plans', tiers: [false, false, true] },
-      { label: 'Online balance payments (via Stripe Connect)', tiers: [false, false, true] },
-      { label: 'Open Dental two-way sync (official API)', tiers: [false, false, true] },
+      'Recall & outreach campaigns',
+      'Google Business sync + social posting',
+      'Practice analytics',
+      'Online shop + membership plans',
+      'Online balance payments (via Stripe Connect)',
+      'Open Dental two-way sync (official API)',
     ],
   },
 ]
@@ -64,15 +67,15 @@ const MATRIX: Array<{ group: string; rows: Array<{ label: string; tiers: [boolea
 const PRICING_FAQS: Array<{ q: string; a: string }> = [
   {
     q: 'Do I have to pay to try it?',
-    a: 'No. Every practice starts with a 7-day free trial of the full Premium tier — website, booking, portal, messaging, reviews, marketing, all of it — with no credit card required. You pick a plan and add billing only when you decide to stay.',
+    a: 'No. Every practice starts with a 7-day free trial of everything — website, booking, portal, messaging, reviews, marketing, all of it — with no credit card required. You add billing only when you decide to stay.',
   },
   {
     q: 'Is there a contract or setup fee?',
-    a: 'No. Every plan is month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Prefer annual? Pay for 10 months, get 12: Basic $1,500, Pro $2,500, Premium $5,000 per year \u2014 two months free.',
+    a: 'No. It’s month-to-month with no setup fee, and you can cancel anytime — your website content exports with you. Prefer annual? Pay for 10 months, get 12: $2,000/year.',
   },
   {
-    q: 'Can I switch tiers later?',
-    a: 'Yes, anytime under Settings → Plan. Upgrades unlock modules immediately; changes prorate through Stripe.',
+    q: 'Why is the price $200 instead of $500?',
+    a: 'We’re building our founding group of practices, and their feedback shapes what we build next. Founding practices get the whole platform at $200/mo, and the rate stays locked for as long as you’re a subscriber — new modules land on the same price.',
   },
   {
     q: 'What does Open Dental access cost on their side?',
@@ -88,7 +91,7 @@ const PRICING_FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'How many social accounts can I connect?',
-    a: 'Connecting your Google Business profile is free on every plan and never counts against a limit. For social platforms (Instagram, Facebook, TikTok, YouTube, LinkedIn), Pro includes one connected account and Premium includes two; if you want more, there’s a flat add-on ($30/mo on Pro, $20/mo on Premium). It’s published here, same as everything else.',
+    a: 'Connecting your Google Business profile is free and never counts against a limit. For social platforms (Instagram, Facebook, TikTok, YouTube, LinkedIn), two connected accounts are included; if you want more, there’s a flat $20/mo add-on for up to five. It’s published here, same as everything else.',
   },
   {
     q: 'Is my data locked in?',
@@ -100,105 +103,42 @@ export default function PricingPage() {
   return (
     <>
       <JsonLd data={faqPageLd(PRICING_FAQS)} />
+      <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: 200 }])} />
       <PageHero
         eyebrow="Pricing"
-        title="The whole number, on the page"
-        sub="No discovery calls, no custom quotes, no per-feature add-ons. Pick a tier, switch whenever, cancel monthly."
+        title="One plan. The whole platform."
+        sub="No tiers, no discovery calls, no per-feature add-ons. Everything DreamCRM does, one published price."
       />
 
       <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-        <div className="mb-8 rounded-xl border border-teal-200 bg-teal-50/70 px-5 py-4 text-center">
-          <p className="text-[0.95rem] font-semibold text-gray-950">
-            Every practice starts with 7 days of Premium, free — no card required.
-          </p>
-          <p className="mt-1 text-[0.85rem] text-gray-600">
-            Try everything below first. Pick a tier when you&apos;re convinced; switch or cancel monthly.
-          </p>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className={`flex flex-col rounded-xl border bg-white p-7 ${plan.id === 'pro' ? 'border-teal-400 ring-1 ring-teal-400' : 'border-gray-200'}`}
-            >
-              <div className="flex items-baseline justify-between">
-                <h2 className="text-[1.05rem] font-bold">{plan.name}</h2>
-                {plan.id === 'pro' && (
-                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.7rem] font-bold text-teal-700">
-                    Most popular
-                  </span>
-                )}
-              </div>
-              <p className="mt-3 text-[2.3rem] font-extrabold tracking-tight">
-                ${plan.price}
-                <span className="text-[0.9rem] font-medium text-gray-500"> /mo</span>
-              </p>
-              <p className="text-[0.8rem] text-gray-500">
-                or ${plan.annualPrice.toLocaleString('en-US')}/yr — 2 months free
-              </p>
-              <ul className="mt-5 flex-1 space-y-2.5">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-[0.875rem] leading-snug text-gray-700">
-                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href={`/signup?plan=${plan.id}`}
-                className={`mt-7 block rounded-lg py-2.5 text-center text-[0.9rem] font-semibold ${
-                  plan.id === 'pro'
-                    ? 'bg-teal-700 text-white hover:bg-teal-800'
-                    : 'border border-gray-300 text-gray-800 hover:border-gray-400'
-                }`}
-              >
-                Choose {plan.name}
-              </Link>
-            </div>
-          ))}
-        </div>
+        <PriceCard />
+        <p className="mx-auto mt-6 max-w-xl text-center text-[0.85rem] text-gray-500">
+          Everything below is live in the product today. New modules ship
+          regularly — and land on your plan at no extra cost.
+        </p>
       </section>
 
       <section className="border-t border-gray-100 bg-gray-50/70">
         <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
-          <SectionTitle sub="The exact module gating, mirrored from the product — nothing hidden behind a sales call.">
-            What unlocks at each tier
+          <SectionTitle sub="The product's real module list, mirrored one-to-one — nothing hidden behind a sales call, nothing gated behind a bigger plan.">
+            Everything included
           </SectionTitle>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full min-w-[40rem] text-[0.875rem]">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-500">Feature</th>
-                  {PLANS.map((p) => (
-                    <th key={p.id} className="w-28 px-4 py-3 text-center font-bold text-gray-950">
-                      {p.name}
-                      <span className="block text-[0.72rem] font-medium text-gray-400">${p.price}/mo</span>
-                    </th>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {INCLUDED.map((group) => (
+              <div key={group.group} className="rounded-xl border border-gray-200 bg-white p-6">
+                <h3 className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-500">
+                  {group.group}
+                </h3>
+                <ul className="mt-3 space-y-2.5">
+                  {group.rows.map((row) => (
+                    <li key={row} className="flex items-start gap-2.5 text-[0.875rem] leading-snug text-gray-700">
+                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
+                      {row}
+                    </li>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {MATRIX.map((group) => (
-                  <React.Fragment key={group.group}>
-                    <tr className="border-t border-gray-200 bg-gray-50/80">
-                      <td colSpan={4} className="px-4 py-2 text-[0.72rem] font-bold uppercase tracking-wider text-gray-500">
-                        {group.group}
-                      </td>
-                    </tr>
-                    {group.rows.map((row) => (
-                      <tr key={row.label} className="border-t border-gray-100">
-                        <td className="px-4 py-2.5 text-gray-800">{row.label}</td>
-                        {row.tiers.map((has, i) => (
-                          <td key={i} className="px-4 py-2.5 text-center">
-                            <MatrixMark value={has ? 'yes' : 'no'} />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </section>

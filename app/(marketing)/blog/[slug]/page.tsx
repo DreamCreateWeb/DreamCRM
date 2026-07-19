@@ -159,7 +159,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
       <div className="mt-12 rounded-xl border border-teal-200 bg-teal-50/60 px-6 py-7 text-center">
         <p className="text-[1.05rem] font-bold tracking-tight">Run your front office from one system</p>
         <p className="mx-auto mt-1 max-w-md text-[0.88rem] text-gray-600">
-          Website, booking, portal, reviews, recall — $150–500/mo, month-to-month.
+          Website, booking, portal, reviews, recall — $200/mo founding practice rate, month-to-month.
         </p>
         <div className="mt-4">
           <PrimaryCta href="/signup">Start your free trial</PrimaryCta>

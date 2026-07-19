@@ -48,7 +48,7 @@ export default async function ComparePage({ params }: Props) {
           <p className="mt-5 text-[0.98rem] leading-relaxed text-gray-700">{c.summary}</p>
           <p className="mt-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-[0.82rem] text-gray-500">
             <span className="font-semibold text-gray-700">Reported pricing:</span> {c.reportedPricing}.
-            DreamCRM: $150–500/mo published, month-to-month.
+            DreamCRM: $200/mo published (founding practice rate), month-to-month.
           </p>
         </div>
       </section>

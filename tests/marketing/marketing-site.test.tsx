@@ -35,12 +35,15 @@ import { DOCS, DOC_CATEGORIES, getDoc } from '@/lib/marketing/docs'
 import { MARKETING_NAV } from '@/lib/marketing/site'
 
 describe('marketing home', () => {
-  it('renders the hero + plan prices from the real PLANS config for signed-out visitors', async () => {
+  it('renders the hero + the single founding-rate teaser for signed-out visitors', async () => {
     render(await MarketingHome())
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/one calm system/i)
-    for (const plan of PLANS) {
-      expect(screen.getAllByText(`$${plan.price}`).length).toBeGreaterThanOrEqual(1)
-    }
+    // One plan (2026-07-19): the $500 list price struck through next to $200.
+    expect(screen.getAllByText('$200').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('$500').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/founding practice rate/i).length).toBeGreaterThanOrEqual(1)
+    // Never sold as unfinished: the word "beta" must not appear anywhere.
+    expect(screen.queryByText(/beta/i)).toBeNull()
   })
 
   it('links every comparison teaser to its page', async () => {
@@ -73,29 +76,22 @@ describe('marketing home', () => {
 })
 
 describe('pricing page', () => {
-  it('renders every plan with its monthly price and the tier matrix', () => {
+  it('renders the single founding-rate card with the struck list price and everything included', () => {
     render(<PricingPage />)
-    for (const plan of PLANS) {
-      expect(screen.getAllByText(`$${plan.price}`).length).toBeGreaterThanOrEqual(1)
-    }
-    // Annual prices are live in Stripe checkout — the page advertises 2 months free.
-    expect(screen.queryByText(/annual billing coming soon/i)).toBeNull()
-    for (const plan of PLANS) {
-      expect(
-        screen.getByText(`or $${plan.annualPrice.toLocaleString('en-US')}/yr — 2 months free`),
-      ).toBeInTheDocument()
-    }
-    // Plan-card CTAs carry the picked plan into signup → onboarding.
-    for (const plan of PLANS) {
-      expect(screen.getByRole('link', { name: `Choose ${plan.name}` })).toHaveAttribute(
-        'href',
-        `/signup?plan=${plan.id}`,
-      )
-    }
-    // Premium-only rows render in the matrix (also present in plan-card
-    // feature lists, hence getAllByText).
+    // One plan (2026-07-19): $500 struck through, $200 founding rate, with a
+    // monthly/annual toggle (annual = 2 months free per the house convention).
+    expect(screen.getAllByText('$200').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('$500').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/founding practice rate/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('button', { name: /monthly/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /annual/i })).toBeInTheDocument()
+    // No tier names, no "beta" — the platform is one finished product.
+    expect(screen.queryByText(/most popular/i)).toBeNull()
+    expect(screen.queryByText(/beta/i)).toBeNull()
+    // Formerly premium-gated rows now sit in the everything-included list.
     expect(screen.getByText('Open Dental two-way sync (official API)')).toBeInTheDocument()
-    expect(screen.getAllByText('Recall & outreach campaigns').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Recall & outreach campaigns')).toBeInTheDocument()
+    expect(screen.getByText('Careers page + applicant tracking')).toBeInTheDocument()
   })
 })
 

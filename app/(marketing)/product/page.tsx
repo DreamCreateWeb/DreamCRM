@@ -59,7 +59,7 @@ const SECTIONS: ModuleSection[] = [
     body: 'Most practices rent their website from an agency and email support to change a sentence. Your DreamCRM site is yours: open the Website Studio and your real, live site appears in an editable canvas — hover any section, click Edit, save, published. Services come from a curated dental library with per-practice AI customization; the blog, SEO plumbing (sitemaps, local schema, social cards), careers page, and lead forms are all part of the same site.',
     bullets: [
       'Edit-in-place studio — change text, photos, services, and hours by clicking the page',
-      'AI copy assistant with a monthly allowance on every tier (manual editing is always free)',
+      'AI copy assistant with a monthly allowance included (manual editing is always free)',
       'Services library with detail pages, FAQs, and navigation that build themselves',
       'SEO dashboard reading real Google Search Console data',
       'Blog with AI-drafted posts you review before publishing',
@@ -316,7 +316,7 @@ export default function ProductPage() {
         <div className="rounded-2xl border border-teal-200 bg-teal-50/60 px-8 py-12 text-center">
           <h2 className="text-[1.6rem] font-bold tracking-tight">Ten minutes from signup to a live website</h2>
           <p className="mx-auto mt-2 max-w-xl text-[0.95rem] text-gray-600">
-            Start on Basic with the website, switch tiers as you adopt more. Month-to-month, no contract.
+            Everything is included from day one — one plan, one price. Month-to-month, no contract.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <PrimaryCta href="/signup">Start your free trial</PrimaryCta>

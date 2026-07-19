@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getTenantContext } from '@/lib/auth/context'
 import { getServerSession } from '@/lib/session'
-import { PLANS } from '@/lib/stripe-config'
 import { DEMO_URL } from '@/lib/marketing/site'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { JsonLd, softwareApplicationLd } from '@/lib/marketing/seo'
@@ -24,7 +23,7 @@ export const dynamic = 'force-dynamic'
 export const metadata = {
   title: 'DreamCRM — the front-office platform for dental practices',
   description:
-    'Website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. $150–500/mo after, month-to-month.',
+    'Website, online booking, patient portal, messaging, reviews, recall, and an online store — one system, wrapped around the PMS you already run. 7-day free trial, no card. $200/mo founding practice rate after (regularly $500), month-to-month.',
   openGraph: {
     title: 'DreamCRM — the front-office platform for dental practices',
     description:
@@ -91,7 +90,7 @@ const PILLARS: Array<{ title: string; body: string; href: string; glyph: React.R
 const TENETS: Array<{ title: string; body: string }> = [
   {
     title: 'The price is on the page',
-    body: '$150–500/mo, published. No discovery call, no custom quote, no per-feature add-ons appearing on invoice three.',
+    body: 'One plan, $200/mo — published. No discovery call, no custom quote, no per-feature add-ons appearing on invoice three.',
   },
   {
     title: 'Our gaps are marked',
@@ -121,7 +120,7 @@ export default async function MarketingHome() {
 
   return (
     <>
-      <JsonLd data={softwareApplicationLd(PLANS)} />
+      <JsonLd data={softwareApplicationLd([{ name: 'DreamCRM', price: 200 }])} />
       {/* ── Hero ── */}
       <section className="relative overflow-hidden border-b border-gray-100">
         <div className="absolute inset-0 opacity-40" style={HERO_DOT_GRID} aria-hidden="true" />
@@ -149,7 +148,7 @@ export default async function MarketingHome() {
               <GhostCta href="/product">Tour the platform</GhostCta>
             </div>
             <div className="mkt-enter mkt-d4 mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[0.85rem] text-gray-600">
-              {['7 days of Premium free', 'No card to start', '$150–500/mo after, flat', 'Month-to-month'].map((t) => (
+              {['7 days free, everything included', 'No card to start', '$200/mo after, flat', 'Month-to-month'].map((t) => (
                 <span key={t} className="flex items-center gap-1.5">
                   <CheckIcon className="h-3.5 w-3.5 text-teal-700" />
                   {t}
@@ -218,7 +217,7 @@ export default async function MarketingHome() {
                 ))}
                 <tr className="border-t-2 border-teal-200 bg-teal-50/60">
                   <td className="px-3 py-3 font-bold text-gray-950">DreamCRM — all of it</td>
-                  <td className="px-3 py-3 text-right font-bold text-teal-700">$150–500/mo</td>
+                  <td className="px-3 py-3 text-right font-bold text-teal-700">$200/mo</td>
                 </tr>
               </tbody>
             </table>
@@ -355,45 +354,38 @@ export default async function MarketingHome() {
         </div>
       </section>
 
-      {/* ── Pricing teaser ── */}
+      {/* ── Pricing teaser — one plan, founding rate ── */}
       <ScrollReveal as="section" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-20">
         <SectionTitle sub="Published on the page, no discovery call. Month-to-month, cancel anytime.">
-          Flat pricing, month-to-month
+          One plan. The whole platform.
         </SectionTitle>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className={`rounded-xl border bg-white p-6 ${plan.id === 'pro' ? 'border-teal-400 shadow-lg shadow-teal-100 ring-1 ring-teal-400' : 'border-gray-200'}`}
-            >
-              <div className="flex items-baseline justify-between">
-                <h3 className="text-[1rem] font-bold">{plan.name}</h3>
-                {plan.id === 'pro' && (
-                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[0.7rem] font-bold text-teal-700">
-                    Most popular
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-[2rem] font-extrabold tracking-tight">
-                ${plan.price}
-                <span className="text-[0.85rem] font-medium text-gray-500"> /mo</span>
-              </p>
-              <ul className="mt-4 space-y-2">
-                {plan.features.slice(0, 4).map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-[0.85rem] text-gray-700">
-                    <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/pricing"
-                className="mt-5 inline-block text-[0.85rem] font-semibold text-teal-700 hover:underline"
-              >
-                Full plan details →
-              </Link>
-            </div>
-          ))}
+        <div className="mx-auto max-w-lg rounded-2xl border border-teal-200 bg-white p-8 text-center shadow-[0_2px_6px_rgba(76,125,240,0.06),0_18px_44px_rgba(76,125,240,0.14)]">
+          <p className="text-[0.78rem] font-bold uppercase tracking-wider text-teal-700">
+            Founding practice rate
+          </p>
+          <p className="mt-2 flex items-baseline justify-center gap-3">
+            <span className="text-[1.2rem] font-semibold text-gray-400 line-through decoration-2">$500</span>
+            <span className="text-[2.6rem] font-extrabold tracking-tight text-gray-950">$200</span>
+            <span className="text-[0.9rem] font-medium text-gray-500">/mo</span>
+          </p>
+          <p className="mt-1 text-[0.875rem] text-gray-600">
+            Everything DreamCRM does — website, booking, portal, messaging,
+            reviews, recall, shop, PMS sync. Rate locked for as long as you stay.
+          </p>
+          <ul className="mx-auto mt-4 max-w-xs space-y-2 text-left">
+            {['Every module included', 'Month-to-month, no contract', 'Annual option: 2 months free'].map((f) => (
+              <li key={f} className="flex items-start gap-2 text-[0.85rem] text-gray-700">
+                <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-700" />
+                {f}
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/pricing"
+            className="mt-5 inline-block text-[0.875rem] font-semibold text-teal-700 hover:underline"
+          >
+            Full pricing details →
+          </Link>
         </div>
       </ScrollReveal>
 
