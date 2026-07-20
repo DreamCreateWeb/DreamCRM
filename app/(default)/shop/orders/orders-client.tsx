@@ -62,7 +62,9 @@ const PILL_LEGEND: PillLegendRow[] = [
 ]
 
 /** The status chips the orders page offers (a subset of OrderStatus + "all"). */
-export type OrdersFilter = OrderStatus | 'all'
+// 'unfulfilled' is a virtual view (paid AND not yet fulfilled) — the hub's
+// "To fulfill" tile deep-links it (?fulfillment=unfulfilled).
+export type OrdersFilter = OrderStatus | 'all' | 'unfulfilled'
 
 // Stable empty base for the optimistic fulfillment map (useOptimistic resets to it).
 const EMPTY_FULFILLMENT: Record<string, FulfillmentStatus> = {}
@@ -139,7 +141,12 @@ export default function OrdersClient({
 
   // Search across patient name / order name / order email / product names.
   const filtered = useMemo(() => {
-    const byStatus = filter === 'all' ? orders : orders.filter((o) => o.status === filter)
+    const byStatus =
+      filter === 'all'
+        ? orders
+        : filter === 'unfulfilled'
+          ? orders.filter((o) => o.status === 'paid' && o.fulfillmentStatus === 'unfulfilled')
+          : orders.filter((o) => o.status === filter)
     const q = search.trim().toLowerCase()
     if (!q) return byStatus
     return byStatus.filter((o) =>
@@ -150,6 +157,7 @@ export default function OrdersClient({
   const counts = {
     all: orders.length,
     paid: orders.filter((o) => o.status === 'paid').length,
+    unfulfilled: orders.filter((o) => o.status === 'paid' && o.fulfillmentStatus === 'unfulfilled').length,
     pending: orders.filter((o) => o.status === 'pending').length,
   }
 
@@ -176,9 +184,9 @@ export default function OrdersClient({
 
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex flex-wrap gap-1.5">
-          {(['all', 'paid', 'pending'] as const).map((f) => (
+          {(['all', 'paid', 'unfulfilled', 'pending'] as const).map((f) => (
             <FilterChip key={f} active={filter === f} count={counts[f]} onClick={() => setFilter(f)}>
-              {f === 'all' ? 'All' : ORDER_STATUS_LABELS[f]}
+              {f === 'all' ? 'All' : f === 'unfulfilled' ? 'Unfulfilled' : ORDER_STATUS_LABELS[f]}
             </FilterChip>
           ))}
         </div>

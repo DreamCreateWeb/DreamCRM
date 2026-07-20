@@ -292,7 +292,7 @@ export default function ShopClient({
               label="To fulfill"
               value={orderStats.unfulfilledCount}
               tone={orderStats.unfulfilledCount > 0 ? 'warn' : undefined}
-              href="/shop/orders?status=paid"
+              href="/shop/orders?fulfillment=unfulfilled"
               sub={
                 orderStats.paidCount > 0
                   ? `${Math.round((orderStats.fulfilledCount / orderStats.paidCount) * 100)}% fulfilled`

@@ -341,11 +341,12 @@ Closed 2026-07-02 (round 5):
 explains it. Passes 1–2 wired everything whose destination already existed;
 these need a real param/route first (never invent unparsed query params):
 
-- ☐ Shop hub "To fulfill" KPI → needs a parsed `?fulfillment=` param on
-  /shop/orders (filter is client-state only today; currently linked to the
-  closest honest view, `?status=paid`).
-- ☐ Shop hub catalog Products/Live KpiStats → no product index/status view
-  exists (list sits directly below on the same surface — low urgency).
+- ☑ Shop hub "To fulfill" KPI → /shop/orders now parses
+  `?fulfillment=unfulfilled` into a first-class Unfulfilled chip (paid +
+  awaiting fulfillment); the tile deep-links it (2026-07-20).
+- ▣ Shop hub catalog Products/Live KpiStats → ACCEPTED unlinked: the tiles
+  sit inside the catalog section they describe (adjacency IS the
+  explanation; a self-anchor would be noise). Decision 2026-07-20.
 - ☐ Intake-forms heartbeat ("Completed · 8 weeks") → no cross-template
   submissions index exists to explain the flow.
 - ☐ My Day "You closed N this week" → /followups filters by assignee, not

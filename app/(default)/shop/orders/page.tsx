@@ -6,11 +6,13 @@ import OrdersClient, { type OrdersFilter } from './orders-client'
 export const metadata = { title: 'Shop orders - DreamCRM' }
 export const dynamic = 'force-dynamic'
 
-// ?status= deep-links a pre-filtered view (the Overview "Fulfill orders" card
-// points here with ?status=paid). Only the chips the page actually renders are
-// honored; anything else falls back to "all".
-function parseFilter(raw: string | string[] | undefined): OrdersFilter {
-  const value = typeof raw === 'string' ? raw : ''
+// ?status= and ?fulfillment= deep-link pre-filtered views (the Overview
+// "Fulfill orders" card sends ?status=paid; the Shop hub's "To fulfill" tile
+// sends ?fulfillment=unfulfilled). Only the chips the page actually renders
+// are honored; anything else falls back to "all".
+function parseFilter(params: Record<string, string | string[] | undefined>): OrdersFilter {
+  if (typeof params.fulfillment === 'string' && params.fulfillment === 'unfulfilled') return 'unfulfilled'
+  const value = typeof params.status === 'string' ? params.status : ''
   return value === 'paid' || value === 'pending' ? value : 'all'
 }
 
@@ -28,7 +30,7 @@ export default async function ShopOrdersPage({
     <OrdersClient
       orders={orders}
       orgName={ctx.organizationName}
-      initialFilter={parseFilter(params.status)}
+      initialFilter={parseFilter(params)}
       canExport={ctx.role === 'owner' || ctx.role === 'admin'}
     />
   )

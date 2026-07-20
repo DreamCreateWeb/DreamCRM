@@ -70,6 +70,26 @@ describe('OrdersClient', () => {
     expect(screen.queryByRole('link', { name: /Liam Brooks/ })).not.toBeInTheDocument()
   })
 
+  // Class 6 close (2026-07-20): the Shop hub's "To fulfill" tile deep-links
+  // ?fulfillment=unfulfilled → the virtual unfulfilled view (paid AND not
+  // yet fulfilled), now a real chip on the board.
+  it('honors initialFilter="unfulfilled" (paid + awaiting fulfillment only)', () => {
+    render(
+      <OrdersClient
+        initialFilter="unfulfilled"
+        orders={[
+          order({ id: 'o1', status: 'paid', fulfillmentStatus: 'unfulfilled', patientId: 'p1', patientName: 'Mia Hayes' }),
+          order({ id: 'o2', status: 'paid', fulfillmentStatus: 'shipped', patientId: 'p2', patientName: 'Liam Brooks' }),
+          order({ id: 'o3', status: 'pending', fulfillmentStatus: 'unfulfilled', patientId: 'p3', patientName: 'Ava Morgan' }),
+        ]}
+      />,
+    )
+    expect(screen.getByRole('link', { name: /Mia Hayes/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Liam Brooks/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Ava Morgan/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Unfulfilled/ })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('defaults to showing every order when no initialFilter is passed', () => {
     render(
       <OrdersClient
