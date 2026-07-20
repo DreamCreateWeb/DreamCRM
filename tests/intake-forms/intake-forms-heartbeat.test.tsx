@@ -21,7 +21,11 @@ describe('CompletedHeartbeat — 8-week sparkline (law 7)', () => {
     const { container } = render(
       <CompletedHeartbeat series={series([0, 2, 1, 0, 3, 0, 1, 2])} />,
     )
-    expect(screen.getByText('Completed · 8 weeks')).toBeInTheDocument()
+    const label = screen.getByText('Completed · 8 weeks')
+    expect(label).toBeInTheDocument()
+    // The label is the drill-in (v3: every number links to the view that
+    // explains it) — it lands on the cross-template submissions index.
+    expect(label.closest('a')?.getAttribute('href')).toBe('/intake-forms/submissions')
     expect(
       screen.getByTitle('Forms completed per week over the last 8 weeks'),
     ).toBeInTheDocument()

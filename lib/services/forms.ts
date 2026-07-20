@@ -592,6 +592,64 @@ export async function countSubmissionsForTemplate(
   return Number(row?.count) || 0
 }
 
+export interface RecentSubmission {
+  id: string
+  submittedAt: Date
+  templateId: string
+  templateTitle: string
+  patientId: string | null
+  patientName: string | null
+  submitterName: string | null
+  submitterEmail: string | null
+}
+
+/**
+ * Recent submissions ACROSS every template — the cross-template index the
+ * list page's "Completed · 8 weeks" heartbeat drills into. One org-scoped
+ * query (rides form_submission_org_template_idx's org prefix): inner-join
+ * the template for its title, left-join the patient for a linkable name —
+ * public fills can be anonymous (patientId null), so the patient side is
+ * nullable and callers fall back to submitterName/Email. Narrowed to the
+ * columns the index renders; the `data` jsonb blob is never fetched.
+ */
+export async function listRecentSubmissions(
+  organizationId: string,
+  limit = 50,
+): Promise<RecentSubmission[]> {
+  const rows = await db
+    .select({
+      id: formSubmission.id,
+      submittedAt: formSubmission.submittedAt,
+      templateId: formTemplate.id,
+      templateTitle: formTemplate.title,
+      patientId: formSubmission.patientId,
+      patientFirstName: patient.firstName,
+      patientLastName: patient.lastName,
+      submitterName: formSubmission.submitterName,
+      submitterEmail: formSubmission.submitterEmail,
+    })
+    .from(formSubmission)
+    .innerJoin(formTemplate, eq(formSubmission.formTemplateId, formTemplate.id))
+    .leftJoin(patient, eq(formSubmission.patientId, patient.id))
+    .where(eq(formSubmission.organizationId, organizationId))
+    .orderBy(desc(formSubmission.submittedAt))
+    .limit(limit)
+
+  return rows.map((r) => ({
+    id: r.id,
+    submittedAt: r.submittedAt,
+    templateId: r.templateId,
+    templateTitle: r.templateTitle,
+    patientId: r.patientId,
+    patientName:
+      r.patientId && (r.patientFirstName || r.patientLastName)
+        ? `${r.patientFirstName ?? ''} ${r.patientLastName ?? ''}`.trim()
+        : null,
+    submitterName: r.submitterName,
+    submitterEmail: r.submitterEmail,
+  }))
+}
+
 export interface SubmissionForReview {
   submission: FormSubmission
   template: FormTemplate

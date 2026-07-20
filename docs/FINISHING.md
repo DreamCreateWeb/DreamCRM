@@ -347,8 +347,12 @@ these need a real param/route first (never invent unparsed query params):
 - ▣ Shop hub catalog Products/Live KpiStats → ACCEPTED unlinked: the tiles
   sit inside the catalog section they describe (adjacency IS the
   explanation; a self-anchor would be noise). Decision 2026-07-20.
-- ☐ Intake-forms heartbeat ("Completed · 8 weeks") → no cross-template
-  submissions index exists to explain the flow.
-- ☐ My Day "You closed N this week" → /followups filters by assignee, not
-  completedBy; an honest link needs a completedBy filter param (linking to
-  ?mine=1&done=1 would misexplain the number).
+- ☑ Intake-forms heartbeat ("Completed · 8 weeks") → new
+  /intake-forms/submissions index (recent completions across templates,
+  patient/template/viewer links, clinic-tz); the label links it
+  (2026-07-20).
+- ☑ My Day "You closed N this week" → /followups now parses `?closedBy=me`
+  into a first-class "Closed by me" chip (status='done' + completedBy = you,
+  newest close first — the heartbeat's exact math; `listOpenFollowups`
+  gained a `completedBy` filter); the heartbeat label deep-links it
+  (2026-07-20).
