@@ -99,6 +99,7 @@ export default async function PlatformOverview() {
               : `${attention.pastDueInvoiceCount} past-due · ${attention.stalledProjectCount + attention.overdueProjectCount} project flags`
           }
           tone={attention.total > 0 ? 'warn' : undefined}
+          href="#attention"
         />
       </div>
 
@@ -123,16 +124,33 @@ export default async function PlatformOverview() {
           </div>
           <ul className="space-y-2">
             {pmsWanted.map((d) => (
-              <li
-                key={d.provider}
-                className="flex items-center justify-between rounded-lg border border-[color:var(--color-hairline)] px-4 py-2.5"
-              >
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {PROVIDER_LABELS[d.provider as keyof typeof PROVIDER_LABELS] ?? d.provider}
-                </span>
-                <span className="text-sm text-gray-600 dark:text-gray-400 tabular-nums">
-                  {d.pending} {d.pending === 1 ? 'clinic' : 'clinics'} waiting
-                </span>
+              <li key={d.provider} className="rounded-lg border border-[color:var(--color-hairline)]">
+                {/* The count opens WHO is waiting (v3 action-links law). */}
+                <details className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 [&::-webkit-details-marker]:hidden">
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {PROVIDER_LABELS[d.provider as keyof typeof PROVIDER_LABELS] ?? d.provider}
+                    </span>
+                    <span className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 tabular-nums">
+                      {d.pending} {d.pending === 1 ? 'clinic' : 'clinics'} waiting
+                      <span className="text-xs text-gray-400 transition-transform group-open:rotate-90" aria-hidden="true">
+                        ›
+                      </span>
+                    </span>
+                  </summary>
+                  <div className="border-t border-[color:var(--color-hairline)] px-4 py-2">
+                    <p className="flex flex-wrap gap-1.5">
+                      {d.clinics.map((name, i) => (
+                        <span
+                          key={`${name}-${i}`}
+                          className="rounded-full bg-[color:var(--color-surface-sunk)] px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300"
+                        >
+                          {name}
+                        </span>
+                      ))}
+                    </p>
+                  </div>
+                </details>
               </li>
             ))}
           </ul>
@@ -140,7 +158,7 @@ export default async function PlatformOverview() {
       )}
 
       {/* ── Needs Your Attention ──────────────────────────────────────── */}
-      <div className="v2-card p-6 mb-8">
+      <div id="attention" className="v2-card p-6 mb-8 scroll-mt-20">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -239,9 +257,19 @@ export default async function PlatformOverview() {
                   {KIND_ICONS[row.kind] ?? '•'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
-                    {row.title}
-                  </div>
+                  {/* v3 action-links law: a feed row opens the surface behind it. */}
+                  {row.href ? (
+                    <Link
+                      href={row.href}
+                      className="font-medium text-gray-800 dark:text-gray-100 truncate block hover:text-teal-700 dark:hover:text-teal-300"
+                    >
+                      {row.title}
+                    </Link>
+                  ) : (
+                    <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
+                      {row.title}
+                    </div>
+                  )}
                   {row.subtitle && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {row.subtitle}

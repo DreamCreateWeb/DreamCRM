@@ -137,7 +137,7 @@ export async function getAttentionItems(opts: { perKind?: number } = {}): Promis
         kind: 'stalled_project',
         title: `Stalled · ${r.title}`,
         subtitle: r.clinicName ?? 'Internal project',
-        href: '/dashboard',
+        href: '/ecommerce/orders',
         ts: r.updatedAt,
       })
     }
@@ -171,7 +171,7 @@ export async function getAttentionItems(opts: { perKind?: number } = {}): Promis
         subtitle: r.clinicName
           ? `${r.clinicName} · due ${r.dueDate?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
           : `Due ${r.dueDate?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
-        href: '/dashboard',
+        href: '/ecommerce/orders',
         ts: r.dueDate ?? new Date(),
       })
     }
@@ -202,7 +202,7 @@ export async function getAttentionItems(opts: { perKind?: number } = {}): Promis
         kind: 'new_signup',
         title: `New clinic · ${r.name}`,
         subtitle: 'Welcome them and check their website setup',
-        href: `/dashboard`,
+        href: `/ecommerce/customers/${r.id}`,
         ts: r.createdAt,
       })
     }
@@ -238,6 +238,8 @@ export interface ActivityRow {
   subtitle: string | null
   ts: Date
   amountCents?: number
+  /** Where clicking the row goes (v3 action-links law). Null = no surface yet. */
+  href?: string | null
 }
 
 export async function getRecentPlatformActivity(limit = 12): Promise<{ rows: ActivityRow[]; stripeUnavailable: boolean }> {
@@ -263,6 +265,7 @@ export async function getRecentPlatformActivity(limit = 12): Promise<{ rows: Act
         title: `${s.name} joined Dream Create`,
         subtitle: 'New clinic signup',
         ts: s.createdAt,
+        href: `/ecommerce/customers/${s.id}`,
       })
     }
   } catch (err) {
@@ -294,6 +297,7 @@ export async function getRecentPlatformActivity(limit = 12): Promise<{ rows: Act
         title: `${p.title} delivered`,
         subtitle: p.clinicName ?? 'Internal',
         ts: p.ts,
+        href: '/ecommerce/orders',
         amountCents: p.budget ?? undefined,
       })
     }
@@ -337,6 +341,7 @@ export async function getRecentPlatformActivity(limit = 12): Promise<{ rows: Act
           title: 'Subscription payment received',
           subtitle: cust ? customerToClinic.get(cust) ?? 'Unknown clinic' : 'Unknown clinic',
           ts: new Date(tsSec * 1000),
+          href: '/ecommerce/invoices',
           amountCents: inv.amount_paid,
         })
       }

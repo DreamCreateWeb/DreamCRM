@@ -79,21 +79,47 @@ export interface PmsDemandRow {
   waiting: number
   /** Still un-notified (the actionable backlog when the PMS ships). */
   pending: number
+  /** WHICH clinics are waiting (pending first) — the drill-down behind the
+   *  count (v3 action-links law: a number you can't open is a dead end). */
+  clinics: string[]
 }
 
 /** Platform-admin view: demand per roadmap PMS, most-wanted first. Drives the
  *  founder's partnership prioritization. */
 export async function getPmsDemand(): Promise<PmsDemandRow[]> {
-  const rows = await db
-    .select({
-      provider: schema.pmsInterest.provider,
-      waiting: sql<number>`count(*)::int`,
-      pending: sql<number>`count(*) filter (where ${schema.pmsInterest.notifiedAt} is null)::int`,
-    })
-    .from(schema.pmsInterest)
-    .groupBy(schema.pmsInterest.provider)
-    .orderBy(desc(sql`count(*)`))
-  return rows.map((r) => ({ provider: r.provider, waiting: r.waiting, pending: r.pending }))
+  const [rows, who] = await Promise.all([
+    db
+      .select({
+        provider: schema.pmsInterest.provider,
+        waiting: sql<number>`count(*)::int`,
+        pending: sql<number>`count(*) filter (where ${schema.pmsInterest.notifiedAt} is null)::int`,
+      })
+      .from(schema.pmsInterest)
+      .groupBy(schema.pmsInterest.provider)
+      .orderBy(desc(sql`count(*)`)),
+    db
+      .select({
+        provider: schema.pmsInterest.provider,
+        clinicName: schema.organization.name,
+        notifiedAt: schema.pmsInterest.notifiedAt,
+      })
+      .from(schema.pmsInterest)
+      .innerJoin(schema.organization, eq(schema.organization.id, schema.pmsInterest.organizationId))
+      .orderBy(desc(schema.pmsInterest.createdAt)),
+  ])
+  const byProvider = new Map<string, string[]>()
+  // Pending (un-notified) clinics list first — they're the actionable ones.
+  for (const w of [...who.filter((r) => r.notifiedAt == null), ...who.filter((r) => r.notifiedAt != null)]) {
+    const list = byProvider.get(w.provider) ?? []
+    list.push(w.clinicName)
+    byProvider.set(w.provider, list)
+  }
+  return rows.map((r) => ({
+    provider: r.provider,
+    waiting: r.waiting,
+    pending: r.pending,
+    clinics: byProvider.get(r.provider) ?? [],
+  }))
 }
 
 /** The un-notified requests for a provider — the list the founder emails the
