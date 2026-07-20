@@ -210,6 +210,9 @@ export interface TopProduct {
   productName: string
   unitsSold: number
   revenueCents: number
+  /** Resolved through the variant snapshot to a STILL-EXISTING product —
+   *  null when the product was deleted (row renders unlinked). */
+  productId: string | null
 }
 
 // ── Coupons ───────────────────────────────────────────────────────────────

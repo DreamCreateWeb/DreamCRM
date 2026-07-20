@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { formatCents, formatDiscount, type CouponRow, type DiscountType, type CouponSource } from '@/lib/types/shop'
 import { createCouponAction, deactivateCouponAction, generateBirthdayCouponsAction } from './actions'
 import { PageHeader } from '@/components/ui/page-header'
@@ -196,7 +197,17 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
                     min <span className="font-mono-num">{formatCents(c.minSubtotalCents)}</span>
                   </span>
                 )}
-                {c.patientName && <span className="text-xs text-gray-500 dark:text-gray-400">· {c.patientName}</span>}
+                {c.patientName &&
+                  (c.patientId ? (
+                    <Link
+                      href={`/patients/${c.patientId}`}
+                      className="text-xs text-teal-700 dark:text-teal-400 hover:underline"
+                    >
+                      · {c.patientName}
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">· {c.patientName}</span>
+                  ))}
                 <StatusPill tone={state.tone} label={state.label} className="ml-auto" />
                 {c.active && state.tone === 'ok' && (
                   <ActionButton

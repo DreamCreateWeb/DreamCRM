@@ -4203,3 +4203,17 @@ sage brand. ALSO: all vendor-shaming about direct-DB sync removed
 compliment; 'Official APIs only' tenet → 'Audit-clean sync' self-posture;
 /why + docs echoes softened) — we may ride NexHealth's Synchronizer soon,
 and the copy no longer throws stones at infrastructure we'd be renting.
+
+## 2026-07-20 — Action links pass 2: platform hrefs + module sweep + drill-downs
+
+The deferred service-level items from pass 1, closed: platform attention
+items stop self-linking (projects → the pipeline board, signups → the
+clinic detail); ActivityRow gained href and every platform feed row opens
+its object; the Needs-Attention tile anchors to its list; getPmsDemand
+returns WHICH clinics wait (pending-first) behind an expandable row. The
+four round-4 modules swept: coupons' patient names → /patients/[id],
+intake templates' submission stats → /intake-forms/[id]#submissions (anchor
+added); My Day/Followups/Shop were already model citizens. Bonus close:
+TopProduct resolves variantId → still-existing productId so Best-seller
+rows link to the product editor (deleted products stay plain text). Four
+honest dead ends needing new params/routes logged as FINISHING Class 6.

@@ -322,7 +322,18 @@ export default function ShopClient({
                       <span className="text-xs font-mono-num tabular-nums text-gray-400 dark:text-gray-500 w-4 shrink-0">
                         {i + 1}
                       </span>
-                      <span className="text-sm text-gray-800 dark:text-gray-100 truncate">{p.productName}</span>
+                      {/* v3 action-links law: a best seller opens its product
+                          editor; deleted products stay plain text. */}
+                      {p.productId ? (
+                        <Link
+                          href={`/shop/products/${p.productId}`}
+                          className="text-sm text-gray-800 dark:text-gray-100 truncate hover:text-teal-700 dark:hover:text-teal-300"
+                        >
+                          {p.productName}
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-gray-800 dark:text-gray-100 truncate">{p.productName}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 shrink-0 tabular-nums">
                       <span className="text-xs text-gray-500 dark:text-gray-400">{p.unitsSold} sold</span>

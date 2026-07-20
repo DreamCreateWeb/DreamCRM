@@ -27,7 +27,8 @@ export default async function EditFormPage({ params }: Props) {
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto">
       <FormBuilder template={template} />
 
-      <div className="mt-10 max-w-4xl">
+      {/* #submissions — the template list's submission-count stat deep-links here. */}
+      <div id="submissions" className="mt-10 max-w-4xl scroll-mt-16">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3">
           Submissions <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums font-mono-num">({totalSubmissions})</span>
         </h2>

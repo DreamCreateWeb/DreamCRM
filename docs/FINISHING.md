@@ -332,3 +332,22 @@ Closed 2026-07-02 (round 5):
 3. Any disagreement → find the class (tz? attribution? divergent query? stale
    copy?) → fix the CLASS (helper + convention + sweep + test), not the pixel.
 4. Log fixed/remaining items here; keep CLAUDE.md's conventions in sync.
+
+---
+
+## Class 6 — Action-link dead ends needing new params/routes (2026-07-20 audit)
+
+**Rule (DESIGN-SYSTEM v3):** every number links to the filtered view that
+explains it. Passes 1–2 wired everything whose destination already existed;
+these need a real param/route first (never invent unparsed query params):
+
+- ☐ Shop hub "To fulfill" KPI → needs a parsed `?fulfillment=` param on
+  /shop/orders (filter is client-state only today; currently linked to the
+  closest honest view, `?status=paid`).
+- ☐ Shop hub catalog Products/Live KpiStats → no product index/status view
+  exists (list sits directly below on the same surface — low urgency).
+- ☐ Intake-forms heartbeat ("Completed · 8 weeks") → no cross-template
+  submissions index exists to explain the flow.
+- ☐ My Day "You closed N this week" → /followups filters by assignee, not
+  completedBy; an honest link needs a completedBy filter param (linking to
+  ?mine=1&done=1 would misexplain the number).

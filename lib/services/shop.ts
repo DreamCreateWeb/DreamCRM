@@ -648,9 +648,15 @@ export async function getTopProducts(organizationId: string, limit = 5): Promise
       productName: schema.shopOrderItem.productName,
       unitsSold: sql<number>`sum(${schema.shopOrderItem.quantity})`,
       revenueCents: revenueExpr,
+      // Drill-down target (v3 action-links law): resolve the item's variant
+      // snapshot to a STILL-EXISTING product id; deleted products → null and
+      // the hub row renders unlinked rather than 404ing.
+      productId: sql<string | null>`max(${schema.shopProduct.id})`,
     })
     .from(schema.shopOrderItem)
     .innerJoin(schema.shopOrder, eq(schema.shopOrderItem.orderId, schema.shopOrder.id))
+    .leftJoin(schema.shopProductVariant, eq(schema.shopProductVariant.id, schema.shopOrderItem.variantId))
+    .leftJoin(schema.shopProduct, eq(schema.shopProduct.id, schema.shopProductVariant.productId))
     .where(and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.status, 'paid')))
     .groupBy(schema.shopOrderItem.productName)
     .orderBy(desc(revenueExpr))
@@ -659,5 +665,6 @@ export async function getTopProducts(organizationId: string, limit = 5): Promise
     productName: r.productName,
     unitsSold: Number(r.unitsSold),
     revenueCents: Number(r.revenueCents),
+    productId: r.productId ?? null,
   }))
 }

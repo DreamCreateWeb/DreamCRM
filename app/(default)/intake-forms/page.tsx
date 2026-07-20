@@ -138,14 +138,20 @@ export default async function IntakeFormsListPage() {
                       <span className="tabular-nums">{sections.length}</span> section{sections.length === 1 ? '' : 's'} ·{' '}
                       <span className="tabular-nums">{fieldCount}</span> field{fieldCount === 1 ? '' : 's'} ·{' '}
                       {stats && stats.count > 0 ? (
-                        <span className="text-gray-700 dark:text-gray-200">
+                        // Drillable (v3: every number links to the view that
+                        // explains it) — lands on this template's submissions
+                        // list at the bottom of the builder page.
+                        <Link
+                          href={`/intake-forms/${t.id}#submissions`}
+                          className="text-gray-700 dark:text-gray-200 hover:text-teal-700 dark:hover:text-teal-300"
+                        >
                           <span className="tabular-nums font-semibold">{stats.count}</span> submission{stats.count === 1 ? '' : 's'}
                           {stats.lastSubmittedAt && (
                             <span className="text-gray-500 dark:text-gray-400">
                               {' '}· last {fmtDate(stats.lastSubmittedAt)}
                             </span>
                           )}
-                        </span>
+                        </Link>
                       ) : (
                         <span className="text-gray-400 dark:text-gray-500">No submissions yet</span>
                       )}

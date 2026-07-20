@@ -52,7 +52,7 @@ interface RenderOpts {
     last30Count: number
   }>
   ordersPerWeek8?: Array<{ bucket: string; value: number }>
-  topProducts?: Array<{ productName: string; unitsSold: number; revenueCents: number }>
+  topProducts?: Array<{ productName: string; unitsSold: number; revenueCents: number; productId: string | null }>
   membershipStats?: { activeMembers: number; mrrCents: number }
   couponStats?: { activeCount: number }
   connectConfigured?: boolean
@@ -162,14 +162,18 @@ describe('ShopClient — sales overview', () => {
     renderHub({
       orderStats: { paidCount: 9, unfulfilledCount: 4, fulfilledCount: 5, revenueCents: 50000, last30Cents: 30000, last30Count: 6 },
       topProducts: [
-        { productName: 'Whitening Kit', unitsSold: 7, revenueCents: 28000 },
-        { productName: 'Sonic Brush', unitsSold: 3, revenueCents: 26700 },
+        { productName: 'Whitening Kit', unitsSold: 7, revenueCents: 28000, productId: 'prod_1' },
+        { productName: 'Sonic Brush', unitsSold: 3, revenueCents: 26700, productId: null },
       ],
     })
     expect(screen.getByText('Sales')).toBeInTheDocument()
     expect(screen.getByText('Best sellers')).toBeInTheDocument()
     expect(screen.getByText('Whitening Kit')).toBeInTheDocument()
     expect(screen.getByText('7 sold')).toBeInTheDocument()
+    // v3 action-links law: a live best seller links to its product editor;
+    // a deleted product's row stays plain text (no 404 links).
+    expect(screen.getByRole('link', { name: 'Whitening Kit' })).toHaveAttribute('href', '/shop/products/prod_1')
+    expect(screen.queryByRole('link', { name: 'Sonic Brush' })).toBeNull()
     const revenueTile = screen.getByText('Revenue · 30 days').closest('a')
     expect(revenueTile).toHaveAttribute('href', '/shop/orders?status=paid')
   })
