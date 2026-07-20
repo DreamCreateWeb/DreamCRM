@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { EmojiPicker } from '@/components/ui/emoji-picker'
 import { uploadFileWithProgress, UploadCancelledError, type UploadHandle } from '@/lib/upload-with-progress'
 import {
   GBP_POST_TYPES,
@@ -40,15 +41,18 @@ const BRAND_IDS: Record<string, BrandLogoId> = {
 }
 
 /**
- * Unified multi-platform post composer. Compose once → publish/schedule to one
- * OR MORE connected channels (Google Business + Instagram / Facebook / TikTok /
- * YouTube / LinkedIn). A channel picker (checkboxes over the org's connected
- * accounts) decides targets; the GBP-specific options (post type / CTA / event /
- * offer) only appear when a Google Business channel is selected. A live char
- * counter reflects the tightest cap across the picked channels (GBP=1,500). An
- * image uploads via the shared XHR helper → public S3 URL passed to Zernio.
- * "Post now" publishes; "Schedule" hands a future time to Zernio (which
- * publishes it — no cron on our side).
+ * The post widget — one compact card that does everything the old form
+ * sprawl did (2026-07-20 composer-widget pass). Compose once → publish or
+ * schedule to any set of connected channels (Google Business + Instagram /
+ * Facebook / TikTok / YouTube / LinkedIn).
+ *
+ * Anatomy: a channels dropdown (overlapping brand logos + count for the
+ * face; the full picker in a popover), one borderless text field, and a
+ * toolbar — emoji drawer, photo/video button (the whole card is also a drop
+ * target), schedule toggle, Google-options drawer (post type / CTA / event /
+ * offer — only when a Google channel is targeted), live char counter (the
+ * tightest cap across picked channels), and the Post button. The live
+ * preview column is unchanged and reads the same state — true WYSIWYG.
  *
  * Honest: no per-post metrics are promised (deprecated on Google, not yet
  * pulled for the socials) — the page points to /seo for local GBP performance.
@@ -69,9 +73,12 @@ export default function Composer({
 
   // Channel selection — default: all connected channels checked.
   const [selected, setSelected] = useState<Set<string>>(() => new Set(channels.map((c) => c.accountId)))
+  const [channelsOpen, setChannelsOpen] = useState(false)
+  const channelsRef = useRef<HTMLDivElement>(null)
 
   const [postType, setPostType] = useState<GbpPostType>('standard')
   const [summary, setSummary] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Image
   const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -100,8 +107,28 @@ export default function Composer({
   const [scheduleOn, setScheduleOn] = useState(false)
   const [scheduledAt, setScheduledAt] = useState('')
 
+  // Google-options drawer (post type / CTA / event / offer)
+  const [gbpOpen, setGbpOpen] = useState(false)
+
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Close the channels popover on Esc / outside click.
+  useEffect(() => {
+    if (!channelsOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setChannelsOpen(false)
+    }
+    function onDown(e: MouseEvent) {
+      if (channelsRef.current && !channelsRef.current.contains(e.target as Node)) setChannelsOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [channelsOpen])
 
   // Resolve the targeted platforms from the selection.
   const selectedPlatforms = useMemo(
@@ -120,6 +147,29 @@ export default function Composer({
       else next.add(accountId)
       return next
     })
+  }
+
+  /** Splice an emoji in at the caret (falls back to appending). */
+  function insertEmoji(emoji: string) {
+    const el = textareaRef.current
+    const start = el?.selectionStart ?? summary.length
+    const end = el?.selectionEnd ?? start
+    setSummary(summary.slice(0, start) + emoji + summary.slice(end))
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      const caret = start + emoji.length
+      el.setSelectionRange(caret, caret)
+      autoSize()
+    })
+  }
+
+  /** Grow the text field with its content (bounded — the card stays a card). */
+  function autoSize() {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 320)}px`
   }
 
   // When the user picks the Book CTA, prefill the clinic's /book URL.
@@ -182,6 +232,8 @@ export default function Composer({
     setOfferTerms('')
     setScheduleOn(false)
     setScheduledAt('')
+    setGbpOpen(false)
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
   }
 
   function submit() {
@@ -240,236 +292,38 @@ export default function Composer({
     offerCouponCode,
   }
 
+  // Dropdown face: the selected channels' logos, overlapped Hootsuite-style.
+  const selectedChannels = channels.filter((c) => selected.has(c.accountId))
+  const faceChannels = selectedChannels.slice(0, 4)
+  const faceLabel =
+    selected.size === 0
+      ? 'Pick channels'
+      : selected.size === channels.length
+        ? channels.length === 1
+          ? selectedChannels[0].label
+          : 'All channels'
+        : selected.size === 1
+          ? selectedChannels[0].label
+          : `${selected.size} of ${channels.length} channels`
+
+  // Google-options badge: something non-default is set inside the drawer.
+  const gbpCustomized = postType !== 'standard' || ctaType !== ''
+
   return (
     <div className="v2-panel p-5">
       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">Compose a post</h2>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] gap-6 lg:gap-8 items-start">
-        {/* ── Compose (left) ─────────────────────────────────────────────── */}
+        {/* ── The post widget (left) ─────────────────────────────────────── */}
         <div className="min-w-0">
-
-      {/* Channel selector — tap an account to broadcast to it */}
-      <div className="mb-5">
-        <div className="flex items-center justify-between mb-2">
-          <Label className="mb-0">Post to</Label>
-          <span className={`text-xs font-medium ${selected.size === 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
-            {selected.size === 0
-              ? 'Pick at least one'
-              : `${selected.size} of ${channels.length} selected`}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Channels">
-          {channels.map((ch) => {
-            const on = selected.has(ch.accountId)
-            const logoId = BRAND_IDS[ch.platform]
-            const accent = logoId ? BRAND_ACCENTS[logoId] : null
-            return (
-              <button
-                key={ch.accountId}
-                type="button"
-                onClick={() => toggleChannel(ch.accountId)}
-                aria-pressed={on}
-                title={ch.handle ?? ch.label}
-                className={`group relative inline-flex items-center gap-2.5 rounded-[var(--r-md)] border px-3 py-2 text-left transition ${
-                  on
-                    ? 'shadow-sm'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                }`}
-                style={on && accent ? { borderColor: accent, backgroundColor: `color-mix(in srgb, ${accent} 9%, transparent)` } : undefined}
-              >
-                <span className="relative inline-flex shrink-0">
-                  {logoId ? (
-                    <BrandLogo
-                      id={logoId}
-                      size={26}
-                      className={on ? '' : 'opacity-45 grayscale transition group-hover:opacity-90 group-hover:grayscale-0'}
-                    />
-                  ) : (
-                    <span className="text-xl" aria-hidden="true">{ch.icon}</span>
-                  )}
-                  {on && (
-                    <span
-                      className="absolute -bottom-1 -right-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-white ring-2 ring-white dark:ring-gray-800"
-                      style={{ backgroundColor: accent ?? '#14b8a6' }}
-                    >
-                      <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="3.5" aria-hidden="true">
-                        <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                  )}
-                </span>
-                <span className="min-w-0">
-                  <span className={`block text-[13px] font-medium leading-tight ${on ? 'text-gray-900 dark:text-gray-50' : 'text-gray-600 dark:text-gray-300'}`}>
-                    {ch.label}
-                  </span>
-                  {ch.handle && (
-                    <span className="block text-xs text-gray-400 truncate max-w-[130px]">{ch.handle}</span>
-                  )}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Post type selector — GBP only — a segmented control */}
-      {targetsGbp && (
-        <div className="mb-4">
-          <Label>Google post type</Label>
           <div
-            className="inline-flex rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] ring-1 ring-inset ring-[color:var(--color-hairline)] p-0.5"
-            role="group"
-            aria-label="Post type"
-          >
-            {GBP_POST_TYPES.map((t) => {
-              const active = postType === t
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setPostType(t)}
-                  aria-pressed={active}
-                  className={`rounded-[calc(var(--r-md)-2px)] px-4 py-1.5 text-[13px] font-medium transition ${
-                    active
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  }`}
-                >
-                  {GBP_POST_TYPE_LABELS[t]}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Event fields — GBP only */}
-      {targetsGbp && postType === 'event' && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Label>Event title</Label>
-            <input
-              type="text"
-              value={eventTitle}
-              onChange={(e) => setEventTitle(e.target.value)}
-              placeholder="Free Kids' Smile Day"
-              className={inputCls}
-              maxLength={120}
-            />
-          </div>
-          <div>
-            <Label>Starts</Label>
-            <input
-              type="datetime-local"
-              value={eventStartAt}
-              onChange={(e) => setEventStartAt(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <Label>Ends (optional)</Label>
-            <input
-              type="datetime-local"
-              value={eventEndAt}
-              onChange={(e) => setEventEndAt(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Summary + counter */}
-      <div className="mb-1.5 flex items-center justify-between">
-        <Label className="mb-0">{targetsGbp && postType === 'standard' ? "What's new" : 'Message'}</Label>
-        <span className={`text-xs font-mono-num ${counterCls}`}>{remaining}</span>
-      </div>
-      <textarea
-        value={summary}
-        onChange={(e) => setSummary(e.target.value)}
-        rows={5}
-        placeholder={targetsGbp ? PLACEHOLDERS[postType] : 'Write your post — it goes out to every channel you picked above.'}
-        className={`${inputCls} resize-y`}
-        aria-label="Post text"
-      />
-      {selectedPlatforms.length > 1 && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Same text goes to every channel. Counter shows the tightest limit ({charLimit}).
-        </p>
-      )}
-
-      {/* Offer fields — GBP only */}
-      {targetsGbp && postType === 'offer' && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label>Coupon code (optional)</Label>
-            <input
-              type="text"
-              value={offerCouponCode}
-              onChange={(e) => setOfferCouponCode(e.target.value)}
-              placeholder="SMILE99"
-              className={inputCls}
-              maxLength={58}
-            />
-          </div>
-          <div>
-            <Label>Redeem link (optional)</Label>
-            <input
-              type="url"
-              value={offerRedeemUrl}
-              onChange={(e) => setOfferRedeemUrl(e.target.value)}
-              placeholder="https://…"
-              className={inputCls}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Label>Terms &amp; conditions (optional)</Label>
-            <textarea
-              value={offerTerms}
-              onChange={(e) => setOfferTerms(e.target.value)}
-              rows={2}
-              placeholder="New patients only. Cannot be combined with other offers."
-              className={`${inputCls} resize-y`}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Media uploader — photo or video */}
-      <div className="mt-4">
-        <Label>Photo or video (optional)</Label>
-        {imageUrl ? (
-          <div className="relative w-full max-w-xs aspect-[4/3] rounded-[var(--r-md)] overflow-hidden ring-1 ring-inset ring-[color:var(--color-hairline)] bg-black/5">
-            {isVideoUrl(imageUrl) ? (
-              <video src={imageUrl} controls muted playsInline className="w-full h-full object-cover" />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="" className="w-full h-full object-cover" />
-            )}
-            <button
-              type="button"
-              onClick={() => setImageUrl(null)}
-              className="absolute top-1.5 right-1.5 rounded-full bg-black/60 text-white text-xs px-2 py-0.5 hover:bg-black/80 z-10"
-            >
-              Remove
-            </button>
-          </div>
-        ) : (
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => fileRef.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                fileRef.current?.click()
-              }
-            }}
             onDragOver={(e) => {
               e.preventDefault()
               if (!dragging) setDragging(true)
             }}
             onDragLeave={(e) => {
               e.preventDefault()
+              if (e.currentTarget.contains(e.relatedTarget as Node)) return
               setDragging(false)
             }}
             onDrop={(e) => {
@@ -478,43 +332,405 @@ export default function Composer({
               const f = e.dataTransfer.files?.[0]
               if (f) handleFile(f)
             }}
-            className={`flex flex-col items-center justify-center gap-1.5 rounded-[var(--r-lg)] border-2 border-dashed px-4 py-7 text-center cursor-pointer transition ${
-              dragging
-                ? 'border-teal-400 bg-teal-500/5'
-                : 'border-[color:var(--color-hairline-strong)] hover:border-teal-300 hover:bg-gray-50 dark:hover:bg-gray-800/40'
+            className={`relative rounded-[var(--r-lg)] bg-white dark:bg-gray-800 ring-1 ring-inset transition focus-within:ring-2 focus-within:ring-teal-500/40 ${
+              dragging ? 'ring-2 ring-teal-400' : 'ring-[color:var(--color-hairline)]'
             }`}
           >
-            {uploading ? (
-              <>
-                <div className="w-full max-w-[200px] h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                  <div className="h-full bg-teal-500 dark:bg-teal-400 transition-[width]" style={{ width: `${uploadPct}%` }} />
-                </div>
-                <p className="text-[12px] text-gray-500 dark:text-gray-400 font-mono-num">Uploading… {uploadPct}%</p>
+            {/* Drop overlay — the whole card is the drop target */}
+            {dragging && (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--r-lg)] bg-teal-500/10">
+                <p className="rounded-full bg-white dark:bg-gray-900 px-4 py-1.5 text-[13px] font-semibold text-teal-700 dark:text-teal-300 shadow-sm">
+                  Drop to attach
+                </p>
+              </div>
+            )}
+
+            {/* Header — the channels dropdown */}
+            <div className="flex items-center justify-between gap-2 px-3 pt-3">
+              <div ref={channelsRef} className="relative">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleRef.current?.cancel()
-                  }}
-                  className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600"
+                  onClick={() => setChannelsOpen((o) => !o)}
+                  aria-expanded={channelsOpen}
+                  aria-label="Choose channels"
+                  className={`inline-flex items-center gap-2 rounded-full py-1 pl-1.5 pr-2.5 text-[13px] font-medium transition ring-1 ring-inset ${
+                    selected.size === 0
+                      ? 'ring-amber-300 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                      : 'ring-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] text-gray-700 dark:text-gray-200 hover:ring-[color:var(--color-hairline-strong)]'
+                  }`}
                 >
-                  Cancel
+                  {faceChannels.length > 0 ? (
+                    <span className="flex -space-x-1.5" aria-hidden="true">
+                      {faceChannels.map((ch) => {
+                        const logoId = BRAND_IDS[ch.platform]
+                        return (
+                          <span
+                            key={ch.accountId}
+                            className="inline-flex rounded-full ring-2 ring-white dark:ring-gray-800 bg-white dark:bg-gray-800"
+                          >
+                            {logoId ? (
+                              <BrandLogo id={logoId} size={20} />
+                            ) : (
+                              <span className="text-sm leading-5">{ch.icon}</span>
+                            )}
+                          </span>
+                        )
+                      })}
+                    </span>
+                  ) : (
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-xs" aria-hidden="true">
+                      !
+                    </span>
+                  )}
+                  <span>{faceLabel}</span>
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true" className={`transition-transform ${channelsOpen ? 'rotate-180' : ''}`}>
+                    <path d="M3 6l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
-              </>
-            ) : (
-              <>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 dark:text-gray-500" aria-hidden="true">
-                  <path d="M7 18a4 4 0 01-.9-7.9 5 5 0 019.7-1.6A3.5 3.5 0 0117 18" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M12 12.5v5m0-5l-2 2m2-2l2 2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <p className="text-[13px] font-medium text-gray-700 dark:text-gray-200">
-                  Drag a photo or video here, or <span className="text-teal-700 dark:text-teal-400">browse</span>
-                </p>
-                <p className="text-xs text-gray-400">
-                  Photos up to {MAX_IMAGE_MB}MB · video up to {MAX_VIDEO_MB}MB
-                </p>
-              </>
+
+                {channelsOpen && (
+                  <div
+                    role="dialog"
+                    aria-label="Choose channels"
+                    className="pop-in absolute left-0 top-9 z-30 w-72 origin-top-left rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] p-2 shadow-[var(--shadow-pop)]"
+                  >
+                    <div role="group" aria-label="Channels" className="space-y-0.5">
+                      {channels.map((ch) => {
+                        const on = selected.has(ch.accountId)
+                        const logoId = BRAND_IDS[ch.platform]
+                        const accent = logoId ? BRAND_ACCENTS[logoId] : null
+                        return (
+                          <button
+                            key={ch.accountId}
+                            type="button"
+                            onClick={() => toggleChannel(ch.accountId)}
+                            aria-pressed={on}
+                            title={ch.handle ?? ch.label}
+                            className="flex w-full items-center gap-2.5 rounded-[var(--r-md)] px-2 py-1.5 text-left transition hover:bg-[color:var(--color-surface-sunk)]"
+                          >
+                            <span className="relative inline-flex shrink-0">
+                              {logoId ? (
+                                <BrandLogo id={logoId} size={24} className={on ? '' : 'opacity-45 grayscale'} />
+                              ) : (
+                                <span className="text-lg" aria-hidden="true">{ch.icon}</span>
+                              )}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className={`block text-[13px] font-medium leading-tight ${on ? 'text-gray-900 dark:text-gray-50' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {ch.label}
+                              </span>
+                              {ch.handle && (
+                                <span className="block text-xs text-gray-400 truncate">{ch.handle}</span>
+                              )}
+                            </span>
+                            <span
+                              className={`inline-flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full transition ${
+                                on ? 'text-white' : 'ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+                              }`}
+                              style={on ? { backgroundColor: accent ?? '#14b8a6' } : undefined}
+                              aria-hidden="true"
+                            >
+                              {on && (
+                                <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="3.5">
+                                  <path d="M3 8.5l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* GBP flavor pill — quiet reminder of the non-default post type */}
+              {targetsGbp && postType !== 'standard' && (
+                <span className="rounded-full bg-[color:var(--color-surface-sunk)] px-2.5 py-0.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                  Google: {GBP_POST_TYPE_LABELS[postType]}
+                </span>
+              )}
+            </div>
+
+            {/* The single text field */}
+            <textarea
+              ref={textareaRef}
+              value={summary}
+              onChange={(e) => {
+                setSummary(e.target.value)
+                autoSize()
+              }}
+              rows={3}
+              placeholder={targetsGbp ? PLACEHOLDERS[postType] : 'Write your post — it goes out to every channel you picked.'}
+              className="block w-full resize-none bg-transparent px-3.5 py-3 text-[15px] leading-relaxed text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none"
+              aria-label="Post text"
+            />
+
+            {/* Attached media — a compact chip, not a hero zone */}
+            {(imageUrl || uploading) && (
+              <div className="px-3.5 pb-2">
+                {uploading ? (
+                  <div className="flex items-center gap-3 rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] px-3 py-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                      <div className="h-full bg-teal-500 dark:bg-teal-400 transition-[width]" style={{ width: `${uploadPct}%` }} />
+                    </div>
+                    <span className="text-[12px] font-mono-num text-gray-500 dark:text-gray-400">{uploadPct}%</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRef.current?.cancel()}
+                      className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : imageUrl ? (
+                  <div className="relative inline-flex overflow-hidden rounded-[var(--r-md)] ring-1 ring-inset ring-[color:var(--color-hairline)] bg-black/5">
+                    {isVideoUrl(imageUrl) ? (
+                      <video src={imageUrl} muted playsInline className="h-20 w-28 object-cover" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt="" className="h-20 w-28 object-cover" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl(null)}
+                      aria-label="Remove media"
+                      className="absolute right-1 top-1 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                        <path d="M4 4l8 8m0-8l-8 8" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             )}
+            {uploadError && (
+              <p className="px-3.5 pb-2 text-xs text-rose-600" role="alert">{uploadError}</p>
+            )}
+
+            {/* Schedule — revealed by the clock toggle */}
+            {scheduleOn && (
+              <div className="flex items-center gap-2 px-3.5 pb-2">
+                <span className="text-[12px] font-medium text-gray-500 dark:text-gray-400">Post at</span>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  aria-label="Schedule time"
+                  className="rounded-[var(--r-md)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 py-1.5 text-[13px] text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+                />
+              </div>
+            )}
+
+            {/* Google options drawer — post type / event / offer / CTA */}
+            {targetsGbp && gbpOpen && (
+              <div className="mx-3.5 mb-3 space-y-3 rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] p-3">
+                <div>
+                  <Label>Google post type</Label>
+                  <div
+                    className="inline-flex rounded-[var(--r-md)] bg-white dark:bg-gray-800 ring-1 ring-inset ring-[color:var(--color-hairline)] p-0.5"
+                    role="group"
+                    aria-label="Post type"
+                  >
+                    {GBP_POST_TYPES.map((t) => {
+                      const active = postType === t
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setPostType(t)}
+                          aria-pressed={active}
+                          className={`rounded-[calc(var(--r-md)-2px)] px-3.5 py-1 text-[13px] font-medium transition ${
+                            active
+                              ? 'bg-[color:var(--color-surface-sunk)] text-gray-900 dark:bg-gray-700 dark:text-gray-50 shadow-sm'
+                              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          {GBP_POST_TYPE_LABELS[t]}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {postType === 'event' && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Label>Event title</Label>
+                      <input
+                        type="text"
+                        value={eventTitle}
+                        onChange={(e) => setEventTitle(e.target.value)}
+                        placeholder="Free Kids' Smile Day"
+                        className={inputCls}
+                        maxLength={120}
+                      />
+                    </div>
+                    <div>
+                      <Label>Starts</Label>
+                      <input
+                        type="datetime-local"
+                        value={eventStartAt}
+                        onChange={(e) => setEventStartAt(e.target.value)}
+                        className={inputCls}
+                      />
+                    </div>
+                    <div>
+                      <Label>Ends (optional)</Label>
+                      <input
+                        type="datetime-local"
+                        value={eventEndAt}
+                        onChange={(e) => setEventEndAt(e.target.value)}
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {postType === 'offer' && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>Coupon code (optional)</Label>
+                      <input
+                        type="text"
+                        value={offerCouponCode}
+                        onChange={(e) => setOfferCouponCode(e.target.value)}
+                        placeholder="SMILE99"
+                        className={inputCls}
+                        maxLength={58}
+                      />
+                    </div>
+                    <div>
+                      <Label>Redeem link (optional)</Label>
+                      <input
+                        type="url"
+                        value={offerRedeemUrl}
+                        onChange={(e) => setOfferRedeemUrl(e.target.value)}
+                        placeholder="https://…"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Terms &amp; conditions (optional)</Label>
+                      <textarea
+                        value={offerTerms}
+                        onChange={(e) => setOfferTerms(e.target.value)}
+                        rows={2}
+                        placeholder="New patients only. Cannot be combined with other offers."
+                        className={`${inputCls} resize-y`}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label>Button (Google only, optional)</Label>
+                    <select value={ctaType} onChange={(e) => onCtaTypeChange(e.target.value as GbpCtaType | '')} className={inputCls}>
+                      <option value="">No button</option>
+                      {GBP_CTA_TYPES.map((c) => (
+                        <option key={c} value={c}>
+                          {GBP_CTA_LABELS[c]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {ctaType && ctaNeedsUrl(ctaType) && (
+                    <div>
+                      <Label>Button link</Label>
+                      <input
+                        type="url"
+                        value={ctaUrl}
+                        onChange={(e) => setCtaUrl(e.target.value)}
+                        placeholder="https://…"
+                        className={inputCls}
+                      />
+                    </div>
+                  )}
+                  {ctaType === 'CALL' && (
+                    <p className="self-end pb-2 text-xs text-gray-500 dark:text-gray-400">
+                      Uses your Google listing&apos;s phone number.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-0.5 border-t border-[color:var(--color-hairline)] px-2 py-1.5">
+              <EmojiPicker onPick={insertEmoji} />
+
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                aria-label="Attach a photo or video"
+                title={`Attach a photo (up to ${MAX_IMAGE_MB}MB) or video (up to ${MAX_VIDEO_MB}MB)`}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 transition hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                  <circle cx="8.5" cy="10" r="1.5" fill="currentColor" stroke="none" />
+                  <path d="M5 17l4.5-4.5 3 3 3.5-3.5L21 17" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setScheduleOn((v) => !v)}
+                aria-pressed={scheduleOn}
+                aria-label="Schedule for later"
+                title="Schedule for later"
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-[color:var(--color-surface-sunk)] ${
+                  scheduleOn
+                    ? 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8.5" />
+                  <path d="M12 7.5V12l3 2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {targetsGbp && (
+                <button
+                  type="button"
+                  onClick={() => setGbpOpen((v) => !v)}
+                  aria-pressed={gbpOpen}
+                  aria-label="Google options"
+                  title="Google options — post type, button, event, offer"
+                  className={`relative inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold transition hover:bg-[color:var(--color-surface-sunk)] ${
+                    gbpOpen
+                      ? 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <BrandLogo id="googlebusiness" size={15} />
+                  <span>Options</span>
+                  {gbpCustomized && !gbpOpen && (
+                    <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-teal-500" aria-hidden="true" />
+                  )}
+                </button>
+              )}
+
+              <span className="flex-1" />
+
+              <span className={`px-1.5 text-xs font-mono-num ${counterCls}`} title={`Characters left (limit ${charLimit})`}>
+                {remaining}
+              </span>
+
+              <ActionButton variant="primary" size="sm" onClick={submit} disabled={!canSubmit}>
+                {pending
+                  ? 'Posting…'
+                  : scheduleOn
+                    ? 'Schedule post'
+                    : selected.size > 1
+                      ? `Post to ${selected.size} channels`
+                      : 'Post now'}
+              </ActionButton>
+            </div>
+
             <input
               ref={fileRef}
               type="file"
@@ -527,88 +743,25 @@ export default function Composer({
               }}
             />
           </div>
-        )}
-        {uploadError && <p className="text-xs text-rose-600 mt-1" role="alert">{uploadError}</p>}
-      </div>
 
-      {/* CTA picker — GBP only */}
-      {targetsGbp && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label>Button (Google only, optional)</Label>
-            <select value={ctaType} onChange={(e) => onCtaTypeChange(e.target.value as GbpCtaType | '')} className={inputCls}>
-              <option value="">No button</option>
-              {GBP_CTA_TYPES.map((c) => (
-                <option key={c} value={c}>
-                  {GBP_CTA_LABELS[c]}
-                </option>
-              ))}
-            </select>
-          </div>
-          {ctaType && ctaNeedsUrl(ctaType) && (
-            <div>
-              <Label>Button link</Label>
-              <input
-                type="url"
-                value={ctaUrl}
-                onChange={(e) => setCtaUrl(e.target.value)}
-                placeholder="https://…"
-                className={inputCls}
-              />
-            </div>
-          )}
-          {ctaType === 'CALL' && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 self-end pb-2">
-              Uses your Google listing&apos;s phone number.
+          {/* Quiet footnotes under the card */}
+          <p className="mt-2 text-xs text-gray-400">
+            {selectedPlatforms.length > 1
+              ? `Same text goes to every channel — counter shows the tightest limit (${charLimit}). `
+              : ''}
+            Drag a photo or video onto the card to attach it. Google Updates drop off your listing after about 7 days.
+          </p>
+
+          {error && (
+            <p className="mt-3 rounded-[var(--r-md)] bg-rose-500/15 px-3 py-2 text-sm text-rose-700 dark:text-rose-300" role="alert">
+              {error}
             </p>
           )}
-        </div>
-      )}
-
-      {/* Schedule */}
-      <div className="mt-4">
-        <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input type="checkbox" checked={scheduleOn} onChange={(e) => setScheduleOn(e.target.checked)} className="rounded" />
-          Schedule for later
-        </label>
-        {scheduleOn && (
-          <div className="mt-2 max-w-xs">
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Submit */}
-      <div className="mt-5 flex flex-wrap items-center gap-2">
-        <ActionButton variant="primary" size="md" onClick={submit} disabled={!canSubmit}>
-          {pending
-            ? 'Posting…'
-            : scheduleOn
-              ? 'Schedule post'
-              : selected.size > 1
-                ? `Post to ${selected.size} channels`
-                : 'Post now'}
-        </ActionButton>
-        <p className="text-xs text-gray-400">
-          Posts go out through your connected channels. Google Updates drop off your listing after about 7 days.
-        </p>
-      </div>
-
-      {error && (
-        <p className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/15 rounded-[var(--r-md)] px-3 py-2" role="alert">
-          {error}
-        </p>
-      )}
-      {success && (
-        <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 rounded-[var(--r-md)] px-3 py-2">
-          {success}
-        </p>
-      )}
+          {success && (
+            <p className="mt-3 rounded-[var(--r-md)] bg-emerald-500/15 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+              {success}
+            </p>
+          )}
         </div>
 
         {/* ── Live preview (right) ───────────────────────────────────────── */}

@@ -7,6 +7,36 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Social composer → the post widget (2026-07-20, composer-widget pass #1).**
+  Owner's direction: "turn forms into widgets where it makes sense … collapse
+  all of it into a post widget with a single text field, an image button, an
+  emoji button that opens an emoji drawer, and a dropdown to select which
+  social media channels to post it to — sort of how Hootsuite does it but
+  better." `/growth/social`'s Composer
+  (`app/(default)/growth/social/composer.tsx`) rebuilt from the stacked form
+  (channel pill rows + always-visible GBP segmented control/event/offer/CTA
+  grids + a hero drag-drop zone + schedule checkbox) into ONE compact card:
+  channels dropdown (face = overlapping brand logos + count, full picker w/
+  aria-pressed rows in a pop-in popover; amber face when zero picked),
+  borderless auto-growing textarea, inline media chip (upload progress +
+  cancel; thumbnail + remove once attached; the WHOLE card is the drop
+  target w/ a "Drop to attach" overlay), and a bottom toolbar — emoji drawer
+  (new `components/ui/emoji-picker.tsx` primitive: curated on-brand sets incl.
+  the dental corner 🦷, caret-position insertion via
+  `selectionStart` splice + rAF caret restore), image button, schedule clock
+  toggle (reveals the inline datetime + flips the button to "Schedule post"),
+  Google-options drawer button (only when a GBP channel is targeted; houses
+  the post-type segmented control + event/offer/CTA fields; dot badge when
+  non-default, quiet "Google: Event/Offer" pill when closed), live tightest-cap
+  counter, and the Post button. ZERO capability lost — all state/handlers/
+  submit input untouched; the PostPreviews WYSIWYG column unchanged. Tests:
+  new `tests/social-posts/composer-widget.test.tsx` (anatomy, no-sprawl,
+  emoji insertion, dropdown toggling, schedule reveal, submit rules + full
+  input, offer flow) + `tests/zernio/social-post-composer.test.tsx` updated
+  to the widget anatomy (same intents, new paths). Legibility floor kept
+  (no sub-12px). NEXT: apply the pattern to other sprawling forms where it
+  fits; the dashboard widget-registry direction stays a later, separate build.
+
 - **Notification tray — dismiss + clear-all tools (2026-07-16).** The header
   bell (`components/dropdown-notifications.tsx`, used in the shared dashboard
   header → clinic + platform tenants; the patient portal has separate chrome)

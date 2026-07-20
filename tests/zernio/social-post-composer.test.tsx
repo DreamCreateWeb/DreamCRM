@@ -21,9 +21,15 @@ const FB: ComposerChannel = { accountId: 'a_fb', platform: 'facebook', label: 'F
 
 beforeEach(() => createAction.mockClear())
 
+/** The channel picker lives in the dropdown popover (composer-widget pass). */
+function openChannels() {
+  fireEvent.click(screen.getByRole('button', { name: /choose channels/i }))
+}
+
 describe('Composer — channel picker', () => {
-  it('renders a button per connected channel', () => {
+  it('renders a row per connected channel in the dropdown', () => {
     render(<Composer channels={[GBP, IG, FB]} bookUrl={null} />)
+    openChannels()
     expect(screen.getByRole('button', { name: /Google Business Profile/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Instagram/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Facebook/ })).toBeTruthy()
@@ -31,13 +37,15 @@ describe('Composer — channel picker', () => {
 
   it('all channels start selected (aria-pressed)', () => {
     render(<Composer channels={[GBP, IG]} bookUrl={null} />)
+    openChannels()
     expect(screen.getByRole('button', { name: /Instagram/ }).getAttribute('aria-pressed')).toBe('true')
   })
 })
 
 describe('Composer — GBP options are conditional on a GBP target', () => {
-  it('shows the post-type selector + CTA picker when GBP is selected', () => {
+  it('shows the post-type selector + CTA picker inside the Google-options drawer', () => {
     render(<Composer channels={[GBP, IG]} bookUrl={null} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Google options' }))
     expect(screen.getByRole('button', { name: 'Update' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Offer' })).toBeTruthy()
     expect(screen.getByText(/Button \(Google only/)).toBeTruthy()
@@ -45,14 +53,16 @@ describe('Composer — GBP options are conditional on a GBP target', () => {
 
   it('HIDES the GBP options when only social channels are selected', () => {
     render(<Composer channels={[GBP, IG]} bookUrl={null} />)
-    // Deselect Google Business.
+    // Deselect Google Business via the dropdown.
+    openChannels()
     fireEvent.click(screen.getByRole('button', { name: /Google Business Profile/ }))
-    expect(screen.queryByRole('button', { name: 'Update' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Google options' })).toBeNull()
     expect(screen.queryByText(/Button \(Google only/)).toBeNull()
   })
 
   it('reveals Event fields only when GBP + Event are selected', () => {
     render(<Composer channels={[GBP]} bookUrl={null} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Google options' }))
     expect(screen.queryByText('Event title')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Event' }))
     expect(screen.getByText('Event title')).toBeTruthy()
@@ -60,6 +70,7 @@ describe('Composer — GBP options are conditional on a GBP target', () => {
 
   it('defaults the Book CTA URL to the clinic /book link', () => {
     render(<Composer channels={[GBP]} bookUrl="https://clinic/book" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Google options' }))
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'BOOK' } })
     const urlInput = screen.getByPlaceholderText('https://…') as HTMLInputElement
     expect(urlInput.value).toBe('https://clinic/book')
@@ -79,6 +90,7 @@ describe('Composer — per-platform hint + counter', () => {
 
   it('counter rises to the social ceiling (2200) when GBP is deselected', () => {
     render(<Composer channels={[GBP, IG]} bookUrl={null} />)
+    openChannels()
     fireEvent.click(screen.getByRole('button', { name: /Google Business Profile/ }))
     expect(screen.getByText('2200')).toBeTruthy()
   })
