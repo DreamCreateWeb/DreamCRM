@@ -127,6 +127,11 @@ export interface OpenFollowupFilters {
   assignedTo?: string // a userId, or 'unassigned'
   due?: 'overdue' | 'today' | 'upcoming'
   includeDone?: boolean
+  /** A userId: DONE-only view of follow-ups this user ticked off (status='done'
+   *  AND completedBy), newest close first. The same math as My Day's
+   *  getMyClosedFollowupsPerWeek8 heartbeat — its "You closed N this week"
+   *  label links here (?closedBy=me). Overrides includeDone/open-only. */
+  completedBy?: string
 }
 
 /** The /followups cockpit list — open follow-ups across the clinic, joined with
@@ -138,7 +143,15 @@ export async function listOpenFollowups(
 ): Promise<PatientFollowupView[]> {
   const today = await clinicTodayYmd(organizationId, now)
   const where = [eq(schema.patientFollowup.organizationId, organizationId)]
-  if (!filters.includeDone) where.push(eq(schema.patientFollowup.status, 'open'))
+  if (filters.completedBy) {
+    // "Closed by me": only genuinely-finished rows this user completed — the
+    // exact completedBy + status='done' pair the My Day heartbeat counts (a
+    // reopened follow-up clears both and leaves this view).
+    where.push(eq(schema.patientFollowup.status, 'done'))
+    where.push(eq(schema.patientFollowup.completedBy, filters.completedBy))
+  } else if (!filters.includeDone) {
+    where.push(eq(schema.patientFollowup.status, 'open'))
+  }
   if (filters.assignedTo === 'unassigned') {
     where.push(sql`${schema.patientFollowup.assignedUserId} is null`)
   } else if (filters.assignedTo) {
@@ -159,9 +172,15 @@ export async function listOpenFollowups(
     .leftJoin(schema.user, eq(schema.user.id, schema.patientFollowup.assignedUserId))
     .where(and(...where))
     .orderBy(
-      asc(schema.patientFollowup.status),
-      asc(sql`coalesce(${schema.patientFollowup.dueDate}, '9999-12-31')`),
-      desc(schema.patientFollowup.createdAt),
+      // The closed-by-me view reads as a "what I finished" log — most recent
+      // close first. Everything else keeps the open-work ordering.
+      ...(filters.completedBy
+        ? [desc(schema.patientFollowup.completedAt)]
+        : [
+            asc(schema.patientFollowup.status),
+            asc(sql`coalesce(${schema.patientFollowup.dueDate}, '9999-12-31')`),
+            desc(schema.patientFollowup.createdAt),
+          ]),
     )
     .limit(500)
   return rows.map(toView)

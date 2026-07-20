@@ -61,7 +61,9 @@ export default function FollowupsBoard({
   /** Follow-ups completed per clinic-local week, last 8 weeks — the board's
    *  one heartbeat (law 7): it celebrates work done, not backlog. */
   completedPerWeek8?: FollowupsCompletedPerWeekPoint[]
-  filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean }
+  /** closedByMe = the ?closedBy=me view — done-only, completed BY the signed-in
+   *  user (My Day's "You closed N this week" link lands here). */
+  filters: { mine: boolean; due?: 'overdue' | 'today' | 'upcoming'; includeDone: boolean; closedByMe?: boolean }
   staff: Array<{ userId: string; name: string }>
   currentUserId: string
   ruleConfig: FollowupRuleConfig
@@ -164,6 +166,13 @@ export default function FollowupsBoard({
         <FilterChip active={filters.due === 'upcoming'} onClick={() => setParam('due', filters.due === 'upcoming' ? null : 'upcoming')}>Upcoming</FilterChip>
         <span className="mx-1 h-4 w-px bg-[color:var(--color-hairline)]" aria-hidden="true" />
         <FilterChip active={filters.includeDone} onClick={() => setParam('done', filters.includeDone ? null : '1')}>Show done</FilterChip>
+        <FilterChip
+          active={!!filters.closedByMe}
+          onClick={() => setParam('closedBy', filters.closedByMe ? null : 'me')}
+          title="Only follow-ups you ticked off yourself, newest first — the same count as My Day's heartbeat"
+        >
+          Closed by me
+        </FilterChip>
         {showFlow && (
           <div
             className="hidden lg:flex items-center gap-2 shrink-0 ml-auto"
@@ -187,9 +196,9 @@ export default function FollowupsBoard({
         <div className="v2-card">
           <EmptyState
             icon="✅"
-            title={filters.mine || filters.due ? 'Nothing here' : "You're all caught up"}
+            title={filters.mine || filters.due || filters.closedByMe ? 'Nothing here' : "You're all caught up"}
             body={
-              filters.mine || filters.due
+              filters.mine || filters.due || filters.closedByMe
                 ? 'No follow-ups match these filters. Try clearing one.'
                 : 'Add a follow-up from any patient — a reminder to call, rebook, or check in — and it lands here until it’s done.'
             }
@@ -222,10 +231,10 @@ export default function FollowupsBoard({
             )
           })}
 
-          {filters.includeDone && doneItems.length > 0 && (
+          {(filters.includeDone || filters.closedByMe) && doneItems.length > 0 && (
             <section>
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                Done <span className="font-normal">{doneItems.length}</span>
+                {filters.closedByMe ? 'Closed by you' : 'Done'} <span className="font-normal">{doneItems.length}</span>
               </h2>
               <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
                 {doneItems.map((f) => (

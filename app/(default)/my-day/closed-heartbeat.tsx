@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import Sparkline from '@/components/ui/sparkline'
 
 export interface ClosedHeartbeatPoint {
@@ -14,6 +15,10 @@ export interface ClosedHeartbeatPoint {
  * when fewer than 2 weeks carry a close — a flat or single-blip chart says
  * nothing worth drawing, and a "you closed 0" readout would be shame, not
  * encouragement (mirrors the Patients/Leads heartbeat threshold).
+ *
+ * The label links to /followups?closedBy=me — the board view whose math is
+ * EXACTLY this count (status='done' + completedBy = you), not the assignee
+ * filter (?mine=1&done=1 would misexplain the number).
  */
 export default function ClosedHeartbeat({ series }: { series: ClosedHeartbeatPoint[] }) {
   const weeksWithCloses = series.filter((p) => p.value > 0).length
@@ -29,7 +34,12 @@ export default function ClosedHeartbeat({ series }: { series: ClosedHeartbeatPoi
       className="mb-2 px-0.5 flex items-center justify-between gap-2"
       title="Follow-ups you closed per week over the last 8 weeks — every one is a patient who didn't slip through"
     >
-      <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{label}</span>
+      <Link
+        href="/followups?closedBy=me"
+        className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-teal-700 hover:underline dark:hover:text-teal-400"
+      >
+        {label}
+      </Link>
       <span aria-hidden="true">
         <Sparkline
           data={series}

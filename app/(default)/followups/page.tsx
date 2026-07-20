@@ -35,11 +35,16 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
     ? (dueRaw as 'overdue' | 'today' | 'upcoming')
     : undefined
   const includeDone = params.done === '1'
+  // ?closedBy=me → follow-ups the signed-in user COMPLETED (status='done' +
+  // completedBy) — the honest target for My Day's "You closed N this week"
+  // link. Only 'me' is recognized; it resolves server-side to ctx.userId.
+  const closedByMe = params.closedBy === 'me'
 
   const filters: OpenFollowupFilters = {
     assignedTo: mine ? ctx.userId : undefined,
     due,
     includeDone,
+    completedBy: closedByMe ? ctx.userId : undefined,
   }
 
   const [rows, ruleConfig, digestEnabled, staff, summary, completedPerWeek8] = await Promise.all([
@@ -61,7 +66,7 @@ export default async function FollowupsPage({ searchParams }: PageProps) {
         orgName={ctx.organizationName ?? 'Your clinic'}
         dueNowCount={summary.overdue + summary.dueToday}
         completedPerWeek8={completedPerWeek8}
-        filters={{ mine, due, includeDone }}
+        filters={{ mine, due, includeDone, closedByMe }}
         staff={staff}
         currentUserId={ctx.userId}
         ruleConfig={ruleConfig}

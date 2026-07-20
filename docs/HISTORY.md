@@ -4217,3 +4217,16 @@ added); My Day/Followups/Shop were already model citizens. Bonus close:
 TopProduct resolves variantId → still-existing productId so Best-seller
 rows link to the product editor (deleted products stay plain text). Four
 honest dead ends needing new params/routes logged as FINISHING Class 6.
+
+## 2026-07-20 (later) — Class 6 closed the day it opened
+
+All four action-link dead ends resolved: /shop/orders gained a first-class
+Unfulfilled view (?fulfillment=unfulfilled) the hub's To-fulfill tile
+deep-links; catalog Products/Live tiles ACCEPTED unlinked (▣ — adjacency
+is the explanation); new /intake-forms/submissions cross-template index
+(anonymous-safe, clinic-tz, never fetches the data jsonb) behind the
+Completed heartbeat; /followups gained ?closedBy=me (server-resolved to
+ctx.userId, done-only, completedAt-desc — the heartbeat's exact math) with
+a "Closed by you" board section, linked from My Day's personal pulse. The
+action-links phase is COMPLETE: every dashboard stat opens the view that
+explains it, or carries a recorded acceptance. Full suite 5,167 green.

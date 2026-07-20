@@ -28,6 +28,12 @@ describe('ClosedHeartbeat — the 8-week personal heartbeat (law 7)', () => {
     expect(spark!.querySelectorAll('rect')).toHaveLength(8)
   })
 
+  it('links the label to the board view with the SAME math — /followups?closedBy=me (completedBy, never the assignee filter)', () => {
+    render(<ClosedHeartbeat series={series([0, 2, 1, 0, 4, 2, 0, 3])} />)
+    const link = screen.getByRole('link', { name: 'You closed 3 this week' })
+    expect(link).toHaveAttribute('href', '/followups?closedBy=me')
+  })
+
   it('falls back to the 8-week total when this week has no closes yet', () => {
     render(<ClosedHeartbeat series={series([0, 2, 1, 0, 4, 2, 3, 0])} />)
     expect(screen.getByText('You closed 12 these past 8 weeks')).toBeInTheDocument()
