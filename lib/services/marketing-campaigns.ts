@@ -1,9 +1,10 @@
 import 'server-only'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { resolveAudience, type AudienceFilterT, type PatientAudienceFilterT, type ResolvedRecipient } from './marketing'
 import { getTemplate } from './marketing-templates'
+import { emptyFunnel, type CampaignFunnel } from './campaign-funnel'
 
 /**
  * Campaign CRUD + analytics. Send + tracking event recording live in
@@ -51,6 +52,69 @@ export async function listMarketingCampaigns(organizationId: string) {
     .from(schema.campaigns)
     .where(eq(schema.campaigns.organizationId, organizationId))
     .orderBy(desc(schema.campaigns.createdAt))
+}
+
+export interface CampaignHistoryRow {
+  id: number
+  name: string
+  subject: string | null
+  status: string
+  sendChannel: string
+  sentAt: Date | null
+  scheduledAt: Date | null
+  updatedAt: Date
+  automationKey: string | null
+  funnel: CampaignFunnel
+}
+
+/**
+ * The campaigns list + per-campaign funnel in two queries — feeds the
+ * Outreach hub's history section (the clinic's one home for sends after
+ * the phase-3 fold). Auto-send campaigns carry their automationKey so the
+ * row can say "sent by the birthday automation".
+ */
+export async function listCampaignsWithFunnels(
+  organizationId: string,
+  opts?: { limit?: number },
+): Promise<CampaignHistoryRow[]> {
+  const rows = await db
+    .select({
+      id: schema.campaigns.id,
+      name: schema.campaigns.name,
+      subject: schema.campaigns.subject,
+      status: schema.campaigns.status,
+      sendChannel: schema.campaigns.sendChannel,
+      sentAt: schema.campaigns.sentAt,
+      scheduledAt: schema.campaigns.scheduledAt,
+      updatedAt: schema.campaigns.updatedAt,
+      automationKey: schema.campaigns.automationKey,
+    })
+    .from(schema.campaigns)
+    .where(eq(schema.campaigns.organizationId, organizationId))
+    .orderBy(desc(schema.campaigns.createdAt))
+    .limit(opts?.limit ?? 50)
+
+  const funnels = new Map<number, CampaignFunnel>()
+  if (rows.length > 0) {
+    const events = await db
+      .select({
+        campaignId: schema.campaignEvents.campaignId,
+        type: schema.campaignEvents.type,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(schema.campaignEvents)
+      .where(inArray(schema.campaignEvents.campaignId, rows.map((r) => r.id)))
+      .groupBy(schema.campaignEvents.campaignId, schema.campaignEvents.type)
+    for (const e of events) {
+      const f = funnels.get(e.campaignId) ?? emptyFunnel()
+      if (e.type === 'sent') f.sent += e.count
+      else if (e.type === 'open') f.opened += e.count
+      else if (e.type === 'click') f.clicked += e.count
+      else if (e.type === 'booked') f.booked += e.count
+      funnels.set(e.campaignId, f)
+    }
+  }
+  return rows.map((r) => ({ ...r, funnel: funnels.get(r.id) ?? emptyFunnel() }))
 }
 
 export async function getMarketingCampaign(organizationId: string, id: number) {

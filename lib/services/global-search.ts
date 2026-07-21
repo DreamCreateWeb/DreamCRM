@@ -49,7 +49,9 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     ...(isPremium
       ? [
           { id: 'page-growth-outreach', label: 'Recall & Outreach', sublabel: 'Growth', href: '/growth/outreach', kind: 'page' as const },
-          { id: 'page-growth-campaigns', label: 'Campaigns', sublabel: 'Growth', href: '/growth/campaigns', kind: 'page' as const },
+          // Alias — the clinic campaign home is the Outreach hub (phase-3
+          // fold); "campaigns" muscle memory still lands somewhere real.
+          { id: 'page-growth-campaigns', label: 'Campaigns', sublabel: 'Growth · on the Outreach hub', href: '/growth/outreach', kind: 'page' as const },
           { id: 'page-growth-audiences', label: 'Audiences', sublabel: 'Growth', href: '/growth/audiences', kind: 'page' as const },
           { id: 'page-growth-analytics', label: 'Analytics', sublabel: 'Growth', href: '/growth/analytics', kind: 'page' as const },
         ]

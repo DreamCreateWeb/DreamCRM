@@ -134,8 +134,8 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
       {/* ── Tier sections ─────────────────────────────────────────────── */}
       {sections.map(({ tier, recipients, audienceId, templateId }) => {
         const sendHref = audienceId
-          ? `/growth/campaigns?prefill_audience=${audienceId}${templateId ? `&prefill_template=${templateId}` : ''}`
-          : '/growth/campaigns'
+          ? `/growth/outreach?prefill_audience=${audienceId}${templateId ? `&prefill_template=${templateId}` : ''}`
+          : '/growth/outreach'
         return (
           <section key={tier.key} className="mb-6">
             <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-t-[var(--r-lg)] border ${TIER_ACCENT_BG[tier.accent]}`}>

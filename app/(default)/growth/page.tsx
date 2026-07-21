@@ -48,12 +48,15 @@ export default async function GrowthHubPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Campaigns live INSIDE Recall & Outreach since the phase-3 fold —
+            one door for the whole outreach story (automations + campaigns
+            with real funnels), not two doors to the same machine. */}
         {isPremium ? (
           <SectionCard
             href="/growth/outreach"
             icon="megaphone"
             title="Recall & Outreach"
-            description="Who needs a nudge today — recall due, lapsed, birthdays — and the automations that reach them."
+            description="Who needs a nudge, the automations that reach them, and your campaigns with real funnels — sent, opened, clicked, booked."
           />
         ) : (
           <UpsellCard
@@ -61,23 +64,7 @@ export default async function GrowthHubPage() {
             icon="megaphone"
             title="Recall & Outreach"
             plan="Premium"
-            description="Recall-due, lapsed, and birthday outreach with automations that run themselves."
-          />
-        )}
-        {isPremium ? (
-          <SectionCard
-            href="/growth/campaigns"
-            icon="pen"
-            title="Campaigns"
-            description="Email campaigns with real funnels — sent, opened, clicked, booked."
-          />
-        ) : (
-          <UpsellCard
-            upgradeId="recall"
-            icon="pen"
-            title="Campaigns"
-            plan="Premium"
-            description="Email campaigns with real funnels — sent, opened, clicked, booked."
+            description="Recall, lapsed, and birthday outreach with set-&-forget automations plus campaigns with real booked-visit funnels."
           />
         )}
         {isPremium ? (

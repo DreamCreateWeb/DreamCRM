@@ -156,6 +156,7 @@ export async function createCampaignAction(input: unknown) {
   const data = CampaignInput.parse(input)
   const row = await createMarketingCampaign(ctx.organizationId, data, ctx.userId)
   revalidatePath('/growth/campaigns')
+  revalidatePath('/growth/outreach')
   redirect(`/growth/campaigns/${row.id}`)
 }
 
@@ -164,6 +165,7 @@ export async function updateCampaignAction(id: number, input: unknown) {
   const data = CampaignUpdate.parse(input)
   const row = await updateMarketingCampaign(ctx.organizationId, id, data)
   revalidatePath('/growth/campaigns')
+  revalidatePath('/growth/outreach')
   revalidatePath(`/growth/campaigns/${id}`)
   return row
 }
@@ -172,6 +174,7 @@ export async function deleteCampaignAction(id: number) {
   const ctx = await requireClinicStaff()
   await deleteMarketingCampaign(ctx.organizationId, id)
   revalidatePath('/growth/campaigns')
+  revalidatePath('/growth/outreach')
 }
 
 /** "Send later" — queue a campaign for a future send (status → scheduled).
@@ -181,6 +184,7 @@ export async function scheduleCampaignAction(id: number, scheduledAtIso: string)
   const result = await scheduleCampaign(ctx.organizationId, id, scheduledAtIso)
   if (result.ok) {
     revalidatePath('/growth/campaigns')
+    revalidatePath('/growth/outreach')
     revalidatePath(`/growth/campaigns/${id}`)
   }
   return result
@@ -192,6 +196,7 @@ export async function cancelScheduledCampaignAction(id: number): Promise<Schedul
   const result = await cancelScheduledCampaign(ctx.organizationId, id)
   if (result.ok) {
     revalidatePath('/growth/campaigns')
+    revalidatePath('/growth/outreach')
     revalidatePath(`/growth/campaigns/${id}`)
   }
   return result
@@ -205,6 +210,7 @@ export async function createNewsletterDraftAction(): Promise<{ ok: false; error:
   const r = await buildNewsletterDraft(ctx.organizationId, ctx.userId)
   if (!r.ok) return r
   revalidatePath('/growth/campaigns')
+  revalidatePath('/growth/outreach')
   redirect(`/growth/campaigns/${r.campaignId}`)
 }
 
@@ -301,6 +307,7 @@ export async function sendCampaignAction(
     ...opts,
   })
   revalidatePath('/growth/campaigns')
+  revalidatePath('/growth/outreach')
   revalidatePath(`/growth/campaigns/${id}`)
   return result
 }

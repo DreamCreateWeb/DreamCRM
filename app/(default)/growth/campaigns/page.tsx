@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listMarketingCampaigns } from '@/lib/services/marketing-campaigns'
-import { listTemplates } from '@/lib/services/marketing-templates'
 import { listAudiences } from '@/lib/services/marketing'
 import { formatRelativeDate } from '@/lib/utils/format'
 import NewCampaignButton from './new-campaign-button'
@@ -70,36 +69,32 @@ export default async function CampaignsPage({
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
-  const campaigns = await listMarketingCampaigns(ctx.organizationId)
-  // The "Start from" picker: system templates + this clinic's custom ones.
-  // Clinic-only — the platform tenant's campaigns aren't dental outreach,
-  // so it composes from blank.
-  const templates =
-    ctx.tenantType === 'clinic'
-      ? (await listTemplates(ctx.organizationId)).map((tpl) => ({
-          id: tpl.id,
-          name: tpl.name,
-          description: tpl.description,
-          subject: tpl.subject,
-          kind: tpl.kind,
-        }))
-      : []
-  // The Outreach Queue's "Send recall →" CTA links here with the target
-  // audience + template; consume BOTH so the new campaign starts
-  // pre-targeted and pre-written (prefill_template was silently dropped
-  // before — the picker was never wired).
   const { prefill_audience, prefill_template } = await searchParams
+
+  // Phase-3 fold: the clinic's campaign home is the Outreach hub — this
+  // standalone list serves ONLY the platform tenant now. Clinic hits (old
+  // bookmarks, stale deep links) forward with their prefill params intact,
+  // so a queue CTA from a cached page still lands pre-targeted. The [id]
+  // editor below this route is untouched and serves both tenants.
+  if (ctx.tenantType === 'clinic') {
+    const qs = new URLSearchParams()
+    if (prefill_audience) qs.set('prefill_audience', prefill_audience)
+    if (prefill_template) qs.set('prefill_template', prefill_template)
+    redirect(`/growth/outreach${qs.size > 0 ? `?${qs}` : ''}`)
+  }
+
+  const campaigns = await listMarketingCampaigns(ctx.organizationId)
+  // Platform composes from blank (the dental templates would be wrong) —
+  // the picker hides itself when no templates are passed.
+  const templates: never[] = []
   const prefillAudienceId =
     prefill_audience && Number.isFinite(Number(prefill_audience)) ? Number(prefill_audience) : undefined
   const prefillTemplateId =
     prefill_template && Number.isFinite(Number(prefill_template)) ? Number(prefill_template) : undefined
 
-  // "To" picker in the modal — this tenant's saved audiences (patients for
-  // clinics, customers for the platform org). Choosing here is optional;
-  // the editor sidebar can still set/change it.
-  const expectedSource = ctx.tenantType === 'clinic' ? 'patients' : 'customers'
+  // "To" picker in the modal — the platform org's customer audiences.
   const audiences = (await listAudiences(ctx.organizationId))
-    .filter((a) => (a.recipientSource ?? 'customers') === expectedSource)
+    .filter((a) => (a.recipientSource ?? 'customers') === 'customers')
     .map((a) => ({ id: a.id, name: a.name }))
 
   return (

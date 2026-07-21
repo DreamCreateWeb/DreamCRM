@@ -110,7 +110,7 @@ export default function SavedViewsBar({
       if (!res.ok) { setToast(res.error); return }
       const note = res.dropped.length ? ` (${res.dropped.join(' + ')} not applied)` : ''
       setToast(`Audience created${note} — opening composer…`)
-      router.push(`/growth/campaigns?prefill_audience=${res.audienceId}`)
+      router.push(`/growth/outreach?prefill_audience=${res.audienceId}`)
     })
   }
 

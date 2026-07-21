@@ -39,7 +39,7 @@ describe('QuickCreateMenu — gating', () => {
     render(<QuickCreateMenu moduleIds={['campaigns', 'blog']} />)
     fireEvent.click(screen.getByRole('button', { name: /New|create/i }))
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByText('New campaign')).toHaveAttribute('href', '/growth/campaigns')
+    expect(within(menu).getByText('New campaign')).toHaveAttribute('href', '/growth/outreach?new=1')
     expect(within(menu).getByText('New post')).toHaveAttribute('href', '/website/blog')
   })
 

@@ -7,6 +7,30 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Campaigns phase 3b — the fold (2026-07-21, owner: "fold it").** The
+  clinic's campaign home is now ONE surface: `/growth/outreach`. The hub
+  gained (1) the **New-campaign modal in its header** (templates + To
+  audiences; consumes `?prefill_audience`/`?prefill_template`/`?new=1` —
+  quick-create's "New campaign" now lands `?new=1` and auto-opens), and
+  (2) an **All-campaigns history section** (`#campaign-history`):
+  `listCampaignsWithFunnels` (campaigns + per-campaign
+  sent/opened/clicked/booked in two queries), rows → the editor, status
+  pills (same tone contract as the platform list), auto-send rows marked
+  "auto", 20 shown of 50 fetched. `/growth/campaigns` (list) now
+  **redirects clinic → hub with prefill params forwarded** (stale queue
+  CTAs still land pre-targeted); the PLATFORM tenant keeps the standalone
+  list (its campaigns aren't dental outreach) and `/growth/campaigns/[id]`
+  (the editor) is untouched for both. Re-pointed clinic links: queue Send
+  CTAs, audiences-client Send-campaign (tenant-branched), saved-views
+  promote-to-audience push, the Growth hub's separate Campaigns door
+  (removed — folded into the Recall & Outreach door copy), ⌘K's Campaigns
+  entry (now an alias to the hub), hub-internal links (All campaigns ↓
+  anchor; empty states point at "+ New campaign"). Campaign mutations
+  revalidate `/growth/outreach` alongside the old paths. Guard test
+  `tests/marketing/campaigns-fold-redirect.test.ts` (clinic redirect +
+  param forwarding + platform keeps list); deeplink + quick-create tests
+  updated to the new targets.
+
 - **Campaigns phase 3a — the "To" picker (2026-07-21).** The new-campaign
   modal gained an optional audience select (this tenant's saved audiences,
   source-filtered: patients for clinics, customers for the platform;

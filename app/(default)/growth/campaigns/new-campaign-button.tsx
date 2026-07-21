@@ -25,6 +25,8 @@ interface Props {
   /** …and the template to pre-select (same CTA) — the campaign starts
    *  pre-written, not blank. */
   prefillTemplateId?: number
+  /** Open the modal on mount (quick-create's ?new=1 landing). */
+  autoOpen?: boolean
 }
 
 /**
@@ -34,7 +36,13 @@ interface Props {
  * preview text, and body from the template and stamps templateId for
  * provenance + won-back attribution bucketing. Blank stays first-class.
  */
-export default function NewCampaignButton({ templates, audiences = [], prefillAudienceId, prefillTemplateId }: Props) {
+export default function NewCampaignButton({
+  templates,
+  audiences = [],
+  prefillAudienceId,
+  prefillTemplateId,
+  autoOpen = false,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [templateId, setTemplateId] = useState<number | null>(
@@ -46,10 +54,10 @@ export default function NewCampaignButton({ templates, audiences = [], prefillAu
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  // Arriving from the outreach queue → open ready to go.
+  // Arriving from the outreach queue or quick-create → open ready to go.
   useEffect(() => {
-    if (prefillAudienceId || prefillTemplateId) setOpen(true)
-  }, [prefillAudienceId, prefillTemplateId])
+    if (prefillAudienceId || prefillTemplateId || autoOpen) setOpen(true)
+  }, [prefillAudienceId, prefillTemplateId, autoOpen])
 
   const picked = templates.find((t) => t.id === templateId) ?? null
 

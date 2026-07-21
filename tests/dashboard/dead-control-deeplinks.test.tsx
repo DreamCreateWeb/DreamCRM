@@ -50,6 +50,11 @@ vi.mock('@/lib/services/retention-automation', () => ({
 }))
 vi.mock('@/lib/services/marketing-templates', () => ({
   getAutomationOverride: vi.fn(async () => null),
+  listTemplates: vi.fn(async () => []),
+}))
+// The hub renders the folded-in campaign history (phase 3) — empty here.
+vi.mock('@/lib/services/marketing-campaigns', () => ({
+  listCampaignsWithFunnels: vi.fn(async () => []),
 }))
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: mockRequireTenant,
@@ -98,11 +103,11 @@ beforeEach(() => {
 })
 
 describe('Recall dashboard audience link pre-targets a new campaign', () => {
-  // Regression: this link used ?audience=, but /growth/campaigns reads
+  // Regression: this link used ?audience=, but the campaign home reads
   // ?prefill_audience= (and ignores ?audience=). The audience row therefore
-  // landed on the campaign editor with nothing pre-selected. Param must match
-  // the reader.
-  it('links a patient audience to /growth/campaigns?prefill_audience={id}', async () => {
+  // landed with nothing pre-selected. Param must match the reader — which,
+  // since the phase-3 fold, is the Outreach hub itself.
+  it('links a patient audience to /growth/outreach?prefill_audience={id}', async () => {
     mockGetRecallStats.mockResolvedValueOnce(baseStats)
     mockListAudiences.mockResolvedValueOnce([
       { id: 42, name: 'Recall due', description: null, recipientSource: 'patients' },
@@ -110,7 +115,7 @@ describe('Recall dashboard audience link pre-targets a new campaign', () => {
     const ui = await ClinicRecallDashboard({ ctx: clinicCtx as never })
     render(ui)
     const link = screen.getByRole('link', { name: /Recall due/i })
-    expect(link).toHaveAttribute('href', '/growth/campaigns?prefill_audience=42')
+    expect(link).toHaveAttribute('href', '/growth/outreach?prefill_audience=42')
   })
 })
 

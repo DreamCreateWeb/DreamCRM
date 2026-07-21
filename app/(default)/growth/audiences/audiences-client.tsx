@@ -113,10 +113,19 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
               )}
               <AudienceFilterSummary audience={a} stages={stages} />
               <div className="flex items-center justify-between gap-1 mt-3 pt-3 border-t border-[color:var(--color-hairline)]">
-                {/* The whole point of a segment: launch a campaign to it. Reuses
-                    the ?prefill_audience param the recall dashboard already
-                    uses to open the new-campaign modal pre-seeded with it. */}
-                <ActionButton variant="secondary" size="sm" href={`/growth/campaigns?prefill_audience=${a.id}`}>
+                {/* The whole point of a segment: launch a campaign to it.
+                    ?prefill_audience opens the new-campaign modal pre-seeded.
+                    Clinic campaigns live on the Outreach hub (phase-3 fold);
+                    the platform keeps its standalone list. */}
+                <ActionButton
+                  variant="secondary"
+                  size="sm"
+                  href={
+                    tenantType === 'clinic'
+                      ? `/growth/outreach?prefill_audience=${a.id}`
+                      : `/growth/campaigns?prefill_audience=${a.id}`
+                  }
+                >
                   Send campaign →
                 </ActionButton>
                 <div className="flex gap-1">

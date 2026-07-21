@@ -2,18 +2,39 @@ import Link from 'next/link'
 import type { TenantContext } from '@/lib/auth/context'
 import { getRecallStats, type RecallActivityKind } from '@/lib/services/recall-stats'
 import { listAudiences } from '@/lib/services/marketing'
+import { listCampaignsWithFunnels } from '@/lib/services/marketing-campaigns'
 import { getRetentionSettings, previewRetentionAudiences, getAutomationStats } from '@/lib/services/retention-automation'
-import { getAutomationOverride } from '@/lib/services/marketing-templates'
+import { getAutomationOverride, listTemplates } from '@/lib/services/marketing-templates'
 import { RETENTION_KINDS } from '@/lib/types/retention'
 import { RetentionAutomationsCard } from './retention-automations-card'
 import { NewsletterCard } from './newsletter-card'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { getReferralProgramStats } from '@/lib/services/patient-referrals'
+import NewCampaignButton from '@/app/(default)/growth/campaigns/new-campaign-button'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
+import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
+
+// Campaign-status tones (same contract as the platform campaigns list):
+// draft/paused inert, scheduled/sending queued-info, sent done-ok. A
+// campaign's own state never demands the front desk act on it.
+const CAMPAIGN_STATUS_TONE: Record<string, Tone> = {
+  draft: 'neutral',
+  scheduled: 'info',
+  active: 'info',
+  completed: 'ok',
+  paused: 'neutral',
+}
+const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  scheduled: 'Scheduled',
+  active: 'Sending',
+  completed: 'Sent',
+  paused: 'Paused',
+}
 
 /**
  * Clinic-tenant Recall & Outreach dashboard. Mirrors the morning-huddle
@@ -65,8 +86,22 @@ const ACTIVITY_ICON: Record<RecallActivityKind, string> = {
   patient_opted_out: '🔕',
 }
 
-export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContext }) {
-  const [stats, audiences, retentionSettings, retentionPreview, publishedPosts, referralStats, automationStats, overrides] =
+export default async function ClinicRecallDashboard({
+  ctx,
+  prefillAudienceId,
+  prefillTemplateId,
+  autoOpenNew = false,
+}: {
+  ctx: TenantContext
+  /** Queue/audience CTAs land here with a pre-target — auto-opens the
+   *  New-campaign modal (the hub is the clinic's campaign home since the
+   *  phase-3 fold). */
+  prefillAudienceId?: number
+  prefillTemplateId?: number
+  /** ⌘K / quick-create "New campaign" lands with ?new=1 — open ready to go. */
+  autoOpenNew?: boolean
+}) {
+  const [stats, audiences, retentionSettings, retentionPreview, publishedPosts, referralStats, automationStats, overrides, campaignHistory, templates] =
     await Promise.all([
       getRecallStats(ctx.organizationId),
       listAudiences(ctx.organizationId),
@@ -76,16 +111,26 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
       getReferralProgramStats(ctx.organizationId),
       getAutomationStats(ctx.organizationId),
       Promise.all(RETENTION_KINDS.map((k) => getAutomationOverride(ctx.organizationId, k))),
+      listCampaignsWithFunnels(ctx.organizationId, { limit: 50 }),
+      listTemplates(ctx.organizationId),
     ])
   const customized = Object.fromEntries(
     RETENTION_KINDS.map((k, i) => [k, overrides[i] !== null]),
   ) as Record<(typeof RETENTION_KINDS)[number], boolean>
+  const templateOptions = templates.map((tpl) => ({
+    id: tpl.id,
+    name: tpl.name,
+    description: tpl.description,
+    subject: tpl.subject,
+    kind: tpl.kind,
+  }))
   const publishedPostCount = publishedPosts.length
 
   const now = new Date()
   const orgName = ctx.organizationName ?? 'Your clinic'
   const canManageAutomations = ctx.role === 'owner' || ctx.role === 'admin'
   const patientAudiences = audiences.filter((a) => (a.recipientSource ?? 'customers') === 'patients')
+  const audienceOptions = patientAudiences.map((a) => ({ id: a.id, name: a.name }))
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -105,12 +150,16 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
             <ActionButton variant="secondary" href="/growth/audiences">
               Audiences
             </ActionButton>
-            <ActionButton variant="secondary" href="/growth/campaigns">
-              Campaigns
+            <ActionButton variant="secondary" href="/growth/outreach/queue">
+              Outreach queue
             </ActionButton>
-            <ActionButton variant="primary" breath href="/growth/outreach/queue">
-              Open outreach queue
-            </ActionButton>
+            <NewCampaignButton
+              templates={templateOptions}
+              audiences={audienceOptions}
+              prefillAudienceId={prefillAudienceId}
+              prefillTemplateId={prefillTemplateId}
+              autoOpen={autoOpenNew}
+            />
           </>
         }
       />
@@ -171,22 +220,17 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Upcoming sends · next 14 days</h2>
             <Link
-              href="/growth/campaigns"
+              href="#campaign-history"
               className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
             >
-              All campaigns →
+              All campaigns ↓
             </Link>
           </div>
           {stats.upcomingSends.length === 0 ? (
             <EmptyState
               icon="🗓️"
               title="Nothing scheduled."
-              body="Draft a campaign to queue your next recall or newsletter send."
-              action={
-                <ActionButton variant="secondary" size="sm" href="/growth/campaigns">
-                  Draft a campaign
-                </ActionButton>
-              }
+              body='Use "+ New campaign" above to queue your next recall or newsletter send.'
             />
           ) : (
             <ul className="divide-y divide-[color:var(--color-hairline)]">
@@ -260,6 +304,75 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
         </div>
       </section>
 
+      {/* ── All campaigns — the clinic's one campaign home (phase-3 fold:
+          the standalone /growth/campaigns list redirects here; drafts,
+          scheduled, and sent all live on this hub now). ─────────────────── */}
+      <section id="campaign-history" className="mb-8">
+        <div className="v2-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">All campaigns</h2>
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              Click one to open it in the editor
+            </span>
+          </div>
+          {campaignHistory.length === 0 ? (
+            <EmptyState
+              icon="✉️"
+              title="No campaigns yet."
+              body={'Use "+ New campaign" above — pick a starting point and who it goes to, and you’re most of the way there.'}
+            />
+          ) : (
+            <ul className="divide-y divide-[color:var(--color-hairline)]">
+              {campaignHistory.slice(0, 20).map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/growth/campaigns/${c.id}`}
+                    className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-2 rounded"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                        {c.name}
+                        {c.automationKey && (
+                          <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">auto</span>
+                        )}
+                      </p>
+                      {c.funnel.sent > 0 ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num truncate">
+                          {c.funnel.sent} sent · {c.funnel.opened} opened · {c.funnel.clicked} clicked
+                          {c.funnel.booked > 0 && (
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-400"> · {c.funnel.booked} booked</span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {c.subject ?? <span className="italic">no subject yet</span>}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
+                      {c.status === 'scheduled' && c.scheduledAt
+                        ? `→ ${fmtTime(c.scheduledAt)}`
+                        : c.sentAt
+                          ? fmtRelative(c.sentAt)
+                          : ''}
+                    </span>
+                    <StatusPill
+                      tone={CAMPAIGN_STATUS_TONE[c.status] ?? 'neutral'}
+                      label={CAMPAIGN_STATUS_LABEL[c.status] ?? c.status}
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {campaignHistory.length > 20 && (
+            <p className="mt-2 pt-2 border-t border-[color:var(--color-hairline)] text-xs text-gray-400 dark:text-gray-500">
+              Showing the 20 most recent of {campaignHistory.length}.
+            </p>
+          )}
+        </div>
+      </section>
+
       {/* ── Automations — set & forget recall sends ────────────────────── */}
       <section className="mb-8 space-y-4">
         <RetentionAutomationsCard
@@ -301,7 +414,7 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
               {patientAudiences.slice(0, 6).map((a) => (
                 <li key={a.id}>
                   <Link
-                    href={`/growth/campaigns?prefill_audience=${a.id}`}
+                    href={`/growth/outreach?prefill_audience=${a.id}`}
                     className="flex items-center justify-between text-sm hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors -mx-2 px-2 py-1.5 rounded"
                   >
                     <span className="font-medium text-gray-700 dark:text-gray-200">{a.name}</span>
