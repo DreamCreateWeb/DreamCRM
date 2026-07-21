@@ -244,6 +244,10 @@ export const clinicProfile = pgTable('clinic_profile', {
   //     reset" send to insured patients with no upcoming visit (monthly key,
   //     so at most 3 touches a season).
   benefitsAutoSendEnabled: integer('benefits_auto_send_enabled').notNull().default(0),
+  //   welcomeAutoSendEnabled: a weekly send to patients whose first visit was
+  //     in the past 7 days (weekly key + 7-day window → each new patient is
+  //     welcomed exactly once, a few days after their first visit).
+  welcomeAutoSendEnabled: integer('welcome_auto_send_enabled').notNull().default(0),
 
   // Smart follow-up rules — which auto-create patient follow-ups the clinic has
   // opted into. A jsonb config object `{ balance?, recall?, unconfirmed? }`;

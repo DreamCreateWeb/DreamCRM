@@ -349,6 +349,11 @@ export const campaignTemplates = pgTable('campaign_templates', {
   // this template (e.g. 'lapsed_180d' for Reactivation). Just a slug; the
   // UI resolves to a real audience by name or falls through to "pick one".
   defaultAudienceSlug: text('default_audience_slug'),
+  // When set, this CUSTOM row is the org's message override for that
+  // retention automation ('birthday' | 'reactivation' | 'benefits' |
+  // 'welcome') — the auto-send uses it instead of the system default.
+  // At most one per (org, kind); system rows always leave it null.
+  automationKind: text('automation_kind'),
   createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

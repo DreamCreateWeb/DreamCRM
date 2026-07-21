@@ -4,27 +4,45 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Toggle } from '@/components/ui/toggle'
 import { setRetentionAutomationAction } from './actions'
-import type { RetentionKind } from '@/lib/services/retention-automation'
+import type { RetentionKind } from '@/lib/types/retention'
 
 /**
  * "Set & forget" retention automations on the Recall & Outreach dashboard.
  *
- * Two clinic-wide auto-sends a clinic flips on once: a daily birthday greeting
- * and a monthly reactivation nudge to the newly-lapsed. Each toggle optimistic-
- * updates, then persists via the server action; a failure reverts + shows the
- * error. Owner/admin only — a `member` sees the state read-only with a hint.
+ * Four clinic-wide auto-sends a clinic flips on once: daily birthday
+ * greetings, the monthly reactivation nudge, the Oct–Dec benefits reminder,
+ * and the weekly new-patient welcome. Each toggle optimistic-updates, then
+ * persists via the server action; a failure reverts + shows the error.
+ * Owner/admin only — a `member` sees the state read-only with a hint.
  *
- * The copy is honest about HOW it sends: an automation queues a normal campaign
- * (same unsubscribe footer + tracking), so the clinic can see every auto-send
- * in their campaign list — never an invisible blast.
+ * Honesty upgrades (campaigns phase 2): every row shows the last-30-day
+ * proof (sent · booked) and links to "Edit message" — the clinic can read
+ * and rewrite the exact words that go out under their name (a "Customized"
+ * pill marks an edited one). An automation queues a normal campaign (same
+ * unsubscribe footer + tracking), so every auto-send shows in the campaign
+ * list — never an invisible blast.
  */
+export interface AutomationRowStats {
+  sent: number
+  booked: number
+}
+
 export function RetentionAutomationsCard({
   initial,
   preview,
+  stats,
+  customized,
   canManage,
 }: {
-  initial: { birthdayAutoSend: boolean; lapsedReactivation: boolean; benefitsAutoSend: boolean }
-  preview: { birthdaysThisMonth: number; newlyLapsed: number; benefitsEligible: number }
+  initial: {
+    birthdayAutoSend: boolean
+    lapsedReactivation: boolean
+    benefitsAutoSend: boolean
+    welcomeAutoSend: boolean
+  }
+  preview: { birthdaysThisMonth: number; newlyLapsed: number; benefitsEligible: number; newThisWeek: number }
+  stats: Record<RetentionKind, AutomationRowStats>
+  customized: Record<RetentionKind, boolean>
   canManage: boolean
 }) {
   return (
@@ -39,7 +57,8 @@ export function RetentionAutomationsCard({
       </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
         Flip these on once and they run on their own. Each send is a normal campaign
-        (with an unsubscribe link) you&apos;ll see in your campaign list.
+        (with an unsubscribe link) you&apos;ll see in your campaign list — and every
+        message is yours to edit.
       </p>
 
       <div className="divide-y divide-[color:var(--color-hairline)]">
@@ -55,6 +74,8 @@ export function RetentionAutomationsCard({
               : 'No birthdays this month'
           }
           countHref={preview.birthdaysThisMonth > 0 ? '/growth/outreach/queue?tier=birthday' : null}
+          stats={stats.birthday}
+          isCustom={customized.birthday}
           initialOn={initial.birthdayAutoSend}
           canManage={canManage}
         />
@@ -70,6 +91,8 @@ export function RetentionAutomationsCard({
               : 'Nobody in the window right now'
           }
           countHref={preview.newlyLapsed > 0 ? '/growth/outreach/queue?tier=lapsed' : null}
+          stats={stats.reactivation}
+          isCustom={customized.reactivation}
           initialOn={initial.lapsedReactivation}
           canManage={canManage}
         />
@@ -85,7 +108,26 @@ export function RetentionAutomationsCard({
               : 'Nobody eligible right now'
           }
           countHref={null}
+          stats={stats.benefits}
+          isCustom={customized.benefits}
           initialOn={initial.benefitsAutoSend}
+          canManage={canManage}
+        />
+        <AutomationRow
+          kind="welcome"
+          icon="👋"
+          title="New-patient welcome"
+          description="A few days after a first visit: what to expect, how recall works, and an open door for questions."
+          cadence="Sends weekly"
+          countLabel={
+            preview.newThisWeek > 0
+              ? `${preview.newThisWeek} new patient${preview.newThisWeek === 1 ? '' : 's'} this week`
+              : 'No new patients this week'
+          }
+          countHref={preview.newThisWeek > 0 ? '/growth/outreach/queue?tier=new_patient' : null}
+          stats={stats.welcome}
+          isCustom={customized.welcome}
+          initialOn={initial.welcomeAutoSend}
           canManage={canManage}
         />
       </div>
@@ -107,6 +149,8 @@ function AutomationRow({
   cadence,
   countLabel,
   countHref,
+  stats,
+  isCustom,
   initialOn,
   canManage,
 }: {
@@ -117,6 +161,8 @@ function AutomationRow({
   cadence: string
   countLabel: string
   countHref: string | null
+  stats: AutomationRowStats
+  isCustom: boolean
   initialOn: boolean
   canManage: boolean
 }) {
@@ -150,6 +196,14 @@ function AutomationRow({
               On
             </span>
           )}
+          {isCustom && (
+            <span
+              className="text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-500/10 rounded-full px-1.5 py-0.5"
+              title="You've edited this automation's message — it sends your version."
+            >
+              Customized
+            </span>
+          )}
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 tabular-nums">
@@ -161,6 +215,23 @@ function AutomationRow({
           ) : (
             countLabel
           )}
+        </p>
+        {/* The proof line — only when it has actually sent (honest empty). */}
+        {stats.sent > 0 && (
+          <p className="text-xs mt-1 tabular-nums font-mono-num text-gray-600 dark:text-gray-300">
+            Last 30 days: {stats.sent} sent
+            {stats.booked > 0 && (
+              <span className="text-emerald-700 dark:text-emerald-400 font-semibold"> · {stats.booked} booked</span>
+            )}
+          </p>
+        )}
+        <p className="text-xs mt-1">
+          <Link
+            href={`/growth/outreach/automations/${kind}`}
+            className="font-medium text-teal-700 dark:text-teal-400 hover:underline"
+          >
+            {isCustom ? 'Edit your message →' : 'Read / edit the message →'}
+          </Link>
         </p>
         {error && <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">{error}</p>}
       </div>

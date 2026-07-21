@@ -29,8 +29,27 @@ vi.mock('@/lib/services/patient-referrals', () => ({
 }))
 
 vi.mock('@/lib/services/retention-automation', () => ({
-  getRetentionSettings: vi.fn(async () => ({ birthdayAutoSend: false, lapsedReactivation: false })),
-  previewRetentionAudiences: vi.fn(async () => ({ birthdaysThisMonth: 0, newlyLapsed: 0 })),
+  getRetentionSettings: vi.fn(async () => ({
+    birthdayAutoSend: false,
+    lapsedReactivation: false,
+    benefitsAutoSend: false,
+    welcomeAutoSend: false,
+  })),
+  previewRetentionAudiences: vi.fn(async () => ({
+    birthdaysThisMonth: 0,
+    newlyLapsed: 0,
+    benefitsEligible: 0,
+    newThisWeek: 0,
+  })),
+  getAutomationStats: vi.fn(async () => ({
+    birthday: { sent: 0, booked: 0 },
+    reactivation: { sent: 0, booked: 0 },
+    benefits: { sent: 0, booked: 0 },
+    welcome: { sent: 0, booked: 0 },
+  })),
+}))
+vi.mock('@/lib/services/marketing-templates', () => ({
+  getAutomationOverride: vi.fn(async () => null),
 }))
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: mockRequireTenant,

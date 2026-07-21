@@ -2,7 +2,9 @@ import Link from 'next/link'
 import type { TenantContext } from '@/lib/auth/context'
 import { getRecallStats, type RecallActivityKind } from '@/lib/services/recall-stats'
 import { listAudiences } from '@/lib/services/marketing'
-import { getRetentionSettings, previewRetentionAudiences } from '@/lib/services/retention-automation'
+import { getRetentionSettings, previewRetentionAudiences, getAutomationStats } from '@/lib/services/retention-automation'
+import { getAutomationOverride } from '@/lib/services/marketing-templates'
+import { RETENTION_KINDS } from '@/lib/types/retention'
 import { RetentionAutomationsCard } from './retention-automations-card'
 import { NewsletterCard } from './newsletter-card'
 import { listPublishedPosts } from '@/lib/services/blog'
@@ -64,14 +66,20 @@ const ACTIVITY_ICON: Record<RecallActivityKind, string> = {
 }
 
 export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContext }) {
-  const [stats, audiences, retentionSettings, retentionPreview, publishedPosts, referralStats] = await Promise.all([
-    getRecallStats(ctx.organizationId),
-    listAudiences(ctx.organizationId),
-    getRetentionSettings(ctx.organizationId),
-    previewRetentionAudiences(ctx.organizationId),
-    listPublishedPosts(ctx.organizationId, { limit: 3 }),
-    getReferralProgramStats(ctx.organizationId),
-  ])
+  const [stats, audiences, retentionSettings, retentionPreview, publishedPosts, referralStats, automationStats, overrides] =
+    await Promise.all([
+      getRecallStats(ctx.organizationId),
+      listAudiences(ctx.organizationId),
+      getRetentionSettings(ctx.organizationId),
+      previewRetentionAudiences(ctx.organizationId),
+      listPublishedPosts(ctx.organizationId, { limit: 3 }),
+      getReferralProgramStats(ctx.organizationId),
+      getAutomationStats(ctx.organizationId),
+      Promise.all(RETENTION_KINDS.map((k) => getAutomationOverride(ctx.organizationId, k))),
+    ])
+  const customized = Object.fromEntries(
+    RETENTION_KINDS.map((k, i) => [k, overrides[i] !== null]),
+  ) as Record<(typeof RETENTION_KINDS)[number], boolean>
   const publishedPostCount = publishedPosts.length
 
   const now = new Date()
@@ -257,6 +265,8 @@ export default async function ClinicRecallDashboard({ ctx }: { ctx: TenantContex
         <RetentionAutomationsCard
           initial={retentionSettings}
           preview={retentionPreview}
+          stats={automationStats}
+          customized={customized}
           canManage={canManageAutomations}
         />
         <NewsletterCard publishedPostCount={publishedPostCount} />

@@ -101,30 +101,18 @@ vi.mock('@/lib/services/marketing', () => ({
   resolvePatientAudience: h.resolveMock,
 }))
 
+// The engine now reads the org's message via getAutomationTemplate (override
+// or system default — campaigns phase 2); mock it per kind.
 vi.mock('@/lib/services/marketing-templates', () => ({
-  SYSTEM_TEMPLATES: [
-    {
-      name: 'Reactivation — come back for a cleaning',
-      category: 'reactivation',
-      subject: 'Has it been a minute?',
-      previewText: 'A friendly nudge.',
-      bodyHtml: '<p>Hi {{firstName}}, come back.</p>',
-    },
-    {
-      name: 'Use your benefits — they reset January 1',
-      category: 'recall',
-      subject: 'Your benefits reset January 1',
-      previewText: 'Use them before they vanish.',
-      bodyHtml: '<p>Hi {{firstName}}, benefits expire.</p>',
-    },
-    {
-      name: 'Birthday — warm monthly check-in',
-      category: 'birthday',
-      subject: 'Happy birthday',
-      previewText: 'A little note.',
-      bodyHtml: '<p>Hi {{firstName}}, happy birthday.</p>',
-    },
-  ],
+  getAutomationTemplate: async (_orgId: string, kind: string) => {
+    const byKind: Record<string, { subject: string; previewText: string; bodyHtml: string }> = {
+      reactivation: { subject: 'Has it been a minute?', previewText: 'A friendly nudge.', bodyHtml: '<p>Hi {{firstName}}, come back.</p>' },
+      benefits: { subject: 'Your benefits reset January 1', previewText: 'Use them before they vanish.', bodyHtml: '<p>Hi {{firstName}}, benefits expire.</p>' },
+      birthday: { subject: 'Happy birthday', previewText: 'A little note.', bodyHtml: '<p>Hi {{firstName}}, happy birthday.</p>' },
+      welcome: { subject: 'Welcome — a few things', previewText: 'What comes next.', bodyHtml: '<p>Hi {{firstName}}, welcome.</p>' },
+    }
+    return { ...byKind[kind], isCustom: false }
+  },
 }))
 
 import { runRetentionAutomations, previewRetentionAudiences } from '@/lib/services/retention-automation'
@@ -252,15 +240,25 @@ describe('runRetentionAutomations', () => {
     expect(res.errors).toHaveLength(1)
     expect(res.errors[0].kind).toBe('birthday')
   })
+
+  it('welcome fires weekly — keyed to the UTC Monday of the current week', async () => {
+    h.clinics = [{ organizationId: 'org_1', birthday: 0, reactivation: 0, welcome: 1, isDemo: false }]
+    const res = await runRetentionAutomations({ now: NOW }) // Thu 2026-06-18 → Mon 2026-06-15
+    expect(res.created).toBe(1)
+    const campaignInsert = h.inserts.find((i) => i.table === 'campaigns')
+    expect(campaignInsert!.values.automationKey).toBe('welcome:org_1:2026-06-15')
+    expect(campaignInsert!.values.subject).toBe('Welcome — a few things')
+  })
 })
 
 describe('previewRetentionAudiences', () => {
-  it('returns the birthday + newly-lapsed counts', async () => {
+  it('returns all four automation counts', async () => {
     h.resolveMock
       .mockResolvedValueOnce(recipients(4)) // birthdaysThisMonth
       .mockResolvedValueOnce(recipients(2)) // newlyLapsed
       .mockResolvedValueOnce(recipients(3)) // benefitsEligible
+      .mockResolvedValueOnce(recipients(1)) // newThisWeek
     const counts = await previewRetentionAudiences('org_1')
-    expect(counts).toEqual({ birthdaysThisMonth: 4, newlyLapsed: 2, benefitsEligible: 3 })
+    expect(counts).toEqual({ birthdaysThisMonth: 4, newlyLapsed: 2, benefitsEligible: 3, newThisWeek: 1 })
   })
 })

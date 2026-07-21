@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import type { RetentionKind } from '@/lib/types/retention'
 
 /**
  * Marketing template service. Templates are reusable starter copy for
@@ -36,6 +37,8 @@ export interface TemplateRow {
   bodyJson: unknown | null
   defaultChannel: 'resend' | 'gmail' | 'twilio_sms'
   defaultAudienceSlug: string | null
+  /** Set when this custom row is an org's automation message override. */
+  automationKind: RetentionKind | null
   createdAt: Date
   updatedAt: Date
 }
@@ -164,10 +167,15 @@ export async function listTemplates(organizationId: string): Promise<TemplateRow
     .select()
     .from(schema.campaignTemplates)
     .where(
-      or(
-        eq(schema.campaignTemplates.kind, 'system'),
-        eq(schema.campaignTemplates.organizationId, organizationId),
-      )!,
+      and(
+        or(
+          eq(schema.campaignTemplates.kind, 'system'),
+          eq(schema.campaignTemplates.organizationId, organizationId),
+        )!,
+        // Automation message overrides are the org's auto-send copy, not
+        // general starting points — they never show in the picker.
+        isNull(schema.campaignTemplates.automationKind),
+      ),
     )
     .orderBy(desc(schema.campaignTemplates.kind), schema.campaignTemplates.category, schema.campaignTemplates.name)
   return rows.map(toTemplateRow)
@@ -231,6 +239,129 @@ export async function createCustomTemplate(
   return toTemplateRow(row)
 }
 
+// ---------- Automation message overrides (campaigns phase 2) ----------
+// A clinic can rewrite the message each retention automation sends. The
+// override is a CUSTOM template row tagged with automationKind — at most
+// one per (org, kind). The auto-send prefers it over the system default.
+
+/** Map a retention kind to its system-default template. */
+export function systemTemplateForKind(kind: RetentionKind): SystemTemplate {
+  const tpl =
+    kind === 'benefits'
+      ? SYSTEM_TEMPLATES.find((t) => t.name.startsWith('Use your benefits'))
+      : SYSTEM_TEMPLATES.find(
+          (t) => t.category === (kind === 'birthday' ? 'birthday' : kind === 'welcome' ? 'welcome' : 'reactivation'),
+        )
+  if (!tpl) throw new Error(`No system template for automation kind "${kind}"`)
+  return tpl
+}
+
+export async function getAutomationOverride(
+  organizationId: string,
+  kind: RetentionKind,
+): Promise<TemplateRow | null> {
+  const [row] = await db
+    .select()
+    .from(schema.campaignTemplates)
+    .where(
+      and(
+        eq(schema.campaignTemplates.organizationId, organizationId),
+        eq(schema.campaignTemplates.automationKind, kind),
+      ),
+    )
+    .limit(1)
+  return row ? toTemplateRow(row) : null
+}
+
+/**
+ * The message an automation will actually send for this org: the org's
+ * override when one exists, else the system default. `isCustom` drives the
+ * "Customized / Default" pill on the automations card.
+ */
+export async function getAutomationTemplate(
+  organizationId: string,
+  kind: RetentionKind,
+): Promise<{ subject: string; previewText: string | null; bodyHtml: string; isCustom: boolean }> {
+  const override = await getAutomationOverride(organizationId, kind)
+  if (override) {
+    return {
+      subject: override.subject,
+      previewText: override.previewText,
+      bodyHtml: override.bodyHtml,
+      isCustom: true,
+    }
+  }
+  const sys = systemTemplateForKind(kind)
+  return { subject: sys.subject, previewText: sys.previewText, bodyHtml: sys.bodyHtml, isCustom: false }
+}
+
+export async function upsertAutomationOverride(
+  organizationId: string,
+  kind: RetentionKind,
+  input: { subject: string; previewText?: string | null; bodyHtml: string; bodyJson?: unknown },
+  userId: string | null,
+): Promise<TemplateRow> {
+  const existing = await getAutomationOverride(organizationId, kind)
+  if (existing) {
+    const [row] = await db
+      .update(schema.campaignTemplates)
+      .set({
+        subject: input.subject,
+        previewText: input.previewText ?? null,
+        bodyHtml: input.bodyHtml,
+        bodyJson: input.bodyJson ?? null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.campaignTemplates.id, existing.id),
+          eq(schema.campaignTemplates.organizationId, organizationId),
+        ),
+      )
+      .returning()
+    return toTemplateRow(row)
+  }
+  const sys = systemTemplateForKind(kind)
+  const [row] = await db
+    .insert(schema.campaignTemplates)
+    .values({
+      organizationId,
+      kind: 'custom',
+      category: sys.category,
+      // Org-scoped unique on (org, name); this canonical name never collides
+      // with system names and reads clearly in any raw listing.
+      name: `${sys.name} — your version`,
+      description: 'Your edited message for this automation. Reset from the automation editor to go back to the default.',
+      subject: input.subject,
+      previewText: input.previewText ?? null,
+      bodyHtml: input.bodyHtml,
+      bodyJson: input.bodyJson ?? null,
+      defaultChannel: 'resend',
+      defaultAudienceSlug: sys.defaultAudienceSlug,
+      automationKind: kind,
+      createdBy: userId,
+    })
+    .returning()
+  return toTemplateRow(row)
+}
+
+/** Remove the override → the automation falls back to the system default. */
+export async function deleteAutomationOverride(
+  organizationId: string,
+  kind: RetentionKind,
+): Promise<{ deleted: number }> {
+  const rows = await db
+    .delete(schema.campaignTemplates)
+    .where(
+      and(
+        eq(schema.campaignTemplates.organizationId, organizationId),
+        eq(schema.campaignTemplates.automationKind, kind),
+      ),
+    )
+    .returning({ id: schema.campaignTemplates.id })
+  return { deleted: rows.length }
+}
+
 export async function deleteCustomTemplate(organizationId: string, id: number): Promise<{ deleted: number }> {
   const rows = await db
     .delete(schema.campaignTemplates)
@@ -259,6 +390,7 @@ function toTemplateRow(r: typeof schema.campaignTemplates.$inferSelect): Templat
     bodyJson: r.bodyJson,
     defaultChannel: r.defaultChannel,
     defaultAudienceSlug: r.defaultAudienceSlug,
+    automationKind: (r.automationKind as RetentionKind | null) ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }

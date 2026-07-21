@@ -7,6 +7,36 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Campaigns phase 2 — automation honesty (2026-07-21).** The audit's
+  biggest honesty gap: the retention automations sent HARDCODED copy the
+  clinic could never see or edit. Now: (1) **Editable automation messages**
+  — migration **0129** adds `campaign_templates.automation_kind`; an org's
+  edited copy is a custom template row tagged with the kind
+  (`upsertAutomationOverride`/`deleteAutomationOverride`/
+  `getAutomationTemplate` in marketing-templates.ts; overrides are excluded
+  from the Start-from picker). The engine (`retention-automation.ts
+  runOne`) reads `getAutomationTemplate` at campaign creation, so the next
+  auto-send picks up edits automatically. New editor at
+  `/growth/outreach/automations/[kind]` (subject + preview + slim TipTap
+  body, Customized/Stock pill, Save + confirm-guarded "Reset to the stock
+  message"; members read-only; owner/admin enforced in the actions). (2)
+  **A fourth automation: new-patient welcome** — weekly key
+  (`welcome:<org>:<YYYY-MM-DD Monday>`) + 7-day `lastVisitWithinDays`
+  window → each new patient welcomed exactly once (the reactivation
+  window≈key-period trick); `clinic_profile.welcome_auto_send_enabled`
+  (0129), wired through settings/toggle-action/audience-helper/preview
+  counts. (3) **Proof on the card** — `getAutomationStats` (trailing-30d
+  sent + BOOKED per kind from automationKey-prefixed campaigns +
+  campaign_events); each automations-card row shows "Last 30 days: 43
+  sent · 6 booked" only when it actually sent (honest empty), plus the
+  Customized pill and an "edit the message" link. `RetentionKind` moved to
+  client-safe `lib/types/retention.ts` (service re-exports it; the toggle
+  action now validates via `isRetentionKind`, unblocking 'welcome').
+  Tests: automation-overrides, retention-card, retention-automation
+  updated (+welcome weekly-key case, 4-count preview), dead-control
+  deeplinks mock extended. NEXT: phase 3 (the one-surface collapse) +
+  phase 4 (safety rails, production-value attribution).
+
 - **Campaigns phase 1 — templates wired into creation (2026-07-21).** The
   deep-dive audit (owner asked "think through the whole campaigns feature")
   found the New-campaign "Type" select was decorative (never stored, drove

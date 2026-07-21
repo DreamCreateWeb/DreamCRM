@@ -34,6 +34,7 @@ import {
 import { sendCampaign, buildCampaignPreview } from '@/lib/services/marketing-send'
 import { draftCampaign, improveCopy } from '@/lib/services/ai-marketing'
 import { setRetentionAutomation, type RetentionKind } from '@/lib/services/retention-automation'
+import { isRetentionKind } from '@/lib/types/retention'
 
 /**
  * Recall & Outreach is a clinic-staff surface. The /marketing page redirects
@@ -283,7 +284,7 @@ export async function setRetentionAutomationAction(
   if (ctx.role !== 'owner' && ctx.role !== 'admin') {
     return { error: 'Only an owner or admin can change automations.' }
   }
-  if (kind !== 'birthday' && kind !== 'reactivation' && kind !== 'benefits') return { error: 'Unknown automation.' }
+  if (!isRetentionKind(kind)) return { error: 'Unknown automation.' }
   await setRetentionAutomation(ctx.organizationId, kind, enabled)
   revalidatePath('/marketing')
   return { ok: true }
