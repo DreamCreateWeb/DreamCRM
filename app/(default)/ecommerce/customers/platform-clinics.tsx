@@ -26,13 +26,17 @@ const STATUS_PILLS: PillLegendRow[] = [
 export default async function PlatformClinics() {
   const [rows, partners] = await Promise.all([listClinics(), listActivePartners()])
 
-  // Aggregate top-line numbers from the rows we already have
+  // Aggregate top-line numbers from the rows we already have. The demo
+  // clinic stays in the LIST (it's the "View as" entry point) but never in
+  // the aggregates — its seeded "active" subscription isn't revenue (matches
+  // the Overview, which already excludes demo orgs).
+  const realRows = rows.filter((r) => !r.isDemo)
   let activeCount = 0
   let pastDueCount = 0
   let newIn30d = 0
   let mrrCents = 0
   const thirtyDaysAgo = Date.now() - 30 * 86_400_000
-  for (const r of rows) {
+  for (const r of realRows) {
     if (r.subscriptionStatus === 'active' || r.subscriptionStatus === 'trialing') {
       activeCount++
       mrrCents += r.monthlyContributionCents
@@ -68,7 +72,7 @@ export default async function PlatformClinics() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiStat label="Total Clinics" value={formatNumberShort(rows.length)} sub={`${newIn30d} new in 30d`} />
+        <KpiStat label="Total Clinics" value={formatNumberShort(realRows.length)} sub={`${newIn30d} new in 30d`} />
         <KpiStat label="Active Subscribers" value={formatNumberShort(activeCount)} sub="Paying or trialing" />
         <KpiStat
           label="Past Due"

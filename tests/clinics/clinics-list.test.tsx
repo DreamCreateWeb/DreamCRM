@@ -21,6 +21,7 @@ function row(overrides: Partial<ClinicListRow> = {}): ClinicListRow {
     stripeCustomerId: null,
     stripeSubscriptionId: null,
     createdAt: new Date('2026-01-01'),
+    isDemo: false,
     monthlyContributionCents: 9_900,
     memberCount: 1,
     patientCount: 0,

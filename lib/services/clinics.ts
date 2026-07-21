@@ -49,6 +49,9 @@ export interface ClinicListRow {
   /** Managed clinics: reserved plan awaiting owner checkout. */
   pendingPlanId?: string | null
   createdAt: Date
+  /** The demo clinic — shown in the list (it's the demo entry point) but
+   *  excluded from every top-line aggregate (MRR, active, new-in-30d). */
+  isDemo: boolean
   /** Monthly recurring revenue this clinic contributes (cents). */
   monthlyContributionCents: number
   memberCount: number
@@ -65,6 +68,7 @@ export async function listClinics(): Promise<ClinicListRow[]> {
         name: organization.name,
         slug: organization.slug,
         createdAt: organization.createdAt,
+        isDemo: organization.isDemo,
         displayName: clinicProfile.displayName,
         logoUrl: clinicProfile.logoUrl,
         brandColor: clinicProfile.brandColor,
@@ -157,6 +161,7 @@ export async function listClinics(): Promise<ClinicListRow[]> {
         billingMode: r.billingMode ?? 'self_serve',
         pendingPlanId: r.pendingPlanId,
         createdAt: r.createdAt,
+        isDemo: r.isDemo === true,
         monthlyContributionCents,
         memberCount: membersByOrg.get(r.orgId) ?? 0,
         patientCount: patientsByOrg.get(r.orgId) ?? 0,
