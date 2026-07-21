@@ -17,6 +17,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { patientFlagGlyphs, type Tone, type GlyphId, type PillLegendRow } from '@/lib/ui/encodings'
+import { leadAgeLabel } from '@/lib/lead-age'
 import { MorningReveal } from './morning-reveal'
 
 // Appointment status → semantic tone + plain-language label. The tone carries
@@ -306,7 +307,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               <li key={l.id} className="flex items-center justify-between text-sm py-1.5">
                 <span className="truncate text-gray-700 dark:text-gray-200">{l.name}</span>
                 <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
-                  {l.ageHours < 1 ? 'just now' : `${l.ageHours}h ago`}
+                  {leadAgeLabel(l.ageHours)}
                 </span>
               </li>
             ))}

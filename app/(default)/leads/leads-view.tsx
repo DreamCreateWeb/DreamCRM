@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { agingBorderClass, leadAgingTier, type Tone } from '@/lib/ui/encodings'
+import { leadAgeLabel } from '@/lib/lead-age'
 import LeadDrawer from './lead-drawer'
 import { bulkSetLeadStatusAction } from './actions'
 
@@ -50,13 +51,7 @@ const STATUS_PILL_MEANING: Record<LeadStatus, string> = {
   archived: 'Spam, wrong number, or not a fit',
 }
 
-function ageLabel(ageHours: number): string {
-  if (ageHours < 1) return 'just now'
-  if (ageHours < 24) return `${ageHours}h ago`
-  const days = Math.floor(ageHours / 24)
-  if (days < 30) return `${days}d ago`
-  return `${Math.floor(days / 30)}mo ago`
-}
+const ageLabel = leadAgeLabel
 
 // Hover explanation on the age — reinforces the rotting border for new leads.
 function ageTitle(status: LeadStatus, ageHours: number): string {
