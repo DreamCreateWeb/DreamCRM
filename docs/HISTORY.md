@@ -7,6 +7,20 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Campaigns phase 3a — the "To" picker (2026-07-21).** The new-campaign
+  modal gained an optional audience select (this tenant's saved audiences,
+  source-filtered: patients for clinics, customers for the platform;
+  "Choose later in the editor" stays first-class; queue-CTA prefill
+  preselects). The create flow is now complete in ONE modal: start-from +
+  to + name. Phase 3's REMAINING move — folding the clinic's
+  /growth/campaigns list into /growth/outreach (platform keeps its list;
+  ~15 link call sites + trail/global-search registries + tenant-branched
+  redirect w/ prefill-param forwarding) — is scoped and DEFERRED for an
+  explicit owner go-ahead, since it removes a daily surface
+  (STRUCTURE-AUDIT culture: move surfaces deliberately). Phase 4 (safety
+  rails: upcoming-visit suppression, cross-system frequency cap, clinic-tz
+  send windows; production-value attribution) also queued.
+
 - **Campaigns phase 2 — automation honesty (2026-07-21).** The audit's
   biggest honesty gap: the retention automations sent HARDCODED copy the
   clinic could never see or edit. Now: (1) **Editable automation messages**

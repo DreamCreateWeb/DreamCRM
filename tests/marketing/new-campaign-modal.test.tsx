@@ -69,4 +69,26 @@ describe('NewCampaignButton — Start from picker', () => {
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.getByText('Name (internal)')).toBeInTheDocument()
   })
+
+  it('offers a "To" audience picker and passes the chosen audienceId', async () => {
+    const AUDIENCES = [
+      { id: 7, name: 'Recall due (6+ months)' },
+      { id: 8, name: 'Birthday this month' },
+    ]
+    render(<NewCampaignButton templates={TEMPLATES} audiences={AUDIENCES} />)
+    fireEvent.click(screen.getByRole('button', { name: '+ New campaign' }))
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '8' } })
+    fireEvent.change(screen.getByPlaceholderText(/Holiday hours/), { target: { value: 'B-day blast' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(createCampaignAction).toHaveBeenCalledTimes(1))
+    expect(createCampaignAction).toHaveBeenCalledWith(
+      expect.objectContaining({ audienceId: 8, name: 'B-day blast' }),
+    )
+  })
+
+  it('preselects the prefilled audience in the To picker (queue CTA)', () => {
+    const AUDIENCES = [{ id: 7, name: 'Recall due (6+ months)' }]
+    render(<NewCampaignButton templates={TEMPLATES} audiences={AUDIENCES} prefillAudienceId={7} />)
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('7')
+  })
 })

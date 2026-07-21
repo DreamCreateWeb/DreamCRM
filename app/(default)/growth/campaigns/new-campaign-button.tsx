@@ -16,6 +16,9 @@ export interface TemplateOption {
 
 interface Props {
   templates: TemplateOption[]
+  /** This tenant's saved audiences for the "To" picker (optional choice —
+   *  the editor sidebar can still set it). */
+  audiences?: { id: number; name: string }[]
   /** When arriving from the Outreach Queue's "Send recall" CTA, the audience to
    *  pre-target the new campaign with. */
   prefillAudienceId?: number
@@ -31,11 +34,14 @@ interface Props {
  * preview text, and body from the template and stamps templateId for
  * provenance + won-back attribution bucketing. Blank stays first-class.
  */
-export default function NewCampaignButton({ templates, prefillAudienceId, prefillTemplateId }: Props) {
+export default function NewCampaignButton({ templates, audiences = [], prefillAudienceId, prefillTemplateId }: Props) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [templateId, setTemplateId] = useState<number | null>(
     prefillTemplateId && templates.some((t) => t.id === prefillTemplateId) ? prefillTemplateId : null,
+  )
+  const [audienceId, setAudienceId] = useState<number | ''>(
+    prefillAudienceId && audiences.some((a) => a.id === prefillAudienceId) ? prefillAudienceId : '',
   )
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -51,11 +57,12 @@ export default function NewCampaignButton({ templates, prefillAudienceId, prefil
     setError(null)
     startTransition(async () => {
       try {
+        const chosenAudience = audienceId || prefillAudienceId
         await createCampaignAction({
           name: name.trim() || picked?.name || 'Untitled campaign',
           sendChannel: 'resend',
           ...(templateId ? { templateId } : {}),
-          ...(prefillAudienceId ? { audienceId: prefillAudienceId } : {}),
+          ...(chosenAudience ? { audienceId: chosenAudience } : {}),
         })
         // server action redirects to the editor on success
       } catch (err) {
@@ -120,6 +127,26 @@ export default function NewCampaignButton({ templates, prefillAudienceId, prefil
                   A starting point pre-writes the subject and body — everything stays editable before anything sends.
                 </p>
               </fieldset>
+            )}
+
+            {audiences.length > 0 && (
+              <label className="block mb-4">
+                <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+                  To
+                </span>
+                <select
+                  value={audienceId}
+                  onChange={(e) => setAudienceId(e.target.value ? Number(e.target.value) : '')}
+                  className="form-select w-full"
+                >
+                  <option value="">Choose later in the editor</option>
+                  {audiences.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
 
             <label className="block mb-4">

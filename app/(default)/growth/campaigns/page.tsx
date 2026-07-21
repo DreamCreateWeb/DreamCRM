@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { listMarketingCampaigns } from '@/lib/services/marketing-campaigns'
 import { listTemplates } from '@/lib/services/marketing-templates'
+import { listAudiences } from '@/lib/services/marketing'
 import { formatRelativeDate } from '@/lib/utils/format'
 import NewCampaignButton from './new-campaign-button'
 import CancelScheduledButton from './cancel-scheduled-button'
@@ -93,6 +94,14 @@ export default async function CampaignsPage({
   const prefillTemplateId =
     prefill_template && Number.isFinite(Number(prefill_template)) ? Number(prefill_template) : undefined
 
+  // "To" picker in the modal — this tenant's saved audiences (patients for
+  // clinics, customers for the platform org). Choosing here is optional;
+  // the editor sidebar can still set/change it.
+  const expectedSource = ctx.tenantType === 'clinic' ? 'patients' : 'customers'
+  const audiences = (await listAudiences(ctx.organizationId))
+    .filter((a) => (a.recipientSource ?? 'customers') === expectedSource)
+    .map((a) => ({ id: a.id, name: a.name }))
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
@@ -119,6 +128,7 @@ export default async function CampaignsPage({
             </ActionButton>
             <NewCampaignButton
               templates={templates}
+              audiences={audiences}
               prefillAudienceId={prefillAudienceId}
               prefillTemplateId={prefillTemplateId}
             />
