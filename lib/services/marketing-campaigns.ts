@@ -3,6 +3,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { resolveAudience, type AudienceFilterT, type PatientAudienceFilterT, type ResolvedRecipient } from './marketing'
+import { getTemplate } from './marketing-templates'
 
 /**
  * Campaign CRUD + analytics. Send + tracking event recording live in
@@ -24,6 +25,9 @@ export const CampaignInput = z.object({
   audienceId: z.number().int().nullable().optional(),
   sendChannel: CampaignChannel.default('resend'),
   scheduledAt: z.string().datetime().optional().nullable(),
+  /** Start-from template: seeds subject/preview/body at creation and is
+   *  stamped on the row for provenance + attribution bucketing. */
+  templateId: z.number().int().nullable().optional(),
 })
 
 export const CampaignUpdate = CampaignInput.partial()
@@ -66,18 +70,24 @@ export async function createMarketingCampaign(
   userId: string,
 ) {
   const data = CampaignInput.parse(input)
+  // "Start from" a template: seed the content fields the caller didn't set
+  // and stamp templateId for provenance. getTemplate is org-scoped (system
+  // templates + this org's custom ones) — a foreign id resolves to null and
+  // is silently dropped, so a guessed id can never leak another org's copy.
+  const tpl = data.templateId ? await getTemplate(organizationId, data.templateId) : null
   const [row] = await db
     .insert(schema.campaigns)
     .values({
       organizationId,
       name: data.name,
-      subject: data.subject ?? null,
-      previewText: data.previewText ?? null,
-      bodyHtml: data.bodyHtml ?? null,
-      bodyJson: data.bodyJson ?? null,
+      subject: data.subject ?? tpl?.subject ?? null,
+      previewText: data.previewText ?? tpl?.previewText ?? null,
+      bodyHtml: data.bodyHtml ?? tpl?.bodyHtml ?? null,
+      bodyJson: data.bodyJson ?? tpl?.bodyJson ?? null,
       audienceId: data.audienceId ?? null,
       sendChannel: data.sendChannel,
       scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+      templateId: tpl?.id ?? null,
       createdBy: userId,
       status: 'draft',
     })

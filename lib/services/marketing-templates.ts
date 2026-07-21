@@ -12,10 +12,11 @@ import { db, schema } from '@/lib/db'
  *     monthly outreach), New-patient welcome (first-visit follow-up).
  *     Every clinic sees these in the "Choose a template" picker.
  *
- *   - **Custom** (kind='custom', organizationId set) — per-org saves the
- *     clinic created themselves via "Save changes as new template".
- *     UI for editing custom templates lands in v1.1; for now they only
- *     get created via the demo seeder pump.
+ *   - **Custom** (kind='custom', organizationId set) — per-org templates.
+ *     Both kinds surface in the new-campaign "Start from" picker (wired
+ *     2026-07-21) and seed subject/preview/body + templateId at creation.
+ *     Custom ones are created via the demo seeder today; a "Save as
+ *     template" affordance in the campaign editor is the planned creator.
  *
  * Body content uses warm-neutral, anti-shame voice consistent with the
  * modern clinic template (DESIGN.md principle 8). Unsubscribe footer is

@@ -37,8 +37,6 @@ export interface MarketingTerminology {
   sources: string[]
   /** Default send-from email when sending via Resend */
   defaultFromEmail: string
-  /** Suggested campaign types shown in "new campaign" picker */
-  campaignTypes: { key: string; label: string; description: string }[]
 }
 
 const PLATFORM_STAGES: PipelineStage[] = [
@@ -68,12 +66,6 @@ export function marketingTerminology(tenantType: TenantType): MarketingTerminolo
       stages: PLATFORM_STAGES,
       sources: ['Website form', 'Cold outreach', 'Referral', 'LinkedIn', 'Trade show', 'Other'],
       defaultFromEmail: 'Hello@DreamCreateWeb.com',
-      campaignTypes: [
-        { key: 'announcement', label: 'Announcement', description: 'Product update, new feature, news' },
-        { key: 'nurture', label: 'Nurture', description: 'Educational content for prospects in the pipeline' },
-        { key: 'outreach', label: 'Cold outreach', description: 'Personal first-touch via connected Gmail' },
-        { key: 'retention', label: 'Retention', description: 'Reduce churn, upsell to higher plans' },
-      ],
     }
   }
   return {
@@ -85,12 +77,6 @@ export function marketingTerminology(tenantType: TenantType): MarketingTerminolo
     stages: CLINIC_STAGES,
     sources: ['Walk-in', 'Website', 'Referral', 'Insurance', 'Other'],
     defaultFromEmail: '',
-    campaignTypes: [
-      { key: 'recall', label: 'Recall reminder', description: 'Cleaning / checkup due soon' },
-      { key: 'newsletter', label: 'Newsletter', description: 'Monthly dental health newsletter' },
-      { key: 'birthday', label: 'Birthday / anniversary', description: 'Lifecycle touchpoint' },
-      { key: 'winback', label: 'Win-back', description: 're-engage lapsed patients' },
-    ],
   }
 }
 

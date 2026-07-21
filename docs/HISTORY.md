@@ -7,6 +7,34 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Campaigns phase 1 — templates wired into creation (2026-07-21).** The
+  deep-dive audit (owner asked "think through the whole campaigns feature")
+  found the New-campaign "Type" select was decorative (never stored, drove
+  nothing) while a REAL template system (`campaign_templates`, 4 system
+  templates w/ written content + custom-template support) sat orphaned —
+  the queue even emitted `prefill_template`, which the campaigns page
+  silently dropped. Fixes: (1) the modal's Type select → a **"Start from"
+  radio picker** (Blank + system + the clinic's custom templates w/ a
+  "Yours" badge; clinic-only — platform composes from blank;
+  `marketingTerminology.campaignTypes` deleted as dead config). (2)
+  `CampaignInput` gained `templateId`; `createMarketingCampaign` seeds
+  subject/preview/body from the org-scoped `getTemplate` (explicit input
+  wins; foreign ids drop silently — no cross-org copy leak) and stamps
+  `templateId` for provenance + won-back attribution bucketing. (3)
+  `prefill_template` honored end-to-end (queue CTA → auto-opened modal w/
+  the template preselected). (4) NEW `lib/services/outreach-tiers.ts` —
+  THE tier definitions (moved out of the queue page) +
+  `ensureOutreachTierAudiences` find-or-create keyed by canonical names
+  (matching the demo seeder), replacing the queue's fragile name-based
+  audience lookup that silently degraded the Send CTA. (5) Queue back-link
+  `/marketing` → `/growth/outreach`; stale doc comments fixed
+  (audiences-client "v1.1" claim, marketing-templates header). Tests:
+  `create-from-template.test.ts`, `outreach-tiers.test.ts`,
+  `new-campaign-modal.test.tsx`. Phases 2–4 of the campaigns plan
+  (editable automation copy + per-automation booked stats; the
+  one-surface collapse; safety rails + production-value attribution) are
+  designed and queued — see the session plan in chat 2026-07-21.
+
 - **Messages reply + campaign editor → widgets (2026-07-21, composer-widget
   pass #2).** The `/messages` reply composer
   (`clinic-thread-detail-panel.tsx`) had the same sprawl the social page did:

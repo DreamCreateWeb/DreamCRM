@@ -31,9 +31,8 @@ export interface AudienceRow {
 interface Props {
   initial: AudienceRow[]
   /** Drives whether the audience editor exposes patient-segment chips
-   * (clinic) or pipeline-stage chips (platform). Phase A clinic users
-   * see system audiences but can't yet create custom patient ones via UI
-   * — UI for that lands in v1.1. */
+   * (clinic) or pipeline-stage chips (platform). Both tenants can create,
+   * edit, and delete their own audiences here. */
   tenantType: 'platform' | 'clinic'
   stages: PipelineStage[]
   sources: string[]

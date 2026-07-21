@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { marketingTerminology } from '@/lib/marketing/terminology'
 import { listMarketingCampaigns } from '@/lib/services/marketing-campaigns'
+import { listTemplates } from '@/lib/services/marketing-templates'
 import { formatRelativeDate } from '@/lib/utils/format'
 import NewCampaignButton from './new-campaign-button'
 import CancelScheduledButton from './cancel-scheduled-button'
@@ -64,19 +64,34 @@ function channelLabel(channel: string): string {
 export default async function CampaignsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ prefill_audience?: string }>
+  searchParams: Promise<{ prefill_audience?: string; prefill_template?: string }>
 }) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
-  const t = marketingTerminology(ctx.tenantType)
 
   const campaigns = await listMarketingCampaigns(ctx.organizationId)
+  // The "Start from" picker: system templates + this clinic's custom ones.
+  // Clinic-only — the platform tenant's campaigns aren't dental outreach,
+  // so it composes from blank.
+  const templates =
+    ctx.tenantType === 'clinic'
+      ? (await listTemplates(ctx.organizationId)).map((tpl) => ({
+          id: tpl.id,
+          name: tpl.name,
+          description: tpl.description,
+          subject: tpl.subject,
+          kind: tpl.kind,
+        }))
+      : []
   // The Outreach Queue's "Send recall →" CTA links here with the target
-  // audience; consume it so the new campaign starts pre-targeted (it was
-  // silently dropped before).
-  const { prefill_audience } = await searchParams
+  // audience + template; consume BOTH so the new campaign starts
+  // pre-targeted and pre-written (prefill_template was silently dropped
+  // before — the picker was never wired).
+  const { prefill_audience, prefill_template } = await searchParams
   const prefillAudienceId =
     prefill_audience && Number.isFinite(Number(prefill_audience)) ? Number(prefill_audience) : undefined
+  const prefillTemplateId =
+    prefill_template && Number.isFinite(Number(prefill_template)) ? Number(prefill_template) : undefined
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -102,7 +117,11 @@ export default async function CampaignsPage({
             <ActionButton variant="secondary" href="/growth/audiences">
               Audiences
             </ActionButton>
-            <NewCampaignButton campaignTypes={t.campaignTypes} prefillAudienceId={prefillAudienceId} />
+            <NewCampaignButton
+              templates={templates}
+              prefillAudienceId={prefillAudienceId}
+              prefillTemplateId={prefillTemplateId}
+            />
           </>
         }
       />

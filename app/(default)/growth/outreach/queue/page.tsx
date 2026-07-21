@@ -1,9 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
-import { db, schema } from '@/lib/db'
-import { resolvePatientAudience, type PatientAudienceFilterT } from '@/lib/services/marketing'
+import { resolvePatientAudience } from '@/lib/services/marketing'
+import { OUTREACH_TIERS, ensureOutreachTierAudiences } from '@/lib/services/outreach-tiers'
 import { listTemplates } from '@/lib/services/marketing-templates'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -27,74 +26,16 @@ export const dynamic = 'force-dynamic'
  * campaign" actions that pre-populate the campaign editor with the
  * right audience + template.
  *
- * Tiers map 1:1 to the demo-seeded patient-source audiences so the
- * "Send recall to all" CTA links straight to a campaign-new flow with
- * the audience pre-selected. No drag-and-drop kanban (zero of 8
- * surveyed dental products do this — lifecycle is activity-derived).
+ * Tier definitions live in lib/services/outreach-tiers.ts (shared with
+ * the ensure-audiences helper) so the "Send" CTA always carries a real
+ * audience id — find-or-created per org, never a name-based guess. No
+ * drag-and-drop kanban (zero of 8 surveyed dental products do this —
+ * lifecycle is activity-derived).
  */
 
 interface SP {
   tier?: string
 }
-
-const TIER_DEFS = [
-  {
-    key: 'recall_due',
-    label: 'Recall due',
-    description: 'Last cleaning over 6 months ago, no future booking',
-    audienceName: 'Recall due (6+ months)',
-    templateCategory: 'reactivation' as const,
-    accent: 'amber' as const,
-    filter: {
-      recallStatuses: ['due', 'overdue'],
-      requireEmailOptIn: true,
-      requireSmsOptIn: false,
-      includeArchived: false,
-    } satisfies Partial<PatientAudienceFilterT>,
-  },
-  {
-    key: 'lapsed',
-    label: 'Lapsed',
-    description: "Haven't been in for over 9 months — the cold ones",
-    audienceName: 'Lapsed (lifecycle = lapsed)',
-    templateCategory: 'reactivation' as const,
-    accent: 'rose' as const,
-    filter: {
-      lifecycles: ['lapsed', 'at_risk'],
-      requireEmailOptIn: true,
-      requireSmsOptIn: false,
-      includeArchived: false,
-    } satisfies Partial<PatientAudienceFilterT>,
-  },
-  {
-    key: 'new_patient',
-    label: 'New patient welcome',
-    description: 'Joined in the past 60 days — a good time to check in after their first visit',
-    audienceName: 'New patients (past 60 days)',
-    templateCategory: 'welcome' as const,
-    accent: 'emerald' as const,
-    filter: {
-      lifecycles: ['new'],
-      requireEmailOptIn: true,
-      requireSmsOptIn: false,
-      includeArchived: false,
-    } satisfies Partial<PatientAudienceFilterT>,
-  },
-  {
-    key: 'birthday',
-    label: 'Birthday this month',
-    description: 'Patients celebrating a birthday this calendar month',
-    audienceName: 'Birthday this month',
-    templateCategory: 'birthday' as const,
-    accent: 'violet' as const,
-    filter: {
-      birthdayThisMonth: true,
-      requireEmailOptIn: true,
-      requireSmsOptIn: false,
-      includeArchived: false,
-    } satisfies Partial<PatientAudienceFilterT>,
-  },
-]
 
 const TIER_ACCENT_BG: Record<'amber' | 'rose' | 'emerald' | 'violet', string> = {
   amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-500/30',
@@ -109,31 +50,23 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
   if (ctx.tenantType === 'platform') redirect('/marketing/pipeline')
 
   const params = await searchParams
-  const selectedTier = params.tier && TIER_DEFS.some((t) => t.key === params.tier) ? params.tier : null
-  const tiersToShow = selectedTier ? TIER_DEFS.filter((t) => t.key === selectedTier) : TIER_DEFS
+  const selectedTier = params.tier && OUTREACH_TIERS.some((t) => t.key === params.tier) ? params.tier : null
+  const tiersToShow = selectedTier ? OUTREACH_TIERS.filter((t) => t.key === selectedTier) : OUTREACH_TIERS
 
-  // Resolve patients per tier + look up corresponding audience id for the
-  // "Send campaign" CTA. Audiences seeded by demo-clinic.ts match the
-  // tier names; we look them up by name so this works on freshly-seeded
-  // clinics + self-healed legacy demos.
-  const audienceRows = await db
-    .select({ id: schema.audiences.id, name: schema.audiences.name })
-    .from(schema.audiences)
-    .where(eq(schema.audiences.organizationId, ctx.organizationId))
-  const audienceIdByName = new Map(audienceRows.map((r) => [r.name, r.id]))
+  // Guarantee each tier's saved audience exists (find-or-create, idempotent)
+  // so the "Send" CTA can never silently degrade to an unprefilled campaign
+  // the way the old name-based lookup could.
+  const audienceIdByTier = await ensureOutreachTierAudiences(ctx.organizationId)
 
-  // Look up the 3 system templates so the "Send" CTA can pre-select the
-  // right one per tier.
+  // Look up the system templates so the "Send" CTA can pre-select the
+  // right one per tier ("Start from" in the new-campaign modal).
   const templates = await listTemplates(ctx.organizationId)
   const templateIdByCategory = new Map(templates.map((t) => [t.category, t.id]))
 
   const sections = await Promise.all(
     tiersToShow.map(async (tier) => {
-      const recipients = await resolvePatientAudience(
-        ctx.organizationId,
-        tier.filter as PatientAudienceFilterT,
-      )
-      const audienceId = audienceIdByName.get(tier.audienceName) ?? null
+      const recipients = await resolvePatientAudience(ctx.organizationId, tier.filter)
+      const audienceId = audienceIdByTier.get(tier.key) ?? null
       const templateId = templateIdByCategory.get(tier.templateCategory) ?? null
       return { tier, recipients, audienceId, templateId }
     }),
@@ -170,7 +103,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           />
         }
         actions={
-          <ActionButton variant="ghost" href="/marketing">
+          <ActionButton variant="ghost" href="/growth/outreach">
             ← Recall dashboard
           </ActionButton>
         }
@@ -182,7 +115,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
         <FilterChip href="/growth/outreach/queue" active={selectedTier === null} count={totalCount}>
           All tiers
         </FilterChip>
-        {TIER_DEFS.map((tier) => {
+        {OUTREACH_TIERS.map((tier) => {
           const count = sections.find((s) => s.tier.key === tier.key)?.recipients.length
             ?? (selectedTier !== null && selectedTier !== tier.key ? null : 0)
           return (
