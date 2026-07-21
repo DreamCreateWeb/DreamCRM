@@ -1952,3 +1952,41 @@ export const socialPostTarget = pgTable(
   ],
 )
 export type SocialPostTargetRow = typeof socialPostTarget.$inferSelect
+
+// ── Domain purchases (name.com integration, 2026-07-21) ─────────────────────
+// A clinic buys their domain THROUGH the platform: we register it on the
+// DreamCRM name.com account, charge the clinic via Stripe, and auto-attach it
+// (we control the DNS zone, so no copy-paste records step). One row per
+// purchase attempt — failures keep their row (status='failed' + error) for
+// the audit trail; renewals update renewsAt in place.
+export const clinicDomainPurchase = pgTable(
+  'clinic_domain_purchase',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    domain: text('domain').notNull(),
+    // 'registering' | 'active' | 'failed' | 'released'
+    status: text('status').notNull().default('registering'),
+    purchasePriceCents: integer('purchase_price_cents').notNull(),
+    renewalPriceCents: integer('renewal_price_cents'),
+    currency: text('currency').notNull().default('usd'),
+    stripePaymentIntentId: text('stripe_payment_intent_id'),
+    // 1 = simulated purchase (NAMECOM_LIVE_PURCHASES off) — never billed.
+    dryRun: integer('dry_run').notNull().default(0),
+    error: text('error'),
+    purchasedAt: timestamp('purchased_at'),
+    renewsAt: timestamp('renews_at'),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('clinic_domain_purchase_org_idx').on(t.organizationId),
+    // One LIVE registration per domain across the platform (failed/dry-run
+    // attempts don't block a retry).
+    uniqueIndex('clinic_domain_purchase_active_domain_idx')
+      .on(t.domain)
+      .where(sql`${t.status} in ('registering', 'active') and ${t.dryRun} = 0`),
+  ],
+)
+export type ClinicDomainPurchaseRow = typeof clinicDomainPurchase.$inferSelect

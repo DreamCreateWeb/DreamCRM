@@ -7,6 +7,38 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Buy-a-domain via name.com — dark build (2026-07-21).** Clinics can
+  search, buy, and auto-attach a domain WITHOUT leaving the platform (owner:
+  "search, buy, and attach automatically"). Ships DARK behind
+  `NAMECOM_USERNAME`/`NAMECOM_TOKEN` (+ `NAMECOM_API_URL` for the
+  api.dev.name.com test env, `NAMECOM_LIVE_PURCHASES=1` to arm real
+  purchases — everything else = dry-run: search/pricing live, purchase
+  simulated, no charge). Pieces: `lib/name-com.ts` (lazy Basic-auth v4
+  client: search/checkAvailability [prices → cents], createDomain
+  [price-pinned — name.com rejects a drifted quote], DNS records CRUD);
+  `clinic_domain_purchase` (migration **0130**; org-scoped, partial-unique
+  on live registering/active domains, dryRun flag, audit-friendly failed
+  rows); `lib/services/domain-purchase.ts` — the money rails:
+  premium + >$50/yr NEVER surface (`filterOffers`/PRICE_CAP_CENTS),
+  re-quote at purchase (price moved → abort pre-charge), charge-then-
+  register via off-session PaymentIntent on the clinic's existing
+  platform-billing Stripe customer, AUTO-REFUND if registration fails
+  after payment, then ZERO-TOUCH attach: `requestCustomDomain` (existing
+  App Runner rails) returns the routing + ACM records and we write them
+  straight into the zone we now own via the name.com API (apex routing →
+  ANAME) — the clinic never sees a DNS screen; the existing /website/domain
+  polling card takes over. UI: BuyDomainCard on /website/domain (search →
+  offers w/ $X/yr → one confirm modal stating first-year + renewal price →
+  purchase list w/ status pills; Test-mode pill while dry-run; hidden for
+  the demo org). Actions owner/admin-gated + demo-blocked. Tests:
+  `tests/domains/domain-purchase.test.ts` (9 rails). NOT YET BUILT:
+  renewal billing cron (renewsAt is stored; charge ~30d out + release on
+  decline), price margin (v1 passes name.com retail through), transfer-out
+  support. TO TURN ON: mint a FRESH name.com token (one was pasted in chat
+  2026-07-21 → burned, rotate it), add NAMECOM_USERNAME + NAMECOM_TOKEN to
+  Secrets Manager, verify in dry-run, keep a funded card on the name.com
+  account, then set NAMECOM_LIVE_PURCHASES=1.
+
 - **Campaigns phase 3b — the fold (2026-07-21, owner: "fold it").** The
   clinic's campaign home is now ONE surface: `/growth/outreach`. The hub
   gained (1) the **New-campaign modal in its header** (templates + To
