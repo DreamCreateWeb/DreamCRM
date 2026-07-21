@@ -10,6 +10,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { DOMSerializer } from 'prosemirror-model'
 import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/ui/action-button'
+import { EmojiPicker } from '@/components/ui/emoji-picker'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/toast'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
@@ -93,6 +94,9 @@ export default function CampaignEditor({
   const [showAiDraft, setShowAiDraft] = useState(false)
   const [aiImproveInstruction, setAiImproveInstruction] = useState<string | null>(null)
   const [aiBusy, setAiBusy] = useState(false)
+  // Preview text is optional — the field stays folded until it has a value
+  // or the writer asks for it (composer-widget pass: no idle chrome rows).
+  const [showPreviewText, setShowPreviewText] = useState(!!campaign.previewText)
 
   const editor = useEditor({
     extensions: [
@@ -192,49 +196,67 @@ export default function CampaignEditor({
               className="form-input w-full"
             />
           </Labelled>
-          <Labelled label="Preview text">
-            <input
-              value={draft.previewText}
-              onChange={(e) => field('previewText', e.target.value)}
-              placeholder="One-line tease shown next to the subject"
-              className="form-input w-full"
+          {showPreviewText ? (
+            <Labelled label="Preview text">
+              <input
+                value={draft.previewText}
+                onChange={(e) => field('previewText', e.target.value)}
+                placeholder="One-line tease shown next to the subject"
+                className="form-input w-full"
+                autoFocus={!draft.previewText}
+              />
+            </Labelled>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPreviewText(true)}
+              className="text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+            >
+              + Preview text (the one-line tease next to the subject)
+            </button>
+          )}
+        </div>
+
+        {/* ONE toolbar — formatting, emoji drawer, and the AI assists together
+            (composer-widget pass: the separate AI bar row folded in here). */}
+        {editor && (
+          <EditorToolbar editor={editor}>
+            <EmojiPicker
+              direction="down"
+              onPick={(e) => editor.chain().focus().insertContent(e).run()}
             />
-          </Labelled>
-        </div>
-
-        <div className="px-5 py-2 border-b border-[color:var(--color-hairline)] flex items-center gap-2 flex-wrap v2-well">
-          <button
-            type="button"
-            onClick={() => setShowAiDraft(true)}
-            disabled={sent}
-            className="text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50 transition-colors"
-            title="Write a draft from a brief"
-          >
-            ✨ AI draft
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (!editor) return
-              const { from, to } = editor.state.selection
-              if (from === to) {
-                toast('Select some text to rewrite first.', { tone: 'urgent' })
-                return
-              }
-              setAiImproveInstruction('')
-            }}
-            disabled={sent}
-            className="text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50 transition-colors"
-            title="Rewrite the selected text"
-          >
-            ✨ Rewrite selection
-          </button>
-          <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-            {aiBusy ? 'AI working…' : 'AI writes in your voice'}
-          </span>
-        </div>
-
-        {editor && <EditorToolbar editor={editor} />}
+            <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
+            <button
+              type="button"
+              onClick={() => setShowAiDraft(true)}
+              disabled={sent}
+              className="text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50 transition-colors"
+              title="Write a draft from a brief"
+            >
+              ✨ AI draft
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!editor) return
+                const { from, to } = editor.state.selection
+                if (from === to) {
+                  toast('Select some text to rewrite first.', { tone: 'urgent' })
+                  return
+                }
+                setAiImproveInstruction('')
+              }}
+              disabled={sent}
+              className="text-xs font-medium px-2 py-1 rounded-[var(--r-sm)] bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300 disabled:opacity-50 transition-colors"
+              title="Rewrite the selected text"
+            >
+              ✨ Rewrite
+            </button>
+            {aiBusy && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">AI working…</span>
+            )}
+          </EditorToolbar>
+        )}
 
         <div className="px-5 py-4 min-h-[320px]">
           <EditorContent editor={editor} />
@@ -757,7 +779,15 @@ function Labelled({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
-function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+function EditorToolbar({
+  editor,
+  children,
+}: {
+  editor: ReturnType<typeof useEditor>
+  /** Extra toolbar tools (emoji drawer, AI assists) rendered after the
+   *  formatting buttons — one row, no separate chrome bars. */
+  children?: React.ReactNode
+}) {
   if (!editor) return null
 
   function btn(active: boolean, label: string, onClick: () => void) {
@@ -814,6 +844,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
       <span className="w-px h-4 bg-[color:var(--color-hairline-strong)] mx-1" />
       {btn(editor.isActive('link'), 'Link', setLink)}
       {btn(false, 'Image', addImage)}
+      {children}
     </div>
   )
 }

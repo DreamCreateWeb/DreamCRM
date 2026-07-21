@@ -45,10 +45,14 @@ const EMOJI_SETS: Array<{ label: string; emojis: string[] }> = [
 export function EmojiPicker({
   onPick,
   className = '',
+  direction = 'up',
 }: {
   /** Called with the picked emoji character. */
   onPick: (emoji: string) => void
   className?: string
+  /** Which way the drawer opens — 'up' for bottom toolbars (default),
+   *  'down' for toolbars that sit at the top of their card. */
+  direction?: 'up' | 'down'
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -87,7 +91,9 @@ export function EmojiPicker({
         <div
           role="dialog"
           aria-label="Emoji picker"
-          className="pop-in absolute bottom-10 left-0 z-30 w-72 origin-bottom-left rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] p-3 shadow-[var(--shadow-pop)]"
+          className={`pop-in absolute left-0 z-30 w-72 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] p-3 shadow-[var(--shadow-pop)] ${
+            direction === 'up' ? 'bottom-10 origin-bottom-left' : 'top-10 origin-top-left'
+          }`}
         >
           <div className="max-h-64 space-y-2.5 overflow-y-auto pr-1">
             {EMOJI_SETS.map((set) => (

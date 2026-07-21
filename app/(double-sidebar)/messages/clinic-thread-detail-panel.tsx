@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useMemo, useRef, type ButtonHTMLAtt
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
+import { EmojiPicker } from '@/components/ui/emoji-picker'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
@@ -328,6 +329,7 @@ export default function ThreadDetailPanel({
   const [attachments, setAttachments] = useState<MessageAttachment[]>([])
   const [uploading, setUploading] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const replyRef = useRef<HTMLTextAreaElement | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   // Auto-pick the reply channel using the patient's historical inbound
   // distribution (when a strong majority exists) or the channel of the
@@ -551,6 +553,20 @@ export default function ThreadDetailPanel({
     const tpl = templates.find((t) => t.key === key)
     if (tpl) setBody(tpl.rendered)
     setShowTemplates(false)
+  }
+
+  /** Splice an emoji in at the caret (falls back to appending). */
+  function insertEmoji(emoji: string) {
+    const el = replyRef.current
+    const start = el?.selectionStart ?? body.length
+    const end = el?.selectionEnd ?? start
+    setBody(body.slice(0, start) + emoji + body.slice(end))
+    requestAnimationFrame(() => {
+      if (!el) return
+      el.focus()
+      const caret = start + emoji.length
+      el.setSelectionRange(caret, caret)
+    })
   }
 
   // Ask Claude to draft the next reply, then drop it into the composer for
@@ -1114,91 +1130,240 @@ export default function ThreadDetailPanel({
         </div>
       )}
 
-      {/* ── Composer (only when not archived) ─────────────────────── */}
+      {/* ── The reply widget (only when not archived) ─────────────────
+          One card, everything in it (composer-widget pass, 2026-07-21):
+          text field on top, attachment tray inside, and a bottom toolbar —
+          emoji drawer, photo, templates, AI draft/translate, channel
+          dropdown, schedule clock, Send. No control rows floating above. */}
       {thread.status !== 'archived' && (
         <div className="border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)] px-4 sm:px-6 py-3 shrink-0">
           <div className="max-w-3xl mx-auto">
-            {/* Controls row — channel select, templates menu, prefers hint. */}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <label className="sr-only" htmlFor="reply-channel">Reply channel</label>
-              <select
-                id="reply-channel"
-                value={channel}
-                onChange={(e) => setChannel(e.target.value as Channel)}
-                title="Choose how this reply is delivered"
-                className="form-select text-xs font-medium py-1 pl-2 pr-7 text-gray-700 dark:text-gray-200"
-              >
-                <option value="in_app">In-app message</option>
-                <option value="email" disabled={!hasEmail}>
-                  {hasEmail ? 'Email' : 'Email (no address on file)'}
-                </option>
-                <option value="sms" disabled>SMS (coming soon)</option>
-              </select>
-              {templates.length > 0 && (
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowTemplates((s) => !s)}
-                    aria-expanded={showTemplates}
-                    title="Drop a saved reply into the box"
-                    className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
-                  >
-                    Templates <span aria-hidden="true" className="opacity-60">▾</span>
-                  </button>
-                  {showTemplates && (
-                    <div className="pop-in origin-bottom-left absolute left-0 bottom-full mb-1 z-10 py-1 min-w-[14rem] rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)]">
-                      {templates.map((t) => (
-                        <button
-                          key={t.key}
-                          type="button"
-                          onClick={() => applyTemplate(t.key)}
-                          className="block w-full text-left text-xs px-3 py-1.5 text-gray-700 dark:text-gray-200 hover:bg-gray-500/[0.08]"
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                      <a
-                        href="/settings/message-templates"
-                        className="mt-1 block border-t border-[color:var(--color-hairline)] px-3 pt-1.5 pb-0.5 text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400"
+            <div className="v2-panel focus-within:shadow-[inset_0_0_0_1px_var(--color-hairline-strong)] transition-shadow">
+              <label className="sr-only" htmlFor="reply-body">Your reply</label>
+              <textarea
+                id="reply-body"
+                ref={replyRef}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSend()
+                }}
+                placeholder={`Reply to ${thread.patientFirstName}…`}
+                rows={2}
+                className="block w-full resize-none border-0 bg-transparent px-3 pt-2.5 pb-1 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-0"
+              />
+
+              {/* Pending-attachment tray — thumbnails with a remove ×; an
+                  uploading placeholder shimmers while a transfer is in flight. */}
+              {(attachments.length > 0 || uploading > 0) && (
+                <div className="flex flex-wrap gap-2 px-3 pb-2">
+                  {attachments.map((a) => (
+                    <div
+                      key={a.url}
+                      className="group relative h-16 w-16 overflow-hidden rounded-[var(--r-sm)] ring-1 ring-inset ring-[color:var(--color-hairline-strong)]"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- user upload preview */}
+                      <img src={a.url} alt={a.name || 'attachment'} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(a.url)}
+                        title="Remove"
+                        className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                       >
-                        Manage replies →
-                      </a>
+                        ×
+                      </button>
                     </div>
-                  )}
+                  ))}
+                  {uploading > 0 &&
+                    Array.from({ length: uploading }).map((_, i) => (
+                      <div
+                        key={`up-${i}`}
+                        className="skeleton h-16 w-16 rounded-[var(--r-sm)]"
+                        aria-label="Uploading photo"
+                      />
+                    ))}
                 </div>
               )}
-              {aiEnabled && messages.length > 0 && (
-                // AI draft assist — fills the box with an on-voice reply for
-                // staff to review. Violet (special tone), distinct from the
-                // teal primary Send so it never competes for "the" action.
+
+              {/* Toolbar */}
+              <div className="flex flex-wrap items-center gap-0.5 border-t border-[color:var(--color-hairline)] px-2 py-1.5">
+                <EmojiPicker onPick={insertEmoji} />
+
                 <button
                   type="button"
-                  onClick={handleDraft}
-                  disabled={drafting}
-                  title="Let AI draft a reply you can review and edit"
-                  className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-violet-300/70 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-500/15 disabled:opacity-50 disabled:pointer-events-none dark:border-violet-400/30 dark:text-violet-300 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={attachments.length >= MAX_MESSAGE_ATTACHMENTS}
+                  aria-label="Attach a photo"
+                  title={
+                    attachments.length >= MAX_MESSAGE_ATTACHMENTS
+                      ? `Up to ${MAX_MESSAGE_ATTACHMENTS} photos`
+                      : 'Attach a photo'
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 transition hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-50 disabled:pointer-events-none"
                 >
-                  <span aria-hidden="true">✨</span>
-                  {drafting ? 'Drafting…' : 'Draft'}
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                    <circle cx="8.5" cy="10" r="1.5" fill="currentColor" stroke="none" />
+                    <path d="M5 17l4.5-4.5 3 3 3.5-3.5L21 17" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                 </button>
-              )}
-              {aiEnabled && patientContext?.preferredLanguage === 'es' && (
-                // Preferred-language sending: one tap turns the drafted reply
-                // into Spanish for review. Only offered when the patient's
-                // record says they prefer it — no speculative UI for everyone.
-                <button
-                  type="button"
-                  onClick={handleTranslate}
-                  disabled={translating || !body.trim()}
-                  title="Translate your draft to Spanish — this patient prefers it"
-                  className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-violet-300/70 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-500/15 disabled:opacity-50 disabled:pointer-events-none dark:border-violet-400/30 dark:text-violet-300 transition-colors"
+
+                {templates.length > 0 && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates((s) => !s)}
+                      aria-expanded={showTemplates}
+                      aria-label="Templates"
+                      title="Drop a saved reply into the box"
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-[color:var(--color-surface-sunk)] ${
+                        showTemplates
+                          ? 'bg-[color:var(--color-surface-sunk)] text-gray-700 dark:text-gray-200'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                        <rect x="4.5" y="3.5" width="15" height="17" rx="2" />
+                        <path d="M8.5 8h7M8.5 12h7M8.5 16h4" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                    {showTemplates && (
+                      <div className="pop-in origin-bottom-left absolute left-0 bottom-10 z-10 py-1 min-w-[14rem] rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] shadow-[var(--shadow-pop)]">
+                        {templates.map((t) => (
+                          <button
+                            key={t.key}
+                            type="button"
+                            onClick={() => applyTemplate(t.key)}
+                            className="block w-full text-left text-xs px-3 py-1.5 text-gray-700 dark:text-gray-200 hover:bg-gray-500/[0.08]"
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                        <a
+                          href="/settings/message-templates"
+                          className="mt-1 block border-t border-[color:var(--color-hairline)] px-3 pt-1.5 pb-0.5 text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400"
+                        >
+                          Manage replies →
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {aiEnabled && messages.length > 0 && (
+                  // AI draft assist — fills the box with an on-voice reply for
+                  // staff to review. Violet (special tone), distinct from the
+                  // teal primary Send so it never competes for "the" action.
+                  <button
+                    type="button"
+                    onClick={handleDraft}
+                    disabled={drafting}
+                    title="Let AI draft a reply you can review and edit"
+                    className="inline-flex h-8 items-center gap-1 rounded-full bg-violet-500/10 px-2.5 text-xs font-medium text-violet-700 hover:bg-violet-500/15 disabled:opacity-50 disabled:pointer-events-none dark:text-violet-300 transition-colors"
+                  >
+                    <span aria-hidden="true">✨</span>
+                    {drafting ? 'Drafting…' : 'Draft'}
+                  </button>
+                )}
+                {aiEnabled && patientContext?.preferredLanguage === 'es' && (
+                  // Preferred-language sending: one tap turns the drafted reply
+                  // into Spanish for review. Only offered when the patient's
+                  // record says they prefer it — no speculative UI for everyone.
+                  <button
+                    type="button"
+                    onClick={handleTranslate}
+                    disabled={translating || !body.trim()}
+                    title="Translate your draft to Spanish — this patient prefers it"
+                    className="inline-flex h-8 items-center gap-1 rounded-full bg-violet-500/10 px-2.5 text-xs font-medium text-violet-700 hover:bg-violet-500/15 disabled:opacity-50 disabled:pointer-events-none dark:text-violet-300 transition-colors"
+                  >
+                    <span aria-hidden="true">🌐</span>
+                    {translating ? 'Translating…' : 'Español'}
+                  </button>
+                )}
+
+                <span className="flex-1" />
+
+                <label className="sr-only" htmlFor="reply-channel">Reply channel</label>
+                <select
+                  id="reply-channel"
+                  value={channel}
+                  onChange={(e) => setChannel(e.target.value as Channel)}
+                  title="Choose how this reply is delivered"
+                  className="form-select text-xs font-medium py-1 pl-2 pr-7 text-gray-700 dark:text-gray-200"
                 >
-                  <span aria-hidden="true">🌐</span>
-                  {translating ? 'Translating…' : 'Español'}
-                </button>
-              )}
-              {/* Attach photos — opens the OS file picker; uploads land in the
-                  tray above the textarea. Hidden input is driven by the button. */}
+                  <option value="in_app">In-app message</option>
+                  <option value="email" disabled={!hasEmail}>
+                    {hasEmail ? 'Email' : 'Email (no address on file)'}
+                  </option>
+                  <option value="sms" disabled>SMS (coming soon)</option>
+                </select>
+
+                {/* Schedule (send later) — a quiet clock toggle beside Send; opens
+                    a popover with a date+time picker. Never competes with Send. */}
+                {channel !== 'sms' && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSchedule((s) => !s)
+                        if (!scheduleAt) setScheduleAt(defaultScheduleLocal())
+                      }}
+                      disabled={pending || scheduling}
+                      aria-expanded={showSchedule}
+                      title="Schedule this message to send later"
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-50 ${
+                        showSchedule
+                          ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                          : 'text-gray-500 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <IconClock />
+                    </button>
+                    {showSchedule && (
+                      <div className="pop-in origin-bottom-right absolute right-0 bottom-10 z-10 w-64 rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] p-3 shadow-[var(--shadow-pop)]">
+                        <p className="mb-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">Send later</p>
+                        <input
+                          type="datetime-local"
+                          value={scheduleAt}
+                          min={defaultScheduleLocal()}
+                          onChange={(e) => setScheduleAt(e.target.value)}
+                          className="form-input w-full text-xs"
+                          aria-label="Send date and time"
+                        />
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowSchedule(false)}
+                            className="rounded-[var(--r-sm)] px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSchedule}
+                            disabled={scheduling || uploading > 0 || (!body.trim() && attachments.length === 0)}
+                            className="rounded-[var(--r-sm)] bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                          >
+                            {scheduling ? 'Scheduling…' : 'Schedule'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* The pane's single primary action. */}
+                <ActionButton
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSend}
+                  disabled={pending || uploading > 0 || (!body.trim() && attachments.length === 0)}
+                >
+                  {pending ? 'Sending…' : `Send ${channel === 'email' ? 'email' : channel === 'sms' ? 'SMS' : 'message'}`}
+                </ActionButton>
+              </div>
+
+              {/* Hidden file input — driven by the toolbar photo button. */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1210,141 +1375,20 @@ export default function ThreadDetailPanel({
                   e.target.value = '' // allow re-picking the same file
                 }}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={attachments.length >= MAX_MESSAGE_ATTACHMENTS}
-                title={
-                  attachments.length >= MAX_MESSAGE_ATTACHMENTS
-                    ? `Up to ${MAX_MESSAGE_ATTACHMENTS} photos`
-                    : 'Attach a photo'
-                }
-                className="inline-flex items-center gap-1 rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] px-2.5 py-1 text-xs font-medium text-gray-700 hover:border-gray-300 disabled:opacity-50 disabled:pointer-events-none dark:text-gray-200 dark:hover:border-gray-600 transition-colors"
-              >
-                <span aria-hidden="true">📎</span>
-                <span className="hidden sm:inline">Photo</span>
-              </button>
+            </div>
+
+            {/* Quiet footnotes under the card — hint, not chrome. */}
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
               {preferred && (
-                // A derived metadata hint, not a status — quiet ink chip in a
-                // sunk well so it never reads as an encoded tone.
+                // A derived metadata hint, not a status — quiet ink text so it
+                // never reads as an encoded tone.
                 <span
-                  className="v2-well text-xs font-medium px-1.5 py-0.5 text-gray-600 dark:text-gray-300"
                   title={`${preferred.count} of ${preferred.totalInbound} inbound messages on ${CHANNEL_LABEL[preferred.channel]} (${Math.round(preferred.share * 100)}%)`}
                 >
                   {thread.patientFirstName} prefers {CHANNEL_LABEL[preferred.channel]}
                 </span>
               )}
-              <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto tabular-nums">
-                ⌘ + Enter to send
-              </span>
-            </div>
-            {/* Pending-attachment tray — thumbnails with a remove ×; an
-                uploading placeholder shimmers while a transfer is in flight. */}
-            {(attachments.length > 0 || uploading > 0) && (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {attachments.map((a) => (
-                  <div
-                    key={a.url}
-                    className="group relative h-16 w-16 overflow-hidden rounded-[var(--r-sm)] ring-1 ring-inset ring-[color:var(--color-hairline-strong)]"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- user upload preview */}
-                    <img src={a.url} alt={a.name || 'attachment'} className="h-full w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(a.url)}
-                      title="Remove"
-                      className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {uploading > 0 &&
-                  Array.from({ length: uploading }).map((_, i) => (
-                    <div
-                      key={`up-${i}`}
-                      className="skeleton h-16 w-16 rounded-[var(--r-sm)]"
-                      aria-label="Uploading photo"
-                    />
-                  ))}
-              </div>
-            )}
-            {/* Framed reply box — textarea + Send together in one calm panel. */}
-            <div className="v2-panel flex items-end gap-2 p-2 focus-within:shadow-[inset_0_0_0_1px_var(--color-hairline-strong)] transition-shadow">
-              <label className="sr-only" htmlFor="reply-body">Your reply</label>
-              <textarea
-                id="reply-body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSend()
-                }}
-                placeholder={`Reply to ${thread.patientFirstName}…`}
-                rows={2}
-                className="flex-1 resize-none border-0 bg-transparent px-1.5 py-1 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-0"
-              />
-              {/* Schedule (send later) — a quiet clock toggle beside Send; opens
-                  a popover with a date+time picker. Never competes with Send. */}
-              {channel !== 'sms' && (
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSchedule((s) => !s)
-                      if (!scheduleAt) setScheduleAt(defaultScheduleLocal())
-                    }}
-                    disabled={pending || scheduling}
-                    aria-expanded={showSchedule}
-                    title="Schedule this message to send later"
-                    className={`inline-flex h-9 w-9 items-center justify-center rounded-[var(--r-sm)] border transition-colors disabled:opacity-50 ${
-                      showSchedule
-                        ? 'border-violet-300 bg-violet-500/10 text-violet-700 dark:border-violet-400/40 dark:text-violet-300'
-                        : 'border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] text-gray-600 hover:text-gray-900 dark:text-gray-300'
-                    }`}
-                  >
-                    <IconClock />
-                  </button>
-                  {showSchedule && (
-                    <div className="pop-in origin-bottom-right absolute right-0 bottom-full mb-1 z-10 w-64 rounded-[var(--r-lg)] bg-[color:var(--color-surface-1)] p-3 shadow-[var(--shadow-pop)]">
-                      <p className="mb-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">Send later</p>
-                      <input
-                        type="datetime-local"
-                        value={scheduleAt}
-                        min={defaultScheduleLocal()}
-                        onChange={(e) => setScheduleAt(e.target.value)}
-                        className="form-input w-full text-xs"
-                        aria-label="Send date and time"
-                      />
-                      <div className="mt-2 flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowSchedule(false)}
-                          className="rounded-[var(--r-sm)] px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSchedule}
-                          disabled={scheduling || uploading > 0 || (!body.trim() && attachments.length === 0)}
-                          className="rounded-[var(--r-sm)] bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
-                        >
-                          {scheduling ? 'Scheduling…' : 'Schedule'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* The pane's single primary action. */}
-              <ActionButton
-                variant="primary"
-                size="sm"
-                onClick={handleSend}
-                disabled={pending || uploading > 0 || (!body.trim() && attachments.length === 0)}
-              >
-                {pending ? 'Sending…' : `Send ${channel === 'email' ? 'email' : channel === 'sms' ? 'SMS' : 'message'}`}
-              </ActionButton>
+              <span className="ml-auto tabular-nums hidden sm:inline">⌘ + Enter to send</span>
             </div>
           </div>
         </div>

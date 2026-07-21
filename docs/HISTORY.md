@@ -7,6 +7,30 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Messages reply + campaign editor → widgets (2026-07-21, composer-widget
+  pass #2).** The `/messages` reply composer
+  (`clinic-thread-detail-panel.tsx`) had the same sprawl the social page did:
+  a controls row floating ABOVE the reply box (channel `<select>`, Templates
+  button, ✨ Draft, 🌐 Español, 📎 Photo, prefers chip, ⌘Enter hint), a
+  detached attachment tray, then the framed box with clock + Send. Collapsed
+  into ONE card: textarea on top, attachment tray inside, bottom toolbar —
+  emoji drawer (caret insertion via the shared `insertEmoji` splice),
+  photo icon button, templates icon popover (accessible name "Templates"
+  kept — clinic-messages-ui.test pins it), violet AI Draft/Español pills,
+  channel select, schedule clock popover, Send. Prefers hint + ⌘Enter moved
+  to a quiet footnote under the card. ZERO handler/capability changes.
+  `components/ui/emoji-picker.tsx` gained a `direction: 'up'|'down'` prop
+  (top-of-card toolbars open the drawer downward). The campaign editor
+  (`growth/campaigns/[id]/campaign-editor.tsx`) got the chrome-merge: the
+  separate ✨ AI bar row folded INTO the formatting toolbar
+  (`EditorToolbar` now takes `children`), an emoji drawer inserts into
+  TipTap (`insertContent`), and the optional Preview-text field folds
+  behind a "+ Preview text" affordance until it has a value. Guard test
+  `tests/messaging/reply-widget.test.tsx` (anatomy, emoji insertion,
+  template drop-in, schedule reveal, send-disabled rules). Also assessed
+  and SKIPPED: the follow-ups quick-add + new-campaign modal (already
+  compact — no sprawl to collapse; "where it makes sense" cuts both ways).
+
 - **Social composer → the post widget (2026-07-20, composer-widget pass #1).**
   Owner's direction: "turn forms into widgets where it makes sense … collapse
   all of it into a post widget with a single text field, an image button, an
