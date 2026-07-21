@@ -34,8 +34,10 @@ import { requestCustomDomain, resolveCustomDomain } from './custom-domain'
  *    marked dryRun) so the whole flow can be exercised before real money.
  */
 
-/** Never surface a domain above this yearly price (fat-finger guard). */
-export const PRICE_CAP_CENTS = 5000
+/** Never surface a domain above this yearly price (fat-finger guard).
+ *  $100 — high enough for the dental TLDs (.dentist runs ~$77/yr,
+ *  live-checked 2026-07-21), low enough that nobody buys a yacht. */
+export const PRICE_CAP_CENTS = 10000
 
 export interface DomainOffer {
   domainName: string
