@@ -46,6 +46,10 @@ export default async function PortalLayout({ children }: { children: React.React
   // re-render. (Same active-org-switch pattern used on sign-in + invite accept.)
   // Only redirect home when they genuinely have no patient membership anywhere.
   if (ctx.tenantType !== 'patient') {
+    // Never mutate the admin's REAL session org while they're impersonating
+    // via view-as — the cookie wins on every request anyway, and the write
+    // would silently repoint their own active org for after they exit.
+    if (ctx.viaViewAs) redirect('/')
     const patientMembership = await findPatientMembershipForUser(ctx.userId, ctx.organizationId)
     if (!patientMembership) redirect('/')
     await switchActiveOrg(patientMembership.organizationId)

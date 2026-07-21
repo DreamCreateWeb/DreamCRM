@@ -7,6 +7,33 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **View-as suppression sweep — view-as is an ONBOARDING tool (2026-07-21,
+  same session as the isDemo/viaViewAs split).** Owner: "make sure it's
+  properly set up as an onboarding tool and not a demo tool — I should have
+  real full control of a clinic I view as." Three parallel audits over (1)
+  every isDemo consumer, (2) org-resolution bypasses (raw
+  session.activeOrganizationId / OAuth callbacks), (3) outbound-effect
+  suppressions (email/PMS/Stripe/social/crons/seeder). VERDICT: the split
+  fixed it at the root — every outbound gate is org-/connection-/row-
+  derived (organization.isDemo, zernio_connection.isDemo,
+  platform_review.isDemo, pms provider='demo'), none read viaViewAs or the
+  cookie; all five OAuth/money flows (Gmail, GSC, Zernio, Stripe Connect,
+  billing checkout) capture ctx.organizationId at initiation, carry it in
+  signed state, and re-verify on callback — under view-as they attach to
+  the VIEWED clinic, failing safe if view-as exits mid-flow. Real orgs can
+  never acquire a demo-flagged connection row (upsertConnection never sets
+  it; simulateDemoConnect refuses over a real connection). Hardenings
+  shipped from the sweep: (a) a role-less demo_context cookie is now
+  IGNORED (old `?? 'member'` fallback silently demoted the admin below
+  owner-gated settings; every writer stamps 'owner'/'patient' explicitly),
+  (b) the portal layout's switchActiveOrg no longer mutates the admin's
+  REAL session org while viaViewAs (it repointed their active org for
+  after exit), (c) the notification-bell routes' raw-session-org read is
+  documented as DELIBERATE (platform alerts — e.g. a hot prospect calling —
+  must not go silent mid-onboarding; user_id-scoped so it can't leak or
+  cross-write). Regression tests: role-less-cookie fallthrough added to
+  tests/auth/tenant-context.test.ts.
+
 - **isDemo / viaViewAs split (2026-07-21, view-as bug).** Owner reported the
   new Buy-a-domain card missing while operating mammoth-springs-dental via
   "View as clinic" — root cause: `getTenantContext` stamped `isDemo: true`

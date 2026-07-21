@@ -176,6 +176,20 @@ describe('getTenantContext — the view-as / demo split (2026-07-21)', () => {
     expect(ctx!.viaViewAs).toBe(false)
   })
 
+  it('ignores a role-less (malformed/legacy) view-as cookie entirely — never guesses a role', async () => {
+    state.session = {
+      user: { id: 'admin1', email: 'dustin@x.com', name: 'Dustin', platformAdmin: true },
+      session: { id: 'sess_a', activeOrganizationId: 'org_platform' },
+    }
+    state.demoCookie = JSON.stringify({ orgId: 'org_real' }) // no role field
+    // Falls through to the real membership path (platform org).
+    state.member = [[{ role: 'owner', organizationId: 'org_platform', userId: 'admin1' }]]
+    state.organization = [[{ id: 'org_platform', type: 'platform', name: 'Dream Create', slug: 'dream-create', isDemo: false }]]
+    const ctx = await getTenantContext()
+    expect(ctx!.organizationId).toBe('org_platform')
+    expect(ctx!.viaViewAs).toBe(false)
+  })
+
   it('an ordinary member of a real clinic gets neither flag', async () => {
     state.session = {
       user: { id: 'u1', email: 'e@x.com', name: 'T', platformAdmin: false },

@@ -146,7 +146,12 @@ export async function getTenantContext(): Promise<TenantContext | null> {
   if (isPlatformAdmin && demoCookie?.value) {
     try {
       const demo: DemoContext = JSON.parse(demoCookie.value)
-      if (demo.orgId) {
+      // Every view-as writer stamps an explicit role ('owner' for clinics,
+      // 'patient' for portal view-as). A role-less cookie is malformed /
+      // legacy — ignore it entirely rather than guessing a role (the old
+      // `?? 'member'` fallback silently DEMOTED the admin below the
+      // owner-gated settings they need while onboarding).
+      if (demo.orgId && demo.role) {
         const [org] = await db.select().from(organization).where(eq(organization.id, demo.orgId)).limit(1)
         if (org) {
           let planTier: PlanTier = 'basic'
@@ -160,7 +165,7 @@ export async function getTenantContext(): Promise<TenantContext | null> {
             if (profile?.planTier) planTier = profile.planTier as PlanTier
             subscriptionStatus = profile?.subscriptionStatus ?? null
           }
-          const role = demo.role ?? 'member'
+          const role = demo.role
           const tenantType: TenantType =
             org.type === 'platform' ? 'platform' : role === 'patient' ? 'patient' : 'clinic'
           return {
