@@ -122,7 +122,7 @@ export default async function DashboardShell({
         badge={badge}
         variant={sidebarVariant}
         tenantType={ctx.tenantType}
-        isDemo={ctx.isDemo}
+        isDemo={ctx.viaViewAs ?? false}
         logoUrl={demoSkin?.logoUrl}
       />
       {/* TrailProvider records the per-tab journey-trail so the header's
@@ -132,9 +132,10 @@ export default async function DashboardShell({
           patient name (PHI), so it must never carry across clinics/users in a tab. */}
       <TrailProvider scope={`${ctx.userId}:${ctx.organizationId}`} modules={modules.map((m) => ({ path: m.path, label: m.label }))}>
         <div className="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-          {/* Demo mode: 3px top hairline on the canvas — the prospect's brand
-              color during a branded demo, amber otherwise. */}
-          {ctx.isDemo && (
+          {/* View-as mode: 3px top hairline on the canvas — the prospect's
+              brand color during a branded demo, amber otherwise (incl. when
+              operating a REAL clinic via view-as: the impersonation signal). */}
+          {ctx.viaViewAs && (
             <div
               className="h-[3px] shrink-0 bg-amber-500"
               style={{ background: 'var(--demo-accent, #f59e0b)' }}
@@ -145,7 +146,7 @@ export default async function DashboardShell({
           <Header
             variant={headerVariant}
             moduleIds={moduleIds}
-            isDemo={ctx.isDemo}
+            isDemo={ctx.viaViewAs ?? false}
             presentingTo={demoSkin?.clinicName}
           />
           {/* Slim billing chip-row (compact skins of the same banners/logic). */}

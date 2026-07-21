@@ -15,12 +15,16 @@ const { state } = vi.hoisted(() => ({
     organization: [] as unknown[][],
     clinicProfile: [] as unknown[][],
     patient: [] as unknown[][],
+    demoCookie: null as string | null,
   },
 }))
 
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(),
-  cookies: async () => ({ get: () => undefined }),
+  cookies: async () => ({
+    get: (name: string) =>
+      name === 'demo_context' && state.demoCookie ? { name, value: state.demoCookie } : undefined,
+  }),
 }))
 vi.mock('@/lib/auth/server', () => ({
   auth: { api: { getSession: async () => state.session } },
@@ -62,6 +66,7 @@ beforeEach(() => {
   state.organization = []
   state.clinicProfile = []
   state.patient = []
+  state.demoCookie = null
 })
 
 const sessionFor = (activeOrganizationId: string | null) => ({
@@ -123,5 +128,64 @@ describe('getTenantContext — membership resolution', () => {
     state.session = sessionFor('org_gone')
     state.member = [[], []] // none in the active org, none anywhere
     expect(await getTenantContext()).toBeNull()
+  })
+})
+
+describe('getTenantContext — the view-as / demo split (2026-07-21)', () => {
+  // The owner operates REAL clinics via "View as" during white-glove
+  // onboarding. isDemo must follow the ORG (organization.is_demo), never the
+  // view-as path itself — the old conflation demo-restricted real clinics
+  // (hid domain buying, suppressed Zernio networking) exactly when he was
+  // setting them up.
+  const adminSession = {
+    user: { id: 'admin1', email: 'dustin@x.com', name: 'Dustin', platformAdmin: true },
+    session: { id: 'sess_a', activeOrganizationId: 'org_platform' },
+  }
+
+  it('view-as a REAL clinic → viaViewAs true, isDemo FALSE (full real behavior)', async () => {
+    state.session = adminSession
+    state.demoCookie = JSON.stringify({ orgId: 'org_real', role: 'owner' })
+    state.organization = [[{ id: 'org_real', type: 'clinic', name: 'Mammoth Springs', slug: 'mammoth', isDemo: false }]]
+    state.clinicProfile = [[{ planTier: 'premium' }]]
+    const ctx = await getTenantContext()
+    expect(ctx!.organizationId).toBe('org_real')
+    expect(ctx!.viaViewAs).toBe(true)
+    expect(ctx!.isDemo).toBe(false)
+  })
+
+  it('view-as the DEMO clinic → viaViewAs true AND isDemo true', async () => {
+    state.session = adminSession
+    state.demoCookie = JSON.stringify({ orgId: 'org_demo', role: 'owner' })
+    state.organization = [[{ id: 'org_demo', type: 'clinic', name: 'Dream Dental', slug: 'acme-dental-demo', isDemo: true }]]
+    state.clinicProfile = [[{ planTier: 'premium' }]]
+    const ctx = await getTenantContext()
+    expect(ctx!.isDemo).toBe(true)
+    expect(ctx!.viaViewAs).toBe(true)
+  })
+
+  it('a real MEMBER of the demo org still counts as demo (flag follows the org)', async () => {
+    state.session = {
+      user: { id: 'u1', email: 'e@x.com', name: 'T', platformAdmin: false },
+      session: { id: 's', activeOrganizationId: 'org_demo' },
+    }
+    state.member = [[{ role: 'owner', organizationId: 'org_demo', userId: 'u1' }]]
+    state.organization = [[{ id: 'org_demo', type: 'clinic', name: 'Dream Dental', slug: 'acme-dental-demo', isDemo: true }]]
+    state.clinicProfile = [[{ planTier: 'premium' }]]
+    const ctx = await getTenantContext()
+    expect(ctx!.isDemo).toBe(true)
+    expect(ctx!.viaViewAs).toBe(false)
+  })
+
+  it('an ordinary member of a real clinic gets neither flag', async () => {
+    state.session = {
+      user: { id: 'u1', email: 'e@x.com', name: 'T', platformAdmin: false },
+      session: { id: 's', activeOrganizationId: 'org_a' },
+    }
+    state.member = [[{ role: 'admin', organizationId: 'org_a', userId: 'u1' }]]
+    state.organization = [[{ id: 'org_a', type: 'clinic', name: 'A Dental', slug: 'a-dental', isDemo: false }]]
+    state.clinicProfile = [[{ planTier: 'pro' }]]
+    const ctx = await getTenantContext()
+    expect(ctx!.isDemo).toBe(false)
+    expect(ctx!.viaViewAs).toBe(false)
   })
 })

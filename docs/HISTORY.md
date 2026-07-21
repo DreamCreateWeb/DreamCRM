@@ -7,6 +7,23 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **isDemo / viaViewAs split (2026-07-21, view-as bug).** Owner reported the
+  new Buy-a-domain card missing while operating mammoth-springs-dental via
+  "View as clinic" — root cause: `getTenantContext` stamped `isDemo: true`
+  for ANY view-as org, real or demo, so every demo gate in the app (Zernio
+  network suppression, demo-data paths, the integrations resync action, the
+  new domain-buying gates) demo-restricted REAL clinics exactly during the
+  owner's white-glove onboarding sessions. Split the flag: `ctx.isDemo` now
+  follows the ORG (`organization.is_demo` — true only for Dream Dental,
+  whether reached via view-as OR real membership); new `ctx.viaViewAs`
+  marks impersonation and drives ONLY the chrome (DemoBanner — copy now
+  says "real clinic · changes are live" for real orgs — the 3px hairline,
+  the sidebar badge, the header Exit-demo chip). All feature/data gates
+  keep `ctx.isDemo` and are now correct for both cases. Regression tests in
+  tests/auth/tenant-context.test.ts (view-as real → viaViewAs only;
+  view-as demo → both; member-of-demo → isDemo only; plain member →
+  neither).
+
 - **Buy-a-domain via name.com — dark build (2026-07-21).** Clinics can
   search, buy, and auto-attach a domain WITHOUT leaving the platform (owner:
   "search, buy, and attach automatically"). Ships DARK behind

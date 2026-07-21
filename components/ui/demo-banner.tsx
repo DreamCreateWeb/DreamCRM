@@ -8,7 +8,7 @@ import type { TenantContext } from '@/lib/auth/context'
  * — no client JS needed, works even with JS disabled.
  */
 export default function DemoBanner({ ctx }: { ctx: TenantContext }) {
-  if (!ctx.isDemo) return null
+  if (!ctx.viaViewAs) return null
   const label =
     ctx.tenantType === 'patient'
       ? `Viewing as patient · ${ctx.organizationName}`
@@ -31,7 +31,9 @@ export default function DemoBanner({ ctx }: { ctx: TenantContext }) {
             />
           </svg>
           <span className="font-medium truncate">{label}</span>
-          <span className="hidden sm:inline opacity-80">— platform admin demo mode</span>
+          <span className="hidden sm:inline opacity-80">
+            {ctx.isDemo ? '— platform admin demo mode' : '— real clinic · changes are live'}
+          </span>
         </div>
         <form action={exitDemoMode}>
           <button

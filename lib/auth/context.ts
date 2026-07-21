@@ -23,7 +23,22 @@ export interface TenantContext {
   role: Role
   planTier: PlanTier
   patientId: string | null
+  /**
+   * True ONLY when the org is the actual demo clinic (organization.is_demo)
+   * — the flag that gates demo data, network suppression, presenter mode,
+   * and money-adjacent features. NOT set for a REAL clinic viewed via
+   * "View as" (that's `viaViewAs`) — the owner operates real clinics
+   * through view-as during white-glove onboarding and gets full,
+   * real behavior there (split 2026-07-21; the two meanings used to ride
+   * this one flag and demo-restricted real clinics).
+   */
   isDemo: boolean
+  /**
+   * True when this context came from the platform-admin "View as" cookie —
+   * real org or demo alike. Drives the impersonation chrome (banner, exit
+   * chip, hairline), never feature gates.
+   */
+  viaViewAs?: boolean
   /**
    * Raw Stripe subscription status from the clinic_profile row this request
    * already loads (e.g. 'active' | 'trialing' | 'past_due' | 'unpaid' |
@@ -89,6 +104,7 @@ async function resolvePartnerContext(
     planTier: 'basic',
     patientId: null,
     isDemo: false,
+    viaViewAs: false,
     subscriptionStatus: null,
   }
 }
@@ -159,7 +175,10 @@ export async function getTenantContext(): Promise<TenantContext | null> {
             role: role as Role,
             planTier,
             patientId: demo.patientId ?? null,
-            isDemo: true,
+            // Demo semantics belong to the demo ORG, not to view-as itself —
+            // a real clinic operated via view-as behaves fully real.
+            isDemo: org.isDemo === true,
+            viaViewAs: true,
             subscriptionStatus,
           }
         }
@@ -274,7 +293,10 @@ export async function getTenantContext(): Promise<TenantContext | null> {
     role: memberRow.role as Role,
     planTier,
     patientId,
-    isDemo: false,
+    // Membership in the demo org (rare, but the seeded owner tests portal
+    // flows) still counts as demo — the flag follows the ORG, not the path.
+    isDemo: org.isDemo === true,
+    viaViewAs: false,
     subscriptionStatus,
     onTrial,
     trialExpired,
