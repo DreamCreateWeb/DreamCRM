@@ -29,6 +29,12 @@ export const CampaignInput = z.object({
   /** Start-from template: seeds subject/preview/body at creation and is
    *  stamped on the row for provenance + attribution bucketing. */
   templateId: z.number().int().nullable().optional(),
+  /** Who this campaign emails. Server actions stamp it from tenant type —
+   *  clinic staff create 'patients' campaigns, the platform 'customers'.
+   *  Everything at send time keys off this column (sender identity, the
+   *  frequency cap, bookingUrl), so leaving it to the schema default
+   *  ('customers') for a clinic campaign breaks all three. */
+  recipientSource: z.enum(['customers', 'patients']).optional(),
 })
 
 export const CampaignUpdate = CampaignInput.partial()
@@ -139,6 +145,14 @@ export async function createMarketingCampaign(
   // templates + this org's custom ones) — a foreign id resolves to null and
   // is silently dropped, so a guessed id can never leak another org's copy.
   const tpl = data.templateId ? await getTemplate(organizationId, data.templateId) : null
+  // recipientSource precedence: explicit (server actions stamp it from tenant
+  // type) → the chosen audience's source → 'customers'. The column must match
+  // who's actually emailed: sender identity, the frequency cap, and bookingUrl
+  // all branch on it at send time.
+  const recipientSource =
+    data.recipientSource ??
+    (data.audienceId ? await getAudienceRecipientSource(organizationId, data.audienceId) : null) ??
+    'customers'
   const [row] = await db
     .insert(schema.campaigns)
     .values({
@@ -152,11 +166,29 @@ export async function createMarketingCampaign(
       sendChannel: data.sendChannel,
       scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       templateId: tpl?.id ?? null,
+      recipientSource,
       createdBy: userId,
       status: 'draft',
     })
     .returning()
   return row
+}
+
+/** The recipientSource of an org's audience, or null if it doesn't exist. */
+export async function getAudienceRecipientSource(
+  organizationId: string,
+  audienceId: number,
+): Promise<'customers' | 'patients' | null> {
+  const [aud] = await db
+    .select({ recipientSource: schema.audiences.recipientSource })
+    .from(schema.audiences)
+    .where(
+      and(eq(schema.audiences.id, audienceId), eq(schema.audiences.organizationId, organizationId)),
+    )
+    .limit(1)
+  return aud?.recipientSource === 'patients' || aud?.recipientSource === 'customers'
+    ? aud.recipientSource
+    : null
 }
 
 export async function updateMarketingCampaign(
@@ -171,7 +203,16 @@ export async function updateMarketingCampaign(
   if (input.previewText !== undefined) patch.previewText = input.previewText
   if (input.bodyHtml !== undefined) patch.bodyHtml = input.bodyHtml
   if (input.bodyJson !== undefined) patch.bodyJson = input.bodyJson
-  if (input.audienceId !== undefined) patch.audienceId = input.audienceId
+  if (input.audienceId !== undefined) {
+    patch.audienceId = input.audienceId
+    // Keep recipientSource true to the audience actually targeted — a stale
+    // 'customers' on a patient campaign would skip the frequency cap and send
+    // with platform branding.
+    if (input.audienceId !== null) {
+      const source = await getAudienceRecipientSource(organizationId, input.audienceId)
+      if (source) patch.recipientSource = source
+    }
+  }
   if (input.sendChannel !== undefined) patch.sendChannel = input.sendChannel
   if (input.scheduledAt !== undefined) {
     patch.scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null

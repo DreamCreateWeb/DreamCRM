@@ -198,7 +198,9 @@ export const calendarEvents = pgTable('calendar_events', {
 // ---------- Campaigns (tenant-scoped email marketing) ----------
 // Extended from a tracker into a real send-and-measure tool. `subject`,
 // `previewText`, `bodyHtml`, `bodyJson`, `audienceId`, `sendChannel`,
-// `sentAt`, `scheduledAt`, `sendStats` drive the campaign editor and analytics.
+// `sentAt`, `scheduledAt` drive the campaign editor and analytics. `sendStats`
+// is a forensic snapshot of the final send run ({attempted, sent, failed}) —
+// live counts come from campaign_events, not this column.
 // `sendChannel='resend'` blasts via Resend; `sendChannel='gmail'` sends one-by-one
 // from the org's connected Gmail (warmer for cold sales sequences).
 export const campaignStatusEnum = pgEnum('campaign_status', [

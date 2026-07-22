@@ -83,7 +83,7 @@ export function RetentionAutomationsCard({
           kind="reactivation"
           icon="🔄"
           title="Reactivation nudge"
-          description="A no-judgment 'come back for a cleaning' note to patients whose last visit was about 9 months ago."
+          description="A no-judgment 'come back for a cleaning' note to patients whose last visit was about 9 months ago and who have nothing booked."
           cadence="Sends monthly"
           countLabel={
             preview.newlyLapsed > 0

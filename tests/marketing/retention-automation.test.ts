@@ -6,13 +6,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * Covered:
  *  - Demo clinics are skipped (never send real email).
- *  - Clinics with both toggles off are skipped.
+ *  - Clinics with every automation toggle off are skipped.
  *  - Idempotency: an existing campaign for the window → no new insert.
  *  - Empty audience → no campaign created (no empty blast queued).
  *  - Eligible org → a SCHEDULED campaign is inserted with the deterministic
- *    automationKey + recipientSource='patients', immediately due.
+ *    automationKey + recipientSource='patients', due per automationSendAt.
+ *  - Message content comes from getAutomationTemplate (override-aware).
+ *  - Seasonal gating (benefits Oct–Dec) + the weekly welcome Monday key.
  *  - A unique-violation on insert (concurrent run) is swallowed, not thrown.
- *  - previewRetentionAudiences returns both counts.
+ *  - previewRetentionAudiences returns all four automation counts.
+ *  - automationSendAt: before 10am clinic-local → today 10am; after → now.
  */
 
 const h = vi.hoisted(() => ({

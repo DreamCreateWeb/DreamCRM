@@ -94,7 +94,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
             label="What the tiers mean"
             pills={[
               { tone: 'warn', label: 'Recall due', meaning: 'Last cleaning over 6 months ago, no future booking' },
-              { tone: 'urgent', label: 'Lapsed', meaning: 'The cold ones — well past their recall window' },
+              { tone: 'urgent', label: 'Lapsed', meaning: 'The cold ones — well past their recall window, no future booking' },
               { tone: 'ok', label: 'New patient', meaning: 'Joined in the past 60 days — first-visit follow-up' },
               { tone: 'special', label: 'Birthday', meaning: 'Celebrating a birthday this calendar month' },
               { tone: 'neutral', label: 'Opted out', meaning: 'Opted out of marketing email — appointment reminders and receipts still go out' },

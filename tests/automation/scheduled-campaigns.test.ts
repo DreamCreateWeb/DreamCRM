@@ -17,7 +17,11 @@ const state = {
   // Campaigns whose audience resolves to 0 recipients (sendCampaign returns
   // attempted:0 without touching status → engine must reset to draft).
   emptyAudienceFor: new Set<number>(),
+  // Campaigns where EVERY recipient was held back by the frequency cap
+  // (attempted:0 + suppressed>0 → engine must re-queue for tomorrow, not draft).
+  fullySuppressedFor: new Set<number>(),
   resetToDraft: [] as Array<Record<string, unknown>>,
+  rescheduled: [] as Array<Record<string, unknown>>,
 }
 
 vi.mock('@/lib/db', () => ({
@@ -33,6 +37,12 @@ vi.mock('@/lib/db', () => ({
         // reset (status='draft') awaits .where() directly. Branch on the payload.
         if (s.status === 'draft') {
           state.resetToDraft.push(s)
+          return { where: async () => undefined }
+        }
+        // The fully-suppressed re-queue writes status='scheduled' + a fresh
+        // scheduledAt (the claim writes 'active'); track it separately.
+        if (s.status === 'scheduled') {
+          state.rescheduled.push(s)
           return { where: async () => undefined }
         }
         return {
@@ -65,6 +75,9 @@ vi.mock('@/lib/services/marketing-send', () => ({
     if (state.emptyAudienceFor.has(campaignId)) {
       return { channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [] }
     }
+    if (state.fullySuppressedFor.has(campaignId)) {
+      return { channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [], suppressed: 4 }
+    }
     return { channel: 'resend', attempted: 3, sent: 3, failed: 0, errors: [] }
   }),
 }))
@@ -80,7 +93,9 @@ beforeEach(() => {
   state.sendCalls = []
   state.sendThrowsFor = new Set()
   state.emptyAudienceFor = new Set()
+  state.fullySuppressedFor = new Set()
   state.resetToDraft = []
+  state.rescheduled = []
   pendingClaims = []
 })
 
@@ -173,5 +188,21 @@ describe('sendDueScheduledCampaigns', () => {
     // Engine must follow up with a status='draft' reset.
     expect(state.resetToDraft).toHaveLength(1)
     expect(state.resetToDraft[0].status).toBe('draft')
+  })
+
+  it('re-queues a fully frequency-capped campaign for tomorrow instead of dumping it to draft', async () => {
+    state.due = [{ id: 11, organizationId: 'org_1' }]
+    state.claimWins.set(11, true)
+    state.fullySuppressedFor.add(11) // attempted:0 but suppressed:4 — a "not yet"
+    pendingClaims = [11]
+
+    const now = new Date('2026-07-22T15:00:00Z')
+    const r = await sendDueScheduledCampaigns({ now })
+    expect(r.claimed).toBe(1)
+    // Not reset to draft — re-queued with a scheduledAt ~24h out.
+    expect(state.resetToDraft).toHaveLength(0)
+    expect(state.rescheduled).toHaveLength(1)
+    expect(state.rescheduled[0].status).toBe('scheduled')
+    expect((state.rescheduled[0].scheduledAt as Date).getTime()).toBe(now.getTime() + 86_400_000)
   })
 })

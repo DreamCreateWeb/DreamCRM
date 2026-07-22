@@ -21,7 +21,11 @@ vi.mock('@/lib/db', async () => {
   return { db: { select: () => chain() }, schema }
 })
 
-import { partitionByFrequencyCap, FREQUENCY_MAX_SENDS } from '@/lib/services/marketing-frequency'
+import {
+  partitionByFrequencyCap,
+  partitionByPriorAutomationSend,
+  FREQUENCY_MAX_SENDS,
+} from '@/lib/services/marketing-frequency'
 
 const r = (email: string | null) => ({ email })
 
@@ -54,5 +58,32 @@ describe('partitionByFrequencyCap', () => {
     state.eventRows = Array.from({ length: FREQUENCY_MAX_SENDS - 1 }, () => ({ email: 'a@x.com' }))
     const { allowed } = await partitionByFrequencyCap('org_a', [r('a@x.com')])
     expect(allowed).toHaveLength(1)
+  })
+})
+
+describe('partitionByPriorAutomationSend (the welcome one-shot guard)', () => {
+  it('suppresses a recipient who already got a send from the same automation family', async () => {
+    state.eventRows = [{ email: 'a@x.com' }] // welcomed last week
+    const { allowed, suppressed } = await partitionByPriorAutomationSend('org_a', 'welcome:', [
+      r('a@x.com'),
+      r('b@x.com'),
+    ])
+    expect(suppressed.map((s) => s.email)).toEqual(['a@x.com'])
+    expect(allowed.map((a) => a.email)).toEqual(['b@x.com'])
+  })
+
+  it('ONE prior send is enough — unlike the frequency cap, this is one-shot', async () => {
+    state.eventRows = [{ email: 'a@x.com' }]
+    const { suppressed } = await partitionByPriorAutomationSend('org_a', 'welcome:', [r('a@x.com')], 42)
+    expect(suppressed).toHaveLength(1)
+  })
+
+  it('lets everyone through when nobody has a prior send, and null emails pass', async () => {
+    const { allowed, suppressed } = await partitionByPriorAutomationSend('org_a', 'welcome:', [
+      r('a@x.com'),
+      r(null),
+    ])
+    expect(allowed).toHaveLength(2)
+    expect(suppressed).toHaveLength(0)
   })
 })

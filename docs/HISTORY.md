@@ -7,6 +7,45 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Campaigns final pass — the audit sweep before moving on (2026-07-22).**
+  A 3-agent audit (UI surfaces / services+crons / tests+docs) over the whole
+  campaigns system, findings verified at source and fixed in one pass. THE
+  HEADLINE: manually-created clinic campaigns carried
+  `recipientSource='customers'` (creation never stamped the column; the
+  schema default won) — which skipped the phase-4 frequency cap, sent from
+  the PLATFORM identity instead of the clinic Tier-1 (or failed closed on
+  the missing platform postal address), stripped `{{bookingUrl}}` to empty,
+  and hid the campaign from Growth analytics (filters
+  recipient_source='patients') — while the preview rendered correctly
+  clinic-branded (it derives from the sample recipient). Fixed three-deep:
+  `createCampaignAction` stamps the source from tenant type (server-
+  authoritative), `createMarketingCampaign`/`updateMarketingCampaign` derive
+  + sync it from the chosen audience, `sendCampaign` trusts the AUDIENCE's
+  source over a stale column, and migration **0132** backfills existing rows
+  from their audiences. Other closes: (1) `SendResult.suppressed` was
+  dropped by the send-result modal — now shown ("N sat this one out…") plus
+  a pre-send cap explainer for clinics; (2) the ScheduleModal claimed times
+  were clinic-tz while `datetime-local` is device-tz — honest copy + a
+  mismatch warning + tz abbreviation on the scheduled panel; (3) weekly
+  welcome could double-send at the week boundary (7d window == 7d key +
+  cron jitter) — `partitionByPriorAutomationSend` makes "welcomed exactly
+  once" structural; (4) fully-capped scheduled campaigns were reset to
+  zombie drafts — the flush re-queues them +24h; (5)
+  `upsertAutomationOverride` read-then-insert race now retries as an update
+  on 23505; (6) tenant voice: the AI-draft example brief showed clinics
+  platform copy ("clinic owners on Basic plan") — branches on recipientNoun;
+  (7) post-fold orientation: the [id] editor back-link + delete landing now
+  send clinics to /growth/outreach ("← Recall & Outreach"), platform keeps
+  the list; (8) suppression honesty in copy: queue Lapsed legend +
+  reactivation automation audience facts say "no future booking", KIND_FACTS
+  cadences say "around 10 AM your time". Tests: send-campaign gained
+  recipientSource-truth/cap-plumbing/welcome-one-shot suites,
+  create-from-template gained stamping coverage, marketing-frequency gained
+  the one-shot suite, scheduled-campaigns gained the re-queue case, and a
+  new no-upcoming-visit.test.ts pins the resolver branch end-to-end. Docs:
+  STRUCTURE-AUDIT Stage-4 fold entry recorded, CLAUDE.md cron count 13→17,
+  FINISHING.md campaigns-seam entries logged, stale test headers refreshed.
+
 - **Campaigns phase 4 — the safety rails (2026-07-22).** The final chapter
   of the campaigns plan (+ the free-domain cap set to a flat $25/$25 per the
   owner). Three rails: (1) **Cross-campaign frequency cap** —

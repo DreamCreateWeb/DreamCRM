@@ -82,7 +82,7 @@ app/
                      token-IS-auth pattern: w/ (fast-pass claim), c/ (one-click
                      visit confirm), b/ (email-to-pay balance page)
   api/               auth handler · webhooks (stripe, stripe-connect, gmail OIDC,
-                     resend/svix) · 13 CRON_SECRET-gated /api/cron/* routes ·
+                     resend/svix) · 17 CRON_SECRET-gated /api/cron/* routes ·
                      3 /api/admin/* (migrate, seed-platform, resync-demo) ·
                      oauth (gmail, gsc) + connect (shop) + zernio connect/callback ·
                      token-auth publics (/api/calendar/[token], track, unsub) ·
@@ -91,7 +91,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0131 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0132 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -416,8 +416,8 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0131** (`clinic_domain_purchase.included_in_plan` +
-  `renewal_error` — the free-domain tier + renewal engine). Workflow:
+  migration: **0132** (data backfill: `campaigns.recipient_source` from the
+  targeted audience — pre-stamp rows defaulted to 'customers'). Workflow:
   `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).

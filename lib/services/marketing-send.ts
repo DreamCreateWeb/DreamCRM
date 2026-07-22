@@ -7,10 +7,11 @@ import { getAccessToken, sendMessage as sendGmailMessage } from './gmail'
 import { getClinicSenderIdentity } from './clinic-sender'
 import type { ClinicSender } from '@/lib/email-identity'
 import {
+  getAudienceRecipientSource,
   getMarketingCampaign,
   resolveCampaignRecipients,
 } from './marketing-campaigns'
-import { partitionByFrequencyCap } from './marketing-frequency'
+import { partitionByFrequencyCap, partitionByPriorAutomationSend } from './marketing-frequency'
 import type { ResolvedRecipient } from './marketing'
 import { notify } from './notifications'
 
@@ -102,10 +103,12 @@ function getResend() {
 /**
  * Resolve the From identity + footer postal address for this campaign.
  *
- * - Clinic source ('patients') OR a clinic-typed org → Tier-1 clinic identity
- *   (display name on the verified domain) + Reply-To clinic inbox + the
- *   clinic's own postal address.
+ * - Clinic source ('patients') → Tier-1 clinic identity (display name on the
+ *   verified domain) + Reply-To clinic inbox + the clinic's own postal address.
  * - Platform/customers source → platform default From + the env postal address.
+ * The source comes from the campaign row, corrected to the audience's own
+ * recipientSource at send time (see sendCampaign) — the audience is who we
+ *   actually email, so it is the source of truth.
  *
  * Returns `postalAddress: null` when nothing usable could be resolved; the
  * caller fails closed (we never send marketing without an address).
@@ -192,7 +195,15 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
   if (!campaign.subject) throw new Error('Campaign missing subject')
   if (!campaign.bodyHtml) throw new Error('Campaign missing body')
 
-  const recipientSource = (campaign.recipientSource ?? 'customers') as 'customers' | 'patients'
+  // The audience's recipientSource wins over the campaign column when the two
+  // disagree: rows created before the column was stamped at creation default
+  // to 'customers', and sending a patient audience under that stale value
+  // would skip the frequency cap, use platform branding, and drop bookingUrl.
+  let recipientSource = (campaign.recipientSource ?? 'customers') as 'customers' | 'patients'
+  if (campaign.audienceId) {
+    const audienceSource = await getAudienceRecipientSource(opts.organizationId, campaign.audienceId)
+    if (audienceSource) recipientSource = audienceSource
+  }
 
   // Resolve sender identity + the CAN-SPAM footer address up front. A real
   // send (not a test) with no resolvable postal address fails closed — we will
@@ -234,6 +245,20 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
     const { allowed, suppressed } = await partitionByFrequencyCap(opts.organizationId, recipients)
     recipients = allowed
     suppressedCount = suppressed.length
+  }
+
+  // Welcome is one-shot by contract ("welcomed exactly once"): the weekly key
+  // + 7-day window can overlap by cron jitter at the week boundary, so drop
+  // anyone who already got a welcome from an earlier week's campaign.
+  if (!opts.test && campaign.automationKey?.startsWith('welcome:')) {
+    const { allowed, suppressed } = await partitionByPriorAutomationSend(
+      opts.organizationId,
+      'welcome:',
+      recipients,
+      campaign.id,
+    )
+    recipients = allowed
+    suppressedCount += suppressed.length
   }
 
   if (!recipients.length) {

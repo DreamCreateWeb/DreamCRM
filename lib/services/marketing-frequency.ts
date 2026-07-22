@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, gte, inArray } from 'drizzle-orm'
+import { and, eq, gte, inArray, like, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 
 /**
@@ -48,6 +48,46 @@ export async function partitionByFrequencyCap<R extends { email: string | null }
   const suppressed: R[] = []
   for (const r of recipients) {
     if (r.email && (counts.get(r.email) ?? 0) >= FREQUENCY_MAX_SENDS) suppressed.push(r)
+    else allowed.push(r)
+  }
+  return { allowed, suppressed }
+}
+
+/**
+ * One-shot automation guard: partition out recipients who already received a
+ * send from ANY campaign whose automationKey starts with `automationKeyPrefix`
+ * (e.g. 'welcome:'). The weekly welcome key + 7-day audience window can
+ * overlap by a few minutes of cron jitter at the week boundary — this makes
+ * "welcomed exactly once" true by construction instead of by timing.
+ */
+export async function partitionByPriorAutomationSend<R extends { email: string | null }>(
+  organizationId: string,
+  automationKeyPrefix: string,
+  recipients: R[],
+  excludeCampaignId?: number,
+): Promise<{ allowed: R[]; suppressed: R[] }> {
+  const emails = recipients.map((r) => r.email).filter((e): e is string => !!e)
+  if (emails.length === 0) return { allowed: recipients, suppressed: [] }
+
+  const conditions = [
+    eq(schema.campaigns.organizationId, organizationId),
+    like(schema.campaigns.automationKey, `${automationKeyPrefix}%`),
+    eq(schema.campaignEvents.type, 'sent'),
+    inArray(schema.campaignEvents.recipientEmail, emails),
+  ]
+  if (excludeCampaignId !== undefined) conditions.push(ne(schema.campaigns.id, excludeCampaignId))
+
+  const rows = await db
+    .select({ email: schema.campaignEvents.recipientEmail })
+    .from(schema.campaignEvents)
+    .innerJoin(schema.campaigns, eq(schema.campaigns.id, schema.campaignEvents.campaignId))
+    .where(and(...conditions))
+
+  const alreadySent = new Set(rows.map((r) => r.email))
+  const allowed: R[] = []
+  const suppressed: R[] = []
+  for (const r of recipients) {
+    if (r.email && alreadySent.has(r.email)) suppressed.push(r)
     else allowed.push(r)
   }
   return { allowed, suppressed }

@@ -15,12 +15,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *    structured `skipped: 'missing_postal_address'` result, no send attempted.
  *  - Duplicate-send guard: the atomic claim flips status; a racing second call
  *    that claims nothing returns `skipped: 'already_sending'` without resending.
+ *  - recipientSource truth: the audience's source overrides a stale campaign
+ *    column (pre-backfill rows said 'customers' for patient audiences).
+ *  - Frequency-cap plumbing: capped recipients are withheld from the send and
+ *    surfaced as `suppressed` (the cap's own logic lives in
+ *    marketing-frequency.test.ts — here we pin that sendCampaign USES it).
+ *  - Welcome one-shot guard: a recipient already welcomed by an earlier week's
+ *    campaign is dropped from a welcome-automation send.
  */
 
 const h = vi.hoisted(() => ({
   getCampaignMock: vi.fn(),
   resolveRecipientsMock: vi.fn(),
   getSenderMock: vi.fn(),
+  audienceSourceMock: vi.fn(),
+  freqCapMock: vi.fn(),
+  priorAutoMock: vi.fn(),
   notifyMock: vi.fn().mockResolvedValue(undefined),
   resendSendMock: vi.fn().mockResolvedValue({ data: { id: 'm_1' }, error: null }),
   // db op spies
@@ -89,6 +99,7 @@ vi.mock('resend', () => ({
 vi.mock('@/lib/services/marketing-campaigns', () => ({
   getMarketingCampaign: h.getCampaignMock,
   resolveCampaignRecipients: h.resolveRecipientsMock,
+  getAudienceRecipientSource: h.audienceSourceMock,
 }))
 
 vi.mock('@/lib/services/clinic-sender', () => ({
@@ -105,8 +116,11 @@ vi.mock('@/lib/services/gmail', () => ({
 }))
 
 vi.mock('@/lib/services/marketing-frequency', () => ({
-  // Pass-through here — the cap has its own suite (marketing-frequency.test.ts).
-  partitionByFrequencyCap: async (_org: string, recipients: unknown[]) => ({ allowed: recipients, suppressed: [] }),
+  // Default pass-through (set in beforeEach) — the cap's own logic has its own
+  // suite (marketing-frequency.test.ts); these hooks let plumbing tests below
+  // simulate capped/already-welcomed recipients.
+  partitionByFrequencyCap: h.freqCapMock,
+  partitionByPriorAutomationSend: h.priorAutoMock,
 }))
 
 import { sendCampaign, buildCampaignPreview, neutralizePreviewLinks } from '@/lib/services/marketing-send'
@@ -166,6 +180,13 @@ beforeEach(() => {
   h.getCampaignMock.mockReset()
   h.resolveRecipientsMock.mockReset().mockResolvedValue([recipient()])
   h.getSenderMock.mockReset().mockResolvedValue({ ...CLINIC_SENDER })
+  h.audienceSourceMock.mockReset().mockResolvedValue(null)
+  h.freqCapMock
+    .mockReset()
+    .mockImplementation(async (_org: string, recipients: unknown[]) => ({ allowed: recipients, suppressed: [] }))
+  h.priorAutoMock
+    .mockReset()
+    .mockImplementation(async (_org: string, _prefix: string, recipients: unknown[]) => ({ allowed: recipients, suppressed: [] }))
   h.notifyMock.mockReset().mockResolvedValue(undefined)
   h.resendSendMock.mockReset().mockResolvedValue({ data: { id: 'm_1' }, error: null })
   // Default: the atomic claim succeeds (returns one row).
@@ -292,6 +313,75 @@ describe('sendCampaign — duplicate-send guard', () => {
     expect(h.claimReturningMock).not.toHaveBeenCalled()
     expect(r.skipped).toBeUndefined()
     expect(r.sent).toBe(1)
+  })
+})
+
+describe('sendCampaign — recipientSource truth (audience wins over a stale column)', () => {
+  it('a patient audience corrects a stale customers column: clinic identity + the cap apply', async () => {
+    // Pre-backfill rows: clinic staff created the campaign before creation
+    // stamped recipientSource, so the column says 'customers' — but the
+    // audience actually targeted is patients.
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ recipientSource: 'customers', audienceId: 5 }))
+    h.audienceSourceMock.mockResolvedValue('patients')
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.sent).toBe(1)
+    // Clinic Tier-1 identity, not the platform From.
+    const sent = h.resendSendMock.mock.calls[0][0]
+    expect(sent.from).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
+    // And the frequency cap ran (patients-source behavior).
+    expect(h.freqCapMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the campaign column when it has no audience to correct from', async () => {
+    process.env.EMAIL_FROM = 'Dream Create <hello@dreamcreatestudio.com>'
+    process.env.MARKETING_POSTAL_ADDRESS = 'Dream Create, 1 Platform Way, NY'
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ recipientSource: 'customers', audienceId: null }))
+    h.resolveRecipientsMock.mockResolvedValue([recipient({ patientId: null, customerId: 7, id: '7' })])
+    await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(h.audienceSourceMock).not.toHaveBeenCalled()
+    expect(h.freqCapMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendCampaign — frequency-cap plumbing', () => {
+  it('capped recipients are withheld from the send and returned as suppressed', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign())
+    h.freqCapMock.mockImplementation(async (_org: string, recipients: unknown[]) => ({
+      allowed: [],
+      suppressed: recipients,
+    }))
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.attempted).toBe(0)
+    expect(r.sent).toBe(0)
+    expect(r.suppressed).toBe(1)
+    expect(h.resendSendMock).not.toHaveBeenCalled()
+  })
+
+  it('test sends bypass the cap (a human previewing on purpose)', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign())
+    await sendCampaign({ organizationId: 'org_1', campaignId: 99, test: true })
+    expect(h.freqCapMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendCampaign — welcome one-shot guard', () => {
+  it('drops recipients already welcomed by an earlier week’s welcome campaign', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ automationKey: 'welcome:2026-07-20' }))
+    h.priorAutoMock.mockImplementation(async (_org: string, _prefix: string, recipients: unknown[]) => ({
+      allowed: [],
+      suppressed: recipients,
+    }))
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(h.priorAutoMock).toHaveBeenCalledWith('org_1', 'welcome:', expect.any(Array), 99)
+    expect(r.sent).toBe(0)
+    expect(r.suppressed).toBe(1)
+    expect(h.resendSendMock).not.toHaveBeenCalled()
+  })
+
+  it('non-welcome campaigns never run the one-shot guard', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ automationKey: 'birthday:2026-07-22' }))
+    await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(h.priorAutoMock).not.toHaveBeenCalled()
   })
 })
 

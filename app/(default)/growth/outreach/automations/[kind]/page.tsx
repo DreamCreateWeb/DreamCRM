@@ -16,10 +16,10 @@ export const dynamic = 'force-dynamic'
 /** Cadence + audience facts per kind — shown so the clinic knows exactly
  *  when this message goes out and to whom (honesty over mystery). */
 const KIND_FACTS: Record<string, { cadence: string; audience: string }> = {
-  birthday: { cadence: 'Sends daily', audience: "patients whose birthday is today (email opt-in only)" },
-  reactivation: { cadence: 'Sends monthly', audience: 'patients whose last visit was 9–10 months ago' },
-  benefits: { cadence: 'Sends monthly, October–December', audience: 'insured patients with no upcoming visit and 4+ months since the last' },
-  welcome: { cadence: 'Sends weekly', audience: 'patients whose first visit was in the past 7 days' },
+  birthday: { cadence: 'Sends daily around 10 AM your time', audience: "patients whose birthday is today (email opt-in only)" },
+  reactivation: { cadence: 'Sends monthly around 10 AM your time', audience: 'patients whose last visit was 9–10 months ago, with no upcoming visit booked' },
+  benefits: { cadence: 'Sends monthly October–December, around 10 AM your time', audience: 'insured patients with no upcoming visit and 4+ months since the last' },
+  welcome: { cadence: 'Sends weekly around 10 AM your time', audience: 'patients whose first visit was in the past 7 days' },
 }
 
 export default async function AutomationMessagePage({

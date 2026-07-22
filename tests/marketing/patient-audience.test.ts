@@ -101,4 +101,9 @@ describe('PatientAudienceFilter', () => {
     expect(tagged.tagIds).toEqual(['ptag_a', 'ptag_b'])
     expect(tagged.requireEmailOptIn).toBe(true)
   })
+
+  it('keeps noUpcomingVisit through parsing (phase-4 suppression — a stripped key would silently disable it)', () => {
+    const parsed = PatientAudienceFilter.parse({ noUpcomingVisit: true })
+    expect(parsed.noUpcomingVisit).toBe(true)
+  })
 })

@@ -218,6 +218,17 @@ storefront, loyalty). Same gates as before (premium + payments bundle) — pure
 reorganization, zero access change. Sidebar Business group: Payments · Shop ·
 Integrations.
 
+**Clinic campaigns list folded into the Outreach hub (2026-07-21, campaigns
+phase 3).** The clinic tenant's standalone campaigns list at /growth/campaigns
+retired: campaign history, funnels, and the New-campaign modal now live in the
+/growth/outreach hub ("All campaigns" section), so the clinic has ONE outreach
+surface. /growth/campaigns redirects clinic → /growth/outreach with
+prefill params (`prefill_audience`, `prefill_template`, `new=1`) forwarded
+intact; the platform tenant keeps the standalone list (its campaign home) and
+the shared /growth/campaigns/[id] editor is untouched — notification-email
+deep links keep resolving for both tenants. Same gates as before — pure
+reorganization, zero access change.
+
 **Considered and REJECTED — Leads → Growth.** Conceptually acquisition, but
 operationally a front-desk triage queue: it carries the live new-lead sidebar
 badge, a keyboard shortcut, and rot borders tuned to response speed. NexHealth

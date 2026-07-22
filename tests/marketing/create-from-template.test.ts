@@ -10,6 +10,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const inserts: Record<string, unknown>[] = []
 const getTemplate = vi.fn()
+// Rows returned by the audience lookup (getAudienceRecipientSource).
+const audienceRows: Array<{ recipientSource: string }> = []
 
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
@@ -21,6 +23,13 @@ vi.mock('@/lib/db', async () => {
             inserts.push(vals)
             return [{ id: 77, ...vals }]
           },
+        }),
+      }),
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => audienceRows,
+          }),
         }),
       }),
     },
@@ -43,6 +52,7 @@ const TPL = {
 
 beforeEach(() => {
   inserts.length = 0
+  audienceRows.length = 0
   getTemplate.mockReset()
 })
 
@@ -82,5 +92,31 @@ describe('createMarketingCampaign — start from template', () => {
     await createMarketingCampaign('org_a', { name: 'Blank one', sendChannel: 'resend' }, 'user_1')
     expect(getTemplate).not.toHaveBeenCalled()
     expect(inserts[0]).toMatchObject({ templateId: null })
+  })
+})
+
+describe('createMarketingCampaign — recipientSource stamping', () => {
+  it('an explicit recipientSource (the server action stamps it from tenant type) is written', async () => {
+    await createMarketingCampaign(
+      'org_a',
+      { name: 'Recall push', sendChannel: 'resend', recipientSource: 'patients' },
+      'user_1',
+    )
+    expect(inserts[0].recipientSource).toBe('patients')
+  })
+
+  it('falls back to the chosen audience’s source when none is explicit', async () => {
+    audienceRows.push({ recipientSource: 'patients' })
+    await createMarketingCampaign(
+      'org_a',
+      { name: 'Recall push', sendChannel: 'resend', audienceId: 5 },
+      'user_1',
+    )
+    expect(inserts[0].recipientSource).toBe('patients')
+  })
+
+  it('defaults to customers with no explicit source and no audience', async () => {
+    await createMarketingCampaign('org_a', { name: 'X', sendChannel: 'resend' }, 'user_1')
+    expect(inserts[0].recipientSource).toBe('customers')
   })
 })

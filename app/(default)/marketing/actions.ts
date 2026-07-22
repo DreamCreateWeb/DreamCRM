@@ -154,7 +154,13 @@ export async function previewAudienceAction(input: unknown) {
 export async function createCampaignAction(input: unknown) {
   const ctx = await requireClinicStaff()
   const data = CampaignInput.parse(input)
-  const row = await createMarketingCampaign(ctx.organizationId, data, ctx.userId)
+  // Server-authoritative: clinic staff email patients, the platform emails
+  // customers — never trust a client-supplied source.
+  const row = await createMarketingCampaign(
+    ctx.organizationId,
+    { ...data, recipientSource: ctx.tenantType === 'clinic' ? 'patients' : 'customers' },
+    ctx.userId,
+  )
   revalidatePath('/growth/campaigns')
   revalidatePath('/growth/outreach')
   redirect(`/growth/campaigns/${row.id}`)

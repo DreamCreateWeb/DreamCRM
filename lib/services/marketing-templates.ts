@@ -322,27 +322,54 @@ export async function upsertAutomationOverride(
     return toTemplateRow(row)
   }
   const sys = systemTemplateForKind(kind)
-  const [row] = await db
-    .insert(schema.campaignTemplates)
-    .values({
-      organizationId,
-      kind: 'custom',
-      category: sys.category,
-      // Org-scoped unique on (org, name); this canonical name never collides
-      // with system names and reads clearly in any raw listing.
-      name: `${sys.name} — your version`,
-      description: 'Your edited message for this automation. Reset from the automation editor to go back to the default.',
-      subject: input.subject,
-      previewText: input.previewText ?? null,
-      bodyHtml: input.bodyHtml,
-      bodyJson: input.bodyJson ?? null,
-      defaultChannel: 'resend',
-      defaultAudienceSlug: sys.defaultAudienceSlug,
-      automationKind: kind,
-      createdBy: userId,
-    })
-    .returning()
-  return toTemplateRow(row)
+  try {
+    const [row] = await db
+      .insert(schema.campaignTemplates)
+      .values({
+        organizationId,
+        kind: 'custom',
+        category: sys.category,
+        // Org-scoped unique on (org, name); this canonical name never collides
+        // with system names and reads clearly in any raw listing.
+        name: `${sys.name} — your version`,
+        description: 'Your edited message for this automation. Reset from the automation editor to go back to the default.',
+        subject: input.subject,
+        previewText: input.previewText ?? null,
+        bodyHtml: input.bodyHtml,
+        bodyJson: input.bodyJson ?? null,
+        defaultChannel: 'resend',
+        defaultAudienceSlug: sys.defaultAudienceSlug,
+        automationKind: kind,
+        createdBy: userId,
+      })
+      .returning()
+    return toTemplateRow(row)
+  } catch (err) {
+    // Two concurrent first-saves race the read-then-insert: the loser hits the
+    // (org, name) unique index. Retry as an update against the winner's row so
+    // the save lands instead of surfacing "Could not save".
+    const isUnique = err instanceof Error && 'code' in err && (err as { code?: string }).code === '23505'
+    if (!isUnique) throw err
+    const winner = await getAutomationOverride(organizationId, kind)
+    if (!winner) throw err
+    const [row] = await db
+      .update(schema.campaignTemplates)
+      .set({
+        subject: input.subject,
+        previewText: input.previewText ?? null,
+        bodyHtml: input.bodyHtml,
+        bodyJson: input.bodyJson ?? null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.campaignTemplates.id, winner.id),
+          eq(schema.campaignTemplates.organizationId, organizationId),
+        ),
+      )
+      .returning()
+    return toTemplateRow(row)
+  }
 }
 
 /** Remove the override → the automation falls back to the system default. */

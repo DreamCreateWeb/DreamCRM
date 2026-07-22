@@ -93,11 +93,13 @@ export default async function CampaignEditorPage({
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 w-full max-w-[96rem] mx-auto">
       <div className="mb-4 flex items-center gap-3">
+        {/* Post-fold, the clinic's campaign home is the Outreach hub; only the
+            platform tenant still has a standalone campaigns list. */}
         <Link
-          href="/growth/campaigns"
+          href={ctx.tenantType === 'platform' ? '/growth/campaigns' : '/growth/outreach'}
           className="text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
         >
-          ← Campaigns
+          {ctx.tenantType === 'platform' ? '← Campaigns' : '← Recall & Outreach'}
         </Link>
         <span className="text-gray-300 dark:text-gray-600" aria-hidden="true">·</span>
         <StatusPill

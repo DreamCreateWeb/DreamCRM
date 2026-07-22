@@ -161,7 +161,9 @@ export default function CampaignEditor({
     if (!(await askConfirm({ title: 'Delete this campaign?', message: 'This also deletes all its analytics.', confirmLabel: 'Delete', danger: true }))) return
     startTransition(async () => {
       await deleteCampaignAction(draft.id)
-      router.push('/growth/campaigns')
+      // The clinic's campaign home is the Outreach hub (post-fold); only the
+      // platform tenant still has a standalone campaigns list.
+      router.push(recipientNoun === 'patients' ? '/growth/outreach' : '/growth/campaigns')
     })
   }
 
@@ -419,6 +421,7 @@ export default function CampaignEditor({
 
       {showAiDraft && (
         <AiDraftModal
+          recipientNoun={recipientNoun}
           busy={aiBusy}
           onClose={() => setShowAiDraft(false)}
           onApply={async (brief) => {
@@ -473,6 +476,7 @@ export default function CampaignEditor({
       {showSend && (
         <SendConfirmModal
           campaignId={draft.id}
+          recipientNoun={recipientNoun}
           channel={draft.sendChannel}
           audience={audience ?? null}
           gmailAccounts={gmailAccounts}
@@ -661,10 +665,12 @@ function CampaignPreviewModal({
 }
 
 function AiDraftModal({
+  recipientNoun = 'patients',
   busy,
   onClose,
   onApply,
 }: {
+  recipientNoun?: string
   busy: boolean
   onClose: () => void
   onApply: (brief: string) => void | Promise<void>
@@ -690,7 +696,11 @@ function AiDraftModal({
           value={brief}
           onChange={(e) => setBrief(e.target.value)}
           rows={6}
-          placeholder="e.g. Announce that DreamCRM now supports automated patient recall by SMS and email. Target: existing clinic owners on Basic plan. Encourage them to upgrade to Pro to unlock it. Keep it warm and short."
+          placeholder={
+            recipientNoun === 'patients'
+              ? 'e.g. Invite patients who are overdue for a cleaning to book this month — mention our new Saturday hours and online booking. Keep it warm and short.'
+              : 'e.g. Announce that DreamCRM now supports automated patient recall by SMS and email. Target: existing clinic owners on Basic plan. Encourage them to upgrade to Pro to unlock it. Keep it warm and short.'
+          }
           className="form-textarea w-full resize-none"
         />
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -882,6 +892,7 @@ function StatRow({ label, value, tone }: { label: string; value: string | number
 
 function SendConfirmModal({
   campaignId,
+  recipientNoun = 'patients',
   channel,
   audience,
   gmailAccounts,
@@ -889,6 +900,7 @@ function SendConfirmModal({
   onSent,
 }: {
   campaignId: number
+  recipientNoun?: string
   channel: 'resend' | 'gmail' | 'twilio_sms'
   audience: AudienceOption | null
   gmailAccounts: GmailAccount[]
@@ -897,14 +909,14 @@ function SendConfirmModal({
 }) {
   const [pending, startTransition] = useTransition()
   const [gmailAccountId, setGmailAccountId] = useState(gmailAccounts[0]?.id ?? '')
-  const [result, setResult] = useState<{ sent: number; failed: number } | null>(null)
+  const [result, setResult] = useState<{ sent: number; failed: number; suppressed: number } | null>(null)
 
   function send() {
     startTransition(async () => {
       const r = await sendCampaignAction(campaignId, {
         gmailAccountId: channel === 'gmail' ? gmailAccountId : undefined,
       })
-      setResult({ sent: r.sent, failed: r.failed })
+      setResult({ sent: r.sent, failed: r.failed, suppressed: r.suppressed ?? 0 })
       if (r.failed === 0) {
         setTimeout(onSent, 1200)
       }
@@ -914,7 +926,7 @@ function SendConfirmModal({
   return (
     <div
       className="fixed inset-0 z-50 bg-[color:var(--color-ink-900)]/40 backdrop-blur-[2px] flex items-center justify-center p-4"
-      onClick={result ? onClose : onClose}
+      onClick={onClose}
     >
       <div
         className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
@@ -927,6 +939,13 @@ function SendConfirmModal({
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
               {result.sent} delivered, {result.failed} failed.
+              {result.suppressed > 0 && (
+                <>
+                  {' '}
+                  {result.suppressed} sat this one out — they&rsquo;ve already had 2 marketing
+                  emails in the last 7 days, so we held theirs back.
+                </>
+              )}
             </p>
             <div className="flex justify-end">
               <ActionButton variant="primary" size="sm" onClick={onSent}>
@@ -966,6 +985,8 @@ function SendConfirmModal({
             )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 italic">
               This actually sends real emails. The action can't be undone.
+              {recipientNoun === 'patients' &&
+                ' Patients who already got 2 marketing emails in the last 7 days are skipped automatically.'}
             </p>
             <div className="flex justify-end gap-2">
               <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
@@ -996,7 +1017,7 @@ function ScheduledPanel({
 }) {
   const when = scheduledAt
     ? new Date(scheduledAt).toLocaleString('en-US', {
-        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone,
+        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone,
       })
     : null
   return (
@@ -1050,6 +1071,11 @@ function ScheduleModal({
     return toLocalInputValue(d)
   })()
   const [when, setWhen] = useState(defaultValue)
+  // datetime-local is interpreted in the DEVICE's timezone (see onConfirm's
+  // `new Date(whenLocal)`) — say so honestly, and flag when that differs from
+  // the clinic's zone so a remote staffer isn't surprised by the send time.
+  const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const zoneMismatch = !!timeZone && deviceZone !== timeZone
 
   function confirm() {
     setError(null)
@@ -1083,7 +1109,12 @@ function ScheduleModal({
           />
         </label>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-          Times are in your {orgNoun} timezone ({timeZone}). It sends automatically — no need to keep this open.
+          Times are in your device&rsquo;s timezone ({deviceZone}). It sends automatically — no need to keep this open.
+          {zoneMismatch && (
+            <span className="block mt-1 text-amber-700 dark:text-amber-400">
+              Heads up: that&rsquo;s different from the {orgNoun}&rsquo;s timezone ({timeZone}) — pick the time as it reads on your own clock.
+            </span>
+          )}
         </p>
         {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
         <div className="flex justify-end gap-2">

@@ -79,16 +79,27 @@ export async function sendDueScheduledCampaigns(opts?: { now?: Date }): Promise<
       // its draft/scheduled/paused claim, and every scheduled send no-ops.
       const send = await sendCampaign({ organizationId: c.organizationId, campaignId: c.id, alreadyClaimed: true })
       result.results.push({ campaignId: c.id, organizationId: c.organizationId, sent: send.sent, failed: send.failed })
-      // sendCampaign returns early (without touching status) when the audience
-      // resolved to zero recipients — but our atomic claim already set the row
-      // 'active'. Reset it to 'draft' so an empty-audience scheduled send isn't
-      // left stuck 'active' (it never sent anything). A real send (attempted>0)
-      // owns its own final status inside sendCampaign.
+      // sendCampaign returns early (without touching status) when nobody was
+      // sendable — but our atomic claim already set the row 'active'.
       if (send.attempted === 0) {
-        await db
-          .update(schema.campaigns)
-          .set({ status: 'draft', scheduledAt: null, updatedAt: new Date() })
-          .where(eq(schema.campaigns.id, c.id))
+        if ((send.suppressed ?? 0) > 0) {
+          // Everyone left was held back by the 7-day frequency cap. That's a
+          // "not yet", not a "never": re-queue for tomorrow instead of dumping
+          // an automation's campaign back to a zombie draft. The cap frees
+          // within its 7-day window, so this always terminates.
+          await db
+            .update(schema.campaigns)
+            .set({ status: 'scheduled', scheduledAt: new Date(now.getTime() + 86_400_000), updatedAt: new Date() })
+            .where(eq(schema.campaigns.id, c.id))
+        } else {
+          // Empty audience → reset to 'draft' so it isn't left stuck 'active'
+          // (it never sent anything). A real send (attempted>0) owns its own
+          // final status inside sendCampaign.
+          await db
+            .update(schema.campaigns)
+            .set({ status: 'draft', scheduledAt: null, updatedAt: new Date() })
+            .where(eq(schema.campaigns.id, c.id))
+        }
       }
     } catch (err) {
       result.failed++

@@ -77,6 +77,39 @@ Closed 2026-07-02 (round 5 — the class is now fully swept):
   their own tz is arguably correct too). Revisit only if a real complaint
   lands.
 
+Fixed 2026-07-22 (campaigns final pass):
+
+- ☑ **Retention automation send times** — automation campaigns scheduled by
+  the cron's UTC clock could land at 3 AM clinic-local. `automationSendAt`
+  (`retention-automation.ts`) now targets 10 AM clinic-local (or now, if the
+  cron ran later) — tested in `retention-automation.test.ts`.
+- ☑ **Campaign ScheduleModal timezone claim** — the label said "times are in
+  your clinic timezone" while `datetime-local` is interpreted in the DEVICE's
+  zone. The copy now tells the truth (device tz) and warns on a
+  device≠clinic mismatch; the ScheduledPanel shows the tz abbreviation.
+- ▣ **Benefits season + birthday audience use UTC calendar days** while the
+  send window is clinic-local — a far-west clinic can greet a birthday the
+  evening before. ACCEPTED: self-consistent, greeting-grade stakes.
+
+## Class 5-adjacent — Campaign recipientSource seam (2026-07-22, campaigns final pass)
+
+- ☑ **Manual clinic campaigns carried `recipientSource='customers'`** (the
+  schema default — creation never stamped the column). Consequences: the
+  frequency cap skipped them, they sent from the PLATFORM identity instead of
+  the clinic Tier-1 (or failed closed on missing postal address),
+  `{{bookingUrl}}` stripped empty, and Growth analytics (which filters
+  `recipientSource='patients'`) never counted them — while the preview
+  rendered correctly clinic-branded. Fixed three-deep: creation stamps the
+  source from tenant type + audience, `sendCampaign` trusts the AUDIENCE's
+  source over a stale column, and migration 0132 backfills existing rows.
+  Tests: `send-campaign.test.ts`, `create-from-template.test.ts`.
+- ☑ **Weekly welcome could double-send at the week boundary** (7-day window ==
+  7-day key period + cron jitter). `partitionByPriorAutomationSend` makes
+  "welcomed exactly once" structural. Tests: `marketing-frequency.test.ts`.
+- ☑ **Fully frequency-capped scheduled campaigns reverted to zombie drafts** —
+  the flush now re-queues them for tomorrow (the cap frees within 7 days).
+  Test: `scheduled-campaigns.test.ts`.
+
 ## Class 2 — Demo seed data attributed to real records (2026-07-02 sweep)
 
 **Rule (now in CLAUDE.md):** the demo org contains real test patients; every
