@@ -324,6 +324,14 @@ export default function AppointmentDrawer({
                   {detail.providerName && ` · with ${detail.providerName}`}
                   {detail.locationName && ` · at ${detail.locationName}`}
                 </p>
+                {/* Actor trail: a cancelled visit says WHO cancelled it, so the
+                    front desk never has to reconstruct it from memory. */}
+                {detail.status === 'cancelled' && detail.cancelledSummary && (
+                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">
+                    {detail.cancelledSummary.charAt(0).toUpperCase() + detail.cancelledSummary.slice(1)}
+                    {detail.cancelledAt ? ` · ${fmtRelative(detail.cancelledAt)}` : ''}
+                  </p>
+                )}
                 {detail.deposit && (
                   <div className="pt-1">
                     {detail.deposit.status === 'paid' ? (

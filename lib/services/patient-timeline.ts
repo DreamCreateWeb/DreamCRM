@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { cancelActorLabel } from '@/lib/cancel-actor'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
@@ -54,6 +55,8 @@ interface RawAppt {
   status: string
   notes: string | null
   createdAt: Date
+  cancelledVia: string | null
+  cancelledByUserId: string | null
 }
 interface RawMsg {
   id: number
@@ -219,6 +222,8 @@ export async function getPatientTimeline(
         status: schema.appointment.status,
         notes: schema.appointment.notes,
         createdAt: schema.appointment.createdAt,
+        cancelledVia: schema.appointment.cancelledVia,
+        cancelledByUserId: schema.appointment.cancelledByUserId,
       })
       .from(schema.appointment)
       .where(
@@ -509,6 +514,32 @@ export async function getPatientTimeline(
 
   const events: TimelineEvent[] = []
 
+  // "Cancelled by whom" — resolve staff names in one query (usually 0-1 ids).
+  // The 2026-07-22 mixup rule: a cancelled visit on the timeline always says
+  // which side did it, so nobody has to reconstruct it from memory.
+  const cancellerIds = Array.from(
+    new Set(
+      appts
+        .filter((a) => a.status === 'cancelled' && a.cancelledByUserId)
+        .map((a) => a.cancelledByUserId as string),
+    ),
+  )
+  const cancellerName = new Map<string, string>()
+  if (cancellerIds.length) {
+    const rows = await db
+      .select({ id: schema.user.id, name: schema.user.name })
+      .from(schema.user)
+      .where(inArray(schema.user.id, cancellerIds))
+    for (const r of rows) cancellerName.set(r.id, r.name)
+  }
+  const apptCancelLabel = (a: RawAppt): string | null => {
+    if (a.status !== 'cancelled') return null
+    return cancelActorLabel(
+      a.cancelledVia,
+      a.cancelledByUserId ? cancellerName.get(a.cancelledByUserId) : null,
+    )
+  }
+
   for (const a of appts) {
     const start = a.startTime
     const future = start > now
@@ -516,6 +547,7 @@ export async function getPatientTimeline(
     const aging = future && within48h && a.status === 'scheduled'
       ? Math.max(0, Math.round((fortyEightHrs - (start.getTime() - now.getTime())) / (24 * 60 * 60 * 1000)))
       : null
+    const actorLabel = apptCancelLabel(a)
     events.push({
       id: `appt_${a.id}`,
       kind: 'appointment',
@@ -523,7 +555,9 @@ export async function getPatientTimeline(
       title: a.type
         ? `${a.type.replace(/_/g, ' ')}${a.status === 'completed' ? ' (completed)' : ''}`
         : 'Appointment',
-      subtitle: formatClinicDayTime(start, timeZone),
+      subtitle: actorLabel
+        ? `${formatClinicDayTime(start, timeZone)} · ${actorLabel}`
+        : formatClinicDayTime(start, timeZone),
       status: a.status,
       direction: null,
       href: `/appointments?appt=${a.id}`,

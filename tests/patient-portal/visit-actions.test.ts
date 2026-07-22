@@ -176,7 +176,9 @@ describe('cancelMyVisitAction', () => {
   it('cancels outside the notice window', async () => {
     const r = await cancelMyVisitAction('appt_1')
     expect(r).toEqual({ ok: true })
-    expect(cancelAppointment).toHaveBeenCalledWith('org_1', 'appt_1')
+    // The actor trail: a portal self-cancel is recorded as via='portal', so
+    // the staff alert can say the patient did it (not the office).
+    expect(cancelAppointment).toHaveBeenCalledWith('org_1', 'appt_1', { via: 'portal' })
   })
 
   it('refuses inside the notice window and points at the phone', async () => {

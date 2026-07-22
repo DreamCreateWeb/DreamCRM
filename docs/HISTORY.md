@@ -7,6 +7,34 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **The Maria/John incident fix: family-safe identity + cancellation actor
+  trail (2026-07-22).** A real prod mixup at the beta clinic: a family
+  member's website appointment request carried contact info already on file
+  for another patient; the public dedupe (email OR phone, name discarded)
+  threaded it onto the WRONG chart, staff booked it there, and the cleanup
+  cancelled the wrong person's visit — with no record of who cancelled.
+  Two structural fixes. (1) **Family-safe public matching**: all three
+  public entry points (site request, self-booking, chat widget) route
+  through `resolvePublicPatient` (`lib/services/public-patient-match.ts`) —
+  a contact match claims an existing record ONLY when the submitted name
+  loosely matches (`namesLooselyMatch`, `lib/patient-identity.ts`: last
+  names must match, first names exact-or-initial, nickname = safe-mode
+  mismatch); otherwise the person gets their OWN record and the front desk
+  gets the flag ("Heads-up: this contact info is also on file for Maria
+  Aguilera — likely family…") in the thread note + booking notification.
+  Lead-convert left as-is on purpose (staff-driven, previews the match by
+  name, has forceNewPatient). (2) **Cancellation actor trail**:
+  `appointment.cancelled_via` + `cancelled_by_user_id` (migration 0133),
+  stamped by every path that cancels (staff drawer via='staff'+userId,
+  portal self-cancel via='portal', reschedule, waitlist_claim, PMS-sync
+  'pms'); the staff alert now names the actor ("Mia cancelled their
+  cleaning on Sep 28 from the patient portal." / "Sarah Chen cancelled
+  their…"), the patient timeline subtitle and the appointment drawer show
+  it, and `lib/cancel-actor.ts` is the single phrasing home. Demo seed
+  stamps the phantom reschedule row. FINISHING.md gained Class 7 (identity
+  seams) recording the incident + the accepted-as-is edges (shared-email
+  portal access, lead convert).
+
 - **Campaigns final pass — the audit sweep before moving on (2026-07-22).**
   A 3-agent audit (UI surfaces / services+crons / tests+docs) over the whole
   campaigns system, findings verified at source and fixed in one pass. THE

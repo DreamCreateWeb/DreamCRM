@@ -658,9 +658,11 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
   }
 }
 
-function appointmentStatusFields(status: NormalizedAppointment['status']): Record<string, Date | null> {
+function appointmentStatusFields(status: NormalizedAppointment['status']): Record<string, Date | string | null> {
   if (status === 'completed') return { completedAt: new Date() }
-  if (status === 'cancelled') return { cancelledAt: new Date() }
+  // 'pms' actor: the cancel came in FROM the practice system (Open Dental),
+  // so the timeline can say "cancelled in the practice system".
+  if (status === 'cancelled') return { cancelledAt: new Date(), cancelledVia: 'pms' }
   if (status === 'no_show') return { noShowedAt: new Date() }
   if (status === 'confirmed') return { confirmedAt: new Date() }
   return {}

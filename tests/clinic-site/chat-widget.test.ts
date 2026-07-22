@@ -143,11 +143,26 @@ describe('submitChatMessage', () => {
 
   it('threads a REPEAT visitor to their existing patient record (no duplicate)', async () => {
     state.selectQueue.push([{ chatWidgetEnabled: true }])
-    state.selectQueue.push([{ id: 'pat_existing' }])
+    state.selectQueue.push([{ id: 'pat_existing', firstName: 'Jordan', lastName: 'Lee' }])
     await submitChatMessage(fd())
     expect(state.inserts).toHaveLength(0)
     expect(recordInboundMock).toHaveBeenCalledWith(
       expect.objectContaining({ patientId: 'pat_existing' }),
+    )
+  })
+
+  it('a DIFFERENT-named visitor on the same email gets their own record + a family flag', async () => {
+    state.selectQueue.push([{ chatWidgetEnabled: true }])
+    state.selectQueue.push([{ id: 'pat_maria', firstName: 'Maria', lastName: 'Aguilera' }])
+    await submitChatMessage(fd({ name: 'John Aguilera', email: 'aguilera.family@example.com' }))
+    // John gets his OWN record — never threaded onto Maria's chart.
+    expect(state.inserts).toHaveLength(1)
+    expect(state.inserts[0]!.values).toMatchObject({ firstName: 'John', lastName: 'Aguilera' })
+    expect(recordInboundMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patientId: state.inserts[0]!.values.id,
+        body: expect.stringContaining('also on file for Maria Aguilera'),
+      }),
     )
   })
 

@@ -162,6 +162,45 @@ describe('cancelAppointment notifications', () => {
     expect(notifyOrgMembersMock).toHaveBeenCalled()
   })
 
+  it('records a STAFF actor and says who cancelled in the staff ping', async () => {
+    queueCancelContext()
+    await cancelAppointment('org_1', 'appt_1', { via: 'staff', userId: 'user_9', name: 'Sarah Chen' })
+    const stateWrite = state.updates.find((u) => u.status === 'cancelled')!
+    expect(stateWrite.cancelledVia).toBe('staff')
+    expect(stateWrite.cancelledByUserId).toBe('user_9')
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({ body: expect.stringContaining('Sarah Chen cancelled their cleaning') }),
+      expect.anything(),
+    )
+  })
+
+  it('records a PORTAL actor (no user id) and says so in the staff ping', async () => {
+    queueCancelContext()
+    await cancelAppointment('org_1', 'appt_1', { via: 'portal' })
+    const stateWrite = state.updates.find((u) => u.status === 'cancelled')!
+    expect(stateWrite.cancelledVia).toBe('portal')
+    expect(stateWrite.cancelledByUserId).toBeNull()
+    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
+      'org_1',
+      expect.objectContaining({
+        body: expect.stringContaining('Mia cancelled their cleaning'),
+      }),
+      expect.anything(),
+    )
+    const body = ((notifyOrgMembersMock.mock.calls[0] as unknown[])[1] as { body: string }).body
+    expect(body).toContain('from the patient portal')
+  })
+
+  it('legacy call without an actor keeps the neutral copy (no invented actor)', async () => {
+    queueCancelContext()
+    await cancelAppointment('org_1', 'appt_1')
+    const stateWrite = state.updates.find((u) => u.status === 'cancelled')!
+    expect(stateWrite.cancelledVia).toBeNull()
+    const body = ((notifyOrgMembersMock.mock.calls[0] as unknown[])[1] as { body: string }).body
+    expect(body).toMatch(/was cancelled\.$/)
+  })
+
   it('still cancels even if the notification path throws', async () => {
     notifyOrgMembersMock.mockRejectedValueOnce(new Error('notify boom'))
     queueCancelContext()

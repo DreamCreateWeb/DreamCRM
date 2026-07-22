@@ -319,6 +319,12 @@ export const appointment = pgTable('appointment', {
   seatedAt: timestamp('seated_at'),
   // How the confirmation came in: 'sms' | 'email' | 'manual' | 'auto_sms_keyword' | 'portal'
   confirmedVia: text('confirmed_via'),
+  // WHO cancelled — the audit trail the 2026-07-22 mixup exposed (staff and a
+  // patient both got "visit cancelled" with no way to see which side did it).
+  // via: 'staff' | 'portal' | 'reschedule' | 'waitlist_claim' | 'pms';
+  // cancelledByUserId is set for 'staff' only.
+  cancelledVia: text('cancelled_via'),
+  cancelledByUserId: text('cancelled_by_user_id'),
   // Token-IS-auth for the public one-click confirm landing (/c/[token]) linked
   // from reminder emails — same pattern as /r and /w. Minted lazily at the
   // first reminder send; reused across the journey's touches.

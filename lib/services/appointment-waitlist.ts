@@ -536,7 +536,7 @@ export async function claimOffer(
     if (oldAppt && (oldAppt.status === 'scheduled' || oldAppt.status === 'confirmed')) {
       await db
         .update(schema.appointment)
-        .set({ status: 'cancelled', cancelledAt: new Date(), updatedAt: new Date() })
+        .set({ status: 'cancelled', cancelledAt: new Date(), cancelledVia: 'waitlist_claim', updatedAt: new Date() })
         .where(eq(schema.appointment.id, oldApptId))
       await queueAppointmentStatusWriteBack(offer.organizationId, oldApptId, 'cancelled').catch(() => {})
       // Their vacated slot is now free — offer it onward (excluding them).

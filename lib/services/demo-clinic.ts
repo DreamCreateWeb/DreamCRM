@@ -2792,6 +2792,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     confirmedVia?: 'sms' | 'email' | 'manual' | 'auto_sms_keyword'
     rescheduledFromAppointmentId?: string
     cancelledAt?: Date
+    cancelledVia?: 'staff' | 'portal' | 'reschedule' | 'waitlist_claim' | 'pms'
     createdAtOverride?: Date
   }> = [
     // ── Past visits ──
@@ -2804,7 +2805,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     { id: newId('appt'), patientIdx: 7, startOffsetMs: -150 * dayMs, type: 'consultation', status: 'completed', notes: null, providerId: providerDentistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 8, startOffsetMs: -30 * dayMs, type: 'cleaning', status: 'no_show', notes: null, providerId: providerHygienistId, source: 'manual' },
     // Phantom cancelled "from" row — original time Mia was booked before reschedule.
-    { id: miaOriginalId, patientIdx: 0, startOffsetMs: 7 * dayMs + 10 * hourMs, type: 'cleaning', status: 'cancelled', notes: 'Originally booked here — patient asked to move.', providerId: providerHygienistId, source: 'booking_widget', cancelledAt: new Date(now.getTime() - 2 * dayMs) },
+    { id: miaOriginalId, patientIdx: 0, startOffsetMs: 7 * dayMs + 10 * hourMs, type: 'cleaning', status: 'cancelled', notes: 'Originally booked here — patient asked to move.', providerId: providerHygienistId, source: 'booking_widget', cancelledAt: new Date(now.getTime() - 2 * dayMs), cancelledVia: 'reschedule' },
     // ── Future visits ──
     { id: newId('appt'), patientIdx: 1, startOffsetMs: 5 * dayMs + 9 * hourMs, type: 'cleaning', status: 'confirmed', notes: 'New patient cleaning', providerId: providerHygienistId, source: 'booking_widget', confirmedAt: new Date(now.getTime() - 1 * dayMs), confirmedVia: 'email' },
     { id: newId('appt'), patientIdx: 0, startOffsetMs: 14 * dayMs + 10 * hourMs, type: 'cleaning', status: 'scheduled', notes: 'Rescheduled from earlier slot', providerId: providerHygienistId, source: 'manual', rescheduledFromAppointmentId: miaOriginalId },
@@ -2841,6 +2842,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       confirmedAt: a.confirmedAt ?? null,
       confirmedVia: a.confirmedVia ?? null,
       cancelledAt: a.cancelledAt ?? null,
+      cancelledVia: a.cancelledVia ?? null,
       rescheduledFromAppointmentId: a.rescheduledFromAppointmentId ?? null,
       ...(a.createdAtOverride ? { createdAt: a.createdAtOverride } : {}),
     })

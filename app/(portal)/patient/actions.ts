@@ -111,7 +111,7 @@ export async function cancelMyVisitAction(visitId: string): Promise<PortalAction
   }
 
   try {
-    await cancelAppointment(ctx.organizationId, visitId)
+    await cancelAppointment(ctx.organizationId, visitId, { via: 'portal' })
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
   }

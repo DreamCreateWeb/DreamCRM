@@ -91,7 +91,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0132 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0133 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -383,6 +383,14 @@ sitemap/robots/OG.
   consumer's route (see docs/STRUCTURE-AUDIT.md for the audited system).
 - **Demo persona anchoring above is a convention** — new seeded artifacts ride
   `getPersonaAlignedPatientIds` + a cleanup marker.
+- **Family-safe identity is a convention (2026-07-22, the Maria/John
+  incident).** Any flow that attaches inbound activity to a patient by
+  contact info must ALSO name-match (`namesLooselyMatch`,
+  `lib/patient-identity.ts` — public flows go through
+  `resolvePublicPatient`); a mismatch mints a separate record flagged
+  "likely family", never a thread/visit on another person's chart. And
+  every path that cancels an appointment stamps `cancelledVia`
+  (+ `cancelledByUserId` for staff) — phrasing via `lib/cancel-actor.ts`.
 - **For UI / public-site / font / next-config PRs run `pnpm build`, not just
   tests** — happy-dom misses build-only failures (fonts, turbopack resolution,
   server/client boundary slips). `next/font/google` is banned (build env can't
@@ -416,8 +424,8 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0132** (data backfill: `campaigns.recipient_source` from the
-  targeted audience — pre-stamp rows defaulted to 'customers'). Workflow:
+  migration: **0133** (`appointment.cancelled_via` + `cancelled_by_user_id` —
+  the cancellation actor trail). Workflow:
   `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).

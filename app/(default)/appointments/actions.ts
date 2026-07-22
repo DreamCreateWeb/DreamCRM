@@ -66,7 +66,11 @@ export async function confirmAppointmentAction(appointmentId: string): Promise<{
 
 export async function cancelAppointmentAction(appointmentId: string): Promise<{ ok: true }> {
   const ctx = await requireClinicTenant()
-  await cancelAppointment(ctx.organizationId, appointmentId)
+  await cancelAppointment(ctx.organizationId, appointmentId, {
+    via: 'staff',
+    userId: ctx.userId,
+    name: ctx.userName,
+  })
   revalidatePath('/appointments')
   revalidatePath('/')
   return { ok: true }

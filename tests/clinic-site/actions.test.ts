@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Track every call so we can assert insert/select payloads.
 const insertedRows: Array<{ table: string; values: unknown }> = []
 const selectStubs = {
-  patient: null as { id: string } | null,
+  patient: null as { id: string; firstName?: string; lastName?: string } | null,
   profile: null as
     | {
         email: string | null
@@ -37,8 +37,9 @@ vi.mock('@/lib/db', async () => {
   return {
     db: {
       select: (cols?: Record<string, unknown>) => {
-        // Dispatch by selected columns — patient lookup vs profile lookup.
-        if (cols && 'id' in cols && Object.keys(cols).length === 1) {
+        // Dispatch by selected columns — patient lookup (id, or the
+        // family-safe id+name shape) vs profile lookup.
+        if (cols && 'id' in cols && (Object.keys(cols).length === 1 || 'firstName' in cols)) {
           return chain(() => selectStubs.patient)
         }
         return chain(() => selectStubs.profile)
@@ -355,8 +356,8 @@ describe('submitBookingRequest', () => {
     expect((patientInsert!.values as { firstName: string }).firstName).toBe('Jane')
   })
 
-  it('reuses existing patient when email matches', async () => {
-    selectStubs.patient = { id: 'pat_existing' }
+  it('reuses existing patient when email AND name match', async () => {
+    selectStubs.patient = { id: 'pat_existing', firstName: 'Jane', lastName: 'Doe' }
     await submitBookingRequest(form(baseFields))
     const patientInsert = insertedRows.find((r) => r.table === 'patient')
     expect(patientInsert).toBeUndefined()
@@ -365,8 +366,22 @@ describe('submitBookingRequest', () => {
     expect((appointmentInsert!.values as { patientId: string }).patientId).toBe('pat_existing')
   })
 
+  it('a DIFFERENT-named booker on the same email gets their own record — the visit lands on THEIR chart', async () => {
+    // The 2026-07-22 mixup: John books with the shared family email; his visit
+    // must never attach to Maria's record.
+    selectStubs.patient = { id: 'pat_maria', firstName: 'Maria', lastName: 'Aguilera' }
+    await submitBookingRequest(form({ ...baseFields, firstName: 'John', lastName: 'Aguilera' }))
+    const patientInsert = insertedRows.find((r) => r.table === 'patient')
+    expect(patientInsert).toBeDefined()
+    expect((patientInsert!.values as { firstName: string }).firstName).toBe('John')
+    const appointmentInsert = insertedRows.find((r) => r.table === 'appointment')
+    expect((appointmentInsert!.values as { patientId: string }).patientId).toBe(
+      (patientInsert!.values as { id: string }).id,
+    )
+  })
+
   it("tags the booking with source='booking_widget' so the Appointments module can filter on it", async () => {
-    selectStubs.patient = { id: 'pat_existing' }
+    selectStubs.patient = { id: 'pat_existing', firstName: 'Jane', lastName: 'Doe' }
     await submitBookingRequest(form(baseFields))
     const appointmentInsert = insertedRows.find((r) => r.table === 'appointment')
     expect(appointmentInsert).toBeDefined()

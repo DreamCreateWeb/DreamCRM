@@ -110,6 +110,43 @@ Fixed 2026-07-22 (campaigns final pass):
   the flush now re-queues them for tomorrow (the cap frees within 7 days).
   Test: `scheduled-campaigns.test.ts`.
 
+## Class 7 — Identity seams: shared family contact info (2026-07-22, the Maria/John incident)
+
+**The incident (All About Smiles, prod):** a family member submitted a website
+appointment request using contact info already on file for another patient —
+the public dedupe matched on email/phone alone, threw away the submitted name,
+and threaded the request onto the WRONG patient's chart. Staff booked it there;
+the cleanup cancelled the wrong person's Sep 28 visit; the patient got a
+cancellation email; the front desk couldn't tell who had cancelled what.
+
+**Rule:** a contact-info match may only claim an existing chart when the
+submitted NAME matches too (`namesLooselyMatch`, `lib/patient-identity.ts`);
+otherwise mint a separate record and flag "likely family" to the front desk.
+A duplicate is a 10-second merge; a cross-contaminated chart is a privacy
+incident. And every cancellation records its actor.
+
+- ☑ **Public request/booking/chat dedupe by email-or-phone alone** — all three
+  flows now route through `resolvePublicPatient`
+  (`lib/services/public-patient-match.ts`): name match → existing record;
+  mismatch → own record + the shared-contact heads-up in the thread note and
+  booking notification. Tests: `tests/patients/patient-identity.test.ts` +
+  the clinic-site suites.
+- ☑ **No cancellation actor on record** — `appointment.cancelled_via` +
+  `cancelled_by_user_id` (migration 0133) stamped by every cancel path
+  (staff drawer / portal / reschedule / waitlist claim / PMS sync); the staff
+  alert now says WHO ("Maria cancelled their cleaning on Sep 28 from the
+  patient portal." / "Sarah Chen cancelled…"), and the patient timeline +
+  appointment drawer show it (`lib/cancel-actor.ts` is the single phrasing
+  home). Tests: `tests/appointments/cancel-notify.test.ts`.
+- ▣ **Lead → patient convert dedupe** — ACCEPTED as-is: staff-driven, the UI
+  previews the match by name (`findConvertDedupeMatch`) and offers the
+  `forceNewPatient` escape hatch, so the human sees exactly who they're
+  linking before it happens.
+- ▣ **Shared-email portal identity** — magic-link auth means anyone with the
+  shared inbox can open that record's portal; inherent to email-based auth.
+  The separate-records rule keeps each person's chart (and their portal) their
+  own going forward.
+
 ## Class 2 — Demo seed data attributed to real records (2026-07-02 sweep)
 
 **Rule (now in CLAUDE.md):** the demo org contains real test patients; every

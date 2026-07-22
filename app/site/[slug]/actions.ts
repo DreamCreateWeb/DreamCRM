@@ -1,10 +1,9 @@
 'use server'
 
 import { randomUUID } from 'crypto'
-import { eq, and, or } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { rateLimitPublicAction } from '@/lib/services/rate-limit'
-import { patient, appointment } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotificationEmail } from '@/lib/email'
 import { formatClinicDateTime } from '@/lib/format-datetime'
@@ -20,6 +19,8 @@ import { publicSiteUrl, resolveClinicOrgIdBySlug } from '@/lib/services/clinic-s
 import { createLead } from '@/lib/services/leads'
 import { stampReferralAttribution } from '@/lib/services/patient-referrals'
 import { recordInboundMessage } from '@/lib/services/patient-messaging'
+import { resolvePublicPatient, sharedContactNote } from '@/lib/services/public-patient-match'
+import { splitFullName } from '@/lib/patient-identity'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { organization } from '@/lib/db/schema/auth'
@@ -203,41 +204,20 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
     throw new Error('That email doesn’t look right — please double-check it')
   }
 
-  // Find an existing patient by email OR phone (repeat requesters thread to the
-  // same record) — else create a lead-lifecycle patient. Mirrors the booking
-  // path's dedupe so a request doesn't fork a duplicate patient.
-  let patientId = ''
-  if (email || phone) {
-    const conditions = [eq(patient.email, email)] as ReturnType<typeof eq>[]
-    if (phone) conditions.push(eq(patient.phone, phone))
-    const [existing] = await db
-      .select({ id: patient.id })
-      .from(patient)
-      .where(
-        and(
-          eq(patient.organizationId, orgId),
-          conditions.length === 1 ? conditions[0] : or(...conditions)!,
-        ),
-      )
-      .limit(1)
-    patientId = existing?.id ?? ''
-  }
-  if (!patientId) {
-    patientId = randomUUID()
-    const now = new Date()
-    await db.insert(patient).values({
-      id: patientId,
-      organizationId: orgId,
-      firstName,
-      lastName,
-      email,
-      phone,
-      isActive: 1,
-      source: 'website_request',
-      lifecycle: 'lead',
-      firstSeenAt: now,
-      lastActivityAt: now,
-    })
+  // Family-safe dedupe (lib/services/public-patient-match.ts): email/phone
+  // matches an existing record ONLY when the submitted name matches too — a
+  // spouse using the shared family email gets their OWN record + a heads-up
+  // note, never a request threaded silently onto the other spouse's chart.
+  const resolution = await resolvePublicPatient(orgId, {
+    firstName,
+    lastName,
+    email,
+    phone,
+    source: 'website_request',
+    lifecycle: 'lead',
+  })
+  const patientId = resolution.patientId
+  if (resolution.created) {
     // Refer-a-friend: a ?ref= share-link token rides the form. Stamped only on
     // NEWLY created patients (an existing record keeps its history) and only
     // best-effort — attribution never blocks the request itself.
@@ -247,8 +227,6 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
         console.warn('[clinic-site] referral attribution failed', err)
       })
     }
-  } else {
-    await db.update(patient).set({ lastActivityAt: new Date() }).where(eq(patient.id, patientId))
   }
 
   // Build the inbound message body. Lead with a scannable first line so the
@@ -258,6 +236,9 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
   if (reason) lines.push(`Looking for: ${reason}`)
   if (preferred) lines.push(`Preferred times: ${preferred}`)
   if (note) lines.push('', note)
+  if (resolution.sharedContactWith) {
+    lines.push('', sharedContactNote(firstName, resolution.sharedContactWith.name))
+  }
   const body = lines.join('\n')
 
   // Record as an INBOUND message (channel=email → the reply composer defaults
@@ -308,41 +289,28 @@ export async function submitChatMessage(formData: FormData): Promise<{ ok: true 
   if (!message) throw new Error('Type a message first')
   if (message.length > 2000) throw new Error('That message is a little long — keep it under 2,000 characters')
 
-  const [firstName, ...rest] = name.split(/\s+/)
-  const lastName = rest.join(' ') || '—'
+  const { firstName, lastName: splitLast } = splitFullName(name)
+  const lastName = splitLast || '—'
 
-  // Dedupe by email (repeat visitors thread to the same patient record) —
-  // else create a lead-lifecycle patient, mirroring the request path.
-  let patientId = ''
-  const [existing] = await db
-    .select({ id: patient.id })
-    .from(patient)
-    .where(and(eq(patient.organizationId, orgId), eq(patient.email, email)))
-    .limit(1)
-  patientId = existing?.id ?? ''
-  if (!patientId) {
-    patientId = randomUUID()
-    const now = new Date()
-    await db.insert(patient).values({
-      id: patientId,
-      organizationId: orgId,
-      firstName,
-      lastName,
-      email,
-      isActive: 1,
-      source: 'website_chat',
-      lifecycle: 'lead',
-      firstSeenAt: now,
-      lastActivityAt: now,
-    })
-  } else {
-    await db.update(patient).set({ lastActivityAt: new Date() }).where(eq(patient.id, patientId))
+  // Family-safe dedupe (same guard as the request + booking paths): a repeat
+  // visitor threads to their record; a different-named person on the same
+  // email gets their own record + a flagged heads-up in the note.
+  const resolution = await resolvePublicPatient(orgId, {
+    firstName,
+    lastName,
+    email,
+    source: 'website_chat',
+    lifecycle: 'lead',
+  })
+
+  const chatLines = [`New message via the website chat.`, '', message]
+  if (resolution.sharedContactWith) {
+    chatLines.push('', sharedContactNote(firstName, resolution.sharedContactWith.name))
   }
-
   await recordInboundMessage({
     organizationId: orgId,
-    patientId,
-    body: `New message via the website chat.\n\n${message}`,
+    patientId: resolution.patientId,
+    body: chatLines.join('\n'),
     channel: 'email',
   })
   return { ok: true }
@@ -521,43 +489,20 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
     throw new Error('That slot is no longer available — please pick another time.')
   }
 
-  let patientId = ''
-  // Look up an existing patient by email OR phone — phone-only bookings
-  // are common (some patients don't share email), and we want to attach
-  // repeat visits to the same patient row.
-  if (email || phone) {
-    const conditions = [] as ReturnType<typeof eq>[]
-    if (email) conditions.push(eq(patient.email, email))
-    if (phone) conditions.push(eq(patient.phone, phone))
-    const [existing] = await db
-      .select({ id: patient.id })
-      .from(patient)
-      .where(
-        and(
-          eq(patient.organizationId, orgId),
-          conditions.length === 1 ? conditions[0] : or(conditions[0], conditions[1])!,
-        ),
-      )
-      .limit(1)
-    patientId = existing?.id ?? ''
-  }
-
-  if (!patientId) {
-    patientId = randomUUID()
-    const now = new Date()
-    await db.insert(patient).values({
-      id: patientId,
-      organizationId: orgId,
-      firstName,
-      lastName,
-      email,
-      phone,
-      isActive: 1,
-      source: 'booking',
-      lifecycle: 'new',
-      firstSeenAt: now,
-      lastActivityAt: now,
-    })
+  // Family-safe dedupe: attach repeat visits to the same patient row ONLY
+  // when the submitted name matches the record — a family member booking with
+  // the shared email/phone gets their own record + a flagged staff heads-up,
+  // never an appointment on someone else's chart (the 2026-07-22 mixup).
+  const resolution = await resolvePublicPatient(orgId, {
+    firstName,
+    lastName,
+    email: email || null,
+    phone,
+    source: 'booking',
+    lifecycle: 'new',
+  })
+  const patientId = resolution.patientId
+  if (resolution.created) {
     // Refer-a-friend: stamp attribution from the ?ref= share-link token, only
     // on newly created patients, never blocking the booking (best-effort).
     const refToken = formData.get('ref')?.toString().trim() || ''
@@ -566,11 +511,6 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
         console.warn('[clinic-site] referral attribution failed', err)
       })
     }
-  } else {
-    await db
-      .update(patient)
-      .set({ lastActivityAt: new Date() })
-      .where(eq(patient.id, patientId))
   }
 
   // End time = start + the visit-type duration (falls back to one 30-min slot
@@ -622,7 +562,9 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
         bucket: 'comments',
         type: 'online_booking',
         title: `New online booking — ${firstName} ${lastName}, ${dateLabel}`,
-        body: `${appointmentType.replace(/_/g, ' ')} requested via your website.`,
+        body: resolution.sharedContactWith
+          ? `${appointmentType.replace(/_/g, ' ')} requested via your website. ${sharedContactNote(firstName, resolution.sharedContactWith.name)}`
+          : `${appointmentType.replace(/_/g, ' ')} requested via your website.`,
         // Take them straight to the patient — their record shows this visit in
         // the timeline plus every way to follow up (message, confirm, rebook).
         linkPath: `/patients/${patientId}`,

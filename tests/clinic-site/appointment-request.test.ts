@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const insertedRows: Array<{ table: string; values: any }> = []
 const updatedPatients: any[] = []
-const selectStubs = { patient: null as { id: string } | null }
+const selectStubs = { patient: null as { id: string; firstName?: string; lastName?: string } | null }
 
 function chain(returnFn: () => unknown) {
   const obj: any = {}
@@ -182,8 +182,8 @@ describe('submitAppointmentRequest', () => {
     expect(arg.body).toContain('hoping to get established')
   })
 
-  it('dedupes an existing patient (by email/phone) instead of forking a duplicate', async () => {
-    selectStubs.patient = { id: 'pat_existing' }
+  it('dedupes an existing patient (same contact info AND same name) instead of forking a duplicate', async () => {
+    selectStubs.patient = { id: 'pat_existing', firstName: 'Jordan', lastName: 'Park' }
     await submitAppointmentRequest(form({ ...VALID }))
 
     // No new patient row — just an activity bump on the existing one.
@@ -192,6 +192,26 @@ describe('submitAppointmentRequest', () => {
 
     expect(recordInboundMessageMock).toHaveBeenCalledTimes(1)
     expect(inboundArg().patientId).toBe('pat_existing')
+    // No family flag for a plain repeat requester.
+    expect(inboundArg().body).not.toContain('Heads-up')
+  })
+
+  it('gives a DIFFERENT-named requester on the same email their own record + flags likely family', async () => {
+    // The 2026-07-22 mixup: a spouse submits with the shared family email —
+    // must NOT thread onto the existing patient's chart.
+    selectStubs.patient = { id: 'pat_maria', firstName: 'Maria', lastName: 'Aguilera' }
+    await submitAppointmentRequest(
+      form({ slug: 'acme', firstName: 'John', lastName: 'Aguilera', email: 'aguilera.family@example.com' }),
+    )
+
+    const pat = insertedRows.find((r) => r.table === 'patient')
+    expect(pat).toBeTruthy()
+    expect(pat!.values).toMatchObject({ firstName: 'John', lastName: 'Aguilera' })
+    // The thread lands on JOHN's new record, never Maria's.
+    expect(inboundArg().patientId).toBe(pat!.values.id)
+    // …and the front desk is told exactly what happened.
+    expect(inboundArg().body).toContain('also on file for Maria Aguilera')
+    expect(inboundArg().body).toContain('likely family')
   })
 
   it('omits optional lines from the body when not provided', async () => {

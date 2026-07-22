@@ -6,6 +6,7 @@ import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack } from '@/li
 import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
+import { cancelActorLabel } from '@/lib/cancel-actor'
 import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -117,6 +118,10 @@ export interface AppointmentDetail extends AppointmentRow {
   intakeAttached: { id: string; formTitle: string; submittedAt: Date } | null
   /** Booking deposit collected (or awaited) for this visit. Null = none. */
   deposit: { amountCents: number; status: string } | null
+  /** WHO cancelled, pre-phrased ("cancelled from the patient portal" /
+   *  "cancelled by Sarah Chen" / …). Null unless cancelled with a recorded
+   *  actor (lib/cancel-actor.ts). */
+  cancelledSummary: string | null
 }
 
 // ----- ID + helpers -----------------------------------------------------
@@ -546,6 +551,8 @@ export async function getAppointmentDetail(
       locationName: schema.clinicLocation.name,
       confirmedAt: schema.appointment.confirmedAt,
       cancelledAt: schema.appointment.cancelledAt,
+      cancelledVia: schema.appointment.cancelledVia,
+      cancelledByUserId: schema.appointment.cancelledByUserId,
       arrivedAt: schema.appointment.arrivedAt,
       seatedAt: schema.appointment.seatedAt,
       rescheduledFromAppointmentId: schema.appointment.rescheduledFromAppointmentId,
@@ -568,7 +575,7 @@ export async function getAppointmentDetail(
   const now = new Date()
   // Tags fold into the parallel batch (was a separate serial round-trip on
   // every drawer open). Balance reads off the patient join (pms_balance_cents).
-  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence, depositRow] = await Promise.all([
+  const [reminderRows, intakeRow, ltvRows, lastVisitRow, bookingCountRow, futureApptRow, tags, cadence, depositRow, cancellerRow] = await Promise.all([
     db
       .select({
         id: schema.appointmentReminderLog.id,
@@ -673,6 +680,14 @@ export async function getAppointmentDetail(
       )
       .orderBy(desc(schema.bookingDeposit.createdAt))
       .limit(1),
+    // "Cancelled by" staff name (actor trail) — only when a staff cancel is on record.
+    base.cancelledVia === 'staff' && base.cancelledByUserId
+      ? db
+          .select({ name: schema.user.name })
+          .from(schema.user)
+          .where(eq(schema.user.id, base.cancelledByUserId))
+          .limit(1)
+      : Promise.resolve([] as Array<{ name: string }>),
   ])
 
   const outstanding = base.pmsBalanceCents ?? 0
@@ -711,6 +726,8 @@ export async function getAppointmentDetail(
     locationName: base.locationName,
     confirmedAt: base.confirmedAt,
     cancelledAt: base.cancelledAt,
+    cancelledSummary:
+      status === 'cancelled' ? cancelActorLabel(base.cancelledVia, cancellerRow[0]?.name ?? null) : null,
     arrivedAt: base.arrivedAt,
     seatedAt: base.seatedAt,
     reminderLastSentAt,
@@ -906,7 +923,22 @@ function patientRecordLinkLabel(patientName: string): string {
   return first ? `View ${first}’s record →` : 'View patient record →'
 }
 
-export async function cancelAppointment(organizationId: string, appointmentId: string) {
+/** WHO is cancelling — recorded on the row and spoken in the staff alert, so
+ *  "who cancelled this?" is answerable in one glance (the 2026-07-22 mixup:
+ *  staff and the patient each assumed the other side had done it). */
+export interface CancelActor {
+  via: 'staff' | 'portal'
+  /** Staff user id (via='staff' only). */
+  userId?: string | null
+  /** Staff display name for the notification copy (via='staff' only). */
+  name?: string | null
+}
+
+export async function cancelAppointment(
+  organizationId: string,
+  appointmentId: string,
+  actor?: CancelActor,
+) {
   await assertAppointmentMutable(organizationId, appointmentId)
   // Capture patient/clinic context BEFORE the state write — the row is still
   // mutable here, and we want the cancelled visit's details for the email + ping.
@@ -914,6 +946,8 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
   await setAppointmentState(organizationId, appointmentId, {
     status: 'cancelled',
     cancelledAt: new Date(),
+    cancelledVia: actor?.via ?? null,
+    cancelledByUserId: actor?.via === 'staff' ? (actor.userId ?? null) : null,
   })
   // Two-way PMS: cancel it in the PMS too, so the old slot stops reminding.
   await queueAppointmentStatusWriteBack(organizationId, appointmentId, 'cancelled')
@@ -944,6 +978,16 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
       const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', timeZone: await getClinicTimeZone(organizationId),
       })
+      // Say WHO cancelled — the front desk must be able to tell a patient
+      // self-cancel from a colleague's cleanup without asking around.
+      const visit = `${notifyCtx.type.replace(/_/g, ' ')} on ${dateLabel}`
+      const firstName = notifyCtx.patientName.split(' ')[0] || notifyCtx.patientName
+      const body =
+        actor?.via === 'portal'
+          ? `${firstName} cancelled their ${visit} from the patient portal.`
+          : actor?.via === 'staff' && actor.name
+            ? `${actor.name} cancelled their ${visit}.`
+            : `Their ${visit} was cancelled.`
       const { notifyOrgMembers } = await import('./notifications')
       await notifyOrgMembers(
         organizationId,
@@ -951,7 +995,7 @@ export async function cancelAppointment(organizationId: string, appointmentId: s
           bucket: 'comments',
           type: 'appointment_cancelled',
           title: `Visit cancelled — ${notifyCtx.patientName}`,
-          body: `Their ${notifyCtx.type.replace(/_/g, ' ')} on ${dateLabel} was cancelled.`,
+          body,
           linkPath: `/patients/${notifyCtx.patientId}`,
           linkLabel: patientRecordLinkLabel(notifyCtx.patientName),
           meta: { appointmentId, patientId: notifyCtx.patientId },
@@ -1319,6 +1363,9 @@ export async function rescheduleAppointment(input: RescheduleInput) {
       .set({
         status: 'cancelled',
         cancelledAt: new Date(),
+        // Not a real cancellation — the visit moved. Timeline/notifications
+        // must never read this row as "someone cancelled".
+        cancelledVia: 'reschedule',
         updatedAt: new Date(),
       })
       .where(
