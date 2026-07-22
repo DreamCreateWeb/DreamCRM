@@ -5,7 +5,7 @@ import { requireTenant } from '@/lib/auth/context'
 import {
   isDomainBuyingAvailable,
   purchaseDomainForClinic,
-  searchDomainOffers,
+  searchDomainOffersForClinic,
   type DomainOffer,
   type PurchaseResult,
 } from '@/lib/services/domain-purchase'
@@ -26,12 +26,12 @@ async function requireDomainManager() {
 
 export async function searchDomainsAction(
   query: string,
-): Promise<{ ok: true; offers: DomainOffer[] } | { ok: false; error: string }> {
+): Promise<{ ok: true; offers: DomainOffer[]; freeSlotOpen: boolean } | { ok: false; error: string }> {
   try {
-    await requireDomainManager()
+    const ctx = await requireDomainManager()
     if (!isDomainBuyingAvailable()) return { ok: false, error: 'Domain buying is not enabled yet.' }
-    const offers = await searchDomainOffers(query)
-    return { ok: true, offers }
+    const { offers, freeSlotOpen } = await searchDomainOffersForClinic(ctx.organizationId, query)
+    return { ok: true, offers, freeSlotOpen }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Search failed. Try again.' }
   }

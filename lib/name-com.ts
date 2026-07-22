@@ -151,6 +151,31 @@ export async function createDomain(
   }
 }
 
+/**
+ * Turn OFF registrar-side auto-renew. Called right after registration —
+ * renewals are OUR cron's job (charge the clinic first, then renew), so the
+ * registrar must never silently renew a churned clinic's domain on the
+ * platform's card.
+ */
+export async function disableAutorenew(domainName: string): Promise<void> {
+  await namecom(`/v4/domains/${encodeURIComponent(domainName)}:disableAutorenew`, { method: 'POST' })
+}
+
+/**
+ * Renew for one more year at a pinned price — name.com rejects the renewal
+ * if its current price differs, so a stored quote can never silently grow.
+ */
+export async function renewDomain(
+  domainName: string,
+  expectedPriceCents: number,
+): Promise<{ expireDate: string | null }> {
+  const data = await namecom<{ domain?: { expireDate?: string } }>(
+    `/v4/domains/${encodeURIComponent(domainName)}:renew`,
+    { method: 'POST', body: { purchasePrice: expectedPriceCents / 100 } },
+  )
+  return { expireDate: data.domain?.expireDate ?? null }
+}
+
 // ── DNS records ──────────────────────────────────────────────────────────────
 
 export interface NameComRecord {

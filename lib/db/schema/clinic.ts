@@ -1973,6 +1973,13 @@ export const clinicDomainPurchase = pgTable(
     stripePaymentIntentId: text('stripe_payment_intent_id'),
     // 1 = simulated purchase (NAMECOM_LIVE_PURCHASES off) — never billed.
     dryRun: integer('dry_run').notNull().default(0),
+    // 1 = the clinic's one plan-included domain (≤ the free caps): no Stripe
+    // charge at purchase, and the platform absorbs renewals while the
+    // subscription stays active.
+    includedInPlan: integer('included_in_plan').notNull().default(0),
+    // Last renewal-attempt failure (cleared on success) — the cron retries
+    // daily inside the 30-day window, so a transient card decline self-heals.
+    renewalError: text('renewal_error'),
     error: text('error'),
     purchasedAt: timestamp('purchased_at'),
     renewsAt: timestamp('renews_at'),

@@ -1,14 +1,16 @@
 import 'server-only'
 import { randomUUID } from 'crypto'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray, lte } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import {
   checkAvailability,
   createDomain,
   createRecord,
+  disableAutorenew,
   isLivePurchasesEnabled,
   isNameComConfigured,
+  renewDomain,
   searchDomains,
   type DomainSearchResult,
 } from '@/lib/name-com'
@@ -39,10 +41,29 @@ import { requestCustomDomain, resolveCustomDomain } from './custom-domain'
  *  live-checked 2026-07-21), low enough that nobody buys a yacht. */
 export const PRICE_CAP_CENTS = 10000
 
+/** The plan-included tier: one free domain per clinic when BOTH prices fit.
+ *  The renewal cap matters more than the purchase cap — teaser TLDs exist
+ *  ($3.99 first year, $43.99 renewal, live-checked on .live) and the
+ *  platform absorbs included renewals every year. */
+export const FREE_PURCHASE_CAP_CENTS = 2000
+export const FREE_RENEWAL_CAP_CENTS = 2500
+
 export interface DomainOffer {
   domainName: string
   purchasePriceCents: number
   renewalPriceCents: number | null
+  /** Fits the plan-included tier (offer-level; the clinic must also still
+   *  have their one free slot — see searchDomainOffersForClinic). */
+  includedEligible: boolean
+}
+
+/** Both prices must fit — an unknown renewal price NEVER qualifies as free. */
+export function isIncludedEligible(o: { purchasePriceCents: number; renewalPriceCents: number | null }): boolean {
+  return (
+    o.purchasePriceCents <= FREE_PURCHASE_CAP_CENTS &&
+    o.renewalPriceCents !== null &&
+    o.renewalPriceCents <= FREE_RENEWAL_CAP_CENTS
+  )
 }
 
 export interface DomainPurchaseView {
@@ -51,7 +72,9 @@ export interface DomainPurchaseView {
   status: string
   purchasePriceCents: number
   dryRun: boolean
+  includedInPlan: boolean
   error: string | null
+  renewalError: string | null
   purchasedAt: Date | null
   renewsAt: Date | null
 }
@@ -75,7 +98,44 @@ export function filterOffers(results: DomainSearchResult[]): DomainOffer[] {
       domainName: r.domainName,
       purchasePriceCents: r.purchasePriceCents!,
       renewalPriceCents: r.renewalPriceCents,
+      includedEligible: isIncludedEligible({
+        purchasePriceCents: r.purchasePriceCents!,
+        renewalPriceCents: r.renewalPriceCents,
+      }),
     }))
+}
+
+/** Does this clinic still have its one plan-included domain available? */
+export async function hasIncludedDomainSlot(organizationId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: schema.clinicDomainPurchase.id })
+    .from(schema.clinicDomainPurchase)
+    .where(
+      and(
+        eq(schema.clinicDomainPurchase.organizationId, organizationId),
+        eq(schema.clinicDomainPurchase.includedInPlan, 1),
+        eq(schema.clinicDomainPurchase.dryRun, 0),
+        inArray(schema.clinicDomainPurchase.status, ['registering', 'active']),
+      ),
+    )
+    .limit(1)
+  return row === undefined
+}
+
+/** Offers for this clinic: includedEligible only survives while their free
+ *  slot is open (a second cheap domain shows its real price and charges). */
+export async function searchDomainOffersForClinic(
+  organizationId: string,
+  query: string,
+): Promise<{ offers: DomainOffer[]; freeSlotOpen: boolean }> {
+  const [offers, freeSlotOpen] = await Promise.all([
+    searchDomainOffers(query),
+    hasIncludedDomainSlot(organizationId),
+  ])
+  return {
+    offers: freeSlotOpen ? offers : offers.map((o) => ({ ...o, includedEligible: false })),
+    freeSlotOpen,
+  }
 }
 
 /**
@@ -134,10 +194,16 @@ export async function purchaseDomainForClinic(
 
   const dryRun = !isLivePurchasesEnabled()
 
-  // Charge first (live mode only) — the clinic's saved card via their
-  // platform-billing Stripe customer. No customer/card → a clear next step.
+  // The plan-included tier: when the offer fits the free caps AND the clinic
+  // still has their one free slot, the domain is on us — no Stripe charge.
+  // Free wins automatically; there's no reason to make a clinic opt out.
+  const includedInPlan = offer.includedEligible && (await hasIncludedDomainSlot(organizationId))
+
+  // Charge first (live mode only, paid domains only) — the clinic's saved
+  // card via their platform-billing Stripe customer. No customer/card → a
+  // clear next step.
   let paymentIntentId: string | null = null
-  if (!dryRun) {
+  if (!dryRun && !includedInPlan) {
     const [profile] = await db
       .select({ stripeCustomerId: schema.clinicProfile.stripeCustomerId })
       .from(schema.clinicProfile)
@@ -178,6 +244,7 @@ export async function purchaseDomainForClinic(
     renewalPriceCents: offer.renewalPriceCents,
     stripePaymentIntentId: paymentIntentId,
     dryRun: dryRun ? 1 : 0,
+    includedInPlan: includedInPlan ? 1 : 0,
     createdBy: userId,
   })
 
@@ -186,6 +253,10 @@ export async function purchaseDomainForClinic(
   if (!dryRun) {
     try {
       await createDomain(domain, offer.purchasePriceCents)
+      // Registrar auto-renew OFF — renewals are the domain-renewals cron's
+      // job (clinic must be active + charged first). Best-effort: if this
+      // call hiccups the cron still renews explicitly before expiry.
+      await disableAutorenew(domain).catch(() => {})
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed.'
       if (paymentIntentId) {
@@ -242,7 +313,9 @@ export async function listDomainPurchases(organizationId: string): Promise<Domai
     status: r.status,
     purchasePriceCents: r.purchasePriceCents,
     dryRun: r.dryRun === 1,
+    includedInPlan: r.includedInPlan === 1,
     error: r.error,
+    renewalError: r.renewalError,
     purchasedAt: r.purchasedAt,
     renewsAt: r.renewsAt,
   }))
@@ -270,8 +343,148 @@ export async function getDomainPurchase(
     status: r.status,
     purchasePriceCents: r.purchasePriceCents,
     dryRun: r.dryRun === 1,
+    includedInPlan: r.includedInPlan === 1,
     error: r.error,
+    renewalError: r.renewalError,
     purchasedAt: r.purchasedAt,
     renewsAt: r.renewsAt,
   }
+}
+
+// ── Renewals (the domain-renewals cron) ──────────────────────────────────────
+
+/** How far ahead of expiry the cron starts trying (daily retries inside). */
+const RENEWAL_WINDOW_DAYS = 30
+
+export interface DomainRenewalRunResult {
+  scanned: number
+  renewed: number
+  released: number
+  failed: number
+  details: Array<{ domain: string; organizationId: string; outcome: string }>
+}
+
+/**
+ * Renew every live platform-bought domain coming up on expiry:
+ *
+ *  - clinic subscription NOT active/trialing → status 'released' (auto-renew
+ *    is already off, so the domain simply lapses at the registrar; the
+ *    clinic can transfer out any time before then — leaving is allowed);
+ *  - plan-included domain → the platform renews (price pinned to the stored
+ *    renewal quote — the same cap that admitted it to the free tier);
+ *  - paid domain → charge the clinic's card FIRST, then renew; a decline
+ *    records renewalError and retries daily inside the window.
+ *
+ * Idempotent: success advances renewsAt a year, which exits the window.
+ */
+export async function runDomainRenewals(opts?: { now?: Date }): Promise<DomainRenewalRunResult> {
+  const now = opts?.now ?? new Date()
+  const windowEnd = new Date(now.getTime() + RENEWAL_WINDOW_DAYS * 86_400_000)
+  const result: DomainRenewalRunResult = { scanned: 0, renewed: 0, released: 0, failed: 0, details: [] }
+
+  const due = await db
+    .select({
+      row: schema.clinicDomainPurchase,
+      subscriptionStatus: schema.clinicProfile.subscriptionStatus,
+      stripeCustomerId: schema.clinicProfile.stripeCustomerId,
+    })
+    .from(schema.clinicDomainPurchase)
+    .leftJoin(
+      schema.clinicProfile,
+      eq(schema.clinicProfile.organizationId, schema.clinicDomainPurchase.organizationId),
+    )
+    .where(
+      and(
+        eq(schema.clinicDomainPurchase.status, 'active'),
+        eq(schema.clinicDomainPurchase.dryRun, 0),
+        lte(schema.clinicDomainPurchase.renewsAt, windowEnd),
+      ),
+    )
+
+  for (const { row, subscriptionStatus, stripeCustomerId } of due) {
+    result.scanned++
+    const fail = async (message: string) => {
+      result.failed++
+      result.details.push({ domain: row.domain, organizationId: row.organizationId, outcome: `failed: ${message}` })
+      await db
+        .update(schema.clinicDomainPurchase)
+        .set({ renewalError: message, updatedAt: new Date() })
+        .where(eq(schema.clinicDomainPurchase.id, row.id))
+    }
+
+    try {
+      const clinicActive = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
+      if (!clinicActive) {
+        // Churned — never renew on the platform's dime. Auto-renew is off,
+        // so the registrar lets it lapse at expiry.
+        await db
+          .update(schema.clinicDomainPurchase)
+          .set({ status: 'released', renewalError: null, updatedAt: new Date() })
+          .where(eq(schema.clinicDomainPurchase.id, row.id))
+        result.released++
+        result.details.push({ domain: row.domain, organizationId: row.organizationId, outcome: 'released (subscription inactive)' })
+        continue
+      }
+
+      const renewalPrice = row.renewalPriceCents
+      if (!renewalPrice || renewalPrice <= 0) {
+        await fail('No stored renewal price — renew manually at name.com and update the row.')
+        continue
+      }
+
+      let renewalPaymentIntentId: string | null = null
+      if (row.includedInPlan !== 1) {
+        // Paid domain: the clinic's card pays BEFORE the registrar does.
+        if (!stripeCustomerId) {
+          await fail('No payment method on file — ask the clinic to add a card in Settings → Billing.')
+          continue
+        }
+        try {
+          const intent = await stripe.paymentIntents.create({
+            customer: stripeCustomerId,
+            amount: renewalPrice,
+            currency: 'usd',
+            off_session: true,
+            confirm: true,
+            description: `Domain renewal: ${row.domain} (1 year)`,
+            metadata: { organizationId: row.organizationId, domain: row.domain, kind: 'domain_renewal' },
+          })
+          renewalPaymentIntentId = intent.id
+        } catch (err) {
+          await fail(err instanceof Error ? err.message : 'Card charge failed.')
+          continue
+        }
+      }
+
+      try {
+        await renewDomain(row.domain, renewalPrice)
+      } catch (err) {
+        // Never keep renewal money for a renewal that didn't happen — refund
+        // so tomorrow's retry starts clean instead of double-charging.
+        if (renewalPaymentIntentId) {
+          await stripe.refunds.create({ payment_intent: renewalPaymentIntentId }).catch(() => {})
+        }
+        await fail(
+          `${err instanceof Error ? err.message : 'Registrar renewal failed.'}${renewalPaymentIntentId ? ' (charge refunded)' : ''}`,
+        )
+        continue
+      }
+      const nextRenewsAt = new Date((row.renewsAt ?? now).getTime())
+      nextRenewsAt.setFullYear(nextRenewsAt.getFullYear() + 1)
+      await db
+        .update(schema.clinicDomainPurchase)
+        .set({ renewsAt: nextRenewsAt, renewalError: null, updatedAt: new Date() })
+        .where(eq(schema.clinicDomainPurchase.id, row.id))
+      result.renewed++
+      result.details.push({
+        domain: row.domain,
+        organizationId: row.organizationId,
+        outcome: row.includedInPlan === 1 ? 'renewed (included in plan)' : 'renewed (clinic charged)',
+      })
+    } catch (err) {
+      await fail(err instanceof Error ? err.message : 'unknown')
+    }
+  }
+
+  return result
 }

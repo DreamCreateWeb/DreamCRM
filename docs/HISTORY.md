@@ -7,6 +7,34 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Domain session 2 — the free tier + the renewal engine (2026-07-22,
+  owner: "happy to include a $10-$20/year domain for free... some domains
+  get high into the thousands").** (1) **Plan-included tier**: one free
+  domain per clinic when BOTH prices fit (`isIncludedEligible`: purchase ≤
+  $20 AND renewal ≤ $25 — the renewal cap is the load-bearing one; teaser
+  TLDs like .live are $3.99 year one / $43.99 renewal, live-checked).
+  Eligible offers show "Included with your plan" + a Claim button, skip
+  Stripe entirely, and stamp `included_in_plan` (migration **0131**, +
+  `renewal_error`); the free slot is one per org
+  (`hasIncludedDomainSlot`), after which the same domain shows its real
+  price and charges. Free wins automatically — no opt-in needed. (2)
+  **Auto-renew OFF at the registrar** right after registration
+  (`disableAutorenew`, best-effort) — name.com must never silently renew a
+  churned clinic's domain on the platform card. (3) **The domain-renewals
+  cron** (daily; JOBS entry + route `/api/cron/domain-renewals`;
+  `runDomainRenewals`): 30-day pre-expiry window with daily retries —
+  churned clinic → status `released` (domain lapses; transfer-out honored
+  any time before expiry), included → platform renews (price pinned to the
+  stored quote), paid → clinic's card charged FIRST then registrar renewal
+  (`renewDomain`, price-pinned), registrar failure after charge →
+  auto-refund so the retry can't double-charge, decline → `renewal_error`
+  recorded + shown as a warn "Renewal issue" pill on the purchases list.
+  Success advances renewsAt a year (exits the window — idempotent).
+  Tests: domain-renewals suite (5 outcomes) + included-tier cases in
+  domain-purchase. NOTE: the free tier is currently plan-wide (any active
+  subscription); if it should be Premium-only later, gate
+  `hasIncludedDomainSlot` on ctx.planTier at the action layer.
+
 - **View-as suppression sweep — view-as is an ONBOARDING tool (2026-07-21,
   same session as the isDemo/viaViewAs split).** Owner: "make sure it's
   properly set up as an onboarding tool and not a demo tool — I should have

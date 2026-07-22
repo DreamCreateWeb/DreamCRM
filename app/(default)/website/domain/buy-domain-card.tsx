@@ -33,6 +33,7 @@ export default function BuyDomainCard({
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [offers, setOffers] = useState<DomainOffer[] | null>(null)
+  const [freeSlotOpen, setFreeSlotOpen] = useState(true)
   const [searching, setSearching] = useState(false)
   const [confirming, setConfirming] = useState<DomainOffer | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -47,8 +48,10 @@ export default function BuyDomainCard({
     setOffers(null)
     void searchDomainsAction(q)
       .then((res) => {
-        if (res.ok) setOffers(res.offers)
-        else setError(res.error)
+        if (res.ok) {
+          setOffers(res.offers)
+          setFreeSlotOpen(res.freeSlotOpen)
+        } else setError(res.error)
       })
       .catch(() => setError('Search failed. Try again.'))
       .finally(() => setSearching(false))
@@ -66,7 +69,9 @@ export default function BuyDomainCard({
         setSuccess(
           res.dryRun
             ? `${offer.domainName} — test purchase recorded (no card charged, no domain registered).`
-            : `${offer.domainName} is yours! We're connecting it now — the card above goes Active on its own, usually within the hour.`,
+            : offer.includedEligible
+              ? `${offer.domainName} is yours — included with your plan, no charge. We're connecting it now.`
+              : `${offer.domainName} is yours! We're connecting it now — the card above goes Active on its own, usually within the hour.`,
         )
         router.refresh()
       } else {
@@ -86,8 +91,13 @@ export default function BuyDomainCard({
         )}
       </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-        Search, buy, done — we register it, connect it to your site, and handle every
+        Search, pick, done — we register it, connect it to your site, and handle every
         technical record. No other website or registrar account needed.
+        {freeSlotOpen && (
+          <span className="font-medium text-gray-600 dark:text-gray-300">
+            {' '}Your plan includes one domain free — most .com names qualify.
+          </span>
+        )}
       </p>
 
       <div className="flex gap-2 mb-3">
@@ -129,11 +139,22 @@ export default function BuyDomainCard({
                 <span className="min-w-0 flex-1 text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
                   {o.domainName}
                 </span>
-                <span className="text-sm tabular-nums font-mono-num text-gray-600 dark:text-gray-300 shrink-0">
-                  {dollars(o.purchasePriceCents)}/yr
-                </span>
-                <ActionButton variant="secondary" size="sm" onClick={() => setConfirming(o)} disabled={pending}>
-                  Buy
+                {o.includedEligible ? (
+                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
+                    Included with your plan
+                  </span>
+                ) : (
+                  <span className="text-sm tabular-nums font-mono-num text-gray-600 dark:text-gray-300 shrink-0">
+                    {dollars(o.purchasePriceCents)}/yr
+                  </span>
+                )}
+                <ActionButton
+                  variant={o.includedEligible ? 'primary' : 'secondary'}
+                  size="sm"
+                  onClick={() => setConfirming(o)}
+                  disabled={pending}
+                >
+                  {o.includedEligible ? 'Claim' : 'Buy'}
                 </ActionButton>
               </li>
             ))}
@@ -151,11 +172,21 @@ export default function BuyDomainCard({
               <li key={p.id} className="flex items-center gap-3 text-sm">
                 <span className="min-w-0 flex-1 font-medium text-gray-700 dark:text-gray-200 truncate">{p.domain}</span>
                 {p.dryRun && <StatusPill tone="neutral" label="Test" />}
+                {p.includedInPlan && <StatusPill tone="ok" label="Included" title="Your plan-included domain — renews on us while your subscription is active." />}
                 <StatusPill
-                  tone={p.status === 'active' ? 'ok' : p.status === 'failed' ? 'urgent' : 'info'}
-                  label={p.status === 'active' ? 'Registered' : p.status === 'failed' ? 'Failed' : 'Working…'}
+                  tone={
+                    p.status === 'active'
+                      ? p.renewalError ? 'warn' : 'ok'
+                      : p.status === 'failed' ? 'urgent' : p.status === 'released' ? 'neutral' : 'info'
+                  }
+                  label={
+                    p.status === 'active'
+                      ? p.renewalError ? 'Renewal issue' : 'Registered'
+                      : p.status === 'failed' ? 'Failed' : p.status === 'released' ? 'Released' : 'Working…'
+                  }
+                  title={p.renewalError ?? undefined}
                 />
-                {p.renewsAt && !p.dryRun && (
+                {p.renewsAt && !p.dryRun && p.status === 'active' && (
                   <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums shrink-0">
                     renews {p.renewsAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
@@ -176,14 +207,21 @@ export default function BuyDomainCard({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-2">
-              Buy {confirming.domainName}?
+              {confirming.includedEligible ? `Claim ${confirming.domainName}?` : `Buy ${confirming.domainName}?`}
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
-              <strong>{dollars(confirming.purchasePriceCents)} for the first year</strong>
-              {confirming.renewalPriceCents !== null &&
-                `, then ${dollars(confirming.renewalPriceCents)}/yr`}
-              , billed to your card on file.
-            </p>
+            {confirming.includedEligible ? (
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                <strong>Included with your plan — no charge.</strong> It renews on us every
+                year while your subscription is active.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                <strong>{dollars(confirming.purchasePriceCents)} for the first year</strong>
+                {confirming.renewalPriceCents !== null &&
+                  `, then ${dollars(confirming.renewalPriceCents)}/yr`}
+                , billed to your card on file.
+              </p>
+            )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               We register it and connect it to your site automatically — nothing else to
               set up. You can point it elsewhere or let it lapse anytime.
@@ -193,7 +231,11 @@ export default function BuyDomainCard({
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={() => buy(confirming)} disabled={pending}>
-                {pending ? 'Buying…' : `Buy for ${dollars(confirming.purchasePriceCents)}`}
+                {pending
+                  ? confirming.includedEligible ? 'Claiming…' : 'Buying…'
+                  : confirming.includedEligible
+                    ? 'Claim it free'
+                    : `Buy for ${dollars(confirming.purchasePriceCents)}`}
               </ActionButton>
             </div>
           </div>

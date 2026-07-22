@@ -28,6 +28,8 @@ vi.mock('@/lib/name-com', () => ({
   searchDomains: h.searchDomains,
   createDomain: h.createDomain,
   createRecord: h.createRecord,
+  disableAutorenew: vi.fn(async () => {}),
+  renewDomain: vi.fn(async () => ({ expireDate: null })),
 }))
 vi.mock('@/lib/stripe', () => ({
   stripe: {
@@ -192,5 +194,41 @@ describe('purchaseDomainForClinic — live mode', () => {
     if (!res.ok) expect(res.error).toMatch(/payment method/i)
     expect(h.piCreate).not.toHaveBeenCalled()
     expect(h.inserts).toHaveLength(0)
+  })
+})
+
+describe('the plan-included tier (session 2)', () => {
+  it('both prices must fit the free caps — teaser renewals never qualify', async () => {
+    const { isIncludedEligible, FREE_PURCHASE_CAP_CENTS, FREE_RENEWAL_CAP_CENTS } = await import(
+      '@/lib/services/domain-purchase'
+    )
+    expect(isIncludedEligible({ purchasePriceCents: 1299, renewalPriceCents: 1999 })).toBe(true)
+    // The .live trap: $3.99 first year, $43.99 renewal — NOT free.
+    expect(isIncludedEligible({ purchasePriceCents: 399, renewalPriceCents: 4399 })).toBe(false)
+    expect(isIncludedEligible({ purchasePriceCents: FREE_PURCHASE_CAP_CENTS + 1, renewalPriceCents: 1000 })).toBe(false)
+    // Unknown renewal price never qualifies.
+    expect(isIncludedEligible({ purchasePriceCents: 999, renewalPriceCents: null })).toBe(false)
+    expect(isIncludedEligible({ purchasePriceCents: 1999, renewalPriceCents: FREE_RENEWAL_CAP_CENTS })).toBe(true)
+  })
+
+  it('an included-eligible live purchase skips Stripe entirely and marks the row', async () => {
+    h.livePurchases = true
+    h.profileRows = [] // free slot check: no prior included purchase rows
+    const res = await purchaseDomainForClinic('org_a', 'user_1', 'brightsmiles.com', 1499)
+    expect(res.ok).toBe(true)
+    expect(h.piCreate).not.toHaveBeenCalled()
+    expect(h.createDomain).toHaveBeenCalledWith('brightsmiles.com', 1499)
+    expect(h.inserts[0]).toMatchObject({ includedInPlan: 1, stripePaymentIntentId: null })
+  })
+
+  it('with the free slot already used, the same domain charges the card', async () => {
+    h.livePurchases = true
+    // The shared select mock serves both queries: a non-empty result closes
+    // the slot check, and the same row carries the Stripe customer.
+    h.profileRows = [{ id: 'prior', stripeCustomerId: 'cus_1' }]
+    const res = await purchaseDomainForClinic('org_a', 'user_1', 'brightsmiles.com', 1499)
+    expect(res.ok).toBe(true)
+    expect(h.piCreate).toHaveBeenCalled()
+    expect(h.inserts[0]).toMatchObject({ includedInPlan: 0, stripePaymentIntentId: 'pi_1' })
   })
 })

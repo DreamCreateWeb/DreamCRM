@@ -91,7 +91,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0130 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0131 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePlan/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -340,14 +340,14 @@ sitemap/robots/OG.
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 16 routes, all `Authorization: Bearer $CRON_SECRET`:**
+- **Crons — 17 routes, all `Authorization: Bearer $CRON_SECRET`:**
   `pms-sync` (hourly) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
   `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
   (daily) · `trial-reminders` (daily) · `prospect-discovery` (6h) ·
-  `prospect-enrich` (30m) · `prospect-outreach` (30m) — 14 EventBridge rules
+  `prospect-enrich` (30m) · `prospect-outreach` (30m) · `domain-renewals` (daily) — 15 EventBridge rules
   managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
   every merge** (idempotent self-heal — a new cron route can't ship un-fired,
   the drift that once left prospecting + 4 other jobs silently dead); the
@@ -416,8 +416,9 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0130** (`clinic_domain_purchase` — buy-a-domain via name.com,
-  ships dark behind `NAMECOM_*`). Workflow: `pnpm db:generate`, commit, merge.
+  migration: **0131** (`clinic_domain_purchase.included_in_plan` +
+  `renewal_error` — the free-domain tier + renewal engine). Workflow:
+  `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime
