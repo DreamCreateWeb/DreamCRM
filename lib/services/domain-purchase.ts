@@ -41,11 +41,12 @@ import { requestCustomDomain, resolveCustomDomain } from './custom-domain'
  *  live-checked 2026-07-21), low enough that nobody buys a yacht. */
 export const PRICE_CAP_CENTS = 10000
 
-/** The plan-included tier: one free domain per clinic when BOTH prices fit.
- *  The renewal cap matters more than the purchase cap — teaser TLDs exist
- *  ($3.99 first year, $43.99 renewal, live-checked on .live) and the
- *  platform absorbs included renewals every year. */
-export const FREE_PURCHASE_CAP_CENTS = 2000
+/** The plan-included tier: one free domain per clinic when BOTH prices fit
+ *  $25/yr (owner-set 2026-07-22). The renewal cap matters more than the
+ *  purchase cap — teaser TLDs exist ($3.99 first year, $43.99 renewal,
+ *  live-checked on .live) and the platform absorbs included renewals every
+ *  year. */
+export const FREE_PURCHASE_CAP_CENTS = 2500
 export const FREE_RENEWAL_CAP_CENTS = 2500
 
 export interface DomainOffer {

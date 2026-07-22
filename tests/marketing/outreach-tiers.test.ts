@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  */
 
 const inserts: Record<string, unknown>[] = []
+const updates: Record<string, unknown>[] = []
 let selectRows: { id: number; name: string }[] = []
 
 vi.mock('@/lib/db', async () => {
@@ -32,6 +33,13 @@ vi.mock('@/lib/db', async () => {
           },
         }),
       }),
+      update: () => ({
+        set: (vals: Record<string, unknown>) => ({
+          where: async () => {
+            updates.push(vals)
+          },
+        }),
+      }),
     },
     schema,
   }
@@ -41,6 +49,7 @@ import { OUTREACH_TIERS, ensureOutreachTierAudiences } from '@/lib/services/outr
 
 beforeEach(() => {
   inserts.length = 0
+  updates.length = 0
   selectRows = []
 })
 
@@ -49,6 +58,9 @@ describe('ensureOutreachTierAudiences', () => {
     selectRows = OUTREACH_TIERS.map((t, i) => ({ id: i + 1, name: t.audienceName }))
     const map = await ensureOutreachTierAudiences('org_a')
     expect(inserts).toHaveLength(0)
+    // Reuse REFRESHES the stored filter so definition changes (e.g. the
+    // phase-4 noUpcomingVisit suppression) propagate to existing orgs.
+    expect(updates).toHaveLength(4)
     expect(map.get('recall_due')).toBe(1)
     expect(map.size).toBe(4)
   })

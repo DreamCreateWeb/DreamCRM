@@ -7,6 +7,33 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Campaigns phase 4 — the safety rails (2026-07-22).** The final chapter
+  of the campaigns plan (+ the free-domain cap set to a flat $25/$25 per the
+  owner). Three rails: (1) **Cross-campaign frequency cap** —
+  `lib/services/marketing-frequency.ts` (`partitionByFrequencyCap`): max 2
+  marketing emails per patient per rolling 7 days, counted across manual
+  campaigns AND automations via one org-scoped campaign_events query;
+  applied in `sendCampaign` for real patient-source sends (test sends +
+  explicit recipient overrides are exempt — a human picking people on
+  purpose); held-back recipients surface as `SendResult.suppressed`, never
+  silently folded into sent/failed. Transactional email never counts. (2)
+  **Upcoming-visit suppression** for win-back sends: `noUpcomingVisit`
+  added to the reactivation automation filter + the lapsed queue tier
+  (someone already rebooked is already won back); `ensureOutreachTierAudiences`
+  now REFRESHES stored filters on reuse so definition changes propagate to
+  existing orgs (same self-heal as the automation audiences). (3)
+  **Clinic-local send window** — `automationSendAt`: automation campaigns
+  schedule for 10:00 clinic-local when that's still ahead, else now (never
+  tomorrow — the birthday key must send on the birthday); kills the
+  3 AM-local sends the UTC cron clock allowed. DEFERRED with reason:
+  production-value attribution ("6 booked ≈ $2,100") — no
+  invoice↔appointment link exists in the schema, so an honest per-visit
+  value isn't derivable until Open Dental procedure fees arrive (post
+  vendor-portal approval); an invented industry average would violate the
+  no-fake-content rule. Tests: marketing-frequency suite, send-window
+  cases, tier-refresh assertion; send-campaign suite isolates the cap via
+  a pass-through mock.
+
 - **Domain session 2 — the free tier + the renewal engine (2026-07-22,
   owner: "happy to include a $10-$20/year domain for free... some domains
   get high into the thousands").** (1) **Plan-included tier**: one free

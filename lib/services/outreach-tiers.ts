@@ -57,7 +57,9 @@ export const OUTREACH_TIERS: OutreachTierDef[] = [
       'Lifecycle stage flipped to lapsed — last visit >9 months ago. Tighter than "Recall due" — these are the cold ones.',
     templateCategory: 'reactivation',
     accent: 'rose',
-    filter: { lifecycles: ['lapsed', 'at_risk'], ...baseFilter },
+    // noUpcomingVisit (phase-4 suppression): a lapsed patient who already
+    // rebooked doesn't need a win-back — nagging the returning reads badly.
+    filter: { lifecycles: ['lapsed', 'at_risk'], noUpcomingVisit: true, ...baseFilter },
   },
   {
     key: 'new_patient',
@@ -114,6 +116,14 @@ export async function ensureOutreachTierAudiences(
         })
         .returning({ id: schema.audiences.id })
       id = row.id
+    } else {
+      // Refresh the stored filter on reuse so a definition change here
+      // (e.g. the phase-4 noUpcomingVisit suppression) propagates to every
+      // existing org — same self-heal the automation audiences use.
+      await db
+        .update(schema.audiences)
+        .set({ patientFilter: tier.filter, updatedAt: new Date() })
+        .where(and(eq(schema.audiences.id, id), eq(schema.audiences.organizationId, organizationId)))
     }
     result.set(tier.key, id)
   }

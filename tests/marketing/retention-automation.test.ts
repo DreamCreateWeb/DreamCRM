@@ -262,3 +262,19 @@ describe('previewRetentionAudiences', () => {
     expect(counts).toEqual({ birthdaysThisMonth: 4, newlyLapsed: 2, benefitsEligible: 3, newThisWeek: 1 })
   })
 })
+
+describe('automationSendAt — the clinic-local send window (phase 4)', () => {
+  it('before 10am clinic-local: schedules for 10am that day', async () => {
+    const { automationSendAt } = await import('@/lib/services/retention-automation')
+    // 12:00 UTC on Jun 18 = 07:00 in Chicago (CDT) → today 10:00 CDT = 15:00 UTC.
+    const at = automationSendAt(new Date('2026-06-18T12:00:00.000Z'), 'America/Chicago')
+    expect(at.toISOString()).toBe('2026-06-18T15:00:00.000Z')
+  })
+
+  it('after 10am clinic-local: sends now — never pushes a birthday to tomorrow', async () => {
+    const { automationSendAt } = await import('@/lib/services/retention-automation')
+    // 20:00 UTC = 15:00 CDT, past the window → now wins.
+    const now = new Date('2026-06-18T20:00:00.000Z')
+    expect(automationSendAt(now, 'America/Chicago').toISOString()).toBe(now.toISOString())
+  })
+})

@@ -104,6 +104,11 @@ vi.mock('@/lib/services/gmail', () => ({
   sendMessage: vi.fn(),
 }))
 
+vi.mock('@/lib/services/marketing-frequency', () => ({
+  // Pass-through here — the cap has its own suite (marketing-frequency.test.ts).
+  partitionByFrequencyCap: async (_org: string, recipients: unknown[]) => ({ allowed: recipients, suppressed: [] }),
+}))
+
 import { sendCampaign, buildCampaignPreview, neutralizePreviewLinks } from '@/lib/services/marketing-send'
 
 const CLINIC_SENDER = {

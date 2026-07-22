@@ -10,6 +10,7 @@ import {
   getMarketingCampaign,
   resolveCampaignRecipients,
 } from './marketing-campaigns'
+import { partitionByFrequencyCap } from './marketing-frequency'
 import type { ResolvedRecipient } from './marketing'
 import { notify } from './notifications'
 
@@ -86,6 +87,10 @@ export interface SendResult {
   skipped?: 'already_sending' | 'missing_postal_address'
   /** Human-readable reason paired with `skipped`. */
   error?: string
+  /** Recipients held back by the cross-campaign frequency cap (max 2
+   *  marketing emails per rolling 7 days) — never silently folded into
+   *  `sent`/`failed`. */
+  suppressed?: number
 }
 
 function getResend() {
@@ -219,8 +224,27 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
   // This is a safety net — the audience resolver enforces opt-in too, but a
   // patient that has since opted out gets caught here.
   recipients = recipients.filter((r) => eligibleForChannel(r, campaign.sendChannel))
+
+  // Cross-campaign frequency cap (phase 4): a patient at 2 marketing emails
+  // in the last 7 days — manual or automated — sits this one out. Real
+  // patient sends only: test sends and explicit recipient overrides are a
+  // human choosing specific people on purpose.
+  let suppressedCount = 0
+  if (!opts.test && !opts.recipientIdsOverride?.length && recipientSource === 'patients') {
+    const { allowed, suppressed } = await partitionByFrequencyCap(opts.organizationId, recipients)
+    recipients = allowed
+    suppressedCount = suppressed.length
+  }
+
   if (!recipients.length) {
-    return { channel: campaign.sendChannel, attempted: 0, sent: 0, failed: 0, errors: [] }
+    return {
+      channel: campaign.sendChannel,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      errors: [],
+      suppressed: suppressedCount,
+    }
   }
 
   // Duplicate-send guard. Atomically claim the campaign by flipping it to
@@ -319,7 +343,7 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
     }
   }
 
-  return result
+  return { ...result, suppressed: suppressedCount }
 }
 
 type CampaignSender = Awaited<ReturnType<typeof resolveCampaignSender>>

@@ -3,6 +3,8 @@ import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { resolvePatientAudience, type PatientAudienceFilterT } from './marketing'
 import { getAutomationTemplate } from './marketing-templates'
+import { getClinicTimeZone } from './clinic-timezone'
+import { clinicDayStart } from '@/lib/clinic-timezone'
 import type { RetentionKind } from '@/lib/types/retention'
 
 export type { RetentionKind }
@@ -53,6 +55,9 @@ const BIRTHDAY_FILTER: PatientAudienceFilterT = {
 const REACTIVATION_FILTER: PatientAudienceFilterT = {
   lastVisitAtLeastDaysAgo: REACTIVATION_MIN_DAYS,
   lastVisitWithinDays: REACTIVATION_MAX_DAYS,
+  // Phase-4 suppression: someone with a visit on the books is already won
+  // back — a "come back" nudge would read as the practice not knowing them.
+  noUpcomingVisit: true,
   requireEmailOptIn: true,
   requireSmsOptIn: false,
   includeArchived: false,
@@ -111,6 +116,22 @@ function weekKey(now: Date): string {
   const day = d.getUTCDay() // 0=Sun
   d.setUTCDate(d.getUTCDate() - ((day + 6) % 7)) // back to Monday
   return d.toISOString().slice(0, 10)
+}
+
+/** Hour (clinic-local) automation campaigns aim for — mid-morning, when a
+ *  patient inbox glance is likeliest and a booking call is answerable. */
+const SEND_HOUR_LOCAL = 10
+
+/**
+ * When this automation's campaign should go out (phase-4 send window): today
+ * at 10:00 clinic-local when that's still ahead; otherwise NOW — never
+ * tomorrow, because the daily birthday key must send on the birthday itself,
+ * and a late cron run is better late-today than wrong-day. (The cron's UTC
+ * clock made 3 AM local sends possible before this.)
+ */
+export function automationSendAt(now: Date, timeZone: string | null | undefined): Date {
+  const tenAmLocal = new Date(clinicDayStart(now, timeZone).getTime() + SEND_HOUR_LOCAL * 3_600_000)
+  return tenAmLocal > now ? tenAmLocal : now
 }
 
 export interface RetentionRunResult {
@@ -231,6 +252,11 @@ async function runOne(
             ? `New-patient welcome · week of ${automationKey.slice(-10)}`
             : `Reactivation · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCFullYear()}`
 
+    // Send window (phase 4): aim for 10:00 clinic-local instead of whatever
+    // UTC hour the cron happened to fire at — no more 3 AM birthday emails.
+    const timeZone = await getClinicTimeZone(organizationId).catch(() => null)
+    const scheduledAt = automationSendAt(now, timeZone)
+
     let campaignId: number
     try {
       const [row] = await db
@@ -245,8 +271,9 @@ async function runOne(
           recipientSource: 'patients',
           sendChannel: 'resend',
           status: 'scheduled',
-          // Immediately due — the every-15-min scheduled-send cron picks it up.
-          scheduledAt: now,
+          // Due at the clinic-local send window — the every-15-min
+          // scheduled-send cron delivers once the time arrives.
+          scheduledAt,
           automationKey,
           createdBy: null,
         })
