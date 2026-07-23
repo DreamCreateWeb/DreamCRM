@@ -43,6 +43,7 @@ const cfMock = {
   updateTenant: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
   deleteTenant: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
   verifyDns: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
+  getManagedCert: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
 }
 const appRunner = {
   describe: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
@@ -57,6 +58,7 @@ vi.mock('@aws-sdk/client-cloudfront', () => ({
       if (cmd.__type === 'updateTenant') return cfMock.updateTenant(cmd.input)
       if (cmd.__type === 'deleteTenant') return cfMock.deleteTenant(cmd.input)
       if (cmd.__type === 'verifyDns') return cfMock.verifyDns(cmd.input)
+      if (cmd.__type === 'getManagedCert') return cfMock.getManagedCert(cmd.input)
       throw new Error('unknown command')
     }
   },
@@ -78,6 +80,10 @@ vi.mock('@aws-sdk/client-cloudfront', () => ({
   },
   VerifyDnsConfigurationCommand: class {
     __type = 'verifyDns'
+    constructor(public input: unknown) {}
+  },
+  GetManagedCertificateDetailsCommand: class {
+    __type = 'getManagedCert'
     constructor(public input: unknown) {}
   },
 }))
@@ -122,6 +128,9 @@ beforeEach(() => {
   cfMock.updateTenant.mockReset().mockResolvedValue({ ETag: 'etag2' })
   cfMock.deleteTenant.mockReset().mockResolvedValue({})
   cfMock.verifyDns.mockReset().mockResolvedValue({ DnsConfigurationList: [] })
+  cfMock.getManagedCert.mockReset().mockResolvedValue({
+    ManagedCertificateDetails: { CertificateArn: 'arn:acm:cert-1', CertificateStatus: 'issued' },
+  })
   appRunner.describe.mockReset()
   appRunner.disassociate.mockReset()
   process.env.CUSTOM_DOMAIN_DRIVER = 'cloudfront'
@@ -235,6 +244,33 @@ describe('checkCustomDomainStatus (dispatches on the STAMPED driver)', () => {
     expect(cfMock.verifyDns).toHaveBeenCalledWith(
       expect.objectContaining({ Domain: 'smilebright.com', Identifier: 'dt_1' }),
     )
+    // With no Customizations on the tenant, the issued managed cert gets
+    // ATTACHED — issuance alone leaves domains inactive (observed live).
+    expect(cfMock.updateTenant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Id: 'dt_1',
+        Customizations: { Certificate: { Arn: 'arn:acm:cert-1' } },
+      }),
+    )
+  })
+
+  it('never re-attaches when the tenant already carries a certificate', async () => {
+    state.profile = { organizationId: ORG, websiteDomain: 'www.smilebright.com', customDomainStatus: storedStatus() }
+    cfMock.getByDomain.mockResolvedValue({
+      DistributionTenant: {
+        Id: 'dt_1',
+        Customizations: { Certificate: { Arn: 'arn:acm:cert-1' } },
+        Domains: [
+          { Domain: 'smilebright.com', Status: 'active' },
+          { Domain: 'www.smilebright.com', Status: 'active' },
+        ],
+      },
+      ETag: 'etag1',
+    })
+    const r = await checkCustomDomainStatus(ORG)
+    expect(r.ok).toBe(true)
+    expect(cfMock.getManagedCert).not.toHaveBeenCalled()
+    expect(cfMock.updateTenant).not.toHaveBeenCalled()
   })
 
   it('stays pending while any served host is inactive', async () => {

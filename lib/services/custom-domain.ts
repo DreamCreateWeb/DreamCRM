@@ -456,26 +456,56 @@ async function checkViaCloudFront(
     return { ok: true, status }
   }
   try {
-    const { GetDistributionTenantByDomainCommand, VerifyDnsConfigurationCommand } = await import(
-      '@aws-sdk/client-cloudfront'
-    )
+    const {
+      GetDistributionTenantByDomainCommand,
+      GetManagedCertificateDetailsCommand,
+      UpdateDistributionTenantCommand,
+      VerifyDnsConfigurationCommand,
+    } = await import('@aws-sdk/client-cloudfront')
     const res = await conn.client.send(
       new GetDistributionTenantByDomainCommand({
         Domain: current.associateHost || current.domain,
       }),
     )
+    let tenant = res.DistributionTenant
+    // ATTACH the managed cert once it issues. Issuance alone leaves the
+    // tenant's Customizations null and every domain 'inactive' — observed
+    // live 2026-07-23: cert 'issued' + DNS verified valid, yet no TLS until
+    // Customizations.Certificate was set explicitly, which activated the
+    // domain immediately. Best-effort; the next poll retries.
+    if (tenant?.Id && !tenant.Customizations?.Certificate?.Arn) {
+      try {
+        const cert = await conn.client.send(
+          new GetManagedCertificateDetailsCommand({ Identifier: tenant.Id }),
+        )
+        const arn = cert.ManagedCertificateDetails?.CertificateArn
+        if (arn && cert.ManagedCertificateDetails?.CertificateStatus === 'issued') {
+          const upd = await conn.client.send(
+            new UpdateDistributionTenantCommand({
+              Id: tenant.Id,
+              IfMatch: res.ETag,
+              Domains: (tenant.Domains ?? []).map((d) => ({ Domain: d.Domain! })),
+              Customizations: { Certificate: { Arn: arn } },
+              Enabled: true,
+            }),
+          )
+          tenant = upd.DistributionTenant ?? tenant
+        }
+      } catch (err) {
+        console.warn('[custom-domain] managed-cert attach failed (next poll retries):', (err as Error).message)
+      }
+    }
     // Nudge activation: VerifyDnsConfiguration is the API twin of the
     // console's "Submit" — CloudFront checks the domain's DNS NOW instead of
-    // on its own leisurely probe cycle, which is what flips an
-    // inactive-but-correctly-pointed domain to active. Best-effort per host.
-    if (res.DistributionTenant?.Id) {
+    // on its own leisurely probe cycle. Best-effort per host.
+    if (tenant?.Id) {
       for (const h of current.servedHosts ?? [current.domain]) {
         await conn.client
-          .send(new VerifyDnsConfigurationCommand({ Domain: h, Identifier: res.DistributionTenant.Id }))
+          .send(new VerifyDnsConfigurationCommand({ Domain: h, Identifier: tenant.Id }))
           .catch(() => {})
       }
     }
-    const domains = res.DistributionTenant?.Domains ?? []
+    const domains = tenant?.Domains ?? []
     const served = (current.servedHosts ?? [current.domain]).map((h) => h.toLowerCase())
     const activeHosts = new Set(
       domains
