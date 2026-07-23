@@ -33,8 +33,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ slug: string }>
   if (!(await canEditClinic(orgId))) return new NextResponse('Forbidden', { status: 403 })
 
   const basePath = await resolveSiteBasePath(slug)
-  const dest = new URL(`${basePath}${returnPath}` || '/', url.origin)
-  const res = NextResponse.redirect(dest, 303)
+  // RELATIVE Location on purpose: behind App Runner the handler's `req.url`
+  // origin is the server's internal bind (https://0.0.0.0:3000), so an
+  // absolute redirect built from it strands the Studio iframe on a dead
+  // address (2026-07-23, the Hometown preview). The browser resolves a
+  // relative Location against whichever public origin the request really
+  // came from — correct on the dashboard origin, subdomains, and custom
+  // domains alike.
+  const res = new NextResponse(null, {
+    status: 303,
+    headers: { Location: `${basePath}${returnPath}` || '/' },
+  })
 
   if (templateId === 'off') {
     res.cookies.delete(TEMPLATE_PREVIEW_COOKIE)
