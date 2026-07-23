@@ -7,6 +7,29 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **The domain came home: inbound email LIVE + webhook repair + apex
+  retirement (2026-07-23).** The Replit→name.com account transfer finally
+  landed (dreamcreatestudio.com in OUR account, zone intact). Turned on the
+  long-gated task #6 per docs/inbound-email.md, all via API: Resend inbound
+  domain `in.dreamcreatestudio.com` (receiving-enabled, VERIFIED), MX
+  (inbound-smtp.us-east-1.amazonaws.com prio 10) + DKIM TXT at name.com,
+  `INBOUND_REPLY_DOMAIN` secret + App Runner mapping — Tier-1 Reply-To now
+  flips to `{slug}@in.dreamcreatestudio.com` and patient replies land in
+  /messages. FOUND WHILE IN THERE: the only Resend webhook pointed at the
+  BARE APEX (the old Replit redirect) and had been auto-DISABLED — the
+  2026-07-14 delivery/opened receipts had never received a single event in
+  prod. Rebuilt it on www with all seven events (incl. email.received +
+  email.opened), deleted the dead one, rotated RESEND_WEBHOOK_SECRET to the
+  new signing secret, and enabled open tracking on the sending domain.
+  Also: apex A (Replit's redirect IP) → ANAME to App Runner (middleware
+  already 308s apex→www) — the Vercel/Replit redirect hop is retired.
+  OPS LESSON (twice now): App Runner secret-mapping ARNs are
+  `arn:…:secret:dreamcrm/app-secrets-SUFFIX:KEY::` — deriving the base by
+  `rsplit(':', 2)` keeps the sample's KEY and produces a double-key ARN;
+  the instance then can't pull secrets and the update ROLLBACKS in ~60s
+  while looking accepted. Use the literal base; verify the mapping AND
+  `list-operations` (not just acceptance) after every env update.
+
 - **Hometown Classic — the no-photos-needed site template (2026-07-23).**
   Fourth template (owner brief: "all of our templates rely on the clinic
   having photos/video… a lot of them don't"; reference = the classic

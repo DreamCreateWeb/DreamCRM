@@ -33,9 +33,11 @@ system, don't replace it.
   denied twice). Per-clinic sender identity Tier 1 (platform domain, clinic name)
   + Tier 2 (clinic's connected Gmail) — see `lib/email-identity.ts` +
   `lib/services/clinic-sender.ts`; `deliver()` in `lib/email.ts` routes it.
-  Inbound patient replies → /messages ships DARK behind `INBOUND_REPLY_DOMAIN`
-  (`lib/inbound-email.ts` pure helpers + `lib/services/inbound-reply.ts` +
-  the Resend `email.received` webhook; runbook `docs/inbound-email.md`).
+  Inbound patient replies → /messages are LIVE (2026-07-23:
+  `INBOUND_REPLY_DOMAIN=in.dreamcreatestudio.com`, Resend inbound domain +
+  MX at name.com, webhook on www w/ all events incl. email.received +
+  email.opened, open tracking on) — `lib/inbound-email.ts` pure helpers +
+  `lib/services/inbound-reply.ts`; runbook `docs/inbound-email.md`.
 - **Storage: AWS S3** (`STORAGE_DRIVER=s3`, bucket `dreamcrm-uploads-prod`); Vercel
   Blob kept as fallback driver
 - **AI: Anthropic API (direct)** — `lib/ai.ts` (+ inert Bedrock driver
@@ -450,8 +452,9 @@ sitemap/robots/OG.
   role `DreamCRMEventBridgeCron`; VPC `vpc-066acff3800b34067`. App Runner is
   closing to new customers (Apr 2026) — existing workloads keep running; plan
   an eventual ECS move.
-- Vercel now hosts ONLY the bare-apex→www redirect (retire when the domain
-  moves off Replit to a registrar with apex flattening).
+- The domain moved into OUR name.com account 2026-07-23 (the long-awaited
+  Replit transfer): apex now ANAMEs straight to App Runner (middleware 308s
+  apex→www) — the Vercel/Replit redirect hop is fully retired.
 
 ## Open items (priority order)
 
@@ -468,9 +471,13 @@ sitemap/robots/OG.
 2. **The finishing pass is CLEAR** (2026-07-02) — every item in
    `docs/FINISHING.md` is fixed, decided, or accepted. Log NEW seam bugs
    there as they surface (hunting method at the bottom of that doc).
-3. **Inbound email replies → `/messages`** — CODE SHIPPED dark (2026-07-14,
-   `docs/inbound-email.md`): set the MX record + Resend inbound domain +
-   `INBOUND_REPLY_DOMAIN` secret to turn it on (owner runbook in that doc).
+3. **Inbound email replies → `/messages` — LIVE (2026-07-23).** Resend
+   inbound domain `in.dreamcreatestudio.com` verified, MX + DKIM at name.com,
+   `INBOUND_REPLY_DOMAIN` set, webhook rebuilt on the www host with ALL
+   events (the old one pointed at the bare apex and had been auto-disabled —
+   delivery/opened receipts were silently dead until this repair) + open
+   tracking on. Human verification still worth doing: reply to a clinic
+   email, watch /messages.
 4. **OD vendor portal approval** (in flight) — unblocks schedule-driven booking
    availability (`/schedules`) + real-office Customer Keys. On approval: swap
    `PMS_OPEN_DENTAL_DEVELOPER_KEY`, generate per-office Customer Keys, office

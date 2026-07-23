@@ -28,6 +28,18 @@ Gmail **Tier-2** senders are untouched: the Gmail transport ignores Reply-To,
 replies go to the clinic's Gmail and loop back through the mailbox sync as
 before.
 
+> **TURNED ON 2026-07-23.** The domain transfer to name.com landed and every
+> step below was executed the same day: inbound domain
+> `in.dreamcreatestudio.com` created + verified in Resend (MX + DKIM at
+> name.com), the webhook re-pointed at `https://www.dreamcreatestudio.com`
+> with all seven events (the ONLY prior webhook pointed at the bare apex —
+> a Replit-era redirect — and had auto-disabled, so delivery/opened receipts
+> had never actually flowed in prod; fixed now, signing secret rotated),
+> open tracking enabled on `dreamcreatestudio.com`, and
+> `INBOUND_REPLY_DOMAIN=in.dreamcreatestudio.com` mapped into App Runner.
+> Remaining human step: reply to a clinic email and watch it land in
+> `/messages` (step 5).
+
 ## Turning it on (owner runbook — one-time)
 
 1. **Resend dashboard** → Domains → add `in.dreamcreatestudio.com` as an
