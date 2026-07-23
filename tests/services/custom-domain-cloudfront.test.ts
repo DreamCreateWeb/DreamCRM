@@ -187,6 +187,23 @@ describe('requestCustomDomain (driver=cloudfront)', () => {
     expect(r.status.driver).toBe('cloudfront')
   })
 
+  it('ownership-not-provable-yet stays PENDING (not manual) — the poll retries the create', async () => {
+    // CloudFront rejects create until the domain points at it or carries the
+    // _cf-challenge TXT. That's the normal BYO-domain sequence (records come
+    // after), so it must NOT page an operator or read as a failure.
+    cfMock.createTenant.mockRejectedValue(
+      new Error('InvalidArgument: The provided Domain Name is not valid. Could not verify Domain Name ownership.'),
+    )
+    const r = await requestCustomDomain(ORG, 'smilebright.com')
+    expect(r.ok).toBe(true)
+    if (!r.ok) throw new Error('unreachable')
+    expect(r.status.error).toBeUndefined()
+    expect(r.status.state).toBe('pending_dns')
+    expect(r.status.driver).toBe('cloudfront')
+    // Full instructions still present (routing + challenge TXTs).
+    expect(r.status.dnsRecords.some((d) => d.type === 'TXT')).toBe(true)
+  })
+
   it('treats an already-existing tenant as success (re-connect after a partial run)', async () => {
     cfMock.createTenant.mockRejectedValue(new Error('EntityAlreadyExists: tenant exists'))
     const r = await requestCustomDomain(ORG, 'smilebright.com')
@@ -286,6 +303,22 @@ describe('checkCustomDomainStatus (dispatches on the STAMPED driver)', () => {
       ETag: 'etag1',
     })
     const r = await checkCustomDomainStatus(ORG)
+    if (!r.ok) throw new Error('unreachable')
+    expect(r.status.state).toBe('pending_dns')
+  })
+
+  it('retries the deferred tenant create when the poll finds no tenant', async () => {
+    state.profile = { organizationId: ORG, websiteDomain: 'www.smilebright.com', customDomainStatus: storedStatus() }
+    cfMock.getByDomain.mockRejectedValue(new Error('EntityNotFound: tenant does not exist'))
+    const r = await checkCustomDomainStatus(ORG)
+    expect(r.ok).toBe(true)
+    // The create fired with the same input the request path uses.
+    expect(cfMock.createTenant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Name: 'smilebright-com',
+        Domains: [{ Domain: 'smilebright.com' }, { Domain: 'www.smilebright.com' }],
+      }),
+    )
     if (!r.ok) throw new Error('unreachable')
     expect(r.status.state).toBe('pending_dns')
   })

@@ -365,6 +365,24 @@ function tenantNameFor(associateHost: string): string {
   return associateHost.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 64)
 }
 
+/** The one true CreateDistributionTenant input — shared by the request path
+ *  and the status-poll retry so the two can never drift. */
+function cloudFrontTenantCreateInput(
+  conn: NonNullable<Awaited<ReturnType<typeof cloudFrontTenantClient>>>,
+  plan: CustomDomainPlan,
+) {
+  return {
+    DistributionId: conn.distributionId,
+    Name: tenantNameFor(plan.associateHost),
+    Domains: plan.servedHosts.map((d) => ({ Domain: d })),
+    ConnectionGroupId: conn.connectionGroupId,
+    // CloudFront hosts the cert-validation token itself: once DNS points
+    // at the routing endpoint, the cert issues with zero extra records.
+    ManagedCertificateRequest: { ValidationTokenHost: 'cloudfront' as const },
+    Enabled: true,
+  }
+}
+
 async function requestViaCloudFront(
   orgId: string,
   plan: CustomDomainPlan,
@@ -387,22 +405,21 @@ async function requestViaCloudFront(
   try {
     const { CreateDistributionTenantCommand } = await import('@aws-sdk/client-cloudfront')
     await conn.client.send(
-      new CreateDistributionTenantCommand({
-        DistributionId: conn.distributionId,
-        Name: tenantNameFor(plan.associateHost),
-        Domains: plan.servedHosts.map((d) => ({ Domain: d })),
-        ConnectionGroupId: conn.connectionGroupId,
-        // CloudFront hosts the cert-validation token itself: once DNS points
-        // at the routing endpoint, the cert issues with zero extra records.
-        ManagedCertificateRequest: { ValidationTokenHost: 'cloudfront' },
-        Enabled: true,
-      }),
+      new CreateDistributionTenantCommand(cloudFrontTenantCreateInput(conn, plan)),
     )
   } catch (err) {
+    const msg = String(err)
+    // Ownership not provable YET: CloudFront requires the domain to point at
+    // the routing endpoint OR carry the _cf-challenge TXT at create time. A
+    // BYO-domain clinic hasn't added records yet (and a purchased domain's
+    // records are written right after this call) — persist the full record
+    // set as pending; checkViaCloudFront retries the create once they land.
+    // NOT the manual state: no operator needed, the flow converges itself.
+    const ownershipPending = /Could not verify Domain Name ownership/i.test(msg)
     // Already-exists (a re-Connect after a partial run) is fine — the status
     // check reconciles against the live tenant. Anything else degrades to the
     // manual state exactly like the App Runner path (never throw at a clinic).
-    if (!/EntityAlreadyExists|already exists/i.test(String(err))) {
+    if (!ownershipPending && !/EntityAlreadyExists|already exists/i.test(msg)) {
       console.warn('[custom-domain] cloudfront tenant create failed, degrading to manual:', (err as Error).message)
       const status: CustomDomainStatus = { ...manualStatus, driver: 'cloudfront' }
       await persist(orgId, status)
@@ -522,9 +539,24 @@ async function checkViaCloudFront(
     await persist(orgId, status)
     return { ok: true, status }
   } catch (err) {
-    // Tenant not found yet (create raced/failed) or a transient API error —
-    // keep the stored state, stamp the check.
-    console.warn('[custom-domain] cloudfront tenant check failed:', (err as Error).message)
+    // Tenant not found: creation was deferred on the domain-ownership check
+    // (BYO domain whose records hadn't landed). Retry it now — the clinic's
+    // _cf-challenge TXT / routing records may have propagated since.
+    if (/EntityNotFound|does not exist/i.test(String(err))) {
+      try {
+        const planRes = resolveCustomDomain(current.associateHost || current.domain)
+        if (planRes.ok) {
+          const { CreateDistributionTenantCommand } = await import('@aws-sdk/client-cloudfront')
+          await conn.client.send(
+            new CreateDistributionTenantCommand(cloudFrontTenantCreateInput(conn, planRes.plan)),
+          )
+        }
+      } catch {
+        // Still pending (records not there yet) — the next poll retries.
+      }
+    } else {
+      console.warn('[custom-domain] cloudfront tenant check failed:', (err as Error).message)
+    }
     const status = { ...current, lastCheckedAt: now }
     await persist(orgId, status)
     return { ok: true, status }
