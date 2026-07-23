@@ -554,10 +554,13 @@ async function checkViaCloudFront(
   } catch (err) {
     // Tenant not found: creation was deferred on the domain-ownership check
     // (BYO domain whose records hadn't landed). Retry it now — the clinic's
-    // _cf-challenge TXT / routing records may have propagated since.
+    // _cf-challenge TXT / routing records may have propagated since — and
+    // make sure the stored instructions are the CLOUDFRONT set (a row that
+    // degraded under the old code may still show App Runner-era records) with
+    // no stale 'manual' flag: this state needs the clinic's DNS, not an operator.
     if (/EntityNotFound|does not exist/i.test(String(err))) {
+      const planRes = resolveCustomDomain(current.associateHost || current.domain)
       try {
-        const planRes = resolveCustomDomain(current.associateHost || current.domain)
         if (planRes.ok) {
           const { CreateDistributionTenantCommand } = await import('@aws-sdk/client-cloudfront')
           await conn.client.send(
@@ -567,9 +570,17 @@ async function checkViaCloudFront(
       } catch {
         // Still pending (records not there yet) — the next poll retries.
       }
-    } else {
-      console.warn('[custom-domain] cloudfront tenant check failed:', (err as Error).message)
+      const status: CustomDomainStatus = {
+        ...current,
+        state: 'pending_dns',
+        lastCheckedAt: now,
+        dnsRecords: planRes.ok ? cloudFrontDnsRecords(planRes.plan, conn.routingEndpoint) : current.dnsRecords,
+        error: undefined,
+      }
+      await persist(orgId, status)
+      return { ok: true, status }
     }
+    console.warn('[custom-domain] cloudfront tenant check failed:', (err as Error).message)
     const status = { ...current, lastCheckedAt: now }
     await persist(orgId, status)
     return { ok: true, status }

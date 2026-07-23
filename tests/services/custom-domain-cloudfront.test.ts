@@ -321,6 +321,10 @@ describe('checkCustomDomainStatus (dispatches on the STAMPED driver)', () => {
     )
     if (!r.ok) throw new Error('unreachable')
     expect(r.status.state).toBe('pending_dns')
+    // The stored instructions are refreshed to the CloudFront set and any
+    // stale manual flag drops — this state needs DNS records, not an operator.
+    expect(r.status.error).toBeUndefined()
+    expect(r.status.dnsRecords.some((d) => d.type === 'TXT' && d.value === ENDPOINT)).toBe(true)
   })
 
   it('a legacy status without a driver still polls App Runner (never CloudFront)', async () => {
