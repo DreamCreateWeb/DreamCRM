@@ -134,8 +134,10 @@ incident. And every cancellation records its actor.
 - ☑ **No cancellation actor on record** — `appointment.cancelled_via` +
   `cancelled_by_user_id` (migration 0133) stamped by every cancel path
   (staff drawer / portal / reschedule / waitlist claim / PMS sync); the staff
-  alert now says WHO ("Maria cancelled their cleaning on Sep 28 from the
-  patient portal." / "Sarah Chen cancelled…"), and the patient timeline +
+  alert now says which SIDE ("…was cancelled from the patient portal (their
+  account — heads-up if family share that email)." / "Sarah Chen cancelled…" —
+  portal cancels attribute to the CHANNEL, never the person: shared-email
+  magic links mean the account isn't proof of who tapped), and the patient timeline +
   appointment drawer show it (`lib/cancel-actor.ts` is the single phrasing
   home). Tests: `tests/appointments/cancel-notify.test.ts`.
 - ▣ **Lead → patient convert dedupe** — ACCEPTED as-is: staff-driven, the UI

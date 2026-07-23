@@ -27,9 +27,11 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   `appointment.cancelled_via` + `cancelled_by_user_id` (migration 0133),
   stamped by every path that cancels (staff drawer via='staff'+userId,
   portal self-cancel via='portal', reschedule, waitlist_claim, PMS-sync
-  'pms'); the staff alert now names the actor ("Mia cancelled their
-  cleaning on Sep 28 from the patient portal." / "Sarah Chen cancelled
-  their…"), the patient timeline subtitle and the appointment drawer show
+  'pms'); the staff alert now names the actor's SIDE — staff by name
+  ("Sarah Chen cancelled their…"), portal by channel only ("…was cancelled
+  from the patient portal (their account — heads-up if family share that
+  email)"; never "Maria cancelled": shared-email magic links mean the
+  account isn't proof of the person), the patient timeline subtitle and the appointment drawer show
   it, and `lib/cancel-actor.ts` is the single phrasing home. Demo seed
   stamps the phantom reschedule row. FINISHING.md gained Class 7 (identity
   seams) recording the incident + the accepted-as-is edges (shared-email

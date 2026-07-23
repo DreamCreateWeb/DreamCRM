@@ -175,21 +175,18 @@ describe('cancelAppointment notifications', () => {
     )
   })
 
-  it('records a PORTAL actor (no user id) and says so in the staff ping', async () => {
+  it('records a PORTAL actor (no user id) and attributes to the CHANNEL, never the person', async () => {
     queueCancelContext()
     await cancelAppointment('org_1', 'appt_1', { via: 'portal' })
     const stateWrite = state.updates.find((u) => u.status === 'cancelled')!
     expect(stateWrite.cancelledVia).toBe('portal')
     expect(stateWrite.cancelledByUserId).toBeNull()
-    expect(notifyOrgMembersMock).toHaveBeenCalledWith(
-      'org_1',
-      expect.objectContaining({
-        body: expect.stringContaining('Mia cancelled their cleaning'),
-      }),
-      expect.anything(),
-    )
     const body = ((notifyOrgMembersMock.mock.calls[0] as unknown[])[1] as { body: string }).body
     expect(body).toContain('from the patient portal')
+    // NEVER "Mia cancelled" — a shared family email means anyone with that
+    // inbox can act as the account (the Maria/John lesson).
+    expect(body).not.toContain('Mia cancelled')
+    expect(body).toContain('heads-up if family share that email')
   })
 
   it('legacy call without an actor keeps the neutral copy (no invented actor)', async () => {

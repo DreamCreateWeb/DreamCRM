@@ -978,13 +978,16 @@ export async function cancelAppointment(
       const dateLabel = notifyCtx.startTime.toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', timeZone: await getClinicTimeZone(organizationId),
       })
-      // Say WHO cancelled — the front desk must be able to tell a patient
-      // self-cancel from a colleague's cleanup without asking around.
+      // Say WHO cancelled — the front desk must be able to tell a patient-side
+      // cancel from a colleague's cleanup without asking around. Portal cancels
+      // attribute to the CHANNEL, not the person: magic-link auth on a shared
+      // family email means anyone with that inbox can act as the account, so
+      // "Maria cancelled" would overclaim (the Maria/John lesson). Staff
+      // attribution is solid — that's an authenticated teammate.
       const visit = `${notifyCtx.type.replace(/_/g, ' ')} on ${dateLabel}`
-      const firstName = notifyCtx.patientName.split(' ')[0] || notifyCtx.patientName
       const body =
         actor?.via === 'portal'
-          ? `${firstName} cancelled their ${visit} from the patient portal.`
+          ? `Their ${visit} was cancelled from the patient portal (their account — heads-up if family share that email).`
           : actor?.via === 'staff' && actor.name
             ? `${actor.name} cancelled their ${visit}.`
             : `Their ${visit} was cancelled.`
