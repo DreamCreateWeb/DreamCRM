@@ -456,12 +456,25 @@ async function checkViaCloudFront(
     return { ok: true, status }
   }
   try {
-    const { GetDistributionTenantByDomainCommand } = await import('@aws-sdk/client-cloudfront')
+    const { GetDistributionTenantByDomainCommand, VerifyDnsConfigurationCommand } = await import(
+      '@aws-sdk/client-cloudfront'
+    )
     const res = await conn.client.send(
       new GetDistributionTenantByDomainCommand({
         Domain: current.associateHost || current.domain,
       }),
     )
+    // Nudge activation: VerifyDnsConfiguration is the API twin of the
+    // console's "Submit" — CloudFront checks the domain's DNS NOW instead of
+    // on its own leisurely probe cycle, which is what flips an
+    // inactive-but-correctly-pointed domain to active. Best-effort per host.
+    if (res.DistributionTenant?.Id) {
+      for (const h of current.servedHosts ?? [current.domain]) {
+        await conn.client
+          .send(new VerifyDnsConfigurationCommand({ Domain: h, Identifier: res.DistributionTenant.Id }))
+          .catch(() => {})
+      }
+    }
     const domains = res.DistributionTenant?.Domains ?? []
     const served = (current.servedHosts ?? [current.domain]).map((h) => h.toLowerCase())
     const activeHosts = new Set(

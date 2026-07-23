@@ -42,6 +42,7 @@ const cfMock = {
   getByDomain: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
   updateTenant: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
   deleteTenant: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
+  verifyDns: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
 }
 const appRunner = {
   describe: vi.fn() as ReturnType<typeof vi.fn> & AwsFn,
@@ -55,6 +56,7 @@ vi.mock('@aws-sdk/client-cloudfront', () => ({
       if (cmd.__type === 'getByDomain') return cfMock.getByDomain(cmd.input)
       if (cmd.__type === 'updateTenant') return cfMock.updateTenant(cmd.input)
       if (cmd.__type === 'deleteTenant') return cfMock.deleteTenant(cmd.input)
+      if (cmd.__type === 'verifyDns') return cfMock.verifyDns(cmd.input)
       throw new Error('unknown command')
     }
   },
@@ -72,6 +74,10 @@ vi.mock('@aws-sdk/client-cloudfront', () => ({
   },
   DeleteDistributionTenantCommand: class {
     __type = 'deleteTenant'
+    constructor(public input: unknown) {}
+  },
+  VerifyDnsConfigurationCommand: class {
+    __type = 'verifyDns'
     constructor(public input: unknown) {}
   },
 }))
@@ -115,6 +121,7 @@ beforeEach(() => {
   cfMock.getByDomain.mockReset()
   cfMock.updateTenant.mockReset().mockResolvedValue({ ETag: 'etag2' })
   cfMock.deleteTenant.mockReset().mockResolvedValue({})
+  cfMock.verifyDns.mockReset().mockResolvedValue({ DnsConfigurationList: [] })
   appRunner.describe.mockReset()
   appRunner.disassociate.mockReset()
   process.env.CUSTOM_DOMAIN_DRIVER = 'cloudfront'
@@ -221,6 +228,13 @@ describe('checkCustomDomainStatus (dispatches on the STAMPED driver)', () => {
     if (!r.ok) throw new Error('unreachable')
     expect(r.status.state).toBe('active')
     expect(appRunner.describe).not.toHaveBeenCalled()
+    // The activation nudge fires for every served host (the API twin of the
+    // console's "Submit" — without it a correctly-pointed domain can sit
+    // inactive on CloudFront's slow probe cycle).
+    expect(cfMock.verifyDns).toHaveBeenCalledTimes(2)
+    expect(cfMock.verifyDns).toHaveBeenCalledWith(
+      expect.objectContaining({ Domain: 'smilebright.com', Identifier: 'dt_1' }),
+    )
   })
 
   it('stays pending while any served host is inactive', async () => {
