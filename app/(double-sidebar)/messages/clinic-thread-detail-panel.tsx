@@ -28,7 +28,12 @@ import {
 } from './clinic-actions'
 import type { ScheduledMessageView } from '@/lib/services/scheduled-messages'
 import { detectPreferredChannel, pickDefaultReplyChannel } from './pick-default-reply-channel'
-import { avatarTint, groupMessagesByDay, messageInitials } from './message-grouping'
+import {
+  avatarTint,
+  groupThreadByDay,
+  messageInitials,
+  type ActivityMarkerLite,
+} from './message-grouping'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 import { MAX_MESSAGE_ATTACHMENTS } from '@/lib/types/messaging'
 import BookFromPatientDrawer from '@/app/(default)/appointments/book-from-patient-drawer'
@@ -116,6 +121,9 @@ interface Props {
   aiEnabled?: boolean
   /** Pending "send later" messages for this patient (shown above the composer). */
   scheduledMessages?: ScheduledMessageView[]
+  /** Automation/lifecycle context markers interleaved between bubbles
+   *  (reminders, campaigns, bookings…). Read-only — never affects unread. */
+  activity?: ActivityMarkerLite[]
 }
 
 const SNOOZE_OPTIONS = [
@@ -143,6 +151,59 @@ function fmtMoney(cents: number): string {
 /** Bare clock for the per-group timestamp ("3:24 PM"). */
 function fmtClock(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}
+
+/**
+ * Automation/lifecycle context between message groups — thin, centered,
+ * gray. Deliberately quieter than any bubble: this is the "what was Jason
+ * responding to?" answer, not conversation. Runs of 4+ collapse behind a
+ * one-line summary so an automation-heavy stretch never buries the humans.
+ */
+function ActivityMarkers({ markers }: { markers: ActivityMarkerLite[] }) {
+  const line = (m: ActivityMarkerLite) => (
+    <div
+      key={m.id}
+      className="flex items-center justify-center gap-1.5 px-4 text-xs text-gray-400 dark:text-gray-500"
+    >
+      <span aria-hidden="true" className="shrink-0">{m.icon}</span>
+      {m.href ? (
+        <Link
+          href={m.href}
+          className="truncate font-medium hover:text-gray-600 hover:underline dark:hover:text-gray-300"
+        >
+          {m.label}
+        </Link>
+      ) : (
+        <span className="truncate font-medium">{m.label}</span>
+      )}
+      {m.detail && <span className="truncate">· {m.detail}</span>}
+      <span className="shrink-0 tabular-nums">· {fmtClock(m.occurredAt)}</span>
+    </div>
+  )
+
+  return (
+    <li className="py-0.5" aria-label="Automated activity">
+      {markers.length < 4 ? (
+        <div className="space-y-1">{markers.map(line)}</div>
+      ) : (
+        <details className="group/act">
+          <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 [&::-webkit-details-marker]:hidden">
+            <span aria-hidden="true" className="tracking-tight">
+              {markers.slice(0, 5).map((m) => m.icon).join(' ')}
+              {markers.length > 5 ? ' …' : ''}
+            </span>
+            <span className="font-medium underline-offset-2 group-open/act:hidden hover:text-gray-600 hover:underline dark:hover:text-gray-300">
+              {markers.length} automated touches — show
+            </span>
+            <span className="hidden font-medium underline-offset-2 group-open/act:inline hover:text-gray-600 hover:underline dark:hover:text-gray-300">
+              hide
+            </span>
+          </summary>
+          <div className="mt-1.5 space-y-1">{markers.map(line)}</div>
+        </details>
+      )}
+    </li>
+  )
 }
 
 /** Friendly date+time for a scheduled send ("Mon, Jun 23 · 9:00 AM"). */
@@ -320,6 +381,7 @@ export default function ThreadDetailPanel({
   backHref,
   aiEnabled = false,
   scheduledMessages = [],
+  activity = [],
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -352,7 +414,9 @@ export default function ThreadDetailPanel({
   // Group the flat message list into day buckets, each holding runs of
   // consecutive same-sender messages — so we render one avatar + sender
   // label per group (iMessage/Front quality), not a label over every bubble.
-  const dayGroups = useMemo(() => groupMessagesByDay(messages), [messages])
+  // Activity markers (reminders/campaigns/bookings) interleave between the
+  // groups as read-only context lines; runs of them arrive pre-collapsed.
+  const dayGroups = useMemo(() => groupThreadByDay(messages, activity), [messages, activity])
 
   const patientName = `${thread.patientFirstName} ${thread.patientLastName}`.trim()
   const patientInitials = messageInitials(thread.patientFirstName, thread.patientLastName)
@@ -949,7 +1013,7 @@ export default function ThreadDetailPanel({
 
       {/* ── Message stream ────────────────────────────────────────── */}
       <div ref={streamRef} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 bg-[color:var(--color-canvas)]">
-        {messages.length === 0 ? (
+        {messages.length === 0 && activity.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <EmptyState
               icon="✍️"
@@ -971,7 +1035,11 @@ export default function ThreadDetailPanel({
                 </div>
 
                 <ul className="space-y-3.5">
-                  {day.groups.map((group) => {
+                  {day.items.map((item) => {
+                    if (item.type === 'activity') {
+                      return <ActivityMarkers key={item.key} markers={item.markers} />
+                    }
+                    const group = item.group
                     const outbound = group.direction === 'outbound'
                     const ch = channelMeta(group.channel)
                     const senderLabel = outbound

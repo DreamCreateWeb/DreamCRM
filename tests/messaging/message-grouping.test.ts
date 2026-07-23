@@ -184,3 +184,90 @@ describe('groupMessagesByDay', () => {
     expect(days[0].groups[0].key).toBe('first')
   })
 })
+
+// ── Interleaved activity markers (groupThreadByDay) ──────────────────────
+
+import { groupThreadByDay, type ActivityMarkerLite } from '@/app/(double-sidebar)/messages/message-grouping'
+
+function marker(over: Partial<ActivityMarkerLite> & { id: string; occurredAt: string }): ActivityMarkerLite {
+  return { icon: '📣', label: 'Received “Recall”', detail: null, href: null, ...over }
+}
+
+describe('groupThreadByDay', () => {
+  const now = new Date('2026-06-14T18:00:00')
+
+  it('interleaves markers between message groups in chronological order', () => {
+    const days = groupThreadByDay(
+      [
+        msg({ id: 'm1', direction: 'outbound', sentByUserName: 'Dr. Reyes', sentAt: '2026-06-14T09:00:00' }),
+        msg({ id: 'm2', direction: 'inbound', sentAt: '2026-06-14T11:00:00' }),
+      ],
+      [marker({ id: 'k1', occurredAt: '2026-06-14T10:00:00', label: 'Received “Reactivation”', detail: 'opened ✓' })],
+      now,
+    )
+    expect(days).toHaveLength(1)
+    expect(days[0].items.map((i) => i.type)).toEqual(['messages', 'activity', 'messages'])
+    // The Jason case: the inbound reply sits DIRECTLY under the campaign
+    // marker that explains it.
+    const activity = days[0].items[1]
+    if (activity.type !== 'activity') throw new Error('expected activity')
+    expect(activity.markers[0].label).toBe('Received “Reactivation”')
+    expect(activity.markers[0].detail).toBe('opened ✓')
+  })
+
+  it('a marker between same-sender messages splits the message group', () => {
+    const days = groupThreadByDay(
+      [
+        msg({ id: 'm1', direction: 'inbound', sentAt: '2026-06-14T09:00:00' }),
+        msg({ id: 'm2', direction: 'inbound', sentAt: '2026-06-14T11:00:00' }),
+      ],
+      [marker({ id: 'k1', occurredAt: '2026-06-14T10:00:00' })],
+      now,
+    )
+    expect(days[0].items.map((i) => i.type)).toEqual(['messages', 'activity', 'messages'])
+  })
+
+  it('collapses consecutive markers into ONE activity item', () => {
+    const days = groupThreadByDay(
+      [msg({ id: 'm1', direction: 'inbound', sentAt: '2026-06-14T15:00:00' })],
+      [
+        marker({ id: 'k1', occurredAt: '2026-06-14T09:00:00' }),
+        marker({ id: 'k2', occurredAt: '2026-06-14T10:00:00' }),
+        marker({ id: 'k3', occurredAt: '2026-06-14T11:00:00' }),
+      ],
+      now,
+    )
+    expect(days[0].items.map((i) => i.type)).toEqual(['activity', 'messages'])
+    const act = days[0].items[0]
+    if (act.type !== 'activity') throw new Error('expected activity')
+    expect(act.markers.map((m) => m.id)).toEqual(['k1', 'k2', 'k3'])
+  })
+
+  it('day buckets split marker runs across midnight', () => {
+    const days = groupThreadByDay(
+      [],
+      [
+        marker({ id: 'k1', occurredAt: '2026-06-13T23:00:00' }),
+        marker({ id: 'k2', occurredAt: '2026-06-14T08:00:00' }),
+      ],
+      now,
+    )
+    expect(days).toHaveLength(2)
+    expect(days[0].label).toBe('Yesterday')
+    expect(days[1].label).toBe('Today')
+  })
+
+  it('with no markers, grouping matches groupMessagesByDay exactly', () => {
+    const messages = [
+      msg({ id: 'a', direction: 'inbound', sentAt: '2026-06-14T09:00:00' }),
+      msg({ id: 'b', direction: 'inbound', sentAt: '2026-06-14T09:05:00' }),
+      msg({ id: 'c', direction: 'outbound', sentByUserName: 'Dr. Reyes', sentAt: '2026-06-14T09:10:00' }),
+    ]
+    const legacy = groupMessagesByDay(messages, now)
+    const merged = groupThreadByDay(messages, [], now)
+    expect(merged).toHaveLength(legacy.length)
+    const groups = merged[0].items.map((i) => (i.type === 'messages' ? i.group : null))
+    expect(groups.map((g) => g?.key)).toEqual(legacy[0].groups.map((g) => g.key))
+    expect(groups.map((g) => g?.messages.length)).toEqual(legacy[0].groups.map((g) => g.messages.length))
+  })
+})

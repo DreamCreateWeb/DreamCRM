@@ -7,6 +7,29 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Thread activity markers — the whole relationship in one conversation
+  (2026-07-23).** Owner brief: staff seeing "Yeah that'd be great!" from a
+  patient shouldn't have to wonder *what* would be great — the promo/recall/
+  reminder he's answering should be visible right above his reply. Every
+  automated touch now interleaves the /messages thread as a thin gray
+  context line: `lib/services/thread-activity.ts` merges SEVEN existing
+  send/lifecycle logs at READ time (appointment booked/confirmed/completed/
+  cancelled-with-actor/no-show, reminder log, review request sent/left-N★,
+  campaign_events sent + opened ✓, balance nudge sent/paid online, NPS
+  survey sent/answered, intake form completed) — zero new write paths, so
+  months of history backfilled the moment it shipped. THE LAW (what keeps
+  the inbox usable): markers are context, not conversation — they never
+  bump unreadCountForClinic, never reopen/reorder a thread, and never
+  render in the patient portal (staff detail panel only); runs of 4+
+  collapse behind a "N automated touches — show" summary. Grouping is pure
+  (`groupThreadByDay` beside `groupMessagesByDay` in message-grouping.ts,
+  markers split same-sender runs like a channel switch); the view threads
+  serialized markers through ThreadDetailPanel with `.catch(() => [])` so
+  a marker-source hiccup can never blank a conversation. Tests: service
+  merge/ordering/actor cases, pure grouping suite, panel render suite
+  (marker-between-bubbles DOM order, deep links, collapse, no false empty
+  state).
+
 - **Domain max-utilization pass (2026-07-23, same day as the transfer).**
   Owner brief: "make sure we are utilizing the domain in name.com to the max
   of its ability." Zone + Resend + app audit, then: (1) **the sending domain

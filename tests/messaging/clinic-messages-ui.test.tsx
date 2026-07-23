@@ -141,3 +141,73 @@ describe('Thread detail — grouped bubbles', () => {
     expect(screen.getByRole('button', { name: /Send message/ })).toBeInTheDocument()
   })
 })
+
+// ── Activity markers in the stream ────────────────────────────────────────
+
+function marker(over: Record<string, unknown>) {
+  return {
+    id: 'k',
+    occurredAt: '2026-06-14T10:00:00.000Z',
+    icon: '📣',
+    label: 'Received “Recall”',
+    detail: null,
+    href: null,
+    ...over,
+  }
+}
+
+describe('Thread detail — activity markers', () => {
+  it('renders a marker between the bubbles it chronologically separates (the Jason case)', () => {
+    renderPanel(
+      [
+        serMsg({ id: 'a', direction: 'outbound', sentByUserName: 'Dr. Reyes', body: 'See you soon', sentAt: '2026-06-14T09:00:00.000Z' }),
+        serMsg({ id: 'b', direction: 'inbound', body: "Yeah that'd be great!", sentAt: '2026-06-14T11:00:00.000Z' }),
+      ],
+      {
+        activity: [
+          marker({ id: 'k1', label: 'Received “Reactivation — we miss you”', detail: 'opened ✓' }),
+        ],
+      },
+    )
+    const stream = streamFrom(/Yeah that/)
+    expect(within(stream).getByText('Received “Reactivation — we miss you”')).toBeInTheDocument()
+    expect(within(stream).getByText(/opened ✓/)).toBeInTheDocument()
+    // The marker sits BETWEEN the two bubbles in DOM order.
+    const texts = Array.from(stream.querySelectorAll('li')).map((li) => li.textContent ?? '')
+    const iOut = texts.findIndex((t) => t.includes('See you soon'))
+    const iMark = texts.findIndex((t) => t.includes('Reactivation'))
+    const iIn = texts.findIndex((t) => t.includes("Yeah that'd be great!"))
+    expect(iOut).toBeLessThan(iMark)
+    expect(iMark).toBeLessThan(iIn)
+  })
+
+  it('a marker with an href renders as a staff deep link', () => {
+    renderPanel(
+      [serMsg({ id: 'a', body: 'hello', sentAt: '2026-06-14T09:00:00.000Z' })],
+      { activity: [marker({ id: 'k1', href: '/growth/campaigns/7' })] },
+    )
+    const link = screen.getByRole('link', { name: 'Received “Recall”' })
+    expect(link.getAttribute('href')).toBe('/growth/campaigns/7')
+  })
+
+  it('collapses a run of 4+ markers behind a summary line', () => {
+    renderPanel(
+      [serMsg({ id: 'a', body: 'hello', sentAt: '2026-06-14T15:00:00.000Z' })],
+      {
+        activity: [1, 2, 3, 4, 5].map((n) =>
+          marker({ id: `k${n}`, occurredAt: `2026-06-14T0${n}:00:00.000Z`, label: `Touch ${n}` }),
+        ),
+      },
+    )
+    expect(screen.getByText('5 automated touches — show')).toBeInTheDocument()
+    // Details start collapsed but the rows exist for expansion.
+    expect(screen.getByText('Touch 1')).toBeInTheDocument()
+    expect(screen.getByText('Touch 5')).toBeInTheDocument()
+  })
+
+  it('markers alone (no messages) still render — no false empty state', () => {
+    renderPanel([], { activity: [marker({ id: 'k1', label: 'Cleaning reminder sent' })] })
+    expect(screen.queryByText('No messages yet')).not.toBeInTheDocument()
+    expect(screen.getByText('Cleaning reminder sent')).toBeInTheDocument()
+  })
+})

@@ -201,3 +201,91 @@ export function groupMessagesByDay<M extends GroupableMessage>(
   }
   return days
 }
+
+// ── 4. Activity markers interleaved with messages ───────────────────────
+//
+// The thread's automation context (reminders, campaigns, bookings…) rides
+// BETWEEN message groups as thin gray lines. The law lives in the service
+// (markers never touch unread/ordering); here we only merge chronology:
+// messages keep their sender grouping, and runs of consecutive markers
+// collapse into ONE activity item so an automation-heavy stretch renders
+// as a compact block the UI can fold, not a wall of gray.
+
+/** Serialized activity marker (dates as ISO — this module is client-safe). */
+export interface ActivityMarkerLite {
+  id: string
+  /** ISO timestamp string. */
+  occurredAt: string
+  icon: string
+  label: string
+  detail: string | null
+  href: string | null
+}
+
+export type ThreadDayItem<M extends GroupableMessage> =
+  | { type: 'messages'; group: MessageGroup<M> }
+  | { type: 'activity'; key: string; markers: ActivityMarkerLite[] }
+
+export interface ThreadDayGroup<M extends GroupableMessage> {
+  dayKey: string
+  label: string
+  items: ThreadDayItem<M>[]
+}
+
+/**
+ * Merge chronological messages + activity markers into day buckets of
+ * interleaved items. Both inputs must already be sorted oldest→newest.
+ * Message grouping matches groupMessagesByDay exactly; an activity run
+ * breaks a message group the same way a channel switch does.
+ */
+export function groupThreadByDay<M extends GroupableMessage>(
+  messages: M[],
+  markers: ActivityMarkerLite[],
+  now: Date = new Date(),
+): ThreadDayGroup<M>[] {
+  type Entry = { at: number; msg?: M; marker?: ActivityMarkerLite }
+  const entries: Entry[] = [
+    ...messages.map((m) => ({ at: new Date(m.sentAt).getTime(), msg: m })),
+    ...markers.map((k) => ({ at: new Date(k.occurredAt).getTime(), marker: k })),
+  ].sort((a, b) => a.at - b.at)
+
+  const days: ThreadDayGroup<M>[] = []
+  for (const e of entries) {
+    const when = new Date(e.at)
+    const dayKey = localDayKey(when)
+    let day = days[days.length - 1]
+    if (!day || day.dayKey !== dayKey) {
+      day = { dayKey, label: daySeparatorLabel(when, now), items: [] }
+      days.push(day)
+    }
+    const lastItem = day.items[day.items.length - 1]
+
+    if (e.marker) {
+      if (lastItem?.type === 'activity') {
+        lastItem.markers.push(e.marker)
+      } else {
+        day.items.push({ type: 'activity', key: e.marker.id, markers: [e.marker] })
+      }
+      continue
+    }
+
+    const m = e.msg as M
+    const lastGroup = lastItem?.type === 'messages' ? lastItem.group : null
+    const lastMsg = lastGroup?.messages[lastGroup.messages.length - 1]
+    if (lastGroup && lastMsg && sameGroup(lastMsg, m)) {
+      lastGroup.messages.push(m)
+    } else {
+      day.items.push({
+        type: 'messages',
+        group: {
+          key: m.id,
+          direction: m.direction,
+          channel: m.channel,
+          senderName: m.direction === 'outbound' ? (m.sentByUserName ?? null) : null,
+          messages: [m],
+        },
+      })
+    }
+  }
+  return days
+}

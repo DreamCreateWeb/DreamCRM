@@ -18,6 +18,7 @@ import { getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { listAssignableStaff } from '@/lib/services/patient-followups'
 import { listScheduledForPatient, type ScheduledMessageView } from '@/lib/services/scheduled-messages'
+import { listThreadActivity, type ActivityMarker } from '@/lib/services/thread-activity'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import Sparkline from '@/components/ui/sparkline'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -127,19 +128,23 @@ export default async function ClinicMessagesView({
   // Pull the message stream + the slim patient context strip in parallel —
   // so staff replying see next/last visit, PMS balance, and missing-intake
   // without leaving the inbox.
-  const [messages, patientContext, patientTags, scheduledMessages]: [
+  const [messages, patientContext, patientTags, scheduledMessages, activity]: [
     ThreadMessage[],
     ThreadPatientContext | null,
     PatientTagView[],
     ScheduledMessageView[],
+    ActivityMarker[],
   ] = activeThread
     ? await Promise.all([
         listMessagesInThread(ctx.organizationId, activeThread.id),
         getThreadPatientContext(ctx.organizationId, activeThread.patientId),
         getTagsForPatient(ctx.organizationId, activeThread.patientId),
         listScheduledForPatient(ctx.organizationId, activeThread.patientId),
+        // Automation context (reminders/campaigns/bookings) — best-effort by
+        // contract: a marker-source hiccup must never blank the conversation.
+        listThreadActivity(ctx.organizationId, activeThread.patientId).catch(() => []),
       ])
-    : [[], null, [], []]
+    : [[], null, [], [], []]
 
   // Mark the active thread read when it has unread messages on the
   // staff side. Call the service directly (NOT the server action wrapper):
@@ -322,6 +327,14 @@ export default async function ClinicMessagesView({
               currentUserName={ctx.userName ?? null}
               aiEnabled={aiConfigured()}
               scheduledMessages={scheduledMessages}
+              activity={activity.map((a) => ({
+                id: a.id,
+                occurredAt: a.occurredAt.toISOString(),
+                icon: a.icon,
+                label: a.label,
+                detail: a.detail,
+                href: a.href,
+              }))}
               templates={messageTemplates.map((t) => ({
                 key: t.id,
                 label: t.name,
