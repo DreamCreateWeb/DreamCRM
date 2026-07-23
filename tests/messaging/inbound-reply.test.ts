@@ -15,12 +15,20 @@ const state: {
 
 const recordMock = vi.fn(async (..._a: unknown[]) => ({ threadId: 't1', messageId: 'm1' }))
 const sendMock = vi.fn(async (..._a: unknown[]) => {})
+const platformOrgMock = vi.fn(async (): Promise<string | null> => 'org_platform')
+const notifyMock = vi.fn(async (..._a: unknown[]) => {})
 
 vi.mock('@/lib/services/patient-messaging', () => ({
   recordInboundMessage: (...a: unknown[]) => recordMock(...(a as [])),
 }))
 vi.mock('@/lib/email', () => ({
   sendNotificationEmail: (...a: unknown[]) => sendMock(...(a as [])),
+}))
+vi.mock('@/lib/services/gsc', () => ({
+  getPlatformOrgId: () => platformOrgMock(),
+}))
+vi.mock('@/lib/services/notifications', () => ({
+  notifyOrgMembers: (...a: unknown[]) => notifyMock(...(a as [])),
 }))
 vi.mock('@/lib/db', async () => {
   const { organization } = await import('@/lib/db/schema/auth')
@@ -64,6 +72,8 @@ beforeEach(() => {
   state.profileEmail = 'frontdesk@acmedental.com'
   recordMock.mockClear()
   sendMock.mockClear()
+  platformOrgMock.mockClear().mockResolvedValue('org_platform')
+  notifyMock.mockClear()
 })
 afterEach(() => {
   delete process.env.INBOUND_REPLY_DOMAIN
@@ -122,5 +132,58 @@ describe('handleInboundReply', () => {
     state.profileEmail = null
     expect(await handleInboundReply(PAYLOAD)).toBe('ignored:no_clinic_email')
     expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  // ── The sending domain itself accepts mail too (apex MX, 2026-07-23) ──────
+
+  it('routes mail composed fresh to the visible From address (slug@sending-domain)', async () => {
+    const res = await handleInboundReply({
+      ...PAYLOAD,
+      to: ['acme-dental@dreamcreatestudio.com'],
+    })
+    expect(res).toBe('recorded')
+    expect(recordMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org_1', patientId: 'pat_1' }),
+    )
+    expect(notifyMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards platform aliases (hello@) to the platform owners/admins with a forced email', async () => {
+    state.org = null // 'hello' matches no clinic slug
+    const res = await handleInboundReply({
+      ...PAYLOAD,
+      to: ['hello@dreamcreatestudio.com'],
+      subject: 'Question about pricing',
+    })
+    expect(res).toBe('forwarded:platform')
+    expect(recordMock).not.toHaveBeenCalled()
+    expect(sendMock).not.toHaveBeenCalled()
+    expect(notifyMock).toHaveBeenCalledTimes(1)
+    const [orgId, input, opts] = notifyMock.mock.calls[0] as [
+      string,
+      { type: string; title: string; body: string; forceEmail: boolean },
+      { roles: string[] },
+    ]
+    expect(orgId).toBe('org_platform')
+    expect(input.type).toBe('platform_inbound_email')
+    expect(input.forceEmail).toBe(true)
+    expect(input.title).toContain('hello@dreamcreatestudio.com')
+    expect(input.title).toContain('Question about pricing')
+    expect(input.body).toContain('mia@example.com')
+    expect(opts.roles).toEqual(['owner', 'admin'])
+  })
+
+  it('an unknown slug on the REPLY domain still ignores (no platform forward there)', async () => {
+    state.org = null
+    expect(await handleInboundReply(PAYLOAD)).toBe('ignored:unknown_clinic')
+    expect(notifyMock).not.toHaveBeenCalled()
+  })
+
+  it('sending-domain mail with no platform org → explicit ignore', async () => {
+    state.org = null
+    platformOrgMock.mockResolvedValue(null)
+    expect(
+      await handleInboundReply({ ...PAYLOAD, to: ['support@dreamcreatestudio.com'] }),
+    ).toBe('ignored:no_platform_org')
   })
 })

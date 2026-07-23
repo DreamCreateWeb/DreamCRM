@@ -28,6 +28,42 @@ Gmail **Tier-2** senders are untouched: the Gmail transport ignores Reply-To,
 replies go to the clinic's Gmail and loop back through the mailbox sync as
 before.
 
+## The sending domain receives too (2026-07-23)
+
+Receiving is ALSO enabled on the sending domain itself (apex MX →
+Resend Inbound), because two classes of mail were bouncing:
+
+- a patient composing a **fresh** email to the visible From address
+  (`slug@dreamcreatestudio.com`) instead of hitting reply — now routed through
+  the exact same clinic flow as a reply (thread if the sender is a known
+  patient, else forward to the clinic inbox);
+- mail to **platform aliases** (`hello@`, `support@`, …) — `hello@` is
+  advertised on the marketing site and is the platform From, and it had no
+  mailbox. A sending-domain local part that matches no clinic slug now
+  forwards to the platform org's owners/admins (bell + forced email,
+  `type: platform_inbound_email`).
+
+Routing lives in `lib/services/inbound-reply.ts` (`platformSendingDomain()` in
+`lib/inbound-email.ts` reads `EMAIL_SENDING_DOMAIN`, default
+`dreamcreatestudio.com`).
+
+## Domain email-auth posture (set 2026-07-23, name.com API)
+
+- `_dmarc` TXT: `v=DMARC1; p=quarantine; rua=mailto:dustin@dreamcreateweb.com;
+  pct=100; adkim=r; aspf=r` — safe because 100% of legitimate mail DKIM-signs
+  as the domain via Resend (Tier-2 sends are From the clinic's own Gmail, not
+  our domain). Also satisfies the Gmail/Yahoo bulk-sender DMARC requirement
+  for campaign sends.
+- Apex SPF: `v=spf1 include:amazonses.com -all` (MAIL FROM is
+  `send.dreamcreatestudio.com`, which has its own SPF; the apex record is
+  anti-spoofing).
+- Apex MX: `inbound-smtp.us-east-1.amazonaws.com` prio 10 (Resend receiving).
+- Registrar autorenew: ON for dreamcreatestudio.com (it arrived from the
+  transfer with autorenew off). Clinic-purchased domains keep registrar
+  autorenew OFF on purpose — the `domain-renewals` cron owns those.
+- CAA records: name.com DNS does not support the type (API rejects it) — noted,
+  not set.
+
 > **TURNED ON 2026-07-23.** The domain transfer to name.com landed and every
 > step below was executed the same day: inbound domain
 > `in.dreamcreatestudio.com` created + verified in Resend (MX + DKIM at

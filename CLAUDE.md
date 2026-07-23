@@ -37,7 +37,12 @@ system, don't replace it.
   `INBOUND_REPLY_DOMAIN=in.dreamcreatestudio.com`, Resend inbound domain +
   MX at name.com, webhook on www w/ all events incl. email.received +
   email.opened, open tracking on) — `lib/inbound-email.ts` pure helpers +
-  `lib/services/inbound-reply.ts`; runbook `docs/inbound-email.md`.
+  `lib/services/inbound-reply.ts`; runbook `docs/inbound-email.md`. The
+  SENDING domain receives too (apex MX, same day): fresh mail to
+  `slug@dreamcreatestudio.com` rides the same clinic flow; non-slug locals
+  (hello@, support@) forward to platform owners/admins. Email-auth posture:
+  DMARC p=quarantine + apex SPF `-all` + registrar autorenew ON (see the
+  runbook's posture section).
 - **Storage: AWS S3** (`STORAGE_DRIVER=s3`, bucket `dreamcrm-uploads-prod`); Vercel
   Blob kept as fallback driver
 - **AI: Anthropic API (direct)** — `lib/ai.ts` (+ inert Bedrock driver

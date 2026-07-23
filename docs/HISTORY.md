@@ -7,6 +7,27 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Domain max-utilization pass (2026-07-23, same day as the transfer).**
+  Owner brief: "make sure we are utilizing the domain in name.com to the max
+  of its ability." Zone + Resend + app audit, then: (1) **the sending domain
+  now RECEIVES** — Resend receiving enabled on dreamcreatestudio.com + apex
+  MX (verified). Mail composed fresh to the visible From address
+  (`slug@dreamcreatestudio.com`) was bouncing — and so was `hello@`, which
+  the marketing /docs page ADVERTISES and the platform uses as EMAIL_FROM.
+  `handleInboundReply` now tries the reply domain then the sending domain
+  (`platformSendingDomain()` in lib/inbound-email.ts): slug match → the
+  normal clinic flow; non-slug local → notifyOrgMembers to platform
+  owners/admins (forceEmail, `type platform_inbound_email`). (2) **Email
+  auth**: `_dmarc` TXT p=quarantine (rua → dustin@dreamcreateweb.com;
+  safe — all legit mail DKIM-aligns via Resend, Tier-2 is From the clinic's
+  Gmail; also satisfies the Gmail/Yahoo bulk-sender rule for campaigns) +
+  apex SPF `v=spf1 include:amazonses.com -all`. (3) **Registrar hygiene**:
+  autorenew ON for dreamcreatestudio.com (transfer left it off; clinic
+  domains stay off by design — the domain-renewals cron owns those), stale
+  `replit-verify` TXT deleted. CAA records: name.com doesn't support the
+  type. Considered + skipped: BIMI (needs a paid VMC), MTA-STS (complexity
+  ≫ value at current scale).
+
 - **The domain came home: inbound email LIVE + webhook repair + apex
   retirement (2026-07-23).** The Replit→name.com account transfer finally
   landed (dreamcreatestudio.com in OUR account, zone intact). Turned on the

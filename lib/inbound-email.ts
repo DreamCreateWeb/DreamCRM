@@ -18,6 +18,19 @@ export function inboundReplyDomain(): string | null {
   return d || null
 }
 
+/**
+ * The Tier-1 SENDING domain (`slug@dreamcreatestudio.com` — the address
+ * patients actually see as From). Same env + default as clinic-sender.ts.
+ * With receiving enabled on it (apex MX → Resend Inbound, 2026-07-23), a
+ * patient composing a FRESH email to the From address — instead of hitting
+ * reply, which uses the `in.` Reply-To — routes into /messages too, and
+ * platform aliases (hello@, support@) become real, forwarded addresses
+ * instead of silent bounces.
+ */
+export function platformSendingDomain(): string {
+  return process.env.EMAIL_SENDING_DOMAIN?.trim().toLowerCase() || 'dreamcreatestudio.com'
+}
+
 /** The Reply-To for a clinic's Tier-1 email, or null when inbound is off. */
 export function inboundReplyAddress(slug: string | null | undefined): string | null {
   const domain = inboundReplyDomain()

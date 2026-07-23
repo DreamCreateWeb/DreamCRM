@@ -5,30 +5,49 @@ import {
   inboundReplyDomain,
   normalizeInboundEmail,
   parseInboundRecipientSlug,
+  platformSendingDomain,
+  type NormalizedInboundEmail,
 } from '@/lib/inbound-email'
 import { recordInboundMessage } from '@/lib/services/patient-messaging'
 
 /**
- * Route one Resend `email.received` event (a patient replying to a Tier-1
- * clinic email) into the right place:
+ * Route one Resend `email.received` event into the right place. Two domains
+ * are ours (2026-07-23, both MX → Resend Inbound):
  *
+ *   slug@{INBOUND_REPLY_DOMAIN}   — the Reply-To on Tier-1 email (replies)
+ *   slug@{platform sending domain} — the visible From address (patients who
+ *                                    compose a fresh email to it instead of
+ *                                    hitting reply)
+ *
+ * Either way the clinic flow is the same:
  *   known patient  → their /messages thread (unread badge + staff bell ride
  *                    recordInboundMessage)
  *   unknown sender → forwarded verbatim to the clinic's own inbox, so a reply
  *                    from a spouse's address / a brand-new contact is never
  *                    silently lost
- *   not ours       → ignored (wrong domain, no slug match, junk payload)
+ *
+ * A sending-domain recipient whose local part matches NO clinic (hello@,
+ * support@, a typo'd slug) forwards to the platform org's owners/admins —
+ * those aliases are advertised on the marketing site and used as the
+ * platform From, and they used to bounce. Anything else is ignored (wrong
+ * domain, junk payload).
  *
  * Returns a short outcome string for the webhook's JSON (observability only).
  */
 export async function handleInboundReply(data: unknown): Promise<string> {
-  const domain = inboundReplyDomain()
-  if (!domain) return 'ignored:not_configured'
+  const replyDomain = inboundReplyDomain()
+  if (!replyDomain) return 'ignored:not_configured'
 
   const norm = normalizeInboundEmail(data)
   if (!norm) return 'ignored:unparseable'
 
-  const slug = parseInboundRecipientSlug(norm.to, domain)
+  let slug = parseInboundRecipientSlug(norm.to, replyDomain)
+  let onSendingDomain = false
+  const sendingDomain = platformSendingDomain()
+  if (!slug && sendingDomain !== replyDomain) {
+    slug = parseInboundRecipientSlug(norm.to, sendingDomain)
+    onSendingDomain = slug !== null
+  }
   if (!slug) return 'ignored:not_our_domain'
 
   const [org] = await db
@@ -36,7 +55,13 @@ export async function handleInboundReply(data: unknown): Promise<string> {
     .from(schema.organization)
     .where(eq(schema.organization.slug, slug))
     .limit(1)
-  if (!org) return 'ignored:unknown_clinic'
+  if (!org) {
+    // Not a clinic address. On the sending domain that means a platform
+    // alias (or a typo) — forward it to the platform team rather than let
+    // mail to our own advertised addresses vanish.
+    if (onSendingDomain) return forwardToPlatform(slug, sendingDomain, norm)
+    return 'ignored:unknown_clinic'
+  }
 
   // Svix redelivers on timeouts — the Resend email id makes replays no-ops.
   const externalId =
@@ -107,4 +132,38 @@ export async function handleInboundReply(data: unknown): Promise<string> {
       `——\n\n${body || '(empty message)'}`,
   })
   return 'forwarded'
+}
+
+/**
+ * Mail to a non-clinic address on the platform's own sending domain
+ * (hello@, support@, …) → bell + forced email to the platform org's
+ * owners/admins. These addresses are public (the marketing site, the
+ * platform From header) and MUST NOT be a black hole now that the apex
+ * accepts mail.
+ */
+async function forwardToPlatform(
+  localPart: string,
+  domain: string,
+  norm: NormalizedInboundEmail,
+): Promise<string> {
+  const { getPlatformOrgId } = await import('@/lib/services/gsc')
+  const { notifyOrgMembers } = await import('@/lib/services/notifications')
+  const platformOrgId = await getPlatformOrgId()
+  if (!platformOrgId) return 'ignored:no_platform_org'
+
+  const from = norm.fromName ? `${norm.fromName} <${norm.fromEmail}>` : norm.fromEmail
+  await notifyOrgMembers(
+    platformOrgId,
+    {
+      bucket: 'comments',
+      type: 'platform_inbound_email',
+      title: `Mail to ${localPart}@${domain}: ${norm.subject || '(no subject)'}`,
+      body:
+        `From ${from}\n\n${(norm.body || '(empty message)').slice(0, 7900)}\n\n` +
+        `Reply directly to ${norm.fromEmail} — this address only forwards.`,
+      forceEmail: true,
+    },
+    { roles: ['owner', 'admin'] },
+  )
+  return 'forwarded:platform'
 }
