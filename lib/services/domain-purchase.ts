@@ -294,6 +294,41 @@ export async function purchaseDomainForClinic(
         const type = record.purpose === 'routing' && record.host === '@' ? 'ANAME' : record.type
         await createRecord(domain, { host: record.host, type, answer: record.value })
       }
+      // requestCustomDomain DEGRADES instead of throwing when App Runner's
+      // AssociateCustomDomain fails (the 5-custom-domains quota, IAM, …):
+      // DNS then points at the service with no certificate ever coming, so
+      // the clinic's site "attaches" but never loads (2026-07-22:
+      // mammothspringsdental.com hit exactly this on the quota). That state
+      // is invisible from the clinic side — page the platform so an operator
+      // finishes the association (docs/custom-domains.md) before the clinic
+      // notices.
+      if (attach.status.error === 'manual') {
+        try {
+          const { getPlatformOrgId } = await import('./gsc')
+          const { notifyOrgMembers } = await import('./notifications')
+          const platformOrgId = await getPlatformOrgId()
+          if (platformOrgId) {
+            await notifyOrgMembers(
+              platformOrgId,
+              {
+                bucket: 'comments',
+                type: 'domain_attach_manual',
+                title: `Domain needs a hand — ${domain}`,
+                body:
+                  `${domain} was purchased and its DNS is set, but the App Runner ` +
+                  `association failed (likely the 5-custom-domains quota) — no TLS ` +
+                  `certificate is coming until an operator associates it. ` +
+                  `Runbook: docs/custom-domains.md.`,
+                linkPath: '/ecommerce/customers',
+                forceEmail: true,
+              },
+              { roles: ['owner', 'admin'] },
+            )
+          }
+        } catch (err) {
+          console.warn('[domain-purchase] manual-attach alert failed', err)
+        }
+      }
     }
   } catch {
     // The status card + runbook cover manual completion; the purchase stands.

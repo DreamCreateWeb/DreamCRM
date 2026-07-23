@@ -37,6 +37,12 @@ vi.mock('@/lib/stripe', () => ({
     refunds: { create: h.refundCreate },
   },
 }))
+const { platformOrgMock, notifyMock } = vi.hoisted(() => ({
+  platformOrgMock: vi.fn(async () => 'org_platform'),
+  notifyMock: vi.fn(async () => undefined),
+}))
+vi.mock('@/lib/services/gsc', () => ({ getPlatformOrgId: platformOrgMock }))
+vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyMock }))
 vi.mock('@/lib/services/custom-domain', () => ({
   resolveCustomDomain: (raw: string) =>
     /^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}$/.test(raw)
@@ -91,6 +97,8 @@ beforeEach(() => {
   h.createRecord.mockReset().mockResolvedValue(undefined)
   h.piCreate.mockReset().mockResolvedValue({ id: 'pi_1' })
   h.refundCreate.mockReset().mockResolvedValue({ id: 're_1' })
+  platformOrgMock.mockClear()
+  notifyMock.mockClear()
   h.requestCustomDomain.mockReset().mockResolvedValue({
     ok: true,
     status: { dnsRecords: [
@@ -176,6 +184,33 @@ describe('purchaseDomainForClinic — live mode', () => {
     expect(h.createRecord).toHaveBeenCalledWith('brightsmiles.com', expect.objectContaining({ host: '@', type: 'ANAME' }))
     expect(h.createRecord).toHaveBeenCalledWith('brightsmiles.com', expect.objectContaining({ host: '_abc', type: 'CNAME' }))
     expect(h.inserts[0]).toMatchObject({ organizationId: 'org_a', dryRun: 0, stripePaymentIntentId: 'pi_1' })
+  })
+
+  it('pages the platform when the auto-attach degrades to manual (no cert is coming)', async () => {
+    // requestCustomDomain returns ok:true with error:'manual' when App Runner's
+    // AssociateCustomDomain failed (e.g. the 5-domain quota) — DNS points at
+    // the service but no certificate will ever bind. The purchase must still
+    // succeed AND the platform must get a forced-email alert.
+    h.requestCustomDomain.mockResolvedValue({
+      ok: true,
+      status: {
+        error: 'manual',
+        dnsRecords: [
+          { name: 'brightsmiles.com', host: '@', type: 'CNAME', value: 'x.awsapprunner.com', purpose: 'routing' },
+        ],
+      },
+    })
+    const res = await purchaseDomainForClinic('org_a', 'user_1', 'brightsmiles.com', 1499)
+    expect(res.ok).toBe(true)
+    expect(notifyMock).toHaveBeenCalledWith(
+      'org_platform',
+      expect.objectContaining({
+        type: 'domain_attach_manual',
+        forceEmail: true,
+        title: expect.stringContaining('brightsmiles.com'),
+      }),
+      { roles: ['owner', 'admin'] },
+    )
   })
 
   it('refunds the charge when registration fails after payment', async () => {
