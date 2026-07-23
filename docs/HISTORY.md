@@ -7,6 +7,35 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **CloudFront tenant edge — the 10,000-clinic domain path (2026-07-23).**
+  mammothspringsdental.com (the first plan-included domain claim) failed to
+  load: App Runner hard-caps custom-domain associations at 5 per service, a
+  dead `www.yourpractice.com` placeholder held the fifth slot, and
+  requestCustomDomain's graceful degrade left DNS pointing at a service that
+  would never mint a cert (fixed operationally same day; the purchase flow
+  now pages the platform on a manual degrade). The structural fix: a
+  MULTI-TENANT CLOUDFRONT DISTRIBUTION (SaaS Manager) in front of App
+  Runner — each clinic domain becomes a distribution tenant (no per-service
+  cap; ~$0.10/tenant/mo past 200, first 10 free) with a ZERO-TOUCH managed
+  cert (ManagedCertificateRequest, ValidationTokenHost='cloudfront': the
+  edge hosts its own validation token, so the cert issues the moment DNS
+  points at the connection group — no ACM CNAMEs for anyone). Infra:
+  distribution `E176U1KOAVOGGO` (ConnectionMode tenant-only, origin = App
+  Runner w/ x-dc-edge-key secret header, CachingDisabled +
+  AllViewerExceptHostHeader), connection group `dreamcrm-clinics` (routing
+  endpoint d33npqpgmkgof7.cloudfront.net), CloudFront Function
+  `dreamcrm-tenant-host` stamps the viewer Host into x-dc-tenant-host (App
+  Runner's ingress 404s foreign Hosts). Code: middleware prefers
+  x-dc-tenant-host when x-dc-edge-key matches EDGE_TENANT_SECRET;
+  custom-domain service gained the 'cloudfront' driver
+  (CUSTOM_DOMAIN_DRIVER=cloudfront + CF_TENANT_DISTRIBUTION_ID /
+  CF_CONNECTION_GROUP_ID / CF_ROUTING_ENDPOINT) — create/check/remove
+  tenants; the driver is STAMPED on each domain's status so App
+  Runner-attached domains (nwasmiles, mammoth, the platform trio) keep
+  polling App Runner forever regardless of the env switch. Purchase
+  auto-attach unchanged (routing-only records, apex→ANAME). Sequencing per
+  owner: CloudFront first (this), ECS compute move later behind it.
+
 - **The Maria/John incident fix: family-safe identity + cancellation actor
   trail (2026-07-22).** A real prod mixup at the beta clinic: a family
   member's website appointment request carried contact info already on file

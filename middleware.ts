@@ -153,10 +153,24 @@ function siteResponse(request: NextRequest, pathname: string) {
 }
 
 export async function middleware(request: NextRequest) {
-  // Behind App Runner's proxy the public host arrives in x-forwarded-host;
-  // fall back to the Host header, then the parsed URL. (nextUrl.host alone is
-  // the internal address, which broke host-based routing.)
+  // Requests arriving via the CloudFront tenant edge (custom clinic domains at
+  // scale — the multi-tenant distribution that broke App Runner's 5-domain
+  // cap, 2026-07-22) carry the ORIGINAL viewer host in x-dc-tenant-host,
+  // stamped by our CloudFront Function, because the App Runner origin only
+  // accepts its own Host header. Trust it ONLY when the edge secret rides
+  // along (x-dc-edge-key — a static origin header configured on the
+  // distribution, never known to clients), so a spoofed client header can't
+  // impersonate a clinic domain.
+  const edgeSecret = process.env.EDGE_TENANT_SECRET?.trim()
+  const edgeHost =
+    edgeSecret && request.headers.get('x-dc-edge-key') === edgeSecret
+      ? request.headers.get('x-dc-tenant-host')
+      : null
+  // Otherwise: behind App Runner's proxy the public host arrives in
+  // x-forwarded-host; fall back to the Host header, then the parsed URL.
+  // (nextUrl.host alone is the internal address, which broke host-based routing.)
   const host = (
+    edgeHost ||
     request.headers.get('x-forwarded-host') ||
     request.headers.get('host') ||
     request.nextUrl.host ||

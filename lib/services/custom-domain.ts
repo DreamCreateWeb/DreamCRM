@@ -65,6 +65,12 @@ export interface CustomDomainStatus {
   lastCheckedAt?: string
   /** 'manual' when AWS couldn't run and an operator must finish provisioning. */
   error?: string
+  /** Which edge owns this domain: 'apprunner' (legacy associations, capped at
+   *  5 per service) or 'cloudfront' (the multi-tenant distribution, unlimited
+   *  — 2026-07-22). Absent on legacy rows = 'apprunner'. Status checks and
+   *  removal dispatch on THIS, not the env switch, so flipping the env never
+   *  strands an already-attached domain. */
+  driver?: 'apprunner' | 'cloudfront'
 }
 
 export type CustomDomainResult =
@@ -319,6 +325,175 @@ async function appRunnerClient(): Promise<{
   return { client: new AppRunnerClient({ region: AWS_REGION }), serviceArn }
 }
 
+// ── CloudFront tenant edge (2026-07-22) ──────────────────────────────────────
+// The scale path: NEW custom domains become tenants of a multi-tenant
+// CloudFront distribution (per-tenant managed certs, no per-service cap)
+// instead of App Runner associations (hard-capped at 5 — the wall
+// mammothspringsdental.com hit). CUSTOM_DOMAIN_DRIVER=cloudfront flips new
+// requests; already-attached domains keep the driver stamped on their status.
+// Certificates are fully zero-touch: ManagedCertificateRequest with the
+// 'cloudfront'-hosted validation token means the cert issues by itself once
+// the domain's DNS points at the connection group's routing endpoint — no ACM
+// CNAMEs for anyone to add.
+
+function customDomainDriver(): 'apprunner' | 'cloudfront' {
+  return process.env.CUSTOM_DOMAIN_DRIVER?.trim() === 'cloudfront' ? 'cloudfront' : 'apprunner'
+}
+
+async function cloudFrontTenantClient(): Promise<{
+  client: import('@aws-sdk/client-cloudfront').CloudFrontClient
+  distributionId: string
+  connectionGroupId: string
+  routingEndpoint: string
+} | null> {
+  const distributionId = process.env.CF_TENANT_DISTRIBUTION_ID?.trim()
+  const connectionGroupId = process.env.CF_CONNECTION_GROUP_ID?.trim()
+  const routingEndpoint = process.env.CF_ROUTING_ENDPOINT?.trim()
+  if (!distributionId || !connectionGroupId || !routingEndpoint) return null
+  const { CloudFrontClient } = await import('@aws-sdk/client-cloudfront')
+  // CloudFront is a global service; its control plane lives in us-east-1.
+  return {
+    client: new CloudFrontClient({ region: 'us-east-1' }),
+    distributionId,
+    connectionGroupId,
+    routingEndpoint,
+  }
+}
+
+/** Tenant names allow [a-zA-Z0-9-] — derive a stable one from the apex. */
+function tenantNameFor(associateHost: string): string {
+  return associateHost.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 64)
+}
+
+async function requestViaCloudFront(
+  orgId: string,
+  plan: CustomDomainPlan,
+  host: string,
+  now: string,
+  manualStatus: CustomDomainStatus,
+): Promise<CustomDomainResult> {
+  let conn: Awaited<ReturnType<typeof cloudFrontTenantClient>> = null
+  try {
+    conn = await cloudFrontTenantClient()
+  } catch {
+    conn = null
+  }
+  if (!conn) {
+    const status: CustomDomainStatus = { ...manualStatus, driver: 'cloudfront' }
+    await persist(orgId, status)
+    return { ok: true, status }
+  }
+
+  try {
+    const { CreateDistributionTenantCommand } = await import('@aws-sdk/client-cloudfront')
+    await conn.client.send(
+      new CreateDistributionTenantCommand({
+        DistributionId: conn.distributionId,
+        Name: tenantNameFor(plan.associateHost),
+        Domains: plan.servedHosts.map((d) => ({ Domain: d })),
+        ConnectionGroupId: conn.connectionGroupId,
+        // CloudFront hosts the cert-validation token itself: once DNS points
+        // at the routing endpoint, the cert issues with zero extra records.
+        ManagedCertificateRequest: { ValidationTokenHost: 'cloudfront' },
+        Enabled: true,
+      }),
+    )
+  } catch (err) {
+    // Already-exists (a re-Connect after a partial run) is fine — the status
+    // check reconciles against the live tenant. Anything else degrades to the
+    // manual state exactly like the App Runner path (never throw at a clinic).
+    if (!/EntityAlreadyExists|already exists/i.test(String(err))) {
+      console.warn('[custom-domain] cloudfront tenant create failed, degrading to manual:', (err as Error).message)
+      const status: CustomDomainStatus = { ...manualStatus, driver: 'cloudfront' }
+      await persist(orgId, status)
+      return { ok: true, status }
+    }
+  }
+
+  const status: CustomDomainStatus = {
+    state: 'pending_dns',
+    domain: host,
+    associateHost: plan.associateHost,
+    servedHosts: plan.servedHosts,
+    requestedAt: now,
+    lastCheckedAt: now,
+    driver: 'cloudfront',
+    // Routing records only — there ARE no certificate records to add on this
+    // path (see ManagedCertificateRequest above).
+    dnsRecords: routingRecords(plan, conn.routingEndpoint),
+  }
+  await persist(orgId, status)
+  return { ok: true, status }
+}
+
+async function checkViaCloudFront(
+  orgId: string,
+  current: CustomDomainStatus,
+  now: string,
+): Promise<CustomDomainResult> {
+  let conn: Awaited<ReturnType<typeof cloudFrontTenantClient>> = null
+  try {
+    conn = await cloudFrontTenantClient()
+  } catch {
+    conn = null
+  }
+  if (!conn) {
+    const status = { ...current, lastCheckedAt: now }
+    await persist(orgId, status)
+    return { ok: true, status }
+  }
+  try {
+    const { GetDistributionTenantByDomainCommand } = await import('@aws-sdk/client-cloudfront')
+    const res = await conn.client.send(
+      new GetDistributionTenantByDomainCommand({
+        Domain: current.associateHost || current.domain,
+      }),
+    )
+    const domains = res.DistributionTenant?.Domains ?? []
+    const served = (current.servedHosts ?? [current.domain]).map((h) => h.toLowerCase())
+    const activeHosts = new Set(
+      domains
+        .filter((d) => String(d.Status ?? '').toLowerCase() === 'active')
+        .map((d) => (d.Domain ?? '').toLowerCase()),
+    )
+    const allActive = served.length > 0 && served.every((h) => activeHosts.has(h))
+    const status: CustomDomainStatus = {
+      ...current,
+      state: allActive ? 'active' : 'pending_dns',
+      lastCheckedAt: now,
+      error: undefined,
+    }
+    await persist(orgId, status)
+    return { ok: true, status }
+  } catch (err) {
+    // Tenant not found yet (create raced/failed) or a transient API error —
+    // keep the stored state, stamp the check.
+    console.warn('[custom-domain] cloudfront tenant check failed:', (err as Error).message)
+    const status = { ...current, lastCheckedAt: now }
+    await persist(orgId, status)
+    return { ok: true, status }
+  }
+}
+
+async function removeViaCloudFront(current: CustomDomainStatus): Promise<void> {
+  const conn = await cloudFrontTenantClient()
+  if (!conn) return
+  const { GetDistributionTenantByDomainCommand, UpdateDistributionTenantCommand, DeleteDistributionTenantCommand } =
+    await import('@aws-sdk/client-cloudfront')
+  const res = await conn.client.send(
+    new GetDistributionTenantByDomainCommand({ Domain: current.associateHost || current.domain }),
+  )
+  const tenant = res.DistributionTenant
+  if (!tenant?.Id) return
+  // A tenant must be disabled before it can be deleted.
+  const upd = await conn.client.send(
+    new UpdateDistributionTenantCommand({ Id: tenant.Id, IfMatch: res.ETag, Enabled: false }),
+  )
+  await conn.client.send(
+    new DeleteDistributionTenantCommand({ Id: tenant.Id, IfMatch: upd.ETag }),
+  )
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -369,6 +544,12 @@ export async function requestCustomDomain(
     requestedAt: now,
     error: 'manual',
     dnsRecords: [...routingRecords(plan, APP_RUNNER_DEFAULT_HOST), placeholderCertRecord(host)],
+  }
+
+  // The scale path: new domains become CloudFront distribution tenants
+  // (no per-service cap, zero-touch certs) when the driver env says so.
+  if (customDomainDriver() === 'cloudfront') {
+    return requestViaCloudFront(orgId, plan, host, now, manualStatus)
   }
 
   let conn: Awaited<ReturnType<typeof appRunnerClient>> = null
@@ -483,6 +664,13 @@ export async function checkCustomDomainStatus(orgId: string): Promise<CustomDoma
   if (!current) return { ok: false, error: 'No custom domain is set up.' }
   const now = new Date().toISOString()
 
+  // Dispatch on the driver STAMPED ON THE STATUS (not the env switch): a
+  // domain attached via App Runner keeps polling App Runner even after new
+  // domains move to CloudFront.
+  if (current.driver === 'cloudfront') {
+    return checkViaCloudFront(orgId, current, now)
+  }
+
   let conn: Awaited<ReturnType<typeof appRunnerClient>> = null
   try {
     conn = await appRunnerClient()
@@ -567,6 +755,19 @@ export async function checkCustomDomainStatus(orgId: string): Promise<CustomDoma
 export async function removeCustomDomain(orgId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const current = await getStatus(orgId)
   // Even with no stored status, clear the columns so a half-set domain is removed.
+  if (current?.driver === 'cloudfront') {
+    try {
+      await removeViaCloudFront(current)
+    } catch (err) {
+      // Already gone / transient — fine, still clear ours.
+      console.warn('[custom-domain] cloudfront tenant remove failed (clearing anyway):', (err as Error).message)
+    }
+    await db
+      .update(clinicProfile)
+      .set({ websiteDomain: null, customDomainStatus: null })
+      .where(eq(clinicProfile.organizationId, orgId))
+    return { ok: true }
+  }
   let conn: Awaited<ReturnType<typeof appRunnerClient>> = null
   try {
     conn = await appRunnerClient()

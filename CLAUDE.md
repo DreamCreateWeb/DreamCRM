@@ -432,8 +432,14 @@ sitemap/robots/OG.
 - **Secrets**: Secrets Manager `dreamcrm/app-secrets` → App Runner runtime
   secrets; driver switches are plain env vars. Secret changes need a redeploy.
 - **DNS**: name.com. `www` canonical; `app.` + apex redirect; `*` wildcard CNAME
-  → App Runner (+ ACM validation records). Custom clinic domains associate via
-  the App Runner API (runbook `docs/custom-domains.md`).
+  → App Runner (+ ACM validation records). Custom clinic domains: NEW ones are
+  CloudFront distribution tenants (multi-tenant dist `E176U1KOAVOGGO`,
+  connection group endpoint `d33npqpgmkgof7.cloudfront.net`, zero-touch managed
+  certs; `CUSTOM_DOMAIN_DRIVER=cloudfront`) — no cap, ~$0.10/domain/mo at
+  scale; legacy App Runner associations (5-per-service hard cap) keep working
+  via the driver stamped on their status (runbook `docs/custom-domains.md`).
+  ECS compute move planned behind CloudFront (App Runner closes to new
+  customers Apr 2026).
 - **Monitoring**: CloudWatch alarms (RDS + App Runner) → SNS `dreamcrm-alerts`;
   30-day log retention.
 - **AWS facts**: account `952078552817`; RDS `dreamcrm-db` (t4g.micro,
