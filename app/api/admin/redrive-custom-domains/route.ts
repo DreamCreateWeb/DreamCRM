@@ -3,7 +3,11 @@ import { eq, isNotNull } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { organization } from '@/lib/db/schema/auth'
-import { requestCustomDomain, type CustomDomainStatus } from '@/lib/services/custom-domain'
+import {
+  checkCustomDomainStatus,
+  requestCustomDomain,
+  type CustomDomainStatus,
+} from '@/lib/services/custom-domain'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,7 +45,15 @@ export async function POST(request: Request) {
       if (r.type !== 'clinic' || !r.domain) continue
       const stored = r.status as CustomDomainStatus | null
       if (stored?.driver === 'cloudfront') {
-        results.push({ organizationId: r.organizationId, domain: r.domain, action: 'already-cloudfront' })
+        // Already on the new driver — reconcile against the live tenant
+        // (attaches an issued cert, nudges activation, clears a stale
+        // manual flag) instead of re-requesting.
+        const check = await checkCustomDomainStatus(r.organizationId)
+        results.push({
+          organizationId: r.organizationId,
+          domain: r.domain,
+          action: check.ok ? `checked:${check.status.state}${check.status.error ? `:${check.status.error}` : ''}` : `check-error:${check.error}`,
+        })
         continue
       }
       const res = await requestCustomDomain(r.organizationId, r.domain)

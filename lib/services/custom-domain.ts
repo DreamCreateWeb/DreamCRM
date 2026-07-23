@@ -416,10 +416,12 @@ async function requestViaCloudFront(
     // set as pending; checkViaCloudFront retries the create once they land.
     // NOT the manual state: no operator needed, the flow converges itself.
     const ownershipPending = /Could not verify Domain Name ownership/i.test(msg)
-    // Already-exists (a re-Connect after a partial run) is fine — the status
-    // check reconciles against the live tenant. Anything else degrades to the
-    // manual state exactly like the App Runner path (never throw at a clinic).
-    if (!ownershipPending && !/EntityAlreadyExists|already exists/i.test(msg)) {
+    // Already-exists / domains-already-on-a-tenant (a re-Connect after a
+    // partial run, or an operator-created tenant) is fine — the status check
+    // reconciles against the live tenant by domain. Anything else degrades to
+    // the manual state exactly like the App Runner path (never throw at a clinic).
+    const alreadyOurs = /EntityAlreadyExists|already exists|already associated with a different resource/i.test(msg)
+    if (!ownershipPending && !alreadyOurs) {
       console.warn('[custom-domain] cloudfront tenant create failed, degrading to manual:', (err as Error).message)
       const status: CustomDomainStatus = { ...manualStatus, driver: 'cloudfront' }
       await persist(orgId, status)
@@ -435,25 +437,30 @@ async function requestViaCloudFront(
     requestedAt: now,
     lastCheckedAt: now,
     driver: 'cloudfront',
-    dnsRecords: [
-      ...routingRecords(plan, conn.routingEndpoint),
-      // No ACM validation CNAMEs on this path (CloudFront hosts the cert
-      // validation token itself) — but each served host gets a
-      // `_cf-challenge` TXT of the routing endpoint: CloudFront's explicit
-      // domain-ownership signal, which flips the tenant domain ACTIVE
-      // deterministically instead of waiting on its periodic DNS probe.
-      ...plan.servedHosts.map((h): CustomDomainDnsRecord => ({
-        name: `_cf-challenge.${h}`,
-        host: relativeHost(`_cf-challenge.${h}`, zoneApex(plan)),
-        type: 'TXT',
-        value: conn.routingEndpoint,
-        purpose: 'certificate',
-        note: 'Proves to CloudFront that this domain is meant to point here — required for the domain to activate.',
-      })),
-    ],
+    dnsRecords: cloudFrontDnsRecords(plan, conn.routingEndpoint),
   }
   await persist(orgId, status)
   return { ok: true, status }
+}
+
+/** The CloudFront driver's full record set: routing (apex ALIAS/ANAME + www
+ *  CNAME) plus a `_cf-challenge` TXT per served host — no ACM validation
+ *  CNAMEs on this path (CloudFront hosts the cert validation token itself).
+ *  The TXT is CloudFront's explicit domain-ownership signal, which lets the
+ *  tenant be created before DNS moves and flips the domain ACTIVE
+ *  deterministically instead of waiting on its periodic DNS probe. */
+function cloudFrontDnsRecords(plan: CustomDomainPlan, routingEndpoint: string): CustomDomainDnsRecord[] {
+  return [
+    ...routingRecords(plan, routingEndpoint),
+    ...plan.servedHosts.map((h): CustomDomainDnsRecord => ({
+      name: `_cf-challenge.${h}`,
+      host: relativeHost(`_cf-challenge.${h}`, zoneApex(plan)),
+      type: 'TXT',
+      value: routingEndpoint,
+      purpose: 'certificate',
+      note: 'Proves to CloudFront that this domain is meant to point here — required for the domain to activate.',
+    })),
+  ]
 }
 
 async function checkViaCloudFront(
@@ -530,10 +537,16 @@ async function checkViaCloudFront(
         .map((d) => (d.Domain ?? '').toLowerCase()),
     )
     const allActive = served.length > 0 && served.every((h) => activeHosts.has(h))
+    // Rebuild the record set from the live plan — a status that degraded to
+    // manual earlier may still carry App Runner-era placeholder records.
+    const planForRecords = resolveCustomDomain(current.associateHost || current.domain)
     const status: CustomDomainStatus = {
       ...current,
       state: allActive ? 'active' : 'pending_dns',
       lastCheckedAt: now,
+      dnsRecords: planForRecords.ok
+        ? cloudFrontDnsRecords(planForRecords.plan, conn.routingEndpoint)
+        : current.dnsRecords,
       error: undefined,
     }
     await persist(orgId, status)
