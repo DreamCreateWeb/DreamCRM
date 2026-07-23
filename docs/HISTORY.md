@@ -28,7 +28,17 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   a marker-source hiccup can never blank a conversation. Tests: service
   merge/ordering/actor cases, pure grouping suite, panel render suite
   (marker-between-bubbles DOM order, deep links, collapse, no false empty
-  state).
+  state). POLISH PASS (same day): open/click signals attribute PER SEND —
+  the latest send at or before the event — because recurring automations
+  (birthday, welcome) reuse one campaignId and last year's open must not
+  mark this year's send as opened (click ✓ outranks open ✓); legacy
+  appointment rows without lifecycle stamps clamp their startTime fallback
+  to now so a cancelled FUTURE visit can't mint a marker below today's
+  messages; and `trimPreConversationMarkers` drops history older than 14
+  days before the first message (30-day tail when no messages) so a
+  decade-long patient's thread doesn't open with a wall of gray — the full
+  history stays on the patient page timeline. Demo verified: all seven
+  marker sources are persona-seeded; the portal never imports the service.
 
 - **Domain max-utilization pass (2026-07-23, same day as the transfer).**
   Owner brief: "make sure we are utilizing the domain in name.com to the max

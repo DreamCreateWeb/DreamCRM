@@ -156,7 +156,7 @@ export async function listThreadActivity(
         .where(
           and(
             eq(schema.campaignEvents.patientId, patientId),
-            inArray(schema.campaignEvents.type, ['sent', 'open']),
+            inArray(schema.campaignEvents.type, ['sent', 'open', 'click']),
           ),
         )
         .orderBy(desc(schema.campaignEvents.occurredAt))
@@ -229,6 +229,12 @@ export async function listThreadActivity(
     ])
 
   const markers: ActivityMarker[] = []
+  const now = new Date()
+  // Legacy rows (pre-lifecycle-stamps) fall back to startTime, which can sit
+  // in the FUTURE for a cancelled upcoming visit — a future-dated marker
+  // would render below today's messages. Clamp fallbacks to now.
+  const pastOr = (stamp: Date | null, fallback: Date): Date =>
+    stamp ?? (fallback > now ? now : fallback)
 
   // "Cancelled by whom" names, one query (usually 0–1 ids).
   const cancellerIds = Array.from(
@@ -271,7 +277,7 @@ export async function listThreadActivity(
       markers.push({
         id: `appt_completed_${a.id}`,
         kind: 'appointment',
-        occurredAt: a.completedAt ?? a.startTime,
+        occurredAt: pastOr(a.completedAt, a.startTime),
         icon: '🦷',
         label: `${apptLabel(a.type)} completed`,
         detail: null,
@@ -286,7 +292,7 @@ export async function listThreadActivity(
       markers.push({
         id: `appt_cancelled_${a.id}`,
         kind: 'appointment',
-        occurredAt: a.cancelledAt ?? a.startTime,
+        occurredAt: pastOr(a.cancelledAt, a.startTime),
         icon: '🚫',
         label: `${apptLabel(a.type)} cancelled`,
         detail: actor ? `was ${when} · ${actor}` : `was ${when}`,
@@ -297,7 +303,7 @@ export async function listThreadActivity(
       markers.push({
         id: `appt_noshow_${a.id}`,
         kind: 'appointment',
-        occurredAt: a.noShowedAt ?? a.startTime,
+        occurredAt: pastOr(a.noShowedAt, a.startTime),
         icon: '👻',
         label: `Missed ${apptLabel(a.type).toLowerCase()}`,
         detail: `was ${when}`,
@@ -345,21 +351,45 @@ export async function listThreadActivity(
     }
   }
 
-  // ── Campaign / automation sends, enriched with the opened signal — the
-  //    marker that answers "what would be great?" when Jason replies.
-  const openedByCampaign = new Set<number>()
+  // ── Campaign / automation sends, enriched with the open/click signal —
+  //    the marker that answers "what would be great?" when Jason replies.
+  //    Signals attribute PER SEND (the latest send at or before the event),
+  //    not per campaign: recurring automations (birthday, welcome) reuse one
+  //    campaignId, and last year's open must not mark this year's send.
+  const sendsByCampaign = new Map<number, { id: number; at: number }[]>()
   for (const e of campaignSends) {
-    if (e.type === 'open' && e.campaignId != null) openedByCampaign.add(e.campaignId)
+    if (e.type !== 'sent' || e.campaignId == null) continue
+    const arr = sendsByCampaign.get(e.campaignId) ?? []
+    arr.push({ id: e.id, at: e.occurredAt.getTime() })
+    sendsByCampaign.set(e.campaignId, arr)
+  }
+  for (const arr of Array.from(sendsByCampaign.values())) arr.sort((a, b) => a.at - b.at)
+  const signalBySend = new Map<number, 'opened' | 'clicked'>()
+  for (const e of campaignSends) {
+    if ((e.type !== 'open' && e.type !== 'click') || e.campaignId == null) continue
+    const sends = sendsByCampaign.get(e.campaignId)
+    if (!sends?.length) continue
+    let target = null as { id: number; at: number } | null
+    const at = e.occurredAt.getTime()
+    for (const s of sends) {
+      if (s.at <= at) target = s
+      else break
+    }
+    if (!target) continue
+    if (e.type === 'click' || signalBySend.get(target.id) !== 'clicked') {
+      signalBySend.set(target.id, e.type === 'click' ? 'clicked' : 'opened')
+    }
   }
   for (const e of campaignSends) {
     if (e.type !== 'sent') continue
+    const signal = signalBySend.get(e.id)
     markers.push({
       id: `camp_${e.id}`,
       kind: 'campaign',
       occurredAt: e.occurredAt,
       icon: '📣',
       label: e.campaignName ? `Received “${e.campaignName}”` : 'Received an outreach email',
-      detail: e.campaignId != null && openedByCampaign.has(e.campaignId) ? 'opened ✓' : null,
+      detail: signal === 'clicked' ? 'clicked ✓' : signal === 'opened' ? 'opened ✓' : null,
       href: e.campaignId != null ? `/growth/campaigns/${e.campaignId}` : null,
     })
   }

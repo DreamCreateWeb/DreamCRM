@@ -222,6 +222,27 @@ export interface ActivityMarkerLite {
   href: string | null
 }
 
+/**
+ * Trim deep pre-conversation history: markers are context for the
+ * CONVERSATION, and a decade-long patient would otherwise open with a wall
+ * of gray marker-days before the first human message (that full history
+ * belongs to the patient page timeline). Keeps every marker from
+ * `preWindowDays` before the first message onward — everything between and
+ * after messages always survives. With no messages at all, keeps the last
+ * `noConversationDays` so a fresh thread still shows recent touches.
+ */
+export function trimPreConversationMarkers<K extends { occurredAt: string }>(
+  markers: K[],
+  firstMessageAtIso: string | null,
+  opts: { preWindowDays?: number; noConversationDays?: number; now?: Date } = {},
+): K[] {
+  const { preWindowDays = 14, noConversationDays = 30, now = new Date() } = opts
+  const cutoff = firstMessageAtIso
+    ? new Date(firstMessageAtIso).getTime() - preWindowDays * 86_400_000
+    : now.getTime() - noConversationDays * 86_400_000
+  return markers.filter((m) => new Date(m.occurredAt).getTime() >= cutoff)
+}
+
 export type ThreadDayItem<M extends GroupableMessage> =
   | { type: 'messages'; group: MessageGroup<M> }
   | { type: 'activity'; key: string; markers: ActivityMarkerLite[] }

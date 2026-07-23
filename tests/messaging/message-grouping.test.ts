@@ -271,3 +271,34 @@ describe('groupThreadByDay', () => {
     expect(groups.map((g) => g?.messages.length)).toEqual(legacy[0].groups.map((g) => g.messages.length))
   })
 })
+
+// ── Pre-conversation history trim ─────────────────────────────────────────
+
+import { trimPreConversationMarkers } from '@/app/(double-sidebar)/messages/message-grouping'
+
+describe('trimPreConversationMarkers', () => {
+  const mk = (id: string, occurredAt: string) => marker({ id, occurredAt })
+
+  it('drops markers older than 14 days before the first message, keeps everything after', () => {
+    const kept = trimPreConversationMarkers(
+      [
+        mk('ancient', '2024-01-05T10:00:00Z'), // years of old visits → timeline territory
+        mk('recent-context', '2026-06-05T10:00:00Z'), // 9 days before first message
+        mk('mid-thread', '2026-06-20T10:00:00Z'),
+        mk('after-last', '2026-07-20T10:00:00Z'), // the 6-months-later recall
+      ],
+      '2026-06-14T09:00:00Z',
+    )
+    expect(kept.map((m) => m.id)).toEqual(['recent-context', 'mid-thread', 'after-last'])
+  })
+
+  it('with no messages, keeps only the last 30 days of touches', () => {
+    const now = new Date('2026-07-23T12:00:00Z')
+    const kept = trimPreConversationMarkers(
+      [mk('old', '2026-05-01T10:00:00Z'), mk('fresh', '2026-07-10T10:00:00Z')],
+      null,
+      { now },
+    )
+    expect(kept.map((m) => m.id)).toEqual(['fresh'])
+  })
+})

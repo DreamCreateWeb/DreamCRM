@@ -26,6 +26,7 @@ import { FilterChip } from '@/components/ui/filter-chip'
 import { CHANNEL_LEGEND } from './channel-meta'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
 import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
+import { trimPreConversationMarkers } from './message-grouping'
 import MessagesSurfaceTabs from './surface-tabs'
 import BroadcastButton from './broadcast-button'
 import NavBadgeSync from './nav-badge-sync'
@@ -327,14 +328,17 @@ export default async function ClinicMessagesView({
               currentUserName={ctx.userName ?? null}
               aiEnabled={aiConfigured()}
               scheduledMessages={scheduledMessages}
-              activity={activity.map((a) => ({
-                id: a.id,
-                occurredAt: a.occurredAt.toISOString(),
-                icon: a.icon,
-                label: a.label,
-                detail: a.detail,
-                href: a.href,
-              }))}
+              activity={trimPreConversationMarkers(
+                activity.map((a) => ({
+                  id: a.id,
+                  occurredAt: a.occurredAt.toISOString(),
+                  icon: a.icon,
+                  label: a.label,
+                  detail: a.detail,
+                  href: a.href,
+                })),
+                messages.length > 0 ? messages[0].sentAt.toISOString() : null,
+              )}
               templates={messageTemplates.map((t) => ({
                 key: t.id,
                 label: t.name,

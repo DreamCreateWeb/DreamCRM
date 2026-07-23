@@ -133,6 +133,51 @@ describe('listThreadActivity', () => {
     expect(markers[1].occurredAt).toEqual(at('2026-07-21T12:00:00Z'))
   })
 
+  it('open/click signals attribute PER SEND — last year’s open never marks this year’s send', async () => {
+    state.campaignEvents = [
+      // Recurring birthday automation, same campaignId across years.
+      { id: 21, type: 'sent', occurredAt: at('2025-07-20T15:00:00Z'), campaignId: 9, campaignName: 'Birthday treat' },
+      { id: 22, type: 'open', occurredAt: at('2025-07-20T16:00:00Z'), campaignId: 9, campaignName: 'Birthday treat' },
+      { id: 23, type: 'sent', occurredAt: at('2026-07-20T15:00:00Z'), campaignId: 9, campaignName: 'Birthday treat' },
+    ]
+    const markers = await listThreadActivity('org_1', 'pat_1')
+    expect(markers.find((m) => m.id === 'camp_21')!.detail).toBe('opened ✓')
+    expect(markers.find((m) => m.id === 'camp_23')!.detail).toBeNull()
+  })
+
+  it('a click outranks an open on the same send', async () => {
+    state.campaignEvents = [
+      { id: 31, type: 'sent', occurredAt: at('2026-07-20T15:00:00Z'), campaignId: 5, campaignName: 'Recall' },
+      { id: 32, type: 'open', occurredAt: at('2026-07-20T16:00:00Z'), campaignId: 5, campaignName: 'Recall' },
+      { id: 33, type: 'click', occurredAt: at('2026-07-20T16:05:00Z'), campaignId: 5, campaignName: 'Recall' },
+    ]
+    const markers = await listThreadActivity('org_1', 'pat_1')
+    expect(markers.find((m) => m.id === 'camp_31')!.detail).toBe('clicked ✓')
+  })
+
+  it('legacy rows without lifecycle stamps never mint a FUTURE-dated marker', async () => {
+    const future = new Date(Date.now() + 7 * 86_400_000)
+    state.appts = [
+      {
+        id: 'a3',
+        type: 'cleaning',
+        status: 'cancelled',
+        startTime: future,
+        createdAt: at('2026-07-01T12:00:00Z'),
+        confirmedAt: null,
+        cancelledAt: null, // pre-0133 row — no cancel stamp
+        completedAt: null,
+        noShowedAt: null,
+        cancelledVia: null,
+        cancelledByUserId: null,
+        source: null,
+      },
+    ]
+    const markers = await listThreadActivity('org_1', 'pat_1')
+    const cancel = markers.find((m) => m.id === 'appt_cancelled_a3')!
+    expect(cancel.occurredAt.getTime()).toBeLessThanOrEqual(Date.now())
+  })
+
   it('staff cancellations name the staff member (one name lookup)', async () => {
     state.appts = [
       {
