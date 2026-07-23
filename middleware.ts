@@ -92,6 +92,7 @@ const PUBLIC_PATHS = [
   '/api/admin/migrate',
   '/api/admin/seed-platform',
   '/api/admin/resync-demo',
+  '/api/admin/redrive-custom-domains',
   // Internal host→slug map for custom-domain routing — middleware fetches it.
   // Public-but-harmless (only public host/slug pairs); must NOT be auth-walled
   // or the middleware fetch would 302 to /signin and routing would break.
@@ -181,6 +182,23 @@ export async function middleware(request: NextRequest) {
 
   // Health check is always served (never redirected) so App Runner stays green.
   if (pathname === '/api/health') return NextResponse.next()
+
+  // ACM HTTP-validation relay (the CloudFront tenant edge's zero-downtime
+  // migration path): while a live domain still points at App Runner, its NEW
+  // tenant's managed certificate validates over plain HTTP at this well-known
+  // path — redirect it to ACM's account-scoped validation host so the cert
+  // can issue BEFORE the DNS flips. Works on every host on purpose; the token
+  // filename is unguessable and the redirect leaks nothing.
+  if (pathname.startsWith('/.well-known/pki-validation/')) {
+    const file = pathname.slice('/.well-known/pki-validation/'.length)
+    if (/^[a-zA-Z0-9_.-]+$/.test(file)) {
+      const account = process.env.AWS_ACCOUNT_ID?.trim() || '952078552817'
+      return NextResponse.redirect(
+        `https://validation.us-east-1.acm-validations.aws/${account}/.well-known/pki-validation/${file}`,
+        301,
+      )
+    }
+  }
 
   // Vendor webhooks (Stripe, Stripe Connect, Gmail Pub/Sub, …) POST here and
   // do NOT follow redirects — a host-canonicalization 308 reads as a failed
