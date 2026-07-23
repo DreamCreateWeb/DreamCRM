@@ -56,5 +56,11 @@ export const SITE_TEMPLATE_MANIFEST: SiteTemplateManifest = {
       'components/clinic-site/templates/pediatric/footer.tsx',
       'components/clinic-site/templates/pediatric/mobile-actions.tsx',
     ],
+    hometown: [
+      'components/clinic-site/templates/hometown/home.tsx',
+      'components/clinic-site/templates/hometown/header.tsx',
+      'components/clinic-site/templates/hometown/footer.tsx',
+      'components/clinic-site/templates/hometown/mobile-actions.tsx',
+    ],
   },
 }

@@ -60,6 +60,16 @@ export const SITE_TEMPLATE_CATALOG: SiteTemplateCatalogEntry[] = [
     bestFor:
       'Kids’ practices that want parents reassured and kids delighted — down to a printable coloring corner.',
   },
+  {
+    id: 'hometown',
+    label: 'Hometown Classic',
+    description:
+      'Straightforward and trustworthy — solid brand hero, phone and hours front and center, checkmark clarity. Looks complete without a single photo upload.',
+    practiceTypes: ['general', 'ortho'],
+    styleTags: ['classic', 'straightforward', 'no-photos-needed'],
+    bestFor:
+      'Practices without a photo library — color, type, and plain talk do the work, so the site looks finished on day one.',
+  },
 ]
 
 export const SITE_TEMPLATE_IDS = SITE_TEMPLATE_CATALOG.map((t) => t.id)

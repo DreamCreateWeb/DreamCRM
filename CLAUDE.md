@@ -71,7 +71,9 @@ app/
   site/[slug]/       Public clinic sites — MULTI-TEMPLATE (clinic_profile.
                      template picks the design: 'modern' Tend-style family
                      default, 'cosmetic' charcoal/cream luxury, 'pediatric'
-                     playful pastels w/ the /coloring kids' corner; /book,
+                     playful pastels w/ the /coloring kids' corner, 'hometown'
+                     no-photos-needed classic (solid brand hero + marigold
+                     hours card); /book,
                      /services,
                      /intake, /shop, /careers, /blog, /team, …). Page SHELLS own
                      every read/SEO/gate and dispatch typed props to the active

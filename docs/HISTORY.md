@@ -7,6 +7,27 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Hometown Classic — the no-photos-needed site template (2026-07-23).**
+  Fourth template (owner brief: "all of our templates rely on the clinic
+  having photos/video… a lot of them don't"; reference = the classic
+  small-practice site: full-width solid hero + contact/hours card). Designed
+  to look FINISHED with zero uploads: deep brand-hued hero with a quiet
+  plus-grid texture, Playfair Display serif welcome, checkmark bullets from
+  differenceChips, and the signature FIXED-marigold contact/hours card
+  (phone + Request-an-appointment + the full office-hours grid — the card IS
+  the hero image); calm information-first bands below (services w/ icon
+  circles, plain-talk about band, initials-circle team, classic quotes,
+  insurance line, request form on basic). Any photo a clinic adds is
+  optional decoration, never load-bearing. New palette recipe
+  (`lib/site-templates/hometown/palette.ts`): warm-paper neutrals w/ a
+  whisper of brand hue, brand-derived deep hero/footer, fixed marigold
+  strip role. 'Schedule a Visit' voice; 8 copy keys; no extra marketing
+  pages. Auto-enrolled in the conformance harness (262 site-template +
+  studio tests green first run). Visual QA via a throwaway
+  react-dom/server render + local Tailwind-Play + bundled Chromium
+  screenshots (happy-dom's style-attr serialization mangles var() shorthand
+  — renderToStaticMarkup is the faithful path).
+
 - **CloudFront tenant edge — the 10,000-clinic domain path (2026-07-23).**
   mammothspringsdental.com (the first plan-included domain claim) failed to
   load: App Runner hard-caps custom-domain associations at 5 per service, a
