@@ -146,12 +146,18 @@ describe('requestCustomDomain (driver=cloudfront)', () => {
       }),
     )
     if (!r.ok) throw new Error('unreachable')
-    // Routing-only records to the connection group endpoint — no cert CNAMEs
-    // (CloudFront hosts the validation token itself).
+    // Routing records + the _cf-challenge ownership TXTs — no ACM validation
+    // CNAMEs (CloudFront hosts the cert validation token itself).
     expect(r.status.driver).toBe('cloudfront')
     expect(r.status.state).toBe('pending_dns')
-    expect(r.status.dnsRecords.every((d) => d.purpose === 'routing')).toBe(true)
-    expect(r.status.dnsRecords.map((d) => d.value)).toEqual([ENDPOINT, ENDPOINT])
+    const routing = r.status.dnsRecords.filter((d) => d.purpose === 'routing')
+    expect(routing.map((d) => d.value)).toEqual([ENDPOINT, ENDPOINT])
+    const ownership = r.status.dnsRecords.filter((d) => d.type === 'TXT')
+    expect(ownership.map((d) => d.name)).toEqual([
+      '_cf-challenge.smilebright.com',
+      '_cf-challenge.www.smilebright.com',
+    ])
+    expect(ownership.every((d) => d.value === ENDPOINT)).toBe(true)
     // Persisted for the middleware host→slug map.
     expect(state.profile?.websiteDomain).toBe('www.smilebright.com')
   })

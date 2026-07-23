@@ -418,9 +418,22 @@ async function requestViaCloudFront(
     requestedAt: now,
     lastCheckedAt: now,
     driver: 'cloudfront',
-    // Routing records only — there ARE no certificate records to add on this
-    // path (see ManagedCertificateRequest above).
-    dnsRecords: routingRecords(plan, conn.routingEndpoint),
+    dnsRecords: [
+      ...routingRecords(plan, conn.routingEndpoint),
+      // No ACM validation CNAMEs on this path (CloudFront hosts the cert
+      // validation token itself) — but each served host gets a
+      // `_cf-challenge` TXT of the routing endpoint: CloudFront's explicit
+      // domain-ownership signal, which flips the tenant domain ACTIVE
+      // deterministically instead of waiting on its periodic DNS probe.
+      ...plan.servedHosts.map((h): CustomDomainDnsRecord => ({
+        name: `_cf-challenge.${h}`,
+        host: relativeHost(`_cf-challenge.${h}`, zoneApex(plan)),
+        type: 'TXT',
+        value: conn.routingEndpoint,
+        purpose: 'certificate',
+        note: 'Proves to CloudFront that this domain is meant to point here — required for the domain to activate.',
+      })),
+    ],
   }
   await persist(orgId, status)
   return { ok: true, status }
