@@ -94,6 +94,7 @@ export const WEBSITE_COLUMN_LABELS: Record<string, string> = {
   state: 'Address',
   postalCode: 'Address',
   country: 'Address',
+  announcement: 'Announcement bar',
 }
 
 export function websiteColumnLabel(column: string): string {

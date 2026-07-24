@@ -104,6 +104,13 @@ export const clinicProfile = pgTable('clinic_profile', {
   // merged view on their own site (loadSite/getClinicThemeBySlug overlay);
   // visitors always see published values. Null/empty = everything is live.
   websiteDraft: jsonb('website_draft'),
+  // The site-wide announcement bar (a thin brand-color strip above the header
+  // on every public page / every template). Shape: ClinicAnnouncement in
+  // lib/types/clinic-content.ts — { message, endsAt: 'YYYY-MM-DD' | null }.
+  // LIVE-IMMEDIATE by design (never staged to websiteDraft): "closed tomorrow"
+  // can't wait behind Publish. Auto-hides at render when endsAt is before the
+  // clinic-local day. Null / blank message = no bar.
+  announcement: jsonb('announcement'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

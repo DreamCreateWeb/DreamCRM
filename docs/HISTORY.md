@@ -69,9 +69,31 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   edits); Editor stays the header's "Open the editor" primary. Modal shell is
   local (no shared primitive yet) — surface-2, panel radius, modal shadow,
   scrim, Esc + ✕. Members get the news band only (no dock, no editing
-  utilities, and never the library query). NEXT: the announcement bar (task
-  #24) — the one frequent edit we can't do yet (needs schema + all 4
-  templates), owner-approved as its own slice.
+  utilities, and never the library query). Then (same session) the
+  announcement bar shipped as task #24's slice.
+
+- **Website announcement bar — the front desk's most urgent edit
+  (2026-07-24).** The one frequent website edit we couldn't do:
+  "Closed Dec 24–26", "Now accepting Delta Dental", "We've moved". Migration
+  0134 adds `clinic_profile.announcement` jsonb `{ message, endsAt, href }`.
+  Rendered ONCE in the site layout (`app/site/[slug]/layout.tsx`) above
+  `{children}` as `components/clinic-site/announcement-bar.tsx` — a thin
+  brand-deep strip (SITE_DEEP, so it harmonizes per-template) — so all FOUR
+  templates got it free (the layout wraps every template's page shells).
+  Non-sticky (scrolls away, header sticks behind it — the Shopify pattern),
+  never in a gallery frame. LIVE-INSTANT by design (NOT in
+  WEBSITE_DRAFT_COLUMNS → writeSection writes it live + records undo), because
+  a closure notice can't wait behind Publish. Self-expiring: pure
+  `activeAnnouncement(raw, clinicDayKey)` applies the INCLUSIVE clinic-local
+  `endsAt` (server UTC clock never drops it a day early) + trims/clamps; the
+  optional link is sanitized by `sanitizeAnnouncementHref` (site-relative or
+  http(s) only, never javascript:/data:/protocol-relative) at BOTH save AND
+  render (defense in depth). Hub Quick-edits gains a 5th button (📣
+  Announcement, state "Showing now"/"Off") → a modal with message +
+  auto-hide date + link, "live right away" footer. Demo clinic seeds a
+  booking-linked bar. Tests: pure resolver (expiry inclusivity, malformed
+  date, href sanitize incl. the three unsafe schemes), the render surface
+  (region vs internal link vs external anchor vs nothing), hub 5-button row.
 
 - **Thread activity markers — the whole relationship in one conversation
   (2026-07-23).** Owner brief: staff seeing "Yeah that'd be great!" from a

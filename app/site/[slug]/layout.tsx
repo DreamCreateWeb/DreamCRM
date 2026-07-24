@@ -12,6 +12,9 @@ import DraftPreviewBanner from '@/components/clinic-site/draft-preview-banner'
 import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
 import SiteViewBeacon from '@/components/clinic-site/site-view-beacon'
 import SiteChatWidget from '@/components/clinic-site/site-chat-widget'
+import AnnouncementBar from '@/components/clinic-site/announcement-bar'
+import { activeAnnouncement } from '@/lib/types/clinic-content'
+import { clinicDayKey } from '@/lib/format-datetime'
 
 /**
  * Site-wide layout for clinic public pages (/site/[slug]/...). The active
@@ -48,14 +51,28 @@ export default async function ClinicSiteLayout({
   // Default ON; Settings → Practice is the off switch. Never in a gallery
   // frame — a scaled preview card gets no interactive chrome.
   let chatWidget: { enabled: boolean; clinicName: string } | null = null
+  // The announcement strip is live-immediate + self-expiring; never in a
+  // scaled gallery frame (a preview card gets no chrome). Resolved with the
+  // clinic-local day so a timed bar ("closed through Fri") doesn't drop a day
+  // early on the server's UTC clock.
+  let announcement: ReturnType<typeof activeAnnouncement> = null
   if (orgId && !isFrame) {
     const [prof] = await db
-      .select({ enabled: clinicProfile.chatWidgetEnabled, displayName: clinicProfile.displayName })
+      .select({
+        enabled: clinicProfile.chatWidgetEnabled,
+        displayName: clinicProfile.displayName,
+        announcement: clinicProfile.announcement,
+        timezone: clinicProfile.timezone,
+      })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, orgId))
       .limit(1)
     if (prof && prof.enabled !== false) {
       chatWidget = { enabled: true, clinicName: prof.displayName ?? 'our office' }
+    }
+    if (prof?.announcement) {
+      const tz = prof.timezone || 'America/New_York'
+      announcement = activeAnnouncement(prof.announcement, clinicDayKey(new Date(), tz))
     }
   }
   return (
@@ -102,6 +119,9 @@ export default async function ClinicSiteLayout({
           outline-offset: 2px;
         }
       `}</style>
+      {/* Site-wide announcement strip — above the header on every page +
+          template, non-sticky so it scrolls away. */}
+      <AnnouncementBar announcement={announcement} />
       {children}
       {/* Never count gallery-frame renders as site traffic. */}
       {orgId && !isFrame && <SiteViewBeacon orgId={orgId} slug={slug} />}

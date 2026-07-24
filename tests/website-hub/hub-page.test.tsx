@@ -175,7 +175,7 @@ describe('the v3 hero + area groups (2026-07-24 redesign)', () => {
     expect(screen.getByText('What’s happening')).toBeTruthy()
     expect(screen.getByText('Quick edits')).toBeTruthy()
     // Quick edits holds what a front desk actually changes — as modal buttons.
-    for (const q of ['Hours', 'Services', 'Team', 'Photos']) {
+    for (const q of ['Announcement', 'Hours', 'Services', 'Team', 'Photos']) {
       expect(screen.getByText(q)).toBeTruthy()
     }
     // Design + Pages demoted to quiet utility links (day-one / reference, not

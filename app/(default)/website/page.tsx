@@ -16,6 +16,8 @@ import { buildSitePagesIndex, hasColoringPages } from '@/lib/clinic-site-helpers
 import { listActivePlans } from '@/lib/services/membership'
 import { listLibraryForPicker } from '@/lib/services/service-library'
 import type { ClinicService, ClinicStaff, ClinicOfficePhoto } from '@/lib/types/clinic-content'
+import { activeAnnouncement } from '@/lib/types/clinic-content'
+import { clinicDayKey } from '@/lib/format-datetime'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
 import type { HoursGridEntry } from '../settings/clinic/hours-grid'
 import { PageHeader } from '@/components/ui/page-header'
@@ -183,6 +185,11 @@ export default async function WebsiteHubPage() {
   // The Quick-edits services modal edits the EFFECTIVE (draft-merged) list —
   // a staged edit reads back exactly like a saved one, same as Content.
   const quickServices = (profile.services as ClinicService[] | null) ?? []
+
+  // The announcement bar (live-immediate) — resolve to what's showing NOW at
+  // the clinic-local day so the state line matches the public site.
+  const clinicTz = profile.timezone || 'America/New_York'
+  const liveAnnouncement = activeAnnouncement(profile.announcement, clinicDayKey(new Date(), clinicTz))
 
   // Traffic delta vs the prior 30 days, for the performance band.
   const delta =
@@ -459,12 +466,14 @@ export default async function WebsiteHubPage() {
               services: quickServices,
               staff: (profile.staff as ClinicStaff[] | null) ?? null,
               officePhotos: (profile.officePhotos as ClinicOfficePhoto[] | null) ?? null,
+              announcement: liveAnnouncement,
               library,
             }}
             states={{
+              announcement: liveAnnouncement ? 'Showing now' : 'Off',
               hours: todayHoursLabel(
                 (profile.hours as Record<string, HoursGridEntry> | null) ?? {},
-                profile.timezone || 'America/New_York',
+                clinicTz,
               ),
               services: `${quickServices.length} offered`,
               team: `${((profile.staff as ClinicStaff[] | null) ?? []).length} listed`,

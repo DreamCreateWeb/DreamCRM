@@ -2587,6 +2587,13 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
       'We started Dream Dental to make going to the dentist feel like going to any other thoughtful, modern place. Calm rooms, plain-English explanations, no judgment about how long it\'s been. Whether it\'s your first cleaning in years or a routine check-up, you\'ll be in good hands — and out the door knowing exactly what happened and why.',
     brandColor: '#9CAF9F',
     template: 'modern',
+    // Live site announcement bar — shows the "Cute Dream" states out of the
+    // box (no endsAt so it never expires in the demo). Booking-linked.
+    announcement: {
+      message: 'Now welcoming new patients — same-week visits available.',
+      endsAt: null,
+      href: '/book',
+    },
     phone: '(512) 555-0100',
     email: 'hello@dream-dental.example',
     logoUrl: DEMO_LOGO_URL,

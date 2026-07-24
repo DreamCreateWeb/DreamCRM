@@ -20,6 +20,7 @@ import {
   parseHours,
   clean,
 } from '@/lib/clinic-content-parse'
+import { sanitizeAnnouncementHref } from '@/lib/types/clinic-content'
 import { recordWebsiteEdit, undoLastWebsiteEdit } from '@/lib/services/website-history'
 import { mergeWebsiteDraft, WEBSITE_COLUMN_LABELS } from '@/lib/website-draft'
 import {
@@ -257,6 +258,25 @@ async function runSection(
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Could not save' }
   }
+}
+
+// ── Announcement bar (the hub Quick-edit) ───────────────────────────────────
+/**
+ * The site-wide announcement strip. NOT a draft column → writeSection writes
+ * it LIVE-INSTANT (booking-hours-class urgency). Empty message clears the bar
+ * (stores null). `endsAt` is validated to a plain 'YYYY-MM-DD' or dropped.
+ */
+export async function saveAnnouncement(formData: FormData): Promise<SectionResult> {
+  return runSection(async (ctx) => {
+    const message = clean('message', formData)
+    const endsRaw = clean('endsAt', formData)
+    const endsAt = endsRaw && /^\d{4}-\d{2}-\d{2}$/.test(endsRaw) ? endsRaw : null
+    // Site-relative path or http(s) URL only — never javascript:/data: etc.
+    const href = sanitizeAnnouncementHref(clean('href', formData))
+    await writeSection(ctx, {
+      announcement: message ? { message: message.slice(0, 200), endsAt, href } : null,
+    } as Partial<typeof clinicProfile.$inferInsert>)
+  })
 }
 
 // ── Hero (name + tagline) ───────────────────────────────────────────────────

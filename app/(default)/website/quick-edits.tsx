@@ -8,8 +8,8 @@ import StaffEditor from '../settings/clinic/staff-editor'
 import OfficePhotosEditor from '../settings/clinic/office-photos-editor'
 import ServicesLibraryPicker from '../settings/clinic/services-library-picker'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
-import type { ClinicService, ClinicStaff, ClinicOfficePhoto } from '@/lib/types/clinic-content'
-import { saveHours, saveStaff, saveOfficePhotos, type SectionResult } from './editor/website-actions'
+import type { ClinicService, ClinicStaff, ClinicOfficePhoto, ClinicAnnouncement } from '@/lib/types/clinic-content'
+import { saveHours, saveStaff, saveOfficePhotos, saveAnnouncement, type SectionResult } from './editor/website-actions'
 
 /**
  * The hub's Quick edits — the things a front desk actually changes (hours,
@@ -24,7 +24,7 @@ import { saveHours, saveStaff, saveOfficePhotos, type SectionResult } from './ed
  *               amber publish card appears on the hub after saving).
  */
 
-type EditKey = 'hours' | 'services' | 'team' | 'photos'
+type EditKey = 'announcement' | 'hours' | 'services' | 'team' | 'photos'
 
 export interface QuickEditsData {
   orgId: string
@@ -34,10 +34,12 @@ export interface QuickEditsData {
   services: ClinicService[]
   staff: ClinicStaff[] | null
   officePhotos: ClinicOfficePhoto[] | null
+  announcement: ClinicAnnouncement | null
   library: ServiceLibraryEntryWithStatus[]
 }
 
 const BUTTONS: { key: EditKey; icon: string; title: string }[] = [
+  { key: 'announcement', icon: '📣', title: 'Announcement' },
   { key: 'hours', icon: '🕐', title: 'Hours' },
   { key: 'services', icon: '🦷', title: 'Services' },
   { key: 'team', icon: '👋', title: 'Team' },
@@ -58,7 +60,7 @@ export default function QuickEdits({ data, states }: { data: QuickEditsData; sta
 
   return (
     <>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {BUTTONS.map((b) => (
           <button
             key={b.key}
@@ -80,6 +82,58 @@ export default function QuickEdits({ data, states }: { data: QuickEditsData; sta
           </button>
         ))}
       </div>
+
+      {open === 'announcement' && (
+        <QuickEditModal title="Announcement bar" onClose={() => setOpen(null)}>
+          <SaveForm
+            action={saveAnnouncement}
+            saveLabel={data.announcement?.message ? 'Update announcement' : 'Show announcement'}
+            liveNote="Live right away — a thin bar shows at the top of every page. Clear the message to hide it."
+            onSaved={() => done('Announcement updated — live on your site now.')}
+          >
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Message</span>
+              <textarea
+                name="message"
+                defaultValue={data.announcement?.message ?? ''}
+                rows={2}
+                maxLength={200}
+                placeholder="Closed Dec 24–26 for the holidays — see you in the new year!"
+                className="w-full rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+              />
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                Leave blank to take the bar down.
+              </span>
+            </label>
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
+                Automatically hide after <span className="font-normal text-gray-400">(optional)</span>
+              </span>
+              <input
+                type="date"
+                name="endsAt"
+                defaultValue={data.announcement?.endsAt ?? ''}
+                className="rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+              />
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                The bar shows through this day, then disappears on its own.
+              </span>
+            </label>
+            <label className="block">
+              <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">
+                Link the bar to <span className="font-normal text-gray-400">(optional)</span>
+              </span>
+              <input
+                type="text"
+                name="href"
+                defaultValue={data.announcement?.href ?? ''}
+                placeholder="/book  or  https://…"
+                className="w-full rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-2)] px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+              />
+            </label>
+          </SaveForm>
+        </QuickEditModal>
+      )}
 
       {open === 'hours' && (
         <QuickEditModal title="Office hours" onClose={() => setOpen(null)}>

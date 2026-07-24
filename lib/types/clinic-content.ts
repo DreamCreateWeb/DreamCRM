@@ -257,6 +257,59 @@ export interface ClinicOfficePhoto {
   position?: string | null
 }
 
+/**
+ * The site-wide announcement bar (`clinic_profile.announcement`). A thin
+ * brand-color strip above the header on every public page. Live-immediate
+ * (never staged) and self-expiring: `endsAt` is an inclusive 'YYYY-MM-DD'
+ * clinic-local day; the bar hides once that day has passed. `href` is an
+ * optional link (a site-relative path or absolute URL) the whole bar points
+ * to. Blank message = no bar.
+ */
+export interface ClinicAnnouncement {
+  message: string
+  /** Inclusive last day to show, 'YYYY-MM-DD' clinic-local, or null = no end. */
+  endsAt?: string | null
+  /** Optional destination for the whole bar (e.g. '/book' or an https URL). */
+  href?: string | null
+}
+
+/**
+ * Sanitize an announcement-bar link to a safe navigable target, or null. Only
+ * a site-relative path (`/book`, never protocol-relative `//host`) or an
+ * http(s) URL is allowed — `javascript:`, `data:`, and friends are dropped.
+ * Enforced BOTH at save and at render (defense in depth) so a bad value that
+ * ever reached the column can never render a live `javascript:` anchor.
+ */
+export function sanitizeAnnouncementHref(raw: unknown): string | null {
+  const s = typeof raw === 'string' ? raw.trim() : ''
+  if (!s) return null
+  if (/^\/(?!\/)/.test(s)) return s // site-relative, not protocol-relative
+  if (/^https?:\/\//i.test(s)) return s // absolute http(s)
+  return null
+}
+
+/**
+ * Resolve the announcement to show RIGHT NOW, or null. Pure so it's testable
+ * and reused by the render surface + the hub state line. Trims the message,
+ * drops empties, sanitizes the href, and applies the inclusive clinic-local
+ * expiry — pass `todayYmd` as the clinic-local 'YYYY-MM-DD' (clinicDayKey) so
+ * the server's UTC clock never expires a bar a day early.
+ */
+export function activeAnnouncement(
+  raw: unknown,
+  todayYmd: string,
+): ClinicAnnouncement | null {
+  if (!raw || typeof raw !== 'object') return null
+  const a = raw as Record<string, unknown>
+  const message = typeof a.message === 'string' ? a.message.trim() : ''
+  if (!message) return null
+  const endsAt = typeof a.endsAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a.endsAt) ? a.endsAt : null
+  // Inclusive: an endsAt of today still shows today; string compare is safe
+  // for zero-padded ISO dates.
+  if (endsAt && endsAt < todayYmd) return null
+  return { message: message.slice(0, 200), endsAt, href: sanitizeAnnouncementHref(a.href) }
+}
+
 /** A blog post FAQ entry — rendered on the post + emitted as FAQPage JSON-LD. */
 export interface BlogFaqItem {
   q: string
