@@ -23,7 +23,6 @@ import { ProgressRing } from '@/components/ui/progress-ring'
 import PublishCard from './publish-card'
 import SiteMiniPreview from './site-mini-preview'
 import { EmptyState } from '@/components/ui/empty-state'
-import { NavIcon } from '@/components/ui/nav-icons'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 
 export const metadata = {
@@ -444,20 +443,20 @@ export default async function WebsiteHubPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <DockButton
               href="/website/editor"
-              icon="pen"
+              icon="✏️"
               title="Editor"
               state={lastEdit?.label ? `Last edit: ${lastEdit.label}` : 'Ready to edit'}
             />
-            <DockButton href="/website/design" icon="star" title="Design" state={templateDef.label} />
+            <DockButton href="/website/design" icon="🎨" title="Design" state={templateDef.label} />
             <DockButton
               href="/website/pages"
-              icon="folder"
+              icon="📑"
               title="Pages"
               state={`${livePages} live`}
             />
             <DockButton
               href="/website/content"
-              icon="doc"
+              icon="📝"
               title="Content"
               state={`${completeness.filled}/${completeness.total} filled`}
             />
@@ -473,7 +472,7 @@ export default async function WebsiteHubPage() {
             href="/website/domain"
             className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
           >
-            <NavIcon name="globe" className="w-4 h-4 fill-current opacity-60 group-hover:opacity-100" />
+            <span aria-hidden="true">🌐</span>
             <span className="font-semibold">Domain</span>
             <span className="text-gray-500 dark:text-gray-400 truncate max-w-[16rem] tabular-nums">
               {domain ? domain.domain : `${slug}.dreamcreatestudio.com`}
@@ -485,7 +484,7 @@ export default async function WebsiteHubPage() {
           href="/website/share"
           className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
         >
-          <NavIcon name="megaphone" className="w-4 h-4 fill-current opacity-60 group-hover:opacity-100" />
+          <span aria-hidden="true">📇</span>
           <span className="font-semibold">Share & QR cards</span>
           <span className="text-gray-500 dark:text-gray-400">print-ready for the front desk</span>
         </Link>
@@ -587,8 +586,11 @@ function NewsCard({
   )
 }
 
-/** A dock button — a tool you reach for, not a card you read: icon, name,
- *  one quiet state line. */
+/** A dock button — a tool you reach for, not a card you read: a real
+ *  (emoji) glyph in a soft gradient bubble, name, one quiet state line.
+ *  Emoji over flat SVG on purpose: the dashboard's glyph language is emoji
+ *  everywhere (encodings registry, empty states, ⌘K), they carry their own
+ *  color, and the flat single-tone NavIcons read lifeless here. */
 function DockButton({
   href,
   icon,
@@ -603,8 +605,10 @@ function DockButton({
   return (
     <Link href={href} className="block h-full group">
       <div className="v2-card-interactive px-4 py-3.5 h-full flex items-center gap-3">
-        <span className="inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-[var(--r-sm)] bg-teal-500/10 text-teal-700 dark:text-teal-300">
-          <NavIcon name={icon} className="shrink-0 fill-current w-5 h-5" />
+        <span className="inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-[var(--r-sm)] bg-gradient-to-br from-teal-500/10 to-teal-500/20 group-hover:from-teal-500/15 group-hover:to-teal-500/25 transition-colors">
+          <span className="text-xl leading-none" aria-hidden="true">
+            {icon}
+          </span>
         </span>
         <span className="min-w-0">
           <span className="block text-sm font-bold text-gray-900 dark:text-gray-100">{title}</span>
