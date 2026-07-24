@@ -14,14 +14,17 @@ import { getSiteTemplate } from '@/lib/site-templates/registry'
 import { contentCompleteness } from '@/lib/website-content-sections'
 import { buildSitePagesIndex, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { listActivePlans } from '@/lib/services/membership'
-import type { ClinicStaff } from '@/lib/types/clinic-content'
+import { listLibraryForPicker } from '@/lib/services/service-library'
+import type { ClinicService, ClinicStaff, ClinicOfficePhoto } from '@/lib/types/clinic-content'
 import type { CustomDomainStatus } from '@/lib/services/custom-domain'
+import type { HoursGridEntry } from '../settings/clinic/hours-grid'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import PublishCard from './publish-card'
 import SiteMiniPreview from './site-mini-preview'
+import QuickEdits from './quick-edits'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 
@@ -95,6 +98,8 @@ export default async function WebsiteHubPage() {
     getNewLeadsSince(ctx.organizationId, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).catch(() => 0),
     listActivePlans(ctx.organizationId).catch(() => []),
   ])
+  // The Quick-edits services modal needs the picker library (owner/admin only).
+  const library = canEdit ? await listLibraryForPicker(ctx.organizationId).catch(() => []) : []
 
   const completeness = contentCompleteness(profile)
   // What's staged and not yet live — the publish card (owner/admin only).
@@ -174,6 +179,10 @@ export default async function WebsiteHubPage() {
   const checklistOpen = checklist.filter((c) => !c.done)
   const checklistDone = checklist.length - checklistOpen.length
   const showChecklist = checklist.length > 0 && checklistOpen.length > 0
+
+  // The Quick-edits services modal edits the EFFECTIVE (draft-merged) list —
+  // a staged edit reads back exactly like a saved one, same as Content.
+  const quickServices = (profile.services as ClinicService[] | null) ?? []
 
   // Traffic delta vs the prior 30 days, for the performance band.
   const delta =
@@ -432,35 +441,36 @@ export default async function WebsiteHubPage() {
         </div>
       </section>
 
-      {/* ── Tools — the daily editing surfaces as a dock: reach, don't read.
-          One quiet state line each; the descriptions live on the pages
-          themselves. Owner/admin only. ────────────────────────────────── */}
+      {/* ── Quick edits — what a front desk actually changes, as modals
+          right here (hours live-instant; the rest stage to the draft).
+          Deep/rare editing lives behind the header's "Open the editor" and
+          the utility links below. Owner/admin only. ───────────────────── */}
       {canEdit && (
         <section className="mb-7">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-ink-500)] dark:text-gray-400 mb-3">
-            Tools
+            Quick edits
           </h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <DockButton
-              href="/website/editor"
-              icon="✏️"
-              title="Editor"
-              state={lastEdit?.label ? `Last edit: ${lastEdit.label}` : 'Ready to edit'}
-            />
-            <DockButton href="/website/design" icon="🎨" title="Design" state={templateDef.label} />
-            <DockButton
-              href="/website/pages"
-              icon="📑"
-              title="Pages"
-              state={`${livePages} live`}
-            />
-            <DockButton
-              href="/website/content"
-              icon="📝"
-              title="Content"
-              state={`${completeness.filled}/${completeness.total} filled`}
-            />
-          </div>
+          <QuickEdits
+            data={{
+              orgId: ctx.organizationId,
+              clinicName: profile.displayName ?? '',
+              city: profile.city ?? null,
+              hours: (profile.hours as Record<string, HoursGridEntry> | null) ?? {},
+              services: quickServices,
+              staff: (profile.staff as ClinicStaff[] | null) ?? null,
+              officePhotos: (profile.officePhotos as ClinicOfficePhoto[] | null) ?? null,
+              library,
+            }}
+            states={{
+              hours: todayHoursLabel(
+                (profile.hours as Record<string, HoursGridEntry> | null) ?? {},
+                profile.timezone || 'America/New_York',
+              ),
+              services: `${quickServices.length} offered`,
+              team: `${((profile.staff as ClinicStaff[] | null) ?? []).length} listed`,
+              photos: `${((profile.officePhotos as ClinicOfficePhoto[] | null) ?? []).length} on the site`,
+            }}
+          />
         </section>
       )}
 
@@ -478,6 +488,26 @@ export default async function WebsiteHubPage() {
               {domain ? domain.domain : `${slug}.dreamcreatestudio.com`}
             </span>
             {domainPill.tone !== 'neutral' && <StatusPill tone={domainPill.tone} label={domainPill.label} />}
+          </Link>
+        )}
+        {canEdit && (
+          <Link
+            href="/website/design"
+            className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+          >
+            <span aria-hidden="true">🎨</span>
+            <span className="font-semibold">Design</span>
+            <span className="text-gray-500 dark:text-gray-400">{templateDef.label}</span>
+          </Link>
+        )}
+        {canEdit && (
+          <Link
+            href="/website/pages"
+            className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+          >
+            <span aria-hidden="true">📑</span>
+            <span className="font-semibold">Pages</span>
+            <span className="text-gray-500 dark:text-gray-400 tabular-nums">{livePages} live</span>
           </Link>
         )}
         <Link
@@ -586,42 +616,32 @@ function NewsCard({
   )
 }
 
-/** A dock button — a tool you reach for, not a card you read: a real
- *  (emoji) glyph in a soft gradient bubble, name, one quiet state line.
- *  Emoji over flat SVG on purpose: the dashboard's glyph language is emoji
- *  everywhere (encodings registry, empty states, ⌘K), they carry their own
- *  color, and the flat single-tone NavIcons read lifeless here. */
-function DockButton({
-  href,
-  icon,
-  title,
-  state,
-}: {
-  href: string
-  icon: string
-  title: string
-  state: string
-}) {
-  return (
-    <Link href={href} className="block h-full group">
-      <div className="v2-card-interactive px-4 py-3.5 h-full flex items-center gap-3">
-        <span className="inline-flex items-center justify-center w-10 h-10 shrink-0 rounded-[var(--r-sm)] bg-gradient-to-br from-teal-500/10 to-teal-500/20 group-hover:from-teal-500/15 group-hover:to-teal-500/25 transition-colors">
-          <span className="text-xl leading-none" aria-hidden="true">
-            {icon}
-          </span>
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-bold text-gray-900 dark:text-gray-100">{title}</span>
-          <span
-            className="block text-xs text-gray-500 dark:text-gray-400 truncate tabular-nums"
-            title={state}
-          >
-            {state}
-          </span>
-        </span>
-      </div>
-    </Link>
-  )
+/** Today's hours at the clinic's wall-clock, for the Hours quick-edit state
+ *  line ("Today 8:00 AM–5:00 PM" / "Closed today"). Server runs UTC — the
+ *  weekday MUST come from the clinic timezone (a 7 PM Central Friday is
+ *  already Saturday in UTC). */
+function todayHoursLabel(hours: Record<string, HoursGridEntry>, timeZone: string): string {
+  let day: string
+  try {
+    day = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone })
+      .format(new Date())
+      .toLowerCase()
+  } catch {
+    day = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date()).toLowerCase()
+  }
+  const entry = hours[day]
+  if (!entry || entry.closed || !entry.open || !entry.close) return 'Closed today'
+  return `Today ${to12h(entry.open)}–${to12h(entry.close)}`
+}
+
+/** "17:00" → "5:00 PM" (stored HH:MM 24h; staff read wall-clock). */
+function to12h(hhmm: string): string {
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return hhmm
+  const h = Number(m[1])
+  const suffix = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${m[2]} ${suffix}`
 }
 
 /** The honest plan-gate card — the area exists, the plan doesn't cover it

@@ -48,6 +48,31 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   dropped ~40%; no zone repeats another's anatomy — the law the top half
   already followed.
 
+- **Website hub round 3 — Quick edits (modals, not a settings maze)
+  (2026-07-24).** Owner UX read: the four "Tools" doors were 1-for-4 useful —
+  Design is a day-one pick (never revisited), Pages is a reference surface
+  (SEO meta only, can't add/remove pages by design), Editor just repeated the
+  header primary. Staff actually change hours, services, team, photos weekly.
+  So the Tools dock became **Quick edits**: Hours 🕐 · Services 🦷 · Team 👋 ·
+  Photos 📸 as MODALS right on the hub (`quick-edits.tsx`), each reusing the
+  exact editor + scoped server action the Content page uses (HoursGrid /
+  ServicesLibraryPicker / StaffEditor / OfficePhotosEditor → saveHours /
+  services picker / saveStaff / saveOfficePhotos) — one saver, N doors, so a
+  quick edit can't null a section it didn't open. HONEST SAVE SEMANTICS in
+  each modal footer: hours are an identity column → LIVE the instant they
+  save ("we're closed tomorrow" can't wait behind Publish); services/team/
+  photos stage to the draft → the amber publish card appears on the hub
+  (services auto-saves, so its modal refreshes on close). The Hours button's
+  state line shows today's wall-clock hours at the CLINIC tz ("Today 8:00
+  AM–5:00 PM" / "Closed today"). Demotions: Design + Pages dropped to the
+  quiet utility footer beside Domain + Share (day-one / reference, not daily
+  edits); Editor stays the header's "Open the editor" primary. Modal shell is
+  local (no shared primitive yet) — surface-2, panel radius, modal shadow,
+  scrim, Esc + ✕. Members get the news band only (no dock, no editing
+  utilities, and never the library query). NEXT: the announcement bar (task
+  #24) — the one frequent edit we can't do yet (needs schema + all 4
+  templates), owner-approved as its own slice.
+
 - **Thread activity markers — the whole relationship in one conversation
   (2026-07-23).** Owner brief: staff seeing "Yeah that'd be great!" from a
   patient shouldn't have to wonder *what* would be great — the promo/recall/

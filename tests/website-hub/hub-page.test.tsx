@@ -21,6 +21,17 @@ import React from 'react'
 let ctx: Record<string, unknown>
 let profileRow: Record<string, unknown> | null
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: () => {}, push: () => {} }),
+  redirect: (p: string) => {
+    throw new Error(`redirect:${p}`)
+  },
+}))
+vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => false }))
+vi.mock('@/lib/services/service-library', () => ({
+  listLibraryForPicker: vi.fn(async () => []),
+}))
+
 vi.mock('@/lib/auth/context', () => ({
   requireTenant: vi.fn(async () => ctx),
 }))
@@ -159,26 +170,39 @@ describe('the v3 hero + area groups (2026-07-24 redesign)', () => {
     cleanup()
   })
 
-  it('the zones are shaped like their contents: news band + tool dock + utility links', async () => {
+  it('the zones are shaped like their contents: news band + Quick edits + utility links', async () => {
     const { container } = render(await WebsiteHubPage())
     expect(screen.getByText('What’s happening')).toBeTruthy()
-    expect(screen.getByText('Tools')).toBeTruthy()
-    // The dock holds the four editing tools — names only, no brochure copy.
-    for (const tool of ['Editor', 'Design', 'Pages', 'Content']) {
-      expect(screen.getByText(tool)).toBeTruthy()
+    expect(screen.getByText('Quick edits')).toBeTruthy()
+    // Quick edits holds what a front desk actually changes — as modal buttons.
+    for (const q of ['Hours', 'Services', 'Team', 'Photos']) {
+      expect(screen.getByText(q)).toBeTruthy()
     }
-    // The utilities are quiet links, not cards.
+    // Design + Pages demoted to quiet utility links (day-one / reference, not
+    // daily edits) alongside Domain + Share.
+    expect(container.querySelector('a[href="/website/design"]')).toBeTruthy()
+    expect(container.querySelector('a[href="/website/pages"]')).toBeTruthy()
     expect(container.querySelector('a[href="/website/domain"]')).toBeTruthy()
     expect(container.querySelector('a[href="/website/share"]')).toBeTruthy()
     cleanup()
   })
 
-  it('members lose the tool dock entirely, keep the news band', async () => {
+  it('members lose the Quick edits dock + editing utilities, keep the news band', async () => {
+    ctx = { ...ctx, role: 'member' }
+    const { container } = render(await WebsiteHubPage())
+    expect(screen.queryByText('Quick edits')).toBeNull()
+    expect(screen.queryByText('Hours')).toBeNull()
+    expect(container.querySelector('a[href="/website/design"]')).toBeNull()
+    expect(screen.getByText('What’s happening')).toBeTruthy()
+    cleanup()
+  })
+
+  it('a member never gets the Quick-edits library query (owner/admin only)', async () => {
+    const { listLibraryForPicker } = await import('@/lib/services/service-library')
+    ;(listLibraryForPicker as unknown as { mockClear: () => void }).mockClear()
     ctx = { ...ctx, role: 'member' }
     render(await WebsiteHubPage())
-    expect(screen.queryByText('Tools')).toBeNull()
-    expect(screen.queryByText('Editor')).toBeNull()
-    expect(screen.getByText('What’s happening')).toBeTruthy()
+    expect(listLibraryForPicker).not.toHaveBeenCalled()
     cleanup()
   })
 
