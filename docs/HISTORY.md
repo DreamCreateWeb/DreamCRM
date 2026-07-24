@@ -32,7 +32,21 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   via the compiled-CSS + renderToStaticMarkup + Playwright harness
   (light/dark/mobile/member/all-done states screenshotted). SiteMiniPreview
   lives in `app/(default)/website/site-mini-preview.tsx` for the next hub
-  passes to borrow.
+  passes to borrow. ROUND 2 (owner: "close, but halfway — maybe it's the
+  cards?"): the diagnosis that landed — the doorway grid forced ONE card
+  anatomy onto four different species (tools, inboxes, states, utilities)
+  and kept permanent onboarding copy on every card. The Build/Grow/Reach
+  grid is gone; the bottom half is now three zones each shaped like its
+  contents: **What's happening** (only surfaces carrying signal — Forms,
+  Blog, SEO, Careers — as number-FIRST cards: text-3xl tone-colored mono
+  value, whisper label, aria-label tells the full story, zero brochure
+  copy; below-plan slots keep compact dashed upsell cards), **Tools** (the
+  dock — Editor/Design/Pages/Content as icon+name+one-quiet-state-line
+  buttons you reach for, not read), and a **quiet utility footer** (Domain +
+  Share & QR as text links; the Domain link renders its StatusPill ONLY
+  off-neutral, so it's silent until DNS needs attention). Page height
+  dropped ~40%; no zone repeats another's anatomy — the law the top half
+  already followed.
 
 - **Thread activity markers — the whole relationship in one conversation
   (2026-07-23).** Owner brief: staff seeing "Yeah that'd be great!" from a

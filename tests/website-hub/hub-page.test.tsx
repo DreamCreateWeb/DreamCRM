@@ -99,36 +99,38 @@ beforeEach(() => {
 describe('WebsiteHubPage', () => {
   it('renders the live host, domain pill, performance, and real area stats', async () => {
     render(await WebsiteHubPage())
-    // Host shows in the hero card AND as the Domain card's stat.
+    // Host shows in the hero card AND as the utility row's Domain state.
     expect(screen.getAllByText('acme.dreamcreatestudio.com').length).toBeGreaterThan(0)
     expect(screen.getByText('Free address')).toBeTruthy()
     expect(screen.getByText('412')).toBeTruthy() // visits
-    expect(screen.getByText(/3 published/)).toBeTruthy()
-    expect(screen.getByText(/Site health 88\/100/)).toBeTruthy()
-    expect(screen.getByText(/2 open roles/)).toBeTruthy()
+    // The news cards carry the real numbers; their aria labels tell the story.
+    expect(screen.getByLabelText(/Blog — 3 published, 1 draft waiting/)).toBeTruthy()
+    expect(screen.getByLabelText(/SEO — site health 88\/100/)).toBeTruthy()
+    expect(screen.getByLabelText(/Careers — 2 open roles, 1 new applicant/)).toBeTruthy()
     expect(screen.getByText('Open the editor')).toBeTruthy()
-    // The last edit shows in the hero line AND as the editor card's stat.
+    // The last edit shows in the hero line AND as the Editor dock state.
     expect(screen.getAllByText(/Last edit: Hero image/).length).toBeGreaterThan(0)
     cleanup()
   })
 
-  it('shows the domain state pill from the stored status', async () => {
+  it('shows the domain state pill from the stored status (hero + utility row)', async () => {
     profileRow = makeProfile({
       customDomainStatus: { state: 'pending_dns', domain: 'www.acmedental.com', requestedAt: 'x' },
     })
     render(await WebsiteHubPage())
-    expect(screen.getByText('Domain waiting on DNS')).toBeTruthy()
+    // Off-neutral states surface in BOTH the hero pill and the utility row.
+    expect(screen.getAllByText('Domain waiting on DNS').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('www.acmedental.com')).toBeTruthy()
     cleanup()
   })
 
-  it('members get the areas but no editor affordances', async () => {
+  it('members get the news surfaces but no editor affordances', async () => {
     ctx = { ...ctx, role: 'member' }
     render(await WebsiteHubPage())
     expect(screen.queryByText('Open the editor')).toBeNull()
     expect(screen.queryByText('Advanced edits')).toBeNull()
-    expect(screen.getByText('Blog')).toBeTruthy()
-    expect(screen.getByText('SEO')).toBeTruthy()
+    expect(screen.getByLabelText(/Blog —/)).toBeTruthy()
+    expect(screen.getByLabelText(/SEO —/)).toBeTruthy()
     cleanup()
   })
 
@@ -157,20 +159,26 @@ describe('the v3 hero + area groups (2026-07-24 redesign)', () => {
     cleanup()
   })
 
-  it('groups the doorway cards under Build / Grow / Reach eyebrows', async () => {
-    render(await WebsiteHubPage())
-    expect(screen.getByText('Build')).toBeTruthy()
-    expect(screen.getByText('Grow')).toBeTruthy()
-    expect(screen.getByText('Reach')).toBeTruthy()
+  it('the zones are shaped like their contents: news band + tool dock + utility links', async () => {
+    const { container } = render(await WebsiteHubPage())
+    expect(screen.getByText('What’s happening')).toBeTruthy()
+    expect(screen.getByText('Tools')).toBeTruthy()
+    // The dock holds the four editing tools — names only, no brochure copy.
+    for (const tool of ['Editor', 'Design', 'Pages', 'Content']) {
+      expect(screen.getByText(tool)).toBeTruthy()
+    }
+    // The utilities are quiet links, not cards.
+    expect(container.querySelector('a[href="/website/domain"]')).toBeTruthy()
+    expect(container.querySelector('a[href="/website/share"]')).toBeTruthy()
     cleanup()
   })
 
-  it('members lose the Build group entirely (no editing doorways), keep Grow + Reach', async () => {
+  it('members lose the tool dock entirely, keep the news band', async () => {
     ctx = { ...ctx, role: 'member' }
     render(await WebsiteHubPage())
-    expect(screen.queryByText('Build')).toBeNull()
-    expect(screen.getByText('Grow')).toBeTruthy()
-    expect(screen.getByText('Reach')).toBeTruthy()
+    expect(screen.queryByText('Tools')).toBeNull()
+    expect(screen.queryByText('Editor')).toBeNull()
+    expect(screen.getByText('What’s happening')).toBeTruthy()
     cleanup()
   })
 
