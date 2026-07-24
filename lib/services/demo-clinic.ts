@@ -1725,6 +1725,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         paymentMethods: schema.clinicProfile.paymentMethods,
         financingPartners: schema.clinicProfile.financingPartners,
         cancellationPolicy: schema.clinicProfile.cancellationPolicy,
+        announcement: schema.clinicProfile.announcement,
         timezone: schema.clinicProfile.timezone,
         portalSettings: schema.clinicProfile.portalSettings,
         emailAutomations: schema.clinicProfile.emailAutomations,
@@ -1747,6 +1748,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Backfill the interview stamp on legacy demos (seeded before the hub's
     // go-live checklist read it) — the demo site was always "personalized".
     if (!profile?.onboardingInterviewCompletedAt) patch.onboardingInterviewCompletedAt = new Date()
+    // Backfill the site announcement bar on legacy demos (migration 0134) so
+    // the live demo site shows the strip. Only-when-unset — a clinic-authored
+    // (or cleared) bar is never clobbered.
+    if (profile?.announcement == null) {
+      patch.announcement = {
+        message: 'Now welcoming new patients — same-week visits available.',
+        endsAt: null,
+        href: '/book',
+      }
+    }
     // Backfill a customized contact form (only-when-unset) — the Website →
     // Forms surface then shows a real "Customized" state next to the default
     // insurance-check form. The fields mirror the defaults plus one select.
