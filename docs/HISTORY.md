@@ -7,6 +7,33 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
 ---
 
+- **Website hub redesign — "the site is the hero" (2026-07-24, hub-pages
+  design series 1/n).** Owner brief: the hub pages "group surfaces well but
+  their UI/UX is extremely weak" — full redesign allowance. The core move:
+  the page is ABOUT the clinic's website, so the website now anchors it — a
+  live scaled preview of their own homepage in a little browser frame
+  (dots + address pill + 🔒), riding the side-effect-free
+  `/site/[slug]/tf/[template]` frame route (same mechanics as the templates
+  gallery: fixed 1360px frame, ResizeObserver-derived scale, inert, lazy —
+  and beacon-suppressed, so hub visits never count as site traffic; whole
+  frame links out to the live site). Beside it: host + domain pill +
+  draft/last-edit caption, then the go-live checklist compacted into a
+  setup block with a ProgressRing heartbeat (open steps only, hover-arrow
+  rows) that collapses to quiet quick-facts (pages live · sections filled ·
+  design) once done or for members. The 30-day band graduated from div-bars
+  to a server-rendered SVG gradient area sparkline (text-3xl mono KPIs,
+  delta + Full-analytics link in the header row). Doorway cards regrouped
+  under Build / Grow / Reach eyebrows (4-card groups go 4-up at lg — no
+  orphan rows), cards re-hierarchized (p-5, w-10 icon bubble, bold title,
+  colored living stat, hover arrow-nudge). Every existing test contract
+  held (stat strings, role/plan gating, checklist strings + hide-when-done,
+  upsell hrefs); new tests pin the tf-frame hero (inert + beacon-free src),
+  the group eyebrows, member group-gating, and the ring label. Visual QA
+  via the compiled-CSS + renderToStaticMarkup + Playwright harness
+  (light/dark/mobile/member/all-done states screenshotted). SiteMiniPreview
+  lives in `app/(default)/website/site-mini-preview.tsx` for the next hub
+  passes to borrow.
+
 - **Thread activity markers — the whole relationship in one conversation
   (2026-07-23).** Owner brief: staff seeing "Yeah that'd be great!" from a
   patient shouldn't have to wonder *what* would be great — the promo/recall/

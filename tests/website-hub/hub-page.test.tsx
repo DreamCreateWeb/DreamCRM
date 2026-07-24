@@ -145,6 +145,45 @@ describe('WebsiteHubPage', () => {
   })
 })
 
+describe('the v3 hero + area groups (2026-07-24 redesign)', () => {
+  it('renders the live site preview frame (the beacon-free tf route, current template)', async () => {
+    const { container } = render(await WebsiteHubPage())
+    const frame = container.querySelector('iframe[title="A live preview of your website"]')
+    expect(frame).toBeTruthy()
+    expect(frame!.getAttribute('src')).toBe('/site/acme/tf/modern')
+    // Inert: a preview, never a page.
+    expect(frame!.getAttribute('tabindex')).toBe('-1')
+    expect(frame!.getAttribute('aria-hidden')).toBe('true')
+    cleanup()
+  })
+
+  it('groups the doorway cards under Build / Grow / Reach eyebrows', async () => {
+    render(await WebsiteHubPage())
+    expect(screen.getByText('Build')).toBeTruthy()
+    expect(screen.getByText('Grow')).toBeTruthy()
+    expect(screen.getByText('Reach')).toBeTruthy()
+    cleanup()
+  })
+
+  it('members lose the Build group entirely (no editing doorways), keep Grow + Reach', async () => {
+    ctx = { ...ctx, role: 'member' }
+    render(await WebsiteHubPage())
+    expect(screen.queryByText('Build')).toBeNull()
+    expect(screen.getByText('Grow')).toBeTruthy()
+    expect(screen.getByText('Reach')).toBeTruthy()
+    cleanup()
+  })
+
+  it('the setup block carries the progress ring with an honest share label', async () => {
+    render(await WebsiteHubPage())
+    // 5 checklist rows for a premium owner; only "search data flowing" state
+    // varies — with the default mocks, 0 or 1 are done. The label always
+    // speaks "N of 5 setup steps done".
+    expect(screen.getByLabelText(/of 5 setup steps done/)).toBeTruthy()
+    cleanup()
+  })
+})
+
 describe('the go-live checklist', () => {
   it('shows real undone states with anti-shame copy (owner, nothing set up)', async () => {
     render(await WebsiteHubPage())
