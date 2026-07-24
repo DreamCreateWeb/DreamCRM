@@ -198,6 +198,20 @@ describe('parseHours', () => {
   it('throws on a malformed time', () => {
     expect(() => parseHours(fd({ 'hours[mon].open': '9am' }))).toThrow(/Invalid open time/i)
   })
+  it('parses a by-appointment day (no open/close, its own flag)', () => {
+    const out = parseHours(fd({ 'hours[sat].byAppointment': 'on' }))!
+    expect(out.sat).toEqual({ byAppointment: true })
+  })
+  it('closed wins over by-appointment when both flags are somehow set', () => {
+    const out = parseHours(fd({ 'hours[sat].closed': 'on', 'hours[sat].byAppointment': 'on' }))!
+    expect(out.sat).toEqual({ closed: true })
+  })
+  it('by-appointment ignores any stray open/close on the same day', () => {
+    const out = parseHours(
+      fd({ 'hours[sat].byAppointment': 'on', 'hours[sat].open': '09:00', 'hours[sat].close': '12:00' }),
+    )!
+    expect(out.sat).toEqual({ byAppointment: true })
+  })
 })
 
 describe('clean', () => {

@@ -1,7 +1,7 @@
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { EditText } from '@/components/clinic-site/editable'
 import { SITE_DEEP, SITE_DEEP_INK, SITE_DEEP_MUTED } from '@/components/clinic-site/tokens'
-import { DAYS, DAY_LABEL, fmt12, firstSentence, copyOverride, type HoursMap } from '@/lib/clinic-site-helpers'
+import { DAYS, DAY_LABEL, hoursEntryDisplay, firstSentence, copyOverride, type HoursMap } from '@/lib/clinic-site-helpers'
 
 /**
  * Cosmetic/Luxury footer — the charcoal editorial band. Same content slots as
@@ -103,9 +103,7 @@ export default function CosmeticFooter({
                   return (
                     <li key={day} className="flex justify-between gap-4">
                       <span style={{ color: SITE_DEEP_MUTED }}>{DAY_LABEL[day]}</span>
-                      <span>
-                        {h && !h.closed && h.open && h.close ? `${fmt12(h.open)} – ${fmt12(h.close)}` : 'Closed'}
-                      </span>
+                      <span>{hoursEntryDisplay(h)}</span>
                     </li>
                   )
                 })}

@@ -37,8 +37,22 @@ export const DAY_LABEL: Record<string, string> = {
   fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
 }
 
-export interface HourEntry { open?: string; close?: string; closed?: boolean }
+export interface HourEntry { open?: string; close?: string; closed?: boolean; byAppointment?: boolean }
 export type HoursMap = Record<string, HourEntry>
+
+/**
+ * The single source of truth for how one day's hours read on every public
+ * surface (all four template footers + the hometown hours card). Precedence:
+ * closed → by-appointment → a timed range → an em-dash when a day is "open"
+ * but has no times filled. Keeps the phrasing identical everywhere so a new
+ * template can't drift.
+ */
+export function hoursEntryDisplay(entry: HourEntry | null | undefined): string {
+  if (!entry || entry.closed) return 'Closed'
+  if (entry.byAppointment) return 'By appointment only'
+  if (entry.open && entry.close) return `${fmt12(entry.open)} – ${fmt12(entry.close)}`
+  return '—'
+}
 
 export function fmt12(time: string): string {
   const [h, m] = time.split(':').map(Number)
@@ -154,13 +168,14 @@ function clinicWeekdayKey(timeZone?: string | null): string {
  *  at-a-glance availability blurb. Pass the clinic timezone so the day is
  *  clinic-local (patient-facing surfaces run on the UTC prod server). */
 export function todaysHoursLabel(
-  hours: Record<string, { open?: string; close?: string; closed?: boolean }> | null | undefined,
+  hours: Record<string, HourEntry> | null | undefined,
   timeZone?: string | null,
 ): string {
   // Defensive: a fresh clinic can have null hours and some callers don't guard.
   if (!hours || typeof hours !== 'object') return 'Closed today'
   const entry = hours[clinicWeekdayKey(timeZone)]
   if (!entry || entry.closed) return 'Closed today'
+  if (entry.byAppointment) return 'By appointment today'
   if (!entry.open || !entry.close) return 'Hours by appointment'
   return `Open today · ${fmt12(entry.open)} – ${fmt12(entry.close)}`
 }

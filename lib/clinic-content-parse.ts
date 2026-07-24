@@ -266,6 +266,9 @@ export interface HoursEntry {
   open?: string | null
   close?: string | null
   closed?: boolean
+  /** "By appointment only" — shown instead of a time; generates no self-serve
+   *  online booking slots (a no-open/close day is already `day_closed`). */
+  byAppointment?: boolean
 }
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
@@ -282,10 +285,16 @@ export function parseHours(formData: FormData): Record<Day, HoursEntry> | null {
   let touched = false
   for (const day of DAYS) {
     const closed = formData.get(`hours[${day}].closed`) === 'on'
+    const byAppointment = formData.get(`hours[${day}].byAppointment`) === 'on'
     const open = formData.get(`hours[${day}].open`)?.toString().trim() ?? ''
     const close = formData.get(`hours[${day}].close`)?.toString().trim() ?? ''
+    // Precedence: closed > by-appointment > timed. A by-appointment day carries
+    // no open/close, so booking treats it as day_closed (no online slots).
     if (closed) {
       out[day] = { closed: true }
+      touched = true
+    } else if (byAppointment) {
+      out[day] = { byAppointment: true }
       touched = true
     } else if (open || close) {
       if (open && !HHMM.test(open)) throw new Error(`Invalid open time for ${day}`)

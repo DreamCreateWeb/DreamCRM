@@ -27,14 +27,15 @@ interface HoursEntry {
   open?: string | null
   close?: string | null
   closed?: boolean
+  byAppointment?: boolean
 }
 
 /** Pure validity check for one day, reused by the test + the UI.
- *  A fully-blank day that isn't marked closed is fine (it just has no hours —
- *  renders as "—"). We only flag a PARTIAL entry (one of open/close set, not the
- *  other) or an inverted range (open ≥ close). */
-export function dayHoursError(open: string, close: string, closed: boolean): string | null {
-  if (closed) return null
+ *  A fully-blank day that isn't marked closed/by-appointment is fine (it just
+ *  has no hours — renders as "—"). We only flag a PARTIAL entry (one of
+ *  open/close set, not the other) or an inverted range (open ≥ close). */
+export function dayHoursError(open: string, close: string, hideTimes: boolean): string | null {
+  if (hideTimes) return null
   const hasOpen = !!open
   const hasClose = !!close
   if (!hasOpen && !hasClose) return null // no hours set for this day — valid
@@ -52,18 +53,23 @@ export default function HoursEditor({
   const [closedDays, setClosedDays] = useState<Record<string, boolean>>(
     Object.fromEntries(DAYS.map((d) => [d.id, !!init[d.id]?.closed])),
   )
+  const [apptDays, setApptDays] = useState<Record<string, boolean>>(
+    Object.fromEntries(DAYS.map((d) => [d.id, !!init[d.id]?.byAppointment])),
+  )
   const [open, setOpen] = useState<Record<string, string>>(
-    Object.fromEntries(DAYS.map((d) => [d.id, init[d.id]?.closed ? '' : init[d.id]?.open ?? ''])),
+    Object.fromEntries(DAYS.map((d) => [d.id, init[d.id]?.closed || init[d.id]?.byAppointment ? '' : init[d.id]?.open ?? ''])),
   )
   const [close, setClose] = useState<Record<string, string>>(
-    Object.fromEntries(DAYS.map((d) => [d.id, init[d.id]?.closed ? '' : init[d.id]?.close ?? ''])),
+    Object.fromEntries(DAYS.map((d) => [d.id, init[d.id]?.closed || init[d.id]?.byAppointment ? '' : init[d.id]?.close ?? ''])),
   )
 
   return (
     <div className="space-y-1.5">
       {DAYS.map(({ id, label }) => {
         const isClosed = closedDays[id]
-        const err = dayHoursError(open[id] ?? '', close[id] ?? '', isClosed)
+        const isAppt = apptDays[id]
+        const hideTimes = isClosed || isAppt
+        const err = dayHoursError(open[id] ?? '', close[id] ?? '', hideTimes)
         return (
           <div key={id}>
             <div className="flex items-center gap-2.5">
@@ -73,9 +79,9 @@ export default function HoursEditor({
               <input
                 type="time"
                 name={`hours[${id}].open`}
-                value={isClosed ? '' : open[id] ?? ''}
+                value={hideTimes ? '' : open[id] ?? ''}
                 onChange={(e) => setOpen((s) => ({ ...s, [id]: e.target.value }))}
-                disabled={isClosed}
+                disabled={hideTimes}
                 aria-label={`${label} open`}
                 aria-invalid={!!err}
                 className={`form-input text-sm py-1 disabled:opacity-40 ${err ? 'border-rose-400' : ''}`}
@@ -84,19 +90,40 @@ export default function HoursEditor({
               <input
                 type="time"
                 name={`hours[${id}].close`}
-                value={isClosed ? '' : close[id] ?? ''}
+                value={hideTimes ? '' : close[id] ?? ''}
                 onChange={(e) => setClose((s) => ({ ...s, [id]: e.target.value }))}
-                disabled={isClosed}
+                disabled={hideTimes}
                 aria-label={`${label} close`}
                 aria-invalid={!!err}
                 className={`form-input text-sm py-1 disabled:opacity-40 ${err ? 'border-rose-400' : ''}`}
               />
+              {/* Checkboxes are mutually exclusive — checking one clears the
+                  other. Both post as `'on'`; parseHours precedence is
+                  closed > by-appointment > timed. */}
               <label className="flex items-center gap-1.5 text-[12px] text-gray-500 dark:text-gray-400 ml-auto">
+                <input
+                  type="checkbox"
+                  name={`hours[${id}].byAppointment`}
+                  checked={isAppt}
+                  onChange={(e) => {
+                    const on = e.target.checked
+                    setApptDays((s) => ({ ...s, [id]: on }))
+                    if (on) setClosedDays((s) => ({ ...s, [id]: false }))
+                  }}
+                  className="form-checkbox"
+                />
+                By appt
+              </label>
+              <label className="flex items-center gap-1.5 text-[12px] text-gray-500 dark:text-gray-400">
                 <input
                   type="checkbox"
                   name={`hours[${id}].closed`}
                   checked={isClosed}
-                  onChange={(e) => setClosedDays((s) => ({ ...s, [id]: e.target.checked }))}
+                  onChange={(e) => {
+                    const on = e.target.checked
+                    setClosedDays((s) => ({ ...s, [id]: on }))
+                    if (on) setApptDays((s) => ({ ...s, [id]: false }))
+                  }}
                   className="form-checkbox"
                 />
                 Closed

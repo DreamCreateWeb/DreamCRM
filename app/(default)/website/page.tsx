@@ -639,7 +639,9 @@ function todayHoursLabel(hours: Record<string, HoursGridEntry>, timeZone: string
     day = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(new Date()).toLowerCase()
   }
   const entry = hours[day]
-  if (!entry || entry.closed || !entry.open || !entry.close) return 'Closed today'
+  if (!entry || entry.closed) return 'Closed today'
+  if (entry.byAppointment) return 'By appointment today'
+  if (!entry.open || !entry.close) return 'Closed today'
   return `Today ${to12h(entry.open)}–${to12h(entry.close)}`
 }
 

@@ -72,6 +72,25 @@ time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
   utilities, and never the library query). Then (same session) the
   announcement bar shipped as task #24's slice.
 
+- **Hours: per-day "By appointment only" (2026-07-24).** Owner ask: a day
+  should be markable "By appointment only" — no time shown, just the phrase.
+  Third per-day hours mode alongside Open/Closed. `HoursEntry` gains
+  `byAppointment?`; `parseHours` reads a `hours[<day>].byAppointment`
+  checkbox with precedence closed > by-appointment > timed (a by-appt day
+  carries no open/close, so booking's existing `!entry.open` guard already
+  yields NO self-serve slots — zero booking change; JSON-LD
+  openingHoursSpecification already skips no-range days, so it stays out of
+  structured hours, correct SEO). ONE shared `hoursEntryDisplay(entry)` in
+  clinic-site-helpers.ts now renders every per-day hours line (replaced the
+  five divergent inline ternaries: modern/cosmetic/pediatric/hometown
+  footers + the hometown hours card) → 'Closed' | 'By appointment only' |
+  '8:00 AM – 5:00 PM' | '—'; `todaysHoursLabel` + the hub Hours state line
+  say "By appointment today". Both hours editors got the option: the
+  settings/quick-edit HoursGrid is now a 3-way segmented control
+  (Open/By appt/Closed, violet for by-appt), the Studio inline HoursEditor
+  a mutually-exclusive "By appt"/"Closed" checkbox pair. Tests: parseHours
+  precedence + stray-time drop, hoursEntryDisplay matrix, todaysHoursLabel.
+
 - **Website announcement bar — the front desk's most urgent edit
   (2026-07-24).** The one frequent website edit we couldn't do:
   "Closed Dec 24–26", "Now accepting Delta Dental", "We've moved". Migration

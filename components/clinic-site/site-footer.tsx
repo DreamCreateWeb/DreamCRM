@@ -6,7 +6,7 @@ import type { ClinicService } from '@/lib/types/clinic-content'
 import {
   DAYS,
   DAY_LABEL,
-  fmt12,
+  hoursEntryDisplay,
   type HoursMap,
   type SiteNavLink,
 } from '@/lib/clinic-site-helpers'
@@ -215,11 +215,7 @@ export default function SiteFooter({
                       >
                         <span style={{ color: FOOTER_MUTED }}>{DAY_LABEL[day]}</span>
                         <span className="text-right" style={{ color: FOOTER_INK }}>
-                          {entry.closed
-                            ? 'Closed'
-                            : entry.open && entry.close
-                              ? `${fmt12(entry.open)} – ${fmt12(entry.close)}`
-                              : '—'}
+                          {hoursEntryDisplay(entry)}
                         </span>
                       </li>
                     )

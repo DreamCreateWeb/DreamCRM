@@ -10,16 +10,19 @@ import { useState } from 'react'
  *   - a per-day Open/Closed toggle that collapses the time inputs when Closed,
  *   - cleaner alignment.
  *
- * It persists EXACTLY the shape the old grid did — one field per day named
- * `hours[<day>].closed` (a checkbox that submits `'on'` when checked),
- * `hours[<day>].open`, and `hours[<day>].close` (HH:MM `<input type=time>`) —
- * so `parseHours(formData)` reads it unchanged. Booking slot math + appointment
- * emails read the resulting `clinic_profile.hours` jsonb, so the stored shape
- * MUST stay `{ mon: { open, close } | { closed:true }, … }` for all 7 keys.
+ * Three per-day modes via a segmented control: Open (a timed range), By appt
+ * ("By appointment only" — no time, no online slots), or Closed. The hidden
+ * form fields the parser reads are `hours[<day>].closed` and
+ * `hours[<day>].byAppointment` (checkboxes → `'on'`), plus
+ * `hours[<day>].open`/`.close` (HH:MM `<input type=time>`), so
+ * `parseHours(formData)` reads it unchanged. Booking slot math + appointment
+ * emails read the resulting `clinic_profile.hours` jsonb; the stored shape is
+ * `{ mon: { open, close } | { closed:true } | { byAppointment:true }, … }`.
  *
- * Closed days deliberately still render their time inputs in the DOM (blanked +
- * hidden) so a day flipped back to Open keeps whatever times were there; and the
- * `.closed` checkbox is always present so the parser sees the closed flag.
+ * Non-Open days deliberately still render their time inputs in the DOM (blanked
+ * + hidden) so a day flipped back to Open keeps whatever times were there; the
+ * closed + byAppointment checkboxes are always present so the parser sees the
+ * mode.
  */
 
 const DAYS = [
@@ -33,20 +36,28 @@ const DAYS = [
 ] as const
 
 type DayId = (typeof DAYS)[number]['id']
+type DayMode = 'open' | 'appt' | 'closed'
 
 interface DayState {
   open: string
   close: string
-  closed: boolean
+  mode: DayMode
 }
 
 export interface HoursGridEntry {
   open?: string | null
   close?: string | null
   closed?: boolean
+  byAppointment?: boolean
 }
 
 const WEEKDAY_IDS: DayId[] = ['mon', 'tue', 'wed', 'thu', 'fri']
+
+function entryMode(e: HoursGridEntry | undefined): DayMode {
+  if (e?.closed) return 'closed'
+  if (e?.byAppointment) return 'appt'
+  return 'open'
+}
 
 export default function HoursGrid({
   initial,
@@ -57,10 +68,11 @@ export default function HoursGrid({
     const out = {} as Record<DayId, DayState>
     for (const { id } of DAYS) {
       const e = initial[id]
+      const mode = entryMode(e)
       out[id] = {
-        open: e?.closed ? '' : e?.open ?? '',
-        close: e?.closed ? '' : e?.close ?? '',
-        closed: !!e?.closed,
+        open: mode === 'open' ? e?.open ?? '' : '',
+        close: mode === 'open' ? e?.close ?? '' : '',
+        mode,
       }
     }
     return out
@@ -76,7 +88,7 @@ export default function HoursGrid({
       const next = { ...prev }
       for (const id of targets) {
         if (id === 'mon') continue
-        next[id] = { open: src.open, close: src.close, closed: src.closed }
+        next[id] = { open: src.open, close: src.close, mode: src.mode }
       }
       return next
     })
@@ -105,6 +117,7 @@ export default function HoursGrid({
       <div className="space-y-1.5">
         {DAYS.map(({ id, label }) => {
           const d = days[id]
+          const isOpen = d.mode === 'open'
           return (
             <div
               key={id}
@@ -114,72 +127,87 @@ export default function HoursGrid({
                 {label}
               </span>
 
-              {/* Open ⇄ Closed toggle. The hidden checkbox is the real form field
-                  the parser reads; this segmented control drives it. */}
+              {/* Open / By appt / Closed. The two hidden checkboxes are the real
+                  form fields the parser reads; this segmented control drives
+                  them (mutually exclusive — only one is ever 'on'). */}
               <input
                 type="checkbox"
                 name={`hours[${id}].closed`}
-                checked={d.closed}
-                onChange={(e) => patch(id, { closed: e.target.checked })}
+                checked={d.mode === 'closed'}
+                readOnly
                 className="sr-only"
+                tabIndex={-1}
+              />
+              <input
+                type="checkbox"
+                name={`hours[${id}].byAppointment`}
+                checked={d.mode === 'appt'}
+                readOnly
+                className="sr-only"
+                tabIndex={-1}
               />
               <div className="inline-flex overflow-hidden rounded-[var(--r-pill)] border border-gray-300 dark:border-gray-600 text-xs">
-                <button
-                  type="button"
-                  onClick={() => patch(id, { closed: false })}
-                  aria-pressed={!d.closed}
-                  className={`px-2.5 py-1 font-medium transition ${
-                    !d.closed
-                      ? 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
-                      : 'text-gray-500 hover:bg-gray-500/[0.08] dark:hover:bg-white/[0.06]'
-                  }`}
-                >
-                  Open
-                </button>
-                <button
-                  type="button"
-                  onClick={() => patch(id, { closed: true })}
-                  aria-pressed={d.closed}
-                  className={`border-l border-gray-300 dark:border-gray-600 px-2.5 py-1 font-medium transition ${
-                    d.closed
-                      ? 'bg-gray-500/15 text-gray-700 dark:text-gray-200'
-                      : 'text-gray-500 hover:bg-gray-500/[0.08] dark:hover:bg-white/[0.06]'
-                  }`}
-                >
-                  Closed
-                </button>
+                {([
+                  { m: 'open', label: 'Open' },
+                  { m: 'appt', label: 'By appt' },
+                  { m: 'closed', label: 'Closed' },
+                ] as const).map(({ m, label: ml }, i) => {
+                  const active = d.mode === m
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => patch(id, { mode: m })}
+                      aria-pressed={active}
+                      className={`${i > 0 ? 'border-l border-gray-300 dark:border-gray-600' : ''} px-2.5 py-1 font-medium transition ${
+                        active
+                          ? m === 'open'
+                            ? 'bg-teal-500/15 text-teal-700 dark:text-teal-300'
+                            : m === 'appt'
+                              ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300'
+                              : 'bg-gray-500/15 text-gray-700 dark:text-gray-200'
+                          : 'text-gray-500 hover:bg-gray-500/[0.08] dark:hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      {ml}
+                    </button>
+                  )
+                })}
               </div>
 
-              {/* Time inputs collapse when Closed. Kept mounted (hidden) so a
-                  re-open restores the prior times; blanked so a closed day never
-                  submits stray open/close values alongside the closed flag. */}
+              {/* Time inputs show only for Open. Kept mounted (hidden) otherwise
+                  so a re-open restores the prior times; blanked so a non-Open
+                  day never submits stray open/close values alongside its flag. */}
               <div
                 className={`flex items-center gap-2 transition-opacity ${
-                  d.closed ? 'pointer-events-none opacity-0 select-none' : 'opacity-100'
+                  isOpen ? 'opacity-100' : 'pointer-events-none opacity-0 select-none'
                 }`}
-                aria-hidden={d.closed}
+                aria-hidden={!isOpen}
               >
                 <input
                   name={`hours[${id}].open`}
                   type="time"
-                  value={d.closed ? '' : d.open}
+                  value={isOpen ? d.open : ''}
                   onChange={(e) => patch(id, { open: e.target.value })}
-                  disabled={d.closed}
+                  disabled={!isOpen}
                   className="form-input w-32 font-mono-num tabular-nums"
                 />
                 <span className="text-xs text-gray-400">to</span>
                 <input
                   name={`hours[${id}].close`}
                   type="time"
-                  value={d.closed ? '' : d.close}
+                  value={isOpen ? d.close : ''}
                   onChange={(e) => patch(id, { close: e.target.value })}
-                  disabled={d.closed}
+                  disabled={!isOpen}
                   className="form-input w-32 font-mono-num tabular-nums"
                 />
               </div>
 
-              {d.closed && (
+              {d.mode === 'closed' && (
                 <span className="text-xs text-gray-400 dark:text-gray-500">Closed all day</span>
+              )}
+              {d.mode === 'appt' && (
+                <span className="text-xs text-violet-600 dark:text-violet-300">By appointment only</span>
               )}
             </div>
           )

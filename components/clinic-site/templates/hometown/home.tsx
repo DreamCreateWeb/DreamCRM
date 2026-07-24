@@ -14,7 +14,7 @@ import {
   type HoursMap,
   DAYS,
   DAY_LABEL,
-  fmt12,
+  hoursEntryDisplay,
 } from '@/lib/clinic-site-helpers'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { EditText, EditImage, EditModal } from '@/components/clinic-site/editable'
@@ -230,9 +230,7 @@ export default function HometownHome(props: HomePageProps) {
                         <span className="font-semibold" style={{ color: SITE_DEEP_MUTED }}>
                           {DAY_LABEL[day].slice(0, 3).toUpperCase()}
                         </span>
-                        <span className="whitespace-nowrap">
-                          {h && !h.closed && h.open && h.close ? `${fmt12(h.open)} – ${fmt12(h.close)}` : 'Closed'}
-                        </span>
+                        <span className="text-right">{hoursEntryDisplay(h)}</span>
                       </li>
                     )
                   })}
