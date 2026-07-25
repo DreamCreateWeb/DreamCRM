@@ -44,7 +44,6 @@ import {
 } from '@/lib/services/patient-views'
 import { normalizeViewFilters, type SavedViewFilters } from '@/lib/types/patient-views'
 import { createAudience } from '@/lib/services/marketing'
-import { planAllows } from '@/lib/modules'
 import { MAX_DOCUMENT_BYTES } from '@/lib/types/patient-documents'
 import { uploadBlob } from '@/lib/blob'
 import {
@@ -372,9 +371,6 @@ export async function promoteFiltersToAudienceAction(
 ): Promise<{ ok: true; audienceId: number; dropped: string[] } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Only clinic tenants can build audiences' }
-  if (!planAllows(ctx.planTier, 'premium')) {
-    return { ok: false, error: 'Audiences + campaigns are on the Premium plan.' }
-  }
   const clean = name.trim().slice(0, 120)
   if (!clean) return { ok: false, error: 'Give the audience a name.' }
   try {

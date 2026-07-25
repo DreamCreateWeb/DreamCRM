@@ -18,6 +18,7 @@ import {
   copyOverride,
   resolveCopyList,
   hasColoringPages,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import InsuranceVerifierForm from '@/components/clinic-site/insurance-verifier-form'
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
@@ -198,8 +199,7 @@ export default async function InsurancePage({ params }: Props) {
   // Contrast-safe text fill for brand-colored headings/eyebrows/glyphs on the
   // warm ground (raw brand stays on backgrounds/tints only).
   const headingInk = readableInk(brand)
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
@@ -217,7 +217,6 @@ export default async function InsurancePage({ params }: Props) {
     // inside the builder against the same flags as everything else.
     extraPages: siteTemplate.extraMarketingPages,
     extraGates: {
-      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
       hasColoringPages: hasColoringPages(data.profile),
     },
     basePath,

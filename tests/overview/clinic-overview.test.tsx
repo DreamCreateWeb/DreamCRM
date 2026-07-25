@@ -537,18 +537,9 @@ describe('New attention cards (money + messages)', () => {
     expect(screen.getByRole('link', { name: /See who owes/i })).toBeInTheDocument()
   })
 
-  it('renders the Unanswered-messages card on pro+ and the Orders card only on premium', async () => {
-    // pro tenant: messages card present, orders card absent.
+  it('renders the Unanswered-messages + Orders cards for every clinic (no plan tiers)', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData({ unreadMessages: 2, paidOrdersUnfulfilled: 5 }))
-    const proUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'pro' }) })
-    const { unmount } = render(proUi)
-    expect(screen.getByText('Unanswered messages')).toBeInTheDocument()
-    expect(screen.queryByText('Orders to fulfill')).not.toBeInTheDocument()
-    unmount()
-
-    // premium tenant: both cards present.
-    mockGetOverview.mockResolvedValueOnce(makeData({ unreadMessages: 2, paidOrdersUnfulfilled: 5 }))
-    const premUi = await ClinicOverview({ ctx: makeCtx({ planTier: 'premium' }) })
+    const premUi = await ClinicOverview({ ctx: makeCtx({}) })
     render(premUi)
     expect(screen.getByText('Unanswered messages')).toBeInTheDocument()
     expect(screen.getByText('Orders to fulfill')).toBeInTheDocument()

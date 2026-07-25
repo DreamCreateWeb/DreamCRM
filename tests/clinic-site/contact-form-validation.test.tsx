@@ -16,7 +16,7 @@ import ContactForm from '@/app/site/[slug]/contact-form'
 
 function renderForm() {
   return render(
-    <ContactForm slug="acme" brand="#2A7F8C" isPro={false} basePath="/site/acme" />,
+    <ContactForm slug="acme" brand="#2A7F8C" selfBooking={false} basePath="/site/acme" />,
   )
 }
 

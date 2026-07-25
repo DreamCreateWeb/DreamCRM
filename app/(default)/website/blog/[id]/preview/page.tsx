@@ -77,7 +77,6 @@ export default async function BlogPreviewPage({ params }: { params: Promise<{ id
 
   const basePath = `/site/${org.slug}`
   const brand = data.profile.brandColor ?? '#9CAF9F'
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
 
   return (
     <div>
@@ -97,7 +96,7 @@ export default async function BlogPreviewPage({ params }: { params: Promise<{ id
           related={related}
           brand={brand}
           basePath={basePath}
-          isPro={isPro}
+          selfBooking={data.profile.selfBookingEnabled !== false}
         />
       </BlogChrome>
     </div>

@@ -74,11 +74,6 @@ function money(cents: number): string {
 }
 
 // Plan gating for tier-locked attention cards (Shop = premium, Messages = pro).
-const PLAN_RANK: Record<string, number> = { basic: 0, pro: 1, premium: 2 }
-function planAtLeast(have: string, need: 'basic' | 'pro' | 'premium'): boolean {
-  return (PLAN_RANK[have] ?? 0) >= PLAN_RANK[need]
-}
-
 // Times + day headers render at the CLINIC's wall-clock — this is a server
 // component, so bare toLocale* would print UTC (formatClinicTime /
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
@@ -92,7 +87,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
   // still showing (not dismissed; auto-hides once everything is done).
   const checklist = onboarding.checklistDismissed
     ? null
-    : await getActivationChecklist(ctx.organizationId, ctx.planTier)
+    : await getActivationChecklist(ctx.organizationId)
   // Presenter mode: a prospect-branded demo shows THEIR practice name on
   // the huddle title (cosmetic overlay; null for everyone but a platform
   // admin inside demo mode).
@@ -313,8 +308,8 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             ))}
           </AttentionCard>
 
-          {/* Unanswered patient messages — the ball is in our court (pro+). */}
-          {planAtLeast(ctx.planTier, 'pro') && (
+          {/* Unanswered patient messages — the ball is in our court . */}
+          {(
             <AttentionCard
               title="Unanswered messages"
               count={data.unreadMessages}
@@ -324,8 +319,8 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             />
           )}
 
-          {/* Follow-ups your team owes a patient — overdue + due today (pro+). */}
-          {planAtLeast(ctx.planTier, 'pro') && (
+          {/* Follow-ups your team owes a patient — overdue + due today . */}
+          {(
             <AttentionCard
               title="Follow-ups due"
               count={data.followups.overdue + data.followups.dueToday}
@@ -356,8 +351,8 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             </AttentionCard>
           )}
 
-          {/* Paid shop orders still to fulfill — your move (premium). */}
-          {planAtLeast(ctx.planTier, 'premium') && (
+          {/* Paid shop orders still to fulfill — your move . */}
+          {(
             <AttentionCard
               title="Orders to fulfill"
               count={data.paidOrdersUnfulfilled}

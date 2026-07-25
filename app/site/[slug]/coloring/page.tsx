@@ -13,6 +13,7 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
   hasColoringPages,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import ColoringGallery from './coloring-gallery'
@@ -66,8 +67,7 @@ export default async function ColoringPage({ params }: Props) {
     getOpenJobs(data.orgId),
   ])
   const { profile } = data
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } =
@@ -76,7 +76,7 @@ export default async function ColoringPage({ params }: Props) {
 
   const navLinks = buildClinicNavLinks({
     extraPages: siteTemplate.extraMarketingPages,
-    extraGates: { isPro, hasColoringPages: hasColoringPages(profile) },
+    extraGates: { hasColoringPages: hasColoringPages(profile) },
     basePath,
     hasBlog: publishedPosts.length > 0,
     hasDentalPlans: membershipPlans.length > 0,

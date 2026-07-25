@@ -17,7 +17,7 @@ interface Props {
   related: BlogPost[]
   brand: string
   basePath: string
-  isPro: boolean
+  selfBooking: boolean
 }
 
 function fmtDate(d: Date | null): string {
@@ -54,11 +54,11 @@ function bylineSuffix(person: ClinicStaff): string {
   return person.title ? `, ${person.title}` : ''
 }
 
-export default function BlogArticle({ post, author, reviewer, related, brand, basePath, isPro }: Props) {
+export default function BlogArticle({ post, author, reviewer, related, brand, basePath, selfBooking }: Props) {
   const clean = sanitizeBlogHtml(post.bodyHtml)
   const [firstHalf, secondHalf] = splitForCta(clean)
   const faq = ((post.faq as BlogFaqItem[] | null) ?? []).filter((f) => f?.q && f?.a)
-  const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
+  const bookHref = selfBooking ? `${basePath}/book` : `${basePath}#contact`
   // Contrast-safe text fill for brand-colored prose headings/links/eyebrows on
   // the warm ground (raw brand stays on backgrounds/avatar chips/icon strokes).
   const headingInk = readableInk(brand)

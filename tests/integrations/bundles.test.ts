@@ -109,7 +109,7 @@ describe('active-state derive (pure)', () => {
 
 describe('applyBundleGate — sidebar wiring against the real clinic registry', () => {
   // A Premium owner sees the widest registry (before the bundle gate).
-  const premium = () => getVisibleModules('clinic', 'premium', 'owner')
+  const premium = () => getVisibleModules('clinic', 'owner')
   const ids = (set: ReadonlySet<BundleId>) => new Set(applyBundleGate(premium(), set).map((m) => m.id))
 
   // Social Posts folded into the Growth workspace (its hub door reflects
@@ -138,7 +138,7 @@ describe('applyBundleGate — sidebar wiring against the real clinic registry', 
   })
 
   it('the gate is a no-op for tenants with no requiresBundle modules (platform)', () => {
-    const platform = getVisibleModules('platform', 'premium', 'owner')
+    const platform = getVisibleModules('platform', 'owner')
     expect(applyBundleGate(platform, new Set()).length).toBe(platform.length)
   })
 

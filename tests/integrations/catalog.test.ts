@@ -124,7 +124,6 @@ describe('catalog — the REAL integrations are present (honest, no fake bulk)',
     const od = integrationById('open_dental')!
     expect(od.availability).toBe('live')
     expect(od.connectKind).toBe('pms')
-    expect(od.minPlan).toBe('premium')
     expect(od.detailHref).toBe('/integrations/open-dental')
   })
 
@@ -132,7 +131,6 @@ describe('catalog — the REAL integrations are present (honest, no fake bulk)',
     const gbp = integrationById('googlebusiness')!
     expect(gbp.availability).toBe('live')
     expect(gbp.connectKind).toBe('zernio')
-    expect(gbp.minPlan).toBeUndefined()
     expect(gbp.countsTowardSocialCap).toBeFalsy()
     expect(gbp.detailHref).toBe('/integrations/google-business')
   })

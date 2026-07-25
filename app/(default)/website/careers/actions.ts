@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import {
   createJob,
   updateJob,
@@ -24,9 +23,6 @@ async function ensureClinicAdmin() {
   // Careers is Premium-tier (lib/modules/clinic.ts) — block below-tier clinics
   // from firing the action even if they reach it by deep-link. Platform-admin
   // demo contexts inherit the demo org's tier (premium), so they pass.
-  if (!planAllows(ctx.planTier, 'premium')) {
-    throw new Error('Careers is on the Premium plan. Upgrade to manage job postings.')
-  }
   return ctx
 }
 

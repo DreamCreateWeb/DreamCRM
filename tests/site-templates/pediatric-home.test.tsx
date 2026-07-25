@@ -10,7 +10,6 @@ import type { ClinicSiteData } from '@/lib/services/clinic-site'
 
 function props(data: ClinicSiteData, over: Partial<HomePageProps> = {}): HomePageProps {
   const staff = (data.profile.staff as unknown[] | null) ?? []
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   return {
     data,
     basePath: '/site/fixture-dental',
@@ -21,10 +20,9 @@ function props(data: ClinicSiteData, over: Partial<HomePageProps> = {}): HomePag
       hasCareers: false,
       hasDentalPlans: false,
       hasColoringPages: false,
-      isPro,
-      selfBooking: true,
+      selfBooking: false,
     },
-    bookHref: isPro ? '/site/fixture-dental/book' : '/site/fixture-dental#contact',
+    bookHref: '/site/fixture-dental#contact',
     bookLabel: pediatricTemplate.bookLabel,
     recentPosts: [],
     reviewCount: 0,

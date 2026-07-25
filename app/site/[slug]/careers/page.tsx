@@ -17,6 +17,7 @@ import {
   navServicesFromClinicServices,
   copyOverride,
   hasColoringPages,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
@@ -111,8 +112,7 @@ export default async function ClinicCareersPage({ params }: Props) {
   const hasTeam = ((data.profile.staff as ClinicStaff[] | null) ?? []).length > 0
   const cityState = [data.primaryLocation?.city, data.primaryLocation?.state].filter(Boolean).join(', ')
 
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = isSelfBookingEnabled(data.profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
@@ -123,7 +123,6 @@ export default async function ClinicCareersPage({ params }: Props) {
     // inside the builder against the same flags as everything else.
     extraPages: siteTemplate.extraMarketingPages,
     extraGates: {
-      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
       hasColoringPages: hasColoringPages(data.profile),
     },
     basePath,

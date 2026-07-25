@@ -94,6 +94,9 @@ interface Props {
    *  numbers that feed the JSON-LD AggregateRating. Surfaced as a star badge in
    *  the hero when there are enough real reviews. Null/absent → no badge. */
   googleRating?: { average: number | null; count: number } | null
+  /** Whether the clinic offers live self-scheduling. False → the Book CTAs
+   *  anchor to the on-page contact form (which only renders in that case). */
+  selfBooking?: boolean
 }
 
 /**
@@ -113,7 +116,9 @@ export function formatReviewCount(n: number): string {
   return `${Math.floor(n / 1000)}k+`
 }
 
-export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false, featuredGoogleReviews = [], googleRating = null }: Props) {
+export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = false, recentPosts = [], reviewCount = 0, hasDentalPlans = false, hasCareers = false, hasTeam = false, featuredGoogleReviews = [], googleRating = null,
+  selfBooking = true,
+}: Props) {
   const { profile, primaryLocation } = data
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F' // sage default — warm neutral, not clinical blue
@@ -127,7 +132,6 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
     googleRating != null &&
     googleRating.average != null &&
     googleRating.count >= GOOGLE_RATING_MIN_COUNT
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   const heroImageUrl = profile.heroImageUrl ?? null
   // Full service list (drives the nav dropdowns); `services` stays capped at 6
   // for the hero body composition below.
@@ -196,7 +200,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
   )
   const mapEmbedSrc = `https://www.google.com/maps?q=${mapQuery}&output=embed`
   const mapDirectionsHref = `https://www.google.com/maps/dir/?api=1&destination=${mapQuery}`
-  const bookHref = isPro ? `${basePath}/book` : `${basePath}#contact`
+  const bookHref = selfBooking ? `${basePath}/book` : `${basePath}#contact`
   const bookLabel = 'Book a Visit'
   // Patient "Login" → THIS clinic's patient portal, never the platform staff
   // sign-in (the page passes signInUrl; this is just a safe fallback).
@@ -1591,10 +1595,10 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
       {/* ── Contact form — basic tier only ─────────────────────────────── */}
       {/* Pro/premium clinics route every Book CTA to the /book slot picker,
           so they don't need an on-page form (and Tend's homepage has none —
-          booking is always the widget). Basic-tier clinics have no /book,
-          so their Book CTAs anchor here to the contact form, which is their
+          booking is always the widget). Clinics with self-scheduling OFF
+          anchor their Book CTAs here to the contact form, which is their
           only inbound-request channel. */}
-      {!isPro && (
+      {!selfBooking && (
         <section
           id="contact"
           className="py-16 sm:py-28"
@@ -1629,7 +1633,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 {copyOverride(copyOverrides, 'home.contactIntro', "Fill out the form and we'll be in touch to confirm your visit.")}
               </p>
               <div
-                {...(!isPro
+                {...(!selfBooking
                   ? {
                       'data-edit-field': 'contact',
                       'data-edit-kind': 'modal',
@@ -1640,7 +1644,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <ContactForm
                   slug={data.slug}
                   brand={brand}
-                  isPro={isPro}
+                  selfBooking={selfBooking}
                   basePath={basePath}
                   fields={contactFormFields}
                   services={services.length > 0 ? services.map((s) => s.name) : null}

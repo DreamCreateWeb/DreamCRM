@@ -42,7 +42,6 @@ export interface ActivationTaskDef {
   label: string
   body: string
   href: string
-  minPlan?: PlanTier
 }
 
 export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
@@ -81,42 +80,36 @@ export const ACTIVATION_TASK_DEFS: ActivationTaskDef[] = [
     label: 'Add your first patients',
     body: 'Add a few by hand, or connect your PMS later and they sync in on their own.',
     href: '/patients',
-    minPlan: 'pro',
   },
   {
     id: 'connect_inbox',
     label: 'Connect your clinic inbox',
     body: 'Link your Gmail and patient email lands next to everything else — no tab juggling.',
     href: '/inbox',
-    minPlan: 'pro',
   },
   {
     id: 'portal_setup',
     label: 'Shape your patient portal',
     body: 'Choose what patients can do online, set your notice windows, and preview it as a patient.',
     href: '/settings/portal',
-    minPlan: 'pro',
   },
   {
     id: 'reviews_setup',
     label: 'Turn on review collection',
     body: 'Add your Google link once — happy patients become public reviews from then on.',
     href: '/growth/reviews',
-    minPlan: 'pro',
   },
   {
     id: 'connect_pms',
     label: 'Connect Open Dental',
     body: 'Patients, visits, and balances sync two-way through the official API.',
     href: '/integrations',
-    minPlan: 'premium',
   },
   {
     id: 'open_shop',
     label: 'Stock your shop',
     body: 'Whitening kits and membership plans, sold from your site, paid out to your bank.',
     href: '/shop',
-    minPlan: 'premium',
   },
 ]
 

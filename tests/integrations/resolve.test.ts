@@ -15,7 +15,6 @@ import { integrationById, type IntegrationDef } from '@/lib/integrations/catalog
 
 function state(overrides: Partial<LiveIntegrationState> = {}): LiveIntegrationState {
   return {
-    pmsEligible: true,
     zernioConfigured: true,
     connections: {},
     socialCap: { allowed: true, limit: 5, current: 0 },
@@ -35,7 +34,6 @@ describe('resolveIntegration — connected states win', () => {
     const r = resolveIntegration(
       GBP,
       state({ connections: { googlebusiness: { connected: true, title: 'Dream Dental', handle: 'dream-dental' } } }),
-      'premium',
     )
     expect(r.runtime.status).toBe('connected')
     expect(r.runtime.connected).toBe(true)
@@ -47,24 +45,22 @@ describe('resolveIntegration — connected states win', () => {
     const r = resolveIntegration(
       OD,
       state({ connections: { open_dental: { connected: true, errored: true, title: 'Open Dental' } } }),
-      'premium',
     )
     expect(r.runtime.status).toBe('needs_attention')
     expect(r.runtime.connected).toBe(true)
   })
 
-  it('a connection wins even if the plan would otherwise lock it', () => {
-    // Open Dental connected but pmsEligible false (e.g. downgraded) — still shown connected.
+  it('a live connection always shows as connected', () => {
+    // A live connection always wins.
     const r = resolveIntegration(
       OD,
-      state({ pmsEligible: false, connections: { open_dental: { connected: true, title: 'OD' } } }),
-      'basic',
+      state({connections: { open_dental: { connected: true, title: 'OD' } } }),
     )
     expect(r.runtime.status).toBe('connected')
   })
 
   it('errored but NOT connected (e.g. a dropped GBP / restricted Stripe) → needs_attention, connected:false', () => {
-    const r = resolveIntegration(GBP, state({ connections: { googlebusiness: { connected: false, errored: true } } }), 'premium')
+    const r = resolveIntegration(GBP, state({ connections: { googlebusiness: { connected: false, errored: true } } }))
     expect(r.runtime.status).toBe('needs_attention')
     expect(r.runtime.connected).toBe(false)
   })
@@ -73,7 +69,6 @@ describe('resolveIntegration — connected states win', () => {
     const r = resolveIntegration(
       OD,
       state({ connections: { open_dental: { connected: true, isDemo: true, title: 'Sandbox' } } }),
-      'premium',
     )
     expect(r.runtime.isDemo).toBe(true)
   })
@@ -81,49 +76,44 @@ describe('resolveIntegration — connected states win', () => {
 
 describe('resolveIntegration — lifecycle (not connectable)', () => {
   it('coming_soon def → coming_soon status', () => {
-    expect(resolveIntegration(SMS, state(), 'premium').runtime.status).toBe('coming_soon')
+    expect(resolveIntegration(SMS, state()).runtime.status).toBe('coming_soon')
   })
 
   it('request_access def → request_access status', () => {
-    expect(resolveIntegration(ASCEND, state(), 'premium').runtime.status).toBe('request_access')
+    expect(resolveIntegration(ASCEND, state()).runtime.status).toBe('request_access')
   })
 })
 
-describe('resolveIntegration — plan gating', () => {
-  it('PMS-kind + not eligible → premium_locked', () => {
-    expect(resolveIntegration(OD, state({ pmsEligible: false }), 'basic').runtime.status).toBe('premium_locked')
+describe('resolveIntegration — no plan gating (single-plan reality)', () => {
+  it('PMS-kind + not connected → available (no tier can lock it)', () => {
+    expect(resolveIntegration(OD, state()).runtime.status).toBe('available')
   })
 
-  it('PMS-kind + eligible + not connected → available', () => {
-    expect(resolveIntegration(OD, state({ pmsEligible: true }), 'premium').runtime.status).toBe('available')
-  })
-
-  it('a generic minPlan def below the plan → premium_locked', () => {
-    const fakeDef: IntegrationDef = { ...GMAIL, id: 'fake_pro_only', minPlan: 'pro', connectKind: 'oauth' }
-    expect(resolveIntegration(fakeDef, state(), 'basic').runtime.status).toBe('premium_locked')
-    expect(resolveIntegration(fakeDef, state(), 'pro').runtime.status).toBe('available')
+  it('an oauth def + not connected → available', () => {
+    const fakeDef: IntegrationDef = { ...GMAIL, id: 'fake_oauth', connectKind: 'oauth' }
+    expect(resolveIntegration(fakeDef, state()).runtime.status).toBe('available')
   })
 })
 
 describe('resolveIntegration — connectability', () => {
   it('zernio-kind + instance not configured → unavailable', () => {
-    expect(resolveIntegration(GBP, state({ zernioConfigured: false }), 'premium').runtime.status).toBe('unavailable')
+    expect(resolveIntegration(GBP, state({ zernioConfigured: false })).runtime.status).toBe('unavailable')
   })
 
   it('zernio-kind GBP + configured + not connected → available (never cap-gated)', () => {
-    const r = resolveIntegration(GBP, state({ socialCap: { allowed: false, limit: 0, current: 0 } }), 'premium')
+    const r = resolveIntegration(GBP, state({ socialCap: { allowed: false, limit: 0, current: 0 } }))
     expect(r.runtime.status).toBe('available')
   })
 
   it('social channel under the cap → available', () => {
-    expect(resolveIntegration(IG, state({ socialCap: { allowed: true, limit: 5, current: 1 } }), 'premium').runtime.status).toBe(
+    expect(resolveIntegration(IG, state({ socialCap: { allowed: true, limit: 5, current: 1 } })).runtime.status).toBe(
       'available',
     )
   })
 
   it('social channel at the cap → at_cap', () => {
     expect(
-      resolveIntegration(IG, state({ socialCap: { allowed: false, limit: 5, current: 5 } }), 'premium').runtime.status,
+      resolveIntegration(IG, state({ socialCap: { allowed: false, limit: 5, current: 5 } })).runtime.status,
     ).toBe('at_cap')
   })
 
@@ -131,7 +121,6 @@ describe('resolveIntegration — connectability', () => {
     const r = resolveIntegration(
       GMAIL,
       state({ zernioConfigured: false, socialCap: { allowed: false, limit: 0, current: 0 } }),
-      'basic',
     )
     expect(r.runtime.status).toBe('available')
   })
@@ -139,7 +128,7 @@ describe('resolveIntegration — connectability', () => {
 
 describe('resolveCatalog + connectedCount', () => {
   it('resolves every def in the catalog', () => {
-    const all = resolveCatalog(state(), 'premium')
+    const all = resolveCatalog(state())
     expect(all.length).toBeGreaterThanOrEqual(14)
     for (const r of all) expect(r.runtime.status).toBeTruthy()
   })
@@ -154,15 +143,14 @@ describe('resolveCatalog + connectedCount', () => {
           facebook: { connected: false, errored: true }, // not connected
         },
       }),
-      'premium',
     )
     expect(connectedCount(all)).toBe(3)
   })
 
-  it('a basic clinic sees Open Dental premium_locked but GBP + Gmail available', () => {
-    const all = resolveCatalog(state({ pmsEligible: false }), 'basic')
+  it('every clinic sees Open Dental, GBP + Gmail available (no tiers)', () => {
+    const all = resolveCatalog(state({}))
     const byId = Object.fromEntries(all.map((r) => [r.def.id, r.runtime.status]))
-    expect(byId.open_dental).toBe('premium_locked')
+    expect(byId.open_dental).toBe('available')
     expect(byId.googlebusiness).toBe('available')
     expect(byId.gmail).toBe('available')
   })

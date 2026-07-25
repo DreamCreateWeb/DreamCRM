@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import { db, schema } from '@/lib/db'
 import { getIntegrationsDashboard } from '@/lib/services/pms'
 import { getRequestedPms } from '@/lib/services/pms-interest'
@@ -57,7 +56,6 @@ export default async function IntegrationsPage({
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
   const planTier = ctx.planTier as PlanTier
-  const pmsEligible = planAllows(planTier, 'premium')
 
   const sp = await searchParams
   const one = (v: string | string[] | undefined): string | null =>
@@ -67,7 +65,7 @@ export default async function IntegrationsPage({
   // Gmail + Stripe load for everyone; the PMS dashboard only for Premium (the
   // full PMS dashboard lives on the detail route).
   const [dashboard, zernio, cap, profileRow, shopConfig, gmailRows, requestedPmsSet] = await Promise.all([
-    pmsEligible ? getIntegrationsDashboard(ctx.organizationId) : Promise.resolve(null),
+    getIntegrationsDashboard(ctx.organizationId),
     getZernioConnection(ctx.organizationId),
     canConnectSocialPlatform(ctx.organizationId),
     db
@@ -88,7 +86,7 @@ export default async function IntegrationsPage({
       .limit(5),
     // Roadmap PMSs this clinic has already requested early access to (Premium
     // only — the catalog + request flow are Premium-gated).
-    pmsEligible ? getRequestedPms(ctx.organizationId) : Promise.resolve(new Set<string>()),
+    getRequestedPms(ctx.organizationId),
   ])
 
   const connection = dashboard?.connection ?? null
@@ -155,15 +153,14 @@ export default async function IntegrationsPage({
   }
 
   const liveState: LiveIntegrationState = {
-    pmsEligible,
     zernioConfigured: zernioConfigured(),
     connections,
     socialCap: { allowed: cap.allowed, limit: cap.limit, current: cap.current },
   }
 
-  const resolved = resolveCatalog(liveState, planTier)
+  const resolved = resolveCatalog(liveState)
   // Group the resolved catalog into the feature bundles the UI renders from.
-  const bundles = resolveBundles(resolved, planTier)
+  const bundles = resolveBundles(resolved)
 
   // ── Social entitlement props (cap + add-on) ───────────────────────────────
   const addonActive = profileRow?.socialAddon === 1

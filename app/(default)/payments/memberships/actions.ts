@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import { savePlan, setPlanStatus, deletePlan, markBenefitUsed } from '@/lib/services/membership'
 import type { PlanInput, PlanStatus } from '@/lib/types/membership'
 
@@ -13,9 +12,6 @@ async function ensureClinicAdmin() {
   // Memberships live inside the Premium-tier Shop module (lib/modules/clinic.ts)
   // — block below-tier clinics from the action even via deep-link. Demo
   // contexts inherit the demo org's premium tier, so they pass.
-  if (!planAllows(ctx.planTier, 'premium')) {
-    throw new Error('Shop is on the Premium plan. Upgrade to manage membership plans.')
-  }
   return ctx
 }
 

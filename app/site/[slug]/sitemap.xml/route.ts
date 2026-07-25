@@ -53,8 +53,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   const lastmod = data.profile.updatedAt
     ? new Date(data.profile.updatedAt).toISOString().slice(0, 10)
     : undefined
-  const isPro =
-    data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
+  const selfBooking = data.profile.selfBookingEnabled !== false
 
   const urls: UrlEntry[] = [
     { loc: `${base}/`, lastmod, changefreq: 'weekly', priority: '1.0' },
@@ -77,7 +76,7 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
     { loc: `${base}/privacy`, lastmod, changefreq: 'yearly', priority: '0.3' },
     { loc: `${base}/accessibility`, lastmod, changefreq: 'yearly', priority: '0.3' },
   ]
-  if (isPro) {
+  if (selfBooking) {
     urls.push({ loc: `${base}/book`, lastmod, changefreq: 'monthly', priority: '0.8' })
   }
 
@@ -173,7 +172,6 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
       hasTeam: (((data.profile.staff as unknown[]) ?? []) as unknown[]).length > 0,
       hasCareers: openJobs.length > 0,
       hasDentalPlans: membershipPlans.length > 0,
-      isPro,
       selfBooking: data.profile.selfBookingEnabled !== false,
     }
     for (const p of def.extraMarketingPages) {

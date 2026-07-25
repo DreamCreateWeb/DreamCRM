@@ -104,13 +104,6 @@ export async function dismissHint(
 
 /* ── Activation checklist ───────────────────────────────────────────── */
 
-const PLAN_ORDER: PlanTier[] = ['basic', 'pro', 'premium']
-
-function planAtLeast(plan: PlanTier, min: PlanTier | undefined): boolean {
-  if (!min) return true
-  return PLAN_ORDER.indexOf(plan) >= PLAN_ORDER.indexOf(min)
-}
-
 async function exists(query: Promise<Array<unknown>>): Promise<boolean> {
   return (await query).length > 0
 }
@@ -122,7 +115,6 @@ async function exists(query: Promise<Array<unknown>>): Promise<boolean> {
  */
 export async function getActivationChecklist(
   organizationId: string,
-  planTier: PlanTier,
 ): Promise<ActivationChecklist> {
   const [profileRow] = await db
     .select({
@@ -215,9 +207,7 @@ export async function getActivationChecklist(
     open_shop: hasProduct,
   }
 
-  const tasks: ActivationTask[] = ACTIVATION_TASK_DEFS.filter((t) =>
-    planAtLeast(planTier, t.minPlan),
-  ).map((t) => ({
+  const tasks: ActivationTask[] = ACTIVATION_TASK_DEFS.map((t) => ({
     id: t.id,
     label: t.label,
     body: t.body,

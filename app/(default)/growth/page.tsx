@@ -28,14 +28,11 @@ export default async function GrowthHubPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType === 'platform') redirect('/dashboard')
 
-  const isPro = ctx.planTier === 'pro' || ctx.planTier === 'premium'
-  const isPremium = ctx.planTier === 'premium'
-
   // Best-effort reads — the hub must render even when a stat hiccups.
   const [bundles, reviewStats, reviewsPerWeek] = await Promise.all([
     getActiveBundlesForSidebar(ctx.organizationId).catch(() => new Set<string>()),
-    isPro ? getGoogleReviewStats(ctx.organizationId).catch(() => null) : null,
-    isPro ? getReviewsReceivedPerWeek8(ctx.organizationId).catch(() => []) : [],
+    getGoogleReviewStats(ctx.organizationId).catch(() => null),
+    getReviewsReceivedPerWeek8(ctx.organizationId).catch(() => []),
   ])
   const hasChannel = bundles.has('social') || bundles.has('google')
 
@@ -51,61 +48,31 @@ export default async function GrowthHubPage() {
         {/* Campaigns live INSIDE Recall & Outreach since the phase-3 fold —
             one door for the whole outreach story (automations + campaigns
             with real funnels), not two doors to the same machine. */}
-        {isPremium ? (
-          <SectionCard
-            href="/growth/outreach"
-            icon="megaphone"
-            title="Recall & Outreach"
-            description="Who needs a nudge, the automations that reach them, and your campaigns with real funnels — sent, opened, clicked, booked."
-          />
-        ) : (
-          <UpsellCard
-            upgradeId="recall"
-            icon="megaphone"
-            title="Recall & Outreach"
-            plan="Premium"
-            description="Recall, lapsed, and birthday outreach with set-&-forget automations plus campaigns with real booked-visit funnels."
-          />
-        )}
-        {isPremium ? (
-          <SectionCard
-            href="/growth/audiences"
-            icon="users"
-            title="Audiences"
-            description="Saved patient segments with live counts — the targeting layer every campaign reuses."
-          />
-        ) : (
-          <UpsellCard
-            upgradeId="recall"
-            icon="users"
-            title="Audiences"
-            plan="Premium"
-            description="Saved patient segments with live counts, reusable across campaigns."
-          />
-        )}
-        {isPro ? (
-          <SectionCard
-            href="/growth/reviews"
-            icon="star"
-            title="Reviews"
-            stat={
-              reviewStats && reviewStats.count > 0 && reviewStats.averageRating != null
-                ? `${reviewStats.averageRating.toFixed(1)}★ · ${reviewStats.count} Google review${reviewStats.count === 1 ? '' : 's'}`
-                : undefined
-            }
-            statTone={reviewStats && reviewStats.count > 0 ? 'ok' : undefined}
-            spark={reviewsPerWeek}
-            description="The Google-first review loop — auto-requests after visits, synced reviews, private feedback."
-          />
-        ) : (
-          <UpsellCard
-            upgradeId="reviews"
-            icon="star"
-            title="Reviews"
-            plan="Pro"
-            description="Automatic review requests after visits, synced Google reviews, private-feedback triage."
-          />
-        )}
+        <SectionCard
+          href="/growth/outreach"
+          icon="megaphone"
+          title="Recall & Outreach"
+          description="Who needs a nudge, the automations that reach them, and your campaigns with real funnels — sent, opened, clicked, booked."
+        />
+        <SectionCard
+          href="/growth/audiences"
+          icon="users"
+          title="Audiences"
+          description="Saved patient segments with live counts — the targeting layer every campaign reuses."
+        />
+        <SectionCard
+          href="/growth/reviews"
+          icon="star"
+          title="Reviews"
+          stat={
+            reviewStats && reviewStats.count > 0 && reviewStats.averageRating != null
+              ? `${reviewStats.averageRating.toFixed(1)}★ · ${reviewStats.count} Google review${reviewStats.count === 1 ? '' : 's'}`
+              : undefined
+          }
+          statTone={reviewStats && reviewStats.count > 0 ? 'ok' : undefined}
+          spark={reviewsPerWeek}
+          description="The Google-first review loop — auto-requests after visits, synced reviews, private feedback."
+        />
         {hasChannel ? (
           <SectionCard
             href="/growth/social"
@@ -122,22 +89,12 @@ export default async function GrowthHubPage() {
             description="Connect Google Business or a social account in Integrations — the composer unlocks here."
           />
         )}
-        {isPremium ? (
-          <SectionCard
-            href="/growth/analytics"
-            icon="chart"
-            title="Analytics"
-            description="The whole picture — acquisition, schedule health, retention, reputation, and social reach."
-          />
-        ) : (
-          <UpsellCard
-            upgradeId="analytics"
-            icon="chart"
-            title="Analytics"
-            plan="Premium"
-            description="Scorecard, funnels, and proof panels for everything above."
-          />
-        )}
+        <SectionCard
+          href="/growth/analytics"
+          icon="chart"
+          title="Analytics"
+          description="The whole picture — acquisition, schedule health, retention, reputation, and social reach."
+        />
       </div>
     </div>
   )
@@ -190,36 +147,3 @@ function SectionCard({
 }
 
 /** Honest below-plan door — names the plan, links the upgrade panel. */
-function UpsellCard({
-  upgradeId,
-  icon,
-  title,
-  plan,
-  description,
-}: {
-  upgradeId: string
-  icon: string
-  title: string
-  plan: string
-  description: string
-}) {
-  return (
-    <Link
-      href={`/settings/billing?upgrade=${upgradeId}`}
-      className="v2-card p-4 sm:p-5 block group border-dashed hover:shadow-[var(--shadow-pop)] transition-shadow"
-    >
-      <div className="flex items-center gap-2.5 mb-1.5">
-        <span className="inline-flex items-center justify-center w-8 h-8 rounded-[var(--r-sm)] bg-gray-500/10 text-gray-500 dark:text-gray-400">
-          <NavIcon name={icon} className="shrink-0 fill-current w-4.5 h-4.5" />
-        </span>
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 group-hover:underline underline-offset-4">
-          {title}
-        </h2>
-        <span className="ml-auto text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 text-gray-500 dark:text-gray-400">
-          {plan}
-        </span>
-      </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
-    </Link>
-  )
-}

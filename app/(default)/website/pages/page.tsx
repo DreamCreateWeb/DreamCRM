@@ -76,7 +76,6 @@ export default async function WebsitePagesPage() {
     hasCareers: jobs.length > 0,
     hasDentalPlans: plans.length > 0,
     hasColoringPages: hasColoringPages(liveProfile),
-    isPro: liveProfile.planTier === 'pro' || liveProfile.planTier === 'premium',
     selfBooking: liveProfile.selfBookingEnabled !== false,
   }
   const templateDef = getSiteTemplate(liveProfile.template)
@@ -154,27 +153,17 @@ export default async function WebsitePagesPage() {
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-2xl">
           The title + description Google shows for each page. Leave a field blank to use the smart
           default we generate from your content.
-          {!gates.isPro && ' Search-appearance overrides are part of the Pro plan.'}
         </p>
-        {gates.isPro ? (
-          <div className="max-w-2xl">
-            <SeoMetaForm
-              initial={seoMeta}
-              clinicName={profile.displayName ?? ctx.organizationName}
-              tagline={profile.tagline ?? null}
-              about={(profile.about as string | null) ?? null}
-              domain={domain}
-              applicablePages={applicablePages}
-            />
-          </div>
-        ) : (
-          <Link
-            href="/settings/billing?upgrade=seo"
-            className="inline-block text-xs font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4"
-          >
-            See plans →
-          </Link>
-        )}
+        <div className="max-w-2xl">
+          <SeoMetaForm
+            initial={seoMeta}
+            clinicName={profile.displayName ?? ctx.organizationName}
+            tagline={profile.tagline ?? null}
+            about={(profile.about as string | null) ?? null}
+            domain={domain}
+            applicablePages={applicablePages}
+          />
+        </div>
       </section>
     </div>
   )

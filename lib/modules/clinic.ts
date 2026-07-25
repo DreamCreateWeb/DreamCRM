@@ -56,13 +56,13 @@ export const clinicModules: ModuleRegistry = {
     // signed-in users there) — the registry must carry the RENDERED path or
     // the sidebar active-state + trail label never match the home page.
     { id: 'overview',          path: '/dashboard',         label: 'Overview',         section: 'Daily',    icon: 'home',     status: 'live', pinned: true, shortcut: '⌘1' },
-    { id: 'my_day',            path: '/my-day',            label: 'My Day',           section: 'Daily',    icon: 'user',     status: 'live', minPlan: 'pro' },
-    { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', minPlan: 'pro', pinned: true, shortcut: '⌘2' },
-    { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', minPlan: 'pro', pinned: true, shortcut: '⌘3' },
-    { id: 'patients',          path: '/patients',          label: 'Patients',         section: 'Daily',    icon: 'users',    status: 'live', minPlan: 'pro' },
-    { id: 'followups',         path: '/followups',         label: 'Follow-ups',       section: 'Daily',    icon: 'check',    status: 'live', minPlan: 'pro' },
-    { id: 'leads',             path: '/leads',             label: 'Leads',            section: 'Daily',    icon: 'megaphone',status: 'live', minPlan: 'pro' },
-    { id: 'intake_forms',      path: '/intake-forms',      label: 'Intake Forms',     section: 'Daily',    icon: 'pen',      status: 'live', minPlan: 'pro' },
+    { id: 'my_day',            path: '/my-day',            label: 'My Day',           section: 'Daily',    icon: 'user',     status: 'live' },
+    { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', pinned: true, shortcut: '⌘2' },
+    { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', pinned: true, shortcut: '⌘3' },
+    { id: 'patients',          path: '/patients',          label: 'Patients',         section: 'Daily',    icon: 'users',    status: 'live' },
+    { id: 'followups',         path: '/followups',         label: 'Follow-ups',       section: 'Daily',    icon: 'check',    status: 'live' },
+    { id: 'leads',             path: '/leads',             label: 'Leads',            section: 'Daily',    icon: 'megaphone',status: 'live' },
+    { id: 'intake_forms',      path: '/intake-forms',      label: 'Intake Forms',     section: 'Daily',    icon: 'pen',      status: 'live' },
 
     // ── Growth ─────────────────────────────────────────────────────────
     // ONE workspace entry — the /growth hub is the marketing home (outreach,
@@ -92,8 +92,8 @@ export const clinicModules: ModuleRegistry = {
     // memberships) — split out of Shop in the 2026-07-14 structure redesign so
     // AR management stops reading as e-commerce (Weave/Pearly pattern: payments
     // first-class, membership revenue nested inside it). Same gates as Shop.
-    { id: 'payments_hub',      path: '/payments',          label: 'Payments',         section: 'Business', icon: 'wallet',   status: 'live', minPlan: 'premium', requiresBundle: ['payments'] },
-    { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', minPlan: 'premium', requiresBundle: ['payments'] },
+    { id: 'payments_hub',      path: '/payments',          label: 'Payments',         section: 'Business', icon: 'wallet',   status: 'live', requiresBundle: ['payments'] },
+    { id: 'shop',              path: '/shop',              label: 'Shop',             section: 'Business', icon: 'bag',      status: 'live', requiresBundle: ['payments'] },
     // The /integrations page hosts BOTH the Premium PMS sync AND the free
     // Google Business card (free on every tier). The page renders the GBP card
     // for everyone + a Premium upsell for the PMS, so the sidebar entry is

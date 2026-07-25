@@ -136,7 +136,7 @@ export async function listClinics(): Promise<ClinicListRow[]> {
     }
 
     return rows.map<ClinicListRow>((r) => {
-      const planTier = (r.planTier ?? 'basic') as ClinicListRow['planTier']
+      const planTier = (r.planTier ?? 'premium') as ClinicListRow['planTier']
       const isActive =
         r.subscriptionStatus === 'active' || r.subscriptionStatus === 'trialing'
       const monthlyContributionCents = isActive ? TIER_PRICES_CENTS[planTier] : 0

@@ -147,8 +147,6 @@ export default async function BookPage({ params, searchParams }: Props) {
     }
   }
 
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
-  if (!isPro) notFound()
 
   const name = data.profile.displayName ?? data.orgName
   const brand = data.profile.brandColor ?? '#9CAF9F'
@@ -202,7 +200,6 @@ export default async function BookPage({ params, searchParams }: Props) {
     // inside the builder against the same flags as everything else.
     extraPages: siteTemplate.extraMarketingPages,
     extraGates: {
-      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
       hasColoringPages: hasColoringPages(data.profile),
     },
     basePath,

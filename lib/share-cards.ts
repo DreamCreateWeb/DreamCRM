@@ -22,12 +22,12 @@ export interface ShareCard {
 export function buildShareCards(opts: {
   clinicName: string
   siteUrl: string
-  isPro: boolean
+  selfBooking: boolean
   googleReviewUrl: string | null
   portalUrl: string
 }): ShareCard[] {
   const cards: ShareCard[] = []
-  if (opts.isPro) {
+  if (opts.selfBooking) {
     cards.push({
       key: 'book',
       title: 'Book your next visit online',

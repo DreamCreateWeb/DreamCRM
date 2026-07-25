@@ -82,20 +82,20 @@ beforeEach(() => {
 })
 
 describe('getActivationChecklist', () => {
-  it('a brand-new basic clinic: everything not-done, only basic-tier tasks', async () => {
-    const list = await getActivationChecklist('org_1', 'basic')
+  it('a brand-new clinic: everything not-done, every task offered (no plan tiers)', async () => {
+    const list = await getActivationChecklist('org_1')
     expect(list.doneCount).toBe(0)
     expect(list.allDone).toBe(false)
     const ids = list.tasks.map((t) => t.id)
     expect(ids).toContain('brand_website')
     expect(ids).toContain('invite_team')
     expect(ids).toContain('connect_social') // no minPlan — every clinic gets nudged
-    expect(ids).not.toContain('add_patients') // pro task
-    expect(ids).not.toContain('connect_pms') // premium task
+    expect(ids).toContain('add_patients')
+    expect(ids).toContain('connect_pms')
   })
 
   it('premium tier sees the full task list in definition order', async () => {
-    const list = await getActivationChecklist('org_1', 'premium')
+    const list = await getActivationChecklist('org_1')
     expect(list.tasks.map((t) => t.id)).toEqual(ACTIVATION_TASK_DEFS.map((t) => t.id))
   })
 
@@ -111,7 +111,7 @@ describe('getActivationChecklist', () => {
     state.hasReviewConfig = true
     state.memberCount = 3
 
-    const list = await getActivationChecklist('org_1', 'premium')
+    const list = await getActivationChecklist('org_1')
     const byId = Object.fromEntries(list.tasks.map((t) => [t.id, t.done]))
     expect(byId.brand_website).toBe(true) // logo set
     expect(byId.add_team).toBe(true) // staff array non-empty
@@ -130,7 +130,7 @@ describe('getActivationChecklist', () => {
 
   it('connect_social ticks once any channel (GBP or social) is connected', async () => {
     state.hasChannel = true
-    const list = await getActivationChecklist('org_1', 'premium')
+    const list = await getActivationChecklist('org_1')
     expect(list.tasks.find((t) => t.id === 'connect_social')?.done).toBe(true)
   })
 
@@ -149,13 +149,13 @@ describe('getActivationChecklist', () => {
     state.hasProduct = true
     state.hasChannel = true
     state.memberCount = 2
-    const list = await getActivationChecklist('org_1', 'premium')
+    const list = await getActivationChecklist('org_1')
     expect(list.allDone).toBe(true)
   })
 
   it('hero image counts for brand_website when there is no logo', async () => {
     state.profile = { logoUrl: null, heroImageUrl: 'https://cdn/hero.jpg', staff: null, hours: null, portalSettings: null }
-    const list = await getActivationChecklist('org_1', 'basic')
+    const list = await getActivationChecklist('org_1')
     expect(list.tasks.find((t) => t.id === 'brand_website')?.done).toBe(true)
   })
 })

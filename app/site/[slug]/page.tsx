@@ -99,14 +99,12 @@ export default async function ClinicSitePage({ params }: Props) {
   // only renders.
   const { def } = await resolveActiveSiteTemplate(slug)
   const Home = def.pages.Home
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   const gates = {
     hasBlog: publishedPosts.length > 0,
     hasTeam,
     hasCareers: openJobs.length > 0,
     hasDentalPlans: membershipPlans.length > 0,
     hasColoringPages: hasColoringPages(data.profile),
-    isPro,
     selfBooking: isSelfBookingEnabled(data.profile),
   }
 
@@ -131,7 +129,7 @@ export default async function ClinicSitePage({ params }: Props) {
         basePath={basePath}
         signInUrl={clinicPortalSignInUrl(slug)}
         gates={gates}
-        bookHref={isPro ? `${basePath}/book` : `${basePath}#contact`}
+        bookHref={isSelfBookingEnabled(data.profile) ? `${basePath}/book` : `${basePath}#contact`}
         bookLabel={def.bookLabel}
         recentPosts={publishedPosts}
         reviewCount={reviewCount}

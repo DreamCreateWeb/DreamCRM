@@ -25,7 +25,6 @@ import { INTEGRATIONS_CATALOG } from './catalog'
  */
 export interface LiveIntegrationState {
   /** Whether the clinic's plan includes the Premium PMS integration. */
-  pmsEligible: boolean
   /** Whether Zernio is enabled on this DreamCRM instance. */
   zernioConfigured: boolean
   /** Per-integration-id live connection facts. Absent id = not connected. */
@@ -56,7 +55,6 @@ export interface IntegrationConnectionFact {
  *   - `available`      — connectable now (card shows the connect affordance).
  *   - `at_cap`         — connectable but the social cap is full (card shows the
  *                        upgrade/add-on CTA instead of connect).
- *   - `premium_locked` — gated behind a plan the clinic doesn't have.
  *   - `request_access` — needs vendor/partner approval (labelled tile).
  *   - `coming_soon`    — genuinely planned, not yet connectable (labelled tile).
  *   - `unavailable`    — connectable kind but the instance isn't configured
@@ -67,7 +65,6 @@ export type IntegrationRuntimeStatus =
   | 'needs_attention'
   | 'available'
   | 'at_cap'
-  | 'premium_locked'
   | 'request_access'
   | 'coming_soon'
   | 'unavailable'
@@ -89,28 +86,17 @@ export interface ResolvedIntegration {
   runtime: IntegrationRuntime
 }
 
-/** Plan ordering for the minPlan gate. */
-const PLAN_RANK: Record<string, number> = { basic: 0, pro: 1, premium: 2 }
-
-/** Whether `plan` meets `min` (e.g. premium meets a 'premium' minPlan). */
-function planMeets(plan: string, min: string): boolean {
-  return (PLAN_RANK[plan] ?? 0) >= (PLAN_RANK[min] ?? 0)
-}
-
 /**
  * Resolve a single def against the live state. Pure + deterministic. The
  * precedence is deliberate:
- *   1. CONNECTED state always wins (connected / needs_attention) — even for a
- *      premium-gated integration, we never hide a live connection.
+ *   1. CONNECTED state always wins (connected / needs_attention).
  *   2. else availability lifecycle: coming_soon / request_access short-circuit.
- *   3. else plan gate (premium_locked).
- *   4. else connectability: unavailable (instance not configured) → at_cap
- *      (social cap full) → available.
+ *   3. else connectability: unavailable (instance not configured) → at_cap
+ *      (social cap full — the one real entitlement) → available.
  */
 export function resolveIntegration(
   def: IntegrationDef,
   state: LiveIntegrationState,
-  planTier: string,
 ): ResolvedIntegration {
   const fact = state.connections[def.id]
   const connected = !!fact?.connected
@@ -144,16 +130,6 @@ export function resolveIntegration(
     return { def, runtime: { status: 'request_access', connected: false, ...base } }
   }
 
-  // 3. Plan gate (e.g. Open Dental on Premium). PMS-kind uses pmsEligible; a
-  //    generic minPlan uses the plan rank.
-  if (def.connectKind === 'pms') {
-    if (!state.pmsEligible) {
-      return { def, runtime: { status: 'premium_locked', connected: false, ...base } }
-    }
-  } else if (def.minPlan && !planMeets(planTier, def.minPlan)) {
-    return { def, runtime: { status: 'premium_locked', connected: false, ...base } }
-  }
-
   // 4. Connectability.
   //    Zernio-kind integrations need the instance configured.
   if (def.connectKind === 'zernio' && !state.zernioConfigured) {
@@ -170,10 +146,9 @@ export function resolveIntegration(
 /** Resolve the whole catalog against the live state. */
 export function resolveCatalog(
   state: LiveIntegrationState,
-  planTier: string,
   defs: readonly IntegrationDef[] = INTEGRATIONS_CATALOG,
 ): ResolvedIntegration[] {
-  return defs.map((def) => resolveIntegration(def, state, planTier))
+  return defs.map((def) => resolveIntegration(def, state))
 }
 
 /** Count of actively-connected integrations across the resolved catalog. */

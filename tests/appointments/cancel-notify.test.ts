@@ -146,11 +146,11 @@ describe('cancelAppointment notifications', () => {
     )
   })
 
-  it('does NOT include a rebook link on basic tier (no online booking)', async () => {
-    queueCancelContext({ email: 'mia@example.com', planTier: 'basic' })
+  it('always includes a rebook link (every clinic has online booking)', async () => {
+    queueCancelContext({ email: 'mia@example.com' })
     await cancelAppointment('org_1', 'appt_1')
     const arg = sendCancellationMock.mock.calls[0]![1]
-    expect(arg.rebookUrl).toBeNull()
+    expect(arg.rebookUrl).toBe('https://acme.dreamcreatestudio.com/book')
   })
 
   it('skips the patient email when no email is on file (but still notifies staff)', async () => {

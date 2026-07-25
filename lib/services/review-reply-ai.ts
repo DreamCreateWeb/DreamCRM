@@ -17,11 +17,11 @@ import { getAiUsageCount, bumpAiUsage } from '@/lib/services/ai-usage'
 
 const KIND = 'review_reply_draft'
 
-/** Per-tier monthly allowance (drafts, not posts). */
-export function reviewReplyAllowance(planTier: string | null | undefined): number {
-  if (planTier === 'premium') return 200
-  if (planTier === 'pro') return 80
-  return 20
+/** Monthly allowance (drafts, not posts). One plan → one allowance; this is
+ *  a fair-use cost control on the AI, never a plan gate. */
+export const REVIEW_REPLY_ALLOWANCE = 200
+export function reviewReplyAllowance(): number {
+  return REVIEW_REPLY_ALLOWANCE
 }
 
 const DraftSchema = z.object({ reply: z.string().min(1).max(1500) })
@@ -34,7 +34,7 @@ export async function draftGoogleReviewReply(opts: {
   if (!aiConfigured()) {
     return { ok: false, error: 'AI drafting isn’t configured on this environment.' }
   }
-  const cap = reviewReplyAllowance(opts.planTier)
+  const cap = reviewReplyAllowance()
   const used = await getAiUsageCount(opts.organizationId, KIND)
   if (used >= cap) {
     return {

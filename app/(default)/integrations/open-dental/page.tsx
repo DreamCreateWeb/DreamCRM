@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import { getIntegrationsDashboard, openDentalConfigured } from '@/lib/services/pms'
 import { getIntegrationsHealth } from '@/lib/services/pms/health'
 import { PageHeader } from '@/components/ui/page-header'
@@ -34,7 +33,6 @@ export default async function OpenDentalDetailPage() {
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
 
-  const pmsEligible = planAllows(ctx.planTier, 'premium')
   // Members can VIEW the sync dashboard (the marketplace card links them
   // here) but every mutating control — sync now, direction, disconnect,
   // key entry — is owner/admin, mirroring the marketplace's canManage gate.
@@ -51,30 +49,6 @@ export default async function OpenDentalDetailPage() {
       All integrations
     </Link>
   )
-
-  // ── Below Premium → a calm upgrade state, no dashboard, no crash ──────────
-  if (!pmsEligible) {
-    return (
-      <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
-        <div className="mb-4">{backLink}</div>
-        <div className="v2-panel p-8 text-center">
-          <span className="inline-flex w-16 h-16 rounded-[var(--r-lg)] items-center justify-center bg-[#1B75BC]/10 ring-1 ring-inset ring-[#1B75BC]/25 mb-4">
-            <BrandLogo id="open_dental" size={36} />
-          </span>
-          <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Open Dental is on Premium</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-            Two-way PMS sync — patients, appointments, providers, and balances flow both directions through Open
-            Dental&apos;s official API, audit-clean. It&apos;s included on the Premium plan.
-          </p>
-          <div className="mt-5 flex justify-center">
-            <ActionButton variant="primary" size="md" href="/settings/billing?upgrade=integrations" breath>
-              Upgrade to Premium
-            </ActionButton>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   const [dashboard, configured, health] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),

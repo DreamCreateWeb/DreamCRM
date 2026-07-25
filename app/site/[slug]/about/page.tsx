@@ -27,6 +27,7 @@ import {
   navServicesFromClinicServices,
   copyOverride,
   hasColoringPages,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import TestimonialsCarousel from '@/components/clinic-site/testimonials-carousel'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
@@ -99,8 +100,7 @@ export default async function AboutPage({ params }: Props) {
   // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
   // ground (raw brand stays on backgrounds/borders/pills only).
   const headingInk = readableInk(brand)
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
@@ -111,7 +111,6 @@ export default async function AboutPage({ params }: Props) {
     // inside the builder against the same flags as everything else.
     extraPages: siteTemplate.extraMarketingPages,
     extraGates: {
-      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
       hasColoringPages: hasColoringPages(data.profile),
     },
     basePath,

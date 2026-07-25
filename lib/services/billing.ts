@@ -417,7 +417,7 @@ function resolvePlanTier(
   planMatch: ReturnType<typeof getPlanByPriceId>,
 ): 'basic' | 'pro' | 'premium' {
   if (status !== 'active' && status !== 'trialing') return 'basic'
-  return (planMatch?.plan.id as 'basic' | 'pro' | 'premium' | undefined) ?? 'basic'
+  return (planMatch?.plan.id as 'basic' | 'pro' | 'premium' | undefined) ?? 'premium'
 }
 
 /**

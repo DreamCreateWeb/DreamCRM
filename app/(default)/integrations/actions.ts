@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import type { PlanTier } from '@/lib/modules'
 import { connectOpenDental, disconnectPms, runImport, setAutoSync, setSyncDirection } from '@/lib/services/pms'
 import type { SyncDirection } from '@/lib/types/pms'
@@ -22,9 +21,6 @@ function ensureClinicAdmin(ctx: { tenantType: string; role: string; planTier: Pl
   // Integrations is Premium-tier (lib/modules/clinic.ts) — block below-tier
   // clinics from firing the action even via deep-link. Demo contexts inherit
   // the demo org's tier (premium), so they pass.
-  if (!planAllows(ctx.planTier, 'premium')) {
-    throw new Error('Integrations is on the Premium plan. Upgrade to connect your PMS.')
-  }
 }
 
 export interface RequestPmsResult {
@@ -45,9 +41,6 @@ export async function requestPmsAccessAction(provider: string): Promise<RequestP
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
     return { ok: false, error: 'Only a clinic can request a PMS integration.' }
-  }
-  if (!planAllows(ctx.planTier as PlanTier, 'premium')) {
-    return { ok: false, error: 'PMS integrations are on the Premium plan.' }
   }
   const { isRequestablePms, recordPmsInterest } = await import('@/lib/services/pms-interest')
   if (!isRequestablePms(provider)) {

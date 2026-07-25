@@ -25,7 +25,7 @@ interface Props {
    *  client-posted orgId). */
   slug: string
   brand: string
-  isPro: boolean
+  selfBooking: boolean
   basePath: string
   /** Editable field definitions (Website Studio). Defaults to the standard
    *  name · phone · email · date · message set when unset. */
@@ -35,7 +35,7 @@ interface Props {
   carriers?: string[] | null
 }
 
-export default function ContactForm({ slug, brand, isPro, basePath, fields, services, carriers }: Props) {
+export default function ContactForm({ slug, brand, selfBooking, basePath, fields, services, carriers }: Props) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -44,8 +44,8 @@ export default function ContactForm({ slug, brand, isPro, basePath, fields, serv
   const carrierList = (carriers ?? []).filter((c) => c.trim().length > 0)
   const formFields = fields && fields.length > 0 ? fields : DEFAULT_LEAD_FORMS.contact
 
-  if (isPro) {
-    // Pro+ users go to the full booking page
+  if (selfBooking) {
+    // Self-scheduling on → send them to the live booking page
     return (
       <div className="text-center">
         <a

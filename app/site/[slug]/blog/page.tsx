@@ -59,8 +59,7 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
   // ground (raw brand stays on backgrounds/borders/pills only).
   const headingInk = readableInk(brand)
   const name = data.profile.displayName ?? data.orgName
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = data.profile.selfBookingEnabled !== false ? `${basePath}/book` : `${basePath || '/'}#contact`
 
   const [posts, categories] = await Promise.all([
     listPublishedPosts(data.orgId, { category }),

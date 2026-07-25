@@ -100,14 +100,13 @@ describe('Growth hub — the Reviews-door heartbeat', () => {
     cleanup()
   })
 
-  it('below Pro: upsell card, no stats fetch, no spark', async () => {
-    ctx = { ...ctx, planTier: 'basic' }
+  it('every clinic gets the real Reviews door — no upsell card exists', async () => {
     const { container } = render(await GrowthHubPage())
-    expect(door(container, '/settings/billing?upgrade=reviews')).toBeTruthy()
-    expect(container.querySelector('a[href="/growth/reviews"]')).toBeNull()
-    expect(sparkCount(container)).toBe(0)
-    expect(statsMock).not.toHaveBeenCalled()
-    expect(perWeekMock).not.toHaveBeenCalled()
+    expect(container.querySelector('a[href="/growth/reviews"]')).toBeTruthy()
+    // The upgrade path is gone: one plan, so nothing to upsell to.
+    expect(container.querySelector('a[href="/settings/billing?upgrade=reviews"]')).toBeNull()
+    expect(statsMock).toHaveBeenCalled()
+    expect(perWeekMock).toHaveBeenCalled()
     cleanup()
   })
 })

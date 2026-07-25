@@ -15,7 +15,6 @@ import {
   type PatientListSort,
 } from '@/lib/services/patients'
 import { listPatientViews } from '@/lib/services/patient-views'
-import { planAllows } from '@/lib/modules'
 import PatientsList from './patients-list'
 import ModuleHint from '@/components/onboarding/module-hint'
 
@@ -77,7 +76,7 @@ export default async function PatientsPage({ searchParams }: PageProps) {
       orgName={ctx.organizationName}
       canManage={ctx.role === 'owner' || ctx.role === 'admin'}
       views={views}
-      canMarket={planAllows(ctx.planTier, 'premium')}
+      canMarket
     />
     </>
   )

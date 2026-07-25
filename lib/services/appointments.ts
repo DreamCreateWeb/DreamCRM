@@ -1034,7 +1034,6 @@ async function sendCancellationEmailToPatient(
   const [profile] = await db
     .select({
       phone: schema.clinicProfile.phone,
-      planTier: schema.clinicProfile.planTier,
       websiteDomain: schema.clinicProfile.websiteDomain,
     })
     .from(schema.clinicProfile)
@@ -1046,11 +1045,10 @@ async function sendCancellationEmailToPatient(
     .where(eq(schema.organization.id, organizationId))
     .limit(1)
 
-  // Online booking is pro/premium only (basic routes Book to the contact form),
-  // so only offer a /book link when the plan supports it.
+  // Every clinic has online booking (no plan tiers) — offer the rebook link
+  // whenever we can build the site URL.
   let rebookUrl: string | null = null
-  const tier = profile?.planTier ?? 'basic'
-  if (org && (tier === 'pro' || tier === 'premium')) {
+  if (org) {
     const { publicSiteUrl } = await import('@/lib/services/clinic-site')
     const base = publicSiteUrl({
       slug: org.slug,
@@ -1104,7 +1102,6 @@ async function sendNoShowRebookEmail(
   const [profile] = await db
     .select({
       phone: schema.clinicProfile.phone,
-      planTier: schema.clinicProfile.planTier,
       websiteDomain: schema.clinicProfile.websiteDomain,
     })
     .from(schema.clinicProfile)
@@ -1116,10 +1113,10 @@ async function sendNoShowRebookEmail(
     .where(eq(schema.organization.id, organizationId))
     .limit(1)
 
-  // Online booking is pro/premium only — offer the button only when it works.
+  // Every clinic has online booking (no plan tiers) — offer the rebook link
+  // whenever we can build the site URL.
   let rebookUrl: string | null = null
-  const tier = profile?.planTier ?? 'basic'
-  if (org && (tier === 'pro' || tier === 'premium')) {
+  if (org) {
     const { publicSiteUrl } = await import('@/lib/services/clinic-site')
     const base = publicSiteUrl({
       slug: org.slug,

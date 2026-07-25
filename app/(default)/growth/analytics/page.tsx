@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { requireTenant, requirePlan } from '@/lib/auth/context'
+import { requireTenant } from '@/lib/auth/context'
 import { getClinicAnalytics, type TrendPoint } from '@/lib/services/analytics'
 import { LEAD_CHANNEL_LABELS } from '@/lib/lead-channel'
 import { getSiteTraffic } from '@/lib/services/site-analytics'
@@ -48,7 +48,6 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
-  await requirePlan(ctx, 'premium', 'analytics')
 
   const { days } = await searchParams
   const windowDays = days === '90' ? 90 : 30

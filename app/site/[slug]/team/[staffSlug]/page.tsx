@@ -21,6 +21,7 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
   hasColoringPages,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
@@ -121,8 +122,7 @@ export default async function StaffDetailPage({ params }: Props) {
   // Contrast-safe text fill for brand-colored headings/eyebrows on the warm
   // ground (raw brand stays on backgrounds/borders/pills only).
   const headingInk = readableInk(brand)
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const defaultBookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const defaultBookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   // Per-staff override beats the page-level default — some clinics route
   // each provider to a specific booking widget URL.
   const bookHref = staff.bookHref?.trim() || defaultBookHref
@@ -143,7 +143,6 @@ export default async function StaffDetailPage({ params }: Props) {
     // inside the builder against the same flags as everything else.
     extraPages: siteTemplate.extraMarketingPages,
     extraGates: {
-      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
       hasColoringPages: hasColoringPages(data.profile),
     },
     basePath,

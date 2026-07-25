@@ -2,7 +2,9 @@ import { notFound } from 'next/navigation'
 import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { getPublishedPostBySlug, resolvePostPeople, listRelatedPosts } from '@/lib/services/blog'
 import { excerptFromHtml } from '@/lib/utils'
-import { staffSlug } from '@/lib/clinic-site-helpers'
+import { staffSlug,
+  isSelfBookingEnabled,
+} from '@/lib/clinic-site-helpers'
 import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import type { BlogFaqItem } from '@/lib/types/clinic-content'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
@@ -56,7 +58,6 @@ export default async function ClinicBlogPostPage({ params }: Props) {
   const basePath = await resolveSiteBasePath(slug)
   const brand = data.profile.brandColor ?? '#9CAF9F'
   const name = data.profile.displayName ?? data.orgName
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   const { author, reviewer } = await resolvePostPeople(data.orgId, post)
   const related = await listRelatedPosts(data.orgId, post.id, post.category, 3)
   const siteUrl = publicSiteUrl(data)
@@ -145,7 +146,7 @@ export default async function ClinicBlogPostPage({ params }: Props) {
           related={related}
           brand={brand}
           basePath={basePath}
-          isPro={isPro}
+          selfBooking={isSelfBookingEnabled(data.profile)}
         />
       </div>
     </BlogChrome>

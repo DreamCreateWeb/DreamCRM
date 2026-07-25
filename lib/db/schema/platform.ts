@@ -316,7 +316,12 @@ export const clinicProfile = pgTable('clinic_profile', {
 
   // Which Dream Create plan tier this clinic is on. Drives module gating.
   // Mirrors Stripe subscription state; updated by the Stripe webhook.
-  planTier: text('plan_tier').default('basic'),
+  // Retained for Stripe subscription state, legacy rows, and platform-side
+  // reporting — but NOTHING gates on it (2026-07-25, single-plan collapse).
+  // Default is 'premium' because that is what every creation path provisions;
+  // the old 'basic' default was a trapdoor (a null/defaulted row used to lose
+  // its booking page + half the sidebar).
+  planTier: text('plan_tier').default('premium'),
   stripeCustomerId: text('stripe_customer_id'),
   stripeSubscriptionId: text('stripe_subscription_id'),
   subscriptionStatus: text('subscription_status'),

@@ -155,7 +155,7 @@ describe('listClinics', () => {
     expect(out[0].monthlyContributionCents).toBe(19_900) // premium
   })
 
-  it('defaults plan_tier to basic when null', async () => {
+  it('defaults plan_tier to premium when null (the single-plan default)', async () => {
     dbState.selectQueue.push([
       {
         orgId: 'org_x',
@@ -181,8 +181,8 @@ describe('listClinics', () => {
     dbState.selectQueue.push([])
     dbState.selectQueue.push([])
     const out = await listClinics()
-    expect(out[0].planTier).toBe('basic')
-    expect(out[0].monthlyContributionCents).toBe(9_900)
+    expect(out[0].planTier).toBe('premium')
+    expect(out[0].monthlyContributionCents).toBe(19_900)
   })
 
   it('returns [] when the table is missing', async () => {

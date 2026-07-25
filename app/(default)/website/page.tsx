@@ -82,8 +82,6 @@ export default async function WebsiteHubPage() {
   }
 
   const canEdit = ctx.role === 'owner' || ctx.role === 'admin'
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const isPremium = profile.planTier === 'premium'
   const slug = ctx.organizationSlug
   const siteUrl = publicSiteUrl({ slug, profile })
   const siteHost = siteUrl.replace(/^https?:\/\//, '')
@@ -91,9 +89,9 @@ export default async function WebsiteHubPage() {
   // Every read is best-effort — the hub must render even when a stat hiccups.
   const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d, activePlans] = await Promise.all([
     getSitePerformance(ctx.organizationId).catch(() => null),
-    isPro ? getBlogStats(ctx.organizationId).catch(() => null) : null,
-    isPro ? getSiteHealth(ctx.organizationId).catch(() => null) : null,
-    isPremium ? getCareersStats(ctx.organizationId).catch(() => null) : null,
+    getBlogStats(ctx.organizationId).catch(() => null),
+    getSiteHealth(ctx.organizationId).catch(() => null),
+    getCareersStats(ctx.organizationId).catch(() => null),
     getLastWebsiteEdit(ctx.organizationId).catch(() => null),
     // Only the checklist reads this — owner/admin only, best-effort.
     canEdit ? getClinicSeoPerformance(ctx.organizationId, 28).catch(() => null) : null,
@@ -116,7 +114,6 @@ export default async function WebsiteHubPage() {
     hasCareers: (careersStats?.openRoles ?? 0) > 0,
     hasDentalPlans: activePlans.length > 0,
     hasColoringPages: hasColoringPages(liveProfile),
-    isPro,
     selfBooking: liveProfile.selfBookingEnabled !== false,
   }
   const livePages = buildSitePagesIndex({
@@ -159,8 +156,7 @@ export default async function WebsiteHubPage() {
             optional: true,
             hint: 'Two DNS records put your site on yourpractice.com.',
           },
-          ...(isPro
-            ? [
+          ...[
                 {
                   label: 'Search data flowing',
                   done: !!gscScope?.platformConnected && !gscScope.customDomain,
@@ -174,8 +170,7 @@ export default async function WebsiteHubPage() {
                   optional: true,
                   hint: 'Posts feed your site and the patient newsletter.',
                 },
-              ]
-            : []),
+              ],
         ]
       : []
   const checklistOpen = checklist.filter((c) => !c.done)
@@ -403,48 +398,36 @@ export default async function WebsiteHubPage() {
               aria={`Forms — ${leads7d} submission${leads7d === 1 ? '' : 's'} in the last 7 days`}
             />
           )}
-          {isPro ? (
-            <NewsCard
-              href="/website/blog"
-              value={String(blogStats?.published ?? 0)}
-              label={
-                blogStats && blogStats.drafts > 0
-                  ? `published · ${blogStats.drafts} draft${blogStats.drafts === 1 ? '' : 's'} waiting`
-                  : 'posts published'
-              }
-              tone={blogStats && blogStats.drafts > 0 ? 'warn' : undefined}
-              aria={`Blog — ${blogStats?.published ?? 0} published${blogStats && blogStats.drafts > 0 ? `, ${blogStats.drafts} draft${blogStats.drafts === 1 ? '' : 's'} waiting` : ''}`}
-            />
-          ) : (
-            <UpsellCard upgradeId="blog" title="Blog" plan="Pro" />
-          )}
-          {isPro ? (
-            <NewsCard
-              href="/website/seo"
-              value={siteHealth ? String(siteHealth.score) : '—'}
-              valueSuffix={siteHealth ? '/100' : undefined}
-              label="site health"
-              tone={siteHealth ? (siteHealth.score >= 80 ? 'ok' : 'warn') : undefined}
-              aria={`SEO — site health ${siteHealth ? `${siteHealth.score}/100` : 'unavailable'}`}
-            />
-          ) : (
-            <UpsellCard upgradeId="seo" title="SEO" plan="Pro" />
-          )}
-          {isPremium ? (
-            <NewsCard
-              href="/website/careers"
-              value={String(careersStats?.openRoles ?? 0)}
-              label={
-                careersStats && careersStats.newApplicants > 0
-                  ? `open role${careersStats.openRoles === 1 ? '' : 's'} · ${careersStats.newApplicants} new applicant${careersStats.newApplicants === 1 ? '' : 's'}`
-                  : `open role${(careersStats?.openRoles ?? 0) === 1 ? '' : 's'}`
-              }
-              tone={careersStats && careersStats.newApplicants > 0 ? 'warn' : undefined}
-              aria={`Careers — ${careersStats?.openRoles ?? 0} open role${(careersStats?.openRoles ?? 0) === 1 ? '' : 's'}${careersStats && careersStats.newApplicants > 0 ? `, ${careersStats.newApplicants} new applicant${careersStats.newApplicants === 1 ? '' : 's'}` : ''}`}
-            />
-          ) : (
-            <UpsellCard upgradeId="careers" title="Careers" plan="Premium" />
-          )}
+                    <NewsCard
+            href="/website/blog"
+            value={String(blogStats?.published ?? 0)}
+            label={
+              blogStats && blogStats.drafts > 0
+                ? `published · ${blogStats.drafts} draft${blogStats.drafts === 1 ? '' : 's'} waiting`
+                : 'posts published'
+            }
+            tone={blogStats && blogStats.drafts > 0 ? 'warn' : undefined}
+            aria={`Blog — ${blogStats?.published ?? 0} published${blogStats && blogStats.drafts > 0 ? `, ${blogStats.drafts} draft${blogStats.drafts === 1 ? '' : 's'} waiting` : ''}`}
+          />
+                    <NewsCard
+            href="/website/seo"
+            value={siteHealth ? String(siteHealth.score) : '—'}
+            valueSuffix={siteHealth ? '/100' : undefined}
+            label="site health"
+            tone={siteHealth ? (siteHealth.score >= 80 ? 'ok' : 'warn') : undefined}
+            aria={`SEO — site health ${siteHealth ? `${siteHealth.score}/100` : 'unavailable'}`}
+          />
+                    <NewsCard
+            href="/website/careers"
+            value={String(careersStats?.openRoles ?? 0)}
+            label={
+              careersStats && careersStats.newApplicants > 0
+                ? `open role${careersStats.openRoles === 1 ? '' : 's'} · ${careersStats.newApplicants} new applicant${careersStats.newApplicants === 1 ? '' : 's'}`
+                : `open role${(careersStats?.openRoles ?? 0) === 1 ? '' : 's'}`
+            }
+            tone={careersStats && careersStats.newApplicants > 0 ? 'warn' : undefined}
+            aria={`Careers — ${careersStats?.openRoles ?? 0} open role${(careersStats?.openRoles ?? 0) === 1 ? '' : 's'}${careersStats && careersStats.newApplicants > 0 ? `, ${careersStats.newApplicants} new applicant${careersStats.newApplicants === 1 ? '' : 's'}` : ''}`}
+          />
         </div>
       </section>
 
@@ -658,27 +641,13 @@ function to12h(hhmm: string): string {
 /** The honest plan-gate card — the area exists, the plan doesn't cover it
  *  yet, and the card says exactly that instead of hiding the module. Sized
  *  to sit beside the news cards without pretending to carry news. */
-function UpsellCard({ upgradeId, title, plan }: { upgradeId: string; title: string; plan: string }) {
-  return (
-    <Link href={`/settings/billing?upgrade=${upgradeId}`} className="block h-full group">
-      <div className="v2-card-interactive p-4 sm:p-5 h-full flex flex-col border-dashed">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{title}</span>
-          <StatusPill tone="special" label={`${plan} plan`} />
-        </div>
-        <span className="mt-auto pt-3 text-xs font-semibold text-teal-700 dark:text-teal-300">
-          See plans →
-        </span>
-      </div>
-    </Link>
-  )
-}
+
 
 // The template's gate-filtered extra marketing pages (client-safe shape for
 // the live-page count — same filtering the Pages manager applies).
 function templateDefExtras(
   template: string | null,
-  gates: Parameters<typeof buildSitePagesIndex>[0] & { hasColoringPages: boolean; isPro: boolean; selfBooking: boolean },
+  gates: Parameters<typeof buildSitePagesIndex>[0] & { hasColoringPages: boolean; selfBooking: boolean },
 ): Array<{ path: string; label: string }> {
   return getSiteTemplate(template)
     .extraMarketingPages.filter((p) => !p.gate || p.gate(gates))

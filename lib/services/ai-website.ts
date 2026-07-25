@@ -49,7 +49,7 @@ export async function getAiUsage(
   now: Date = new Date(),
 ): Promise<AiUsageSnapshot> {
   const period = currentPeriod(now)
-  const limit = aiAllowanceForPlan(planTier)
+  const limit = aiAllowanceForPlan()
   const [row] = await db
     .select({ count: aiUsageCounter.count })
     .from(aiUsageCounter)

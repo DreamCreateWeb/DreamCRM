@@ -49,9 +49,12 @@ function contrast(a: string, b: string): number {
   return (l1 + 0.05) / (l2 + 0.05)
 }
 
-function homeProps(data: ClinicSiteData, def: (typeof TEMPLATES)[number]): HomePageProps {
+function homeProps(
+  data: ClinicSiteData,
+  def: (typeof TEMPLATES)[number],
+  selfBooking = data.profile.selfBookingEnabled !== false,
+): HomePageProps {
   const staff = (data.profile.staff as unknown[] | null) ?? []
-  const isPro = data.profile.planTier === 'pro' || data.profile.planTier === 'premium'
   return {
     data,
     basePath: '/site/fixture-dental',
@@ -62,10 +65,9 @@ function homeProps(data: ClinicSiteData, def: (typeof TEMPLATES)[number]): HomeP
       hasCareers: false,
       hasDentalPlans: false,
       hasColoringPages: false,
-      isPro,
-      selfBooking: data.profile.selfBookingEnabled !== false,
+      selfBooking,
     },
-    bookHref: isPro ? '/site/fixture-dental/book' : '/site/fixture-dental#contact',
+    bookHref: selfBooking ? '/site/fixture-dental/book' : '/site/fixture-dental#contact',
     bookLabel: def.bookLabel,
     recentPosts: [],
     reviewCount: 0,
@@ -106,11 +108,11 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
     cleanup()
   })
 
-  it('a basic-tier Home hosts the #contact anchor its own bookHref targets', () => {
-    // The empty fixture is basic tier, so homeProps points bookHref at
-    // `…#contact` — a template that forgets the section strands the CTA.
-    const { container } = render(<def.pages.Home {...homeProps(FIXTURES.empty(), def)} />)
-    expect(container.querySelector('#contact'), 'missing #contact section on basic tier').toBeTruthy()
+  it('with self-booking off, Home hosts the #contact anchor its bookHref targets', () => {
+    // With self-booking off, homeProps points bookHref at `…#contact` — a
+    // template that forgets the section strands its own CTA.
+    const { container } = render(<def.pages.Home {...homeProps(FIXTURES.empty(), def, false)} />)
+    expect(container.querySelector('#contact'), 'missing #contact section when self-booking is off').toBeTruthy()
     cleanup()
   })
 
@@ -125,7 +127,7 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
         { label: 'Services', href: '/site/fixture-dental/services' },
         { label: 'Contact', href: '#site-footer-contact' },
       ],
-      bookHref: '/site/fixture-dental/book',
+      bookHref: '/site/fixture-dental#contact',
       bookLabel: def.bookLabel,
       signInUrl: 'https://www.example.com/site/fixture-dental/portal',
     }
@@ -159,7 +161,7 @@ describe.each(TEMPLATES.map((t) => [t.id, t] as const))('template conformance [%
       if (page.gate) {
         const emptyGates = {
           hasBlog: false, hasTeam: false, hasCareers: false, hasDentalPlans: false,
-          hasColoringPages: false, isPro: false, selfBooking: true,
+          hasColoringPages: false, selfBooking: false,
         }
         if (!page.gate(emptyGates)) {
           const { container } = render(<def.pages.Home {...homeProps(FIXTURES.empty(), def)} />)

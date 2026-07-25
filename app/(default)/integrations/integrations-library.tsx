@@ -13,7 +13,6 @@ import type { ResolvedIntegration } from '@/lib/integrations/resolve'
 import PmsRequestButton from './pms-request-button'
 import {
   bundleLogos,
-  bundlePlanLabel,
   type BundleDef,
   type BundleStatus,
   type BundleView,
@@ -382,21 +381,15 @@ function SearchBox({ query, onQuery }: { query: string; onQuery: (v: string) => 
 const BUNDLE_STATUS_PILL: Record<BundleStatus, { tone: Tone; label: string }> = {
   active: { tone: 'ok', label: 'Active' },
   available: { tone: 'neutral', label: 'Available' },
-  plan_locked: { tone: 'special', label: 'Plan upgrade' },
   request_access: { tone: 'info', label: 'Request access' },
   coming_soon: { tone: 'neutral', label: 'On the roadmap' },
   unavailable: { tone: 'neutral', label: 'Not enabled' },
 }
 
-/** The pricing chip — Included (free) / Pro & up / Premium, plus an add-on tag. */
+/** The pricing chip — everything is Included now; only add-ons carry a tag. */
 function PricingBadge({ def }: { def: BundleDef }) {
-  const label = bundlePlanLabel(def)
-  const cls =
-    def.minPlan === 'premium'
-      ? 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300'
-      : def.minPlan === 'pro'
-        ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300'
-        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+  const label = 'Included'
+  const cls = 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>
@@ -482,19 +475,7 @@ function BundleSection({
         </div>
       </div>
 
-      {status === 'plan_locked' ? (
-        /* One clean upgrade prompt — the bundle needs a higher plan, so we don't
-           clutter with per-account connect cards that can't be used yet. */
-        <div className="v2-well px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            {def.name} comes with the <strong className="font-medium">{bundlePlanLabel(def)}</strong> plan.
-          </p>
-          <ActionButton variant="primary" size="sm" href="/settings/billing?upgrade=integrations">
-            Upgrade to {def.minPlan === 'premium' ? 'Premium' : 'Pro'}
-          </ActionButton>
-        </div>
-      ) : (
-        <>
+
           {/* Member connect cards — the individual accounts inside the bundle. */}
           {members.length > 0 ? (
             <CardGrid>
@@ -518,8 +499,6 @@ function BundleSection({
               onCancel={onCancelAddon}
             />
           )}
-        </>
-      )}
     </section>
   )
 }
@@ -640,7 +619,6 @@ const STATUS_PILL: Record<string, { tone: Tone; label: string }> = {
   needs_attention: { tone: 'urgent', label: 'Needs attention' },
   available: { tone: 'neutral', label: 'Not connected' },
   at_cap: { tone: 'neutral', label: 'Not connected' },
-  premium_locked: { tone: 'special', label: 'Premium' },
   request_access: { tone: 'info', label: 'Request access' },
   coming_soon: { tone: 'neutral', label: 'Coming soon' },
   unavailable: { tone: 'neutral', label: 'Not connected' },
@@ -806,15 +784,6 @@ function DisconnectedActions({
       <p className="text-xs text-gray-500 dark:text-gray-400 italic">
         Ask an owner or admin to connect this.
       </p>
-    )
-  }
-
-  // Premium-locked — upgrade CTA.
-  if (runtime.status === 'premium_locked') {
-    return (
-      <ActionButton variant="primary" size="sm" href="/settings/billing?upgrade=integrations">
-        Upgrade to Premium
-      </ActionButton>
     )
   }
 

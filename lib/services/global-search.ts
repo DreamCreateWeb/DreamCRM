@@ -30,7 +30,7 @@ export function likePattern(q: string): string {
  *  bundle gated, so ⌘K mirrors the sidebar) plus the settings subpages the
  *  sidebar doesn't list. */
 function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): SearchResult[] {
-  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role), activeBundles).map((m) => ({
+  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role), activeBundles).map((m) => ({
     id: `page-${m.id}`,
     label: m.label,
     sublabel: m.section ?? null,
@@ -39,26 +39,18 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
   }))
   if (ctx.tenantType !== 'clinic') return modules
   // The Website workspace's sub-pages — the sidebar shows only the hub entry,
-  // so ⌘K carries the sub-areas (same plan/role guards their pages enforce).
-  const isPro = ctx.planTier === 'pro' || ctx.planTier === 'premium'
-  const isPremium = ctx.planTier === 'premium'
+  // so ⌘K carries the sub-areas (same role guards their pages enforce).
   const canEditSite = ctx.role === 'owner' || ctx.role === 'admin'
   // The Growth workspace's sub-pages — same treatment: the sidebar shows only
-  // the hub, so ⌘K carries the sub-areas with their plan gates.
+  // the hub, so ⌘K carries the sub-areas.
   const growthPages: SearchResult[] = [
-    ...(isPremium
-      ? [
-          { id: 'page-growth-outreach', label: 'Recall & Outreach', sublabel: 'Growth', href: '/growth/outreach', kind: 'page' as const },
+    { id: 'page-growth-outreach', label: 'Recall & Outreach', sublabel: 'Growth', href: '/growth/outreach', kind: 'page' as const },
           // Alias — the clinic campaign home is the Outreach hub (phase-3
           // fold); "campaigns" muscle memory still lands somewhere real.
           { id: 'page-growth-campaigns', label: 'Campaigns', sublabel: 'Growth · on the Outreach hub', href: '/growth/outreach', kind: 'page' as const },
           { id: 'page-growth-audiences', label: 'Audiences', sublabel: 'Growth', href: '/growth/audiences', kind: 'page' as const },
           { id: 'page-growth-analytics', label: 'Analytics', sublabel: 'Growth', href: '/growth/analytics', kind: 'page' as const },
-        ]
-      : []),
-    ...(isPro
-      ? [{ id: 'page-growth-reviews', label: 'Reviews', sublabel: 'Growth', href: '/growth/reviews', kind: 'page' as const }]
-      : []),
+    { id: 'page-growth-reviews', label: 'Reviews', sublabel: 'Growth', href: '/growth/reviews', kind: 'page' as const },
     { id: 'page-growth-social', label: 'Social posts', sublabel: 'Growth', href: '/growth/social', kind: 'page' as const },
   ]
   const websitePages: SearchResult[] = [
@@ -80,15 +72,9 @@ function pageIndex(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>): Se
     ...(canEditSite
       ? [{ id: 'page-website-pages', label: 'Website pages', sublabel: 'Website', href: '/website/pages', kind: 'page' as const }]
       : []),
-    ...(isPro
-      ? [{ id: 'page-website-blog', label: 'Blog posts', sublabel: 'Website', href: '/website/blog', kind: 'page' as const }]
-      : []),
-    ...(isPro
-      ? [{ id: 'page-website-seo', label: 'SEO', sublabel: 'Website', href: '/website/seo', kind: 'page' as const }]
-      : []),
-    ...(isPremium
-      ? [{ id: 'page-website-careers', label: 'Careers', sublabel: 'Website', href: '/website/careers', kind: 'page' as const }]
-      : []),
+    { id: 'page-website-blog', label: 'Blog posts', sublabel: 'Website', href: '/website/blog', kind: 'page' as const },
+    { id: 'page-website-seo', label: 'SEO', sublabel: 'Website', href: '/website/seo', kind: 'page' as const },
+    { id: 'page-website-careers', label: 'Careers', sublabel: 'Website', href: '/website/careers', kind: 'page' as const },
     { id: 'page-website-share', label: 'QR share cards', sublabel: 'Website', href: '/website/share', kind: 'page' },
   ]
   const settingsPages: SearchResult[] = [
@@ -163,7 +149,7 @@ function quickActions(ctx: TenantContext, activeBundles: ReadonlySet<BundleId>):
   ]
   // Quick actions follow the same plan + bundle gates as their pages.
   const visible = new Set(
-    applyBundleGate(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role), activeBundles).map((m) => m.path),
+    applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role), activeBundles).map((m) => m.path),
   )
   return actions.filter((a) => {
     if (a.href.startsWith('/patients')) return visible.has('/patients')

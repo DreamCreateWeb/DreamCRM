@@ -17,25 +17,21 @@ export function getRegistry(tenantType: TenantType): ModuleRegistry {
 }
 
 /**
- * Plan tiers in ascending order. THE single source of truth for plan
- * comparison — both sidebar visibility (getVisibleModules) and server-side
- * `planAllows`/`requirePlan` (lib/auth/context) read this so gating can't drift.
+ * NO PLAN GATING (2026-07-25, the single-plan collapse). Premium is the only
+ * purchasable plan and every clinic is provisioned on it, so tier comparison
+ * was a branch that always resolved the same way — and its `?? 'basic'`
+ * fallbacks were live trapdoors (a null tier silently hid booking + half the
+ * sidebar). Access to the app IS access to the whole app; the only real
+ * entitlements left are ADD-ONS (social connection caps, lib/services/
+ * social-billing.ts) and BILLING STATE (trial/past-due walls), neither of
+ * which is plan gating. `tests/settings/no-plan-gating.test.ts` fails CI if a
+ * tier comparison creeps back.
  */
-export const PLAN_ORDER: readonly PlanTier[] = ['basic', 'pro', 'premium'] as const
-
-/**
- * True when `planTier` meets or exceeds `minPlan`. The single comparison used
- * for plan gating both in the sidebar and in server-side page/action guards.
- */
-export function planAllows(planTier: PlanTier, minPlan: PlanTier): boolean {
-  return PLAN_ORDER.indexOf(planTier) >= PLAN_ORDER.indexOf(minPlan)
-}
 
 /**
  * Resolve a friendly module label from a tenant + a module id OR path (with or
- * without leading slash). Used by the Plans page to title its "upgrade to
- * unlock X" panel from the `?upgrade=<module>` param that `requirePlan` sets.
- * Returns null when nothing matches (so callers can fall back to generic copy).
+ * without leading slash). Returns null when nothing matches (so callers can
+ * fall back to generic copy).
  */
 export function getModuleLabel(tenantType: TenantType, idOrPath: string): string | null {
   const needle = idOrPath.trim()
@@ -85,13 +81,8 @@ const FOLDED_AREAS: Record<string, string> = {
  * - Plan gating only applies to clinic tenants.
  * - Patient role only sees modules with patient in roles array.
  */
-export function getVisibleModules(
-  tenantType: TenantType,
-  planTier: PlanTier = 'basic',
-  role: Role = 'member'
-) {
+export function getVisibleModules(tenantType: TenantType, role: Role = 'member') {
   return getRegistry(tenantType).modules.filter((m) => {
-    if (m.minPlan && !planAllows(planTier, m.minPlan)) return false
     if (m.roles && !m.roles.includes(role)) return false
     return true
   })

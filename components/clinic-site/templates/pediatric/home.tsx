@@ -446,7 +446,7 @@ export default function PediatricHome(props: HomePageProps) {
       )}
 
       {/* ── Contact form — basic tier only (bookHref targets #contact) ────── */}
-      {!gates.isPro && (
+      {!gates.selfBooking && (
         <section id="contact" className="max-w-2xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
           <h2 className="text-3xl font-bold mb-2 text-center" style={{ fontFamily: DISPLAY }}>
             Say hello 👋
@@ -457,7 +457,7 @@ export default function PediatricHome(props: HomePageProps) {
           <ContactForm
             slug={data.slug}
             brand={p.brandColor ?? '#17BEBB'}
-            isPro={gates.isPro}
+            selfBooking={gates.selfBooking}
             basePath={basePath}
             fields={resolveLeadForm(p.leadForms as LeadFormsConfig | null, 'contact')}
             services={services.length > 0 ? services.map((s) => s.name) : null}
@@ -494,8 +494,6 @@ function propsNav(props: HomePageProps): SiteNavLink[] {
     services: navServicesFromClinicServices(services),
     extraPages: PEDIATRIC_EXTRA_PAGES,
     extraGates: {
-      isPro: props.gates.isPro,
-      selfBooking: props.gates.selfBooking,
       hasColoringPages: props.gates.hasColoringPages,
     },
   })

@@ -398,7 +398,6 @@ async function resolveClinicBookingUrl(organizationId: string): Promise<string |
     db
       .select({
         websiteDomain: schema.clinicProfile.websiteDomain,
-        planTier: schema.clinicProfile.planTier,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -410,8 +409,7 @@ async function resolveClinicBookingUrl(organizationId: string): Promise<string |
     slug: org.slug,
     profile: { websiteDomain: profile?.websiteDomain ?? null } as never,
   })
-  const tier = profile?.planTier ?? 'basic'
-  return tier === 'pro' || tier === 'premium' ? `${base}/book` : base
+  return `${base}/book`
 }
 
 /** Build the per-recipient merge map (firstName falls back to a warm default). */

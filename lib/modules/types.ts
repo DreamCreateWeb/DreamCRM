@@ -33,7 +33,6 @@ export interface ModuleDef {
   icon?: string
 
   /** Minimum plan tier to access this module (clinic tenants only). */
-  minPlan?: PlanTier
 
   /** Roles that can see this module. If omitted, all members can see it. */
   roles?: Role[]

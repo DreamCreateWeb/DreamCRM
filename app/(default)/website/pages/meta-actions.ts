@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireTenant, requirePlan } from '@/lib/auth/context'
+import { requireTenant } from '@/lib/auth/context'
 import { updateSeoMeta } from '@/lib/services/site-analytics'
 import { resolveSeoMeta, type PageSeoMeta } from '@/lib/types/seo-meta'
 
@@ -20,7 +20,6 @@ export async function saveSeoMetaAction(raw: unknown): Promise<SaveSeoMetaResult
     return { ok: false, error: 'Only owners and admins can change search appearance.' }
   }
   // Gate to the SEO module's tier so the save can't be POSTed past the UI gate.
-  await requirePlan(ctx, 'pro', 'seo')
 
   const cleaned: PageSeoMeta = resolveSeoMeta(raw)
   await updateSeoMeta(ctx.organizationId, cleaned)

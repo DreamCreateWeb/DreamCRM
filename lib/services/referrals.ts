@@ -910,7 +910,7 @@ export async function getReferredClinics(partnerId: string): Promise<ReferredCli
     organizationId: c.organizationId,
     name: c.name,
     slug: c.slug,
-    planTier: c.planTier ?? 'basic',
+    planTier: c.planTier ?? 'premium',
     subscriptionStatus: c.subscriptionStatus,
     percentBps: c.percentBps ?? partner.defaultPercentBps,
     termMonths: c.termMonths !== null ? c.termMonths : partner.defaultTermMonths,

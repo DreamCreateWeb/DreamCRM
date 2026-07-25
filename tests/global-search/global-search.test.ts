@@ -109,12 +109,12 @@ describe('globalSearch — launcher view (empty query)', () => {
     expect(goTo.results.length).toBeGreaterThan(0)
   })
 
-  it('plan-gates quick actions: basic tier loses the patients/agenda actions', async () => {
+  it('quick actions are available to every clinic (no plan gating)', async () => {
     const groups = await globalSearch(ctx({ planTier: 'basic' }), '')
     const actions = groups.find((g) => g.label === 'Quick actions')!
     const ids = actions.results.map((r) => r.id)
-    expect(ids).not.toContain('act-add-patient')
-    expect(ids).not.toContain('act-agenda-today')
+    expect(ids).toContain('act-add-patient')
+    expect(ids).toContain('act-agenda-today')
     expect(ids).toContain('act-edit-site')
   })
 

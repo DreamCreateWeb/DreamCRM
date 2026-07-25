@@ -200,7 +200,6 @@ export interface IntegrationDef {
   /** Where this integration's data surfaces (connected-card quick links). */
   valueLinks?: IntegrationValueLink[]
   /** Minimum plan to connect (e.g. Open Dental = 'premium'). Omit = any plan. */
-  minPlan?: 'basic' | 'pro' | 'premium'
   /** True when this counts toward the per-plan SOCIAL connection cap. */
   countsTowardSocialCap?: boolean
   /** An honest "what's next / what it costs" note for the card footer. */
@@ -227,7 +226,6 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     availability: 'live',
     connectKind: 'pms',
     detailHref: '/integrations/open-dental',
-    minPlan: 'premium',
     valueLinks: [
       { href: '/patients', label: 'Patients' },
       { href: '/appointments', label: 'Appointments' },
@@ -244,7 +242,6 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     keywords: ['pms', 'practice management', 'dentrix', 'ascend', 'henry schein', 'cloud'],
     availability: 'request_access',
     connectKind: 'none',
-    minPlan: 'premium',
     note: 'Through the Henry Schein One API Exchange (official API only). Needs partner approval — the more practices waiting, the sooner we pursue it.',
   },
   {
@@ -258,7 +255,6 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     keywords: ['pms', 'practice management', 'dentrix', 'desktop', 'g-series', 'on-prem'],
     availability: 'coming_soon',
     connectKind: 'none',
-    minPlan: 'premium',
     note: 'On-prem G-series via the Dentrix Developer Program (signed connector per location). On the roadmap — raise your hand to help us prioritize it.',
   },
   {
@@ -272,7 +268,6 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     keywords: ['pms', 'practice management', 'eaglesoft', 'patterson'],
     availability: 'coming_soon',
     connectKind: 'none',
-    minPlan: 'premium',
     note: 'Via Patterson Innovation Connection (local agent). The most closed of the majors — demand tells us whether it’s worth the lift.',
   },
   {
@@ -286,7 +281,6 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     keywords: ['pms', 'practice management', 'curve', 'cloud'],
     availability: 'coming_soon',
     connectKind: 'none',
-    minPlan: 'premium',
     note: 'Cloud-native, open partner network — the most integration-friendly after Open Dental. Raise your hand and we’ll pursue it.',
   },
 

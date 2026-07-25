@@ -9,7 +9,7 @@ describe('buildShareCards', () => {
   const base = {
     clinicName: 'Acme Dental',
     siteUrl: 'https://acme.dreamcreatestudio.com',
-    isPro: true,
+    selfBooking: true,
     googleReviewUrl: 'https://search.google.com/local/writereview?placeid=abc123',
     portalUrl: 'https://www.dreamcreatestudio.com/signin/patient?clinic=acme',
   }
@@ -28,7 +28,7 @@ describe('buildShareCards', () => {
   })
 
   it('drops the booking card on basic tier (no /book page there)', () => {
-    const keys = buildShareCards({ ...base, isPro: false }).map((c) => c.key)
+    const keys = buildShareCards({ ...base, selfBooking: false }).map((c) => c.key)
     expect(keys).not.toContain('book')
     expect(keys).toContain('site')
   })
@@ -39,7 +39,7 @@ describe('buildShareCards', () => {
   })
 
   it('site + portal cards always render (they always exist)', () => {
-    const keys = buildShareCards({ ...base, isPro: false, googleReviewUrl: null }).map((c) => c.key)
+    const keys = buildShareCards({ ...base, selfBooking: false, googleReviewUrl: null }).map((c) => c.key)
     expect(keys).toEqual(['site', 'portal'])
   })
 

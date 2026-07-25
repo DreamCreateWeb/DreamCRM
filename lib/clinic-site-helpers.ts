@@ -249,7 +249,7 @@ export function buildClinicNavLinks(opts: {
    *  hide. [] / omitted → output is bit-identical to the pre-template nav. */
   extraPages?: TemplateMarketingPage[]
   /** Profile-derived gates the has* flags don't cover. */
-  extraGates?: { isPro?: boolean; selfBooking?: boolean; hasColoringPages?: boolean }
+  extraGates?: { selfBooking?: boolean; hasColoringPages?: boolean }
 }): SiteNavLink[] {
   const {
     basePath,
@@ -267,7 +267,6 @@ export function buildClinicNavLinks(opts: {
     hasCareers,
     hasDentalPlans,
     hasColoringPages: extraGates.hasColoringPages ?? false,
-    isPro: extraGates.isPro ?? false,
     selfBooking: extraGates.selfBooking ?? true,
   }
   const extrasIn = (group: 'about' | 'patients' | 'top') =>

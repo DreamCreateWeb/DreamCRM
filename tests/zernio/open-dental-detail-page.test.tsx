@@ -102,15 +102,6 @@ beforeEach(() => {
 })
 
 describe('Open Dental detail page — gating', () => {
-  it('below Premium → renders the upgrade state, NOT a crash (no dashboard load)', async () => {
-    ctx!.planTier = 'basic'
-    const ui = await OpenDentalDetailPage()
-    render(ui)
-    expect(screen.getByText(/Open Dental is on Premium/i)).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Upgrade to Premium/i })).toBeTruthy()
-    // Below Premium never loads the dashboard.
-    expect(svc.getIntegrationsDashboard).not.toHaveBeenCalled()
-  })
 
   it('patient tenant → redirects to the portal', async () => {
     ctx!.tenantType = 'patient'

@@ -194,7 +194,7 @@ describe('getActivationChecklist.siteNeedsPersonalization — /welcome re-entry 
       tagline: STARTER_TAGLINE,
       onboardingInterviewCompletedAt: null,
     }
-    const list = await getActivationChecklist('org_1', 'basic')
+    const list = await getActivationChecklist('org_1')
     expect(list.siteNeedsPersonalization).toBe(true)
   })
 
@@ -208,7 +208,7 @@ describe('getActivationChecklist.siteNeedsPersonalization — /welcome re-entry 
       tagline: 'We make Austin smile',
       onboardingInterviewCompletedAt: null,
     }
-    const list = await getActivationChecklist('org_1', 'basic')
+    const list = await getActivationChecklist('org_1')
     expect(list.siteNeedsPersonalization).toBe(true)
   })
 
@@ -222,7 +222,7 @@ describe('getActivationChecklist.siteNeedsPersonalization — /welcome re-entry 
       tagline: 'We make Austin smile',
       onboardingInterviewCompletedAt: new Date(),
     }
-    const list = await getActivationChecklist('org_1', 'basic')
+    const list = await getActivationChecklist('org_1')
     expect(list.siteNeedsPersonalization).toBe(false)
   })
 
@@ -238,7 +238,7 @@ describe('getActivationChecklist.siteNeedsPersonalization — /welcome re-entry 
       tagline: STARTER_TAGLINE,
       onboardingInterviewCompletedAt: new Date(),
     }
-    const list = await getActivationChecklist('org_1', 'basic')
+    const list = await getActivationChecklist('org_1')
     expect(list.siteNeedsPersonalization).toBe(true)
   })
 
@@ -252,7 +252,7 @@ describe('getActivationChecklist.siteNeedsPersonalization — /welcome re-entry 
       tagline: '   ',
       onboardingInterviewCompletedAt: null,
     }
-    const list = await getActivationChecklist('org_1', 'basic')
+    const list = await getActivationChecklist('org_1')
     expect(list.siteNeedsPersonalization).toBe(true)
   })
 })

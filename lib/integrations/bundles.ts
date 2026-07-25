@@ -67,7 +67,6 @@ export interface BundleDef {
    * for Social). Omit = available on every plan (Google, Communications). Kept a
    * local literal (not `PlanTier` from lib/modules) to avoid an import cycle.
    */
-  minPlan?: 'basic' | 'pro' | 'premium'
   /** True when a paid add-on lives INSIDE the bundle (Social's cap upsell). */
   hasPaidAddon?: boolean
   /** A deep setup / management page, when one exists (PMS, Google Business). */
@@ -92,7 +91,6 @@ export const BUNDLES: BundleDef[] = [
       "Two-way sync with your practice-management system through its official API, so DreamCRM rides your real schedule and balances — and every record we create lands in your PMS's audit trail. We wrap what you already run; we never replace it.",
     categories: ['pms'],
     availability: 'live',
-    minPlan: 'premium',
     detailHref: '/integrations/open-dental',
     valueLinks: [
       { href: '/patients', label: 'Patients' },
@@ -124,7 +122,6 @@ export const BUNDLES: BundleDef[] = [
       'Connect the social accounts you post to and publish or schedule to all of them from one composer, with per-platform performance in Analytics. Your plan includes a set number of connections; a flat add-on raises the cap whenever you need more.',
     categories: ['social'],
     availability: 'live',
-    minPlan: 'pro',
     hasPaidAddon: true,
     valueLinks: [
       { href: '/growth/social', label: 'Social Posts' },
@@ -154,7 +151,6 @@ export const BUNDLES: BundleDef[] = [
       'Connect your own Stripe account so storefront orders, membership subscriptions, and online balance payments are charged on your account and paid out to your bank. DreamCRM never holds your money. Opens your branded shop + membership plans.',
     categories: ['payments'],
     availability: 'live',
-    minPlan: 'premium',
     detailHref: '/shop',
     valueLinks: [{ href: '/shop', label: 'Shop' }],
     note: 'Included with Premium. Connect your own Stripe — payouts to your bank.',
@@ -248,22 +244,16 @@ export function activeBundleIds(s: BundleSignals): Set<BundleId> {
 
 // ── Page-side bundle resolution (bundle card status over the resolved catalog) ─
 
-const PLAN_RANK: Record<string, number> = { basic: 0, pro: 1, premium: 2 }
-function planMeets(plan: string, min: string): boolean {
-  return (PLAN_RANK[plan] ?? 0) >= (PLAN_RANK[min] ?? 0)
-}
-
 /**
  * A bundle's status for the `/integrations` cards — richer than the sidebar's
  * boolean active flag:
  *   - `active`        — at least one member integration is connected.
  *   - `available`     — connectable now (a member can be connected).
- *   - `plan_locked`   — the bundle needs a higher plan (see `def.minPlan`).
  *   - `request_access`— only reachable via vendor/partner approval today.
  *   - `coming_soon`   — genuinely roadmap (all members are coming-soon).
  *   - `unavailable`   — connectable kind but the instance isn't configured.
  */
-export type BundleStatus = 'active' | 'available' | 'plan_locked' | 'request_access' | 'coming_soon' | 'unavailable'
+export type BundleStatus = 'active' | 'available' | 'request_access' | 'coming_soon' | 'unavailable'
 
 export interface BundleView {
   def: BundleDef
@@ -276,20 +266,13 @@ export interface BundleView {
   needsAttention: boolean
 }
 
-/** Human label for the plan a bundle needs (for the "Upgrade to …" CTA copy). */
-export function bundlePlanLabel(def: BundleDef): string {
-  if (!def.minPlan) return 'Included'
-  return def.minPlan === 'premium' ? 'Premium' : def.minPlan === 'pro' ? 'Pro & up' : 'Included'
-}
-
 /**
- * Resolve a bundle over the already-resolved catalog + the clinic's plan. Pure.
- * Connected wins; then the bundle plan gate; then member connectability.
+ * Resolve a bundle over the already-resolved catalog. Pure. Connected wins;
+ * then member connectability. (No plan gate — see lib/modules/index.ts.)
  */
 export function resolveBundleView(
   def: BundleDef,
   resolved: readonly ResolvedIntegration[],
-  planTier: string,
 ): BundleView {
   const members = resolved.filter((r) => def.categories.includes(r.def.category))
   const connectedMembers = members.filter((r) => r.runtime.connected)
@@ -298,8 +281,6 @@ export function resolveBundleView(
   let status: BundleStatus
   if (connectedMembers.length > 0) {
     status = 'active'
-  } else if (def.minPlan && !planMeets(planTier, def.minPlan)) {
-    status = 'plan_locked'
   } else if (members.some((r) => r.runtime.status === 'available' || r.runtime.status === 'at_cap')) {
     status = 'available'
   } else if (members.some((r) => r.runtime.status === 'request_access')) {
@@ -314,6 +295,6 @@ export function resolveBundleView(
 }
 
 /** Resolve every bundle (in display order) over the resolved catalog. */
-export function resolveBundles(resolved: readonly ResolvedIntegration[], planTier: string): BundleView[] {
-  return BUNDLES.map((def) => resolveBundleView(def, resolved, planTier))
+export function resolveBundles(resolved: readonly ResolvedIntegration[]): BundleView[] {
+  return BUNDLES.map((def) => resolveBundleView(def, resolved))
 }

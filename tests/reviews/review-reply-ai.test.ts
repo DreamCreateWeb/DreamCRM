@@ -55,11 +55,11 @@ beforeEach(() => {
 })
 
 describe('reviewReplyAllowance', () => {
-  it('scales by plan tier', () => {
-    expect(reviewReplyAllowance('premium')).toBe(200)
-    expect(reviewReplyAllowance('pro')).toBe(80)
-    expect(reviewReplyAllowance('basic')).toBe(20)
-    expect(reviewReplyAllowance(null)).toBe(20)
+  it('is a single fair-use allowance (no plan tiers)', () => {
+    expect(reviewReplyAllowance()).toBe(200)
+    expect(reviewReplyAllowance()).toBe(200)
+    expect(reviewReplyAllowance()).toBe(200)
+    expect(reviewReplyAllowance()).toBe(200)
   })
 })
 
@@ -70,7 +70,7 @@ describe('draftGoogleReviewReply', () => {
     state.selectQueue.push([REVIEW]) // review lookup
     state.selectQueue.push([{ displayName: 'Dream Dental' }]) // clinic name
     const r = await draftGoogleReviewReply(input)
-    expect(r).toMatchObject({ ok: true, draft: expect.stringContaining('Thank you'), remaining: 79 })
+    expect(r).toMatchObject({ ok: true, draft: expect.stringContaining('Thank you'), remaining: 199 })
     expect(bumpMock).toHaveBeenCalledWith('org_1', 'review_reply_draft')
     // The prompt carries the review content + the public/HIPAA guardrails.
     const req = (runClaudeJsonMock.mock.calls[0] as unknown[])[0] as { system: string; messages: Array<{ content: string }> }

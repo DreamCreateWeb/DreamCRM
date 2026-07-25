@@ -59,7 +59,6 @@ export default async function ShareCardsPage() {
   const slug = ctx.organizationSlug
   const siteUrl = publicSiteUrl({ slug, profile })
   const clinicName = profile.displayName ?? ctx.organizationName
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
   // Best-effort — a review-config read hiccup just drops the review card.
   const reviewConfig = await getReviewConfig(ctx.organizationId).catch(() => null)
   const googleReviewUrl = reviewConfig ? reviewPlatformUrl('google', reviewConfig) : null
@@ -67,7 +66,7 @@ export default async function ShareCardsPage() {
   const cards = buildShareCards({
     clinicName,
     siteUrl,
-    isPro,
+    selfBooking: profile.selfBookingEnabled !== false,
     googleReviewUrl,
     portalUrl: clinicPortalSignInUrl(slug),
   })

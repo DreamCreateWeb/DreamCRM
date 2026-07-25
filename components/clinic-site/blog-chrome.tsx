@@ -7,6 +7,7 @@ import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import SiteHeader from './site-header'
 import SiteFooter from './site-footer'
@@ -35,8 +36,7 @@ export default async function BlogChrome({
   children: React.ReactNode
 }) {
   const { profile } = data
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const bookLabel = 'Book a Visit'
   const signIn = clinicPortalSignInUrl(data.slug)
 

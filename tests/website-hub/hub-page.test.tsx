@@ -5,8 +5,7 @@
  *    numbers + per-area stats (no fake content);
  *  - owner/admin get "Open the editor"; members don't (but still get the
  *    content areas — blog/SEO/careers were never role-gated);
- *  - below-plan tiers see honest upsell cards linking the billing upgrade
- *    panel instead of hidden modules;
+ *  - every clinic sees every area (no plan gating — one plan);
  *  - the module registry carries exactly ONE Website-section entry with no
  *    role/plan gate (the sidebar collapse);
  *  - the slimmed editor top bar no longer hosts the hub's affordances
@@ -145,15 +144,14 @@ describe('WebsiteHubPage', () => {
     cleanup()
   })
 
-  it('below-plan tiers see honest upsell cards linking the upgrade panel', async () => {
-    ctx = { ...ctx, planTier: 'basic' }
-    profileRow = makeProfile({ planTier: 'basic' })
+  it('every clinic gets the real news cards — no upsell cards exist', async () => {
     const { container } = render(await WebsiteHubPage())
-    expect(container.querySelector('a[href="/settings/billing?upgrade=blog"]')).toBeTruthy()
-    expect(container.querySelector('a[href="/settings/billing?upgrade=seo"]')).toBeTruthy()
-    expect(container.querySelector('a[href="/settings/billing?upgrade=careers"]')).toBeTruthy()
-    // The gated pages themselves are never linked below-plan.
-    expect(container.querySelector('a[href="/posts"]')).toBeNull()
+    expect(container.querySelector('a[href="/settings/billing?upgrade=blog"]')).toBeNull()
+    expect(container.querySelector('a[href="/settings/billing?upgrade=seo"]')).toBeNull()
+    expect(container.querySelector('a[href="/settings/billing?upgrade=careers"]')).toBeNull()
+    expect(container.querySelector('a[href="/website/blog"]')).toBeTruthy()
+    expect(container.querySelector('a[href="/website/seo"]')).toBeTruthy()
+    expect(container.querySelector('a[href="/website/careers"]')).toBeTruthy()
     cleanup()
   })
 })
@@ -259,7 +257,6 @@ describe('module registry — the sidebar collapse', () => {
     expect(website[0].id).toBe('website')
     expect(website[0].path).toBe('/website')
     expect(website[0].roles).toBeUndefined()
-    expect(website[0].minPlan).toBeUndefined()
   })
 })
 

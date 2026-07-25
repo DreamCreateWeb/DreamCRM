@@ -173,13 +173,16 @@ describe('ServicesPage', () => {
     expect(bookLinks.length).toBeGreaterThan(0)
   })
 
-  it('tier-gated Book CTA points to homepage #contact for basic tier', async () => {
-    await renderPage(makeData({ planTier: 'basic' }))
+  it('Book CTA points at /book — every clinic has self-scheduling (no plan tiers)', async () => {
+    await renderPage(makeData({}))
     const bookLinks = screen
       .getAllByRole('link')
-      .filter((a) => a.getAttribute('href') === '/site/acme-dental#contact')
+      .filter((a) => a.getAttribute('href') === '/site/acme-dental/book')
     expect(bookLinks.length).toBeGreaterThan(0)
-    // …and there's no /book link anywhere on a basic-tier services page.
+  })
+
+  it('with self-booking OFF, no /book link is offered', async () => {
+    await renderPage(makeData({ selfBookingEnabled: false }))
     expect(
       screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/site/acme-dental/book'),
     ).toHaveLength(0)

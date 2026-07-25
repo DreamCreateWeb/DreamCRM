@@ -8,7 +8,6 @@ import { patient } from '@/lib/db/schema/clinic'
 import { referralPartner } from '@/lib/db/schema/referrals'
 import { eq, and, asc } from 'drizzle-orm'
 import type { TenantType, PlanTier, Role } from '@/lib/modules/types'
-import { planAllows } from '@/lib/modules'
 import { resolveTrialState } from '@/lib/trial'
 
 export interface TenantContext {
@@ -384,22 +383,4 @@ export async function requirePartner(
     redirect('/')
   }
   return { ctx, partner: partner as import('@/lib/db/schema/referrals').ReferralPartner }
-}
-
-/**
- * Plan-gate a page or server action. Mirrors the sidebar's plan gating
- * (`lib/modules` is the single source of truth for the tier ordering) so a
- * clinic can't deep-link a paid page or fire its server action below tier.
- *
- * Plan gating only applies to clinic tenants — platform admins (incl. demo
- * mode, which inherits the demo org's tier) and others pass through. On a
- * below-tier clinic this REDIRECTS to the Plan page with the requested module
- * as `?upgrade=<module>` so the plans page can show a friendly upgrade panel;
- * actions that want a thrown error instead should use `planAllows` directly.
- */
-export async function requirePlan(ctx: TenantContext, minPlan: PlanTier, module?: string): Promise<void> {
-  if (ctx.tenantType !== 'clinic') return
-  if (planAllows(ctx.planTier, minPlan)) return
-  const { redirect } = await import('next/navigation')
-  redirect(module ? `/settings/billing?upgrade=${encodeURIComponent(module)}` : '/settings/billing')
 }

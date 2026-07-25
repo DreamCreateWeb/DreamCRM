@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
-import { planAllows } from '@/lib/modules'
 import {
   AudienceInput,
   LeadInput,
@@ -52,9 +51,6 @@ async function requireClinicStaff() {
   // block a below-tier clinic from firing the action even via deep-link.
   // Platform tenants (the SaaS-side Marketing surface) aren't plan-gated and
   // pass through; demo contexts inherit the demo org's premium tier.
-  if (ctx.tenantType === 'clinic' && !planAllows(ctx.planTier, 'premium')) {
-    throw new Error('Recall & Outreach is on the Premium plan. Upgrade to use outreach campaigns.')
-  }
   return ctx
 }
 

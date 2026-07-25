@@ -69,17 +69,14 @@ export default async function DashboardShell({
   // bundle-gated modules, so they skip the (clinic-scoped) lookup entirely.
   const activeBundles =
     ctx.tenantType === 'clinic' ? await getActiveBundlesForSidebar(ctx.organizationId) : new Set<BundleId>()
-  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.planTier, ctx.role), activeBundles)
+  const modules = applyBundleGate(getVisibleModules(ctx.tenantType, ctx.role), activeBundles)
   // Quick-create gating ids: module ids PLUS plan-derived capability ids for
   // areas folded into the Website/Growth workspaces (their hub modules are
   // ungated, so the hub id alone can't carry the plan gate — 'blog' is Pro+,
-  // 'campaigns' is Premium).
   const isClinic = ctx.tenantType === 'clinic'
-  const isProPlus = ctx.planTier === 'pro' || ctx.planTier === 'premium'
   const moduleIds = [
     ...modules.map((m) => m.id),
-    ...(isClinic && isProPlus ? ['blog'] : []),
-    ...(isClinic && ctx.planTier === 'premium' ? ['campaigns'] : []),
+    ...(isClinic ? ['blog', 'campaigns'] : []),
   ]
   // Prospect-branded presenter overlay (platform admin + demo mode only —
   // readDemoSkin returns null for everyone else, stale cookies included).

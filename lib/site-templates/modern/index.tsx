@@ -32,6 +32,7 @@ function ModernHome(props: HomePageProps) {
       hasTeam={props.gates.hasTeam}
       featuredGoogleReviews={props.featuredGoogleReviews}
       googleRating={props.googleRating}
+      selfBooking={props.gates.selfBooking}
     />
   )
 }

@@ -27,8 +27,6 @@ export interface SiteGates {
   hasDentalPlans: boolean
   /** ≥1 staff-uploaded coloring page — gates /coloring + its nav links. */
   hasColoringPages: boolean
-  /** planTier is pro/premium — gates /book and the booking CTA target. */
-  isPro: boolean
   /** Live slot-picker booking vs request-only form. */
   selfBooking: boolean
 }

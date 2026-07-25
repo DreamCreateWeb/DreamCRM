@@ -14,6 +14,7 @@ import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
   hasColoringPages,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
@@ -77,8 +78,7 @@ export default async function PrivacyPage({ params }: Props) {
   const name = profile.displayName ?? data.orgName
   const brand = profile.brandColor ?? '#9CAF9F'
   const headingInk = readableInk(brand)
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const signIn = clinicPortalSignInUrl(slug)
   const contactBits = [profile.email, profile.phone].filter(Boolean).join(' or ')
 
@@ -87,7 +87,6 @@ export default async function PrivacyPage({ params }: Props) {
     // inside the builder against the same flags as everything else.
     extraPages: siteTemplate.extraMarketingPages,
     extraGates: {
-      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
       hasColoringPages: hasColoringPages(data.profile),
     },
     basePath,

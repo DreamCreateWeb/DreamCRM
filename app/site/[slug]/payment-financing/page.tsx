@@ -26,6 +26,7 @@ import {
   copyOverride,
   resolveCopyList,
   hasColoringPages,
+  isSelfBookingEnabled,
 } from '@/lib/clinic-site-helpers'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { DeepBand } from '@/components/clinic-site/decor'
@@ -151,8 +152,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
   const headingInk = readableInk(brand)
   const copyOverrides = (profile.copyOverrides as Record<string, string> | null) ?? null
   const howSteps = resolveCopyList(copyOverrides, 'paymentFinancing.how', HOW_IT_WORKS_STEPS)
-  const isPro = profile.planTier === 'pro' || profile.planTier === 'premium'
-  const bookHref = isPro ? `${basePath}/book` : `${basePath || '/'}#contact`
+  const bookHref = isSelfBookingEnabled(profile) ? `${basePath}/book` : `${basePath || '/'}#contact`
   const { def: siteTemplate } = await resolveActiveSiteTemplate(slug)
   const bookLabel = siteTemplate.bookLabel
   const { Header: SiteHeader, Footer: SiteFooter, MobileActions: SiteMobileActions } = siteTemplate.chrome
@@ -163,7 +163,6 @@ export default async function PaymentFinancingPage({ params }: Props) {
     // inside the builder against the same flags as everything else.
     extraPages: siteTemplate.extraMarketingPages,
     extraGates: {
-      isPro: data.profile.planTier === 'pro' || data.profile.planTier === 'premium',
       hasColoringPages: hasColoringPages(data.profile),
     },
     basePath,

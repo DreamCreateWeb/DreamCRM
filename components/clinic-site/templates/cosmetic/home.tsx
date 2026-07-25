@@ -513,7 +513,7 @@ export default function CosmeticHome(props: HomePageProps) {
       )}
 
       {/* ── Contact form — basic tier only (bookHref targets #contact) ────── */}
-      {!gates.isPro && (
+      {!gates.selfBooking && (
         <section id="contact" className="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
           <h2 className="text-3xl mb-2 text-center" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>
             Request a consultation
@@ -524,7 +524,7 @@ export default function CosmeticHome(props: HomePageProps) {
           <ContactForm
             slug={data.slug}
             brand={accent}
-            isPro={gates.isPro}
+            selfBooking={gates.selfBooking}
             basePath={basePath}
             fields={resolveLeadForm(p.leadForms as LeadFormsConfig | null, 'contact')}
             services={services.length > 0 ? services.map((s) => s.name) : null}

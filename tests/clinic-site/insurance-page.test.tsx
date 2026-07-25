@@ -185,11 +185,11 @@ describe('InsurancePage', () => {
     ).toBeGreaterThan(0)
   })
 
-  it('basic-tier bookHref routes back to homepage #contact (no /book route)', async () => {
+  it('bookHref routes to /book when self-booking is on', async () => {
     await renderPage(makeData({ planTier: 'basic' }))
     const contactLinks = screen
       .getAllByRole('link')
-      .filter((a) => a.getAttribute('href') === '/site/acme-dental#contact')
+      .filter((a) => a.getAttribute('href') === '/site/acme-dental/book')
     expect(contactLinks.length).toBeGreaterThan(0)
   })
 })

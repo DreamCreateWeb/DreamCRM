@@ -38,7 +38,6 @@ import { resolveBundles } from '@/lib/integrations/bundles'
 
 function liveState(overrides: Partial<LiveIntegrationState> = {}): LiveIntegrationState {
   return {
-    pmsEligible: true,
     zernioConfigured: true,
     connections: {},
     socialCap: { allowed: true, limit: 5, current: 2 },
@@ -53,10 +52,9 @@ function fact(connected: boolean, extra: Partial<IntegrationConnectionFact> = {}
 function props(
   overrides: Partial<IntegrationsLibraryProps> = {},
   state: LiveIntegrationState = liveState(),
-  planTier = 'premium',
 ): IntegrationsLibraryProps {
   return {
-    bundles: resolveBundles(resolveCatalog(state, planTier), planTier),
+    bundles: resolveBundles(resolveCatalog(state)),
     zernioConfigured: state.zernioConfigured,
     planName: 'Premium',
     cap: { ...state.socialCap },
@@ -94,15 +92,16 @@ describe('IntegrationsLibrary — bundle sections', () => {
     }
   })
 
-  it('carries the pricing frame per bundle (Included / Pro & up / Premium + Add-on)', () => {
+  it('carries the pricing frame per bundle (Included + the social Add-on)', () => {
     render(<IntegrationsLibrary {...props()} />)
     const google = screen.getByRole('heading', { name: 'Google Business' }).closest('section')!
     expect(within(google).getByText('Included')).toBeTruthy()
     const social = screen.getByRole('heading', { name: 'Social Media' }).closest('section')!
-    expect(within(social).getByText('Pro & up')).toBeTruthy()
+    expect(within(social).getByText('Included')).toBeTruthy()
+    // The connection cap is a real paid add-on — the one entitlement left.
     expect(within(social).getByText('Add-on')).toBeTruthy()
     const pms = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
-    expect(within(pms).getByText('Premium')).toBeTruthy()
+    expect(within(pms).getByText('Included')).toBeTruthy()
   })
 
   it('renders a card for each of the 5 shortlisted social platforms, inside Social Media', () => {
@@ -241,16 +240,6 @@ describe('IntegrationsLibrary — Practice Management bundle', () => {
     expect(within(section).getAllByText('Needs attention').length).toBeGreaterThan(0)
   })
 
-  it('below Premium → a single Upgrade-to-Premium prompt, no per-account Connect cards', () => {
-    const state = liveState({ pmsEligible: false })
-    render(<IntegrationsLibrary {...props({}, state, 'basic')} />)
-    const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
-    const upgrade = within(section).getByRole('link', { name: /Upgrade to Premium/i }) as HTMLAnchorElement
-    expect(upgrade.getAttribute('href')).toContain('/settings/billing')
-    // The plan-locked bundle hides its member cards (no Open Dental / roadmap tiles).
-    expect(within(section).queryByText('Open Dental')).toBeNull()
-    expect(within(section).queryByRole('link', { name: /^Connect$/i })).toBeNull()
-  })
 
   it('Premium → the roadmap PMSs render as request-access / coming-soon tiles', () => {
     render(<IntegrationsLibrary {...props()} />)
@@ -391,7 +380,6 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
             entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 3, addonPriceDollars: 30, addonConfigured: true, managedBilling: false, needsSubscription: false },
           },
           state,
-          'pro',
         )}
       />,
     )
@@ -399,7 +387,7 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
   })
 
   it('Basic → the Social bundle is plan-locked (Upgrade to Pro prompt, no add-on buy)', () => {
-    const state = liveState({ pmsEligible: false, socialCap: { allowed: false, limit: 0, current: 0 } })
+    const state = liveState({socialCap: { allowed: false, limit: 0, current: 0 } })
     render(
       <IntegrationsLibrary
         {...props(
@@ -409,7 +397,6 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
             entitlement: { addonAvailable: false, addonActive: false, addonRaisesTo: 0, addonPriceDollars: null, addonConfigured: true, managedBilling: false, needsSubscription: false },
           },
           state,
-          'basic',
         )}
       />,
     )
@@ -429,7 +416,6 @@ describe('IntegrationsLibrary — consolidated add-on management', () => {
             entitlement: { addonAvailable: true, addonActive: false, addonRaisesTo: 3, addonPriceDollars: 30, addonConfigured: false, managedBilling: false, needsSubscription: false },
           },
           state,
-          'pro',
         )}
       />,
     )

@@ -445,7 +445,7 @@ export default function HometownHome(props: HomePageProps) {
       )}
 
       {/* ── Contact form — basic tier only (bookHref targets #contact) ────── */}
-      {!gates.isPro && (
+      {!gates.selfBooking && (
         <section id="contact" className="max-w-2xl mx-auto px-4 sm:px-6 py-14 sm:py-18">
           <SectionHeading>Request an appointment</SectionHeading>
           <p className="text-sm text-center -mt-6 mb-8" style={{ color: SITE_INK_MUTED }}>
@@ -454,7 +454,7 @@ export default function HometownHome(props: HomePageProps) {
           <ContactForm
             slug={data.slug}
             brand={p.brandColor ?? '#1F4E79'}
-            isPro={gates.isPro}
+            selfBooking={gates.selfBooking}
             basePath={basePath}
             fields={resolveLeadForm(p.leadForms as LeadFormsConfig | null, 'contact')}
             services={services.length > 0 ? services.map((s) => s.name) : null}
@@ -489,8 +489,6 @@ function propsNav(props: HomePageProps): SiteNavLink[] {
     hasCareers: props.gates.hasCareers,
     services: navServicesFromClinicServices(services),
     extraGates: {
-      isPro: props.gates.isPro,
-      selfBooking: props.gates.selfBooking,
       hasColoringPages: props.gates.hasColoringPages,
     },
   })

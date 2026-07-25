@@ -20,17 +20,12 @@ export type AiWebsiteSection = (typeof AI_WEBSITE_SECTIONS)[number]
  * Resets monthly, fails safe (we gate, never auto-charge). No credit currency —
  * the research is clear that "customers don't know what a credit does."
  */
-export const AI_REWRITE_ALLOWANCE: Record<PlanId, number> = {
-  basic: 15,
-  pro: 50,
-  premium: 200,
-}
+export const AI_REWRITE_ALLOWANCE = 200
 
-/** Resolve a plan tier string (possibly null/legacy) to its monthly allowance. */
-export function aiAllowanceForPlan(plan: string | null | undefined): number {
-  if (plan === 'pro') return AI_REWRITE_ALLOWANCE.pro
-  if (plan === 'premium') return AI_REWRITE_ALLOWANCE.premium
-  return AI_REWRITE_ALLOWANCE.basic
+/** The monthly AI allowance. One plan → one allowance; a fair-use cost
+ *  control on the AI spend, never a plan gate. */
+export function aiAllowanceForPlan(): number {
+  return AI_REWRITE_ALLOWANCE
 }
 
 /** Current usage snapshot surfaced in the editor next to the AI buttons. */

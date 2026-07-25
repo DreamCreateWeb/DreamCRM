@@ -50,17 +50,17 @@ describe('currentPeriod', () => {
 describe('getAiUsage', () => {
   it('computes remaining from the stored count + plan limit', async () => {
     selectResult = [{ count: 12 }]
-    const u = await getAiUsage('org_1', 'premium')
+    const u = await getAiUsage('org_1')
     expect(u).toMatchObject({ used: 12, limit: 200, remaining: 188 })
   })
   it('treats a missing row as zero usage', async () => {
     selectResult = []
-    const u = await getAiUsage('org_1', 'pro')
-    expect(u).toMatchObject({ used: 0, limit: 50, remaining: 50 })
+    const u = await getAiUsage('org_1')
+    expect(u).toMatchObject({ used: 0, limit: 200, remaining: 200 })
   })
   it('never returns negative remaining (over-limit clamps to 0)', async () => {
-    selectResult = [{ count: 99 }]
-    const u = await getAiUsage('org_1', 'basic') // limit 15
+    selectResult = [{ count: 250 }] // over the single 200 allowance
+    const u = await getAiUsage('org_1')
     expect(u.remaining).toBe(0)
   })
 })

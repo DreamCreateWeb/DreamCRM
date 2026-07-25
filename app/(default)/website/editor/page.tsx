@@ -89,7 +89,6 @@ export default async function WebsiteEditorPage({
     hasCareers: jobs.length > 0,
     hasDentalPlans: plans.length > 0,
     hasColoringPages: hasColoringPages(profile),
-    isPro: profile.planTier === 'pro' || profile.planTier === 'premium',
     selfBooking: profile.selfBookingEnabled !== false,
   }
   const templateDef = getSiteTemplate(profile.template)

@@ -76,12 +76,12 @@ describe('ModernTemplate', () => {
     })
   })
 
-  it('uses "Book a Visit" copy regardless of tier, but basic links to contact, not /book', () => {
-    render(<ModernTemplate data={makeData({ planTier: 'basic' })} basePath="/site/test" />)
+  it('with self-booking OFF, "Book a Visit" links to #contact, not /book', () => {
+    render(<ModernTemplate data={makeData({})} basePath="/site/test" selfBooking={false} />)
     // Universal CTA copy
     const bookButtons = screen.getAllByRole('link', { name: /Book a Visit/i })
     expect(bookButtons.length).toBeGreaterThan(0)
-    // Basic clinics route the CTA to the contact section, not a /book widget
+    // Self-booking off → the CTA routes to the contact section, not /book
     expect(
       screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/site/test/book'),
     ).toHaveLength(0)
@@ -90,16 +90,16 @@ describe('ModernTemplate', () => {
     ).toBeGreaterThan(0)
   })
 
-  it('shows Book CTA for pro+ clinics pointing to /book', () => {
-    render(<ModernTemplate data={makeData({ planTier: 'pro' })} basePath="/site/test" />)
+  it('shows the Book CTA pointing to /book (self-booking on)', () => {
+    render(<ModernTemplate data={makeData({})} basePath="/site/test" />)
     const bookLinks = screen
       .getAllByRole('link')
       .filter((a) => a.getAttribute('href') === '/site/test/book')
     expect(bookLinks.length).toBeGreaterThan(0)
   })
 
-  it('shows booking link for premium clinics too', () => {
-    render(<ModernTemplate data={makeData({ planTier: 'premium' })} basePath="/site/test" />)
+  it('shows the booking link on every clinic (no plan tiers)', () => {
+    render(<ModernTemplate data={makeData({})} basePath="/site/test" />)
     const bookLinks = screen
       .getAllByRole('link')
       .filter((a) => a.getAttribute('href') === '/site/test/book')
@@ -241,7 +241,8 @@ describe('ModernTemplate', () => {
   })
 
   it('renders header nav using page paths (services + about + faq) plus #contact anchor', () => {
-    render(<ModernTemplate data={makeData()} basePath="/site/test" />)
+    // #contact only appears when self-booking is off (otherwise CTAs go /book).
+    render(<ModernTemplate data={makeData()} basePath="/site/test" selfBooking={false} />)
     // FAQ now lives under the About dropdown — open the mobile drawer so
     // every nav link (top-level + children) is queryable. Phone users see
     // the full list there anyway.
@@ -942,16 +943,16 @@ describe('ModernTemplate', () => {
     expect(screen.queryByText(/From the blog/i)).not.toBeInTheDocument()
   })
 
-  it('renders the on-page contact form ONLY for basic-tier clinics', () => {
-    // Pro/premium route every Book CTA to /book, so the homepage has no
-    // on-page contact form (matches Tend — booking is always the widget).
+  it('renders the on-page contact form ONLY when self-booking is off', () => {
+    // With self-scheduling on, every Book CTA routes to /book, so the homepage
+    // has no on-page contact form (matches Tend — booking is always the widget).
     const { rerender } = render(
-      <ModernTemplate data={makeData({ planTier: 'basic' })} basePath="/site/test" />,
+      <ModernTemplate data={makeData({})} basePath="/site/test" selfBooking={false} />,
     )
     expect(document.querySelector('#contact')).not.toBeNull()
     expect(screen.getByText(/We'd love to see you/i)).toBeInTheDocument()
 
-    rerender(<ModernTemplate data={makeData({ planTier: 'pro' })} basePath="/site/test" />)
+    rerender(<ModernTemplate data={makeData({})} basePath="/site/test" />)
     expect(document.querySelector('#contact')).toBeNull()
   })
 
