@@ -25,6 +25,7 @@ import NumberedSteps from '@/components/clinic-site/numbered-steps'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
+import SiteImage from '@/components/clinic-site/site-image'
 
 
 interface Props {
@@ -299,8 +300,8 @@ export default async function ServiceDetailPage({ params }: Props) {
                 }}
               >
                 {heroImage ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
+                  <SiteImage
+                    displayWidth={640}
                     src={heroImage}
                     alt={service.name}
                     className="w-full h-full object-cover transition duration-700 hover:scale-[1.03]"

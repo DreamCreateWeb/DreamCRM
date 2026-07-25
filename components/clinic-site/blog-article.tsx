@@ -8,6 +8,7 @@ import ScrollReveal from './scroll-reveal'
 import ClosingCTA from './closing-cta'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { brandTint } from '@/lib/brand-tint'
+import SiteImage from './site-image'
 
 
 interface Props {
@@ -90,8 +91,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
         </h1>
         <div className="flex items-center gap-3">
           {author?.photoUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={author.photoUrl} alt={author.name} className="w-11 h-11 rounded-full object-cover" width={44} height={44} loading="lazy" decoding="async" />
+            <SiteImage displayWidth={48} src={author.photoUrl} alt={author.name} className="w-11 h-11 rounded-full object-cover" width={44} height={44} loading="lazy" decoding="async" />
           ) : author ? (
             <span
               className="flex items-center justify-center w-11 h-11 rounded-full text-white text-sm font-bold"
@@ -131,8 +131,8 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
 
       {post.coverImageUrl && (
         <div className="rounded-2xl overflow-hidden mb-10" style={{ backgroundColor: brandTint(brand, 0.1) }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <SiteImage
+            displayWidth={828}
             src={post.coverImageUrl}
             alt={post.coverImageAlt ?? ''}
             className="w-full aspect-[16/9] object-cover transition duration-700 hover:scale-[1.02]"
@@ -196,8 +196,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
           </p>
           <div className="flex items-start gap-4">
             {author.photoUrl && (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={author.photoUrl} alt={author.name} className="w-14 h-14 rounded-full object-cover shrink-0" width={56} height={56} loading="lazy" decoding="async" />
+              <SiteImage displayWidth={64} src={author.photoUrl} alt={author.name} className="w-14 h-14 rounded-full object-cover shrink-0" width={56} height={56} loading="lazy" decoding="async" />
             )}
             <div>
               <p className="font-semibold" style={{ color: INK }}>
@@ -231,8 +230,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
                     style={{ backgroundColor: brandTint(brand, 0.1) }}
                   >
                     {r.coverImageUrl && (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]" width={1280} height={800} loading="lazy" decoding="async" />
+                      <SiteImage displayWidth={384} src={r.coverImageUrl} alt="" className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.05]" width={1280} height={800} loading="lazy" decoding="async" />
                     )}
                   </div>
                   {r.category && (

@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import type { ClinicColoringPage } from '@/lib/types/clinic-content'
 import { COLORING_LIBRARY, coloringLibraryUrl } from '@/lib/types/coloring-library'
 import { EmptyHint } from '@/components/ui/editor-kit'
+import { downscaleImageFile } from '@/lib/image-downscale'
 
 interface Props {
   name: string
@@ -51,7 +52,7 @@ export default function ColoringPagesEditor({ name, defaultValue }: Props) {
         if (!file.type.startsWith('image/')) continue
         if (file.size > 8 * 1024 * 1024) continue
         const fd = new FormData()
-        fd.set('file', file)
+        fd.set('file', await downscaleImageFile(file))
         fd.set('folder', 'clinic-coloring-pages')
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
         const body = (await res.json()) as { url?: string }

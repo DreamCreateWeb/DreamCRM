@@ -425,6 +425,19 @@ sitemap/robots/OG.
   (SITE_*), the deep-band recipe in `DeepBand` (decor.tsx), brand alpha
   tints via `brandTint()` (lib/brand-tint.ts). Don't re-declare these
   locally — the tests/a11y guards fail CI naming the file.
+- **Public-site photos go through `<SiteImage>` (2026-07-25).** Clinics upload
+  camera originals (a real headshot landed at 7008×4672 / 6.5 MB); a raw `<img>`
+  makes the browser do a ~14× downscale in one crude step and it renders
+  GRAINY. `components/clinic-site/site-image.tsx` + `lib/site-image.ts` route
+  every clinic-uploaded photo through `/_next/image` with a 1x/2x srcSet at the
+  width it's actually painted (`displayWidth`), and `lib/image-downscale.ts`
+  caps new uploads at 2560px on the long edge. Rules: the host/width/quality
+  tables MUST mirror `next.config.js` (the optimizer 400s otherwise — a broken
+  public image); anything that swaps an image live must clear `srcset` first
+  (it beats `src`); the hero preload uses `HERO_IMAGE_DISPLAY_WIDTH` so it
+  fetches the same bytes the template does.
+  `tests/clinic-site/site-image.test.ts` fails CI on a new raw `<img>` under
+  `app/site`/`components/clinic-site` (documented exceptions carry a reason).
 - **No fake content.** Every UI placeholder reads a real DB column; the demo
   seeder populates every column shown anywhere (empty/common/edge covered);
   self-heal backfills legacy demos. Ship wiring + seed + self-heal in one PR.

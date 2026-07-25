@@ -27,6 +27,7 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
+import SiteImage from '@/components/clinic-site/site-image'
 
 
 interface Props {
@@ -231,8 +232,8 @@ export default async function StaffDetailPage({ params }: Props) {
                   }}
                 >
                   {staff.photoUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
+                    <SiteImage
+                      displayWidth={640}
                       src={staff.photoUrl}
                       alt={staff.name}
                       width={640}
@@ -405,8 +406,8 @@ export default async function StaffDetailPage({ params }: Props) {
                           }}
                         >
                           {s.photoUrl ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
+                            <SiteImage
+                              displayWidth={192}
                               src={s.photoUrl}
                               alt={s.name}
                               width={192}

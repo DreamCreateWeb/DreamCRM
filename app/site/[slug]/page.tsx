@@ -16,6 +16,7 @@ import type { ClinicStaff } from '@/lib/types/clinic-content'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import { isSelfBookingEnabled, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
+import { siteImageSource, HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -113,10 +114,25 @@ export default async function ClinicSitePage({ params }: Props) {
       {/* Preload the hero photo — it's the LCP element (the left oval portrait
           in the shared template). Next.js hoists this <link> into <head> so the
           browser starts fetching it before the template's <img> is parsed.
-          Skipped cleanly when the clinic has no hero photo. */}
-      {heroImageUrl && (
-        <link rel="preload" as="image" href={heroImageUrl} fetchPriority="high" />
-      )}
+          Skipped cleanly when the clinic has no hero photo.
+
+          It preloads the OPTIMIZED source at the same display width every
+          template's hero uses (HERO_IMAGE_DISPLAY_WIDTH), including the
+          identical srcSet — preloading the raw upload instead would fetch the
+          clinic's multi-megabyte original AND the resized one. */}
+      {heroImageUrl &&
+        (() => {
+          const hero = siteImageSource(heroImageUrl, HERO_IMAGE_DISPLAY_WIDTH)
+          return (
+            <link
+              rel="preload"
+              as="image"
+              href={hero.src}
+              imageSrcSet={hero.srcSet}
+              fetchPriority="high"
+            />
+          )
+        })()}
       {/* JSON-LD for Google rich results / Knowledge Panel. Embedded as a
           plain script tag rather than next/script so it's part of the
           initial HTML and indexed without a JS roundtrip. */}

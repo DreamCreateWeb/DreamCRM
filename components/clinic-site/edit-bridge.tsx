@@ -321,7 +321,15 @@ export default function EditBridge() {
         }
         const img =
           region instanceof HTMLImageElement ? region : (region?.querySelector('img') ?? null)
-        if (img instanceof HTMLImageElement) img.src = d.url
+        if (img instanceof HTMLImageElement) {
+          // Site photos render through the image optimizer with a 1x/2x
+          // `srcset` (components/clinic-site/site-image.tsx). srcset WINS over
+          // src, so a live swap that only set src would keep painting the old
+          // photo until reload — clear it and let the fresh upload show. The
+          // next real render brings the optimized pair back.
+          img.removeAttribute('srcset')
+          img.src = d.url
+        }
       } else if (d.type === 'scrollTo' && d.section) {
         document
           .querySelector(`[data-edit-section="${d.section}"]`)

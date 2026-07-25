@@ -10,6 +10,7 @@ import {
   type HoursMap,
   type SiteNavLink,
 } from '@/lib/clinic-site-helpers'
+import SiteImage from './site-image'
 
 interface Props {
   data: ClinicSiteData
@@ -103,8 +104,7 @@ export default function SiteFooter({
             data-edit-label="logo"
           >
             {logoUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" width={40} height={40} loading="lazy" decoding="async" />
+              <SiteImage displayWidth={48} src={logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" width={40} height={40} loading="lazy" decoding="async" />
             ) : (
               <>
                 {/* White tile + deep-colored letter: a brand-strong tile is

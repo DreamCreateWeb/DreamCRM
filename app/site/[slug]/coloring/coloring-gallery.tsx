@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ClinicColoringPage } from '@/lib/types/clinic-content'
 import { SITE_SURFACE, SITE_BORDER, SITE_INK, SITE_INK_MUTED, SITE_DEEP, SITE_DEEP_INK } from '@/components/clinic-site/tokens'
+import SiteImage from '@/components/clinic-site/site-image'
 
 /**
  * The kids' coloring corner — a grid of staff-uploaded line-art sheets. Each
@@ -300,8 +301,8 @@ export default function ColoringGallery({ pages }: { pages: ClinicColoringPage[]
             className="rounded-3xl overflow-hidden transition-transform hover:-translate-y-1 hover:rotate-[0.5deg]"
             style={{ background: SITE_SURFACE, border: `2px solid ${SITE_BORDER}` }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <SiteImage
+              displayWidth={384}
               src={p.imageUrl}
               alt={p.title ?? 'Coloring page'}
               loading="lazy"

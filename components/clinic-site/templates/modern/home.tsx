@@ -30,6 +30,8 @@ import { RippleMotif, ArcDivider, GrainOverlay, SparkleGlyph } from '@/component
 import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { brandTint } from '@/lib/brand-tint'
+import SiteImage from '../../site-image'
+import { HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
 
 /**
  * Modern Family/Wellness template — the default clinic site.
@@ -564,8 +566,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                       backgroundColor: BORDER,
                     }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <SiteImage
+                      displayWidth={384}
                       src={p.url}
                       alt={p.alt ?? ''}
                       className="w-full h-full object-cover"
@@ -790,8 +792,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     <source src={profile.differenceVideoUrl} />
                   </video>
                 ) : differenceMediaUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
+                  <SiteImage
+                    displayWidth={640}
                     src={differenceMediaUrl}
                     alt=""
                     className="w-full h-full object-cover"
@@ -1435,8 +1437,8 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 >
                   <div className="aspect-[16/10] overflow-hidden" style={{ backgroundColor: brandTint(brand, 0.08) }}>
                     {post.coverImageUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
+                      <SiteImage
+                        displayWidth={384}
                         src={post.coverImageUrl}
                         alt={post.coverImageAlt ?? ''}
                         className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
@@ -1790,8 +1792,8 @@ function OvalPortrait({
         : {})}
     >
       {src ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
+        <SiteImage
+          displayWidth={priority ? HERO_IMAGE_DISPLAY_WIDTH : 384}
           src={src}
           alt=""
           // Explicit intrinsic size + aspect-ratio sizing so the browser

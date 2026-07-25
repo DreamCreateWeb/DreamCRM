@@ -43,11 +43,7 @@ export function currentPeriod(now: Date = new Date()): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
-export async function getAiUsage(
-  orgId: string,
-  planTier: string | null | undefined,
-  now: Date = new Date(),
-): Promise<AiUsageSnapshot> {
+export async function getAiUsage(orgId: string, now: Date = new Date()): Promise<AiUsageSnapshot> {
   const period = currentPeriod(now)
   const limit = aiAllowanceForPlan()
   const [row] = await db

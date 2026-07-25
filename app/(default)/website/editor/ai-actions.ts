@@ -67,7 +67,7 @@ export async function aiRewriteSection(section: AiWebsiteSection): Promise<AiRew
   }
 
   // Fail safe: never generate past the monthly allowance, never auto-charge.
-  const usage = await getAiUsage(ctx.organizationId, profile.planTier)
+  const usage = await getAiUsage(ctx.organizationId)
   if (usage.remaining <= 0) {
     return { ok: false, reason: 'limit', usage }
   }
@@ -96,6 +96,6 @@ export async function aiRewriteSection(section: AiWebsiteSection): Promise<AiRew
 
   // Only a successful generation counts against the allowance.
   await incrementAiUsage(ctx.organizationId)
-  const refreshed = await getAiUsage(ctx.organizationId, profile.planTier)
+  const refreshed = await getAiUsage(ctx.organizationId)
   return { ok: true, content: result.content, usage: refreshed }
 }

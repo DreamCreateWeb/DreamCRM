@@ -11,6 +11,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import IntakeFormRunner from './intake-form-runner'
 import { submitIntakeForm, readInsuranceCardAction } from './actions'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import SiteImage from '@/components/clinic-site/site-image'
 
 interface Props {
   params: Promise<{ slug: string; formSlug: string }>
@@ -70,8 +71,8 @@ export default async function IntakeFormPage({ params, searchParams }: Props) {
         <div className="max-w-[1240px] mx-auto px-5 sm:px-8 h-[72px] flex items-center justify-between gap-4">
           <KioskAwareHome href={basePath} kiosk={kiosk}>
             {data.profile.logoUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
+              <SiteImage
+                displayWidth={48}
                 src={data.profile.logoUrl}
                 alt={name}
                 className="w-10 h-10 rounded-lg object-cover shrink-0"

@@ -14,6 +14,7 @@ import {
 } from '@/lib/types/shop'
 import { saveProductAction } from './actions'
 import { ActionButton } from '@/components/ui/action-button'
+import { downscaleImageFile } from '@/lib/image-downscale'
 
 const FIELD = 'w-full text-sm px-3 py-2 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
 const FIELD_NUM = `${FIELD} tabular-nums font-mono-num`
@@ -57,7 +58,7 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
     setUploading(true)
     try {
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', await downscaleImageFile(file))
       fd.append('folder', 'shop')
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       if (!res.ok) throw new Error('Upload failed')

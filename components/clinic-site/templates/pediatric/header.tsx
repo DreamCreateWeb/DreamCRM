@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_BG, SITE_INK, SITE_INK_MUTED, SITE_SURFACE, SITE_BORDER } from '@/components/clinic-site/tokens'
+import SiteImage from '../../site-image'
 
 /**
  * Pediatric header — round and friendly: logo bubble + Fredoka wordmark,
@@ -37,8 +38,7 @@ export default function PediatricHeader({
             aria-hidden="true"
           >
             {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+              <SiteImage displayWidth={48} src={logoUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               '🦷'
             )}

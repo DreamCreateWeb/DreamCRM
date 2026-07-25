@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import type { ClinicOfficePhoto } from '@/lib/types/clinic-content'
 import FocalPointPicker from '@/components/ui/focal-point-picker'
 import { EmptyHint } from '@/components/ui/editor-kit'
+import { downscaleImageFile } from '@/lib/image-downscale'
 
 interface Props {
   name: string
@@ -33,7 +34,7 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
         if (!file.type.startsWith('image/')) continue
         if (file.size > 8 * 1024 * 1024) continue
         const fd = new FormData()
-        fd.set('file', file)
+        fd.set('file', await downscaleImageFile(file))
         fd.set('folder', 'clinic-office-photos')
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
         const body = (await res.json()) as { url?: string }

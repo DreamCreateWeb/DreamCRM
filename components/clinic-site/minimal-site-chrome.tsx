@@ -1,5 +1,6 @@
 import { readableInk, clinicPaletteCss } from '@/lib/clinic-site-theme'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import SiteImage from './site-image'
 
 // Brand-derived neutral roles (set on :root — by the /site/[slug] layout when
 // this chrome is used there, and by this component itself for surfaces OUTSIDE
@@ -44,8 +45,8 @@ export default function MinimalSiteChrome({
   const Logo = (
     <span className="flex items-center gap-2.5 min-w-0">
       {logoUrl ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
+        <SiteImage
+          displayWidth={48}
           src={logoUrl}
           alt={name}
           width={36}

@@ -7,6 +7,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import { productJsonLd } from '@/lib/clinic-site-jsonld'
 import AddToCart from '../add-to-cart'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import SiteImage from '@/components/clinic-site/site-image'
 
 
 interface Props {
@@ -78,8 +79,8 @@ export default async function ClinicProductPage({ params }: Props) {
             style={{ backgroundColor: `${brand}1A` }}
           >
             {product.images[0] ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
+              <SiteImage
+                displayWidth={640}
                 src={product.images[0]}
                 alt={product.name}
                 className="w-full h-full object-cover"

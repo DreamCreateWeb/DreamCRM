@@ -33,6 +33,8 @@ import {
   SITE_DEEP_INK,
   SITE_DEEP_MUTED,
 } from '@/components/clinic-site/tokens'
+import SiteImage from '../../site-image'
+import { HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
 
 /**
  * Cosmetic/Luxury homepage v2 — charcoal-first editorial (DESIGN.md variant 2):
@@ -183,8 +185,8 @@ export default function CosmeticHome(props: HomePageProps) {
                       className="absolute -top-4 -right-4 w-full h-full rounded-t-[999px] pointer-events-none"
                       style={{ border: `1px solid ${accentDeep}`, opacity: 0.6 }}
                     />
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <SiteImage
+                      displayWidth={HERO_IMAGE_DISPLAY_WIDTH}
                       src={heroPhoto}
                       alt={heroIsDoctor && heroDoctor ? heroDoctor.name : `${name} — the practice`}
                       className="relative w-full aspect-[4/5] object-cover rounded-t-[999px]"
@@ -327,8 +329,8 @@ export default function CosmeticHome(props: HomePageProps) {
                         className="absolute -top-4 -left-4 w-full h-full pointer-events-none"
                         style={{ border: `1px solid ${accent}`, opacity: 0.5 }}
                       />
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <SiteImage
+                        displayWidth={384}
                         src={doctorPhoto}
                         alt={heroDoctor.name}
                         loading="lazy"
@@ -423,8 +425,8 @@ export default function CosmeticHome(props: HomePageProps) {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-8 items-start">
               {officePhotos.slice(0, 3).map((photo, i) => (
                 <figure key={photo.id} className={i === 1 ? 'lg:mt-14' : i === 2 ? 'hidden lg:block lg:mt-6' : ''}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <SiteImage
+                    displayWidth={384}
                     src={photo.url}
                     alt={photo.caption ?? `${name} — the office`}
                     loading="lazy"

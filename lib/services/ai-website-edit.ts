@@ -478,7 +478,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   // The AI bar spends Claude tokens on every edit, so it's metered against the
   // monthly allowance (editing by hand stays free + uncounted). Gate BEFORE the
   // model call so we never spend tokens past the cap.
-  const usage = await getAiUsage(orgId, profile.planTier)
+  const usage = await getAiUsage(orgId)
   if (usage.remaining <= 0) {
     return {
       ok: false,
@@ -667,7 +667,7 @@ export async function applyAiWebsiteEdit(orgId: string, instruction: string): Pr
   // hiccup never fails an edit that already applied. Return the fresh snapshot
   // so the bar shows what's left.
   await incrementAiUsage(orgId).catch(() => {})
-  const refreshed = await getAiUsage(orgId, profile.planTier).catch(() => ({
+  const refreshed = await getAiUsage(orgId).catch(() => ({
     ...usage,
     used: usage.used + 1,
     remaining: Math.max(0, usage.remaining - 1),

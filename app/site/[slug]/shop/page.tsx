@@ -7,6 +7,7 @@ import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import { readableInk } from '@/lib/clinic-site-theme'
 import CartButton from './cart-button'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import SiteImage from '@/components/clinic-site/site-image'
 
 
 interface Props {
@@ -82,8 +83,8 @@ export default async function ClinicShopPage({ params }: Props) {
                     style={{ backgroundColor: `${brand}1A` }}
                   >
                     {p.images[0] ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
+                      <SiteImage
+                        displayWidth={384}
                         src={p.images[0]}
                         alt={p.name}
                         className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"

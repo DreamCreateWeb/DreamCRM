@@ -31,6 +31,8 @@ import {
   SITE_DEEP_INK,
   SITE_DEEP_MUTED,
 } from '@/components/clinic-site/tokens'
+import SiteImage from '../../site-image'
+import { HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
 
 /**
  * Pediatric homepage — the playful/cartoon register (DESIGN.md variant 3):
@@ -176,8 +178,8 @@ export default function PediatricHome(props: HomePageProps) {
           <EditImage field="heroImageUrl" label="Hero photo" className="relative">
             {p.heroImageUrl ? (
               <span className="relative block rotate-2 transition-transform hover:rotate-0 duration-300">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <SiteImage
+                  displayWidth={HERO_IMAGE_DISPLAY_WIDTH}
                   src={p.heroImageUrl}
                   alt={`${name} — smiles all around`}
                   className="w-full aspect-square object-cover rounded-[38%_62%_58%_42%/45%_42%_58%_55%]"
@@ -323,8 +325,7 @@ export default function PediatricHome(props: HomePageProps) {
                       style={{ border: `1px solid ${SITE_BORDER}` }}
                       aria-label={sheet.title ? `Color “${sheet.title}”` : 'Open the coloring corner'}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={sheet.imageUrl} alt="" loading="lazy" className="w-full aspect-[3/4] object-contain bg-white" />
+                      <SiteImage displayWidth={256} src={sheet.imageUrl} alt="" loading="lazy" className="w-full aspect-[3/4] object-contain bg-white" />
                       {sheet.title && (
                         <span className="block px-2 py-1.5 text-xs font-bold text-center truncate" style={{ color: SITE_INK }}>
                           {sheet.title}
@@ -352,8 +353,8 @@ export default function PediatricHome(props: HomePageProps) {
               {staff.slice(0, 4).map((m) => (
                 <div key={m.id} className="text-center w-40">
                   {m.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <SiteImage
+                      displayWidth={128}
                       src={m.photoUrl}
                       alt={m.name}
                       className="w-32 h-32 rounded-full object-cover mx-auto mb-3 transition-transform hover:scale-105"

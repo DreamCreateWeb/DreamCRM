@@ -9,6 +9,7 @@ import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { blogIndexJsonLd } from '@/lib/clinic-site-jsonld'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import SiteImage from '@/components/clinic-site/site-image'
 
 
 interface Props {
@@ -267,8 +268,8 @@ function FeaturedPostCard({
           style={{ backgroundColor: `${brand}1A` }}
         >
           {post.coverImageUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
+            <SiteImage
+              displayWidth={640}
               src={post.coverImageUrl}
               alt=""
               className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"
@@ -341,8 +342,8 @@ function PostCard({
         style={{ backgroundColor: `${brand}1A` }}
       >
         {post.coverImageUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
+          <SiteImage
+            displayWidth={384}
             src={post.coverImageUrl}
             alt=""
             className="w-full h-full object-cover transition duration-500 group-hover:scale-[1.04]"

@@ -71,7 +71,7 @@ export default async function WebsiteEditorPage({
   const siteUrl = publicSiteUrl({ slug, profile })
   const [library, aiUsage, posts, plans, jobs] = await Promise.all([
     listLibraryForPicker(ctx.organizationId),
-    getAiUsage(ctx.organizationId, profile.planTier),
+    getAiUsage(ctx.organizationId),
     // Page-navigator gating (same `has*` truth the public nav uses) — each
     // best-effort so a single read failure just hides that page from the
     // dropdown rather than blocking the Studio.

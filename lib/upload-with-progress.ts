@@ -6,6 +6,8 @@
 // path) and resolves the stored URL. Surfaces server errors (status text or the
 // JSON `error`) so failures are never swallowed silently.
 
+import { downscaleImageFile } from './image-downscale'
+
 export interface UploadHandle {
   /** Resolves with the stored URL on success; rejects on error/cancel. */
   promise: Promise<string>
@@ -32,7 +34,14 @@ export function uploadFileWithProgress(
   onProgress?: (pct: number) => void,
 ): UploadHandle {
   const xhr = new XMLHttpRequest()
+  // Cancel can land during the (async) downscale, before the request is ever
+  // sent — `xhr.abort()` is a no-op on an unsent request and would never fire
+  // `onabort`, leaving the promise hanging. Track it and reject directly.
+  let cancelled = false
+  let sent = false
+  let rejectHandle: ((err: Error) => void) | null = null
   const promise = new Promise<string>((resolve, reject) => {
+    rejectHandle = reject
     xhr.open('POST', '/api/upload')
     xhr.responseType = 'json'
 
@@ -70,11 +79,26 @@ export function uploadFileWithProgress(
     xhr.onerror = () => reject(new Error('Upload failed — check your connection.'))
     xhr.onabort = () => reject(new UploadCancelledError())
 
-    const fd = new FormData()
-    fd.set('file', file)
-    fd.set('folder', folder)
-    xhr.send(fd)
+    // Shrink oversized photos BEFORE the transfer — a 32 MP camera original is
+    // minutes of upload on office wifi and nothing renders it above ~1200px
+    // (lib/image-downscale.ts). Always resolves; a failure just sends the
+    // original, so this can never block an upload.
+    void downscaleImageFile(file).then((prepared) => {
+      if (cancelled) return
+      const fd = new FormData()
+      fd.set('file', prepared)
+      fd.set('folder', folder)
+      sent = true
+      xhr.send(fd)
+    })
   })
 
-  return { promise, cancel: () => xhr.abort() }
+  return {
+    promise,
+    cancel: () => {
+      cancelled = true
+      if (sent) xhr.abort()
+      else rejectHandle?.(new UploadCancelledError())
+    },
+  }
 }

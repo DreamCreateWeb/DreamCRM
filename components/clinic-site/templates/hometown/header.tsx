@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_INK, SITE_INK_MUTED, SITE_SURFACE, SITE_BORDER, SITE_DEEP, SITE_DEEP_INK } from '@/components/clinic-site/tokens'
+import SiteImage from '../../site-image'
 
 /**
  * Hometown header — the classic three-tier small-practice anatomy:
@@ -54,8 +55,7 @@ export default function HometownHeader({
             aria-hidden="true"
           >
             {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+              <SiteImage displayWidth={48} src={logoUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
                 <path d="M12 2C8 2 5 4.5 5 8c0 2.2.8 3.6 1.5 5 .8 1.6 1.2 3.4 1.4 6 .1 1.4.7 3 1.9 3 1.6 0 1-3.5 2.2-3.5S13.6 22 15.2 22c1.2 0 1.8-1.6 1.9-3 .2-2.6.6-4.4 1.4-6 .7-1.4 1.5-2.8 1.5-5 0-3.5-3-6-7-6z" />

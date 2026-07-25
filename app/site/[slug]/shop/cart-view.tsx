@@ -5,6 +5,7 @@ import { formatCents, type CartLine } from '@/lib/types/shop'
 import { getCart, setQty, removeLine } from './cart-store'
 import { startCheckout, applyCoupon } from './actions'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import SiteImage from '@/components/clinic-site/site-image'
 
 
 export default function CartView({
@@ -86,7 +87,7 @@ export default function CartView({
         {lines.map((l) => (
           <div key={l.variantId} className="flex items-center gap-4 rounded-xl border p-3" style={{ borderColor: BORDER }}>
             <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ backgroundColor: `${brand}1A` }}>
-              {l.image && /* eslint-disable-next-line @next/next/no-img-element */ <img src={l.image} alt="" className="w-full h-full object-cover" width={80} height={80} loading="lazy" decoding="async" />}
+              {l.image && <SiteImage displayWidth={80} src={l.image} alt="" className="w-full h-full object-cover" width={80} height={80} loading="lazy" decoding="async" />}
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-semibold truncate" style={{ color: INK }}>{l.productName}</p>

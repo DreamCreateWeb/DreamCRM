@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { SiteChromeProps } from '@/lib/site-templates/page-props'
 import { SITE_BG, SITE_INK, SITE_INK_MUTED, SITE_BORDER, SITE_DEEP, SITE_DEEP_INK } from '@/components/clinic-site/tokens'
+import SiteImage from '../../site-image'
 
 /**
  * Cosmetic/Luxury header — a single sparse bar on the cream ground: serif
@@ -31,8 +32,7 @@ export default function CosmeticHeader({
       <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-6">
         <a href={`${basePath}/`} className="flex items-center gap-3 min-w-0" aria-label={`${name} home`}>
           {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+            <SiteImage displayWidth={48} src={logoUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
           ) : null}
           <span
             className="truncate text-lg tracking-tight"

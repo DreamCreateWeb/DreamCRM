@@ -34,6 +34,8 @@ import {
   SITE_DEEP_INK,
   SITE_DEEP_MUTED,
 } from '@/components/clinic-site/tokens'
+import SiteImage from '../../site-image'
+import { HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
 
 /**
  * Hometown homepage — the trusted local practice, designed to look FINISHED
@@ -327,8 +329,8 @@ export default function HometownHome(props: HomePageProps) {
           </div>
           {p.heroImageUrl && (
             <EditImage field="heroImageUrl" label="Practice photo">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <SiteImage
+                displayWidth={HERO_IMAGE_DISPLAY_WIDTH}
                 src={p.heroImageUrl}
                 alt={`Inside ${name}`}
                 className="w-full aspect-[4/3] object-cover rounded-xl"
@@ -348,8 +350,8 @@ export default function HometownHome(props: HomePageProps) {
               {staff.slice(0, 4).map((m) => (
                 <div key={m.id} className="text-center w-40">
                   {m.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <SiteImage
+                      displayWidth={128}
                       src={m.photoUrl}
                       alt={m.name}
                       className="w-28 h-28 rounded-full object-cover mx-auto mb-3"

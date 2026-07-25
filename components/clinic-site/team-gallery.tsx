@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { brandTint } from '@/lib/brand-tint'
+import SiteImage from './site-image'
 
 interface Member {
   id: string
@@ -106,10 +107,10 @@ export default function TeamGallery({ members, brand, ink, surface }: Props) {
                 className="overflow-hidden rounded-[22px] aspect-[4/5] mb-3.5"
                 style={{ backgroundColor: brandTint(brand, 0.1) }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <SiteImage
                   src={m.photoUrl}
                   alt={m.name}
+                  displayWidth={248}
                   className="w-full h-full object-cover"
                   style={m.position ? { objectPosition: m.position } : undefined}
                   loading="lazy"

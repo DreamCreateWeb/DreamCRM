@@ -9,6 +9,7 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import { MAX_IMAGE_MB } from '@/lib/media'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
+import { downscaleImageFile } from '@/lib/image-downscale'
 
 interface InitialUser {
   id: string
@@ -72,7 +73,7 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
     setUploading(true)
     try {
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', await downscaleImageFile(file))
       fd.append('folder', 'avatars')
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       if (!res.ok) {
