@@ -23,9 +23,10 @@ import { buySocialAddonAction, simulateDemoConnectAction } from '@/app/(default)
  *                     composer once at least one channel is linked.
  *
  * Gating mirrors the connect route + /integrations:
- *  - Google Business is free + uncapped on every plan.
- *  - Social platforms honor the plan's social cap; at the cap we show the add-on
- *    (Pro/Premium) or an upgrade (Basic) instead of a connect button.
+ *  - Google Business is free + uncapped.
+ *  - Social platforms honor the plan's included connection count; at the cap
+ *    the card offers the paid add-on slot instead of a connect button (the
+ *    add-on is the one legal entitlement left post single-plan collapse).
  *  - Only an owner/admin can connect; a member sees a calm "ask an owner" note.
  */
 
@@ -47,7 +48,6 @@ export interface ConnectChannelsProps {
   handles?: Record<string, string | null>
   /** Social-cap state from `canConnectSocialPlatform`. */
   cap: { allowed: boolean; limit: number; current: number }
-  planName: string
   addonAvailable: boolean
   addonActive: boolean
   addonPriceDollars: number | null
@@ -309,7 +309,7 @@ function ConnectButton({
   )
 }
 
-/** At the social cap: offer the add-on (Pro/Premium) or an upgrade (Basic). */
+/** At the social cap: offer the paid add-on slot (or say the cap is maxed). */
 function AtCapAction({ handlers }: { handlers: CardHandlers }) {
   const { addonAvailable, addonActive, addonConfigured, addonPriceDollars, pending, onBuyAddon } = handlers
   if (addonAvailable && !addonActive && addonConfigured && addonPriceDollars != null) {
@@ -319,10 +319,10 @@ function AtCapAction({ handlers }: { handlers: CardHandlers }) {
       </ActionButton>
     )
   }
-  // Basic (no add-on) or add-on already maxed → point at plans.
+  // Add-on already maxed (or unavailable) → the cap is the cap; billing has the details.
   return (
     <ActionButton variant="ghost" size="sm" href="/settings/billing" className="mt-1">
-      {addonAvailable ? 'At limit' : 'Upgrade to post'}
+      At limit
     </ActionButton>
   )
 }
@@ -331,20 +331,22 @@ function AtCapAction({ handlers }: { handlers: CardHandlers }) {
 
 function CapNote({
   cap,
-  planName,
   className = '',
-}: Pick<ConnectChannelsProps, 'cap' | 'planName'> & { className?: string }) {
+}: Pick<ConnectChannelsProps, 'cap'> & { className?: string }) {
+  // cap.limit <= 0 can't happen post single-plan collapse (every clinic is
+  // Premium, whose cap is > 0) — but if a null tier ever slips through, say
+  // something true instead of naming plans that no longer exist.
   if (cap.limit <= 0) {
     return (
       <p className={`text-xs text-gray-500 dark:text-gray-400 ${className}`}>
-        Your <strong className="font-medium">{planName}</strong> plan posts to Google Business (free). Social posting is
-        on Pro &amp; Premium.
+        Google Business posting is free. Ask us about social connections — your account is missing
+        its included slots.
       </p>
     )
   }
   return (
     <p className={`text-xs text-gray-500 dark:text-gray-400 ${className}`}>
-      Your <strong className="font-medium">{planName}</strong> plan includes{' '}
+      Your plan includes{' '}
       <strong className="font-mono-num font-medium">{cap.current}</strong>
       <span className="text-gray-400"> / </span>
       <strong className="font-mono-num font-medium">{cap.limit}</strong> social connections. Google Business is always

@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import type { TenantContext } from '@/lib/auth/context'
 import { getRecallStats, type RecallActivityKind } from '@/lib/services/recall-stats'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { formatClinicDayTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { listAudiences } from '@/lib/services/marketing'
 import { listCampaignsWithFunnels } from '@/lib/services/marketing-campaigns'
 import { getRetentionSettings, previewRetentionAudiences, getAutomationStats } from '@/lib/services/retention-automation'
@@ -50,15 +52,7 @@ const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
  * customers-table reads.
  */
 
-function fmtDate(d: Date): string {
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-}
-
-function fmtTime(d: Date): string {
-  return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
-function fmtRelative(d: Date): string {
+function fmtRelative(d: Date, tz: string): string {
   const ms = Date.now() - d.getTime()
   const min = Math.floor(ms / 60_000)
   if (min < 1) return 'just now'
@@ -67,7 +61,7 @@ function fmtRelative(d: Date): string {
   if (h < 24) return `${h}h ago`
   const days = Math.floor(h / 24)
   if (days < 30) return `${days}d ago`
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tz })
 }
 
 const ACTIVITY_LABEL: Record<RecallActivityKind, string> = {
@@ -114,6 +108,8 @@ export default async function ClinicRecallDashboard({
       listCampaignsWithFunnels(ctx.organizationId, { limit: 50 }),
       listTemplates(ctx.organizationId),
     ])
+  // The server runs UTC; every rendered date/time below is clinic wall-clock.
+  const tz = await getClinicTimeZone(ctx.organizationId)
   const customized = Object.fromEntries(
     RETENTION_KINDS.map((k, i) => [k, overrides[i] !== null]),
   ) as Record<(typeof RETENTION_KINDS)[number], boolean>
@@ -144,7 +140,7 @@ export default async function ClinicRecallDashboard({
           </Link>
         }
         title="Recall & Outreach"
-        subtitle={`Patients who need a nudge, what's scheduled to send, and how recent sends performed — for ${fmtDate(now)}.`}
+        subtitle={`Patients who need a nudge, what's scheduled to send, and how recent sends performed — for ${formatClinicDayHeader(now, tz)}.`}
         actions={
           <>
             <ActionButton variant="secondary" href="/growth/audiences">
@@ -245,7 +241,7 @@ export default async function ClinicRecallDashboard({
                         </p>
                       </div>
                       <span className="text-xs font-medium text-amber-700 dark:text-amber-300 tabular-nums font-mono-num shrink-0">
-                        {fmtTime(s.scheduledAt)}
+                        {formatClinicDayTime(s.scheduledAt, tz)}
                       </span>
                     </div>
                   </Link>
@@ -291,7 +287,7 @@ export default async function ClinicRecallDashboard({
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{r.name}</p>
                       <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0 ml-2">
-                        {fmtRelative(r.sentAt)}
+                        {fmtRelative(r.sentAt, tz)}
                       </span>
                     </div>
                     {/* Sent → Opened → Clicked → Booked funnel — the NexHealth attribution model. */}
@@ -351,9 +347,9 @@ export default async function ClinicRecallDashboard({
                     </div>
                     <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
                       {c.status === 'scheduled' && c.scheduledAt
-                        ? `→ ${fmtTime(c.scheduledAt)}`
+                        ? `→ ${formatClinicDayTime(c.scheduledAt, tz)}`
                         : c.sentAt
-                          ? fmtRelative(c.sentAt)
+                          ? fmtRelative(c.sentAt, tz)
                           : ''}
                     </span>
                     <StatusPill
@@ -457,7 +453,7 @@ export default async function ClinicRecallDashboard({
                     </p>
                   </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
-                    {fmtRelative(a.occurredAt)}
+                    {fmtRelative(a.occurredAt, tz)}
                   </span>
                 </li>
               ))}

@@ -699,7 +699,7 @@ function AiDraftModal({
           placeholder={
             recipientNoun === 'patients'
               ? 'e.g. Invite patients who are overdue for a cleaning to book this month — mention our new Saturday hours and online booking. Keep it warm and short.'
-              : 'e.g. Announce that DreamCRM now supports automated patient recall by SMS and email. Target: existing clinic owners on Basic plan. Encourage them to upgrade to Pro to unlock it. Keep it warm and short.'
+              : 'e.g. Announce the new website templates to existing clinic owners. Invite them to preview a design on their own site from Website \u2192 Design. Keep it warm and short.'
           }
           className="form-textarea w-full resize-none"
         />

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getReviewConfig, listPrivateFeedback } from '@/lib/services/reviews'
@@ -13,6 +14,7 @@ import {
 } from '@/lib/services/facebook-reviews'
 import GoogleReviewsSection, { GoogleConnectPrompt } from './google-reviews-section'
 import FacebookReviewsSection from './facebook-reviews-section'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -49,8 +51,25 @@ export default async function ReviewsReceivedPage() {
     getFacebookReviewStats(ctx.organizationId),
     hasFacebookConnection(ctx.organizationId),
   ])
+  // Server runs UTC — private-feedback dates render at the clinic's calendar.
+  const tz = await getClinicTimeZone(ctx.organizationId)
 
-  const googleRows = googleReviews.map((g) => ({
+  // ATTENTION-FIRST ordering: the Growth hub's "N waiting on a reply" card
+  // lands here, so unreplied reviews lead — 1–2★ fires first, then the rest,
+  // newest first within each band; replied reviews follow, newest first. A
+  // pure sort on the already-loaded rows (no extra read).
+  const attentionRank = (g: (typeof googleReviews)[number]) => {
+    if (g.replyComment) return 2
+    if (g.starRating != null && g.starRating <= 2) return 0
+    return 1
+  }
+  const orderedGoogle = [...googleReviews].sort((a, b) => {
+    const rank = attentionRank(a) - attentionRank(b)
+    if (rank !== 0) return rank
+    return (b.reviewCreatedAt?.getTime() ?? 0) - (a.reviewCreatedAt?.getTime() ?? 0)
+  })
+
+  const googleRows = orderedGoogle.map((g) => ({
     externalReviewId: g.externalReviewId,
     reviewerName: g.reviewerName,
     reviewerPhotoUrl: g.reviewerPhotoUrl,
@@ -79,7 +98,11 @@ export default async function ReviewsReceivedPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[1100px] mx-auto">
       <PageHeader
-        eyebrow={`Growth · ${ctx.organizationName}`}
+        eyebrow={
+          <Link href="/growth/reviews" className="hover:underline underline-offset-4">
+            ‹ Reviews
+          </Link>
+        }
         title="Reviews received"
         subtitle="Your Google reviews sync in automatically, and your 4★+ ones feature on your website on their own. Private feedback from patients lands at the bottom — just for your team."
         legend={
@@ -163,7 +186,7 @@ export default async function ReviewsReceivedPage() {
                 </div>
                 {f.completedAt && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    {new Date(f.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {new Date(f.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: tz })}
                   </p>
                 )}
                 <blockquote className="text-[15px] leading-[1.55] text-gray-800 dark:text-gray-100 whitespace-pre-wrap pl-3 border-l-2 border-[color:var(--color-hairline-strong)]">

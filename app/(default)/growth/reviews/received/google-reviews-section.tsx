@@ -55,11 +55,14 @@ function Stars({ rating }: { rating: number }) {
 function SectionHeader({
   count,
   averageRating,
+  needsReply,
   onRefresh,
   refreshing,
 }: {
   count: number
   averageRating: number | null
+  /** Unreplied reviews — the list below leads with them (attention-first). */
+  needsReply: number
   onRefresh: () => void
   refreshing: boolean
 }) {
@@ -72,6 +75,13 @@ function SectionHeader({
           <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
             {averageRating.toFixed(1)}★ · {count} {count === 1 ? 'review' : 'reviews'}
           </span>
+        )}
+        {needsReply > 0 && (
+          <StatusPill
+            tone="warn"
+            label={`${needsReply} waiting on a reply`}
+            title="Unreplied reviews sort to the top of this list"
+          />
         )}
       </div>
       <ActionButton variant="secondary" size="sm" onClick={onRefresh} disabled={refreshing}>
@@ -316,7 +326,13 @@ export default function GoogleReviewsSection({
 
   return (
     <section className="mb-10">
-      <SectionHeader count={count} averageRating={averageRating} onRefresh={refresh} refreshing={refreshing} />
+      <SectionHeader
+        count={count}
+        averageRating={averageRating}
+        needsReply={rows.filter((r) => !r.replyComment).length}
+        onRefresh={refresh}
+        refreshing={refreshing}
+      />
       {error && <p className={`text-xs mb-2 ${TONE_TEXT.urgent}`}>{error}</p>}
       {rows.length === 0 ? (
         <EmptyState

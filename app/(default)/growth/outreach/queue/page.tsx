@@ -82,7 +82,11 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           the actions, so no fabricated header primary. Back to the recall
           dashboard sits as a ghost link. ──────────────────────────────── */}
       <PageHeader
-        eyebrow={`Growth · ${ctx.organizationName}`}
+        eyebrow={
+          <Link href="/growth/outreach" className="hover:underline underline-offset-4">
+            ‹ Recall &amp; Outreach
+          </Link>
+        }
         title="Patients needing outreach"
         subtitle={
           totalCount === 0

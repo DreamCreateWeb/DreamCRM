@@ -17,6 +17,7 @@ import { getNpsSummary } from '@/lib/services/nps'
 import ReviewConfigPanel from './review-config-panel'
 import EligibleList from './eligible-list'
 import ModuleHint from '@/components/onboarding/module-hint'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
@@ -80,7 +81,7 @@ const STATUS_MEANING: Record<ReviewStatus, string> = {
 
 const STATUS_ORDER: ReviewStatus[] = ['pending', 'sent', 'clicked', 'completed', 'skipped', 'failed']
 
-function fmtRelative(d: Date | null): string {
+function fmtRelative(d: Date | null, tz: string): string {
   if (!d) return '—'
   const ms = Date.now() - d.getTime()
   const min = Math.floor(ms / 60_000)
@@ -90,7 +91,7 @@ function fmtRelative(d: Date | null): string {
   if (h < 24) return `${h}h ago`
   const days = Math.floor(h / 24)
   if (days < 30) return `${days}d ago`
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tz })
 }
 
 export default async function ReviewsPage() {
@@ -111,6 +112,8 @@ export default async function ReviewsPage() {
     listFeaturableGoogleReviews(ctx.organizationId).catch(() => []),
     getNpsSummary(ctx.organizationId),
   ])
+  // Server runs UTC — the relative-date fallback below renders clinic-local.
+  const tz = await getClinicTimeZone(ctx.organizationId)
   const eligibleCount = eligibleAll.length
   const eligible = eligibleAll.slice(0, 25)
 
@@ -405,10 +408,10 @@ export default async function ReviewsPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                      {fmtRelative(r.sentAt)}
+                      {fmtRelative(r.sentAt, tz)}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                      {fmtRelative(r.completedAt)}
+                      {fmtRelative(r.completedAt, tz)}
                     </td>
                     <td className="px-3 py-2.5 text-xs text-gray-500 dark:text-gray-400">
                       {r.selectedSite ? PLATFORM_LABEL[r.selectedSite] : '—'}

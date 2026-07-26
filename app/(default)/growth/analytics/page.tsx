@@ -12,7 +12,6 @@ import ModuleHint from '@/components/onboarding/module-hint'
 import { PageHeader } from '@/components/ui/page-header'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { FilterChip } from '@/components/ui/filter-chip'
-import { StatusPill } from '@/components/ui/status-pill'
 import { BrandLogo, type BrandLogoId } from '@/components/integrations/brand-logos'
 import { TONE_TEXT } from '@/lib/ui/encodings'
 
@@ -89,12 +88,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
       {/* ── Header + range toggle ───────────────────────────────────────── */}
       <PageHeader
         eyebrow={
-          <span className="inline-flex items-center gap-2">
-            <Link href="/growth" className="hover:underline underline-offset-4">
-              ‹ Growth
-            </Link>
-            <StatusPill tone="warn" label="Premium" />
-          </span>
+          <Link href="/growth" className="hover:underline underline-offset-4">
+            ‹ Growth
+          </Link>
         }
         title="Analytics"
         subtitle="The numbers a CRM can honestly measure — acquisition, schedule health, recall and reputation. Clinical production stays in your PMS; we don't fake it."

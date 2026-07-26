@@ -616,6 +616,23 @@ const DEMO_GOOGLE_REVIEWS: DemoReviewSeed[] = [
     replyComment: null,
     replyDaysAgo: null,
   },
+  {
+    // The 1–2★ fire, unreplied — exercises the whole escalation surface: the
+    // Growth hub's urgent "rated 1–2★" card, lowStarNeedsReply, and the
+    // attention-first sort on /growth/reviews/received (this row leads the
+    // list). Below featureMinStars, so it never features on the public site;
+    // it also keeps the demo's AggregateRating believable (a flawless 4.9
+    // with zero complaints reads as fake).
+    externalReviewId: 'demo_gr_7',
+    reviewerName: 'Rob Castellano',
+    reviewerPhotoUrl: null,
+    starRating: 2,
+    comment:
+      'The dental work was fine but I waited 45 minutes past my appointment time and nobody said a word about it. Then I got a bill for more than the estimate. Frustrating.',
+    daysAgo: 1,
+    replyComment: null,
+    replyDaysAgo: null,
+  },
 ]
 
 /**

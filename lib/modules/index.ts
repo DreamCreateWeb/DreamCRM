@@ -46,9 +46,8 @@ export function getModuleLabel(tenantType: TenantType, idOrPath: string): string
 
 /**
  * Sub-areas folded into the Website + Growth workspaces — the sidebar
- * registry carries only the hub entries, but `requirePlan` still tags
- * redirects with these ids (`?upgrade=blog`) and the Plans upgrade panel
- * still needs their names.
+ * registry carries only the hub entries, but notification deep-links and
+ * ⌘K still resolve these legacy area ids/paths to a friendly name.
  */
 const FOLDED_AREAS: Record<string, string> = {
   // Website workspace

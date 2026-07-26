@@ -7,7 +7,7 @@ import { getComposerChannels, listSocialPosts } from '@/lib/services/social-post
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { canConnectSocialPlatform } from '@/lib/services/social-billing'
 import { zernioConfigured } from '@/lib/zernio'
-import { getPlanById, socialAddonConfigured } from '@/lib/stripe-config'
+import { socialAddonConfigured } from '@/lib/stripe-config'
 import { socialAddonAvailable, socialAddonPriceCents } from '@/lib/types/social-entitlements'
 import type { PlanTier } from '@/lib/modules/types'
 import { PageHeader } from '@/components/ui/page-header'
@@ -76,7 +76,6 @@ export default async function SocialPostsPage() {
     connected: channels.map((c) => c.platform),
     handles: Object.fromEntries(channels.map((c) => [c.platform, c.handle])),
     cap: { allowed: cap.allowed, limit: cap.limit, current: cap.current },
-    planName: getPlanById(planTier)?.name ?? planTier,
     addonAvailable: socialAddonAvailable(planTier),
     addonActive: profileRow?.socialAddon === 1,
     addonPriceDollars: addonCents != null ? Math.round(addonCents / 100) : null,

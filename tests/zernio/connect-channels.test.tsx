@@ -21,7 +21,6 @@ function props(over: Partial<ConnectChannelsProps> = {}): ConnectChannelsProps {
     connected: [],
     handles: {},
     cap: { allowed: true, limit: 2, current: 0 },
-    planName: 'Premium',
     addonAvailable: true,
     addonActive: false,
     addonPriceDollars: 20,
@@ -80,15 +79,18 @@ describe('ConnectChannels — plan cap', () => {
     expect(buyAddon).toHaveBeenCalledTimes(1)
   })
 
-  it('on Basic (no social slots, no add-on), points social to the upgrade path', () => {
+  it('a zero-slot cap (null-tier edge) degrades honestly — no dead-plan names', () => {
+    // Post single-plan collapse every clinic is Premium (cap > 0); if a null
+    // tier ever slips through, the copy must not advertise plans that no
+    // longer exist, and Google Business stays connectable regardless.
     render(
       <ConnectChannels
-        {...props({ planName: 'Basic', cap: { allowed: false, limit: 0, current: 0 }, addonAvailable: false })}
+        {...props({ cap: { allowed: false, limit: 0, current: 0 }, addonAvailable: false })}
       />,
     )
-    expect(screen.getAllByRole('link', { name: 'Upgrade to post' }).length).toBe(5)
-    expect(screen.getByText(/Social posting is on Pro/)).toBeTruthy()
-    // Even Basic can post to Google Business.
+    expect(screen.queryByText(/Pro/)).toBeNull()
+    expect(screen.queryByText(/Upgrade to post/)).toBeNull()
+    expect(screen.getByText(/missing/)).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Connect Google Business' })).toBeTruthy()
   })
 })
