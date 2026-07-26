@@ -100,7 +100,32 @@ export interface SiteImageSource {
 }
 
 /**
- * Build `src` + `srcSet` for a photo painted at `displayWidth` CSS pixels.
+ * OBJECT-COVER CROP HEADROOM. `displayWidth` is the painted BOX width, but the
+ * public site paints nearly every photo with `object-cover` inside a fixed
+ * aspect box, and clinics upload whatever aspect the photographer shot. When a
+ * LANDSCAPE photo lands in a PORTRAIT box, cover scales by the box HEIGHT and
+ * crops the sides — so the needed source width is the box height × the photo's
+ * aspect, far more than the box width. The real case that shipped blurry: a
+ * 1.5:1 headshot in a 248px-wide 4:5 team card needs a ~465px source at 1x
+ * (248 × 5/4 × 1.5) — serving the box width (256px) meant the browser
+ * upscaled it ~1.8× and it read as low-res.
+ *
+ * 2 covers a 16:9 upload in a 4:5 box (the worst common case, ×2.22, lands on
+ * the same ladder rung) without knowing the file's aspect server-side.
+ */
+export const COVER_CROP_FACTOR = 2
+
+/**
+ * No candidate asks the optimizer for more than this, no matter the factor
+ * math — past ~2048px the extra pixels are invisible in any box the site
+ * paints, and the ladder's next rung is a 3840px jumbo.
+ */
+export const SHARP_SOURCE_CEILING = 2048
+
+/**
+ * Build `src` + `srcSet` for a photo painted in a box `displayWidth` CSS
+ * pixels wide (crop headroom is applied here — pass the box width, not a
+ * pre-inflated guess).
  *
  * Two candidates (1x / 2x) with `x` descriptors rather than `w` + `sizes`: the
  * public site paints these at a known card width, so the browser doesn't need a
@@ -110,8 +135,12 @@ export interface SiteImageSource {
  */
 export function siteImageSource(url: string, displayWidth: number): SiteImageSource {
   if (!isOptimizableImageUrl(url)) return { src: url }
-  const one = pickOptimizedWidth(displayWidth)
-  const two = pickOptimizedWidth(displayWidth * 2)
+  const one = pickOptimizedWidth(
+    Math.min(displayWidth * COVER_CROP_FACTOR, SHARP_SOURCE_CEILING),
+  )
+  const two = pickOptimizedWidth(
+    Math.min(displayWidth * 2 * COVER_CROP_FACTOR, SHARP_SOURCE_CEILING),
+  )
   const src1x = optimizedImageUrl(url, one)
   const src2x = optimizedImageUrl(url, two)
   if (one === two) return { src: src1x }

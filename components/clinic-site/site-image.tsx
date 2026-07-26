@@ -5,9 +5,11 @@ type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'srcSet'> & {
   src: string
   alt: string
   /**
-   * The widest this photo is ever PAINTED, in CSS pixels — not the file's
-   * intrinsic size. A 248 px team card passes 248; the optimizer then serves
-   * 256 (1x) / 640 (2x) instead of the clinic's 7000 px original.
+   * The widest BOX this photo is ever painted in, in CSS pixels — not the
+   * file's intrinsic size, and not a pre-inflated guess. The helper adds the
+   * headroom itself (2x DPR + object-cover crop, see COVER_CROP_FACTOR in
+   * lib/site-image.ts): a 248 px team card passes 248 and serves 640 (1x) /
+   * 1080 (2x) instead of the clinic's 7000 px original.
    */
   displayWidth: number
 }

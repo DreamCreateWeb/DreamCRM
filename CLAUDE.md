@@ -429,8 +429,10 @@ sitemap/robots/OG.
   camera originals (a real headshot landed at 7008×4672 / 6.5 MB); a raw `<img>`
   makes the browser do a ~14× downscale in one crude step and it renders
   GRAINY. `components/clinic-site/site-image.tsx` + `lib/site-image.ts` route
-  every clinic-uploaded photo through `/_next/image` with a 1x/2x srcSet at the
-  width it's actually painted (`displayWidth`), and `lib/image-downscale.ts`
+  every clinic-uploaded photo through `/_next/image` with a 1x/2x srcSet sized
+  from the painted BOX width (`displayWidth`) — the helper adds object-cover
+  crop headroom itself (`COVER_CROP_FACTOR`; a landscape upload in a portrait
+  box needs ~2× the box width or it re-blurs), and `lib/image-downscale.ts`
   caps new uploads at 2560px on the long edge. Rules: the host/width/quality
   tables MUST mirror `next.config.js` (the optimizer 400s otherwise — a broken
   public image); anything that swaps an image live must clear `srcset` first

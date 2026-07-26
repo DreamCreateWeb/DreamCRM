@@ -65,12 +65,25 @@ describe('pickOptimizedWidth', () => {
 })
 
 describe('siteImageSource', () => {
-  it('emits a 1x/2x pair through the optimizer for an uploaded photo', () => {
+  it('emits a 1x/2x pair with object-cover crop headroom (the blurry-headshot case)', () => {
+    // A 248px 4:5 team card holding a landscape (1.5:1) upload needs a ~465px
+    // source at 1x / ~930px at 2x — cover scales by box HEIGHT. Serving the
+    // bare box width (256/640) shipped visibly soft photos on 1x desktops.
     const { src, srcSet } = siteImageSource(S3, 248)
-    expect(src).toBe(`/_next/image?url=${encodeURIComponent(S3)}&w=640&q=75`)
     expect(srcSet).toBe(
-      `/_next/image?url=${encodeURIComponent(S3)}&w=256&q=75 1x, ` +
-        `/_next/image?url=${encodeURIComponent(S3)}&w=640&q=75 2x`,
+      `/_next/image?url=${encodeURIComponent(S3)}&w=640&q=75 1x, ` +
+        `/_next/image?url=${encodeURIComponent(S3)}&w=1080&q=75 2x`,
+    )
+    expect(src).toBe(`/_next/image?url=${encodeURIComponent(S3)}&w=1080&q=75`)
+  })
+
+  it('caps every candidate at the sharpness ceiling (never the 3840 jumbo rung)', () => {
+    // The hero: 600 × 2 (crop) = 1200 at 1x; 2400 at 2x would ladder-jump to
+    // 3840 — the ceiling holds it at 2048.
+    const { srcSet } = siteImageSource(S3, 600)
+    expect(srcSet).toBe(
+      `/_next/image?url=${encodeURIComponent(S3)}&w=1200&q=75 1x, ` +
+        `/_next/image?url=${encodeURIComponent(S3)}&w=2048&q=75 2x`,
     )
   })
 
@@ -79,9 +92,10 @@ describe('siteImageSource', () => {
   })
 
   it('drops the srcSet when 1x and 2x land on the same served width', () => {
-    // A 40 px logo: 40 → 48, 80 → 96… different. Use the ladder's top instead.
-    const { srcSet } = siteImageSource(S3, 3840)
+    // A huge displayWidth: both candidates hit the ceiling → one URL, no pair.
+    const { src, srcSet } = siteImageSource(S3, 3840)
     expect(srcSet).toBeUndefined()
+    expect(src).toBe(`/_next/image?url=${encodeURIComponent(S3)}&w=2048&q=75`)
   })
 
   it('passes a non-optimizable url through untouched (no broken images)', () => {
