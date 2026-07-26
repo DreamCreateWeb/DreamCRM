@@ -55,6 +55,10 @@ export interface GoogleReviewStats {
   averageRating: number | null
   /** Reviews still awaiting an owner reply (drives the dashboard nudge). */
   needsReply: number
+  /** Subset of `needsReply` rated 1–2★ — the reputation fires. These escalate
+   *  by notification when they land; this count keeps them visible on the
+   *  Growth hub until someone actually replies. */
+  lowStarNeedsReply: number
 }
 
 function toView(r: schema.GoogleReviewRow): GoogleReviewView {
@@ -231,15 +235,19 @@ export async function getGoogleReviewStats(orgId: string): Promise<GoogleReviewS
   let sum = 0
   let count = 0
   let needsReply = 0
+  let lowStarNeedsReply = 0
   for (const r of rows) {
     if (typeof r.starRating === 'number' && r.starRating >= 1 && r.starRating <= 5) {
       sum += r.starRating
       count++
     }
-    if (!r.replyComment) needsReply++
+    if (!r.replyComment) {
+      needsReply++
+      if (typeof r.starRating === 'number' && r.starRating <= 2) lowStarNeedsReply++
+    }
   }
   const averageRating = count > 0 ? Math.round((sum / count) * 10) / 10 : null
-  return { count, averageRating, needsReply }
+  return { count, averageRating, needsReply, lowStarNeedsReply }
 }
 
 /**

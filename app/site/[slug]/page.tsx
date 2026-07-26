@@ -82,7 +82,7 @@ export default async function ClinicSitePage({ params }: Props) {
     // stats failure (e.g. the brief window of a table-rename deploy, when the
     // server is already serving but db-migrate hasn't finished) must NEVER 500
     // the clinic's public homepage — degrade to the zero-state (no rating).
-    getGoogleReviewStats(data.orgId).catch(() => ({ count: 0, averageRating: null, needsReply: 0 })),
+    getGoogleReviewStats(data.orgId).catch(() => ({ count: 0, averageRating: null, needsReply: 0, lowStarNeedsReply: 0 })),
     // 4★+ Google reviews that auto-feature in the testimonials carousel. Same
     // best-effort discipline — a pull failure just shows the manual testimonials.
     listFeaturableGoogleReviews(data.orgId).catch(() => []),

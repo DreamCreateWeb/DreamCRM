@@ -328,7 +328,7 @@ describe('syncGoogleReviews', () => {
 describe('getGoogleReviewStats', () => {
   it('returns zeros + null average when there are no reviews', async () => {
     const s = await getGoogleReviewStats(ORG)
-    expect(s).toEqual({ count: 0, averageRating: null, needsReply: 0 })
+    expect(s).toEqual({ count: 0, averageRating: null, needsReply: 0, lowStarNeedsReply: 0 })
   })
 
   it('averages only rated reviews, rounds to 1 decimal, counts needs-reply', async () => {
