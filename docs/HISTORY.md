@@ -4814,3 +4814,26 @@ ctx.userId, done-only, completedAt-desc — the heartbeat's exact math) with
 a "Closed by you" board section, linked from My Day's personal pulse. The
 action-links phase is COMPLETE: every dashboard stat opens the view that
 explains it, or carries a recorded acceptance. Full suite 5,167 green.
+
+## 2026-07-26 — Growth hub v3 + the Growth refinement pass
+
+The second hub redesign (the Website hub set the pattern; the user's
+framing sharpened it: Growth's identity is OUTWARD — growing into the
+town). /growth rebuilt as two engines with acquisition on top: the
+New-patients scoreboard (12-week heartbeat, channel rows) over the
+reactivation funnel (getRecallStats + next-send status). getGoogleReviewStats
+gained lowStarNeedsReply so 1–2★ fires stay visible until actually replied.
+
+The refinement sweep behind it: the recall dashboard was rendering
+scheduled-send times in UTC (server component, bare toLocaleString) —
+clinic-tz law applied there + both reviews pages; the analytics eyebrow
+lost its dead "Premium" plan pill; ConnectChannels stopped advertising
+Basic/Pro tiers (add-on machinery intact); queue + reviews/received gained
+workspace-link eyebrows; /growth/reviews/received now sorts attention-first
+(unreplied 1–2★ → unreplied → replied) with a waiting-count pill; the demo
+gained its missing 2★ unreplied review (demo_gr_7) so the escalation
+surfaces showcase. Guards in tests/growth/refinement-pass.test.ts.
+
+Same day, earlier: clinic-site photo delivery fixed (SiteImage through
+/_next/image w/ object-cover crop headroom; 23.7 MB of /team originals →
+~1 MB WebP) — see the SiteImage convention in CLAUDE.md.
