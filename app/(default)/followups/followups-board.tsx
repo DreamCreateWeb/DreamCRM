@@ -182,7 +182,7 @@ export default function FollowupsBoard({
               Completed · 8 weeks
             </span>
             <span aria-hidden="true">
-              <Sparkline data={completedPerWeek8} color="var(--color-teal-500)" width={104} height={26} labels={false} />
+              <Sparkline data={completedPerWeek8} width={104} height={26} />
             </span>
           </div>
         )}

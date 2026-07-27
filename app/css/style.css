@@ -106,6 +106,18 @@
   --color-teal-800: #27418a;
   --color-teal-900: #1f3266;
 
+  /* Chart series order (components/ui/charts) — FIXED assignment, never
+     cycled. Validated (dataviz six-checks) against the light surface
+     2026-07-26: lightness band, chroma, CVD separation, normal-vision
+     floor, 3:1 contrast all pass; the amber↔emerald adjacent pair sits in
+     the 6–8 CVD floor band, which is legal ONLY because the kit always
+     direct-labels/legends multi-series. Re-run the validator before
+     touching any of these. */
+  --color-chart-1: #4c7df0; /* brand dream blue — every single-series chart */
+  --color-chart-2: #d97706;
+  --color-chart-3: #059669;
+  --color-chart-4: #9333ea;
+
   --color-violet-50: #f1eeff;
   --color-violet-100: #e6e1ff;
   --color-violet-200: #d2cbff;
@@ -369,6 +381,9 @@
   --shadow-card: 0 2px 8px rgb(4 8 24 / 0.4), 0 14px 34px rgb(4 8 24 / 0.5);
   --shadow-pop: 0 4px 12px rgb(4 8 24 / 0.5), 0 22px 52px rgb(4 8 24 / 0.6);
   --shadow-modal: 0 16px 48px rgb(4 8 24 / 0.55), 0 32px 72px rgb(4 8 24 / 0.5);
+  /* chart series revalidated against the dark surface (#1b2544) — only the
+     purple needed a brighter step to clear 3:1. */
+  --color-chart-4: #a855f7;
 }
 
 /* --------------------------------------------------------------------

@@ -41,14 +41,7 @@ export default function ClosedHeartbeat({ series }: { series: ClosedHeartbeatPoi
         {label}
       </Link>
       <span aria-hidden="true">
-        <Sparkline
-          data={series}
-          variant="bar"
-          color="var(--color-teal-500)"
-          width={104}
-          height={26}
-          labels={false}
-        />
+<Sparkline data={series} variant="bar" width={104} height={26} />
       </span>
     </div>
   )

@@ -140,17 +140,17 @@ describe('PlatformOverview', () => {
     }
     const ui = await PlatformOverview()
     const { container } = render(ui)
-    // KpiStat renders the spark as an svg polyline (line variant) inside the tile
+    // KpiStat renders the spark through the chart kit (mini line) inside the tile
     const tile = screen.getByText('Active Clinics').closest('div.v2-card, div.v2-card-interactive')
     expect(tile).not.toBeNull()
-    expect(tile!.querySelector('svg polyline')).not.toBeNull()
+    expect(tile!.querySelector('[data-chart="mini-line"]')).not.toBeNull()
     // The heartbeat is budgeted to ONE tile — no other pulse tile carries a spark
-    expect(container.querySelectorAll('svg polyline')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-chart="mini-line"]')).toHaveLength(1)
   })
 
   it('hides the sparkline entirely when the series is empty (no fake data)', async () => {
     const { container } = render(await PlatformOverview())
-    expect(container.querySelector('svg polyline')).toBeNull()
+    expect(container.querySelector('[data-chart="mini-line"]')).toBeNull()
     expect(screen.queryByText('No data yet')).toBeNull()
   })
 

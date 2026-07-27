@@ -44,7 +44,7 @@ describe('clinic-tz law on the Growth server components', () => {
       const src = read(p)
       expect(src, p).toContain('getClinicTimeZone')
       // Any toLocaleDateString in these server files must pass a timeZone.
-      for (const m of src.matchAll(/toLocaleDateString\('en-US', \{([^}]*)\}/g)) {
+      for (const m of Array.from(src.matchAll(/toLocaleDateString\('en-US', \{([^}]*)\}/g))) {
         expect(m[1], `${p}: ${m[0]}`).toContain('timeZone')
       }
     }

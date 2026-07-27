@@ -112,8 +112,11 @@ export function KpiStat({
       </div>
       {sub && <div className={`mt-0.5 text-xs font-medium ${tone ? TONE_TEXT[tone] : 'text-gray-600 dark:text-gray-300'}`}>{sub}</div>}
       {spark && spark.length > 1 && (
-        <div className="pointer-events-none absolute bottom-3 right-3 hidden xs:block" aria-hidden="true">
-          <Sparkline data={spark} color="var(--color-teal-500)" width={88} height={30} labels={false} />
+        // aria-hidden: the tile's number + sub carry the story for AT; the
+        // spark is a visual supplement — but it now answers HOVER (the chart
+        // kit tooltip reads out bucket + value), so pointer events stay on.
+        <div className="absolute bottom-3 right-3 hidden xs:block" aria-hidden="true">
+          <Sparkline data={spark} width={88} height={30} />
         </div>
       )}
     </div>

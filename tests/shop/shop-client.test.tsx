@@ -198,15 +198,18 @@ describe('ShopClient — sales overview', () => {
         { bucket: 'Jan 4', value: 2 },
       ],
     })
-    // The Sparkline's polyline is unambiguous — NavIcon svgs draw paths only.
+    // The kit's data-chart marker is unambiguous — NavIcon svgs carry none.
     const tile = screen.getByText('Paid orders').closest('a') as HTMLElement
-    expect(tile.querySelectorAll('polyline').length).toBe(1)
+    expect(tile.querySelectorAll('[data-chart="mini-line"]').length).toBe(1)
     // Law 7 budget: one heartbeat on this hub, total.
-    expect(container.querySelectorAll('polyline').length).toBe(1)
+    expect(container.querySelectorAll('[data-chart="mini-line"]').length).toBe(1)
     // Decorative + non-interactive: aria-hidden wrapper, pointer-events off.
     const wrap = tile.querySelector('[aria-hidden="true"]') as HTMLElement
     expect(wrap).toBeTruthy()
-    expect(wrap.className).toContain('pointer-events-none')
+    // Pointer events stay ON since the Recharts rollout — the spark answers
+    // hover with a value tooltip (it's aria-hidden because the tile's number
+    // carries the story for AT, not because it's inert).
+    expect(wrap.className).not.toContain('pointer-events-none')
   })
 
   it('renders sparkless (not broken) when the weekly series is empty — the best-effort .catch', () => {
@@ -215,7 +218,7 @@ describe('ShopClient — sales overview', () => {
       ordersPerWeek8: [],
     })
     expect(screen.getByText('Paid orders')).toBeInTheDocument()
-    expect(container.querySelectorAll('polyline').length).toBe(0)
+    expect(container.querySelectorAll('[data-chart="mini-line"]').length).toBe(0)
   })
 
   it('hides the sales band entirely for a brand-new shop with no sales', () => {

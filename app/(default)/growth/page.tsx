@@ -15,6 +15,7 @@ import { formatClinicDayTime } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
+import { TrendChart } from '@/components/ui/charts'
 
 export const metadata = {
   title: 'Growth - DreamCRM',
@@ -134,7 +135,16 @@ export default async function GrowthHubPage() {
                 )}
               </div>
             </div>
-            <NewPatientsSpark weekly={newPatientsWeekly} />
+            {newPatientsWeekly.length >= 2 && (
+              <TrendChart
+                data={newPatientsWeekly}
+                kind="area"
+                height={150}
+                label="new patients"
+                className="mt-4"
+                ariaLabel={`New patients per week over the last ${newPatientsWeekly.length} weeks`}
+              />
+            )}
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               Patients whose first visit landed in each of the last 12 weeks — imports and PMS
               backfills don’t count, so the line never lies.
@@ -379,52 +389,6 @@ function sumRange(
   to?: number,
 ): number {
   return weekly.slice(from, to).reduce((a, p) => a + p.value, 0)
-}
-
-/**
- * The 12-week new-patients line as a soft gradient area — the page's ONE
- * heartbeat (Design System law 7). Server-rendered SVG, aria-hidden (the KPI
- * number above carries the truth); an empty series renders nothing.
- */
-function NewPatientsSpark({ weekly }: { weekly: Array<{ bucket: string; value: number }> }) {
-  if (weekly.length < 2) return null
-  const W = 600
-  const H = 64
-  const PAD = 2
-  const n = weekly.length
-  const max = Math.max(1, ...weekly.map((d) => d.value))
-  const pts = weekly.map((d, i) => {
-    const x = PAD + (i / (n - 1)) * (W - PAD * 2)
-    const y = H - PAD - (d.value / max) * (H - PAD * 2)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  })
-  const line = pts.join(' ')
-  const area = `${PAD},${H - PAD} ${line} ${W - PAD},${H - PAD}`
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      className="mt-4 w-full h-16"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="growth-spark-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--color-teal-500)" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="var(--color-teal-500)" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      <polygon points={area} fill="url(#growth-spark-fill)" />
-      <polyline
-        points={line}
-        fill="none"
-        stroke="var(--color-teal-500)"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  )
 }
 
 /** One acquisition channel: glyph, name, and its real number (or an honest

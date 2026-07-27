@@ -137,6 +137,12 @@ components/ui/       dashboard-shell.tsx (all authed layouts go through it),
                      tenant-sidebar.tsx, the 10 v2 primitives (PageHeader,
                      ActionButton, StatusPill, FilterChip, GlyphCluster,
                      EncodingLegend, EmptyState, BulkBar, KpiStat, FlashToast)
+                     + charts/ — THE chart kit (2026-07-26, Recharts):
+                     TrendChart (axes + crosshair tooltip) / MiniTrend (hover
+                     spark); series colors ride the validated --color-chart-*
+                     tokens (fixed order, dark-aware); old Sparkline is a
+                     compat wrapper; tests/ui/chart-kit.test.ts guards against
+                     new hand-rolled polylines
 middleware.ts        Auth gate + public-path allowlist + {slug} subdomain rewrite
                      + custom-domain host→slug routing + app./apex → www redirect
 tests/               Vitest (happy-dom), ~460 files / 4,200+ tests; pnpm test

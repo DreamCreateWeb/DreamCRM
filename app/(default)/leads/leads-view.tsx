@@ -264,7 +264,7 @@ export default function LeadsView({
                 Last 14 days
               </span>
               <span aria-hidden="true">
-                <Sparkline data={perDay14} color="var(--color-teal-500)" width={104} height={26} labels={false} />
+                <Sparkline data={perDay14} width={104} height={26} />
               </span>
             </div>
           )}

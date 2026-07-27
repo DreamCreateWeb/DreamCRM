@@ -1,107 +1,41 @@
+'use client'
+
 /**
- * Server-rendered SVG sparkline / sparkbar — zero JS, zero deps.
+ * COMPAT WRAPPER (2026-07-26, the Recharts rollout). `Sparkline` was a
+ * server-rendered polyline with no hover, no axes, no numbers — every call
+ * site now renders the real chart kit underneath (components/ui/charts):
+ * MiniTrend gives each spark a crosshair tooltip that reads out bucket +
+ * value on hover.
  *
- * Used by the Platform Metrics dashboard to plot weekly / monthly trends
- * without dragging chart.js into a server component.
+ * Kept as a wrapper so the 8 existing call sites upgrade in place; NEW
+ * surfaces should import from '@/components/ui/charts' directly — TrendChart
+ * for anything with room for axes, MiniTrend for in-card sparks.
+ *
+ * API notes vs the old component:
+ *  - `labels` is accepted but ignored: hover tooltips are always on now
+ *    (that was the whole point).
+ *  - `color` still accepts any CSS color, but pass CHART_SERIES entries so
+ *    dark mode + the palette validation apply.
  */
+import MiniTrend from './charts/mini-trend'
+import { CHART_SERIES, type TrendPoint } from './charts/chart-theme'
 
 interface SparklineProps {
-  data: Array<{ bucket: string; value: number }>
-  /** 'line' draws a polyline; 'bar' draws a column chart. */
+  data: TrendPoint[]
   variant?: 'line' | 'bar'
-  /** Hex/CSS color for the stroke or bar fill. */
   color?: string
   height?: number
   width?: number
-  /** Show the value at each point as a tooltip via <title>. */
+  /** Ignored — the kit always shows hover values. */
   labels?: boolean
 }
 
 export default function Sparkline({
   data,
   variant = 'line',
-  color = '#8b5cf6',
+  color = CHART_SERIES[0],
   height = 48,
   width = 240,
-  labels = true,
 }: SparklineProps) {
-  if (data.length === 0) {
-    return (
-      <div
-        className="text-xs text-gray-400 dark:text-gray-500 italic flex items-center justify-center"
-        style={{ height, width }}
-      >
-        No data yet
-      </div>
-    )
-  }
-
-  const values = data.map((d) => d.value)
-  const max = Math.max(...values, 1)
-  const min = Math.min(...values, 0)
-  const range = Math.max(max - min, 1)
-
-  const padding = 2
-  const w = width - padding * 2
-  const h = height - padding * 2
-  const stepX = data.length > 1 ? w / (data.length - 1) : 0
-  const y = (v: number) => padding + h - ((v - min) / range) * h
-
-  if (variant === 'bar') {
-    const barW = w / data.length - 2
-    return (
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img">
-        {data.map((d, i) => {
-          const yTop = y(d.value)
-          const barH = padding + h - yTop
-          return (
-            <rect
-              key={d.bucket}
-              x={padding + i * (w / data.length) + 1}
-              y={yTop}
-              width={barW}
-              height={Math.max(barH, 1)}
-              fill={color}
-              opacity={0.85}
-              rx={1}
-            >
-              {labels && <title>{`${d.bucket}: ${d.value}`}</title>}
-            </rect>
-          )
-        })}
-      </svg>
-    )
-  }
-
-  // Line variant
-  const points = data.map((d, i) => `${padding + i * stepX},${y(d.value)}`).join(' ')
-  const areaPath =
-    data.length > 1
-      ? `M ${padding},${padding + h} L ${points.split(' ').join(' L ')} L ${padding + (data.length - 1) * stepX},${padding + h} Z`
-      : ''
-
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img">
-      {areaPath && <path d={areaPath} fill={color} opacity={0.12} />}
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {data.map((d, i) => (
-        <circle
-          key={d.bucket}
-          cx={padding + i * stepX}
-          cy={y(d.value)}
-          r={1.5}
-          fill={color}
-        >
-          {labels && <title>{`${d.bucket}: ${d.value}`}</title>}
-        </circle>
-      ))}
-    </svg>
-  )
+  return <MiniTrend data={data} variant={variant} color={color} width={width} height={height} />
 }

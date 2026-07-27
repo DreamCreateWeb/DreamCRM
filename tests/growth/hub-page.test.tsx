@@ -150,10 +150,12 @@ describe('the acquisition hero', () => {
     expect(screen.getByText('New patients')).toBeTruthy()
     expect(screen.getByText('9')).toBeTruthy() // last-4-weeks sum
     expect(screen.getByText(/▲ 50% vs prior 4/)).toBeTruthy()
-    // Exactly one heartbeat on the whole page (law 7), decorative.
-    const sparks = container.querySelectorAll('svg polyline')
-    expect(sparks.length).toBe(1)
-    expect(sparks[0].closest('svg')!.getAttribute('aria-hidden')).toBe('true')
+    // Exactly one heartbeat on the whole page (law 7) — now a REAL chart
+    // (Recharts area via the kit): axes + hover tooltip, labeled for AT.
+    const charts = container.querySelectorAll('[data-chart^="trend-"]')
+    expect(charts.length).toBe(1)
+    expect(charts[0].getAttribute('aria-label')).toContain('New patients per week')
+    expect(charts[0].querySelectorAll('.recharts-area-curve').length).toBe(1)
     cleanup()
   })
 

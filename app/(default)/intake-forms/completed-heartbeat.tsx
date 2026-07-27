@@ -33,13 +33,7 @@ export default function CompletedHeartbeat({
         Completed · 8 weeks
       </Link>
       <span aria-hidden="true">
-        <Sparkline
-          data={series}
-          color="var(--color-teal-500)"
-          width={104}
-          height={26}
-          labels={false}
-        />
+<Sparkline data={series} width={104} height={26} />
       </span>
     </div>
   )

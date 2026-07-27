@@ -33,7 +33,7 @@ describe('CompletedHeartbeat — 8-week sparkline (law 7)', () => {
     // carries the meaning.
     const spark = container.querySelector('[aria-hidden="true"] svg')
     expect(spark).not.toBeNull()
-    expect(spark!.querySelectorAll('circle')).toHaveLength(8)
+    expect(spark!.querySelectorAll('.recharts-line-curve')).toHaveLength(1)
   })
 
   it('stays hidden with an empty series or fewer than 2 nonzero weeks', () => {

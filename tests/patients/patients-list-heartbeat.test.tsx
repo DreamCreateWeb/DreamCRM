@@ -54,7 +54,7 @@ describe('PatientsList — 12-week heartbeat sparkline (law 7)', () => {
     // carries the meaning.
     const spark = container.querySelector('[aria-hidden="true"] svg')
     expect(spark).not.toBeNull()
-    expect(spark!.querySelectorAll('circle')).toHaveLength(12)
+    expect(spark!.querySelectorAll('.recharts-line-curve')).toHaveLength(1)
   })
 
   it('stays hidden without the series or with fewer than 2 nonzero weeks', () => {

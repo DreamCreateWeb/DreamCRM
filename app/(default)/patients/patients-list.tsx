@@ -425,7 +425,7 @@ export default function PatientsList({
               New patients · 12 weeks
             </span>
             <span aria-hidden="true">
-              <Sparkline data={perWeek12} color="var(--color-teal-500)" width={104} height={26} labels={false} />
+              <Sparkline data={perWeek12} width={104} height={26} />
             </span>
           </div>
         )}

@@ -7,7 +7,7 @@ import {
 } from '@/lib/services/revenue'
 import { getMrrSnapshot } from '@/lib/services/platform-metrics'
 import { formatMoneyShort, formatRelativeDate } from '@/lib/utils/format'
-import Sparkline from '@/components/ui/sparkline'
+import { MiniTrend, CHART_SERIES } from '@/components/ui/charts'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -101,28 +101,28 @@ export default async function PlatformRevenue() {
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs">
-            <LegendDot color="#8b5cf6" label="Subscriptions" />
-            <LegendDot color="#10b981" label="Projects" />
-            <LegendDot color="#0ea5e9" label="Combined" />
+            <LegendDot color={CHART_SERIES[3]} label="Subscriptions" />
+            <LegendDot color={CHART_SERIES[2]} label="Projects" />
+            <LegendDot color={CHART_SERIES[0]} label="Combined" />
           </div>
         </div>
         <div className="space-y-4">
           <TrendRow
             label="Combined"
             data={combinedBuckets}
-            color="#0ea5e9"
+            color={CHART_SERIES[0]}
             total={formatMoneyShort(totalRevenue12w)}
           />
           <TrendRow
             label="Subscriptions"
             data={stripeWindow.buckets}
-            color="#8b5cf6"
+            color={CHART_SERIES[3]}
             total={formatMoneyShort(stripeWindow.totalCents)}
           />
           <TrendRow
             label="Projects"
             data={projectWindow.buckets}
-            color="#10b981"
+            color={CHART_SERIES[2]}
             total={formatMoneyShort(projectWindow.totalCents)}
           />
         </div>
@@ -304,7 +304,14 @@ function TrendRow({
         <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{total}</div>
       </div>
       <div className="flex-1">
-        <Sparkline data={data} variant="line" color={color} width={760} height={40} labels />
+        <MiniTrend
+          data={data}
+          variant="line"
+          color={color}
+          width={760}
+          height={40}
+          valueFormatter={(cents) => `$${Math.round(cents / 100).toLocaleString('en-US')}`}
+        />
       </div>
     </div>
   )

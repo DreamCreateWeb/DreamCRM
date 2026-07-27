@@ -13,7 +13,7 @@ import {
   type AgencyProjectType,
 } from '@/lib/db/schema/platform'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
-import Sparkline from '@/components/ui/sparkline'
+import { TrendChart, CHART_SERIES } from '@/components/ui/charts'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -176,7 +176,14 @@ export default async function PlatformMetrics() {
             <TrendBadge value={growth.pctChange} />
           </div>
           <div className="mt-3">
-            <Sparkline data={growth.buckets} variant="bar" color="#8b5cf6" width={760} height={120} />
+            <TrendChart
+              data={growth.buckets}
+              kind="bar"
+              color={CHART_SERIES[3]}
+              height={160}
+              label="new clinics"
+              ariaLabel="New clinics per week over the last 12 weeks"
+            />
           </div>
           <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
             <div>
@@ -245,7 +252,14 @@ export default async function PlatformMetrics() {
             <TrendBadge value={velocity.pctChange} />
           </div>
           <div className="mt-3">
-            <Sparkline data={velocity.buckets} variant="line" color="#10b981" width={760} height={120} />
+            <TrendChart
+              data={velocity.buckets}
+              kind="line"
+              color={CHART_SERIES[2]}
+              height={160}
+              label="completed projects"
+              ariaLabel="Completed projects per month over the last 6 months"
+            />
           </div>
           <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
             <div>

@@ -29,6 +29,7 @@ import SiteMiniPreview from './site-mini-preview'
 import QuickEdits from './quick-edits'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
+import { TrendChart } from '@/components/ui/charts'
 
 export const metadata = {
   title: 'Website - DreamCRM',
@@ -377,7 +378,20 @@ export default async function WebsiteHubPage() {
               </div>
             )}
           </div>
-          <AreaSpark daily={performance.traffic.daily} />
+          <TrendChart
+            data={performance.traffic.daily.map((d) => ({
+              bucket: new Date(`${d.day}T00:00:00`).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              }),
+              value: d.views,
+            }))}
+            kind="area"
+            height={150}
+            label="visits"
+            className="mt-5"
+            ariaLabel="Site visits per day over the last 30 days"
+          />
         </div>
       )}
 
@@ -512,54 +526,6 @@ export default async function WebsiteHubPage() {
         </Link>
       </div>
     </div>
-  )
-}
-
-/**
- * The 30-day traffic line as a soft gradient area — server-rendered SVG, no
- * client JS. Decorative (the KPI numbers above carry the truth), so it's
- * aria-hidden; degenerate inputs (0–1 days) draw a flat baseline.
- */
-function AreaSpark({ daily }: { daily: { day: string; views: number }[] }) {
-  const W = 600
-  const H = 64
-  const PAD = 2
-  const n = daily.length
-  const max = Math.max(1, ...daily.map((d) => d.views))
-  const pts =
-    n >= 2
-      ? daily.map((d, i) => {
-          const x = PAD + (i / (n - 1)) * (W - PAD * 2)
-          const y = H - PAD - (d.views / max) * (H - PAD * 2)
-          return `${x.toFixed(1)},${y.toFixed(1)}`
-        })
-      : [`${PAD},${H - PAD}`, `${W - PAD},${H - PAD}`]
-  const line = pts.join(' ')
-  const area = `${PAD},${H - PAD} ${line} ${W - PAD},${H - PAD}`
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      className="mt-5 w-full h-16"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="hub-spark-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--color-teal-500)" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="var(--color-teal-500)" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      <polygon points={area} fill="url(#hub-spark-fill)" />
-      <polyline
-        points={line}
-        fill="none"
-        stroke="var(--color-teal-500)"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
   )
 }
 

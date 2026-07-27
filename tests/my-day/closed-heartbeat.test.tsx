@@ -25,7 +25,9 @@ describe('ClosedHeartbeat — the 8-week personal heartbeat (law 7)', () => {
     // text label carries the meaning.
     const spark = container.querySelector('[aria-hidden="true"] svg')
     expect(spark).not.toBeNull()
-    expect(spark!.querySelectorAll('rect')).toHaveLength(8)
+    // Zero weeks paint no bar (an honest zero, not a 1px lie) — 5 of the 8
+    // buckets carry a value.
+    expect(spark!.querySelectorAll('.recharts-bar-rectangle')).toHaveLength(5)
   })
 
   it('links the label to the board view with the SAME math — /followups?closedBy=me (completedBy, never the assignee filter)', () => {
