@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'driz
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack } from '@/lib/services/pms'
+import { recordAction } from '@/lib/services/action-ledger'
 import { getTagsForPatients, getTagsForPatient } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
@@ -1404,6 +1405,39 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
     template: input.template ?? null,
     sentByUserId: input.sentByUserId,
   })
+  // THE ACTION LEDGER — machine actions only (a staff member clicking send is
+  // their work, not the employee's). Best-effort by design: the reminder is
+  // already out; bookkeeping must never throw after it.
+  if (input.sentByUserId === null) {
+    try {
+      const [row] = await db
+        .select({
+          patientId: schema.appointment.patientId,
+          startTime: schema.appointment.startTime,
+          firstName: schema.patient.firstName,
+        })
+        .from(schema.appointment)
+        .innerJoin(schema.patient, eq(schema.patient.id, schema.appointment.patientId))
+        .where(eq(schema.appointment.id, input.appointmentId))
+        .limit(1)
+      if (row) {
+        const [{ getClinicTimeZone }, { formatClinicDayTime }] = await Promise.all([
+          import('@/lib/services/clinic-timezone'),
+          import('@/lib/format-datetime'),
+        ])
+        const tz = await getClinicTimeZone(input.organizationId)
+        await recordAction({
+          organizationId: input.organizationId,
+          capability: 'appointment_reminder',
+          patientId: row.patientId,
+          summary: `Reminded ${row.firstName} about ${formatClinicDayTime(row.startTime, tz)}`,
+          detail: { appointmentId: input.appointmentId, channel: input.channel, template: input.template ?? null },
+        })
+      }
+    } catch (e) {
+      console.error('[action-ledger] reminder entry failed:', e)
+    }
+  }
   return id
 }
 

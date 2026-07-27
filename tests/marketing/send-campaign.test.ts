@@ -106,6 +106,9 @@ vi.mock('@/lib/services/clinic-sender', () => ({
   getClinicSenderIdentity: h.getSenderMock,
 }))
 
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: vi.fn(async () => true),
+}))
 vi.mock('@/lib/services/notifications', () => ({
   notify: h.notifyMock,
 }))

@@ -2003,3 +2003,44 @@ export const clinicDomainPurchase = pgTable(
   ],
 )
 export type ClinicDomainPurchaseRow = typeof clinicDomainPurchase.$inferSelect
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE ACTION LEDGER (Transformation Phase 1 — DESIGN.md "The North Star").
+// One per-clinic stream of everything the machine did on the clinic's
+// behalf, written AT ACTION TIME by every automation — the record behind
+// the narrator's "here's what I did this week" and the approval inbox's
+// "here's what happened after you said yes". A feature that acts without a
+// ledger entry is a bug (the convention is in CLAUDE.md).
+//
+// Deliberately lean: `capability` is the machine key (the same key the
+// autonomy ladder trusts, lib/autonomy.ts), `summary` is a plain-English
+// one-liner already written in the narrator's voice, `detail` carries the
+// structured facts a future surface might want. Rows are append-only.
+// ─────────────────────────────────────────────────────────────────────────────
+export const actionLedger = pgTable(
+  'action_ledger',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // Machine key: 'appointment_reminder' | 'review_request' | 'campaign_send'
+    // | 'followup_rule' | 'auto_reply' | … (grows with every automation).
+    capability: text('capability').notNull(),
+    // The person it touched, when it touched one. Set-null so the ledger
+    // survives patient merges/deletes as history.
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    // Plain-English one-liner, narrator-voiced ("Reminded Maria about
+    // Tuesday 2pm", "Asked Rob for a Google review").
+    summary: text('summary').notNull(),
+    // Structured facts (ids, channel, template, counts) for future surfaces.
+    detail: jsonb('detail'),
+    occurredAt: timestamp('occurred_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('action_ledger_org_time_idx').on(t.organizationId, t.occurredAt),
+    index('action_ledger_org_capability_idx').on(t.organizationId, t.capability),
+    index('action_ledger_patient_idx').on(t.patientId),
+  ],
+)
+export type ActionLedgerRow = typeof actionLedger.$inferSelect

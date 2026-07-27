@@ -4837,3 +4837,23 @@ surfaces showcase. Guards in tests/growth/refinement-pass.test.ts.
 Same day, earlier: clinic-site photo delivery fixed (SiteImage through
 /_next/image w/ object-cover crop headroom; 23.7 MB of /team originals →
 ~1 MB WebP) — see the SiteImage convention in CLAUDE.md.
+
+## 2026-07-27 — THE TRANSFORMATION begins: doctrine + the spine (Phases 0–1)
+
+The owner set the North Star in his own words — the platform is an employee
+the clinic hired, not software they operate — and gave full approval.
+Phase 0: the doctrine is now law in DESIGN.md ("The North Star": three
+engines / five primitives / the design test / the success law) + a CLAUDE.md
+convention and open item 0. Phase 1 shipped the spine, inert:
+`lib/patient-journey.ts` (derived stage: inquiry → booked → patient — stage
+comes from appointments, never hand-stamped; "new patients" = SEATED) +
+`lib/services/patient-journey.ts` (bulk stages, stage counts, the
+transition funnel w/ backfill exclusion); the ACTION LEDGER (migration 0136
+`action_ledger` + service; first three writers live: automated reminders,
+auto review asks, campaign sends — machine actions only, narrator-voiced
+summaries); the AUTONOMY LADDER (`clinic_profile.autonomy` jsonb +
+`lib/autonomy.ts` capability registry — defaults encode exactly today's
+behavior, unknown capabilities floor at 'ask'). tests/journey/spine.test.ts
+pins the resolver, the ladder's law, and the doctrine text itself.
+Next: Phase 2 — the approval inbox + the weekly standup.
+

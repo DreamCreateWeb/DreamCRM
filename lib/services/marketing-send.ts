@@ -2,6 +2,7 @@ import 'server-only'
 import { Resend } from 'resend'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { recordAction } from '@/lib/services/action-ledger'
 import { renderCampaignEmail, resolveMarketingFooterAddress, applyMergeFields } from '@/lib/marketing/render-email'
 import { getAccessToken, sendMessage as sendGmailMessage } from './gmail'
 import { getClinicSenderIdentity } from './clinic-sender'
@@ -347,6 +348,23 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
         updatedAt: new Date(),
       })
       .where(eq(schema.campaigns.id, campaign.id))
+
+    // THE ACTION LEDGER: the machine's own record of the send (the weekly
+    // standup reads this). Never blocks the send result.
+    if (!nothingSent) {
+      await recordAction({
+        organizationId: opts.organizationId,
+        capability: 'campaign_send',
+        summary: `Sent \u201c${campaign.name}\u201d to ${result.sent} ${result.sent === 1 ? 'person' : 'people'}`,
+        detail: {
+          campaignId: campaign.id,
+          attempted: result.attempted,
+          sent: result.sent,
+          failed: result.failed,
+          channel: result.channel,
+        },
+      })
+    }
 
     // Ping the campaign creator with the final tally
     if (campaign.createdBy) {

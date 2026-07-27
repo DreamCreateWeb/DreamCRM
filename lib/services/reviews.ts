@@ -2,6 +2,7 @@ import 'server-only'
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
+import { recordAction } from '@/lib/services/action-ledger'
 import { deliver } from '@/lib/email'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import type { EmailSlots } from '@/lib/types/email-automations'
@@ -528,6 +529,17 @@ export async function createAndSendReviewRequest(input: {
       .update(schema.reviewRequest)
       .set({ status: 'sent', sentAt: now, updatedAt: now })
       .where(eq(schema.reviewRequest.id, id))
+    // THE ACTION LEDGER — machine asks only (the auto-send cron passes a null
+    // requester; a staff click is their work, not the employee's).
+    if (input.requestedByUserId == null) {
+      await recordAction({
+        organizationId: input.organizationId,
+        capability: 'review_request',
+        patientId: input.patientId,
+        summary: `Asked ${patient.firstName} for a Google review after their visit`,
+        detail: { reviewRequestId: id, channel: input.channel },
+      })
+    }
   } catch (err) {
     await db
       .update(schema.reviewRequest)

@@ -111,6 +111,13 @@ export const clinicProfile = pgTable('clinic_profile', {
   // can't wait behind Publish. Auto-hides at render when endsAt is before the
   // clinic-local day. Null / blank message = no bar.
   announcement: jsonb('announcement'),
+  // THE AUTONOMY LADDER (Transformation Phase 1, inert until Phase 3):
+  // capability key → 'ask' | 'auto'. Missing keys fall back to the
+  // capability's registered default in lib/autonomy.ts, which encodes
+  // exactly today's behavior — adding a key here is the clinic tapping
+  // "always do this for me" (or dialing one back down). Never written by
+  // the machine on its own; trust is granted by humans only.
+  autonomy: jsonb('autonomy'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

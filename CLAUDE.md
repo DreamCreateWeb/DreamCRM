@@ -100,7 +100,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0133 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0136 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -454,6 +454,12 @@ sitemap/robots/OG.
   module subset: the repo-wide CI guards (legibility floor, tenant scoping,
   cron parity, token single-homes) only run in the full pass, and deploys
   don't run tests.
+- **The North Star is a convention (2026-07-27).** DESIGN.md's "the employee,
+  not the tool" doctrine governs every new feature: the design test is "does
+  this ask the clinic to operate something, or does it do the job and
+  report?" New capabilities ship as proposal types + Action Ledger entries,
+  never as new pages to operate. Journey stage (inquiry → booked → patient)
+  is DERIVED, never hand-stamped; "new patients" means SEATED everywhere.
 - Voice: warm, plain, anti-shame ("3 still need a text", never "3 records
   pending confirmation"). See DESIGN.md for the full copy rules.
 
@@ -497,7 +503,13 @@ sitemap/robots/OG.
 
 ## Open items (priority order)
 
-0. **NEXT BUILD: dentistry-type site templates** (task #69, design-first —
+0. **THE TRANSFORMATION (2026-07-27, full owner approval): "the employee,
+   not the tool."** Read DESIGN.md → "The North Star" FIRST. Build order:
+   Phase 1 the spine (journey-stage resolver + Action Ledger + autonomy
+   schema — in progress), Phase 2 the voice (approval inbox + weekly
+   standup + first proposal types), Phase 3 the autonomy ladder live,
+   Phase 4 guardian + shared brain, Phase 5+ new limbs proposal-first.
+0b. **Dentistry-type site templates** (task #69, design-first — (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live
    iframes, /site/[slug]/tf/[template] preview frames, Draft→Publish.

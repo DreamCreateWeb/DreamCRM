@@ -29,6 +29,103 @@ platform for dental clinics, period.
 
 ---
 
+## The North Star (decided 2026-07-27): the employee, not the tool
+
+This section outranks everything below it. When any principle in this file
+conflicts with this one, this one wins.
+
+**The platform is not software the clinic operates. It is an employee the
+clinic hired.** Our customers are kind, overworked people whose career is
+making others smile — and who typically need help hooking up a scanner. The
+promise is not "powerful tools"; it is *"your practice exploded and you
+barely did anything."* Every feature must be built as a colleague doing a
+job and reporting in — never as a surface asking the clinic to operate it.
+
+### The skeleton: three engines, one anatomy
+
+The whole platform is one journey — **Find new patients → Book appointments
+→ Keep existing patients** — and every engine, at any depth, decomposes into
+the same four parts:
+
+1. **Surfaces** — where it touches the world (channels, widgets, messages)
+2. **The machine room** — automations that run daily without staff
+3. **The work queue** — the few things only a human can do today
+4. **The optimizer** — measure → learn → recommend, forever
+
+The journey has stages a person moves through — **inquiry** (asked a
+question) → **booked** (on the schedule, never seated) → **patient** (first
+completed visit, then active/at-risk/lapsed). The stage is DERIVED from
+facts (appointments, visits), never hand-stamped. One resolver answers
+"where is this person in their journey"; every tool and metric consumes it.
+"New patients" means SEATED, everywhere, always.
+
+### The soul: five primitives
+
+1. **The Action Ledger.** One per-clinic stream of everything the machine
+   did and what came of it. Every automation writes to it BY LAW — a feature
+   that acts without a ledger entry is a bug. Without the ledger the
+   employee cannot answer "what did you do this week?", and that answer is
+   the product.
+2. **Proposals + the Approval Inbox.** When the machine wants to act beyond
+   its trust level, it files a proposal: *"here is exactly what I want to
+   do — yes or no?"* One inbox; plain English; a big Approve button. Never
+   a nudge that links to a tool ("41 patients are due — open the queue")
+   when it can be a finished piece of work awaiting a yes ("I wrote the
+   campaign — send it?").
+3. **The Autonomy Ladder.** Per-capability trust: `ask-first` → `do-and-
+   tell`. Every proposal carries "always do this for me." Trust is earned
+   per task, granted by the clinic, reversible always. New capabilities
+   ship at ask-first; nothing ever grants itself autonomy.
+4. **The Narrator.** The weekly standup and daily brief, generated from the
+   ledger, written in the anti-shame voice, with names and stories ("Maria
+   found you on Google and booked — patient #40 this year"), ending with
+   the short list of things only a human can do. In-app, the standup is
+   the home; dashboards are the appendix, one click deeper.
+5. **The Guardian + the shared brain** (platform side). Dream Create
+   monitors every clinic's engine health and intervenes when growth stalls
+   — the guarantee has a guardian. Cross-clinic learning (patterns, never
+   patient data) feeds every clinic's defaults: no individual clinic has to
+   be smart, because the platform already knows.
+
+### The design test (every feature, every PR)
+
+> **Does this ask the clinic to operate something, or does it do the job
+> and report?**
+
+If a design's primary surface is a dashboard, a settings page, or a queue
+of raw work, it has failed the test unless it is genuinely the appendix
+behind an employee behavior. Corollaries:
+
+- New capabilities arrive as **new proposal types + ledger entries**, never
+  as new pages to operate.
+- Nobody configures anything: setup is an interview; every knob has a
+  learned default; a settings page is a failure of imagination (they may
+  exist, but never as the way in).
+- Hand them the joy: report outcomes as stories with names, not rates.
+  Celebration is part of the honesty law.
+
+### The success law
+
+**Minutes-in-app goes DOWN while patients go UP.** Time spent operating the
+product is a cost we are trying to drive to zero; instrument it and watch
+it. A feature that increases clinic time-in-app must justify itself against
+this law.
+
+### The build order (2026-07-27)
+
+Phase 0 this doctrine · Phase 1 the spine (journey resolver + action ledger
++ autonomy schema, inert) · Phase 2 the voice (approval inbox + weekly
+standup; first proposal types: review replies, posts, quiet-engine
+campaigns, inquiry responses) · Phase 3 the ladder live ("always do this
+for me") · Phase 4 guardian + shared brain · Phase 5+ new limbs (SMS,
+Apple/Bing presence, content calendar, phone), each born proposal-first.
+
+The piecemeal era built the organs and the instincts (honest data, editable
+copy, review-before-save, anti-shame voice). This doctrine is the nervous
+system and the voice. Nothing gets rewritten; everything gets re-oriented.
+
+---
+
 ## Why this works
 
 Research findings (full reports in chat history; key data points pinned here):
