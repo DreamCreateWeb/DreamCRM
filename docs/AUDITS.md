@@ -24,6 +24,26 @@ rejected, the backlog harvest, and the dry declaration.
 Proposals judged real-but-future-scope land here, newest first. The owner
 promotes items into phases; nothing here is a commitment until he does.
 
+**From Phase 1 round 3 (2026-07-27):**
+
+1. **Ledger read shapes: `until`/cursor/capability filters** —
+   `listRecentActions` caps at 500 with no upper time bound, so an
+   after-the-fact "last week" narration can't be answered exactly. Purely
+   additive params; build with Phase 2's standup consumer (kin to items 3
+   and 5 below).
+2. **Pin the transactional-receipt boundary** — booking/cancellation
+   confirmations (and order/auth receipts) deliberately don't ledger:
+   they're receipts for patient-INITIATED events, unlike the machine-
+   initiated auto_reply. The judges accepted the boundary but it lives
+   nowhere — write it down (and decide the machine's intake-form choice)
+   when Phase 2 defines what the standup narrates.
+3. **Reverse capability guard: extend the scan root to app/** — the spine
+   guard walks lib/services only; zero app/-side writers exist today, but
+   Phase 2's proposal writers will live under app/. One line when they land.
+4. **Append-only CI guard for action_ledger** — the law is comment-only;
+   an allowlisted db.update/db.delete scan (patient-merge's repoint is the
+   one sanctioned mutation) pins it in the repo's guard-everything style.
+
 **From Phase 1 round 2 (2026-07-27):**
 
 1. **Engine heartbeat / empty-week honesty** — an empty ledger week is
@@ -80,8 +100,63 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 1 — the spine (journey resolver · Action Ledger · autonomy schema)
 
-**Status: rounds 1–2 complete, fixes shipped; NOT yet dry** (dry = two
-consecutive clean rounds; round 3 pending).
+**Status: rounds 1–3 complete, fixes shipped; NOT yet dry** (dry = two
+consecutive clean rounds; round 4 pending).
+
+- **Round 3** (2026-07-27, range `1e8de2c..70c7853`, direct-agent fan-out):
+  9 lenses → 30 raw findings → 15 defect / 7 depth candidates after
+  clustering → 3 skeptics + 3 judges: **12 defects confirmed** (6 major),
+  2 rejected (onboarding service-copywriting is owner-INITIATED synchronous
+  work per the round-1 actor gate; the funnel's missing upper bound is API
+  hardening with zero real callers); **3 in-phase gaps** (all unanimous),
+  4 → backlog. The round's theme: the round-2 fixes themselves — the
+  source taxonomy had three unhandled seams and shipped untested.
+- **Round-3 fixes (all shipped):**
+  - **The PMS source taxonomy, sealed at all three seams.** (1) Backfill
+    HOLDS OPEN on patient row errors — the appointment high-water mark
+    won't advance, so retried roster rows stay `pms_import` and their
+    skipped appointments get re-pulled (was: fake 'pms' growth + lost
+    history). (2) HISTORICAL RESURFACE GUARD — a post-mark insert whose
+    startTime is >7 days past stamps `pms_import` (an OD note edit on an
+    old row is history arriving late, not a new booking). (3)
+    LIVE-OBSERVED COMPLETION — a backfilled UPCOMING row (startTime on/
+    after its own creation) that the delta sync watches complete re-stamps
+    `pms` so the seating mints; the connect cohort is no longer a seated
+    blind spot. Plus the anchor fixes: imported-booked suppression anchors
+    on least(startTime, createdAt) (an upcoming imported row proves the
+    person was booked by import time), and firstSeatedAt anchors on
+    least(completedAt, startTime) so catch-up marking can't shift seats
+    into the marking week. ALL of it executed-tested end-to-end through
+    the runImport harness (6 new tests) + per-function WHERE pins (org
+    scope, archived exclusion).
+  - **The roster fact (in-phase gap):** `resolveJourneyStage` gains
+    `importedRoster` — a CSV/PMS-imported roster member with zero
+    appointment rows resolves 'patient', not 'inquiry' (a Dentrix clinic's
+    1,200-person import no longer reads as 1,200 strangers).
+  - **Three more capabilities registered WITH writers + executed pins:**
+    `domain_autorenew` (renewals narrate the charge amount; releases are
+    ledgered; declines claim nothing), `listing_sync` (GBP sync narrates
+    hours/address/phone changes — change-detected so the hourly re-apply
+    of identical data stays silent), `scheduled_social` (the hand-off is
+    ledgered truthfully as "queued … publishing Tue 9 AM" — never a claim
+    it already published; the executor is Zernio's servers, so there is no
+    local delivery moment to observe).
+  - **The catch-net, made coherent:** the agenda 'unmarked' chip now bounds
+    at the clinic-local day start (no more nagging about a patient still
+    in the chair) and the Overview card counts the same 30-day window its
+    CTA opens — the number equals the list behind it. Card render +
+    window-agreement pins added. Accepted residue: visits unmarked >30
+    days fall off the net's surfaces (they remain excluded from every
+    count; a longer-tail sweep can ride Phase 2 if the owner wants it).
+  - **Scheduled-message honesty hardened:** the ledger's name lookup moved
+    into its own try/catch — a lookup blip can never flip a DELIVERED
+    message to 'failed' (staff would resend and double-text); regression-
+    pinned. Narration is third-person now ("Delivered the message Dana
+    scheduled for Maria") — append-only summaries must not say "you" to
+    readers who aren't the scheduler.
+  - **Raw source keys labeled:** 'pms'/'pms_import'/'import' render as
+    "Practice system"/"Practice system (imported)"/"CSV import" on the
+    patients list, source filter, and patient detail.
 
 - **Round 2** (2026-07-27, range `1e8de2c..2fc7707`): run via direct-agent
   fan-out (the Workflow runtime's permission layer was broken this session —

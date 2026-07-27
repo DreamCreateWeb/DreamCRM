@@ -54,6 +54,10 @@ function tableRows(name: string): Array<Record<string, unknown>> {
   }
 }
 
+const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn(async () => 'America/New_York') }))
+
 vi.mock('@/lib/db', () => {
   function select(_cols?: unknown) {
     let table = ''
@@ -352,6 +356,23 @@ describe('createSocialPost — real multi-target publish', () => {
     expect(zernio.createGbpPost.mock.calls[0][0].scheduledAt).toMatch(/^2099-05-01/)
     expect(zernio.createSocialPost.mock.calls[0][0].scheduledAt).toMatch(/^2099-05-01/)
     expect(store.targets.every((t) => t.status === 'scheduled' && t.publishedAt === null)).toBe(true)
+    // The scheduled hand-off is ledgered TRUTHFULLY: queued for later, never
+    // a claim it already published (scheduled_social; round-3 audit).
+    const handoff = recordActionMock.mock.calls
+      .map((c) => c[0] as Record<string, unknown>)
+      .find((e) => e.capability === 'scheduled_social')
+    expect(handoff).toBeTruthy()
+    expect(String(handoff!.summary)).toContain('Queued your post')
+    expect(String(handoff!.summary)).toContain('publishing')
+    expect(String(handoff!.summary)).not.toMatch(/^Published/)
+  })
+
+  it('an IMMEDIATE publish writes no scheduled_social entry (nothing was queued)', async () => {
+    recordActionMock.mockClear()
+    zernio.createGbpPost.mockResolvedValue({ zernioPostId: 'z', googleUrl: null })
+    await createSocialPost('org_1', { accountIds: ['acct_gbp'], postType: 'standard', summary: 'hi' })
+    const entries = recordActionMock.mock.calls.map((c) => c[0] as Record<string, unknown>)
+    expect(entries.find((e) => e.capability === 'scheduled_social')).toBeUndefined()
   })
 
   it('fails cleanly (no network) when no profile is linked', async () => {

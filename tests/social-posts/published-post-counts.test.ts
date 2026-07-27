@@ -28,6 +28,11 @@ vi.mock('drizzle-orm', () => ({
   gte: (...a: unknown[]) => ({ gte: a }), inArray: (...a: unknown[]) => ({ inArray: a }),
 }))
 vi.mock('@/lib/services/zernio', () => ({ getZernioConnection: vi.fn() }))
+// social-posts now imports the ledger + tz helpers (scheduled_social hand-off
+// entries, round-3) — stub them so this read-only test stays light and the
+// real schema (which needs real drizzle sql``) never loads.
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: vi.fn(async () => true) }))
+vi.mock('@/lib/services/clinic-timezone', () => ({ getClinicTimeZone: vi.fn(async () => 'America/New_York') }))
 
 import { getPublishedPostCounts } from '@/lib/services/social-posts'
 

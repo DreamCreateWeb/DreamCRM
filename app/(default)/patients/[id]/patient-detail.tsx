@@ -93,6 +93,9 @@ const SOURCE_LABEL: Record<string, string> = {
   lead_form: 'contact form',
   invite: 'patient invite',
   website_request: 'appointment request',
+  pms: 'the practice system',
+  pms_import: 'the practice system (imported)',
+  import: 'CSV import',
 }
 
 // Timeline filter tabs. "Billing" is a GROUP — it matches every money-shaped

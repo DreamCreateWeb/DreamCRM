@@ -101,6 +101,9 @@ const SOURCE_LABEL: Record<string, string> = {
   lead_form: 'Contact form',
   invite: 'Invite',
   website_request: 'Appointment request',
+  pms: 'Practice system',
+  pms_import: 'Practice system (imported)',
+  import: 'CSV import',
 }
 
 export default function PatientsList({

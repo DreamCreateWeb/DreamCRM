@@ -47,10 +47,11 @@ export interface ClinicOverviewData {
     count: number
     preview: AppointmentPreviewRow[]
   }
-  /** Past visits (last 14 days, before today clinic-local) still sitting in a
-   *  pre-visit status — nobody told the system whether they happened. The
-   *  catch-net under "new patients means SEATED": a forgotten Mark-completed
-   *  silently zeroes someone out of every count, review ask, and survey. */
+  /** Past visits (last 30 days, before today clinic-local — the same window
+   *  as the card's CTA list) still sitting in a pre-visit status — nobody
+   *  told the system whether they happened. The catch-net under "new
+   *  patients means SEATED": a forgotten Mark-completed silently zeroes
+   *  someone out of every count, review ask, and survey. */
   unmarkedPastVisits: {
     count: number
     preview: AppointmentPreviewRow[]
@@ -290,9 +291,12 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         ),
       )
       .orderBy(asc(schema.appointment.startTime)),
-    // Unmarked past visits (last 14d, before today clinic-local): scheduled/
+    // Unmarked past visits (last 30d, before today clinic-local): scheduled/
     // confirmed rows whose time came and went with no outcome recorded. Uses
     // the clinic-local day start so this morning's 9 AM isn't nagged at 10 AM.
+    // The 30-day lookback matches the card's CTA exactly (past_30d window +
+    // 'unmarked' chip) — the number must equal the list it opens (round-3
+    // audit).
     db
       .select({
         id: schema.appointment.id,
@@ -306,7 +310,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         and(
           eq(schema.appointment.organizationId, organizationId),
           inArray(schema.appointment.status, ['scheduled', 'confirmed']),
-          gte(schema.appointment.startTime, new Date(todayStart.getTime() - 14 * 24 * 60 * 60 * 1000)),
+          gte(schema.appointment.startTime, new Date(todayStart.getTime() - 30 * 24 * 60 * 60 * 1000)),
           lt(schema.appointment.startTime, todayStart),
         ),
       )

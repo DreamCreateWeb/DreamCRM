@@ -15,6 +15,7 @@ import {
   type DomainSearchResult,
 } from '@/lib/name-com'
 import { requestCustomDomain, resolveCustomDomain } from './custom-domain'
+import { recordAction } from '@/lib/services/action-ledger'
 
 /**
  * Buy-a-domain (2026-07-21): search → buy → auto-attach, all in-platform.
@@ -459,6 +460,15 @@ export async function runDomainRenewals(opts?: { now?: Date }): Promise<DomainRe
           .where(eq(schema.clinicDomainPurchase.id, row.id))
         result.released++
         result.details.push({ domain: row.domain, organizationId: row.organizationId, outcome: 'released (subscription inactive)' })
+        // Ledgered too: releasing a domain is a machine decision with real
+        // consequences — the append-only record answers "what happened to
+        // our domain?" long after the fact (round-3 audit).
+        await recordAction({
+          organizationId: row.organizationId,
+          capability: 'domain_autorenew',
+          summary: `Stopped auto-renewing ${row.domain} — the subscription ended (it stays yours to transfer until expiry)`,
+          detail: { domain: row.domain, released: true },
+        })
         continue
       }
 
@@ -516,6 +526,23 @@ export async function runDomainRenewals(opts?: { now?: Date }): Promise<DomainRe
         domain: row.domain,
         organizationId: row.organizationId,
         outcome: row.includedInPlan === 1 ? 'renewed (included in plan)' : 'renewed (clinic charged)',
+      })
+      // THE ACTION LEDGER — the machine kept the clinic's web address alive,
+      // and when it charged their card it says so plainly (a card-statement
+      // line with no story in the app is a trust-killer; round-3 audit).
+      await recordAction({
+        organizationId: row.organizationId,
+        capability: 'domain_autorenew',
+        summary:
+          row.includedInPlan === 1
+            ? `Renewed your web address ${row.domain} for another year (included in your plan)`
+            : `Renewed your web address ${row.domain} for another year — $${(renewalPrice / 100).toFixed(2)} charged to your card`,
+        detail: {
+          domain: row.domain,
+          renewalPriceCents: renewalPrice,
+          includedInPlan: row.includedInPlan === 1,
+          paymentIntentId: renewalPaymentIntentId,
+        },
       })
     } catch (err) {
       await fail(err instanceof Error ? err.message : 'unknown')

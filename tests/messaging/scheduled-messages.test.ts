@@ -21,6 +21,7 @@ vi.mock('@/lib/services/action-ledger', () => ({
 // insert captures values; update().set().where() captures; update().set()
 // .where().returning() returns `claimResult`.
 let selectResult: unknown[] = []
+let selectThrows = false
 let claimResult: unknown[] = []
 const inserted: unknown[] = []
 const updates: Array<{ set: unknown }> = []
@@ -30,7 +31,10 @@ vi.mock('@/lib/db', () => ({
     select: () => ({
       from: () => ({
         where: () => ({
-          limit: async () => selectResult,
+          limit: async () => {
+            if (selectThrows) throw new Error('transient DB blip')
+            return selectResult
+          },
           orderBy: async () => selectResult,
         }),
       }),
@@ -49,6 +53,7 @@ vi.mock('@/lib/db', () => ({
   },
   schema: {
     patient: { id: 'patient.id', organizationId: 'patient.org', firstName: 'patient.first' },
+    user: { id: 'user.id', name: 'user.name' },
     scheduledMessage: {
       id: 'sm.id', organizationId: 'sm.org', patientId: 'sm.patient', channel: 'sm.channel',
       body: 'sm.body', attachments: 'sm.att', scheduledFor: 'sm.when', status: 'sm.status',
@@ -67,6 +72,7 @@ beforeEach(() => {
   sendMessageToPatient.mockClear()
   recordActionMock.mockClear()
   selectResult = [{ id: 'pat_1', firstName: 'Mia' }] // patient exists by default
+  selectThrows = false
   claimResult = []
   inserted.length = 0
   updates.length = 0
@@ -159,6 +165,18 @@ describe('sendDueScheduledMessages — cron flush', () => {
     expect(updates.some((u) => (u.set as { status?: string; lastError?: string }).status === 'failed')).toBe(true)
     // Only the delivery that HAPPENED is claimed in the ledger.
     expect(recordActionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a ledger-lookup blip NEVER flips a delivered message to failed (round-3 regression pin)', async () => {
+    claimResult = [
+      { id: 'smsg_1', organizationId: 'org_1', patientId: 'pat_1', channel: 'in_app', body: 'hi', attachments: [], createdByUserId: 'u1' },
+    ]
+    selectThrows = true // the post-send name lookup rejects
+    const res = await sendDueScheduledMessages()
+    // The message was DELIVERED — the counters and the row must say so.
+    expect(res).toEqual({ due: 1, sent: 1, failed: 0 })
+    expect(updates.some((u) => (u.set as { status?: string }).status === 'sent')).toBe(true)
+    expect(updates.some((u) => (u.set as { status?: string }).status === 'failed')).toBe(false)
   })
 
   it('is a no-op when nothing is due', async () => {

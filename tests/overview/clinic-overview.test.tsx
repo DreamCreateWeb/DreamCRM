@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 const { mockGetOverview } = vi.hoisted(() => ({
   mockGetOverview: vi.fn(),
@@ -90,6 +92,59 @@ beforeEach(() => {
   } catch {
     /* ignore (privacy-mode sessionStorage) */
   }
+})
+
+// ── The seated catch-net card (round-3 audit: it rendered untested — an
+//    always-zero regression would be invisible because the card hides at 0) ──
+describe("the 'Did these visits happen?' catch-net card", () => {
+  it('renders count, preview names, and the CTA into the matching 30d unmarked list when visits need outcomes', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        unmarkedPastVisits: {
+          count: 2,
+          preview: [
+            { id: 'a1', patientName: 'Mia Hayes', startTime: new Date('2026-05-18T14:00:00Z') },
+            { id: 'a2', patientName: 'Aiden Brooks', startTime: new Date('2026-05-15T15:00:00Z') },
+          ],
+        },
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const { container } = render(ui)
+    expect(screen.getByText('Did these visits happen?')).toBeTruthy()
+    expect(screen.getByText('Mia Hayes')).toBeTruthy()
+    expect(screen.getByText('Aiden Brooks')).toBeTruthy()
+    // The CTA must open EXACTLY the list the number counts (past_30d + unmarked).
+    const cta = Array.from(container.querySelectorAll('a')).find((a) =>
+      a.getAttribute('href')?.includes('attention=unmarked'),
+    )
+    expect(cta?.getAttribute('href')).toBe('/appointments?window=past_30d&attention=unmarked')
+  })
+
+  it('stays hidden at zero — a quiet morning is not a card', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText('Did these visits happen?')).toBeNull()
+  })
+})
+
+describe('the catch-net windows agree across surfaces (source-pinned)', () => {
+  const read = (rel: string) => readFileSync(resolve(__dirname, '../..', rel), 'utf8')
+
+  it('the Overview query: 30d lookback, clinic-local today bound, pre-visit statuses only', () => {
+    const src = read('lib/services/clinic-overview.ts')
+    const q = src.slice(src.indexOf('Unmarked past visits'))
+    expect(q).toMatch(/inArray\(schema\.appointment\.status, \['scheduled', 'confirmed'\]\)/)
+    expect(q).toMatch(/gte\(schema\.appointment\.startTime, new Date\(todayStart\.getTime\(\) - 30 \* 24/)
+    expect(q).toMatch(/lt\(schema\.appointment\.startTime, todayStart\)/)
+  })
+
+  it("the agenda 'unmarked' chip bounds at the clinic-local day start, never raw now", () => {
+    const src = read('lib/services/appointments.ts')
+    const filter = src.slice(src.indexOf("att.includes('unmarked')"))
+    expect(filter.slice(0, 400)).toContain('row.startTime < clinicDayStart(now, timeZone)')
+  })
 })
 
 describe('ClinicOverview hero', () => {

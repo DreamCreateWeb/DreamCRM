@@ -282,7 +282,18 @@ export async function runImport(
   const nextMeta: Record<string, unknown> = { ...meta }
   if (patientImportComplete) delete nextMeta.patientImportCursor
   else nextMeta.patientImportCursor = patientCursor
-  if (appointmentsPulledOk) nextMeta.highWaterAppointments = runStart.toISOString()
+  // BACKFILL HOLDS OPEN ON ROW ERRORS (round-3 audit): during the connect-time
+  // backfill, a transiently-errored patient row retries on the next run — if
+  // the mark advanced anyway, that retry would run in "ongoing" mode and mint
+  // the roster member as source 'pms' (fake growth), and their appointments
+  // (skipped as unmapped this run) would sit behind the advanced mark forever.
+  // Holding the mark keeps the next run a full backfill pass: the retry stamps
+  // 'pms_import' and the full re-pull maps their appointments. Conservative
+  // direction on a poison row: growth under-counts until it's resolved, never
+  // over-counts, and the run status reports the errors honestly.
+  if (appointmentsPulledOk && !(isBackfill && patientRowErrors > 0)) {
+    nextMeta.highWaterAppointments = runStart.toISOString()
+  }
 
   await db
     .update(schema.pmsConnection)
@@ -628,11 +639,32 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
         // timestamp forward to the sync-run time, corrupting the real
         // visit/cancellation time that analytics + aging rely on.
         const [cur] = await db
-          .select({ status: schema.appointment.status })
+          .select({
+            status: schema.appointment.status,
+            source: schema.appointment.source,
+            createdAt: schema.appointment.createdAt,
+          })
           .from(schema.appointment)
           .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, existing.internalId)))
           .limit(1)
         const statusChanged = !cur || cur.status !== na.status
+        // LIVE-OBSERVED COMPLETION on a backfilled UPCOMING row (round-3
+        // audit): the backfill imports the clinic's future schedule as
+        // 'pms_import', but when we WATCH such a visit complete (its
+        // startTime is on/after the day we created the row, and the status
+        // flip arrives via delta sync ≤1 cron cycle after the truth), the
+        // sync-time-corruption rationale doesn't apply — completedAt is
+        // ~honest. Re-stamp it 'pms' so the journey funnel can mint the
+        // seating; without this, every patient booked pre-connect who seats
+        // post-connect is a permanent seated-growth blind spot. Historical
+        // backfill rows (startTime before their own row creation) stay
+        // 'pms_import' forever.
+        const goingLiveCompleted =
+          statusChanged &&
+          na.status === 'completed' &&
+          cur?.source === 'pms_import' &&
+          cur.createdAt != null &&
+          na.startTime.getTime() >= cur.createdAt.getTime() - 24 * 60 * 60 * 1000
         await db
           .update(schema.appointment)
           .set({
@@ -642,6 +674,7 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
             providerId: providerInternalId,
             notes: na.note ?? null,
             ...(statusChanged ? statusFields : {}),
+            ...(goingLiveCompleted ? { source: 'pms' } : {}),
             updatedAt: new Date(),
           })
           .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, existing.internalId)))
@@ -667,7 +700,16 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
         // sync moments — they must never mint journey transitions); rows
         // created by ONGOING delta sync are real new bookings made in the
         // practice system (≤1 cron cycle after the truth) and carry 'pms'.
-        source: backfill ? 'pms_import' : 'pms',
+        // HISTORICAL RESURFACE GUARD (round-3 audit): the delta feed is
+        // modification-driven, so an OD edit to an OLD appointment (outside
+        // the bounded first pull) re-surfaces it post-mark. A real new
+        // booking's startTime is never deep in the past — anything starting
+        // >7 days ago is history arriving late and must stamp 'pms_import',
+        // or a clerical note edit mints a fake booked+seated transition.
+        source:
+          backfill || na.startTime.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000
+            ? 'pms_import'
+            : 'pms',
         ...statusFields,
       })
       await insertMap(organizationId, 'appointment', na.externalId, id, 'pms', h)

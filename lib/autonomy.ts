@@ -47,6 +47,9 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'service_copywriting', label: 'Write your website’s service pages', defaultTrust: 'auto' },
   { key: 'scheduled_message', label: 'Deliver messages scheduled for later', defaultTrust: 'auto' },
   { key: 'blog_publish', label: 'Publish blog posts on schedule', defaultTrust: 'auto' },
+  { key: 'scheduled_social', label: 'Queue social posts to publish later', defaultTrust: 'auto' },
+  { key: 'domain_autorenew', label: 'Renew your web address each year', defaultTrust: 'auto' },
+  { key: 'listing_sync', label: 'Keep your site matching your Google listing', defaultTrust: 'auto' },
   // Ask-first today (drafts that wait for a human):
   { key: 'review_reply', label: 'Reply to Google reviews', defaultTrust: 'ask' },
   { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'ask' },

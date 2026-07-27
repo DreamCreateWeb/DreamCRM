@@ -243,6 +243,18 @@ describe('the PMS-import exclusion lives in the SQL, not in hope', () => {
     return next === -1 ? src.slice(start) : src.slice(start, start + 1 + next)
   }
 
+  it('every query is org-scoped and the population reads exclude archived (round-3 pin — the canned-row mock cannot see WHERE)', () => {
+    const src = readFileSync(resolve(__dirname, '../../lib/services/patient-journey.ts'), 'utf8')
+    for (const fn of ['getJourneyForPatients', 'getJourneyStageCounts', 'getJourneyFunnel']) {
+      const slice = fnSlice(src, fn)
+      expect(slice, `${fn} scopes by organizationId`).toMatch(/eq\((schema\.patient|schema\.appointment)\.organizationId, organizationId\)/)
+    }
+    for (const fn of ['getJourneyStageCounts', 'getJourneyFunnel']) {
+      const slice = fnSlice(src, fn)
+      expect(slice, `${fn} excludes archived from the population`).toMatch(/ne\(schema\.patient\.lifecycle, 'archived'\)/)
+    }
+  })
+
   it('each query gates BOTH minted timestamps on NOT_IMPORTED and anchors BOTH suppressions on IMPORTED', () => {
     const src = readFileSync(resolve(__dirname, '../../lib/services/patient-journey.ts'), 'utf8')
     expect(src).toContain("is distinct from 'pms_import'")

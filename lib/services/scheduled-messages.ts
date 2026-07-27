@@ -184,19 +184,37 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
       sent++
       // Staff wrote it; the MACHINE delivered it at the chosen moment — the
       // delivery is the machine's work, so it reports (same actor line as
-      // cron-flushed scheduled campaigns; round-2 audit).
-      const [pat] = await db
-        .select({ firstName: schema.patient.firstName })
-        .from(schema.patient)
-        .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
-        .limit(1)
-      await recordAction({
-        organizationId: row.organizationId,
-        capability: 'scheduled_message',
-        patientId: row.patientId,
-        summary: `Delivered the message you scheduled for ${pat?.firstName ?? 'a patient'}`,
-        detail: { scheduledMessageId: row.id, channel: row.channel, scheduledByUserId: row.createdByUserId },
-      })
+      // cron-flushed scheduled campaigns; round-2 audit). In its OWN
+      // try/catch: this bookkeeping runs after the row is already 'sent',
+      // and a lookup blip must never flip a DELIVERED message to 'failed'
+      // (round-3 audit — staff would resend and double-text the patient).
+      // Third-person narration: the standup's reader is usually not the
+      // scheduler, so the summary names them instead of saying "you".
+      try {
+        const [pat] = await db
+          .select({ firstName: schema.patient.firstName })
+          .from(schema.patient)
+          .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
+          .limit(1)
+        let schedulerName: string | null = null
+        if (row.createdByUserId) {
+          const [scheduler] = await db
+            .select({ name: schema.user.name })
+            .from(schema.user)
+            .where(eq(schema.user.id, row.createdByUserId))
+            .limit(1)
+          schedulerName = scheduler?.name?.trim() || null
+        }
+        await recordAction({
+          organizationId: row.organizationId,
+          capability: 'scheduled_message',
+          patientId: row.patientId,
+          summary: `Delivered the message ${schedulerName ?? 'the team'} scheduled for ${pat?.firstName ?? 'a patient'}`,
+          detail: { scheduledMessageId: row.id, channel: row.channel, scheduledByUserId: row.createdByUserId },
+        })
+      } catch (err) {
+        console.warn('[scheduled-messages] ledger bookkeeping failed (message already delivered):', err)
+      }
     } catch (err) {
       await db
         .update(schema.scheduledMessage)

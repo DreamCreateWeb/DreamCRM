@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { resolveGbpAccount } from '@/lib/services/zernio'
+import { recordAction } from '@/lib/services/action-ledger'
 import {
   getGoogleBusinessLocation,
   listGoogleBusinessMedia,
@@ -271,12 +272,19 @@ export async function syncGoogleBusinessProfile(
     }
   }
 
-  // Read the current source flags.
+  // Read the current source flags + current values (the values feed the
+  // ledger's change detection — an hourly sync that re-applies identical
+  // data is maintenance, not an action worth narrating).
   const [profile] = await db
     .select({
       hoursSource: schema.clinicProfile.hoursSource,
       addressSource: schema.clinicProfile.addressSource,
       phoneSource: schema.clinicProfile.phoneSource,
+      hours: schema.clinicProfile.hours,
+      addressLine1: schema.clinicProfile.addressLine1,
+      city: schema.clinicProfile.city,
+      postalCode: schema.clinicProfile.postalCode,
+      phone: schema.clinicProfile.phone,
     })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, orgId))
@@ -350,6 +358,33 @@ export async function syncGoogleBusinessProfile(
     .update(schema.clinicProfile)
     .set(patch)
     .where(eq(schema.clinicProfile.organizationId, orgId))
+
+  // THE ACTION LEDGER — these fields render on the clinic's PUBLIC site, so
+  // the machine changing them is employee work the standup must report
+  // (round-3 audit; same law as service_copywriting). CHANGE-detected: the
+  // hourly sync re-applies identical Google data most runs — only a field
+  // whose VALUE actually moved narrates, so the ledger stays a story, not a
+  // heartbeat log. Best-effort by recordAction's own contract.
+  const changed: string[] = []
+  if (applied.includes('hours') && JSON.stringify(patch.hours) !== JSON.stringify(profile.hours)) changed.push('hours')
+  if (
+    applied.includes('address') &&
+    (patch.addressLine1 !== profile.addressLine1 || patch.city !== profile.city || patch.postalCode !== profile.postalCode)
+  )
+    changed.push('address')
+  if (applied.includes('phone') && patch.phone !== profile.phone) changed.push('phone')
+  if (changed.length > 0) {
+    const noun =
+      changed.length === 1
+        ? { hours: 'opening hours', address: 'address', phone: 'phone number' }[changed[0]]!
+        : `${changed.slice(0, -1).join(', ')} and ${changed[changed.length - 1]}`
+    await recordAction({
+      organizationId: orgId,
+      capability: 'listing_sync',
+      summary: `Updated your website's ${noun} to match your Google Business listing`,
+      detail: { fields: changed },
+    })
+  }
 
   return { ok: true, applied, skippedManual, photoCount: photoViews.length }
 }

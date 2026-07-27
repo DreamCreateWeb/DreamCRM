@@ -463,10 +463,13 @@ export async function listAppointments(
       // Past visit still sitting in a pre-visit status — nobody told the
       // system whether it happened, so it can't count anywhere ("new
       // patients means seated" is only as true as completion marking).
+      // Bounded at the clinic-local day start, matching the Overview card's
+      // rule: this morning's 9 AM is not "unmarked" at 10 AM — the patient
+      // may still be in the chair (round-3 audit).
       if (
         att.includes('unmarked') &&
         (row.status === 'scheduled' || row.status === 'confirmed') &&
-        row.startTime < now
+        row.startTime < clinicDayStart(now, timeZone)
       )
         return true
       return false

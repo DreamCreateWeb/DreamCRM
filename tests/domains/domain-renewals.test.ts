@@ -32,6 +32,9 @@ vi.mock('@/lib/stripe', () => ({
     refunds: { create: h.refundCreate },
   },
 }))
+const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+
 vi.mock('@/lib/services/custom-domain', () => ({
   resolveCustomDomain: vi.fn(),
   requestCustomDomain: vi.fn(),
@@ -94,6 +97,7 @@ beforeEach(() => {
   h.piCreate.mockReset().mockResolvedValue({ id: 'pi_renew' })
   h.refundCreate.mockReset().mockResolvedValue({ id: 're_1' })
   h.renewDomain.mockReset().mockResolvedValue({ expireDate: '2027-08-20' })
+  recordActionMock.mockClear()
 })
 
 describe('runDomainRenewals', () => {
@@ -106,6 +110,13 @@ describe('runDomainRenewals', () => {
     const upd = h.updates.find((u) => u.renewsAt)
     expect((upd!.renewsAt as Date).getUTCFullYear()).toBe(2027)
     expect(upd!.renewalError).toBeNull()
+    // The machine spent the clinic's money — the ledger says so, with the
+    // amount (domain_autorenew, executed writer pin, round-3 audit).
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('domain_autorenew')
+    expect(String(entry.summary)).toContain('brightsmiles.com')
+    expect(String(entry.summary)).toContain('$16.99 charged to your card')
   })
 
   it('included domain: renews with NO charge (the platform absorbs it)', async () => {
@@ -114,6 +125,10 @@ describe('runDomainRenewals', () => {
     expect(res.renewed).toBe(1)
     expect(h.piCreate).not.toHaveBeenCalled()
     expect(h.renewDomain).toHaveBeenCalled()
+    // No charge → the narration must not claim one.
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toContain('included in your plan')
+    expect(String(entry.summary)).not.toContain('charged')
   })
 
   it('churned clinic: releases instead of renewing — nothing charged, nothing renewed', async () => {
@@ -123,6 +138,10 @@ describe('runDomainRenewals', () => {
     expect(h.piCreate).not.toHaveBeenCalled()
     expect(h.renewDomain).not.toHaveBeenCalled()
     expect(h.updates.some((u) => u.status === 'released')).toBe(true)
+    // Releasing is a machine decision with consequences — ledgered too.
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('domain_autorenew')
+    expect(String(entry.summary)).toContain('Stopped auto-renewing')
   })
 
   it('card decline: records renewalError and leaves the row for the daily retry', async () => {
@@ -132,6 +151,8 @@ describe('runDomainRenewals', () => {
     expect(res.failed).toBe(1)
     expect(h.renewDomain).not.toHaveBeenCalled()
     expect(h.updates.some((u) => typeof u.renewalError === 'string' && /declined/i.test(u.renewalError as string))).toBe(true)
+    // A declined charge renews nothing — no ledger claim.
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 
   it('registrar failure after a successful charge: refunds so the retry starts clean', async () => {

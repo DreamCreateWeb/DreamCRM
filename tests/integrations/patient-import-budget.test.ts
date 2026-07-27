@@ -23,10 +23,11 @@ interface Store {
   syncRuns: Row[]
   entityMaps: Row[]
   patients: Row[]
+  appointments: Row[]
   /** When set, a patient UPDATE targeting this id throws (transient-blip sim). */
   failPatientUpdateId: string | null
 }
-const store: Store = { connection: null, syncRuns: [], entityMaps: [], patients: [], failPatientUpdateId: null }
+const store: Store = { connection: null, syncRuns: [], entityMaps: [], patients: [], appointments: [], failPatientUpdateId: null }
 
 // drizzle condition shape produced by the mocked operators below.
 type Cond = { op: 'eq'; col: string; val: unknown } | { op: 'and'; parts: Cond[] } | { op: 'other' }
@@ -52,6 +53,7 @@ function rowsFor(table: string): Row[] {
   if (table === 'pmsSyncRun') return store.syncRuns
   if (table === 'pmsEntityMap') return store.entityMaps
   if (table === 'patient') return store.patients
+  if (table === 'appointment') return store.appointments
   return []
 }
 
@@ -62,6 +64,8 @@ function applyWhere(table: string, rows: Row[], cond: Cond | undefined): Row[] {
   // single-tenant in these tests so ignoring it is safe.
   const id = eqValue(cond, 'patient.id')
   if (table === 'patient' && id !== undefined) return rows.filter((r) => r.id === id)
+  const apptId = eqValue(cond, 'appointment.id')
+  if (table === 'appointment' && apptId !== undefined) return rows.filter((r) => r.id === apptId)
   const runStatus = eqValue(cond, 'pmsSyncRun.status')
   if (table === 'pmsSyncRun' && runStatus !== undefined) return rows.filter((r) => r.status === runStatus)
   return rows
@@ -101,6 +105,7 @@ function makeDb() {
         if (table === 'pmsSyncRun') store.syncRuns.push({ ...v })
         else if (table === 'pmsEntityMap') store.entityMaps.push({ ...v })
         else if (table === 'patient') store.patients.push({ ...v })
+        else if (table === 'appointment') store.appointments.push({ createdAt: new Date(), ...v })
         const ret: Record<string, unknown> = {
           onConflictDoUpdate: () => Promise.resolve(),
           onConflictDoNothing: () => Promise.resolve(),
@@ -124,6 +129,10 @@ function makeDb() {
               return Promise.reject(new Error('transient DB blip'))
             }
             const target = store.patients.find((r) => r.id === id)
+            if (target) Object.assign(target, s)
+          } else if (table === 'appointment') {
+            const id = eqValue(c, 'appointment.id')
+            const target = store.appointments.find((r) => r.id === id)
             if (target) Object.assign(target, s)
           } else if (table === 'pmsEntityMap') {
             const id = eqValue(c, 'pmsEntityMap.id')
@@ -174,6 +183,7 @@ vi.mock('drizzle-orm', () => ({
 // list (and no appointments/recalls). getProviderClient picks DemoProvider when
 // connection.provider === 'demo'.
 let providerPatients: Array<Record<string, unknown>> = []
+let providerAppointments: Array<Record<string, unknown>> = []
 vi.mock('@/lib/services/pms/demo', () => ({
   DemoProvider: class {
     id = 'demo' as const
@@ -187,7 +197,7 @@ vi.mock('@/lib/services/pms/demo', () => ({
       return providerPatients
     }
     async listAppointments() {
-      return []
+      return providerAppointments
     }
     async listRecalls() {
       return []
@@ -230,6 +240,8 @@ beforeEach(() => {
   store.patients = []
   store.failPatientUpdateId = null
   providerPatients = []
+  providerAppointments = []
+  store.appointments = []
 })
 
 describe('runImport — time-budgeted patient import', () => {
@@ -415,5 +427,100 @@ describe('runImport — per-row resilience (one bad row never aborts the import)
     expect(r.error).toMatch(/couldn't be imported/i)
     const counts = r.counts.patients
     expect(counts.updated).toBe(1) // only the healthy row counted
+  })
+})
+
+
+// ── Source stamping: backfill vs ongoing (round-3 audit — the round-2 fix
+//    shipped with zero executed coverage; these runs pin it end to end) ──────
+describe('runImport — backfill vs ongoing source stamping', () => {
+  const DAY = 24 * 60 * 60 * 1000
+  const markSet = () => (store.connection!.meta as Record<string, unknown>).highWaterAppointments
+
+  it('the connect-time backfill stamps patients AND appointments pms_import, then sets the mark', async () => {
+    providerPatients = makePmsPatients(3)
+    providerAppointments = [
+      { externalId: 'a001', patientExternalId: 'p001', startTime: new Date(Date.now() - 60 * DAY), endTime: null, status: 'completed', type: 'cleaning', note: null, providerExternalId: null },
+      { externalId: 'a002', patientExternalId: 'p002', startTime: new Date(Date.now() + 7 * DAY), endTime: null, status: 'scheduled', type: 'checkup', note: null, providerExternalId: null },
+    ]
+    const r = await runImport('org1')
+    expect(r.status).toBe('success')
+    expect(store.patients.map((p) => p.source)).toEqual(['pms_import', 'pms_import', 'pms_import'])
+    expect(store.appointments.map((a) => a.source)).toEqual(['pms_import', 'pms_import'])
+    expect(markSet()).toBeTruthy() // clean backfill → the mark advances
+  })
+
+  it('ONGOING delta sync stamps a genuinely new patient + fresh booking pms (they count as growth)', async () => {
+    ;(store.connection!.meta as Record<string, unknown>).highWaterAppointments = new Date(Date.now() - DAY).toISOString()
+    providerPatients = makePmsPatients(1)
+    providerAppointments = [
+      { externalId: 'a010', patientExternalId: 'p001', startTime: new Date(Date.now() + 2 * DAY), endTime: null, status: 'scheduled', type: 'cleaning', note: null, providerExternalId: null },
+    ]
+    await runImport('org1')
+    expect(store.patients[0].source).toBe('pms')
+    expect(store.appointments[0].source).toBe('pms')
+  })
+
+  it('HISTORICAL RESURFACE GUARD: an old appointment arriving post-mark stamps pms_import, not pms', async () => {
+    ;(store.connection!.meta as Record<string, unknown>).highWaterAppointments = new Date(Date.now() - DAY).toISOString()
+    providerPatients = makePmsPatients(1)
+    providerAppointments = [
+      // An OD note edit re-surfaced a 2-year-old completed visit — NOT a new booking.
+      { externalId: 'a020', patientExternalId: 'p001', startTime: new Date(Date.now() - 700 * DAY), endTime: null, status: 'completed', type: 'cleaning', note: 'edited', providerExternalId: null },
+    ]
+    await runImport('org1')
+    expect(store.appointments[0].source).toBe('pms_import')
+  })
+
+  it('BACKFILL HOLDS OPEN on a patient row error: the mark does not advance, and the retry run stays pms_import', async () => {
+    // Pre-mapped patient whose UPDATE will blip (reconcileMappedPatient path).
+    store.patients.push({ id: 'pat_x', organizationId: 'org1', firstName: 'Old', lastName: 'Name', email: 'p001@x.com', source: 'pms_import' })
+    store.entityMaps.push({ id: 'map_x', organizationId: 'org1', entityType: 'patient', externalId: 'p001', internalId: 'pat_x', contentHash: 'stale', lastSyncedAt: new Date() })
+    store.failPatientUpdateId = 'pat_x'
+    providerPatients = makePmsPatients(2) // p001 (errors) + p002 (fresh create)
+    const r1 = await runImport('org1')
+    expect(r1.status).toBe('partial') // honest partial
+    expect(markSet()).toBeUndefined() // ← the round-3 fix: backfill stays open
+    // Next run: the blip is gone; STILL a backfill pass, so nothing mints 'pms'.
+    store.failPatientUpdateId = null
+    const r2 = await runImport('org1')
+    expect(r2.status).toBe('success')
+    expect(store.patients.every((p) => p.source === 'pms_import')).toBe(true)
+    expect(markSet()).toBeTruthy() // clean pass closes the backfill
+  })
+
+  it('LIVE-OBSERVED COMPLETION re-stamps a backfilled UPCOMING row to pms so the seating can mint', async () => {
+    ;(store.connection!.meta as Record<string, unknown>).highWaterAppointments = new Date(Date.now() - DAY).toISOString()
+    // A backfilled row for an upcoming visit (created at connect, startTime after that)…
+    store.patients.push({ id: 'pat_y', organizationId: 'org1', firstName: 'First1', lastName: 'Last1', email: 'p001@x.com', source: 'pms_import' })
+    store.entityMaps.push({ id: 'map_p', organizationId: 'org1', entityType: 'patient', externalId: 'p001', internalId: 'pat_y', contentHash: 'h', lastSyncedAt: new Date() })
+    store.appointments.push({ id: 'appt_y', organizationId: 'org1', patientId: 'pat_y', startTime: new Date(Date.now() - 2 * 60 * 60 * 1000), status: 'scheduled', source: 'pms_import', createdAt: new Date(Date.now() - 10 * DAY) })
+    store.entityMaps.push({ id: 'map_a', organizationId: 'org1', entityType: 'appointment', externalId: 'a030', internalId: 'appt_y', contentHash: 'stale', lastSyncedAt: new Date() })
+    providerPatients = makePmsPatients(1)
+    providerAppointments = [
+      // …now the delta sync watches it complete (status flip, hash change).
+      { externalId: 'a030', patientExternalId: 'p001', startTime: new Date(Date.now() - 2 * 60 * 60 * 1000), endTime: null, status: 'completed', type: 'cleaning', note: null, providerExternalId: null },
+    ]
+    await runImport('org1')
+    const row = store.appointments.find((a) => a.id === 'appt_y')!
+    expect(row.status).toBe('completed')
+    expect(row.source).toBe('pms') // live-observed seat — the funnel may mint it
+    expect(row.completedAt).toBeInstanceOf(Date)
+  })
+
+  it('a HISTORICAL backfilled row completing via edit keeps pms_import (startTime predates its own row)', async () => {
+    ;(store.connection!.meta as Record<string, unknown>).highWaterAppointments = new Date(Date.now() - DAY).toISOString()
+    store.patients.push({ id: 'pat_z', organizationId: 'org1', firstName: 'First1', lastName: 'Last1', email: 'p001@x.com', source: 'pms_import' })
+    store.entityMaps.push({ id: 'map_p2', organizationId: 'org1', entityType: 'patient', externalId: 'p001', internalId: 'pat_z', contentHash: 'h', lastSyncedAt: new Date() })
+    // Historical visit imported at connect: startTime long BEFORE the row was created.
+    store.appointments.push({ id: 'appt_z', organizationId: 'org1', patientId: 'pat_z', startTime: new Date(Date.now() - 400 * DAY), status: 'scheduled', source: 'pms_import', createdAt: new Date(Date.now() - 10 * DAY) })
+    store.entityMaps.push({ id: 'map_a2', organizationId: 'org1', entityType: 'appointment', externalId: 'a040', internalId: 'appt_z', contentHash: 'stale', lastSyncedAt: new Date() })
+    providerPatients = makePmsPatients(1)
+    providerAppointments = [
+      { externalId: 'a040', patientExternalId: 'p001', startTime: new Date(Date.now() - 400 * DAY), endTime: null, status: 'completed', type: 'cleaning', note: null, providerExternalId: null },
+    ]
+    await runImport('org1')
+    const row = store.appointments.find((a) => a.id === 'appt_z')!
+    expect(row.source).toBe('pms_import') // history stays history
   })
 })

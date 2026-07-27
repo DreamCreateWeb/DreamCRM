@@ -95,14 +95,23 @@ export async function getJourneyForPatients(
       firstBookedAt: sql<Date | null>`min(case when ${NOT_IMPORTED} then ${schema.appointment.createdAt} end)`,
       hasLiveAppointment: sql<boolean>`bool_or(${schema.appointment.status} <> 'cancelled')`,
       hasCompletedEver: sql<boolean>`bool_or(${schema.appointment.status} = 'completed')`,
+      // Seated anchors on the EARLIER of completedAt and startTime: startTime
+      // is the honest visit time when staff mark late (the catch-net
+      // institutionalizes up to 30-day catch-up marking — round-3 audit),
+      // while completedAt covers legacy rows and early completions.
       firstSeatedAt: sql<Date | null>`min(
         case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
-             then coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime})
+             then least(coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime}), ${schema.appointment.startTime})
         end
       )`,
-      // Imported-history anchors for the inverse law: the earliest REAL times
-      // (startTime) the backfilled chart shows they were booked / seated.
-      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then ${schema.appointment.startTime} end)`,
+      // Imported-history anchors for the inverse law. Booked anchors on the
+      // EARLIER of startTime and the row's own createdAt: a backfilled
+      // UPCOMING appointment (future startTime) still proves the person was
+      // on the practice's book by the moment we imported it — without the
+      // createdAt leg it couldn't suppress an earlier organic mint
+      // (round-3 audit). Seated keeps startTime (the honest visit time; a
+      // completed imported row's completedAt is sync-corrupted).
+      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
       importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
     })
     .from(schema.appointment)
@@ -117,6 +126,7 @@ export async function getJourneyForPatients(
 
   for (const p of patients) {
     const a = apptByPatient.get(p.id)
+    const isBackfilled = BACKFILL_PATIENT_SOURCES.has(p.source ?? '')
     const firstBookedAt = suppressIfImportedEarlier(
       a?.firstBookedAt ? new Date(a.firstBookedAt) : null,
       a?.importedBookedAt ? new Date(a.importedBookedAt) : null,
@@ -133,11 +143,15 @@ export async function getJourneyForPatients(
         // them a patient) — only the TIMESTAMPS are import-excluded.
         hasCompletedVisit: !!a?.hasCompletedEver,
         archived: p.lifecycle === 'archived',
+        // A bulk-imported roster member IS a patient of the practice even
+        // when the import carried no visit rows (CSV imports map identity
+        // only — round-3 audit).
+        importedRoster: isBackfilled,
       }),
       firstSeenAt: p.firstSeenAt ? new Date(p.firstSeenAt) : null,
       firstBookedAt,
       firstSeatedAt,
-      isBackfilled: BACKFILL_PATIENT_SOURCES.has(p.source ?? ''),
+      isBackfilled,
     })
   }
   return out
@@ -159,6 +173,7 @@ export async function getJourneyStageCounts(organizationId: string): Promise<Jou
   const rows = await db
     .select({
       patientId: schema.patient.id,
+      source: schema.patient.source,
       hasBooked: sql<boolean>`bool_or(${schema.appointment.status} <> 'cancelled')`,
       hasSeated: sql<boolean>`bool_or(${schema.appointment.status} = 'completed')`,
     })
@@ -184,6 +199,10 @@ export async function getJourneyStageCounts(organizationId: string): Promise<Jou
       hasAppointment: !!r.hasBooked,
       hasCompletedVisit: !!r.hasSeated,
       archived: false,
+      // Roster members count as patients even with no visit rows (CSV
+      // imports carry none) — the population must not call a clinic's
+      // whole imported roster "inquiries" (round-3 audit).
+      importedRoster: BACKFILL_PATIENT_SOURCES.has(r.source ?? ''),
     })
     if (stage !== 'archived') counts[stage]++
   }
@@ -223,14 +242,17 @@ export async function getJourneyFunnel(
       source: schema.patient.source,
       firstSeenAt: schema.patient.firstSeenAt,
       firstBookedAt: sql<Date | null>`min(case when ${NOT_IMPORTED} then ${schema.appointment.createdAt} end)`,
+      // Same anchor rules as getJourneyForPatients above (round-3 audit):
+      // seated takes the earlier of completedAt/startTime (late marking must
+      // not shift the seat date); imported-booked takes the earlier of
+      // startTime/createdAt (an upcoming imported row proves the person was
+      // booked by import time).
       firstSeatedAt: sql<Date | null>`min(
         case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
-             then coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime})
+             then least(coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime}), ${schema.appointment.startTime})
         end
       )`,
-      // Imported-history anchors for the inverse law (see the header): a
-      // backfilled chart that predates the minted transition suppresses it.
-      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then ${schema.appointment.startTime} end)`,
+      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
       importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
     })
     .from(schema.patient)

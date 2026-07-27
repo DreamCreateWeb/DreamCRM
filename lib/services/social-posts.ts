@@ -3,6 +3,9 @@ import { and, count, desc, eq, gte, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getZernioConnection } from '@/lib/services/zernio'
 import { normalizeMetricsWindow } from '@/lib/services/metrics-window'
+import { recordAction } from '@/lib/services/action-ledger'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { formatClinicDayTime } from '@/lib/format-datetime'
 import {
   createGbpPost as zernioCreateGbpPost,
   createSocialPost as zernioCreateSocialPost,
@@ -490,6 +493,28 @@ export async function createSocialPost(
       updatedAt: new Date(),
     })
     .where(eq(schema.socialPost.id, postId))
+
+  // THE ACTION LEDGER — scheduled deliveries report like their siblings
+  // (scheduled_message/blog_publish; round-3 audit), but the publish itself
+  // executes on Zernio's servers with no local flush moment to observe, so
+  // the entry is written at HAND-OFF and says exactly that: the post is
+  // queued with the publisher for the chosen moment — never a claim that it
+  // already went live. Best-effort: a ledger hiccup must not fail the post.
+  if (v.scheduledAt && finalStatuses.includes('scheduled')) {
+    try {
+      const tz = await getClinicTimeZone(orgId)
+      const okTargets = targets.filter((_, i) => finalStatuses[i] === 'scheduled')
+      const names = Array.from(new Set(okTargets.map((t) => platformLabel(t.platform)))).join(', ')
+      await recordAction({
+        organizationId: orgId,
+        capability: 'scheduled_social',
+        summary: `Queued your post for ${names || 'your channels'} — publishing ${formatClinicDayTime(v.scheduledAt, tz)}`,
+        detail: { postId, platforms: okTargets.map((t) => t.platform), scheduledAt: v.scheduledAt.toISOString() },
+      })
+    } catch (err) {
+      console.warn('[social-posts] ledger hand-off entry failed (post unaffected):', err)
+    }
+  }
 
   // ok when at least one channel succeeded (published or scheduled).
   const ok = finalStatuses.some((s) => s !== 'failed')

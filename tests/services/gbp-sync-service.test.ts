@@ -59,6 +59,9 @@ const store: {
   conns: Array<{ organizationId: string; status: string; isDemo: number }>
 } = { profiles: [], patients: [], conns: [] }
 
+const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+
 vi.mock('@/lib/db', () => {
   const T_PROFILE = 'clinic_profile'
   const T_PAT = 'patient'
@@ -195,6 +198,7 @@ const GOOGLE_LOC: GoogleLocation = {
 beforeEach(() => {
   vi.clearAllMocks()
   store.profiles = [fullProfile()]
+  recordActionMock.mockClear()
   store.patients = [{ organizationId: ORG, id: 'pat_1' }]
   store.conns = []
   conn.value = null
@@ -297,6 +301,21 @@ describe('syncGoogleBusinessProfile', () => {
     })
     expect(p.addressLine1).toBe('742 Evergreen Terrace')
     expect(p.phone).toBe('(555) 867-5309')
+    // The machine changed patient-visible fields → ONE narrated ledger entry
+    // (listing_sync, change-detected; round-3 audit).
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('listing_sync')
+    expect(String(entry.summary)).toContain('Google Business listing')
+  })
+
+  it('re-applying IDENTICAL Google data narrates nothing — maintenance is not a story', async () => {
+    store.profiles = [fullProfile({ hoursSource: 'google', addressSource: 'google', phoneSource: 'google' })]
+    setConnected()
+    await syncGoogleBusinessProfile(ORG, { force: false }) // first sync writes values
+    recordActionMock.mockClear()
+    await syncGoogleBusinessProfile(ORG, { force: false }) // identical re-run
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 
   it('force: OVERWRITES manual fields + flips each written source to google', async () => {
