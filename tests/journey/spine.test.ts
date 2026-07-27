@@ -12,10 +12,12 @@
  *     an employee behavior belongs.
  */
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { resolveJourneyStage, JOURNEY_STAGE_LABEL } from '@/lib/patient-journey'
 import { CAPABILITIES, getCapability, resolveTrust } from '@/lib/autonomy'
+
+const ROOT_DIR = resolve(__dirname, '../..')
 
 describe('the journey-stage resolver', () => {
   it('inquiry: asked a question, never on the schedule', () => {
@@ -42,6 +44,20 @@ describe('the journey-stage resolver', () => {
     expect(
       resolveJourneyStage({ hasAppointment: false, hasCompletedVisit: true, archived: false }),
     ).toBe('patient')
+  })
+
+  it('cancelled-only people are INQUIRIES again (the service feeds hasAppointment=false)', () => {
+    // The stage asks "are they on the schedule?" — someone whose every
+    // booking was cancelled needs re-conversion, not a spot in the booked
+    // column. The service encodes this by excluding cancelled from the
+    // hasAppointment fact (pinned on the source below); the resolver then
+    // lands them back at inquiry. A no-show still counts as booked — they
+    // are in the show-up war, not gone.
+    expect(
+      resolveJourneyStage({ hasAppointment: false, hasCompletedVisit: false, archived: false }),
+    ).toBe('inquiry')
+    const src = readFileSync(join(ROOT_DIR, 'lib/services/patient-journey.ts'), 'utf8')
+    expect(src).toMatch(/bool_or\(.*status.*<> 'cancelled'\)/)
   })
 
   it('archived beats everything — a human decision the resolver honors', () => {
@@ -98,6 +114,26 @@ describe('the autonomy ladder', () => {
       expect(c.label).not.toMatch(/_/)
       expect(c.label.length).toBeGreaterThan(8)
     }
+  })
+})
+
+describe('the action ledger has no blind spots', () => {
+  const ROOT = resolve(__dirname, '../..')
+
+  function walkServices(): string {
+    const dir = join(ROOT, 'lib/services')
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.ts'))
+      .map((f) => readFileSync(join(dir, f), 'utf8'))
+      .join('\n')
+  }
+
+  it("every 'auto' capability has a recordAction writer — the standup must not under-report the machine", () => {
+    const services = walkServices()
+    const missing = CAPABILITIES.filter(
+      (c) => c.defaultTrust === 'auto' && !services.includes(`capability: '${c.key}'`),
+    ).map((c) => c.key)
+    expect(missing).toEqual([])
   })
 })
 

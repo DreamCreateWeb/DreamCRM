@@ -30,6 +30,9 @@ const h = vi.hoisted(() => ({
   appts: [] as Array<Record<string, unknown>>,
 }))
 
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: vi.fn(async () => true),
+}))
 vi.mock('@/lib/services/patients', () => ({
   listPatients: vi.fn(async () => h.patients),
 }))

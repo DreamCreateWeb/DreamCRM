@@ -31,6 +31,9 @@ const h = vi.hoisted(() => ({
   insertedAudienceId: 100,
 }))
 
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: vi.fn(async () => true),
+}))
 vi.mock('@/lib/db', () => {
   function resolve(kind: string, tbl: string | undefined): Promise<unknown> {
     if (kind === 'select') {

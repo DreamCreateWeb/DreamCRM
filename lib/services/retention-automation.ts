@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { recordAction } from '@/lib/services/action-ledger'
 import { resolvePatientAudience, type PatientAudienceFilterT } from './marketing'
 import { getAutomationTemplate } from './marketing-templates'
 import { getClinicTimeZone } from './clinic-timezone'
@@ -279,6 +280,14 @@ async function runOne(
         })
         .returning({ id: schema.campaigns.id })
       campaignId = row.id
+      // THE ACTION LEDGER: the machine queued this outreach on its own. The
+      // delivery lands separately as 'campaign_send' when the cron sends it.
+      await recordAction({
+        organizationId,
+        capability: 'retention_automation',
+        summary: `Queued \u201c${name}\u201d for ${recipients.length} patient${recipients.length === 1 ? '' : 's'}`,
+        detail: { campaignId, kind, automationKey, recipients: recipients.length },
+      })
     } catch (err) {
       // A concurrent run won the unique-index race — treat as already created.
       if (isUniqueViolation(err)) {

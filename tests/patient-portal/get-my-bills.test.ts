@@ -15,6 +15,9 @@ const state = {
   items: [] as Array<Record<string, unknown>>,
 }
 
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: vi.fn(async () => true),
+}))
 vi.mock('@/lib/db', () => {
   type ChainShape = Promise<unknown[]> & {
     from: (t: unknown) => ChainShape

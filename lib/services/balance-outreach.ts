@@ -2,6 +2,7 @@ import 'server-only'
 import { randomBytes } from 'crypto'
 import { and, desc, eq, gte, isNotNull, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { recordAction } from '@/lib/services/action-ledger'
 import { newId } from '@/lib/utils'
 import { authEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
@@ -147,6 +148,17 @@ export async function sendPayLinkEmail(
       note: `Balance email sent (${fmtDollars(p.balance)} with a secure pay link).`,
       mode: 'Email',
     }).catch(() => {})
+    // THE ACTION LEDGER — the automated cadence only; a staff-clicked send is
+    // their work, not the employee's.
+    if (sentByUserId === null) {
+      await recordAction({
+        organizationId,
+        capability: 'balance_nudge',
+        patientId,
+        summary: `Nudged ${p.firstName} about their ${fmtDollars(p.balance)} balance`,
+        detail: { requestId, balanceCents: p.balance },
+      })
+    }
     return { ok: true, requestId }
   } catch (err) {
     console.warn('[balance-outreach] send failed', err)

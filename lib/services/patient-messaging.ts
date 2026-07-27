@@ -2,6 +2,7 @@ import 'server-only'
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
+import { recordAction } from '@/lib/services/action-ledger'
 import { sendPatientMessageEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
@@ -1103,6 +1104,19 @@ async function maybeSendAfterHoursAutoReply(
       .update(schema.patientThread)
       .set({ lastMessageAt: now, lastMessageDirection: 'outbound', lastMessageChannel: 'in_app', updatedAt: now })
       .where(eq(schema.patientThread.id, threadId))
+    // THE ACTION LEDGER — the machine held the fort after hours.
+    const [who] = await db
+      .select({ firstName: schema.patient.firstName })
+      .from(schema.patient)
+      .where(eq(schema.patient.id, patientId))
+      .limit(1)
+    await recordAction({
+      organizationId,
+      capability: 'auto_reply',
+      patientId,
+      summary: `Sent the after-hours auto-reply to ${who?.firstName ?? 'a patient'}`,
+      detail: { threadId },
+    })
   } catch (err) {
     console.warn('[patient-messaging.maybeSendAfterHoursAutoReply] failed', err)
   }

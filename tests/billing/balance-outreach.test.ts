@@ -14,6 +14,10 @@ const state = {
   updates: [] as Array<Record<string, unknown>>,
 }
 
+const recordActionMock = vi.fn(async () => true)
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: (...a: unknown[]) => recordActionMock(...(a as [])),
+}))
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const obj: any = {}
@@ -120,6 +124,25 @@ describe('resolveBalanceOutreachSettings', () => {
 })
 
 describe('sendPayLinkEmail', () => {
+  it('a STAFF send never lands in the action ledger (their work, not the machine\u2019s)', async () => {
+    recordActionMock.mockClear()
+    state.selectQueue.push([PATIENT], [])
+    await sendPayLinkEmail('org_1', 'pat_1', 'user_1', { source: 'staff' })
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('the AUTOMATED cadence records a balance_nudge ledger entry', async () => {
+    recordActionMock.mockClear()
+    state.selectQueue.push([PATIENT], [])
+    const r = await sendPayLinkEmail('org_1', 'pat_1', null, { source: 'auto' })
+    expect(r.ok).toBe(true)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const arg = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(arg.capability).toBe('balance_nudge')
+    expect(arg.patientId).toBe('pat_1')
+    expect(String(arg.summary)).toContain('balance')
+  })
+
   it('sends: request row (pb_ token) + branded email + ok', async () => {
     state.selectQueue.push([PATIENT]) // patient lookup
     state.selectQueue.push([]) // no recent request

@@ -9,7 +9,7 @@ import type { PatientTagView } from '@/lib/types/patient-tags'
 import { toCsv } from '@/lib/csv'
 import { cancelActorLabel } from '@/lib/cancel-actor'
 import { clinicDayStart, clinicWeekStart } from '@/lib/clinic-timezone'
-import { clinicDayKey } from '@/lib/format-datetime'
+import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
@@ -1421,10 +1421,6 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
         .where(eq(schema.appointment.id, input.appointmentId))
         .limit(1)
       if (row) {
-        const [{ getClinicTimeZone }, { formatClinicDayTime }] = await Promise.all([
-          import('@/lib/services/clinic-timezone'),
-          import('@/lib/format-datetime'),
-        ])
         const tz = await getClinicTimeZone(input.organizationId)
         await recordAction({
           organizationId: input.organizationId,

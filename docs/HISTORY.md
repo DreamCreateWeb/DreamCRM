@@ -4857,3 +4857,19 @@ behavior, unknown capabilities floor at 'ask'). tests/journey/spine.test.ts
 pins the resolver, the ladder's law, and the doctrine text itself.
 Next: Phase 2 — the approval inbox + the weekly standup.
 
+## 2026-07-27 (later) — Phase 1 second pass (owner-mandated quality gate)
+
+Every transformation phase now gets a dedicated completeness+quality pass.
+This one caught and fixed: (1) cancelled-only people wrongly staged
+'booked' — stage now requires a LIVE (non-cancelled) appointment, no-shows
+still count (they're in the show-up war), firstBookedAt keeps recording the
+transition regardless; (2) the ledger launched covering only 3 of 7 'auto'
+capabilities — retention_automation (records at campaign creation; the
+delivery lands separately as campaign_send), followup_rule (per-followup,
+patient-linked), balance_nudge (automated cadence only), and auto_reply all
+write now, and a new guard fails CI if any 'auto' capability lacks a
+recordAction writer; (3) the reminder writer's needless dynamic imports
+replaced with the module's static ones. New tests: the fire-and-forget
+contract (a ledger failure can never break the action it describes), the
+staff-vs-machine boundary on balance sends, the cancelled-only rule.
+

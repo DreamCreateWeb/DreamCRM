@@ -2,6 +2,7 @@ import 'server-only'
 import { randomBytes } from 'crypto'
 import { and, eq, gte, inArray, lte } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { recordAction } from '@/lib/services/action-ledger'
 import { listPatients } from '@/lib/services/patients'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { clinicDayKey } from '@/lib/format-datetime'
@@ -173,6 +174,18 @@ async function persistCandidates(organizationId: string, candidates: Candidate[]
       ruleKey: c.ruleKey,
     })),
   )
+  // THE ACTION LEDGER — one entry per follow-up the rules opened, patient-
+  // linked so the person's timeline can carry it later. Dedup above keeps
+  // this to a handful per day; best-effort by recordAction's own contract.
+  for (const c of toCreate) {
+    await recordAction({
+      organizationId,
+      capability: 'followup_rule',
+      patientId: c.patientId,
+      summary: `Opened a follow-up: ${c.title}`,
+      detail: { ruleKey: c.ruleKey, dueDate: c.dueDate },
+    })
+  }
   return toCreate.length
 }
 

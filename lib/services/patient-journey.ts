@@ -47,11 +47,16 @@ export async function getJourneyForPatients(
       and(eq(schema.patient.organizationId, organizationId), inArray(schema.patient.id, patientIds)),
     )
 
-  // One aggregate pass over their appointments: first booked + first seated.
+  // One aggregate pass over their appointments: first booked + first seated +
+  // whether anything on the books ISN'T cancelled. Stage 'booked' requires a
+  // live (non-cancelled) appointment — a person whose every booking was
+  // cancelled is an inquiry needing re-conversion, not someone on the
+  // schedule. A no-show still counts as booked: they're in the show-up war.
   const appts = await db
     .select({
       patientId: schema.appointment.patientId,
       firstBookedAt: sql<Date | null>`min(${schema.appointment.createdAt})`,
+      hasLiveAppointment: sql<boolean>`bool_or(${schema.appointment.status} <> 'cancelled')`,
       firstSeatedAt: sql<Date | null>`min(
         case when ${schema.appointment.status} = 'completed'
              then coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime})
@@ -75,7 +80,7 @@ export async function getJourneyForPatients(
     out.set(p.id, {
       patientId: p.id,
       stage: resolveJourneyStage({
-        hasAppointment: firstBookedAt != null,
+        hasAppointment: !!a?.hasLiveAppointment,
         hasCompletedVisit: firstSeatedAt != null,
         archived: p.lifecycle === 'archived',
       }),
@@ -103,7 +108,7 @@ export async function getJourneyStageCounts(organizationId: string): Promise<Jou
   const rows = await db
     .select({
       patientId: schema.patient.id,
-      hasBooked: sql<boolean>`bool_or(${schema.appointment.id} is not null)`,
+      hasBooked: sql<boolean>`bool_or(${schema.appointment.status} <> 'cancelled')`,
       hasSeated: sql<boolean>`bool_or(${schema.appointment.status} = 'completed')`,
     })
     .from(schema.patient)
@@ -135,7 +140,10 @@ export async function getJourneyStageCounts(organizationId: string): Promise<Jou
 }
 
 export interface JourneyFunnelWindow {
-  /** New inquiries: records minted in the window (non-backfill sources). */
+  /** People who ENTERED the journey in the window (record minted, any
+   *  non-backfill source) — named for the stage they enter at. A walk-in
+   *  the front desk typed in counts here too: they entered, then usually
+   *  transition to booked/seated the same day. */
   inquiries: number
   /** People whose FIRST appointment was created in the window. */
   booked: number
