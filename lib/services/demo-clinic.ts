@@ -17,6 +17,7 @@ import { seedDemoGbpSync } from '@/lib/services/gbp-sync'
 import { seedDemoGbpMetrics } from '@/lib/services/gbp-metrics'
 import { seedDemoSocialMetrics } from '@/lib/services/social-metrics'
 import { seedDemoSocialPosts } from '@/lib/services/social-posts'
+import { seedDemoVoice } from '@/lib/services/demo-voice'
 import { seedDemoSocialAddon } from '@/lib/services/social-billing'
 import {
   DEFAULT_FAQ_ITEMS,
@@ -2483,6 +2484,18 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Idempotent; never touches Stripe (the demo has no real subscription).
     await seedDemoSocialAddon(existing.id)
 
+    // THE VOICE self-heal (Transformation Phase 2): reseed the Approval
+    // Inbox's open proposals + the ledger entries behind the standup card.
+    // Persona-anchored by identity; delete-and-reseed by the act_demo_/
+    // prop_demo_ markers, so a demo session's approvals reset on resync.
+    await seedDemoVoice(
+      existing.id,
+      buildPatientPersonas(new Date()).map((p, i) => ({
+        patientId: existingPatientIds[i] ?? null,
+        firstName: p.firstName,
+      })),
+    )
+
     // Money-coherence self-heal: ensure a paid-unfulfilled order + an online
     // balance payment exist (drives the Overview "Orders to fulfill" card, the
     // /payments/online page, and the commerce timeline events on legacy demos).
@@ -3232,6 +3245,20 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // entitlement computes the full 5 social slots for PR 2's social UI. Never
   // touches Stripe (the demo has no real subscription).
   await seedDemoSocialAddon(orgId)
+
+  // THE VOICE (Transformation Phase 2): the Approval Inbox's open proposals
+  // (anchored to the unreplied 2★ demo review, a seeded new lead, the demo
+  // social channels, and the recall audience) + the ledger entries behind the
+  // weekly standup card. Persona-anchored; never networks (demo approvals
+  // simulate). Seeded after reviews/leads/zernio/audiences exist.
+  await seedDemoVoice(
+    orgId,
+    buildPatientPersonas(now).map((p, i) => ({
+      patientId: patientIds[i] ?? null,
+      firstName: p.firstName,
+    })),
+    now,
+  )
 
   // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
   await seedDemoAiUsage(orgId)

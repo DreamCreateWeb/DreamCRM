@@ -27,6 +27,32 @@ vi.mock('@/lib/services/staff-onboarding', () => ({
   })),
 }))
 
+// Phase 2 (the voice): the Overview now also loads the Approval Inbox +
+// weekly standup — mocked empty/quiet by default; the dedicated suite below
+// exercises the populated states.
+const { mockListOpenProposals, mockBuildStandup } = vi.hoisted(() => ({
+  mockListOpenProposals: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
+  mockBuildStandup: vi.fn(async (..._a: unknown[]) => ({
+    weekStart: new Date('2026-05-10T05:00:00Z'),
+    weekEnd: new Date('2026-05-17T05:00:00Z'),
+    weekLabel: 'May 10 – May 16',
+    totalActions: 0,
+    lines: [],
+    stories: [],
+    newPatientsSeated: 0,
+    reviewsReceived: 0,
+    humanTasks: { openProposals: 0, followupsDue: 0 },
+    quiet: true,
+  })),
+}))
+vi.mock('@/lib/services/proposals', () => ({ listOpenProposals: mockListOpenProposals }))
+vi.mock('@/lib/services/standup', () => ({ buildWeeklyStandup: mockBuildStandup }))
+// The inbox's client cards call useRouter().refresh() after a decision.
+vi.mock('next/navigation', async (orig) => ({
+  ...(await orig()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}))
+
 import ClinicOverview from '@/app/(default)/dashboard/clinic-overview'
 import type { TenantContext } from '@/lib/auth/context'
 import type { ClinicOverviewData } from '@/lib/services/clinic-overview'
@@ -672,5 +698,91 @@ describe('website-health banner', () => {
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText(/traffic dropped/i)).not.toBeInTheDocument()
+  })
+})
+
+// ── Phase 2: the Approval Inbox + the weekly standup card ────────────────────
+describe('the Approval Inbox on the Overview', () => {
+  it('renders finished work with the big Approve button and the editable draft', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      {
+        id: 'prop_1',
+        capability: 'review_reply',
+        capabilityLabel: 'Reply to Google reviews',
+        patientId: null,
+        title: 'Reply to Rob’s 2-star Google review',
+        body: 'Rob, thank you for telling us — the wait was on us.',
+        payload: { externalReviewId: 'r1' },
+        status: 'open',
+        createdAt: new Date('2026-05-19T12:00:00Z'),
+        expiresAt: null,
+      },
+      {
+        id: 'prop_2',
+        capability: 'outreach_campaign',
+        capabilityLabel: 'Launch outreach campaigns',
+        patientId: null,
+        title: '41 patients are due for a cleaning — I wrote the campaign. Send it?',
+        body: 'Hi {{firstName}}, come see us.',
+        payload: { audienceId: 5, subject: 'We miss you', recipientCount: 41 },
+        status: 'open',
+        createdAt: new Date('2026-05-19T10:00:00Z'),
+        expiresAt: null,
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('Waiting on your yes')).toBeInTheDocument()
+    expect(screen.getByText('Reply to Rob’s 2-star Google review')).toBeInTheDocument()
+    // The work product itself is on the card — a proposal is finished work.
+    expect(screen.getByText(/the wait was on us/)).toBeInTheDocument()
+    // The recipient-count honesty line rides the campaign card.
+    expect(screen.getByText(/goes to ~41 patients/i)).toBeInTheDocument()
+    // One big Approve per card.
+    expect(screen.getAllByRole('button', { name: /approve — send it/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
+  })
+
+  it('renders nothing when the inbox is empty — no empty-state chrome to operate', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText('Waiting on your yes')).not.toBeInTheDocument()
+  })
+})
+
+describe('the weekly standup card on the Overview', () => {
+  it('tells last week as counts + stories + the only-you line', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockBuildStandup.mockResolvedValueOnce({
+      weekStart: new Date('2026-05-10T05:00:00Z'),
+      weekEnd: new Date('2026-05-17T05:00:00Z'),
+      weekLabel: 'May 10 – May 16',
+      totalActions: 47,
+      lines: [
+        { capability: 'appointment_reminder', noun: 'appointment reminders', count: 41 },
+        { capability: 'review_request', noun: 'review invitations', count: 6 },
+      ],
+      stories: ['Invited Noah back for a new time after a missed visit'],
+      newPatientsSeated: 2,
+      reviewsReceived: 3,
+      humanTasks: { openProposals: 0, followupsDue: 3 },
+      quiet: false,
+    })
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('What I got done last week')).toBeInTheDocument()
+    expect(screen.getByText('41 appointment reminders')).toBeInTheDocument()
+    expect(screen.getByText(/Invited Noah back/)).toBeInTheDocument()
+    expect(screen.getByText(/2 new patients seated · 3 new reviews/)).toBeInTheDocument()
+    expect(screen.getByText(/3 follow-ups are due/)).toBeInTheDocument()
+  })
+
+  it('stays hidden on a week the machine did nothing (never celebrate zero)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText('What I got done last week')).not.toBeInTheDocument()
   })
 })

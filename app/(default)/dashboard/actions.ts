@@ -1,0 +1,45 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { requireTenant } from '@/lib/auth/context'
+import { approveProposal, declineProposal } from '@/lib/services/proposals'
+
+/**
+ * Approval Inbox actions (Transformation Phase 2). Any clinic staff role may
+ * decide — approving a proposal is exactly the front desk's job; the inbox
+ * exists so the machine never acts beyond trust without a human yes.
+ */
+
+function ensureClinicStaff(ctx: { tenantType: string; role: string }): string | null {
+  if (ctx.tenantType !== 'clinic') return 'Only clinic teams have an approval inbox.'
+  if (ctx.role === 'patient') return 'Patients can’t approve clinic work.'
+  return null
+}
+
+export async function approveProposalAction(input: {
+  proposalId: string
+  /** The (possibly edited) work product. Omit to approve as drafted. */
+  body?: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  const gate = ensureClinicStaff(ctx)
+  if (gate) return { ok: false, error: gate }
+  const r = await approveProposal(ctx.organizationId, input.proposalId, ctx.userId, {
+    ...(input.body !== undefined ? { body: input.body } : {}),
+  })
+  if (!r.ok) return { ok: false, error: r.error }
+  revalidatePath('/dashboard')
+  return { ok: true }
+}
+
+export async function declineProposalAction(input: {
+  proposalId: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await requireTenant()
+  const gate = ensureClinicStaff(ctx)
+  if (gate) return { ok: false, error: gate }
+  const r = await declineProposal(ctx.organizationId, input.proposalId, ctx.userId)
+  if (!r.ok) return { ok: false, error: r.error }
+  revalidatePath('/dashboard')
+  return { ok: true }
+}

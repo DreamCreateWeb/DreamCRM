@@ -352,17 +352,33 @@ sitemap/robots/OG.
   service customization, welcome-interview site generation, message draft
   replies, intake summaries + insurance OCR + Spanish translation, blog drafts,
   mailbox triage. All metered per org/month; all review-before-save.
+- **The voice (Transformation Phase 2)**: `lib/services/proposals.ts` (the
+  proposal primitive — idempotent `sourceKey` filing, atomic approve-claim,
+  per-capability executors, reopen-on-failure, expire-on-stale; approved
+  executions ledger ONCE under the proposal's capability — sendCampaign gets
+  the approver's id so campaign_send stays silent) ·
+  `proposal-generators.ts` (4 generators + invalidation sweep, hourly cron;
+  AI types skip when unconfigured — never a template aimed at a person) ·
+  `standup.ts` (the Narrator: prior clinic-week window, plural-noun counts,
+  stories, only-you list; Monday email idempotent via
+  `clinic_profile.standup_last_sent_at`) · `demo-voice.ts` (seeder). UI:
+  Approval Inbox + Standup card at the top of the clinic Overview
+  (`app/(default)/dashboard/approval-inbox.tsx`, `standup-card.tsx`,
+  `actions.ts`).
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 17 routes, all `Authorization: Bearer $CRON_SECRET`:**
+- **Crons — 18 routes, all `Authorization: Bearer $CRON_SECRET`:**
   `pms-sync` (hourly) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
   `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
   (daily) · `trial-reminders` (daily) · `prospect-discovery` (6h) ·
-  `prospect-enrich` (30m) · `prospect-outreach` (30m) · `domain-renewals` (daily) — 15 EventBridge rules
+  `prospect-enrich` (30m) · `prospect-outreach` (30m) · `domain-renewals` (daily) ·
+  `generate-proposals` (hourly — the Phase-2 proposal generators + staleness
+  sweep; the weekly standup email rides `daily-digest` on clinic-local
+  Mondays) — 16 EventBridge rules
   managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
   every merge** (idempotent self-heal — a new cron route can't ship un-fired,
   the drift that once left prospecting + 4 other jobs silently dead); the
@@ -489,8 +505,8 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0136** (`action_ledger` + `clinic_profile.autonomy` — the
-  transformation spine). Workflow:
+  migration: **0137** (`proposal` + `clinic_profile.standup_last_sent_at` —
+  the voice; 0136 was `action_ledger` + `clinic_profile.autonomy`). Workflow:
   `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
@@ -526,8 +542,20 @@ sitemap/robots/OG.
    owner-approved amended gate after the spend limit killed round 5's
    skeptic chamber — certificate + the amended-gate note in docs/AUDITS.md;
    future phases should use a cheaper audit shape: fewer lenses, one verify
-   pass, 2–3 round cap), Phase 2 the voice (approval inbox + weekly
-   standup + first proposal types), Phase 3 the autonomy ladder live,
+   pass, 2–3 round cap), Phase 2 the voice — **SHIPPED 2026-07-27, audit
+   pending** (migration 0137 `proposal` table; `lib/services/proposals.ts`
+   file/list/approve/decline/expire + per-capability executors under the
+   ledger-boundary law "an approved yes narrates ONCE, under the proposal's
+   capability"; `proposal-generators.ts` four first types — review_reply /
+   inquiry_response / social_post (AI-drafted, skip when AI off, metered
+   flat via ai_usage 'proposal_draft') / outreach_campaign (quiet recall
+   engine, code-owned copy, real audience + count) — hourly
+   `generate-proposals` cron + invalidation sweep; the Approval Inbox +
+   weekly standup card on the clinic Overview; `standup.ts` Narrator
+   (prior clinic-week window via the new ledger `until` bound) + Monday
+   standup email riding daily-digest; demo-voice seeder), Phase 3 the
+   autonomy ladder live ("always do this for me" — the proposals carry no
+   trust toggle yet by design),
    Phase 4 guardian + shared brain, Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +

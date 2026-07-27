@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { runDailyDigest } from '@/lib/services/daily-digest'
 import { runProspectingDigest } from '@/lib/services/prospecting-digest'
+import { sendWeeklyStandups } from '@/lib/services/standup'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,14 @@ async function run(request: Request) {
       console.warn('[daily-digest] prospecting digest failed', err)
       return null
     })
-    return NextResponse.json({ ok: true, ...result, prospecting })
+    // The weekly standup (Transformation Phase 2) rides the same daily tick:
+    // it internally fires only on each clinic's LOCAL Monday, once per week.
+    // Best-effort — the narrator never takes the morning to-dos down.
+    const standup = await sendWeeklyStandups().catch((err) => {
+      console.warn('[daily-digest] weekly standup failed', err)
+      return null
+    })
+    return NextResponse.json({ ok: true, ...result, prospecting, standup })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

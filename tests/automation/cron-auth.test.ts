@@ -46,6 +46,15 @@ const runDailyDigest = vi.fn(async () => ({ scanned: 0, sent: 0, skippedEmpty: 0
 vi.mock('@/lib/services/daily-digest', () => ({
   runDailyDigest: () => runDailyDigest(),
 }))
+// …and the weekly standup rides the daily tick (Phase 2, clinic-local Monday).
+const sendWeeklyStandups = vi.fn(async () => ({ scanned: 0, sent: 0, skippedNotMonday: 0, skippedAlready: 0, skippedQuiet: 0, errors: [] }))
+vi.mock('@/lib/services/standup', () => ({
+  sendWeeklyStandups: () => sendWeeklyStandups(),
+}))
+const runProposalGenerators = vi.fn(async () => ({ orgsScanned: 0, filed: 0, expired: 0, errors: [] }))
+vi.mock('@/lib/services/proposal-generators', () => ({
+  runProposalGenerators: () => runProposalGenerators(),
+}))
 
 const ROUTES = [
   '@/app/api/cron/pms-sync/route',
@@ -55,6 +64,7 @@ const ROUTES = [
   '@/app/api/cron/retention-automations/route',
   '@/app/api/cron/followup-rules/route',
   '@/app/api/cron/daily-digest/route',
+  '@/app/api/cron/generate-proposals/route',
 ] as const
 
 beforeEach(() => {

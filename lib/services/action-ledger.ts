@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema'
 import { getCapability } from '@/lib/autonomy'
@@ -63,10 +63,13 @@ export interface LedgerEntry {
   occurredAt: Date
 }
 
-/** Most-recent actions for an org (the narrator's raw material). */
+/** Most-recent actions for an org (the narrator's raw material). `until` is
+ *  EXCLUSIVE — [since, until) — so week windows tile without double-counting
+ *  the boundary instant (Phase 2: the standup's consumer arrived, per the
+ *  round-3 backlog item). */
 export async function listRecentActions(
   organizationId: string,
-  opts: { since?: Date; limit?: number } = {},
+  opts: { since?: Date; until?: Date; limit?: number } = {},
 ): Promise<LedgerEntry[]> {
   const limit = Math.min(opts.limit ?? 100, 500)
   const rows = await db
@@ -83,6 +86,7 @@ export async function listRecentActions(
       and(
         eq(schema.actionLedger.organizationId, organizationId),
         ...(opts.since ? [gte(schema.actionLedger.occurredAt, opts.since)] : []),
+        ...(opts.until ? [lt(schema.actionLedger.occurredAt, opts.until)] : []),
       ),
     )
     .orderBy(desc(schema.actionLedger.occurredAt))
@@ -90,11 +94,12 @@ export async function listRecentActions(
   return rows
 }
 
-/** Per-capability counts since a moment — the standup's "41 reminders,
- *  4 posts, 6 answers" line in one query. */
+/** Per-capability counts in a window — the standup's "41 reminders,
+ *  4 posts, 6 answers" line in one query. `until` exclusive, as above. */
 export async function countActionsSince(
   organizationId: string,
   since: Date,
+  opts: { until?: Date } = {},
 ): Promise<Record<string, number>> {
   const rows = await db
     .select({ capability: schema.actionLedger.capability, c: sql<number>`count(*)::int` })
@@ -103,6 +108,7 @@ export async function countActionsSince(
       and(
         eq(schema.actionLedger.organizationId, organizationId),
         gte(schema.actionLedger.occurredAt, since),
+        ...(opts.until ? [lt(schema.actionLedger.occurredAt, opts.until)] : []),
       ),
     )
     .groupBy(schema.actionLedger.capability)

@@ -1,6 +1,10 @@
 import Link from 'next/link'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
+import { listOpenProposals } from '@/lib/services/proposals'
+import { buildWeeklyStandup } from '@/lib/services/standup'
+import ApprovalInbox, { type ProposalCardData } from './approval-inbox'
+import StandupCard from './standup-card'
 import WelcomeModal from '@/components/onboarding/welcome-modal'
 import GettingStarted from '@/components/onboarding/getting-started'
 import type { TenantContext } from '@/lib/auth/context'
@@ -79,10 +83,36 @@ function money(cents: number): string {
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [data, onboarding] = await Promise.all([
+  const [data, onboarding, proposals, standup] = await Promise.all([
     getClinicOverview(ctx.organizationId),
     getStaffOnboarding(ctx.organizationId, ctx.userId),
+    // The Approval Inbox + the weekly standup are best-effort reads — the
+    // morning huddle must never fail because the narrator hiccupped.
+    listOpenProposals(ctx.organizationId).catch(() => []),
+    buildWeeklyStandup(ctx.organizationId).catch(() => null),
   ])
+  const proposalCards: ProposalCardData[] = proposals.map((p) => {
+    const payload = (p.payload ?? {}) as Record<string, unknown>
+    let meta: string | null = null
+    if (p.capability === 'outreach_campaign' && typeof payload.recipientCount === 'number') {
+      meta = `goes to ~${payload.recipientCount} patients`
+    } else if (p.capability === 'social_post' && Array.isArray(payload.accountIds)) {
+      const n = (payload.accountIds as unknown[]).length
+      meta = `posts to ${n} ${n === 1 ? 'channel' : 'channels'}`
+    } else if (p.capability === 'inquiry_response') {
+      meta = 'replies by email'
+    } else if (p.capability === 'review_reply') {
+      meta = 'public reply on Google'
+    }
+    return {
+      id: p.id,
+      capability: p.capability,
+      capabilityLabel: p.capabilityLabel,
+      title: p.title,
+      body: p.body,
+      meta,
+    }
+  })
   // The checklist derives from live org data — only compute it while it's
   // still showing (not dismissed; auto-hides once everything is done).
   const checklist = onboarding.checklistDismissed
@@ -214,6 +244,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           </div>
         </section>
       )}
+
+      {/* ── The Approval Inbox — finished work waiting on a yes ────────── */}
+      <ApprovalInbox proposals={proposalCards} />
 
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
       {/* Signature moment: this row cascades in once on first session entry
@@ -391,6 +424,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           )}
         </MorningReveal>
       </section>
+
+      {/* ── The weekly standup — what the machine got done last week ──── */}
+      {standup && <StandupCard standup={standup} />}
 
       {/* ── Row 2 — Today's chair ────────────────────────────────────── */}
       <section className="mb-8">

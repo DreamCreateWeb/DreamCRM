@@ -118,6 +118,11 @@ export const clinicProfile = pgTable('clinic_profile', {
   // "always do this for me" (or dialing one back down). Never written by
   // the machine on its own; trust is granted by humans only.
   autonomy: jsonb('autonomy'),
+  // THE WEEKLY STANDUP (Transformation Phase 2): when the narrator last
+  // emailed this clinic its week-in-review. Idempotency stamp — the daily
+  // cron sends on clinic-local Monday only when this predates the current
+  // clinic week's start.
+  standupLastSentAt: timestamp('standup_last_sent_at'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

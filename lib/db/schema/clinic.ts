@@ -2044,3 +2044,61 @@ export const actionLedger = pgTable(
   ],
 )
 export type ActionLedgerRow = typeof actionLedger.$inferSelect
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROPOSALS (Transformation Phase 2 — DESIGN.md "The North Star").
+// When the machine wants to act beyond its trust level it files a proposal:
+// "here is exactly what I want to do — yes or no?" One inbox, plain English,
+// a big Approve button. A proposal is a FINISHED piece of work awaiting a
+// yes (the drafted reply, the written campaign), never a nudge that links
+// to a tool.
+//
+// `sourceKey` is the idempotency anchor — one proposal ever per piece of
+// underlying work (e.g. 'review_reply:gr_abc123'), so the hourly generator
+// can never re-file something a human already decided. `body` is the exact
+// work product (the reply text, the email body) — staff may edit it before
+// approving; the edited text is what executes. Approved executions narrate
+// ONCE in the Action Ledger under the proposal's capability (the ledger-
+// boundary law lives in lib/services/proposals.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+export const proposal = pgTable(
+  'proposal',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // Capability key from lib/autonomy.ts — the same vocabulary as the
+    // ladder and the ledger ('review_reply' | 'social_post' |
+    // 'inquiry_response' | 'outreach_campaign' | …).
+    capability: text('capability').notNull(),
+    // The person it touches, when it touches one (review replies and
+    // inquiry responses usually don't have a patient row yet).
+    patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+    // One proposal per piece of work, ever — the generator's dedupe anchor.
+    sourceKey: text('source_key').notNull(),
+    // Plain-English headline ("Reply to Rob's 2-star Google review").
+    title: text('title').notNull(),
+    // The finished work product, editable by staff before approval.
+    body: text('body').notNull(),
+    // Executable facts the executor needs (externalReviewId, leadId,
+    // audienceId, subject, recipientCount, accountIds…).
+    payload: jsonb('payload'),
+    // 'open' → 'approved' | 'declined' | 'expired'. Approval executes.
+    status: text('status').notNull().default('open'),
+    decidedAt: timestamp('decided_at'),
+    decidedByUserId: text('decided_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    executedAt: timestamp('executed_at'),
+    // Proposals go stale (a review gets replied to at the counter, an
+    // inquiry goes cold) — the sweep expires them past this.
+    expiresAt: timestamp('expires_at'),
+    isDemo: integer('is_demo').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('proposal_org_source_key_idx').on(t.organizationId, t.sourceKey),
+    index('proposal_org_status_idx').on(t.organizationId, t.status, t.createdAt),
+  ],
+)
+export type ProposalRow = typeof proposal.$inferSelect
