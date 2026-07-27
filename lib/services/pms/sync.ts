@@ -246,7 +246,7 @@ export async function runImport(
     // half-loaded patient set would needlessly skip rows. A budget-capped
     // patient pass resumes patients-first next run.
     if (patientImportComplete) {
-      await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments, isBackfill)
+      await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments, isBackfill, since)
       appointmentsPulledOk = true
       await reconcileRecalls(organizationId, await client.listRecalls(), counts.recalls)
     }
@@ -606,7 +606,19 @@ async function touchMapInternal(mapId: string, internalId: string, contentHash: 
     .where(eq(schema.pmsEntityMap.id, mapId))
 }
 
-async function reconcileAppointments(organizationId: string, rows: NormalizedAppointment[], t: Tally, backfill = true) {
+async function reconcileAppointments(
+  organizationId: string,
+  rows: NormalizedAppointment[],
+  t: Tally,
+  backfill = true,
+  /** The delta-sync watermark (last successful sync). Anchors the historical-
+   *  resurface guard: after an outage LONGER than 7 days, a genuinely new
+   *  booking can start more than 7 days in the past, and a fixed now-7d
+   *  threshold would stamp it 'pms_import' and silently skip its journey
+   *  transitions (round-5 close-out). Undefined on backfill (unused there —
+   *  backfill rows always stamp 'pms_import'). */
+  since?: Date,
+) {
   const apptMap = await loadMap(organizationId, 'appointment')
   const patMap = await loadMap(organizationId, 'patient')
   const provMap = await loadMap(organizationId, 'provider')
@@ -707,10 +719,15 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
         // modification-driven, so an OD edit to an OLD appointment (outside
         // the bounded first pull) re-surfaces it post-mark. A real new
         // booking's startTime is never deep in the past — anything starting
-        // >7 days ago is history arriving late and must stamp 'pms_import',
-        // or a clerical note edit mints a fake booked+seated transition.
+        // before the guard threshold is history arriving late and must stamp
+        // 'pms_import', or a clerical note edit mints a fake booked+seated
+        // transition. The threshold is min(since, now-7d) — anchored to the
+        // sync watermark so a multi-week outage doesn't misfile the real
+        // bookings made during it (round-5 close-out).
         source:
-          backfill || na.startTime.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000
+          backfill ||
+          na.startTime.getTime() <
+            Math.min(since?.getTime() ?? Infinity, Date.now() - 7 * 24 * 60 * 60 * 1000)
             ? 'pms_import'
             : 'pms',
         ...statusFields,

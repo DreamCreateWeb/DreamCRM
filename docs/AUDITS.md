@@ -115,59 +115,69 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 1 — the spine (journey resolver · Action Ledger · autonomy schema)
 
-**Status: rounds 1–4 complete + fixed; round 5 INTERRUPTED (spend limit) —
-NOT dry.** Resume point below; dry = two consecutive clean rounds.
+**Status: CLOSED at round 5 under an AMENDED GATE (owner-approved,
+2026-07-27).** Rounds 1–4 ran the full machine and were fixed + certified.
+Round 5's finder and depth chambers completed, but the account's monthly
+spend limit killed all 3 skeptics mid-round; rather than re-run the
+expensive chamber, the owner approved a cheap close-out: **the 11 unverified
+candidates were verified in the main loop** (single-reviewer code
+verification against the cited files — NOT the 3-skeptic adversarial vote
+the convention prescribes), survivors fixed, both judged in-phase gaps
+shipped, full suite + typecheck + build green. Phase 1 is therefore
+certified "fixed to the machine's last findings", not "two-consecutive-
+clean-rounds dry" — the formal dry gate was waived for cost. Any future
+Phase-1 regression hunting starts from the backlog + this note, not from
+re-running rounds.
 
-- **Round 5** (2026-07-27, range `1e8de2c..f78527b`, direct-agent fan-out):
-  all 9 finders + all 3 depth judges completed; **the defect chamber never
-  ran** — the account's monthly spend limit terminated all 3 skeptics, and
-  per the integrity law a dead skeptic is not a vote, so the 11 defect
-  candidates below are UNVERIFIED (found by finders, not yet adversarially
-  confirmed). The depth chamber IS final: **2 in-phase gaps (unanimous)**,
-  1 → backlog.
-- **RESUME HERE (next session): run 3 skeptics over these 11 unverified
-  defect candidates, fix confirmed + the 2 in-phase gaps, then continue
-  rounds until dry.**
-  1. [major, 5 lenses] `review_feature` narrates "Added … to your website"
-     for reviews the top-12 feature cap / hiddenFromSite rule never renders
-     (`narrateAutoFeatured` mirrors only threshold+comment; the site shows
-     `listFeaturableGoogleReviews`' top 12 by stars/recency).
-  2. [major, 2 lenses] `app/(default)/appointments/export/route.ts:6` keeps
-     a SECOND local attention allowlist missing 'unmarked' — the catch-net's
-     Export CSV silently drops the filter (same class as round 4's critical;
-     convert it to `APPT_ATTENTION_KEYS` + pin).
-  3. [major] Staff-clicked `markCompleted` on a backfilled ('pms_import')
-     upcoming visit never gets the `pms_live` re-stamp (that logic lives
-     only in the delta-sync path) — the seated mint is lost and the
-     completed imported row arms suppression against future organic mints.
-  4. [minor] `payment_autocharge` ledger formats `plan.installmentCents`
-     but the FINAL installment charges the remainder — summary can differ
-     from the card statement by cents (use the actual charged amount).
-  5. [minor] The '❓ Did it happen?' chip is guaranteed-empty in every
-     non-past window (predicate < clinicDayStart vs windows ≥ it) — gate
-     the chip to past windows or switch the window on toggle.
-  6. [minor] `/growth/reviews` staff "Sync now" calls `syncGoogleReviews`
-     WITHOUT `initiatedByUserId` — third human call site, ungated.
-  7. [minor] The Zernio callback's `initiatedByUserId` pass-through has no
-     test pin (only untested fire-and-forget path).
-  8. [minor] `parseAttention` was exported for an executed test that was
-     never written — execute it (valid keys parse, 'unmarked' included,
-     junk dropped).
-  9. [minor, 2 lenses] `listing_sync` change detection compares only
-     line1/city/postalCode — addressLine2/state/country changes apply
-     silently (also not selected in the pre-read).
-  10. [minor] Historical-resurface guard uses wall-clock 7d, not the delta
-     mark — a >7-day sync outage misclassifies outage-window bookings as
-     history (anchor the cutoff to min(since, now-7d)).
-  11. [minor] The appointment drawer renders raw source literals ('via pms
-     live') — give it the label map the other surfaces got.
-- **Round-5 in-phase gaps (JUDGED, unanimous — must ship before dry):**
-  - Catch-net preview rows show weekday+time only across a 30-day window —
-    use `formatClinicDayTime` (month+day) so "did these visits happen?" is
-    answerable per row.
-  - `listing_sync` must capture `{from, to}` in `detail` at write time —
-    the GBP apply overwrites the only copy of the before-values; every
-    entry written without the diff loses it permanently.
+- **Round-5 close-out (2026-07-27, main-loop verification):** 10 of 11
+  candidates CONFIRMED (2 were pure test gaps), 1 REJECTED. All confirmed
+  items fixed + regression-tested in one pass; both in-phase gaps shipped.
+  - #1 review_feature over-claim — FIXED: `narrateAutoFeatured` now asks
+    `listFeaturableGoogleReviews` (the real read-time rule: threshold,
+    comment, hide override, top-12 cap) which fresh reviews actually
+    feature, instead of re-deriving the rule; new cap test (a fresh 4★
+    behind twelve 5★s narrates nothing).
+  - #2 export-route stale allowlist — FIXED: the CSV route reads
+    `APPT_ATTENTION_KEYS`; new EXECUTED registry-driven tests run both the
+    page's `parseAttention` and the export route per key ('unmarked'
+    included), so a third local copy can't drop a key silently.
+  - #3 staff markCompleted missing the pms_live re-stamp — FIXED:
+    `markCompleted` now applies the same goingLiveCompleted rule as the
+    delta sync (source 'pms_import' + startTime ≥ createdAt−24h →
+    're-stamp pms_live'), so the SEATED mint no longer depends on whether
+    the cron or the front desk noticed the completion first. 3 new tests
+    (upcoming-at-import re-stamps; historical stays; non-import untouched).
+  - #4 payment_autocharge final-installment amount — FIXED: the ledger
+    formats `planAmountForInstallment(...)` (the amount actually charged);
+    pinned with a $500/3 remainder test ($166.68 in summary AND detail).
+  - #5 unmarked chip empty in non-past windows — REJECTED: structurally
+    identical to existing chips (no-show is likewise empty in future
+    windows); the only prominent entry point (the Overview CTA) pins
+    `window=past_30d`. Accepted design.
+  - #6 /growth/reviews "Sync now" ungated — FIXED: passes
+    `initiatedByUserId: ctx.userId` (third human call site now under the
+    actor law).
+  - #7 callback pass-through unpinned — FIXED: executed route test pins
+    `{ initiatedByUserId }` on BOTH fire-and-forget first syncs.
+  - #8 parseAttention executed test — FIXED: written (see #2).
+  - #9 listing_sync address detection — FIXED: the pre-read + compare now
+    cover all six written address columns (line2/state/country included);
+    new test: a suite-number-only change narrates.
+  - #10 resurface guard vs sync outages — FIXED: the cutoff is
+    `min(since, now−7d)` (threaded the delta watermark into
+    `reconcileAppointments`), so a real booking made during a >7-day
+    outage still stamps 'pms' and mints; pre-watermark history still
+    stamps 'pms_import'. New outage test.
+  - #11 drawer raw source literals — FIXED: `appointmentSourceLabel` is
+    now single-homed in lib/types/appointment-views.ts; the agenda list
+    and the drawer both use it ("via Practice system (imported)", never
+    "via pms import").
+  - **In-phase gap A — FIXED:** catch-net preview rows use
+    `formatClinicDayTime` (month+day, clinic tz); render-tested.
+  - **In-phase gap B — FIXED:** `listing_sync` detail captures a
+    `{from,to}` snapshot per changed field at write time (the GBP apply
+    overwrites the only copy of the before-values); pinned in both
+    gbp-sync narration tests.
 - Round-5 backlog addition (folded into the boundary-pin item): the
   machine-initiated INTERNAL-alert leg (e.g. the NPS detractor flag) is
   the second undecided ledger-boundary leg; decide both with Phase 2.

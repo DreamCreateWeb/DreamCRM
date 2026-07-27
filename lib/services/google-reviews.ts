@@ -196,7 +196,7 @@ export async function syncGoogleReviews(
 
   let synced = 0
   let pageToken: string | undefined
-  const fresh: Array<{ reviewerName: string | null; starRating: number | null; comment: string | null }> = []
+  const fresh: Array<{ externalReviewId: string; reviewerName: string | null; starRating: number | null; comment: string | null }> = []
   try {
     for (let page = 0; page < MAX_SYNC_PAGES; page++) {
       const { reviews, nextPageToken } = await zernioListGoogleReviews({
@@ -205,7 +205,7 @@ export async function syncGoogleReviews(
       })
       for (const r of reviews) {
         const { inserted } = await upsertReview(orgId, account.accountId, r, 0)
-        if (inserted) fresh.push({ reviewerName: r.reviewerName ?? null, starRating: r.starRating ?? null, comment: r.comment ?? null })
+        if (inserted) fresh.push({ externalReviewId: r.id, reviewerName: r.reviewerName ?? null, starRating: r.starRating ?? null, comment: r.comment ?? null })
         synced++
       }
       if (!nextPageToken) break
@@ -230,18 +230,18 @@ export async function syncGoogleReviews(
  *  Best-effort by recordAction's contract; never throws into the sync. */
 async function narrateAutoFeatured(
   orgId: string,
-  fresh: Array<{ reviewerName: string | null; starRating: number | null; comment: string | null }>,
+  fresh: Array<{ externalReviewId: string; reviewerName: string | null; starRating: number | null; comment: string | null }>,
 ): Promise<void> {
   try {
-    const [cfg] = await db
-      .select({ featureMinStars: schema.clinicReviewConfig.featureMinStars })
-      .from(schema.clinicReviewConfig)
-      .where(eq(schema.clinicReviewConfig.organizationId, orgId))
-      .limit(1)
-    const minStars = cfg?.featureMinStars ?? 4
-    // Mirrors listFeaturableGoogleReviews' rule: rated at/above the threshold
-    // WITH a written comment (star-only reviews never feature).
-    const featured = fresh.filter((r) => (r.starRating ?? 0) >= minStars && !!r.comment?.trim())
+    // Ask the ACTUAL read-time rule which reviews the site now features —
+    // listFeaturableGoogleReviews owns the threshold, the written-comment
+    // requirement, the staff hide override, AND the top-12 cap. Re-deriving
+    // the rule here once over-claimed: a fresh review that qualified on stars
+    // alone could still miss the capped list, and "added to your website"
+    // would have been a lie (round-5 close-out).
+    const featurable = await listFeaturableGoogleReviews(orgId)
+    const featuredIds = new Set(featurable.map((t) => t.id))
+    const featured = fresh.filter((r) => featuredIds.has(`gr_${r.externalReviewId}`))
     if (featured.length === 0) return
     if (featured.length <= 3) {
       for (const r of featured) {

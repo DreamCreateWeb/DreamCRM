@@ -286,8 +286,11 @@ export async function syncGoogleBusinessProfile(
       phoneSource: schema.clinicProfile.phoneSource,
       hours: schema.clinicProfile.hours,
       addressLine1: schema.clinicProfile.addressLine1,
+      addressLine2: schema.clinicProfile.addressLine2,
       city: schema.clinicProfile.city,
+      state: schema.clinicProfile.state,
       postalCode: schema.clinicProfile.postalCode,
+      country: schema.clinicProfile.country,
       phone: schema.clinicProfile.phone,
     })
     .from(schema.clinicProfile)
@@ -375,13 +378,51 @@ export async function syncGoogleBusinessProfile(
   //    JSON.stringify differed on EVERY run and would have written ~24
   //    false "updated your hours" entries a day.
   const changed: string[] = []
-  if (applied.includes('hours') && canonicalJson(patch.hours) !== canonicalJson(profile.hours)) changed.push('hours')
+  // The ledger's from/to snapshot per changed field — captured AT WRITE TIME
+  // (the pre-write profile row vs the patch), so the entry stays reviewable
+  // even after later syncs move the values again (round-5 close-out).
+  const changes: Record<string, { from: unknown; to: unknown }> = {}
+  if (applied.includes('hours') && canonicalJson(patch.hours) !== canonicalJson(profile.hours)) {
+    changed.push('hours')
+    changes.hours = { from: profile.hours, to: patch.hours }
+  }
+  // Compare EVERY address column the sync writes — line2/state/country once
+  // sat outside this check, so a suite-number or state change from Google
+  // applied silently with no narration.
+  const oldAddress = {
+    addressLine1: profile.addressLine1,
+    addressLine2: profile.addressLine2,
+    city: profile.city,
+    state: profile.state,
+    postalCode: profile.postalCode,
+    country: profile.country,
+  }
   if (
     applied.includes('address') &&
-    (patch.addressLine1 !== profile.addressLine1 || patch.city !== profile.city || patch.postalCode !== profile.postalCode)
-  )
+    (patch.addressLine1 !== oldAddress.addressLine1 ||
+      patch.addressLine2 !== oldAddress.addressLine2 ||
+      patch.city !== oldAddress.city ||
+      patch.state !== oldAddress.state ||
+      patch.postalCode !== oldAddress.postalCode ||
+      patch.country !== oldAddress.country)
+  ) {
     changed.push('address')
-  if (applied.includes('phone') && patch.phone !== profile.phone) changed.push('phone')
+    changes.address = {
+      from: oldAddress,
+      to: {
+        addressLine1: patch.addressLine1,
+        addressLine2: patch.addressLine2,
+        city: patch.city,
+        state: patch.state,
+        postalCode: patch.postalCode,
+        country: patch.country,
+      },
+    }
+  }
+  if (applied.includes('phone') && patch.phone !== profile.phone) {
+    changed.push('phone')
+    changes.phone = { from: profile.phone, to: patch.phone }
+  }
   if (changed.length > 0 && opts?.initiatedByUserId == null) {
     const noun =
       changed.length === 1
@@ -391,7 +432,7 @@ export async function syncGoogleBusinessProfile(
       organizationId: orgId,
       capability: 'listing_sync',
       summary: `Updated your website's ${noun} to match your Google Business listing`,
-      detail: { fields: changed },
+      detail: { fields: changed, changes },
     })
   }
 

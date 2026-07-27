@@ -472,6 +472,24 @@ describe('runImport — backfill vs ongoing source stamping', () => {
     expect(store.appointments[0].source).toBe('pms_import')
   })
 
+  it('OUTAGE-SAFE ANCHOR: after a 10-day sync gap, a real booking made during it still stamps pms (threshold = min(since, now-7d) — round-5 close-out)', async () => {
+    // The last successful sync was 10 days ago; the office kept booking.
+    ;(store.connection!.meta as Record<string, unknown>).highWaterAppointments = new Date(Date.now() - 10 * DAY).toISOString()
+    providerPatients = makePmsPatients(1)
+    providerAppointments = [
+      // A genuinely new booking made ~9 days ago for a visit 8 days ago — with
+      // a fixed now-7d threshold it would misfile as 'pms_import' and its
+      // journey transitions would silently never mint.
+      { externalId: 'a025', patientExternalId: 'p001', startTime: new Date(Date.now() - 8 * DAY), endTime: null, status: 'completed', type: 'cleaning', note: null, providerExternalId: null },
+      // But anything from BEFORE the watermark is still resurfaced history.
+      { externalId: 'a026', patientExternalId: 'p001', startTime: new Date(Date.now() - 30 * DAY), endTime: null, status: 'completed', type: 'cleaning', note: 'edited', providerExternalId: null },
+    ]
+    await runImport('org1')
+    const rows = store.appointments as Array<{ startTime: Date; source: string }>
+    expect(rows.find((a) => a.startTime.getTime() > Date.now() - 9 * DAY)!.source).toBe('pms')
+    expect(rows.find((a) => a.startTime.getTime() < Date.now() - 29 * DAY)!.source).toBe('pms_import')
+  })
+
   it('BACKFILL HOLDS OPEN on a patient row error: the mark does not advance, and the retry run stays pms_import', async () => {
     // Pre-mapped patient whose UPDATE will blip (reconcileMappedPatient path).
     store.patients.push({ id: 'pat_x', organizationId: 'org1', firstName: 'Old', lastName: 'Name', email: 'p001@x.com', source: 'pms_import' })

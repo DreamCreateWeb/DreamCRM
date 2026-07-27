@@ -45,6 +45,18 @@ vi.mock('@/lib/services/zernio', () => ({
 vi.mock('@/lib/services/social-billing', () => ({
   canConnectSocialPlatform: (...a: unknown[]) => cap.canConnectSocialPlatform(...a),
 }))
+// The callback's fire-and-forget first sync (dynamically imported) — mocked so
+// the actor pass-through can be pinned (round-5 close-out).
+const firstSync = {
+  syncGoogleBusinessProfile: vi.fn(async () => ({ ok: true, applied: [], skippedManual: [], photoCount: 0 })),
+  syncGoogleReviews: vi.fn(async () => ({ ok: true, synced: 0 })),
+}
+vi.mock('@/lib/services/gbp-sync', () => ({
+  syncGoogleBusinessProfile: (...a: unknown[]) => firstSync.syncGoogleBusinessProfile(...(a as [])),
+}))
+vi.mock('@/lib/services/google-reviews', () => ({
+  syncGoogleReviews: (...a: unknown[]) => firstSync.syncGoogleReviews(...(a as [])),
+}))
 // lib/types/zernio is the real one (the shortlist + guards are pure constants).
 
 import { GET as connectGET } from '@/app/api/integrations/zernio/connect/route'
@@ -213,6 +225,23 @@ describe('GET /api/integrations/zernio/callback', () => {
     const res = await callbackGET(req('/api/integrations/zernio/callback'))
     expect(svc.syncConnectedAccounts).not.toHaveBeenCalled()
     expect(res.headers.get('location')).toContain('/integrations')
+  })
+
+  it("the GBP first sync carries the OWNER's userId — setup is their work, so the machine ledger stays silent (round-5 close-out pin)", async () => {
+    ctx.value = {
+      tenantType: 'clinic', role: 'owner', planTier: 'premium',
+      organizationId: 'org_1', organizationName: 'Acme',
+      ...({ userId: 'user_7' } as object),
+    }
+    svc.syncConnectedAccounts.mockResolvedValue(undefined)
+    firstSync.syncGoogleBusinessProfile.mockClear()
+    firstSync.syncGoogleReviews.mockClear()
+    await callbackGET(req('/api/integrations/zernio/callback?platform=googlebusiness'))
+    // The sync is fire-and-forget — wait for it to land.
+    await vi.waitFor(() => {
+      expect(firstSync.syncGoogleBusinessProfile).toHaveBeenCalledWith('org_1', { initiatedByUserId: 'user_7' })
+      expect(firstSync.syncGoogleReviews).toHaveBeenCalledWith('org_1', { initiatedByUserId: 'user_7' })
+    })
   })
 
   it('surfaces a sync error via the zernioError param', async () => {

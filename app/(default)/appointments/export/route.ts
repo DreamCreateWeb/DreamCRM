@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantContext } from '@/lib/auth/context'
 import { exportAppointmentsCsv, type AppointmentListFilters } from '@/lib/services/appointments'
+import { APPT_ATTENTION_KEYS } from '@/lib/types/appointment-views'
 
 const WINDOWS = ['today', 'tomorrow', 'this_week', 'next_14d', 'all_upcoming', 'past_30d']
-const ATTENTION = ['unconfirmed', 'needs_intake', 'new_patients', 'has_balance', 'cancelled', 'no_show', 'lapsed_rebooking', 'needs_rebooking']
+// The single-home registry — a locally-copied list here once drifted (it was
+// missing 'unmarked', so the catch-net CTA's CSV export silently dropped the
+// filter and exported the whole window).
+const ATTENTION: readonly string[] = APPT_ATTENTION_KEYS
 
 /**
  * Download the current agenda view as a CSV "call sheet" — same window /

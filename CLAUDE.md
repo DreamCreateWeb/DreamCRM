@@ -512,8 +512,11 @@ sitemap/robots/OG.
 0. **THE TRANSFORMATION (2026-07-27, full owner approval): "the employee,
    not the tool."** Read DESIGN.md → "The North Star" FIRST. Build order:
    Phase 1 the spine (journey-stage resolver + Action Ledger + autonomy
-   schema — SHIPPED 2026-07-27; phase-audit rounds running until dry, see
-   docs/AUDITS.md), Phase 2 the voice (approval inbox + weekly
+   schema — SHIPPED 2026-07-27; phase-audit CLOSED same day under an
+   owner-approved amended gate after the spend limit killed round 5's
+   skeptic chamber — certificate + the amended-gate note in docs/AUDITS.md;
+   future phases should use a cheaper audit shape: fewer lenses, one verify
+   pass, 2–3 round cap), Phase 2 the voice (approval inbox + weekly
    standup + first proposal types), Phase 3 the autonomy ladder live,
    Phase 4 guardian + shared brain, Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —

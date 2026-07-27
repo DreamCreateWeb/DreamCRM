@@ -307,6 +307,34 @@ describe('syncGoogleBusinessProfile', () => {
     const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
     expect(entry.capability).toBe('listing_sync')
     expect(String(entry.summary)).toContain('Google Business listing')
+    // The detail carries a from/to snapshot per changed field, captured at
+    // write time — the entry stays reviewable after later syncs move values
+    // again (round-5 close-out).
+    const detail = entry.detail as { fields: string[]; changes: Record<string, { from: unknown; to: unknown }> }
+    expect(detail.fields.sort()).toEqual(['address', 'hours', 'phone'])
+    expect(detail.changes.phone).toEqual({ from: undefined, to: '(555) 867-5309' })
+    expect((detail.changes.address.to as Record<string, unknown>).addressLine1).toBe('742 Evergreen Terrace')
+    expect(detail.changes.hours.to).toBeTruthy()
+  })
+
+  it('a change ONLY in addressLine2/state still narrates — every written address column is compared (round-5 close-out)', async () => {
+    const mappedHours = mapGoogleHours(GOOGLE_LOC)
+    store.profiles = [fullProfile({
+      hoursSource: 'google', addressSource: 'google', phoneSource: 'google',
+      hours: mappedHours,
+      phone: '(555) 867-5309',
+      // Everything matches Google except the suite number.
+      addressLine1: '742 Evergreen Terrace', addressLine2: 'Suite 4',
+      city: 'Springfield', state: 'IL', postalCode: '62704', country: 'US',
+    })]
+    setConnected()
+    await syncGoogleBusinessProfile(ORG, { force: false })
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    const detail = entry.detail as { fields: string[]; changes: Record<string, { from: unknown; to: unknown }> }
+    expect(detail.fields).toEqual(['address'])
+    expect((detail.changes.address.from as Record<string, unknown>).addressLine2).toBe('Suite 4')
+    expect((detail.changes.address.to as Record<string, unknown>).addressLine2).toBe('Suite 5')
   })
 
   it('re-applying IDENTICAL Google data narrates nothing — maintenance is not a story', async () => {

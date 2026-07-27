@@ -59,6 +59,27 @@ const ATTENTION_LABEL: Record<ApptAttention, string> = {
   unmarked: 'needs an outcome',
 }
 
+/**
+ * Human label for an appointment's booking source — THE single home (the
+ * agenda list and the drawer must agree; the drawer once rendered the raw
+ * literal, so a PMS row read "via pms import"). Unknown values fall back to
+ * the de-underscored raw string.
+ */
+export function appointmentSourceLabel(s: string): string {
+  switch (s) {
+    case 'booking_widget': return 'Public booking widget'
+    case 'portal': return 'Patient portal'
+    case 'manual': return 'Front desk (manual)'
+    case 'phone': return 'Phone call'
+    case 'recall_campaign': return 'Recall campaign'
+    case 'invite': return 'Invite acceptance'
+    case 'pms': return 'Practice system'
+    case 'pms_live': return 'Practice system'
+    case 'pms_import': return 'Practice system (imported)'
+    default: return s.replace(/_/g, ' ')
+  }
+}
+
 export interface AppointmentViewFilters {
   window?: ApptWindow
   attention?: ApptAttention[]

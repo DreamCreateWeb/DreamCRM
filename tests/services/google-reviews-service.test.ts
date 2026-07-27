@@ -98,7 +98,7 @@ vi.mock('@/lib/db', () => {
       if (cols) return out.map((r) => Object.fromEntries(Object.keys(cols).map((k) => [k, r[k]])))
       return out
     }
-    api.limit = async () => rowsFor()
+    api.limit = async (n?: number) => (typeof n === 'number' ? rowsFor().slice(0, n) : rowsFor())
     api.then = (resolve: (v: unknown) => void) => resolve(rowsFor())
     return api
   }
@@ -182,6 +182,10 @@ vi.mock('@/lib/db', () => {
     externalReviewId: col('externalReviewId'),
     starRating: col('starRating'),
     recommendationType: col('recommendationType'),
+    comment: col('comment'),
+    hiddenFromSite: col('hiddenFromSite'),
+    reviewerName: col('reviewerName'),
+    reviewerPhotoUrl: col('reviewerPhotoUrl'),
     replyComment: col('replyComment'),
     reviewCreatedAt: col('reviewCreatedAt'),
     createdAt: col('createdAt'),
@@ -209,10 +213,18 @@ vi.mock('@/lib/db', () => {
 })
 
 // drizzle-orm helpers used by the service must operate on our predicate shape.
+// `hiddenFromSite` defaults like the real column (0) so a freshly-upserted row
+// (which omits it, riding the DB default) still matches the featurable filter.
 vi.mock('drizzle-orm', () => ({
-  eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) =>
-    (col.__col === 'platform' ? (r.platform ?? 'googlebusiness') : r[col.__col]) === val,
+  eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => {
+    if (col.__col === 'platform') return (r.platform ?? 'googlebusiness') === val
+    if (col.__col === 'hiddenFromSite') return (r.hiddenFromSite ?? 0) === val
+    return r[col.__col] === val
+  },
   and: (...preds: unknown[]) => preds.flat(),
+  gte: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) =>
+    r[col.__col] != null && (r[col.__col] as number) >= (val as number),
+  isNotNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] != null,
   desc: () => 'desc',
   sql: () => 'sql',
 }))
@@ -375,6 +387,35 @@ describe('syncGoogleReviews', () => {
     await syncGoogleReviews(ORG)
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain('5 new Google reviews')
+  })
+
+  it('a fresh qualifying review that misses the top-12 featured cap does NOT narrate (round-5 close-out: the narration asks the real read-time rule, never a re-derived one)', async () => {
+    setConnected()
+    store.reviewConfigs = [{ organizationId: ORG, featureMinStars: 4 }]
+    // 12 already-featured 5★ commented reviews fill the public cap. (The fake
+    // returns rows in store order, which matches the real star-desc sort here —
+    // the existing 5★ rows outrank the fresh 4★ one.)
+    for (let i = 0; i < 12; i++) {
+      store.reviews.push({
+        organizationId: ORG, externalReviewId: `old_${i}`, starRating: 5, comment: `Long-time fan ${i}`,
+        reviewerName: `P${i}`, hiddenFromSite: 0,
+      } as unknown as Row)
+    }
+    // The fresh pull re-delivers the 12 known reviews + one NEW 4★ that
+    // qualifies on stars/comment but does NOT make the capped featured list.
+    client.listGoogleReviews.mockResolvedValue({
+      reviews: [
+        ...Array.from({ length: 12 }, (_, i) => ({
+          id: `old_${i}`, starRating: 5, comment: `Long-time fan ${i}`, reviewerName: `P${i}`,
+          createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null,
+        })),
+        { id: 'r_13', starRating: 4, comment: 'Nice enough', reviewerName: 'Newcomer', createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null },
+      ],
+      nextPageToken: null,
+    })
+    await syncGoogleReviews(ORG)
+    // "Added to your website" would be a lie — the capped list didn't change.
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 
   it("a HUMAN-initiated sync (the owner's connect flow) narrates nothing — setup is their work", async () => {

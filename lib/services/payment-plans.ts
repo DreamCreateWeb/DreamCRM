@@ -604,13 +604,17 @@ export async function runDuePlanCharges(opts?: { now?: Date }): Promise<PlanChar
             ),
           )
           .limit(1)
-        const amount = `$${(plan.installmentCents / 100).toFixed(2)}`
+        // The amount ACTUALLY charged — the final installment takes the
+        // remainder (chargePlanInstallment uses planAmountForInstallment), so
+        // formatting plan.installmentCents here would misreport the last charge.
+        const chargedCents = planAmountForInstallment(plan.totalCents, plan.installments, plan.installmentsPaid)
+        const amount = `$${(chargedCents / 100).toFixed(2)}`
         await recordAction({
           organizationId: plan.organizationId,
           capability: 'payment_autocharge',
           patientId: plan.patientId,
           summary: `Charged ${p?.firstName ?? 'a patient'}’s card ${amount} — installment ${plan.installmentsPaid + 1} of ${plan.installments}${finished ? ' (plan complete)' : ''}`,
-          detail: { planId: plan.id, installmentCents: plan.installmentCents },
+          detail: { planId: plan.id, installmentCents: chargedCents },
         })
       } catch (e) {
         console.error('[action-ledger] autocharge entry failed:', e)

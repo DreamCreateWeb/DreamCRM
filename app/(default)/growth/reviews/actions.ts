@@ -76,7 +76,9 @@ export async function syncGoogleReviewsAction(): Promise<
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') return { ok: false, error: 'Reviews is only available for clinic tenants.' }
   if (ctx.role === 'patient') return { ok: false, error: 'Patients cannot sync reviews.' }
-  const r = await syncGoogleReviews(ctx.organizationId)
+  // Staff clicked "Sync now" — their click is their work, so the machine
+  // ledger stays silent (same actor law as the connect-flow first sync).
+  const r = await syncGoogleReviews(ctx.organizationId, { initiatedByUserId: ctx.userId })
   if (!r.ok) return { ok: false, error: r.error ?? 'Sync failed.' }
   revalidatePath('/growth/reviews')
   revalidatePath('/growth/reviews/received')

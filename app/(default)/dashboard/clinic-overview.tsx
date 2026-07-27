@@ -6,7 +6,7 @@ import GettingStarted from '@/components/onboarding/getting-started'
 import type { TenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
 import { formatRelativeDate } from '@/lib/utils/format'
-import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
+import { formatClinicTime, formatClinicDayHeader, formatClinicDayTime } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
 import { ProgressRing } from '@/components/ui/progress-ring'
 import { ActionButton } from '@/components/ui/action-button'
@@ -261,12 +261,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                 <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
                   <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
-                    {r.startTime.toLocaleString('en-US', {
-                      weekday: 'short',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      timeZone: data.timeZone,
-                    })}
+                    {/* Month + day, not bare weekday — this card spans 30 days,
+                        so "Tue 2:00 PM" is ambiguous across four Tuesdays. */}
+                    {formatClinicDayTime(r.startTime, data.timeZone)}
                   </span>
                 </li>
               ))}

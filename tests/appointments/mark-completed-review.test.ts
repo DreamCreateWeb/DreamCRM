@@ -68,10 +68,14 @@ beforeEach(() => {
   fireMock.mockResolvedValue({ outcome: 'sent' })
 })
 
-/** assertAppointmentMutable (status) → then the patientId lookup. */
-function queueContext(status = 'scheduled') {
+/** assertAppointmentMutable (status) → then the row lookup (patientId +
+ *  source/createdAt/startTime for the pms_live re-stamp rule). */
+function queueContext(
+  status = 'scheduled',
+  row: Record<string, unknown> = { patientId: 'pat_1' },
+) {
   state.selectQueue.push([{ status }])
-  state.selectQueue.push([{ patientId: 'pat_1' }])
+  state.selectQueue.push([row])
 }
 
 describe('markCompleted → review auto-send', () => {
@@ -105,5 +109,49 @@ describe('markCompleted → review auto-send', () => {
     const r = await markCompleted('org_1', 'appt_1')
     expect(r.reviewSent).toBe(false)
     expect(state.updates.some((u) => u.status === 'completed')).toBe(true)
+  })
+})
+
+describe("markCompleted → the 'pms_live' re-stamp (round-5 close-out)", () => {
+  // Same rule as the PMS delta sync's goingLiveCompleted: a backfilled
+  // UPCOMING row whose completion STAFF observe re-stamps 'pms_live' so the
+  // SEATED journey transition can mint. Without it, the same visit counted
+  // (or not) depending on whether the cron or the front desk noticed first.
+  const NOW = Date.now()
+
+  it("re-stamps a 'pms_import' row that was upcoming at import time", async () => {
+    queueContext('scheduled', {
+      patientId: 'pat_1',
+      source: 'pms_import',
+      createdAt: new Date(NOW - 3 * 24 * 60 * 60 * 1000), // imported 3 days ago
+      startTime: new Date(NOW - 60 * 60 * 1000), // the visit was this morning
+    })
+    await markCompleted('org_1', 'appt_1')
+    const completion = state.updates.find((u) => u.status === 'completed')!
+    expect(completion.source).toBe('pms_live')
+  })
+
+  it("leaves a HISTORICAL 'pms_import' row alone (startTime long before its own import)", async () => {
+    queueContext('scheduled', {
+      patientId: 'pat_1',
+      source: 'pms_import',
+      createdAt: new Date(NOW - 3 * 24 * 60 * 60 * 1000),
+      startTime: new Date(NOW - 90 * 24 * 60 * 60 * 1000), // months-old history
+    })
+    await markCompleted('org_1', 'appt_1')
+    const completion = state.updates.find((u) => u.status === 'completed')!
+    expect(completion.source).toBeUndefined()
+  })
+
+  it('never touches the source of a non-import row', async () => {
+    queueContext('scheduled', {
+      patientId: 'pat_1',
+      source: 'booking_widget',
+      createdAt: new Date(NOW - 30 * 24 * 60 * 60 * 1000),
+      startTime: new Date(NOW - 60 * 60 * 1000),
+    })
+    await markCompleted('org_1', 'appt_1')
+    const completion = state.updates.find((u) => u.status === 'completed')!
+    expect(completion.source).toBeUndefined()
   })
 })

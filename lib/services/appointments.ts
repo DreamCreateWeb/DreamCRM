@@ -1277,18 +1277,36 @@ export async function markCompleted(
   appointmentId: string,
 ): Promise<MarkCompletedResult> {
   await assertAppointmentMutable(organizationId, appointmentId)
+  const [appt] = await db
+    .select({
+      patientId: schema.appointment.patientId,
+      source: schema.appointment.source,
+      createdAt: schema.appointment.createdAt,
+      startTime: schema.appointment.startTime,
+    })
+    .from(schema.appointment)
+    .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, appointmentId)))
+    .limit(1)
+  // LIVE-OBSERVED COMPLETION on a backfilled UPCOMING row — same rule as the
+  // PMS delta sync's goingLiveCompleted (see pms/sync.ts): the backfill
+  // imports the future schedule as 'pms_import', but when STAFF mark such a
+  // visit completed the startTime is the honest visit time, so re-stamp
+  // 'pms_live' (mints SEATED, never BOOKED, stays in the imported-booked
+  // suppression anchor). Without this, a dashboard-marked completion left the
+  // row 'pms_import' and the SEATED transition never minted — the same visit
+  // counted or not depending on WHO noticed it first (round-5 close-out).
+  const goingLiveCompleted =
+    appt?.source === 'pms_import' &&
+    appt.createdAt != null &&
+    appt.startTime.getTime() >= appt.createdAt.getTime() - 24 * 60 * 60 * 1000
   await setAppointmentState(organizationId, appointmentId, {
     status: 'completed',
     completedAt: new Date(),
+    ...(goingLiveCompleted ? { source: 'pms_live' } : {}),
   })
   // Completing a visit is the most significant activity event — bump the
   // patient's lastActivityAt so recency sorting + the recall heuristic reflect
   // it (booking already does this; completion didn't).
-  const [appt] = await db
-    .select({ patientId: schema.appointment.patientId })
-    .from(schema.appointment)
-    .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, appointmentId)))
-    .limit(1)
   if (appt?.patientId) {
     await db
       .update(schema.patient)

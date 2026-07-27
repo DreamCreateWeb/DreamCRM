@@ -230,6 +230,32 @@ describe('runDuePlanCharges', () => {
     expect(update!.values).toMatchObject({ installmentsPaid: 3, status: 'active', failedAttempts: 0 })
   })
 
+  it('the FINAL installment ledgers the actual remainder amount, not the even split (round-5 close-out)', async () => {
+    // $500 over 3 → $166.66 + $166.66 + $166.68 (the last takes the remainder).
+    state.selectQueue.push([{
+      ...DUE_PLAN,
+      totalCents: 50_000, installments: 3, installmentCents: 16_666, installmentsPaid: 2,
+    }])
+    state.selectQueue.push([{ isDemo: false }])
+    state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd', platformFeeBps: 100 }])
+    state.selectQueue.push([]) // receipt: patient email lookup
+    state.selectQueue.push([]) // receipt: clinic email lookup
+    state.selectQueue.push([{ firstName: 'Marcus' }]) // ledger: patient name
+
+    const r = await runDuePlanCharges({ now: NOW })
+    expect(r).toMatchObject({ charged: 1, completed: 1 })
+    // Stripe charged the remainder…
+    expect(paymentIntentCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 16_668 }),
+      { stripeAccount: 'acct_1' },
+    )
+    // …and the ledger reports THAT amount (the money statement must match the
+    // charge), never the even-split installmentCents.
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toMatch(/\$166\.68 — installment 3 of 3 \(plan complete\)/)
+    expect((entry.detail as Record<string, unknown>).installmentCents).toBe(16_668)
+  })
+
   it('a decline goes past_due with a 3-day retry (parked after 3 strikes)', async () => {
     state.selectQueue.push([{ ...DUE_PLAN, failedAttempts: 2 }])
     state.selectQueue.push([{ isDemo: false }])

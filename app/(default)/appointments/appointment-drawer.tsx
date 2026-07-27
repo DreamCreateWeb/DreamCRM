@@ -27,6 +27,7 @@ import {
   rescheduleAppointmentAction,
   sendReminderAction,
 } from './actions'
+import { appointmentSourceLabel } from '@/lib/types/appointment-views'
 
 function money(cents: number): string {
   if (cents === 0) return '$0'
@@ -528,7 +529,7 @@ export default function AppointmentDrawer({
                 <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold mb-1">Booking source</p>
                 <p className="text-xs text-gray-700 dark:text-gray-200">
                   {detail.source
-                    ? `via ${detail.source.replace(/_/g, ' ')}`
+                    ? `via ${appointmentSourceLabel(detail.source)}`
                     : 'no source recorded'}{' '}
                   · created {fmtRelative(detail.createdAt)}
                 </p>

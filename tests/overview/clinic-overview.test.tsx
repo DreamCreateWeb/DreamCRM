@@ -114,6 +114,10 @@ describe("the 'Did these visits happen?' catch-net card", () => {
     expect(screen.getByText('Did these visits happen?')).toBeTruthy()
     expect(screen.getByText('Mia Hayes')).toBeTruthy()
     expect(screen.getByText('Aiden Brooks')).toBeTruthy()
+    // Preview times carry MONTH + DAY (clinic tz): the card spans 30 days, so
+    // a bare weekday was ambiguous across four Tuesdays (round-5 close-out).
+    // 2026-05-18T14:00Z = Mon, May 18, 10:00 AM Eastern.
+    expect(screen.getByText(/May 18, 10:00 AM/)).toBeTruthy()
     // The CTA must open EXACTLY the list the number counts (past_30d + unmarked).
     const cta = Array.from(container.querySelectorAll('a')).find((a) =>
       a.getAttribute('href')?.includes('attention=unmarked'),

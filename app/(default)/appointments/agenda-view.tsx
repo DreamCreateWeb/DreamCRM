@@ -31,6 +31,7 @@ import {
   appointmentViewFiltersToQuery,
   isEmptyAppointmentViewFilters,
   describeAppointmentViewFilters,
+  appointmentSourceLabel as sourceLabel,
   type AppointmentViewFilters,
 } from '@/lib/types/appointment-views'
 import SavedViewsBar, { type SavedViewChip } from '@/components/saved-views/saved-views-bar'
@@ -115,21 +116,6 @@ const ATTENTION_LABELS: Array<{
 
 function fmtTime(d: Date): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-}
-
-function sourceLabel(s: string): string {
-  switch (s) {
-    case 'booking_widget': return 'Public booking widget'
-    case 'portal': return 'Patient portal'
-    case 'manual': return 'Front desk (manual)'
-    case 'phone': return 'Phone call'
-    case 'recall_campaign': return 'Recall campaign'
-    case 'invite': return 'Invite acceptance'
-    case 'pms': return 'Practice system'
-    case 'pms_live': return 'Practice system'
-    case 'pms_import': return 'Practice system (imported)'
-    default: return s.replace(/_/g, ' ')
-  }
 }
 
 function emptyCopy(filters: AppointmentListFilters): { icon: string; title: string; body: string } {
