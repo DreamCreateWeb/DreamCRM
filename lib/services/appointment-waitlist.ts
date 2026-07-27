@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { authEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { recordAction } from '@/lib/services/action-ledger'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { insertAppointmentIfSlotFree } from '@/lib/services/booking'
 import { queueAppointmentStatusWriteBack, queueCommLogWriteBack } from '@/lib/services/pms'
@@ -341,6 +342,13 @@ export async function offerFreedSlot(
         }),
       })
       sent++
+      await recordAction({
+        organizationId,
+        capability: 'waitlist_offer',
+        patientId: e.patientId,
+        summary: `Offered ${e.firstName} the earlier ${typeLabel.toLowerCase()} opening on ${when}`,
+        detail: { waitlistId: e.id, slotStart: slot.start.toISOString(), channel: 'email' },
+      })
     } catch (err) {
       console.warn('[waitlist] offer email failed', { organizationId, waitlistId: e.id, err })
     }

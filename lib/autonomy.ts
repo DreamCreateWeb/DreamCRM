@@ -39,6 +39,11 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'followup_rule', label: 'Open follow-ups from smart rules', defaultTrust: 'auto' },
   { key: 'balance_nudge', label: 'Send balance reminders', defaultTrust: 'auto' },
   { key: 'auto_reply', label: 'Send the after-hours auto-reply', defaultTrust: 'auto' },
+  { key: 'forms_reminder', label: 'Nudge patients to finish their forms', defaultTrust: 'auto' },
+  { key: 'nps_survey', label: 'Ask patients how the visit went', defaultTrust: 'auto' },
+  { key: 'noshow_rebook', label: 'Invite no-shows back for a new time', defaultTrust: 'auto' },
+  { key: 'waitlist_offer', label: 'Offer freed slots to the waitlist', defaultTrust: 'auto' },
+  { key: 'payment_autocharge', label: 'Charge payment-plan installments', defaultTrust: 'auto' },
   // Ask-first today (drafts that wait for a human):
   { key: 'review_reply', label: 'Reply to Google reviews', defaultTrust: 'ask' },
   { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'ask' },

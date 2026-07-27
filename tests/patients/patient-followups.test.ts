@@ -41,6 +41,11 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign((s: TemplateStringsArray, ...v: unknown[]) => ({ s, v }), {}),
 }))
 
+const { recordActionMock } = vi.hoisted(() => ({
+  recordActionMock: vi.fn(async (..._a: unknown[]) => true),
+}))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+
 import { createFollowup, autoCreateRebookFollowup } from '@/lib/services/patient-followups'
 
 beforeEach(() => {
@@ -48,6 +53,7 @@ beforeEach(() => {
   h.followupRows = []
   h.userRows = []
   h.inserts = []
+  recordActionMock.mockClear()
 })
 
 describe('createFollowup', () => {
@@ -97,11 +103,18 @@ describe('autoCreateRebookFollowup', () => {
     expect(h.inserts).toHaveLength(1)
     expect((h.inserts[0] as { title: string }).title).toContain('Rebook Aiden Kim')
     expect((h.inserts[0] as { sourceAppointmentId: string }).sourceAppointmentId).toBe('appt_1')
+    // The machine opened a follow-up on its own → reported in the ledger.
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('followup_rule')
+    expect(entry.patientId).toBe('p1')
+    expect(String(entry.summary)).toContain('Aiden Kim')
   })
 
   it('is idempotent — skips when one already exists for the appointment', async () => {
     h.followupRows = [{ id: 'pfu_existing' }]
     await autoCreateRebookFollowup('org_1', 'p1', 'Aiden Kim', 'appt_1')
     expect(h.inserts).toHaveLength(0)
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 })

@@ -43,8 +43,8 @@ vi.mock('@/lib/db', () => {
   const tableNames = [
     'patient', 'appointment', 'patientNote', 'patientDocument', 'patientFollowup', 'patientMessage',
     'emailMessage', 'formSubmission', 'reviewRequest', 'shopCoupon', 'shopOrder', 'membership',
-    'patientBalancePayment', 'platformReview', 'customers', 'campaignEvents', 'patientTagAssignment',
-    'lead', 'patientThread',
+    'patientBalancePayment', 'platformReview', 'customers', 'campaignEvents', 'actionLedger',
+    'patientTagAssignment', 'lead', 'patientThread',
   ]
   const schema: Record<string, unknown> = {}
   for (const n of tableNames) schema[n] = Object.assign(t(n), { id: 'id', patientId: 'patientId', organizationId: 'organizationId', convertedToPatientId: 'c', guardianPatientId: 'g', threadId: 'threadId', mergedIntoPatientId: 'm' })
@@ -110,7 +110,8 @@ describe('mergePatients success', () => {
     const r = await mergePatients('org_1', 'p1', 'p2', 'u1')
     expect(r.ok).toBe(true)
     // A representative sample of the simple re-points happened.
-    for (const tbl of ['appointment', 'patientDocument', 'patientFollowup', 'shopOrder', 'reviewRequest']) {
+    // actionLedger rides along so the survivor keeps the machine's history.
+    for (const tbl of ['appointment', 'patientDocument', 'patientFollowup', 'shopOrder', 'reviewRequest', 'actionLedger']) {
       expect(h.repointedTables).toContain(tbl)
     }
     // The tag move uses a raw execute.

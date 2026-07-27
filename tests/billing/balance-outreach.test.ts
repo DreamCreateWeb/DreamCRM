@@ -14,7 +14,7 @@ const state = {
   updates: [] as Array<Record<string, unknown>>,
 }
 
-const recordActionMock = vi.fn(async () => true)
+const recordActionMock = vi.fn(async (..._a: unknown[]) => true)
 vi.mock('@/lib/services/action-ledger', () => ({
   recordAction: (...a: unknown[]) => recordActionMock(...(a as [])),
 }))

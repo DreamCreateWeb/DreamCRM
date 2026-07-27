@@ -3,23 +3,44 @@
  * makes it safe to sprinkle recordAction into every automation: bookkeeping
  * can NEVER break the action it describes. A reminder that already went out
  * must not throw because the ledger insert hiccuped.
+ *
+ * Plus the read half (the narrator's raw material): the limit clamp and the
+ * count mapping run for real; org scoping is pinned on the source.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 const insertMock = vi.fn()
+const readState = {
+  limits: [] as number[],
+  rows: [] as unknown[],
+}
 vi.mock('@/lib/db', () => ({
   db: {
     insert: () => ({ values: (...a: unknown[]) => insertMock(...a) }),
-    select: () => {
-      throw new Error('not used in these tests')
-    },
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          orderBy: () => ({
+            limit: async (n: number) => {
+              readState.limits.push(n)
+              return readState.rows
+            },
+          }),
+          groupBy: async () => readState.rows,
+        }),
+      }),
+    }),
   },
 }))
 
-import { recordAction } from '@/lib/services/action-ledger'
+import { recordAction, listRecentActions, countActionsSince } from '@/lib/services/action-ledger'
 
 beforeEach(() => {
   insertMock.mockReset()
+  readState.limits = []
+  readState.rows = []
 })
 
 describe('recordAction', () => {
@@ -63,5 +84,29 @@ describe('recordAction', () => {
     const row = insertMock.mock.calls[0][0] as Record<string, unknown>
     expect(row.patientId).toBeNull()
     expect(row.detail).toBeNull()
+  })
+})
+
+describe('the read half', () => {
+  it('listRecentActions defaults to 100 and clamps runaway limits at 500', async () => {
+    await listRecentActions('org_1')
+    await listRecentActions('org_1', { limit: 10_000 })
+    await listRecentActions('org_1', { limit: 25 })
+    expect(readState.limits).toEqual([100, 500, 25])
+  })
+
+  it('countActionsSince maps grouped rows to a plain capability→count record', async () => {
+    readState.rows = [
+      { capability: 'appointment_reminder', c: 41 },
+      { capability: 'review_request', c: '6' }, // pg count can arrive as a string
+    ]
+    const counts = await countActionsSince('org_1', new Date('2026-07-20'))
+    expect(counts).toEqual({ appointment_reminder: 41, review_request: 6 })
+  })
+
+  it('both readers are org-scoped at the query (pinned on the source)', () => {
+    const src = readFileSync(resolve(__dirname, '../../lib/services/action-ledger.ts'), 'utf8')
+    const scoped = src.match(/eq\(schema\.actionLedger\.organizationId, (organizationId|input\.organizationId)\)/g) ?? []
+    expect(scoped.length).toBeGreaterThanOrEqual(2)
   })
 })

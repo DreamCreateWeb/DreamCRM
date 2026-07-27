@@ -36,6 +36,7 @@ const SIMPLE_REPOINTS: Array<{ table: keyof typeof schema; col: 'patientId' }> =
   { table: 'platformReview', col: 'patientId' },
   { table: 'customers', col: 'patientId' },
   { table: 'campaignEvents', col: 'patientId' },
+  { table: 'actionLedger', col: 'patientId' },
 ]
 
 /** Scalar fields filled on the survivor only when the survivor's is empty. */

@@ -306,6 +306,8 @@ export async function sendCampaignAction(
   const result = await sendCampaign({
     organizationId: ctx.organizationId,
     campaignId: id,
+    // Staff clicked Send — keep this out of the machine's Action Ledger.
+    initiatedByUserId: ctx.userId,
     ...opts,
   })
   revalidatePath('/growth/campaigns')

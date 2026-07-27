@@ -4,6 +4,7 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'dr
 import { db, schema } from '@/lib/db'
 import { authEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
+import { recordAction } from '@/lib/services/action-ledger'
 import { newId } from '@/lib/utils'
 
 /**
@@ -160,6 +161,13 @@ export async function runDueNpsSurveys(opts?: { now?: Date }): Promise<NpsSurvey
         })
         sentThisRun.add(c.patientId)
         result.sent++
+        await recordAction({
+          organizationId: orgId,
+          capability: 'nps_survey',
+          patientId: c.patientId,
+          summary: `Asked ${c.firstName} how their visit went`,
+          detail: { appointmentId: c.appointmentId, channel: 'email' },
+        })
       } catch (err) {
         result.errors.push({
           organizationId: orgId,

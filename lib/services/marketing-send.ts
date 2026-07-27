@@ -68,6 +68,10 @@ export interface SendOptions {
   gmailAccountId?: string
   /** Display name used in footer + Gmail From header. */
   fromName?: string
+  /** Who initiated this send. NULL/omitted = the machine (the scheduled-send
+   *  cron, automations). A staff user id here keeps the send OUT of the
+   *  Action Ledger — a staff click is their work, not the employee's. */
+  initiatedByUserId?: string | null
   /** When the CALLER already atomically claimed the campaign off its prior
    *  status (the scheduled-send cron flips scheduled → active itself), skip the
    *  internal duplicate-send claim — otherwise the campaign is already 'active'
@@ -350,8 +354,10 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
       .where(eq(schema.campaigns.id, campaign.id))
 
     // THE ACTION LEDGER: the machine's own record of the send (the weekly
-    // standup reads this). Never blocks the send result.
-    if (!nothingSent) {
+    // standup reads this). MACHINE sends only — a staff-clicked "Send now"
+    // (initiatedByUserId set) is their work, not the employee's. Never
+    // blocks the send result.
+    if (!nothingSent && opts.initiatedByUserId == null) {
       await recordAction({
         organizationId: opts.organizationId,
         capability: 'campaign_send',

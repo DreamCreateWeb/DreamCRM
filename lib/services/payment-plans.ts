@@ -8,6 +8,7 @@ import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { canTakeBalancePayments } from '@/lib/services/balance-payments'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { notifyOrgMembers } from '@/lib/services/notifications'
+import { recordAction } from '@/lib/services/action-ledger'
 import { newId } from '@/lib/utils'
 import { platformFeeCents } from '@/lib/types/shop'
 
@@ -588,7 +589,32 @@ export async function runDuePlanCharges(opts?: { now?: Date }): Promise<PlanChar
     const ok = await chargePlanInstallment(plan, cfg)
     if (ok) {
       result.charged++
-      if (plan.installmentsPaid + 1 >= plan.installments) result.completed++
+      const finished = plan.installmentsPaid + 1 >= plan.installments
+      if (finished) result.completed++
+      // Ledger: the machine charged a patient's card on its own — the one
+      // action a clinic most wants to see reported, never buried.
+      try {
+        const [p] = await db
+          .select({ firstName: schema.patient.firstName })
+          .from(schema.patient)
+          .where(
+            and(
+              eq(schema.patient.organizationId, plan.organizationId),
+              eq(schema.patient.id, plan.patientId),
+            ),
+          )
+          .limit(1)
+        const amount = `$${(plan.installmentCents / 100).toFixed(2)}`
+        await recordAction({
+          organizationId: plan.organizationId,
+          capability: 'payment_autocharge',
+          patientId: plan.patientId,
+          summary: `Charged ${p?.firstName ?? 'a patient'}’s card ${amount} — installment ${plan.installmentsPaid + 1} of ${plan.installments}${finished ? ' (plan complete)' : ''}`,
+          detail: { planId: plan.id, installmentCents: plan.installmentCents },
+        })
+      } catch (e) {
+        console.error('[action-ledger] autocharge entry failed:', e)
+      }
     } else {
       result.failed++
     }

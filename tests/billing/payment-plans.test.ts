@@ -104,6 +104,10 @@ vi.mock('@/lib/services/clinic-sender', () => ({
 }))
 vi.mock('@/lib/services/pms/sync', () => ({ queueCommLogWriteBack: vi.fn(async () => {}) }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn(async () => {}) }))
+const { recordActionMock } = vi.hoisted(() => ({
+  recordActionMock: vi.fn(async (..._a: unknown[]) => true),
+}))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
 
 import {
   planInstallmentCents,
@@ -193,10 +197,18 @@ describe('runDuePlanCharges', () => {
     state.selectQueue.push([DUE_PLAN]) // due plans
     state.selectQueue.push([{ isDemo: false }]) // org
     state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd', platformFeeBps: 100 }]) // shop config
-    state.selectQueue.push([]) // notify: clinic email lookup
+    state.selectQueue.push([]) // receipt: patient email lookup
+    state.selectQueue.push([]) // receipt: clinic email lookup
+    state.selectQueue.push([{ firstName: 'Marcus' }]) // ledger: patient name
 
     const r = await runDuePlanCharges({ now: NOW })
     expect(r).toMatchObject({ scanned: 1, charged: 1, failed: 0 })
+    // The machine charged a card on its own — ALWAYS reported in the ledger.
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('payment_autocharge')
+    expect(entry.patientId).toBe('pat_1')
+    expect(String(entry.summary)).toMatch(/Charged Marcus.s card \$100\.00 — installment 3 of 6/)
     expect(paymentIntentCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         amount: 10_000,

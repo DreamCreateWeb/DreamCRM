@@ -1108,7 +1108,7 @@ async function maybeSendAfterHoursAutoReply(
     const [who] = await db
       .select({ firstName: schema.patient.firstName })
       .from(schema.patient)
-      .where(eq(schema.patient.id, patientId))
+      .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, patientId)))
       .limit(1)
     await recordAction({
       organizationId,

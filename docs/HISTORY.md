@@ -4873,3 +4873,27 @@ replaced with the module's static ones. New tests: the fire-and-forget
 contract (a ledger failure can never break the action it describes), the
 staff-vs-machine boundary on balance sends, the cancelled-only rule.
 
+
+## 2026-07-27 (later) — The phase-audit machine + Phase 1 round-1 fixes
+
+The owner's standard: every phase runs an AUDIT WORKFLOW in rounds until
+DRY (two consecutive clean rounds) — "perfection plus depth."
+`.claude/workflows/phase-audit.js`: 9 lens finders (semantics,
+completeness, codebase law, doctrine, failure modes, test adequacy, two
+depth lenses, audit-the-audit) → 3 adversarial skeptics on every defect +
+3 value judges on every depth proposal (in-phase / backlog / reject).
+Certificates + the depth backlog live in docs/AUDITS.md.
+
+Round 1 on Phase 1 (15 agents, ~1.77M tokens): 36 confirmed defects in ~9
+clusters + 4 in-phase gaps, all fixed and shipped: staff "Send now"
+campaigns out of the machine ledger (`initiatedByUserId` gate); forms
+nudges narrate forms (new `forms_reminder` capability), never fake visit
+reminders; PMS-imported appointments never mint journey transition
+timestamps (a PMS connect no longer reads as a growth spike) while stage
+facts keep all history; org filters added to two writer-side reads; five
+unregistered automations became capabilities WITH ledger writers
+(`nps_survey`, `noshow_rebook` + send-honesty on the disabled toggle,
+`waitlist_offer`, `payment_autocharge`, `forms_reminder`); patient merge
+re-points ledger rows; typecheck repaired; executed db-mock coverage for
+the journey service, ledger reads, actor gate, and reminder branches.
+8 depth proposals harvested to the AUDITS.md backlog. Round 2 next.

@@ -10,8 +10,9 @@
  * reality (the booking flow mints 'new' before anyone is seen); read paths
  * migrate to THIS resolver instead.
  *
- *   inquiry  — asked a question; no appointment has ever existed
- *   booked   — has an appointment; has never completed a visit
+ *   inquiry  — asked a question; nothing live on the schedule (never booked,
+ *              or every booking was cancelled — they need re-conversion)
+ *   booked   — a live (non-cancelled) appointment; never completed a visit
  *   patient  — ≥ 1 completed visit (the ONLY stage that counts as a
  *              "new patient" anywhere: seated, not promised)
  *   archived — staff-archived; excluded from every journey metric
@@ -24,7 +25,9 @@
 export type JourneyStage = 'inquiry' | 'booked' | 'patient' | 'archived'
 
 export interface JourneyFacts {
-  /** Ever had ANY appointment (any status, past or future). */
+  /** Has a LIVE appointment on the books — cancelled-everything people are
+   *  inquiries again (the service excludes status='cancelled'); a no-show
+   *  still counts (they're in the show-up war, not gone). */
   hasAppointment: boolean
   /** Ever completed a visit (appointment.status = 'completed'). */
   hasCompletedVisit: boolean

@@ -117,6 +117,11 @@ vi.mock('@/lib/services/booking-confirmation', () => ({ sendBookingConfirmation:
 const { notifyOrgMembersMock } = vi.hoisted(() => ({ notifyOrgMembersMock: vi.fn(async () => undefined) }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyOrgMembersMock }))
 
+const { recordActionMock } = vi.hoisted(() => ({
+  recordActionMock: vi.fn(async (..._a: unknown[]) => true),
+}))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+
 import {
   addToWaitlist,
   offerFreedSlot,
@@ -210,6 +215,12 @@ describe('offerFreedSlot', () => {
     const offers = insertsInto('appointment_waitlist_offer')
     expect(offers).toHaveLength(2)
     expect(offers.map((o) => o.values.waitlistId)).toEqual(['wl_1', 'wl_4'])
+    // Each delivered offer lands in the Action Ledger (machine action).
+    expect(recordActionMock).toHaveBeenCalledTimes(2)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('waitlist_offer')
+    expect(entry.patientId).toBe('pat_1')
+    expect(String(entry.summary)).toMatch(/^Offered Mia the earlier/)
     // Token is the auth for /w/[token] — must carry the wo_ prefix.
     for (const o of offers) expect(String(o.values.token)).toMatch(/^wo_/)
   })
@@ -223,6 +234,7 @@ describe('offerFreedSlot', () => {
     const sent = await offerFreedSlot('org_1', slot(2 * DAY))
     expect(sent).toBe(0) // nothing SENT…
     expect(insertsInto('appointment_waitlist_offer')).toHaveLength(1) // …but the offer row exists
+    expect(recordActionMock).not.toHaveBeenCalled() // no send → no ledger claim
   })
 })
 

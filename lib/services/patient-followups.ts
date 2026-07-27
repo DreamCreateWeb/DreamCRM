@@ -12,6 +12,7 @@ import {
 import { clinicDayKey } from '@/lib/format-datetime'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { recordAction } from '@/lib/services/action-ledger'
 
 /** The clinic-local "today" key for due-date bucketing. `todayYmd(now)` is the
  *  SERVER's calendar day (UTC in prod) — a Central clinic's follow-ups would
@@ -509,6 +510,13 @@ export async function autoCreateRebookFollowup(
       status: 'open',
       createdBy: null,
       sourceAppointmentId: appointmentId,
+    })
+    await recordAction({
+      organizationId,
+      capability: 'followup_rule',
+      patientId,
+      summary: `Opened a follow-up to rebook ${patientName} after their missed visit`,
+      detail: { appointmentId, rule: 'no_show_rebook' },
     })
   } catch (err) {
     console.warn('[autoCreateRebookFollowup] failed', err)

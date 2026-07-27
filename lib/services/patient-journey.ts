@@ -14,11 +14,21 @@ import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
  * "The North Star"). Resolves stages + transition timestamps from the
  * appointments table in bulk; the pure logic lives in lib/patient-journey.ts.
  *
- * "Seated" uses `completedAt ?? startTime` for completed visits: completedAt
- * arrived in migration 0052-era work, so early rows (and some PMS-synced
- * ones) carry status='completed' with a null completedAt — their start time
- * is the honest fallback for WHEN they were seen.
+ * "Seated" uses `completedAt ?? startTime` for completed visits (early rows
+ * predate the completedAt column).
+ *
+ * PMS-IMPORT LAW: appointments the PMS sync backfilled (appointment.source =
+ * 'pms_import') NEVER mint transition timestamps — the sync stamps their
+ * completedAt with the SYNC time, not the visit time, and their row
+ * createdAt is the sync moment too. Contact-linked patients keep their
+ * organic patient.source, so the patient-level backfill exclusion misses
+ * them; without this appointment-level exclusion, connecting a PMS reads as
+ * a fake booked+seated growth spike (the exact lie the funnel exists to
+ * prevent). Imported history still counts toward WHO someone is (the stage
+ * facts below use ALL appointments) — it just can't claim WHEN a transition
+ * happened inside any window.
  */
+const NOT_IMPORTED = sql`${schema.appointment.source} is distinct from 'pms_import'`
 
 export interface PatientJourneyRow extends JourneyTimestamps {
   patientId: string
@@ -55,10 +65,11 @@ export async function getJourneyForPatients(
   const appts = await db
     .select({
       patientId: schema.appointment.patientId,
-      firstBookedAt: sql<Date | null>`min(${schema.appointment.createdAt})`,
+      firstBookedAt: sql<Date | null>`min(case when ${NOT_IMPORTED} then ${schema.appointment.createdAt} end)`,
       hasLiveAppointment: sql<boolean>`bool_or(${schema.appointment.status} <> 'cancelled')`,
+      hasCompletedEver: sql<boolean>`bool_or(${schema.appointment.status} = 'completed')`,
       firstSeatedAt: sql<Date | null>`min(
-        case when ${schema.appointment.status} = 'completed'
+        case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
              then coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime})
         end
       )`,
@@ -81,7 +92,9 @@ export async function getJourneyForPatients(
       patientId: p.id,
       stage: resolveJourneyStage({
         hasAppointment: !!a?.hasLiveAppointment,
-        hasCompletedVisit: firstSeatedAt != null,
+        // Stage facts use ALL history (an imported completed visit still makes
+        // them a patient) — only the TIMESTAMPS are import-excluded.
+        hasCompletedVisit: !!a?.hasCompletedEver,
         archived: p.lifecycle === 'archived',
       }),
       firstSeenAt: p.firstSeenAt ? new Date(p.firstSeenAt) : null,
@@ -171,9 +184,9 @@ export async function getJourneyFunnel(
       patientId: schema.patient.id,
       source: schema.patient.source,
       firstSeenAt: schema.patient.firstSeenAt,
-      firstBookedAt: sql<Date | null>`min(${schema.appointment.createdAt})`,
+      firstBookedAt: sql<Date | null>`min(case when ${NOT_IMPORTED} then ${schema.appointment.createdAt} end)`,
       firstSeatedAt: sql<Date | null>`min(
-        case when ${schema.appointment.status} = 'completed'
+        case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
              then coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime})
         end
       )`,

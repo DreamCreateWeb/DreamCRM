@@ -79,6 +79,11 @@ vi.mock('@/lib/services/clinic-sender', () => ({
 }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: notifyMock }))
 
+const { recordActionMock } = vi.hoisted(() => ({
+  recordActionMock: vi.fn(async (..._a: unknown[]) => true),
+}))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+
 import { runDueNpsSurveys, recordNpsScore, recordNpsComment } from '@/lib/services/nps'
 
 const NOW = new Date('2026-07-02T15:00:00Z')
@@ -108,6 +113,12 @@ describe('runDueNpsSurveys', () => {
     expect(deliverMock).toHaveBeenCalledTimes(1)
     expect(state.inserts).toHaveLength(1)
     expect(String(state.inserts[0].values.token)).toMatch(/^nps_/)
+    // The sent survey lands in the Action Ledger (machine action).
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('nps_survey')
+    expect(entry.patientId).toBe('p1')
+    expect(String(entry.summary)).toBe('Asked Mia how their visit went')
   })
 
   it('demo orgs never send', async () => {

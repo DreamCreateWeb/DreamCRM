@@ -84,6 +84,11 @@ describe('the autonomy ladder', () => {
       'followup_rule',
       'balance_nudge',
       'auto_reply',
+      'forms_reminder',
+      'nps_survey',
+      'noshow_rebook',
+      'waitlist_offer',
+      'payment_autocharge',
     ]) {
       expect(getCapability(key)?.defaultTrust, key).toBe('auto')
     }
@@ -129,9 +134,12 @@ describe('the action ledger has no blind spots', () => {
   }
 
   it("every 'auto' capability has a recordAction writer — the standup must not under-report the machine", () => {
+    // The key just has to appear in a service file (direct `capability: 'x'`
+    // or a branch like `isFormsNudge ? 'forms_reminder' : ...`) — the
+    // executed writer tests pin the exact wiring per capability.
     const services = walkServices()
     const missing = CAPABILITIES.filter(
-      (c) => c.defaultTrust === 'auto' && !services.includes(`capability: '${c.key}'`),
+      (c) => c.defaultTrust === 'auto' && !services.includes(`'${c.key}'`),
     ).map((c) => c.key)
     expect(missing).toEqual([])
   })

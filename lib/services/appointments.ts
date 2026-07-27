@@ -1095,11 +1095,14 @@ async function sendCancellationEmailToPatient(
  * patient to rebook, not just the staff). Distinct from the cancellation
  * confirmation — "we missed you, no judgment, find a new time" copy, clinic-
  * editable + toggleable (Emails hub key 'no_show_rebook'). Best-effort.
+ * Returns whether an email actually went out — the clinic can disable this
+ * automation, and neither the ledger nor the PMS CommLog may claim a send
+ * that never happened.
  */
 async function sendNoShowRebookEmail(
   organizationId: string,
   opts: { to: string; patientName: string; appointmentType: string },
-): Promise<void> {
+): Promise<boolean> {
   const [profile] = await db
     .select({
       phone: schema.clinicProfile.phone,
@@ -1135,7 +1138,7 @@ async function sendNoShowRebookEmail(
     clinicPhone: profile?.phone ?? '',
     appointmentType: opts.appointmentType.replace(/_/g, ' '),
   })
-  if (!rendered.enabled) return
+  if (!rendered.enabled) return false
 
   if (rebookUrl) {
     const { authEmailShell, deliver } = await import('@/lib/email')
@@ -1157,6 +1160,7 @@ async function sendNoShowRebookEmail(
           : 'Prefer to talk it through? Just reply to this email.',
       }),
     })
+    return true
   } else {
     const { sendNotificationEmail } = await import('@/lib/email')
     await sendNotificationEmail(
@@ -1168,6 +1172,7 @@ async function sendNoShowRebookEmail(
       },
       sender,
     )
+    return true
   }
 }
 
@@ -1222,16 +1227,25 @@ export async function markNoShow(organizationId: string, appointmentId: string) 
     }
     if (notifyCtx.patientEmail) {
       try {
-        await sendNoShowRebookEmail(organizationId, {
+        const rebookSent = await sendNoShowRebookEmail(organizationId, {
           to: notifyCtx.patientEmail,
           patientName: notifyCtx.patientName,
           appointmentType: notifyCtx.type,
         })
-        const { queueCommLogWriteBack } = await import('@/lib/services/pms/sync')
-        await queueCommLogWriteBack(organizationId, notifyCtx.patientId, {
-          note: `Missed-visit rebook note sent after the ${notifyCtx.type.replace(/_/g, ' ')} no-show.`,
-          mode: 'Email',
-        }).catch(() => {})
+        if (rebookSent) {
+          await recordAction({
+            organizationId,
+            capability: 'noshow_rebook',
+            patientId: notifyCtx.patientId,
+            summary: `Sent ${notifyCtx.patientName.split(' ')[0]} a warm rebook note after their missed visit`,
+            detail: { appointmentId, channel: 'email' },
+          })
+          const { queueCommLogWriteBack } = await import('@/lib/services/pms/sync')
+          await queueCommLogWriteBack(organizationId, notifyCtx.patientId, {
+            note: `Missed-visit rebook note sent after the ${notifyCtx.type.replace(/_/g, ' ')} no-show.`,
+            mode: 'Email',
+          }).catch(() => {})
+        }
       } catch (err) {
         console.warn('[appointments.markNoShow] rebook email failed', err)
       }
@@ -1418,15 +1432,26 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
         })
         .from(schema.appointment)
         .innerJoin(schema.patient, eq(schema.patient.id, schema.appointment.patientId))
-        .where(eq(schema.appointment.id, input.appointmentId))
+        .where(
+          and(
+            eq(schema.appointment.organizationId, input.organizationId),
+            eq(schema.appointment.id, input.appointmentId),
+          ),
+        )
         .limit(1)
       if (row) {
         const tz = await getClinicTimeZone(input.organizationId)
+        // The forms-completion engine logs through here too (template
+        // 'forms_intake') — that nudge is NOT a visit-time reminder, and the
+        // append-only ledger must never narrate a message that wasn't sent.
+        const isFormsNudge = input.template === 'forms_intake'
         await recordAction({
           organizationId: input.organizationId,
-          capability: 'appointment_reminder',
+          capability: isFormsNudge ? 'forms_reminder' : 'appointment_reminder',
           patientId: row.patientId,
-          summary: `Reminded ${row.firstName} about ${formatClinicDayTime(row.startTime, tz)}`,
+          summary: isFormsNudge
+            ? `Nudged ${row.firstName} to finish their forms before ${formatClinicDayTime(row.startTime, tz)}`
+            : `Reminded ${row.firstName} about ${formatClinicDayTime(row.startTime, tz)}`,
           detail: { appointmentId: input.appointmentId, channel: input.channel, template: input.template ?? null },
         })
       }

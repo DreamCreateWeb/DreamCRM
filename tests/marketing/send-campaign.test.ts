@@ -32,6 +32,7 @@ const h = vi.hoisted(() => ({
   freqCapMock: vi.fn(),
   priorAutoMock: vi.fn(),
   notifyMock: vi.fn().mockResolvedValue(undefined),
+  recordActionMock: vi.fn(async (..._a: unknown[]) => true),
   resendSendMock: vi.fn().mockResolvedValue({ data: { id: 'm_1' }, error: null }),
   // db op spies
   claimReturningMock: vi.fn(),
@@ -107,7 +108,7 @@ vi.mock('@/lib/services/clinic-sender', () => ({
 }))
 
 vi.mock('@/lib/services/action-ledger', () => ({
-  recordAction: vi.fn(async () => true),
+  recordAction: h.recordActionMock,
 }))
 vi.mock('@/lib/services/notifications', () => ({
   notify: h.notifyMock,
@@ -191,6 +192,7 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation(async (_org: string, _prefix: string, recipients: unknown[]) => ({ allowed: recipients, suppressed: [] }))
   h.notifyMock.mockReset().mockResolvedValue(undefined)
+  h.recordActionMock.mockReset().mockResolvedValue(true)
   h.resendSendMock.mockReset().mockResolvedValue({ data: { id: 'm_1' }, error: null })
   // Default: the atomic claim succeeds (returns one row).
   h.claimReturningMock.mockReset().mockResolvedValue([{ id: 99 }])
@@ -241,6 +243,37 @@ describe('sendCampaign — List-Unsubscribe headers', () => {
     const sent = h.resendSendMock.mock.calls[0][0]
     expect(sent.headers['List-Unsubscribe']).toMatch(/^<https?:\/\/.+\/api\/unsub\/.+>$/)
     expect(sent.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
+  })
+})
+
+describe('sendCampaign — the Action Ledger records MACHINE sends only', () => {
+  it('a cron/automation send (no initiatedByUserId) lands in the ledger', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign())
+    await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(h.recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = h.recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('campaign_send')
+    expect(entry.organizationId).toBe('org_1')
+    expect(String(entry.summary)).toContain('Recall blast')
+  })
+
+  it('a staff-clicked "Send now" (initiatedByUserId set) is THEIR work — no ledger entry', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign())
+    const r = await sendCampaign({
+      organizationId: 'org_1',
+      campaignId: 99,
+      initiatedByUserId: 'user_1',
+    })
+    expect(r.sent).toBe(1)
+    expect(h.recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('a send where nothing went out never claims credit in the ledger', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign())
+    h.resendSendMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.sent).toBe(0)
+    expect(h.recordActionMock).not.toHaveBeenCalled()
   })
 })
 

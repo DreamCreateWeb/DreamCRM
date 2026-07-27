@@ -479,8 +479,8 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0133** (`appointment.cancelled_via` + `cancelled_by_user_id` —
-  the cancellation actor trail). Workflow:
+  migration: **0136** (`action_ledger` + `clinic_profile.autonomy` — the
+  transformation spine). Workflow:
   `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
@@ -512,10 +512,11 @@ sitemap/robots/OG.
 0. **THE TRANSFORMATION (2026-07-27, full owner approval): "the employee,
    not the tool."** Read DESIGN.md → "The North Star" FIRST. Build order:
    Phase 1 the spine (journey-stage resolver + Action Ledger + autonomy
-   schema — in progress), Phase 2 the voice (approval inbox + weekly
+   schema — SHIPPED 2026-07-27; phase-audit rounds running until dry, see
+   docs/AUDITS.md), Phase 2 the voice (approval inbox + weekly
    standup + first proposal types), Phase 3 the autonomy ladder live,
    Phase 4 guardian + shared brain, Phase 5+ new limbs proposal-first.
-0b. **Dentistry-type site templates** (task #69, design-first — (task #69, design-first —
+0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live
    iframes, /site/[slug]/tf/[template] preview frames, Draft→Publish.
