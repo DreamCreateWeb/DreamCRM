@@ -115,8 +115,62 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 1 — the spine (journey resolver · Action Ledger · autonomy schema)
 
-**Status: rounds 1–4 complete, fixes shipped; NOT yet dry** (dry = two
-consecutive clean rounds; round 5 pending).
+**Status: rounds 1–4 complete + fixed; round 5 INTERRUPTED (spend limit) —
+NOT dry.** Resume point below; dry = two consecutive clean rounds.
+
+- **Round 5** (2026-07-27, range `1e8de2c..f78527b`, direct-agent fan-out):
+  all 9 finders + all 3 depth judges completed; **the defect chamber never
+  ran** — the account's monthly spend limit terminated all 3 skeptics, and
+  per the integrity law a dead skeptic is not a vote, so the 11 defect
+  candidates below are UNVERIFIED (found by finders, not yet adversarially
+  confirmed). The depth chamber IS final: **2 in-phase gaps (unanimous)**,
+  1 → backlog.
+- **RESUME HERE (next session): run 3 skeptics over these 11 unverified
+  defect candidates, fix confirmed + the 2 in-phase gaps, then continue
+  rounds until dry.**
+  1. [major, 5 lenses] `review_feature` narrates "Added … to your website"
+     for reviews the top-12 feature cap / hiddenFromSite rule never renders
+     (`narrateAutoFeatured` mirrors only threshold+comment; the site shows
+     `listFeaturableGoogleReviews`' top 12 by stars/recency).
+  2. [major, 2 lenses] `app/(default)/appointments/export/route.ts:6` keeps
+     a SECOND local attention allowlist missing 'unmarked' — the catch-net's
+     Export CSV silently drops the filter (same class as round 4's critical;
+     convert it to `APPT_ATTENTION_KEYS` + pin).
+  3. [major] Staff-clicked `markCompleted` on a backfilled ('pms_import')
+     upcoming visit never gets the `pms_live` re-stamp (that logic lives
+     only in the delta-sync path) — the seated mint is lost and the
+     completed imported row arms suppression against future organic mints.
+  4. [minor] `payment_autocharge` ledger formats `plan.installmentCents`
+     but the FINAL installment charges the remainder — summary can differ
+     from the card statement by cents (use the actual charged amount).
+  5. [minor] The '❓ Did it happen?' chip is guaranteed-empty in every
+     non-past window (predicate < clinicDayStart vs windows ≥ it) — gate
+     the chip to past windows or switch the window on toggle.
+  6. [minor] `/growth/reviews` staff "Sync now" calls `syncGoogleReviews`
+     WITHOUT `initiatedByUserId` — third human call site, ungated.
+  7. [minor] The Zernio callback's `initiatedByUserId` pass-through has no
+     test pin (only untested fire-and-forget path).
+  8. [minor] `parseAttention` was exported for an executed test that was
+     never written — execute it (valid keys parse, 'unmarked' included,
+     junk dropped).
+  9. [minor, 2 lenses] `listing_sync` change detection compares only
+     line1/city/postalCode — addressLine2/state/country changes apply
+     silently (also not selected in the pre-read).
+  10. [minor] Historical-resurface guard uses wall-clock 7d, not the delta
+     mark — a >7-day sync outage misclassifies outage-window bookings as
+     history (anchor the cutoff to min(since, now-7d)).
+  11. [minor] The appointment drawer renders raw source literals ('via pms
+     live') — give it the label map the other surfaces got.
+- **Round-5 in-phase gaps (JUDGED, unanimous — must ship before dry):**
+  - Catch-net preview rows show weekday+time only across a 30-day window —
+    use `formatClinicDayTime` (month+day) so "did these visits happen?" is
+    answerable per row.
+  - `listing_sync` must capture `{from, to}` in `detail` at write time —
+    the GBP apply overwrites the only copy of the before-values; every
+    entry written without the diff loses it permanently.
+- Round-5 backlog addition (folded into the boundary-pin item): the
+  machine-initiated INTERNAL-alert leg (e.g. the NPS detractor flag) is
+  the second undecided ledger-boundary leg; decide both with Phase 2.
 
 - **Round 4** (2026-07-27, range `1e8de2c..26ae6da`, direct-agent fan-out):
   9 lenses → 21 raw → 10 defect / 4 depth candidates → 3 skeptics + 3
