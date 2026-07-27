@@ -454,6 +454,12 @@ sitemap/robots/OG.
   module subset: the repo-wide CI guards (legibility floor, tenant scoping,
   cron parity, token single-homes) only run in the full pass, and deploys
   don't run tests.
+- **The phase-audit gate is a convention (2026-07-27).** No transformation
+  phase (or major feature slice) is DONE until the `phase-audit` workflow
+  (`.claude/workflows/phase-audit.js`) runs DRY: two consecutive rounds with
+  zero confirmed defects AND zero in-phase depth gaps ("perfection plus
+  depth" — the depth chamber asks "would it make sense to add more?").
+  Certificates + the owner's depth-backlog menu live in `docs/AUDITS.md`.
 - **The North Star is a convention (2026-07-27).** DESIGN.md's "the employee,
   not the tool" doctrine governs every new feature: the design test is "does
   this ask the clinic to operate something, or does it do the job and
