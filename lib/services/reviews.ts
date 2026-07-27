@@ -530,13 +530,18 @@ export async function createAndSendReviewRequest(input: {
       .set({ status: 'sent', sentAt: now, updatedAt: now })
       .where(eq(schema.reviewRequest.id, id))
     // THE ACTION LEDGER — machine asks only (the auto-send cron passes a null
-    // requester; a staff click is their work, not the employee's).
+    // requester; a staff click is their work, not the employee's). Name the
+    // platform honestly: the landing page routes Google-first only when a
+    // Google Place ID exists — a Yelp/Facebook/Healthgrades-only clinic's ask
+    // never touched Google (round-2 audit).
     if (input.requestedByUserId == null) {
       await recordAction({
         organizationId: input.organizationId,
         capability: 'review_request',
         patientId: input.patientId,
-        summary: `Asked ${patient.firstName} for a Google review after their visit`,
+        summary: config.googlePlaceId
+          ? `Asked ${patient.firstName} for a Google review after their visit`
+          : `Asked ${patient.firstName} for a review after their visit`,
         detail: { reviewRequestId: id, channel: input.channel },
       })
     }

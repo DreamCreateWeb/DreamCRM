@@ -13,6 +13,9 @@ const state: {
   wheres: unknown[]
 } = { selectQueue: [], ops: [], wheres: [] }
 
+const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+
 vi.mock('@/lib/db', async () => {
   const clinic = await import('@/lib/db/schema/clinic')
   const tableName = (t: unknown) => (t === clinic.blogPost ? 'blog_post' : 'unknown')
@@ -95,6 +98,7 @@ beforeEach(() => {
   state.selectQueue.length = 0
   state.ops.length = 0
   state.wheres.length = 0
+  recordActionMock.mockClear()
 })
 
 const insertOp = () => state.ops.find((o) => o.kind === 'insert' && o.table === 'blog_post')
@@ -329,15 +333,29 @@ describe('unscheduleBlogPost', () => {
 })
 
 describe('publishDueScheduledPosts', () => {
-  it('publishes each due scheduled post', async () => {
+  it('publishes each due scheduled post and records blog_publish per post', async () => {
     const past = new Date(Date.now() - 3_600_000)
     state.selectQueue.push([
-      { id: 'a', publishedAt: null, scheduledFor: past },
-      { id: 'b', publishedAt: null, scheduledFor: past },
+      { id: 'a', organizationId: 'org_1', title: 'Why crowns last', slug: 'why-crowns-last', publishedAt: null, scheduledFor: past },
+      { id: 'b', organizationId: 'org_1', title: 'Flossing 101', slug: 'flossing-101', publishedAt: null, scheduledFor: past },
     ])
     const result = await publishDueScheduledPosts()
     expect(result.published).toBe(2)
     expect(state.ops.filter((o) => o.kind === 'update' && o.table === 'blog_post').length).toBe(2)
+    // The machine put staff-scheduled posts live — each delivery reports
+    // (blog_publish, executed writer pin, round-2 audit).
+    expect(recordActionMock).toHaveBeenCalledTimes(2)
+    const entries = recordActionMock.mock.calls.map((c) => c[0] as Record<string, unknown>)
+    expect(entries.every((e) => e.capability === 'blog_publish')).toBe(true)
+    expect(entries[0].organizationId).toBe('org_1')
+    expect(String(entries[0].summary)).toContain('Why crowns last')
+  })
+
+  it('nothing due → nothing published, nothing claimed', async () => {
+    state.selectQueue.push([])
+    const result = await publishDueScheduledPosts()
+    expect(result.published).toBe(0)
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 })
 

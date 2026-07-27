@@ -608,16 +608,17 @@ describe('createDemoClinic', () => {
     expect(out.organizationId).toMatch(/^org_/)
     expect(out.organizationSlug).toBe('acme-dental-demo')
     expect(out.patientCount).toBe(15)
-    // 8 past + 9 future (incl. phantom cancelled "from" row for Mia's reschedule
-    // + Aiden's lapsed-rebooking + Emma's just-booked)
-    expect(out.appointmentCount).toBe(17)
+    // 9 past + 9 future (incl. phantom cancelled "from" row for Mia's reschedule
+    // + Aiden's lapsed-rebooking + Emma's just-booked + the unmarked past
+    // visit feeding the "Did these visits happen?" catch-net)
+    expect(out.appointmentCount).toBe(18)
 
     const counts = tableCounts()
     expect(counts.organization).toBe(1)
     expect(counts.clinic_profile).toBe(1)
     expect(counts.clinic_location).toBe(1)
     expect(counts.patient).toBe(15)
-    expect(counts.appointment).toBe(17)
+    expect(counts.appointment).toBe(18)
     expect(counts.clinic_provider).toBe(2)
     expect(counts.appointment_reminder_log).toBe(4)
     expect(counts.tasks).toBe(3)
@@ -745,14 +746,14 @@ describe('createDemoClinic', () => {
     state.selectQueue.push([{ id: 'tmpl' }])
     await createDemoClinic()
     const apptInserts = state.inserts.filter((i) => i.table === 'appointment')
-    expect(apptInserts).toHaveLength(17)
+    expect(apptInserts).toHaveLength(18)
     const past = apptInserts.filter(
       (i) => (i.values as { startTime: Date }).startTime.getTime() < Date.now(),
     )
     const future = apptInserts.filter(
       (i) => (i.values as { startTime: Date }).startTime.getTime() > Date.now(),
     )
-    expect(past.length).toBe(8)
+    expect(past.length).toBe(9)
     expect(future.length).toBe(9)
   })
 

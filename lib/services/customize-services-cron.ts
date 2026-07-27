@@ -9,6 +9,7 @@ import {
   type CustomizeClinicContext,
 } from '@/lib/services/service-library-ai'
 import { getServiceLibrary } from '@/lib/services/service-library'
+import { recordAction } from '@/lib/services/action-ledger'
 import type { ClinicService } from '@/lib/types/clinic-content'
 
 /**
@@ -83,6 +84,7 @@ export async function customizePendingServices(): Promise<CustomizeServicesResul
     }
 
     let didForOrg = 0
+    const written: string[] = []
     // Work on this org's own snapshot, then write once at the end so a single
     // run touches the row a single time (avoids N read-modify-writes).
     const next = [...services]
@@ -99,6 +101,7 @@ export async function customizePendingServices(): Promise<CustomizeServicesResul
         if (idx >= 0) {
           next[idx] = { ...next[idx], customized: res.customization }
           didForOrg += 1
+          written.push(next[idx].name || entry.name)
         }
       } catch {
         result.errors += 1
@@ -112,6 +115,17 @@ export async function customizePendingServices(): Promise<CustomizeServicesResul
         .where(eq(clinicProfile.organizationId, row.organizationId))
       result.customized += didForOrg
       result.orgsTouched += 1
+      // The machine just wrote public website copy — that's employee work the
+      // ledger must report (one entry per sweep, naming the pages).
+      await recordAction({
+        organizationId: row.organizationId,
+        capability: 'service_copywriting',
+        summary:
+          written.length === 1
+            ? `Wrote the ${written[0]} page copy for your website`
+            : `Wrote website copy for ${written.length} service pages (${written.join(', ')})`,
+        detail: { services: written },
+      })
     }
   }
 

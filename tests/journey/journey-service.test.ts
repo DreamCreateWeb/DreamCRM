@@ -93,6 +93,59 @@ describe('getJourneyForPatients — stages from facts, timestamps import-honest'
     expect(map.get('p_pat')?.firstSeatedAt).toEqual(new Date('2026-07-12'))
   })
 
+  it('the INVERSE law: imported history that predates an organic visit suppresses the minted transition', async () => {
+    state.queue = [
+      [
+        { id: 'p_long', firstSeenAt: new Date('2026-07-01'), lifecycle: 'active', source: 'website' },
+        { id: 'p_new', firstSeenAt: new Date('2026-07-01'), lifecycle: 'active', source: 'website' },
+      ],
+      [
+        // Contact-linked long-time patient: years of imported completed
+        // visits, then one organic visit. WITHOUT suppression they'd mint
+        // firstBookedAt/firstSeatedAt now — a fake new patient.
+        {
+          patientId: 'p_long',
+          firstBookedAt: new Date('2026-07-10'),
+          firstSeatedAt: new Date('2026-07-12'),
+          hasLiveAppointment: true,
+          hasCompletedEver: true,
+          importedBookedAt: new Date('2021-03-01'),
+          importedSeatedAt: new Date('2021-03-01'),
+        },
+        // Genuinely new person with an imported FUTURE row that does NOT
+        // predate the organic transition — no suppression.
+        {
+          patientId: 'p_new',
+          firstBookedAt: new Date('2026-07-10'),
+          firstSeatedAt: new Date('2026-07-12'),
+          hasLiveAppointment: true,
+          hasCompletedEver: true,
+          importedBookedAt: new Date('2026-08-01'),
+          importedSeatedAt: null,
+        },
+      ],
+    ]
+    const map = await getJourneyForPatients('org_1', ['p_long', 'p_new'])
+    expect(map.get('p_long')?.stage).toBe('patient') // WHO they are is untouched
+    expect(map.get('p_long')?.firstBookedAt).toBeNull()
+    expect(map.get('p_long')?.firstSeatedAt).toBeNull()
+    expect(map.get('p_new')?.firstBookedAt).toEqual(new Date('2026-07-10'))
+    expect(map.get('p_new')?.firstSeatedAt).toEqual(new Date('2026-07-12'))
+  })
+
+  it('isBackfilled rides the row so window consumers cannot forget the exclusion', async () => {
+    state.queue = [
+      [
+        { id: 'p_csv', firstSeenAt: new Date('2026-07-15'), lifecycle: 'active', source: 'import' },
+        { id: 'p_org', firstSeenAt: new Date('2026-07-15'), lifecycle: 'active', source: 'website' },
+      ],
+      [],
+    ]
+    const map = await getJourneyForPatients('org_1', ['p_csv', 'p_org'])
+    expect(map.get('p_csv')?.isBackfilled).toBe(true)
+    expect(map.get('p_org')?.isBackfilled).toBe(false)
+  })
+
   it('cancelled-everything people are inquiries again (a booked timestamp alone is not a live booking)', async () => {
     state.queue = [
       [{ id: 'p_cx', firstSeenAt: new Date('2026-07-01'), lifecycle: 'active' }],
@@ -142,6 +195,27 @@ describe('getJourneyFunnel — transitions inside the window, backfill excluded'
     const funnel = await getJourneyFunnel('org_1', 30, NOW)
     expect(funnel).toEqual({ inquiries: 1, booked: 1, seated: 1 })
   })
+
+  it('a contact-linked long-timer (organic source, imported history) cannot mint in-window transitions', async () => {
+    state.queue = [
+      [
+        // Organic patient.source (so the source skip misses them) + imported
+        // completed visits from years back: their "first seated this month"
+        // is a lie the suppression must catch.
+        {
+          patientId: 'linked',
+          source: 'website',
+          firstSeenAt: new Date('2026-02-01'),
+          firstBookedAt: new Date('2026-07-10'),
+          firstSeatedAt: new Date('2026-07-20'),
+          importedBookedAt: new Date('2020-01-15'),
+          importedSeatedAt: new Date('2020-01-15'),
+        },
+      ],
+    ]
+    const funnel = await getJourneyFunnel('org_1', 30, NOW)
+    expect(funnel).toEqual({ inquiries: 0, booked: 0, seated: 0 })
+  })
 })
 
 describe('getJourneyStageCounts — the standing population', () => {
@@ -159,11 +233,26 @@ describe('getJourneyStageCounts — the standing population', () => {
 })
 
 describe('the PMS-import exclusion lives in the SQL, not in hope', () => {
-  it('both timestamp aggregates in both queries ride NOT_IMPORTED', () => {
+  // Placement-pinned per function (round-2 audit: a global occurrence count
+  // let a predicate move between aggregates unnoticed).
+  function fnSlice(src: string, name: string): string {
+    const start = src.indexOf(`function ${name}`)
+    expect(start, `function ${name} exists`).toBeGreaterThan(-1)
+    const rest = src.slice(start + 1)
+    const next = rest.search(/\nexport (async )?(function|interface|const)/)
+    return next === -1 ? src.slice(start) : src.slice(start, start + 1 + next)
+  }
+
+  it('each query gates BOTH minted timestamps on NOT_IMPORTED and anchors BOTH suppressions on IMPORTED', () => {
     const src = readFileSync(resolve(__dirname, '../../lib/services/patient-journey.ts'), 'utf8')
     expect(src).toContain("is distinct from 'pms_import'")
-    // 1 definition + 4 uses (booked + seated, in getJourneyForPatients AND
-    // getJourneyFunnel). If a fifth aggregate appears without it, look hard.
-    expect((src.match(/\$\{NOT_IMPORTED\}/g) ?? []).length).toBe(4)
+    for (const fn of ['getJourneyForPatients', 'getJourneyFunnel']) {
+      const slice = fnSlice(src, fn)
+      expect(slice, `${fn} firstBookedAt gate`).toMatch(/firstBookedAt: sql[\s\S]*?\$\{NOT_IMPORTED\}[\s\S]*?createdAt/)
+      expect(slice, `${fn} firstSeatedAt gate`).toMatch(/firstSeatedAt: sql[\s\S]*?'completed' and \$\{NOT_IMPORTED\}/)
+      expect(slice, `${fn} importedBookedAt anchor`).toMatch(/importedBookedAt: sql[\s\S]*?\$\{IMPORTED\}[\s\S]*?startTime/)
+      expect(slice, `${fn} importedSeatedAt anchor`).toMatch(/importedSeatedAt: sql[\s\S]*?'completed' and \$\{IMPORTED\}[\s\S]*?startTime/)
+      expect(slice, `${fn} applies both suppressions`).toMatch(/suppressIfImportedEarlier/)
+    }
   })
 })

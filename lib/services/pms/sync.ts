@@ -182,6 +182,14 @@ export async function runImport(
   // appointment phase actually succeeded this run (see appointmentsPulledOk).
   const meta = (connection.meta ?? {}) as Record<string, unknown>
   const since = typeof meta.highWaterAppointments === 'string' ? new Date(meta.highWaterAppointments) : undefined
+  // BACKFILL vs ONGOING: until the first successful full appointment pull
+  // (no high-water mark yet), every row we create is connect-time BACKFILL —
+  // its createdAt/completedAt are sync moments, not real event times, so it
+  // gets source 'pms_import' and never mints journey transitions. After the
+  // mark exists, sync-created rows are ONGOING operations (a real new booking
+  // made in the practice system, arriving within one cron cycle of the truth)
+  // and get source 'pms' so the journey funnel can see OD-side growth.
+  const isBackfill = since === undefined
   // Resume cursor for the patient import: how many patients (in a stable sort)
   // a prior budget-capped run already processed. Absent → start from 0.
   const startCursor =
@@ -225,7 +233,7 @@ export async function runImport(
       organizationId,
       await client.listPatients(),
       counts.patients,
-      { startIndex: startCursor, deadline, now: clock },
+      { startIndex: startCursor, deadline, now: clock, backfill: isBackfill },
     )
     patientCursor = patientRes.nextIndex
     patientTotal = patientRes.total
@@ -238,7 +246,7 @@ export async function runImport(
     // half-loaded patient set would needlessly skip rows. A budget-capped
     // patient pass resumes patients-first next run.
     if (patientImportComplete) {
-      await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments)
+      await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments, isBackfill)
       appointmentsPulledOk = true
       await reconcileRecalls(organizationId, await client.listRecalls(), counts.recalls)
     }
@@ -395,8 +403,9 @@ async function reconcilePatients(
   organizationId: string,
   rows: NormalizedPatient[],
   t: Tally,
-  opts: { startIndex?: number; deadline?: number; now?: () => number } = {},
+  opts: { startIndex?: number; deadline?: number; now?: () => number; backfill?: boolean } = {},
 ): Promise<PatientReconcileResult> {
+  const backfill = opts.backfill ?? true
   const clock = opts.now ?? Date.now
   const deadline = opts.deadline ?? Number.POSITIVE_INFINITY
   // Stable order so a resume cursor maps to the same row across re-pulls.
@@ -439,7 +448,7 @@ async function reconcilePatients(
 
     for (const np of unmapped) {
       try {
-        await reconcileUnmappedPatient(organizationId, np, mappedInternalIds, t)
+        await reconcileUnmappedPatient(organizationId, np, mappedInternalIds, t, backfill)
       } catch (e) {
         noteError(e)
       }
@@ -522,6 +531,7 @@ async function reconcileUnmappedPatient(
   np: NormalizedPatient,
   mappedInternalIds: Set<string>,
   t: Tally,
+  backfill: boolean,
 ) {
   const profileHash = hash([np.firstName, np.lastName, np.dateOfBirth, np.email, np.phone, np.addressLine1, np.city, np.state, np.postalCode])
   const linkId = await findUnmappedPatientByContact(organizationId, mappedInternalIds, np.email, np.phone, np.lastName)
@@ -543,14 +553,18 @@ async function reconcileUnmappedPatient(
     mappedInternalIds.add(linkId)
     t.updated++
   } else {
-    const id = await createImportedPatient(organizationId, np)
+    const id = await createImportedPatient(organizationId, np, backfill)
     await insertMap(organizationId, 'patient', np.externalId, id, 'pms', profileHash)
     mappedInternalIds.add(id)
     t.created++
   }
 }
 
-async function createImportedPatient(organizationId: string, np: NormalizedPatient): Promise<string> {
+// `backfill` decides the source stamp: connect-time backfill rows are
+// 'pms_import' (excluded from acquisition metrics — they ARE the roster);
+// a patient first appearing during ONGOING sync is a genuinely new person
+// booked in the practice system and gets 'pms' so growth counts them.
+async function createImportedPatient(organizationId: string, np: NormalizedPatient, backfill = true): Promise<string> {
   const id = randomUUID()
   const now = new Date()
   await db.insert(schema.patient).values({
@@ -565,7 +579,7 @@ async function createImportedPatient(organizationId: string, np: NormalizedPatie
     city: np.city ?? null,
     state: np.state ?? null,
     postalCode: np.postalCode ?? null,
-    source: 'pms_import',
+    source: backfill ? 'pms_import' : 'pms',
     lifecycle: 'active',
     firstSeenAt: now,
     pmsBalanceCents: np.balanceCents ?? null,
@@ -581,7 +595,7 @@ async function touchMapInternal(mapId: string, internalId: string, contentHash: 
     .where(eq(schema.pmsEntityMap.id, mapId))
 }
 
-async function reconcileAppointments(organizationId: string, rows: NormalizedAppointment[], t: Tally) {
+async function reconcileAppointments(organizationId: string, rows: NormalizedAppointment[], t: Tally, backfill = true) {
   const apptMap = await loadMap(organizationId, 'appointment')
   const patMap = await loadMap(organizationId, 'patient')
   const provMap = await loadMap(organizationId, 'provider')
@@ -649,7 +663,11 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
         type,
         status: na.status,
         notes: na.note ?? null,
-        source: 'pms_import',
+        // Backfill rows carry 'pms_import' (their createdAt/completedAt are
+        // sync moments — they must never mint journey transitions); rows
+        // created by ONGOING delta sync are real new bookings made in the
+        // practice system (≤1 cron cycle after the truth) and carry 'pms'.
+        source: backfill ? 'pms_import' : 'pms',
         ...statusFields,
       })
       await insertMap(organizationId, 'appointment', na.externalId, id, 'pms', h)

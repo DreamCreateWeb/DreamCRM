@@ -25,6 +25,11 @@ vi.mock('@/lib/services/service-library', () => ({
   getServiceLibrary: () => getServiceLibrary(),
 }))
 
+const recordActionMock = vi.fn(async (..._a: unknown[]) => true)
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: (...a: unknown[]) => recordActionMock(...(a as [])),
+}))
+
 // DB mock: a single select chain returns `rows`; capture the where() arg so we
 // can assert the demo-exclusion filter is present, and capture update patches.
 let rows: Array<Record<string, unknown>> = []
@@ -78,6 +83,7 @@ beforeEach(() => {
   rows = []
   updates.length = 0
   lastWhere = null
+  recordActionMock.mockClear()
 })
 
 describe('customizePendingServices', () => {
@@ -114,6 +120,13 @@ describe('customizePendingServices', () => {
     const written = updates[0].services as Array<{ librarySlug: string; customized?: unknown }>
     expect(written.find((s) => s.librarySlug === 'a')?.customized).toEqual({ body: 'x' })
     expect(written.find((s) => s.librarySlug === 'b')?.customized).toEqual({ body: 'already' })
+    // The machine wrote public website copy — the ledger says so, naming the
+    // page (service_copywriting, executed writer pin, round-2 audit).
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('service_copywriting')
+    expect(entry.organizationId).toBe('org_1')
+    expect(String(entry.summary)).toContain('A page copy')
   })
 
   it('caps work at PER_ORG_CUSTOMIZE_BUDGET per org', async () => {
@@ -148,6 +161,8 @@ describe('customizePendingServices', () => {
     expect(customizeServiceForClinic).not.toHaveBeenCalled()
     expect(res.orgsTouched).toBe(0)
     expect(updates).toHaveLength(0)
+    // Nothing written → nothing claimed.
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 
   it('counts a failed rewrite as an error without writing it or aborting', async () => {

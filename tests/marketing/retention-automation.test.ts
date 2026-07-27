@@ -129,7 +129,7 @@ function recipients(n: number) {
   return Array.from({ length: n }, (_, i) => ({ id: `p${i}`, patientId: `p${i}`, firstName: 'Mia', email: `m${i}@x.com`, emailOptIn: true }))
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   h.resolveMock.mockReset().mockResolvedValue(recipients(3))
   h.clinics = []
   h.existingCampaign = []
@@ -137,6 +137,8 @@ beforeEach(() => {
   h.inserts = []
   h.updates = []
   h.insertThrows = null
+  const { recordAction } = await import('@/lib/services/action-ledger')
+  vi.mocked(recordAction).mockClear()
 })
 
 describe('runRetentionAutomations', () => {
@@ -170,6 +172,14 @@ describe('runRetentionAutomations', () => {
     expect(campaignInsert!.values.createdBy).toBeNull()
     // An automation audience was created too.
     expect(h.inserts.some((i) => i.table === 'audiences')).toBe(true)
+    // The machine queued outreach on its own — the ledger must say so
+    // (executed writer pin, round-2 audit).
+    const { recordAction } = await import('@/lib/services/action-ledger')
+    expect(vi.mocked(recordAction)).toHaveBeenCalledTimes(1)
+    const entry = vi.mocked(recordAction).mock.calls[0][0]
+    expect(entry.capability).toBe('retention_automation')
+    expect(entry.organizationId).toBe('org_1')
+    expect(entry.summary).toContain('Queued')
   })
 
   it('is idempotent — an existing campaign for the window is not re-created', async () => {
@@ -181,6 +191,9 @@ describe('runRetentionAutomations', () => {
     expect(h.inserts).toHaveLength(0)
     // Audience never resolved either (we bail before that).
     expect(h.resolveMock).not.toHaveBeenCalled()
+    // Nothing was queued this run → nothing claimed in the ledger.
+    const { recordAction } = await import('@/lib/services/action-ledger')
+    expect(vi.mocked(recordAction)).not.toHaveBeenCalled()
   })
 
   it('does not create a campaign when the audience is empty', async () => {

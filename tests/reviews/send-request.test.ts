@@ -64,6 +64,11 @@ vi.mock('@/lib/services/clinic-sender', () => ({
   })),
 }))
 
+const recordActionMock = vi.fn(async (..._a: unknown[]) => true)
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: (...args: unknown[]) => recordActionMock(...(args as [])),
+}))
+
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => ({ _: 'and' })),
   eq: vi.fn(() => ({ _: 'eq' })),
@@ -91,6 +96,7 @@ beforeEach(() => {
   state.inserts = []
   state.updates = []
   state.sentEmails = []
+  recordActionMock.mockClear()
 })
 
 const baseInput = { organizationId: 'org_1', patientId: 'pat_1', channel: 'email' as const, requestedByUserId: 'user_1' }
@@ -168,5 +174,37 @@ describe('createAndSendReviewRequest — guards', () => {
     expect(state.inserts.find((i) => i.table === 'reviewRequest')).toBeTruthy()
     const failedUpdate = state.updates.find((u) => u.set.status === 'failed')
     expect(failedUpdate).toBeTruthy()
+  })
+})
+
+describe('createAndSendReviewRequest — the Action Ledger actor gate', () => {
+  it('a MACHINE ask (null requester) records review_request with a Google summary when Google is configured', async () => {
+    await createAndSendReviewRequest({ ...baseInput, requestedByUserId: null })
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('review_request')
+    expect(entry.organizationId).toBe('org_1')
+    expect(entry.patientId).toBe('pat_1')
+    expect(entry.summary).toBe('Asked Mia for a Google review after their visit')
+  })
+
+  it("a no-Google clinic's machine ask narrates a plain review — never a Google ask that didn't happen", async () => {
+    state.config = { ...OK_CONFIG, googlePlaceId: null, yelpBusinessSlug: 'acme-dental' }
+    await createAndSendReviewRequest({ ...baseInput, requestedByUserId: null })
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.summary).toBe('Asked Mia for a review after their visit')
+  })
+
+  it('a STAFF-clicked ask is their work, not the machine’s — no ledger entry', async () => {
+    await createAndSendReviewRequest(baseInput) // requestedByUserId: 'user_1'
+    expect(state.sentEmails).toHaveLength(1) // the ask itself still went out
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('a failed send never records a ledger claim', async () => {
+    delete process.env.RESEND_API_KEY
+    await expect(createAndSendReviewRequest({ ...baseInput, requestedByUserId: null })).rejects.toThrow()
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 })

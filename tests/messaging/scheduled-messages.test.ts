@@ -12,6 +12,11 @@ vi.mock('@/lib/services/patient-messaging', () => ({
   sendMessageToPatient: (...a: unknown[]) => sendMessageToPatient(...(a as [])),
 }))
 
+const recordActionMock = vi.fn(async (..._a: unknown[]) => true)
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: (...a: unknown[]) => recordActionMock(...(a as [])),
+}))
+
 // A small controllable Drizzle stand-in. select→limit returns `selectResult`;
 // insert captures values; update().set().where() captures; update().set()
 // .where().returning() returns `claimResult`.
@@ -43,7 +48,7 @@ vi.mock('@/lib/db', () => ({
     }),
   },
   schema: {
-    patient: { id: 'patient.id', organizationId: 'patient.org' },
+    patient: { id: 'patient.id', organizationId: 'patient.org', firstName: 'patient.first' },
     scheduledMessage: {
       id: 'sm.id', organizationId: 'sm.org', patientId: 'sm.patient', channel: 'sm.channel',
       body: 'sm.body', attachments: 'sm.att', scheduledFor: 'sm.when', status: 'sm.status',
@@ -60,7 +65,8 @@ import {
 
 beforeEach(() => {
   sendMessageToPatient.mockClear()
-  selectResult = [{ id: 'pat_1' }] // patient exists by default
+  recordActionMock.mockClear()
+  selectResult = [{ id: 'pat_1', firstName: 'Mia' }] // patient exists by default
   claimResult = []
   inserted.length = 0
   updates.length = 0
@@ -133,6 +139,13 @@ describe('sendDueScheduledMessages — cron flush', () => {
     expect(res).toEqual({ due: 2, sent: 2, failed: 0 })
     expect(sendMessageToPatient).toHaveBeenCalledTimes(2)
     expect(updates.some((u) => (u.set as { status?: string }).status === 'sent')).toBe(true)
+    // The machine delivered staff-scheduled work — each delivery reports
+    // (scheduled_message, executed writer pin, round-2 audit).
+    expect(recordActionMock).toHaveBeenCalledTimes(2)
+    const entries = recordActionMock.mock.calls.map((c) => c[0] as Record<string, unknown>)
+    expect(entries.every((e) => e.capability === 'scheduled_message')).toBe(true)
+    expect(entries.map((e) => e.patientId)).toEqual(['pat_1', 'pat_2'])
+    expect(String(entries[0].summary)).toContain('Mia')
   })
 
   it('marks a row failed when its send throws, without blocking the others', async () => {
@@ -144,6 +157,8 @@ describe('sendDueScheduledMessages — cron flush', () => {
     const res = await sendDueScheduledMessages()
     expect(res).toEqual({ due: 2, sent: 1, failed: 1 })
     expect(updates.some((u) => (u.set as { status?: string; lastError?: string }).status === 'failed')).toBe(true)
+    // Only the delivery that HAPPENED is claimed in the ledger.
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
   })
 
   it('is a no-op when nothing is due', async () => {

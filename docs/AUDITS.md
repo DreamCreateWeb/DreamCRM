@@ -24,13 +24,33 @@ rejected, the backlog harvest, and the dry declaration.
 Proposals judged real-but-future-scope land here, newest first. The owner
 promotes items into phases; nothing here is a commitment until he does.
 
+**From Phase 1 round 2 (2026-07-27):**
+
+1. **Engine heartbeat / empty-week honesty** — an empty ledger week is
+   indistinguishable from a dead engine (`countActionsSince` returns the
+   same `{}` for healthy-idle and broken). Phase 2's standup must narrate an
+   empty window from automation-config cross-checks; the real "engine ran"
+   evidence belongs to Phase 4's Guardian. Distinct from item 7 below
+   (failure vocabulary covers attempts that failed; this is absence of any
+   evidence of life).
+2. **Autonomy grant provenance** — `clinic_profile.autonomy` stores a bare
+   `'ask'|'auto'` with no who/when. Nothing writes grants until Phase 3's
+   UI, so no migration burden yet — but the grant flow must record
+   provenance (object shape or a ledger entry at grant time) when it ships.
+
 **From Phase 1 round 1 (2026-07-27):**
 
 1. **Seated-everywhere adoption sweep** — live readers that still count
-   "new patients" from record creation (patients service source-mix,
-   Overview trend, growth scoreboard already fixed) should all migrate onto
-   `getJourneyFunnel`/`firstSeatedAt`. Natural fit: Phase 2, when the
-   standup starts quoting the numbers.
+   "new patients" from record creation should all migrate onto
+   `getJourneyFunnel`/`firstSeatedAt`: the patients service source-mix +
+   `getNewPatientsPerWeek12`/`getNewPatientCounts` (which feed the GROWTH
+   SCOREBOARD hero and Overview trend — still `firstSeenAt`-based; a
+   round-1 note claiming the scoreboard was "already fixed" was wrong and
+   round 2 corrected it — only the backfill-source EXCLUSION shipped
+   earlier, not seated semantics). NOTE (round 2): the spine currently has
+   ZERO production consumers — `getJourneyFunnel`/`getJourneyForPatients`/
+   `resolveTrust` are exercised only by tests until this sweep lands.
+   Natural fit: Phase 2, when the standup starts quoting the numbers.
 2. **Demo Action Ledger seeding** — the demo clinic should boot with a
    persona-anchored week of ledger entries (with a cleanup marker, per the
    demo-org convention) so the Phase 2 standup/approval surfaces demo well.
@@ -60,8 +80,58 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 1 — the spine (journey resolver · Action Ledger · autonomy schema)
 
-**Status: round 1 complete, fixes shipped; NOT yet dry** (dry = two
-consecutive clean rounds; round 2 pending).
+**Status: rounds 1–2 complete, fixes shipped; NOT yet dry** (dry = two
+consecutive clean rounds; round 3 pending).
+
+- **Round 2** (2026-07-27, range `1e8de2c..2fc7707`): run via direct-agent
+  fan-out (the Workflow runtime's permission layer was broken this session —
+  two runs died with every subagent's tool parameters stripped; the new
+  integrity guard in `phase-audit.js` correctly declared those runs INVALID
+  instead of clean). 9 lens finders → 16 raw defects + 7 depth proposals →
+  14 defect / 5 depth candidates after dedupe → 3 skeptics + 3 judges:
+  **13 defects confirmed** (4 major), 1 rejected (JS-side funnel aggregation
+  — deliberate one-resolver pattern, inert, unanimous reject); **3 in-phase
+  depth gaps**, 2 → backlog. Multi-lens convergence: 3 finders independently
+  found the ongoing-PMS blindness; 2 found the unledgered AI copy cron.
+- **Round-2 fixes (all shipped):**
+  - **PMS journey semantics, both directions.** Ongoing delta-sync rows now
+    carry source `'pms'` (backfill keeps `'pms_import'`; the sync flags a
+    run as backfill until the first appointment high-water mark exists) so
+    OD-side growth mints real transitions instead of reading as permanent
+    zero. And the INVERSE law: imported history that PREDATES an organic
+    visit now suppresses `firstBookedAt`/`firstSeatedAt` (anchored on
+    imported rows' honest `startTime`) so a contact-linked long-time
+    patient can't mint as a fake new patient. Source labels added
+    ('Practice system'); executed tests pin both directions.
+  - **The sixth unregistered automation:** the hourly AI service-copy sweep
+    now records `service_copywriting` ("Wrote the Invisalign page copy for
+    your website").
+  - **Consistent actor line for timed deliveries:** scheduled 1:1 message
+    flushes record `scheduled_message` and scheduled blog publishes record
+    `blog_publish` (same machine-delivers-staff-work rule as scheduled
+    campaigns).
+  - **Honest review narration:** a no-Google clinic's auto-ask now records
+    "Asked X for a review", never "a Google review".
+  - **In-phase gap #1 — the seated catch-net:** past visits still sitting in
+    a pre-visit status now surface on the Overview ("Did these visits
+    happen?", renders only when non-empty) + a new `unmarked` attention
+    chip on /appointments; demo org seeds one.
+  - **In-phase gap #2 — the reverse capability guard:** spine test scans
+    every `capability:` literal in lib/services against CAPABILITIES (a
+    typo can't mint an orphan stream) + recordAction dev-warns on
+    unregistered keys.
+  - **In-phase gap #3 — `isBackfilled` on `PatientJourneyRow`** so windowed
+    consumers can't re-open the import-as-growth lie one call site at a time.
+  - **Test adequacy:** executed writer pins for review_request (+ staff
+    gate + failed-send), noshow_rebook (disabled-automation regression pin:
+    no email → no ledger row → no OD CommLog note), auto_reply (executed
+    send path), retention_automation, followup_rule (per-created-row), and
+    payment_autocharge negative paths (decline/demo never narrate a
+    charge); journey SQL laws re-pinned per-function + per-aggregate
+    (placement, not occurrence counts).
+  - **Docs honesty:** resolveTrust docblock + spine test title now state
+    the stored-grant exception; this file's round-1 "growth scoreboard
+    already fixed" claim corrected (see backlog item 1).
 
 - **Round 1** (2026-07-27, run `wf_aacb3b7b-eee`): 15 agents, ~1.77M tokens,
   62 min. 39 defect candidates → **36 confirmed** (~9 unique clusters after

@@ -83,7 +83,7 @@ export interface AppointmentListFilters {
   /** Date-window chip — exactly one. */
   window?: 'today' | 'tomorrow' | 'this_week' | 'next_14d' | 'all_upcoming' | 'past_30d'
   /** Needs-attention multi-select chips. */
-  attention?: Array<'unconfirmed' | 'needs_intake' | 'new_patients' | 'has_balance' | 'cancelled' | 'no_show' | 'lapsed_rebooking' | 'needs_rebooking'>
+  attention?: Array<'unconfirmed' | 'needs_intake' | 'new_patients' | 'has_balance' | 'cancelled' | 'no_show' | 'lapsed_rebooking' | 'needs_rebooking' | 'unmarked'>
   /** Filter to one staff member. */
   providerId?: string
   /** Filter to one booking channel ('booking_widget' / 'portal' / 'phone' / etc.). */
@@ -460,6 +460,15 @@ export async function listAppointments(
       if (att.includes('no_show') && row.status === 'no_show') return true
       if (att.includes('lapsed_rebooking') && row.flags.lapsedReturning) return true
       if (att.includes('needs_rebooking') && row.needsRebooking) return true
+      // Past visit still sitting in a pre-visit status — nobody told the
+      // system whether it happened, so it can't count anywhere ("new
+      // patients means seated" is only as true as completion marking).
+      if (
+        att.includes('unmarked') &&
+        (row.status === 'scheduled' || row.status === 'confirmed') &&
+        row.startTime < now
+      )
+        return true
       return false
     })
   }

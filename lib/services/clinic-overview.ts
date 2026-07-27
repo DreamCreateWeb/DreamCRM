@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, between, count, desc, eq, gte, inArray, isNotNull, lte, ne, notInArray, sql } from 'drizzle-orm'
+import { and, asc, between, count, desc, eq, gte, inArray, isNotNull, lt, lte, ne, notInArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getIntegrationsHealth, type IntegrationsHealth } from '@/lib/services/pms/health'
 import { getReviewStats } from '@/lib/services/reviews'
@@ -44,6 +44,14 @@ export interface ClinicOverviewData {
   timeZone: string
   todaysAppointments: TodayAppointmentRow[]
   unconfirmed: {
+    count: number
+    preview: AppointmentPreviewRow[]
+  }
+  /** Past visits (last 14 days, before today clinic-local) still sitting in a
+   *  pre-visit status — nobody told the system whether they happened. The
+   *  catch-net under "new patients means SEATED": a forgotten Mark-completed
+   *  silently zeroes someone out of every count, review ask, and survey. */
+  unmarkedPastVisits: {
     count: number
     preview: AppointmentPreviewRow[]
   }
@@ -260,9 +268,9 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     tags: todaysTagsByPatient.get(a.patientId) ?? [],
   }))
 
-  // ── Attention signals — unconfirmed / intake / balances / leads ────────
-  // All four are independent; one parallel batch instead of four serial hops.
-  const [unconfirmedRows, intakeRows, balanceRowArr, leadRows] = await Promise.all([
+  // ── Attention signals — unconfirmed / unmarked / intake / balances / leads ─
+  // All independent; one parallel batch instead of serial hops.
+  const [unconfirmedRows, unmarkedRows, intakeRows, balanceRowArr, leadRows] = await Promise.all([
     // Unconfirmed (next 48h)
     db
       .select({
@@ -282,6 +290,27 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         ),
       )
       .orderBy(asc(schema.appointment.startTime)),
+    // Unmarked past visits (last 14d, before today clinic-local): scheduled/
+    // confirmed rows whose time came and went with no outcome recorded. Uses
+    // the clinic-local day start so this morning's 9 AM isn't nagged at 10 AM.
+    db
+      .select({
+        id: schema.appointment.id,
+        firstName: schema.patient.firstName,
+        lastName: schema.patient.lastName,
+        startTime: schema.appointment.startTime,
+      })
+      .from(schema.appointment)
+      .innerJoin(schema.patient, eq(schema.appointment.patientId, schema.patient.id))
+      .where(
+        and(
+          eq(schema.appointment.organizationId, organizationId),
+          inArray(schema.appointment.status, ['scheduled', 'confirmed']),
+          gte(schema.appointment.startTime, new Date(todayStart.getTime() - 14 * 24 * 60 * 60 * 1000)),
+          lt(schema.appointment.startTime, todayStart),
+        ),
+      )
+      .orderBy(desc(schema.appointment.startTime)),
     // Intake submissions (last 7d)
     db
       .select({
@@ -331,6 +360,15 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const unconfirmed = {
     count: unconfirmedRows.length,
     preview: unconfirmedRows.slice(0, 3).map((r) => ({
+      id: r.id,
+      patientName: `${r.firstName} ${r.lastName}`,
+      startTime: r.startTime,
+    })),
+  }
+
+  const unmarkedPastVisits = {
+    count: unmarkedRows.length,
+    preview: unmarkedRows.slice(0, 3).map((r) => ({
       id: r.id,
       patientName: `${r.firstName} ${r.lastName}`,
       startTime: r.startTime,
@@ -602,6 +640,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     timeZone,
     todaysAppointments,
     unconfirmed,
+    unmarkedPastVisits,
     intakeSubmissions,
     outstandingBalances,
     newLeads,

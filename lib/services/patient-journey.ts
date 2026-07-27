@@ -17,22 +17,48 @@ import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
  * "Seated" uses `completedAt ?? startTime` for completed visits (early rows
  * predate the completedAt column).
  *
- * PMS-IMPORT LAW: appointments the PMS sync backfilled (appointment.source =
- * 'pms_import') NEVER mint transition timestamps — the sync stamps their
- * completedAt with the SYNC time, not the visit time, and their row
- * createdAt is the sync moment too. Contact-linked patients keep their
- * organic patient.source, so the patient-level backfill exclusion misses
- * them; without this appointment-level exclusion, connecting a PMS reads as
- * a fake booked+seated growth spike (the exact lie the funnel exists to
- * prevent). Imported history still counts toward WHO someone is (the stage
- * facts below use ALL appointments) — it just can't claim WHEN a transition
- * happened inside any window.
+ * PMS-IMPORT LAW: appointments the PMS sync BACKFILLED at connect time
+ * (appointment.source = 'pms_import') NEVER mint transition timestamps — the
+ * sync stamps their completedAt with the SYNC time, not the visit time, and
+ * their row createdAt is the sync moment too. Contact-linked patients keep
+ * their organic patient.source, so the patient-level backfill exclusion
+ * misses them; without this appointment-level exclusion, connecting a PMS
+ * reads as a fake booked+seated growth spike (the exact lie the funnel
+ * exists to prevent). Rows created by ONGOING delta sync carry source 'pms'
+ * (see lib/services/pms/sync.ts) — those are real new bookings made in the
+ * practice system, arriving within one cron cycle of the truth, and they DO
+ * mint transitions; excluding them would blind the funnel to all OD-side
+ * growth forever (round-2 audit). Imported history still counts toward WHO
+ * someone is (the stage facts below use ALL appointments) — it just can't
+ * claim WHEN a transition happened inside any window.
+ *
+ * THE INVERSE LAW (round-2 audit): imported history also SUPPRESSES minting.
+ * A patient whose backfilled chart already shows an earlier appointment (or
+ * an earlier completed visit) made their real transition years before we
+ * could see it — letting their next organic visit mint firstBookedAt/
+ * firstSeatedAt would count a long-time patient as a brand-new one. The
+ * imported rows' startTime is the honest visit time (only their createdAt/
+ * completedAt are sync-corrupted), so it anchors the suppression check.
  */
 const NOT_IMPORTED = sql`${schema.appointment.source} is distinct from 'pms_import'`
+const IMPORTED = sql`${schema.appointment.source} = 'pms_import'`
+
+/** Null out a minted transition when imported history predates it. */
+function suppressIfImportedEarlier(minted: Date | null, importedAt: Date | null): Date | null {
+  if (!minted) return null
+  if (importedAt && importedAt.getTime() < minted.getTime()) return null
+  return minted
+}
 
 export interface PatientJourneyRow extends JourneyTimestamps {
   patientId: string
   stage: JourneyStage
+  /** True when the PERSON arrived by bulk backfill (patient.source is a
+   *  BACKFILL_PATIENT_SOURCES value) — their firstSeenAt is the import
+   *  moment, not a real inquiry. Window math over these timestamps must skip
+   *  backfilled people, exactly as getJourneyFunnel does; this flag is that
+   *  exclusion, pre-derived so consumers can't forget it. */
+  isBackfilled: boolean
 }
 
 /**
@@ -51,6 +77,7 @@ export async function getJourneyForPatients(
       id: schema.patient.id,
       firstSeenAt: schema.patient.firstSeenAt,
       lifecycle: schema.patient.lifecycle,
+      source: schema.patient.source,
     })
     .from(schema.patient)
     .where(
@@ -73,6 +100,10 @@ export async function getJourneyForPatients(
              then coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime})
         end
       )`,
+      // Imported-history anchors for the inverse law: the earliest REAL times
+      // (startTime) the backfilled chart shows they were booked / seated.
+      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then ${schema.appointment.startTime} end)`,
+      importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
     })
     .from(schema.appointment)
     .where(
@@ -86,8 +117,14 @@ export async function getJourneyForPatients(
 
   for (const p of patients) {
     const a = apptByPatient.get(p.id)
-    const firstBookedAt = a?.firstBookedAt ? new Date(a.firstBookedAt) : null
-    const firstSeatedAt = a?.firstSeatedAt ? new Date(a.firstSeatedAt) : null
+    const firstBookedAt = suppressIfImportedEarlier(
+      a?.firstBookedAt ? new Date(a.firstBookedAt) : null,
+      a?.importedBookedAt ? new Date(a.importedBookedAt) : null,
+    )
+    const firstSeatedAt = suppressIfImportedEarlier(
+      a?.firstSeatedAt ? new Date(a.firstSeatedAt) : null,
+      a?.importedSeatedAt ? new Date(a.importedSeatedAt) : null,
+    )
     out.set(p.id, {
       patientId: p.id,
       stage: resolveJourneyStage({
@@ -100,6 +137,7 @@ export async function getJourneyForPatients(
       firstSeenAt: p.firstSeenAt ? new Date(p.firstSeenAt) : null,
       firstBookedAt,
       firstSeatedAt,
+      isBackfilled: BACKFILL_PATIENT_SOURCES.has(p.source ?? ''),
     })
   }
   return out
@@ -190,6 +228,10 @@ export async function getJourneyFunnel(
              then coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime})
         end
       )`,
+      // Imported-history anchors for the inverse law (see the header): a
+      // backfilled chart that predates the minted transition suppresses it.
+      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then ${schema.appointment.startTime} end)`,
+      importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
     })
     .from(schema.patient)
     .leftJoin(
@@ -210,9 +252,17 @@ export async function getJourneyFunnel(
   const funnel: JourneyFunnelWindow = { inquiries: 0, booked: 0, seated: 0 }
   for (const r of rows) {
     if (BACKFILL_PATIENT_SOURCES.has(r.source ?? '')) continue
+    const firstBookedAt = suppressIfImportedEarlier(
+      r.firstBookedAt ? new Date(r.firstBookedAt) : null,
+      r.importedBookedAt ? new Date(r.importedBookedAt) : null,
+    )
+    const firstSeatedAt = suppressIfImportedEarlier(
+      r.firstSeatedAt ? new Date(r.firstSeatedAt) : null,
+      r.importedSeatedAt ? new Date(r.importedSeatedAt) : null,
+    )
     if (r.firstSeenAt && new Date(r.firstSeenAt) >= since) funnel.inquiries++
-    if (r.firstBookedAt && new Date(r.firstBookedAt) >= since) funnel.booked++
-    if (r.firstSeatedAt && new Date(r.firstSeatedAt) >= since) funnel.seated++
+    if (firstBookedAt && firstBookedAt >= since) funnel.booked++
+    if (firstSeatedAt && firstSeatedAt >= since) funnel.seated++
   }
   return funnel
 }

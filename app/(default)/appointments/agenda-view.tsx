@@ -110,6 +110,7 @@ const ATTENTION_LABELS: Array<{
   { key: 'needs_rebooking', label: '↩ Needs rebooking', title: 'Cancelled / no-show in the last 60 days with nothing booked ahead — chase + rebook' },
   { key: 'cancelled', label: 'Cancelled', title: 'Cancelled visits to recover' },
   { key: 'no_show', label: 'No-show', title: 'Visits the patient missed' },
+  { key: 'unmarked', label: '❓ Did it happen?', title: 'Past visits nobody marked yet — a quick outcome keeps your numbers true (completed visits also power review asks + surveys)' },
 ]
 
 function fmtTime(d: Date): string {
@@ -124,6 +125,8 @@ function sourceLabel(s: string): string {
     case 'phone': return 'Phone call'
     case 'recall_campaign': return 'Recall campaign'
     case 'invite': return 'Invite acceptance'
+    case 'pms': return 'Practice system'
+    case 'pms_import': return 'Practice system (imported)'
     default: return s.replace(/_/g, ' ')
   }
 }

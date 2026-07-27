@@ -147,7 +147,9 @@ export async function buildRuleCandidates(
 
 /** Insert the candidates that don't already exist (by org + ruleKey). Returns
  *  how many were newly created. */
-async function persistCandidates(organizationId: string, candidates: Candidate[]): Promise<number> {
+// Exported for the executed writer test (tests/patients/followup-rules.test.ts)
+// — the ledger loop below must be pinned per created row, not assumed.
+export async function persistCandidates(organizationId: string, candidates: Candidate[]): Promise<number> {
   if (candidates.length === 0) return 0
   const keys = candidates.map((c) => c.ruleKey)
   const existing = await db

@@ -44,6 +44,9 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'noshow_rebook', label: 'Invite no-shows back for a new time', defaultTrust: 'auto' },
   { key: 'waitlist_offer', label: 'Offer freed slots to the waitlist', defaultTrust: 'auto' },
   { key: 'payment_autocharge', label: 'Charge payment-plan installments', defaultTrust: 'auto' },
+  { key: 'service_copywriting', label: 'Write your website’s service pages', defaultTrust: 'auto' },
+  { key: 'scheduled_message', label: 'Deliver messages scheduled for later', defaultTrust: 'auto' },
+  { key: 'blog_publish', label: 'Publish blog posts on schedule', defaultTrust: 'auto' },
   // Ask-first today (drafts that wait for a human):
   { key: 'review_reply', label: 'Reply to Google reviews', defaultTrust: 'ask' },
   { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'ask' },
@@ -59,8 +62,12 @@ export function getCapability(key: string): CapabilityDef | null {
 
 /**
  * Resolve a clinic's trust level for a capability from the stored overrides
- * (clinic_profile.autonomy). Unknown capabilities resolve 'ask' — the safe
- * floor for anything not yet registered.
+ * (clinic_profile.autonomy). With no stored grant, unknown capabilities
+ * resolve 'ask' — the safe floor for anything not yet registered. An explicit
+ * stored human grant is honored FIRST, even for a capability the registry
+ * doesn't know yet (by design, round-1 audit: a human's "always do this" for
+ * a not-yet-registered capability survives the registration lag) — so this
+ * floor is a default, NOT a hard safety invariant.
  */
 export function resolveTrust(stored: unknown, capability: string): TrustLevel {
   const def = BY_KEY.get(capability)

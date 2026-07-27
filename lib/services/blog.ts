@@ -7,6 +7,7 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { newId, slugify } from '@/lib/utils'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
+import { recordAction } from '@/lib/services/action-ledger'
 import type { ClinicStaff, BlogFaqItem } from '@/lib/types/clinic-content'
 
 /**
@@ -477,6 +478,16 @@ export async function publishDueScheduledPosts(now: Date = new Date()): Promise<
       .set({ status: 'published', publishedAt: p.publishedAt ?? p.scheduledFor ?? now, updatedAt: new Date() })
       .where(eq(blogPost.id, p.id))
     published += 1
+    // A human wrote and scheduled it; the MACHINE put it live at the chosen
+    // moment — the delivery reports (same actor line as scheduled campaigns
+    // and scheduled messages; round-2 audit). Neutral phrasing on purpose:
+    // this path serves the platform org's marketing blog too.
+    await recordAction({
+      organizationId: p.organizationId,
+      capability: 'blog_publish',
+      summary: `Published the blog post “${p.title}” on schedule`,
+      detail: { blogPostId: p.id, slug: p.slug },
+    })
   }
   return { published }
 }

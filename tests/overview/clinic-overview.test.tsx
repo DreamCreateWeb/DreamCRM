@@ -53,6 +53,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     timeZone: 'America/New_York',
     todaysAppointments: [],
     unconfirmed: { count: 0, preview: [] },
+    unmarkedPastVisits: { count: 0, preview: [] },
     intakeSubmissions: { count: 0, preview: [] },
     outstandingBalances: { count: 0, totalCents: 0 },
     newLeads: { count: 0, preview: [] },

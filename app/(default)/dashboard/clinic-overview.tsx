@@ -111,7 +111,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       <PageHeader
         eyebrow={`Morning huddle · ${formatClinicDayHeader(data.date, data.timeZone)}`}
         title={name}
-        subtitle="The six things worth your attention this morning — every number opens the list behind it."
+        subtitle="What's worth your attention this morning — every number opens the list behind it."
         legend={<EncodingLegend glyphs={PAGE_GLYPHS} pills={PILL_LEGEND} />}
         actions={
           <>
@@ -241,6 +241,37 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               </li>
             ))}
           </AttentionCard>
+
+          {/* Catch-net for "new patients means SEATED": a past visit nobody
+              marked can't count anywhere (no review ask, no survey, no new-
+              patient credit). Renders only when there's something to catch. */}
+          {data.unmarkedPastVisits.count > 0 && (
+            <AttentionCard
+              title="Did these visits happen?"
+              count={data.unmarkedPastVisits.count}
+              countSuffix={
+                data.unmarkedPastVisits.count === 1
+                  ? 'past visit still needs an outcome'
+                  : 'past visits still need an outcome'
+              }
+              cta={{ label: 'Mark what happened', href: '/appointments?window=past_30d&attention=unmarked' }}
+              emptyCopy=""
+            >
+              {data.unmarkedPastVisits.preview.map((r) => (
+                <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
+                  <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
+                    {r.startTime.toLocaleString('en-US', {
+                      weekday: 'short',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      timeZone: data.timeZone,
+                    })}
+                  </span>
+                </li>
+              ))}
+            </AttentionCard>
+          )}
 
           <AttentionCard
             title="New intake submissions"

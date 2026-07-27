@@ -2,6 +2,7 @@ import 'server-only'
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema'
+import { getCapability } from '@/lib/autonomy'
 
 /**
  * THE ACTION LEDGER service (Transformation Phase 1 — DESIGN.md "The North
@@ -29,6 +30,14 @@ export interface RecordActionInput {
 
 export async function recordAction(input: RecordActionInput): Promise<boolean> {
   try {
+    // An unregistered key still records (losing the entry would be worse),
+    // but it means a writer and lib/autonomy.ts drifted apart — the entry has
+    // no label for the narrator and resolveTrust floors it at 'ask'. The
+    // spine test scans writer literals against the registry; this catches
+    // dynamic keys the scan can't see.
+    if (!getCapability(input.capability)) {
+      console.warn(`[action-ledger] capability '${input.capability}' is not registered in lib/autonomy.ts CAPABILITIES`)
+    }
     await db.insert(schema.actionLedger).values({
       id: `act_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`,
       organizationId: input.organizationId,

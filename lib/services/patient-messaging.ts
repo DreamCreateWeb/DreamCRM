@@ -1043,7 +1043,9 @@ const AUTO_REPLY_DEDUP_MS = 12 * 60 * 60 * 1000
  * counter (a human still needs to give a real answer); it just updates the
  * thread preview + appears in the patient's portal.
  */
-async function maybeSendAfterHoursAutoReply(
+// Exported for the executed writer test (tests/messaging/after-hours-auto-reply
+// .test.ts) — the auto_reply ledger entry must be pinned, not assumed.
+export async function maybeSendAfterHoursAutoReply(
   organizationId: string,
   patientId: string,
   threadId: string,

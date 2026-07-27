@@ -28,6 +28,7 @@ describe('resolveFollowupRules', () => {
 const h = vi.hoisted(() => ({
   patients: [] as Array<Record<string, unknown>>,
   appts: [] as Array<Record<string, unknown>>,
+  inserted: [] as Array<Record<string, unknown>>,
 }))
 
 vi.mock('@/lib/services/action-ledger', () => ({
@@ -44,7 +45,17 @@ vi.mock('@/lib/db', () => {
     o.where = () => Promise.resolve(h.appts)
     return o
   }
-  return { db: { select: () => chain() }, schema: { appointment: {}, patient: {} } }
+  return {
+    db: {
+      select: () => chain(),
+      insert: () => ({
+        values: async (rows: Array<Record<string, unknown>>) => {
+          h.inserted.push(...rows)
+        },
+      }),
+    },
+    schema: { appointment: {}, patient: {}, patientFollowup: { ruleKey: 'ruleKey', organizationId: 'org' } },
+  }
 })
 vi.mock('drizzle-orm', () => ({
   and: (...a: unknown[]) => ({ a }),
@@ -54,13 +65,16 @@ vi.mock('drizzle-orm', () => ({
   inArray: (...a: unknown[]) => ({ a }),
 }))
 
-import { buildRuleCandidates } from '@/lib/services/followup-rules'
+import { buildRuleCandidates, persistCandidates } from '@/lib/services/followup-rules'
+import { recordAction } from '@/lib/services/action-ledger'
 
 const NOW = new Date('2026-06-18T12:00:00.000Z')
 
 beforeEach(() => {
   h.patients = []
   h.appts = []
+  h.inserted = []
+  vi.mocked(recordAction).mockClear()
 })
 
 describe('buildRuleCandidates', () => {
@@ -100,5 +114,45 @@ describe('buildRuleCandidates', () => {
     const { listPatients } = await import('@/lib/services/patients')
     await buildRuleCandidates('org_1', { balance: false, recall: false, unconfirmed: true }, NOW)
     expect(listPatients).not.toHaveBeenCalled()
+  })
+})
+
+// ── persistCandidates (the followup_rule ledger writer, EXECUTED) ────────────
+describe('persistCandidates — one ledger entry per follow-up the rules opened', () => {
+  const DUE = '2026-06-20'
+  const candidates = [
+    { ruleKey: 'balance:p1:2026-06', patientId: 'p1', title: 'Mia Hayes has a $125 balance', dueDate: DUE },
+    { ruleKey: 'recall:p2:2026-06', patientId: 'p2', title: 'Aiden Brooks is overdue for recall', dueDate: DUE },
+  ]
+
+  it('creates the rows and records followup_rule per CREATED row, patient-linked', async () => {
+    h.appts = [] // the existing-ruleKey select returns nothing
+    const created = await persistCandidates('org_1', candidates)
+    expect(created).toBe(2)
+    expect(h.inserted).toHaveLength(2)
+    expect(vi.mocked(recordAction)).toHaveBeenCalledTimes(2)
+    const entries = vi.mocked(recordAction).mock.calls.map((c) => c[0])
+    expect(entries.map((e) => e.capability)).toEqual(['followup_rule', 'followup_rule'])
+    expect(entries.map((e) => e.patientId)).toEqual(['p1', 'p2'])
+    expect(entries[0].organizationId).toBe('org_1')
+    expect(entries[0].summary).toContain('Mia Hayes')
+  })
+
+  it('dedupe: an already-open ruleKey creates nothing and claims nothing (per-CREATED, not per-candidate)', async () => {
+    h.appts = [{ ruleKey: 'balance:p1:2026-06' }] // one already exists
+    const created = await persistCandidates('org_1', candidates)
+    expect(created).toBe(1)
+    expect(h.inserted).toHaveLength(1)
+    // Exactly ONE ledger entry — a per-candidate loop would double-claim here.
+    expect(vi.mocked(recordAction)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(recordAction).mock.calls[0][0].patientId).toBe('p2')
+  })
+
+  it('all candidates already open → zero inserts, zero ledger claims', async () => {
+    h.appts = [{ ruleKey: 'balance:p1:2026-06' }, { ruleKey: 'recall:p2:2026-06' }]
+    const created = await persistCandidates('org_1', candidates)
+    expect(created).toBe(0)
+    expect(h.inserted).toHaveLength(0)
+    expect(vi.mocked(recordAction)).not.toHaveBeenCalled()
   })
 })

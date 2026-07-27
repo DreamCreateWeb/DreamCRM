@@ -16,6 +16,7 @@ export type ApptAttention =
   | 'no_show'
   | 'lapsed_rebooking'
   | 'needs_rebooking'
+  | 'unmarked'
 
 const WINDOWS: ApptWindow[] = ['today', 'tomorrow', 'this_week', 'next_14d', 'all_upcoming', 'past_30d']
 const ATTENTION: ApptAttention[] = [
@@ -27,6 +28,7 @@ const ATTENTION: ApptAttention[] = [
   'no_show',
   'lapsed_rebooking',
   'needs_rebooking',
+  'unmarked',
 ]
 
 /** `next_14d` is the page's default window, so a view that carries only it
@@ -50,6 +52,7 @@ const ATTENTION_LABEL: Record<ApptAttention, string> = {
   no_show: 'no-show',
   lapsed_rebooking: 'lapsed rebooking',
   needs_rebooking: 'needs rebooking',
+  unmarked: 'needs an outcome',
 }
 
 export interface AppointmentViewFilters {

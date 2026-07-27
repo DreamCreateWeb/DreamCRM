@@ -3,6 +3,7 @@ import { and, asc, eq, lte, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { sendMessageToPatient } from '@/lib/services/patient-messaging'
+import { recordAction } from '@/lib/services/action-ledger'
 import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
 
 /**
@@ -181,6 +182,21 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
         .set({ status: 'sent', sentMessageId: result.messageId, updatedAt: new Date() })
         .where(eq(schema.scheduledMessage.id, row.id))
       sent++
+      // Staff wrote it; the MACHINE delivered it at the chosen moment — the
+      // delivery is the machine's work, so it reports (same actor line as
+      // cron-flushed scheduled campaigns; round-2 audit).
+      const [pat] = await db
+        .select({ firstName: schema.patient.firstName })
+        .from(schema.patient)
+        .where(and(eq(schema.patient.organizationId, row.organizationId), eq(schema.patient.id, row.patientId)))
+        .limit(1)
+      await recordAction({
+        organizationId: row.organizationId,
+        capability: 'scheduled_message',
+        patientId: row.patientId,
+        summary: `Delivered the message you scheduled for ${pat?.firstName ?? 'a patient'}`,
+        detail: { scheduledMessageId: row.id, channel: row.channel, scheduledByUserId: row.createdByUserId },
+      })
     } catch (err) {
       await db
         .update(schema.scheduledMessage)

@@ -19,6 +19,17 @@ import { CAPABILITIES, getCapability, resolveTrust } from '@/lib/autonomy'
 
 const ROOT_DIR = resolve(__dirname, '../..')
 
+/** Source text from the start of `name`'s declaration to the next exported
+ *  declaration (or EOF) — so SQL-law greps pin WHERE a predicate lives, not
+ *  merely that it exists somewhere in the file. */
+function sliceFunction(src: string, name: string): string {
+  const start = src.indexOf(`function ${name}`)
+  expect(start, `function ${name} exists`).toBeGreaterThan(-1)
+  const rest = src.slice(start + 1)
+  const next = rest.search(/\nexport (async )?(function|interface|const)/)
+  return next === -1 ? src.slice(start) : src.slice(start, start + 1 + next)
+}
+
 describe('the journey-stage resolver', () => {
   it('inquiry: asked a question, never on the schedule', () => {
     expect(
@@ -56,8 +67,13 @@ describe('the journey-stage resolver', () => {
     expect(
       resolveJourneyStage({ hasAppointment: false, hasCompletedVisit: false, archived: false }),
     ).toBe('inquiry')
+    // Pin the predicate in EACH function that derives hasAppointment — a
+    // single whole-file match let one of the two sites drop it unnoticed
+    // (round-2 audit: placement, not presence).
     const src = readFileSync(join(ROOT_DIR, 'lib/services/patient-journey.ts'), 'utf8')
-    expect(src).toMatch(/bool_or\(.*status.*<> 'cancelled'\)/)
+    for (const fn of ['getJourneyForPatients', 'getJourneyStageCounts']) {
+      expect(sliceFunction(src, fn), fn).toMatch(/bool_or\(.*status.*<> 'cancelled'\)/)
+    }
   })
 
   it('archived beats everything — a human decision the resolver honors', () => {
@@ -89,6 +105,9 @@ describe('the autonomy ladder', () => {
       'noshow_rebook',
       'waitlist_offer',
       'payment_autocharge',
+      'service_copywriting',
+      'scheduled_message',
+      'blog_publish',
     ]) {
       expect(getCapability(key)?.defaultTrust, key).toBe('auto')
     }
@@ -109,7 +128,11 @@ describe('the autonomy ladder', () => {
     expect(resolveTrust({ review_reply: 'yolo' }, 'review_reply')).toBe('ask')
   })
 
-  it("unknown capabilities floor at 'ask' — nothing grants itself autonomy", () => {
+  it("unknown capabilities DEFAULT to 'ask'; an explicit stored human grant is honored even pre-registration (by design)", () => {
+    // The floor is a default, not a hard invariant: nothing grants ITSELF
+    // autonomy, but a human's stored "always do this for me" survives the
+    // capability-registration lag (round-1 triage confirmed this by design;
+    // round 2 fixed the docs that claimed otherwise).
     expect(resolveTrust(null, 'brand_new_capability')).toBe('ask')
     expect(resolveTrust({ brand_new_capability: 'auto' }, 'brand_new_capability')).toBe('auto')
   })
@@ -142,6 +165,30 @@ describe('the action ledger has no blind spots', () => {
       (c) => c.defaultTrust === 'auto' && !services.includes(`'${c.key}'`),
     ).map((c) => c.key)
     expect(missing).toEqual([])
+  })
+
+  it('every capability literal a writer records is REGISTERED — a typo mints an orphan stream (reverse guard)', () => {
+    // Walk lib/services recursively; every quoted string in a `capability:`
+    // expression must be a registered key. (Dynamic keys are backstopped by
+    // recordAction's dev warn.)
+    const registered = new Set(CAPABILITIES.map((c) => c.key))
+    const offenders: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, entry.name)
+        if (entry.isDirectory()) walk(p)
+        else if (entry.name.endsWith('.ts')) {
+          const src = readFileSync(p, 'utf8')
+          for (const m of Array.from(src.matchAll(/capability:\s*([^,\n]+)/g))) {
+            for (const lit of Array.from(m[1].matchAll(/'([a-z0-9_]+)'/g))) {
+              if (!registered.has(lit[1])) offenders.push(`${entry.name}: '${lit[1]}'`)
+            }
+          }
+        }
+      }
+    }
+    walk(join(ROOT, 'lib/services'))
+    expect(offenders).toEqual([])
   })
 })
 

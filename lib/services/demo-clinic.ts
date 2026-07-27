@@ -2822,6 +2822,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     { id: newId('appt'), patientIdx: 6, startOffsetMs: -210 * dayMs, type: 'cleaning', status: 'completed', notes: null, providerId: providerHygienistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 7, startOffsetMs: -150 * dayMs, type: 'consultation', status: 'completed', notes: null, providerId: providerDentistId, source: 'manual' },
     { id: newId('appt'), patientIdx: 8, startOffsetMs: -30 * dayMs, type: 'cleaning', status: 'no_show', notes: null, providerId: providerHygienistId, source: 'manual' },
+    // ❓ Unmarked past visit — confirmed, the day came and went, nobody
+    // recorded the outcome (feeds the Overview "Did these visits happen?"
+    // catch-net + the agenda's 'unmarked' chip).
+    { id: newId('appt'), patientIdx: 2, startOffsetMs: -2 * dayMs - 4 * hourMs, type: 'checkup', status: 'confirmed', notes: null, providerId: providerDentistId, source: 'manual', confirmedAt: new Date(now.getTime() - 4 * dayMs), confirmedVia: 'email' },
     // Phantom cancelled "from" row — original time Mia was booked before reschedule.
     { id: miaOriginalId, patientIdx: 0, startOffsetMs: 7 * dayMs + 10 * hourMs, type: 'cleaning', status: 'cancelled', notes: 'Originally booked here — patient asked to move.', providerId: providerHygienistId, source: 'booking_widget', cancelledAt: new Date(now.getTime() - 2 * dayMs), cancelledVia: 'reschedule' },
     // ── Future visits ──

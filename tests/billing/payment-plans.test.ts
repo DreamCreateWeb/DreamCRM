@@ -242,6 +242,9 @@ describe('runDuePlanCharges', () => {
     const update = state.updates.find((u) => u.table === 'payment_plan')
     expect(update!.values).toMatchObject({ status: 'past_due', failedAttempts: 3, nextChargeAt: null }) // parked
     expect(state.inserts.find((i) => i.table === 'patient_balance_payment')).toBeUndefined()
+    // A DECLINED charge must never narrate "Charged X's card" — the ledger is
+    // a money statement (round-2 audit pin for the `if (ok)` gate).
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 
   it('never touches demo plans or plans without a saved card', async () => {
@@ -254,6 +257,8 @@ describe('runDuePlanCharges', () => {
     const r = await runDuePlanCharges({ now: NOW })
     expect(r).toMatchObject({ scanned: 2, charged: 0, failed: 0 })
     expect(paymentIntentCreateMock).not.toHaveBeenCalled()
+    // No charge happened → no ledger claim that one did.
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 })
 

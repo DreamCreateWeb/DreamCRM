@@ -90,6 +90,26 @@ vi.mock('@/lib/services/clinic-site', () => ({
   publicSiteUrl: () => 'https://acme.dreamcreatestudio.com',
 }))
 
+// The rebook automation's honesty seams (round-2 audit): the editable-email
+// toggle, the ledger, and the OD CommLog mirror are all controlled here so
+// the disabled-automation branch is EXECUTED, not assumed.
+const { renderAutomatedMock, recordActionMock, queueCommLogMock } = vi.hoisted(() => ({
+  renderAutomatedMock: vi.fn(async () => ({
+    enabled: true,
+    full: { subject: 'We missed you — no big deal', body: 'Come see us again.' },
+    override: {},
+  })),
+  recordActionMock: vi.fn(async (..._a: unknown[]) => true),
+  queueCommLogMock: vi.fn(async () => undefined),
+}))
+vi.mock('@/lib/services/email-automations', () => ({ renderAutomatedEmail: renderAutomatedMock }))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+vi.mock('@/lib/services/pms/sync', () => ({ queueCommLogWriteBack: queueCommLogMock }))
+// The auto-created rebook follow-up has its own ledger writer (followup_rule,
+// pinned in patient-followups tests) — stub it here so these assertions see
+// ONLY markNoShow's noshow_rebook entry.
+vi.mock('@/lib/services/patient-followups', () => ({ autoCreateRebookFollowup: vi.fn(async () => undefined) }))
+
 import { cancelAppointment, markNoShow } from '@/lib/services/appointments'
 
 const FUTURE = new Date(Date.now() + 3 * 86_400_000)
@@ -247,5 +267,47 @@ describe('markNoShow notifications', () => {
     expect(notifyOrgMembersMock).toHaveBeenCalled()
     expect(sendNotificationMock).not.toHaveBeenCalled()
     expect(deliverMock).not.toHaveBeenCalled()
+    // No send → no ledger claim, no OD chart note.
+    expect(recordActionMock).not.toHaveBeenCalled()
+    expect(queueCommLogMock).not.toHaveBeenCalled()
+  })
+
+  it('a SENT rebook note records noshow_rebook in the ledger AND mirrors to the OD chart', async () => {
+    state.selectQueue.push([{ status: 'scheduled' }])
+    state.selectQueue.push([{ patientId: 'pat_1', type: 'cleaning', startTime: FUTURE }])
+    state.selectQueue.push([{ firstName: 'Aiden', lastName: 'Brooks', email: 'aiden@example.com' }])
+    await markNoShow('org_1', 'appt_2')
+    expect(sendNotificationMock).toHaveBeenCalled() // the note went out
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('noshow_rebook')
+    expect(entry.organizationId).toBe('org_1')
+    expect(entry.patientId).toBe('pat_1')
+    expect(entry.summary).toContain('Aiden')
+    expect(queueCommLogMock).toHaveBeenCalledWith(
+      'org_1',
+      'pat_1',
+      expect.objectContaining({ note: expect.stringContaining('rebook note sent'), mode: 'Email' }),
+    )
+  })
+
+  it('a DISABLED rebook automation sends nothing and claims nothing — no email, no ledger row, no OD note (round-1 fix pinned)', async () => {
+    renderAutomatedMock.mockResolvedValueOnce({
+      enabled: false,
+      full: { subject: 'x', body: 'y' },
+      override: {},
+    })
+    state.selectQueue.push([{ status: 'scheduled' }])
+    state.selectQueue.push([{ patientId: 'pat_1', type: 'cleaning', startTime: FUTURE }])
+    state.selectQueue.push([{ firstName: 'Aiden', lastName: 'Brooks', email: 'aiden@example.com' }])
+    await markNoShow('org_1', 'appt_2')
+    // The status write itself still happened…
+    expect(state.updates.some((u) => u.status === 'no_show')).toBe(true)
+    // …but the disabled automation must not email, and the ledger + OD chart
+    // must not read "Sent a warm rebook note" for a message that never went out.
+    expect(sendNotificationMock).not.toHaveBeenCalled()
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+    expect(queueCommLogMock).not.toHaveBeenCalled()
   })
 })
