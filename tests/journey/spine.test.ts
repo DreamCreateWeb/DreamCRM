@@ -111,6 +111,7 @@ describe('the autonomy ladder', () => {
       'scheduled_social',
       'domain_autorenew',
       'listing_sync',
+      'review_feature',
     ]) {
       expect(getCapability(key)?.defaultTrust, key).toBe('auto')
     }

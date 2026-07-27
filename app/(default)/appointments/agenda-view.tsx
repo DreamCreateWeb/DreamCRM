@@ -126,6 +126,7 @@ function sourceLabel(s: string): string {
     case 'recall_campaign': return 'Recall campaign'
     case 'invite': return 'Invite acceptance'
     case 'pms': return 'Practice system'
+    case 'pms_live': return 'Practice system'
     case 'pms_import': return 'Practice system (imported)'
     default: return s.replace(/_/g, ' ')
   }

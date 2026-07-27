@@ -235,7 +235,11 @@ async function maybeAutofillGooglePlaceId(orgId: string, placeId: string): Promi
  */
 export async function syncGoogleBusinessProfile(
   orgId: string,
-  opts: { force?: boolean } = {},
+  /** `initiatedByUserId`: set when a HUMAN drove this sync (settings button,
+   *  connect flow) — their click is their work, so the machine ledger stays
+   *  silent (round-4 audit; same actor law as staff campaign sends). The
+   *  unattended cron omits it. */
+  opts: { force?: boolean; initiatedByUserId?: string | null } = {},
 ): Promise<GbpSyncResult> {
   const force = opts.force === true
   const account = await resolveGbpAccount(orgId)
@@ -360,20 +364,25 @@ export async function syncGoogleBusinessProfile(
     .where(eq(schema.clinicProfile.organizationId, orgId))
 
   // THE ACTION LEDGER — these fields render on the clinic's PUBLIC site, so
-  // the machine changing them is employee work the standup must report
-  // (round-3 audit; same law as service_copywriting). CHANGE-detected: the
-  // hourly sync re-applies identical Google data most runs — only a field
-  // whose VALUE actually moved narrates, so the ledger stays a story, not a
-  // heartbeat log. Best-effort by recordAction's own contract.
+  // the MACHINE changing them is employee work the standup must report
+  // (round-3 audit; same law as service_copywriting). Two honesty gates
+  // (round-4 audit):
+  //  - INITIATOR: a staff-clicked "Sync from Google" (or the owner's connect
+  //    flow) is THEIR work — same actor law as staff campaign sends; only
+  //    the unattended hourly cron narrates.
+  //  - CHANGE-detected with key-order-insensitive comparison: hours is a
+  //    jsonb round-trip and Postgres reorders object keys, so a naive
+  //    JSON.stringify differed on EVERY run and would have written ~24
+  //    false "updated your hours" entries a day.
   const changed: string[] = []
-  if (applied.includes('hours') && JSON.stringify(patch.hours) !== JSON.stringify(profile.hours)) changed.push('hours')
+  if (applied.includes('hours') && canonicalJson(patch.hours) !== canonicalJson(profile.hours)) changed.push('hours')
   if (
     applied.includes('address') &&
     (patch.addressLine1 !== profile.addressLine1 || patch.city !== profile.city || patch.postalCode !== profile.postalCode)
   )
     changed.push('address')
   if (applied.includes('phone') && patch.phone !== profile.phone) changed.push('phone')
-  if (changed.length > 0) {
+  if (changed.length > 0 && opts?.initiatedByUserId == null) {
     const noun =
       changed.length === 1
         ? { hours: 'opening hours', address: 'address', phone: 'phone number' }[changed[0]]!
@@ -387,6 +396,22 @@ export async function syncGoogleBusinessProfile(
   }
 
   return { ok: true, applied, skippedManual, photoCount: photoViews.length }
+}
+
+/** JSON.stringify with recursively SORTED object keys — value equality for
+ *  jsonb round-trips (Postgres reorders keys; insertion-order stringify
+ *  false-positives forever). */
+function canonicalJson(v: unknown): string {
+  return JSON.stringify(sortKeys(v))
+}
+function sortKeys(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(sortKeys)
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const k of Object.keys(v as Record<string, unknown>).sort()) out[k] = sortKeys((v as Record<string, unknown>)[k])
+    return out
+  }
+  return v
 }
 
 // ── Read for the UI ───────────────────────────────────────────────────────────

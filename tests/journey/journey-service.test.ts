@@ -144,6 +144,11 @@ describe('getJourneyForPatients — stages from facts, timestamps import-honest'
     const map = await getJourneyForPatients('org_1', ['p_csv', 'p_org'])
     expect(map.get('p_csv')?.isBackfilled).toBe(true)
     expect(map.get('p_org')?.isBackfilled).toBe(false)
+    // The roster fact, EXECUTED (round-4 pin): a CSV-imported person with ZERO
+    // appointment rows is a patient of the practice, not an inquiry — while a
+    // genuinely organic no-appointment person stays an inquiry.
+    expect(map.get('p_csv')?.stage).toBe('patient')
+    expect(map.get('p_org')?.stage).toBe('inquiry')
   })
 
   it('cancelled-everything people are inquiries again (a booked timestamp alone is not a live booking)', async () => {
@@ -226,9 +231,14 @@ describe('getJourneyStageCounts — the standing population', () => {
         { patientId: 'b', hasBooked: true, hasSeated: false },
         { patientId: 'c', hasBooked: true, hasSeated: true },
         { patientId: 'd', hasBooked: null, hasSeated: null }, // no appointments at all
+        // Imported roster member with no visit rows: counts as a PATIENT —
+        // a Dentrix clinic's whole roster must not read as inquiries
+        // (round-3 fix, round-4 executed pin).
+        { patientId: 'e', source: 'import', hasBooked: null, hasSeated: null },
+        { patientId: 'f', source: 'pms_import', hasBooked: true, hasSeated: false },
       ],
     ]
-    expect(await getJourneyStageCounts('org_1')).toEqual({ inquiry: 2, booked: 1, patient: 1 })
+    expect(await getJourneyStageCounts('org_1')).toEqual({ inquiry: 2, booked: 1, patient: 3 })
   })
 })
 
@@ -255,14 +265,25 @@ describe('the PMS-import exclusion lives in the SQL, not in hope', () => {
     }
   })
 
-  it('each query gates BOTH minted timestamps on NOT_IMPORTED and anchors BOTH suppressions on IMPORTED', () => {
+  it('each query mints/anchors on the full source law — predicates AND anchor recipes pinned (round-4: recipes too)', () => {
     const src = readFileSync(resolve(__dirname, '../../lib/services/patient-journey.ts'), 'utf8')
     expect(src).toContain("is distinct from 'pms_import'")
+    // The law's four source classes, pinned at the definition site:
+    expect(src).toMatch(/BOOKED_MINTABLE = sql`.*is distinct from 'pms_import' and .*is distinct from 'pms_live'`/)
+    expect(src).toMatch(/IMPORTED_OR_LIVE = sql`\(.*= 'pms_import' or .*= 'pms_live'\)`/)
     for (const fn of ['getJourneyForPatients', 'getJourneyFunnel']) {
       const slice = fnSlice(src, fn)
-      expect(slice, `${fn} firstBookedAt gate`).toMatch(/firstBookedAt: sql[\s\S]*?\$\{NOT_IMPORTED\}[\s\S]*?createdAt/)
-      expect(slice, `${fn} firstSeatedAt gate`).toMatch(/firstSeatedAt: sql[\s\S]*?'completed' and \$\{NOT_IMPORTED\}/)
-      expect(slice, `${fn} importedBookedAt anchor`).toMatch(/importedBookedAt: sql[\s\S]*?\$\{IMPORTED\}[\s\S]*?startTime/)
+      // booked mints ONLY from fully-organic rows ('pms_live' createdAt is the connect moment):
+      expect(slice, `${fn} firstBookedAt gate`).toMatch(/firstBookedAt: sql[\s\S]*?\$\{BOOKED_MINTABLE\}[\s\S]*?createdAt/)
+      // seated mints from non-backfill rows AND anchors on the earlier of completedAt/startTime
+      // (late catch-up marking must not shift the seat date — the RECIPE is pinned, not just the gate):
+      expect(slice, `${fn} firstSeatedAt gate+recipe`).toMatch(
+        /firstSeatedAt: sql[\s\S]*?'completed' and \$\{NOT_IMPORTED\}[\s\S]*?least\(coalesce\([\s\S]*?completedAt\}, [\s\S]*?startTime\}\), [\s\S]*?startTime\}\)/,
+      )
+      // booked suppression anchors on imported OR live rows, at the earlier of startTime/createdAt:
+      expect(slice, `${fn} importedBookedAt anchor+recipe`).toMatch(
+        /importedBookedAt: sql[\s\S]*?\$\{IMPORTED_OR_LIVE\}[\s\S]*?least\([\s\S]*?startTime\}, [\s\S]*?createdAt\}\)/,
+      )
       expect(slice, `${fn} importedSeatedAt anchor`).toMatch(/importedSeatedAt: sql[\s\S]*?'completed' and \$\{IMPORTED\}[\s\S]*?startTime/)
       expect(slice, `${fn} applies both suppressions`).toMatch(/suppressIfImportedEarlier/)
     }

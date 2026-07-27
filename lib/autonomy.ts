@@ -50,6 +50,7 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'scheduled_social', label: 'Queue social posts to publish later', defaultTrust: 'auto' },
   { key: 'domain_autorenew', label: 'Renew your web address each year', defaultTrust: 'auto' },
   { key: 'listing_sync', label: 'Keep your site matching your Google listing', defaultTrust: 'auto' },
+  { key: 'review_feature', label: 'Feature new reviews on your website', defaultTrust: 'auto' },
   // Ask-first today (drafts that wait for a human):
   { key: 'review_reply', label: 'Reply to Google reviews', defaultTrust: 'ask' },
   { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'ask' },

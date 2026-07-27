@@ -51,16 +51,26 @@ interface Row {
   replyUpdatedAt: Date | null
   isDemo: number
 }
-const store: { reviews: Row[]; patients: Array<{ organizationId: string }>; conns: Array<{ organizationId: string; status: string; isDemo: number }> } = {
+const store: {
+  reviews: Row[]
+  patients: Array<{ organizationId: string }>
+  conns: Array<{ organizationId: string; status: string; isDemo: number }>
+  reviewConfigs: Array<{ organizationId: string; featureMinStars: number }>
+} = {
   reviews: [],
   patients: [],
   conns: [],
+  reviewConfigs: [],
 }
+
+const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
+vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
 
 vi.mock('@/lib/db', () => {
   const T_REVIEW = 'platform_review'
   const T_PAT = 'patient'
   const T_CONN = 'zernio_connection'
+  const T_CFG = 'clinic_review_config'
 
   function select(cols?: Record<string, unknown>) {
     let table = ''
@@ -81,6 +91,7 @@ vi.mock('@/lib/db', () => {
       if (table === T_REVIEW) rows = store.reviews as unknown as Record<string, unknown>[]
       else if (table === T_PAT) rows = store.patients as unknown as Record<string, unknown>[]
       else if (table === T_CONN) rows = store.conns as unknown as Record<string, unknown>[]
+      else if (table === T_CFG) rows = store.reviewConfigs as unknown as Record<string, unknown>[]
       else rows = []
       const out = rows.filter((r) => filters.every((f) => f(r)))
       // Project to selected columns when given (so stats/loadReview shapes match).
@@ -165,6 +176,7 @@ vi.mock('@/lib/db', () => {
   const col = (name: string) => ({ __col: name })
   const platformReview = {
     __name: T_REVIEW,
+    id: col('id'),
     organizationId: col('organizationId'),
     platform: col('platform'),
     externalReviewId: col('externalReviewId'),
@@ -181,6 +193,7 @@ vi.mock('@/lib/db', () => {
     googleReview: platformReview,
     patient: { __name: T_PAT, organizationId: col('organizationId'), id: col('id') },
     zernioConnection: { __name: T_CONN, organizationId: col('organizationId'), status: col('status'), isDemo: col('isDemo') },
+    clinicReviewConfig: { __name: T_CFG, organizationId: col('organizationId'), featureMinStars: col('featureMinStars') },
   }
 
   return {
@@ -228,6 +241,7 @@ beforeEach(() => {
   store.reviews = []
   store.patients = [{ organizationId: ORG }]
   store.conns = []
+  store.reviewConfigs = []
   conn.value = null
 })
 
@@ -313,6 +327,66 @@ describe('syncGoogleReviews', () => {
     const r = await syncGoogleReviews(ORG)
     expect(r.synced).toBe(2)
     expect(client.listGoogleReviews).toHaveBeenCalledTimes(2)
+  })
+
+  it('a NEW qualifying review narrates review_feature — the machine put it on the website (round-4 in-phase gap)', async () => {
+    setConnected()
+    client.listGoogleReviews.mockResolvedValue({
+      reviews: [
+        { id: 'r_new', starRating: 5, comment: 'Wonderful team!', reviewerName: 'Maria', createTime: '2026-07-20T00:00:00Z', updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null },
+      ],
+      nextPageToken: null,
+    })
+    await syncGoogleReviews(ORG)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('review_feature')
+    expect(entry.organizationId).toBe(ORG)
+    expect(String(entry.summary)).toContain('Maria')
+    expect(String(entry.summary)).toContain('5-star')
+    // Re-sync of the SAME review: no new narration (change-detected on ingest).
+    recordActionMock.mockClear()
+    await syncGoogleReviews(ORG)
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('below-threshold or comment-less reviews never narrate (they never feature)', async () => {
+    setConnected()
+    store.reviewConfigs = [{ organizationId: ORG, featureMinStars: 4 }]
+    client.listGoogleReviews.mockResolvedValue({
+      reviews: [
+        { id: 'r_low', starRating: 2, comment: 'meh', reviewerName: 'A', createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null },
+        { id: 'r_bare', starRating: 5, comment: null, reviewerName: 'B', createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null },
+      ],
+      nextPageToken: null,
+    })
+    await syncGoogleReviews(ORG)
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('a batch of new qualifying reviews collapses to ONE entry (story, not flood)', async () => {
+    setConnected()
+    client.listGoogleReviews.mockResolvedValue({
+      reviews: ['a', 'b', 'c', 'd', 'e'].map((id) => ({
+        id, starRating: 5, comment: 'Great!', reviewerName: id.toUpperCase(), createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null,
+      })),
+      nextPageToken: null,
+    })
+    await syncGoogleReviews(ORG)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain('5 new Google reviews')
+  })
+
+  it("a HUMAN-initiated sync (the owner's connect flow) narrates nothing — setup is their work", async () => {
+    setConnected()
+    client.listGoogleReviews.mockResolvedValue({
+      reviews: [
+        { id: 'r_h', starRating: 5, comment: 'Nice', reviewerName: 'C', createTime: null, updateTime: null, reviewerPhotoUrl: null, replyComment: null, replyUpdateTime: null },
+      ],
+      nextPageToken: null,
+    })
+    await syncGoogleReviews(ORG, { initiatedByUserId: 'user_1' })
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 
   it('records nothing destructive on an API failure (best-effort, ok:false)', async () => {

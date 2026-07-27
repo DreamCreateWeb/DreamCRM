@@ -72,8 +72,10 @@ export async function GET(req: NextRequest) {
           import('@/lib/services/gbp-sync'),
           import('@/lib/services/google-reviews'),
         ])
-        await syncGoogleBusinessProfile(ctx.organizationId)
-        await syncGoogleReviews(ctx.organizationId)
+        // The owner drove this connect flow — the first sync is setup they
+        // performed, not autonomous machine work (round-4 audit).
+        await syncGoogleBusinessProfile(ctx.organizationId, { initiatedByUserId: ctx.userId })
+        await syncGoogleReviews(ctx.organizationId, { initiatedByUserId: ctx.userId })
       } catch (err) {
         console.warn('[zernio] post-connect GBP sync failed (cron will retry)', err)
       }

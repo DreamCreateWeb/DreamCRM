@@ -109,4 +109,10 @@ describe('the read half', () => {
     const scoped = src.match(/eq\(schema\.actionLedger\.organizationId, (organizationId|input\.organizationId)\)/g) ?? []
     expect(scoped.length).toBeGreaterThanOrEqual(2)
   })
+
+  it('the time windows are laws too — dropping either gte turns "this week" into "all time" (round-4 pin)', () => {
+    const src = readFileSync(resolve(__dirname, '../../lib/services/action-ledger.ts'), 'utf8')
+    expect(src).toMatch(/gte\(schema\.actionLedger\.occurredAt, opts\.since\)/)
+    expect(src).toMatch(/countActionsSince[\s\S]*?gte\(schema\.actionLedger\.occurredAt, since\)/)
+  })
 })

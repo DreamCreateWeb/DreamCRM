@@ -318,6 +318,29 @@ describe('syncGoogleBusinessProfile', () => {
     expect(recordActionMock).not.toHaveBeenCalled()
   })
 
+  it('the jsonb round-trip cannot false-positive: REORDERED-key hours still narrate nothing (round-4: Postgres sorts jsonb keys)', async () => {
+    store.profiles = [fullProfile({ hoursSource: 'google', addressSource: 'google', phoneSource: 'google' })]
+    setConnected()
+    await syncGoogleBusinessProfile(ORG, { force: false }) // writes hours in builder order
+    // Simulate the Postgres jsonb round-trip: same VALUES, keys re-sorted the
+    // way jsonb stores them (length, then bytewise — fri,mon,sat,...).
+    const stored = store.profiles[0].hours as Record<string, unknown>
+    const reordered: Record<string, unknown> = {}
+    for (const k of Object.keys(stored).sort((a, b) => a.length - b.length || (a < b ? -1 : 1))) reordered[k] = stored[k]
+    store.profiles[0].hours = reordered
+    recordActionMock.mockClear()
+    await syncGoogleBusinessProfile(ORG, { force: false })
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('a HUMAN-initiated sync narrates nothing even when values change — their click is their work (round-4 actor gate)', async () => {
+    setConnected()
+    // force:true overwrites the manual-source defaults, so values change…
+    await syncGoogleBusinessProfile(ORG, { force: true, initiatedByUserId: 'user_9' })
+    // …but the staff member drove it: no machine ledger entry.
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
   it('force: OVERWRITES manual fields + flips each written source to google', async () => {
     setConnected()
     const r = await syncGoogleBusinessProfile(ORG, { force: true })

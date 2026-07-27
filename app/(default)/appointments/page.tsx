@@ -19,6 +19,7 @@ import { listWaitlist } from '@/lib/services/appointment-waitlist'
 import {
   normalizeAppointmentViewFilters,
   appointmentViewFiltersToQuery,
+  APPT_ATTENTION_KEYS,
 } from '@/lib/types/appointment-views'
 import AgendaView from './agenda-view'
 import WaitlistPanel from './waitlist-panel'
@@ -34,12 +35,16 @@ function parseWindow(raw: string | string[] | undefined): AppointmentListFilters
   return (valid as readonly string[]).includes(v) ? (v as AppointmentListFilters['window']) : 'next_14d'
 }
 
-function parseAttention(raw: string | string[] | undefined): NonNullable<AppointmentListFilters['attention']> {
+// Exported for the executed URL-seam test (round-4 audit: a local copy of the
+// valid list silently dropped 'unmarked', killing the catch-net's CTA + chip —
+// the vocabulary now has ONE home in lib/types/appointment-views.ts).
+export function parseAttention(raw: string | string[] | undefined): NonNullable<AppointmentListFilters['attention']> {
   const v = typeof raw === 'string' ? raw : ''
   if (!v) return []
   const parts = v.split(',').filter(Boolean)
-  const valid = ['unconfirmed', 'needs_intake', 'new_patients', 'has_balance', 'cancelled', 'no_show', 'lapsed_rebooking', 'needs_rebooking']
-  return parts.filter((p) => valid.includes(p)) as NonNullable<AppointmentListFilters['attention']>
+  return parts.filter((p) => (APPT_ATTENTION_KEYS as readonly string[]).includes(p)) as NonNullable<
+    AppointmentListFilters['attention']
+  >
 }
 
 export default async function AppointmentsPage({ searchParams }: PageProps) {

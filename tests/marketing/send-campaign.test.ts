@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /**
  * Integration tests for the campaign send orchestrator
@@ -480,5 +482,13 @@ describe('neutralizePreviewLinks', () => {
   it('rewrites every href to # but leaves the rest of the markup intact', () => {
     const out = neutralizePreviewLinks('<a href="https://x.com/y">x</a> and <a href=\'mailto:a@b.com\'>mail</a>')
     expect(out).toBe('<a href="#">x</a> and <a href="#">mail</a>')
+  })
+})
+
+describe('the staff-actor pass-through (round-4 pin)', () => {
+  it("sendCampaignAction hands the clicker's id to the ledger gate — deleting the one-liner re-opens the round-1 defect", () => {
+    const src = readFileSync(resolve(__dirname, '../../app/(default)/marketing/actions.ts'), 'utf8')
+    const call = src.slice(src.indexOf('sendCampaign('))
+    expect(call.slice(0, 400)).toMatch(/initiatedByUserId: ctx\.userId/)
   })
 })

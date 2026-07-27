@@ -310,7 +310,10 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         and(
           eq(schema.appointment.organizationId, organizationId),
           inArray(schema.appointment.status, ['scheduled', 'confirmed']),
-          gte(schema.appointment.startTime, new Date(todayStart.getTime() - 30 * 24 * 60 * 60 * 1000)),
+          // clinicDayStart(-30) — the SAME calendar-day arithmetic the CTA's
+          // past_30d window uses; a fixed-ms lookback drifted 1h across DST
+          // and broke number-equals-list at the boundary (round-4 audit).
+          gte(schema.appointment.startTime, clinicDayStart(now, timeZone, -30)),
           lt(schema.appointment.startTime, todayStart),
         ),
       )

@@ -653,12 +653,15 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
         // 'pms_import', but when we WATCH such a visit complete (its
         // startTime is on/after the day we created the row, and the status
         // flip arrives via delta sync ≤1 cron cycle after the truth), the
-        // sync-time-corruption rationale doesn't apply — completedAt is
-        // ~honest. Re-stamp it 'pms' so the journey funnel can mint the
-        // seating; without this, every patient booked pre-connect who seats
-        // post-connect is a permanent seated-growth blind spot. Historical
-        // backfill rows (startTime before their own row creation) stay
-        // 'pms_import' forever.
+        // sync-time-corruption rationale doesn't apply to the SEATING —
+        // startTime is the honest visit time. Re-stamp it 'pms_live' (NOT
+        // 'pms'; round-4 audit): the journey layer lets 'pms_live' mint the
+        // SEATED transition but never the BOOKED one — the row's createdAt
+        // is still the connect-sync moment, and letting it mint firstBookedAt
+        // manufactured a booked spike dated the connect day. 'pms_live' rows
+        // also stay in the imported-booked suppression anchor (they prove
+        // the person was on the book by import time). Historical backfill
+        // rows (startTime before their own row creation) stay 'pms_import'.
         const goingLiveCompleted =
           statusChanged &&
           na.status === 'completed' &&
@@ -674,7 +677,7 @@ async function reconcileAppointments(organizationId: string, rows: NormalizedApp
             providerId: providerInternalId,
             notes: na.note ?? null,
             ...(statusChanged ? statusFields : {}),
-            ...(goingLiveCompleted ? { source: 'pms' } : {}),
+            ...(goingLiveCompleted ? { source: 'pms_live' } : {}),
             updatedAt: new Date(),
           })
           .where(and(eq(schema.appointment.organizationId, organizationId), eq(schema.appointment.id, existing.internalId)))

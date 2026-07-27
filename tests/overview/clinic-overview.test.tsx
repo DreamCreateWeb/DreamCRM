@@ -136,14 +136,27 @@ describe('the catch-net windows agree across surfaces (source-pinned)', () => {
     const src = read('lib/services/clinic-overview.ts')
     const q = src.slice(src.indexOf('Unmarked past visits'))
     expect(q).toMatch(/inArray\(schema\.appointment\.status, \['scheduled', 'confirmed'\]\)/)
-    expect(q).toMatch(/gte\(schema\.appointment\.startTime, new Date\(todayStart\.getTime\(\) - 30 \* 24/)
+    // Calendar-day arithmetic, NOT fixed ms — a fixed lookback drifted 1h
+    // across DST vs the CTA's past_30d window (round-4 audit).
+    expect(q).toMatch(/gte\(schema\.appointment\.startTime, clinicDayStart\(now, timeZone, -30\)\)/)
     expect(q).toMatch(/lt\(schema\.appointment\.startTime, todayStart\)/)
   })
 
-  it("the agenda 'unmarked' chip bounds at the clinic-local day start, never raw now", () => {
+  it("the agenda 'unmarked' chip bounds at the clinic-local day start AND keeps its pre-visit status guard", () => {
     const src = read('lib/services/appointments.ts')
     const filter = src.slice(src.indexOf("att.includes('unmarked')"))
-    expect(filter.slice(0, 400)).toContain('row.startTime < clinicDayStart(now, timeZone)')
+    expect(filter.slice(0, 500)).toContain('row.startTime < clinicDayStart(now, timeZone)')
+    // Without the status guard, completed/cancelled/no-show rows flood the
+    // chip and the card count stops matching the list (round-4 pin).
+    expect(filter.slice(0, 500)).toMatch(/row\.status === 'scheduled' \|\| row\.status === 'confirmed'/)
+  })
+
+  it("the URL seam is alive: the page parser reads THE shared attention registry (round-4: a local copy silently dropped 'unmarked')", () => {
+    const page = read('app/(default)/appointments/page.tsx')
+    const parser = page.slice(page.indexOf('function parseAttention'))
+    expect(parser.slice(0, 700)).toContain('APPT_ATTENTION_KEYS')
+    // No resurrected local allowlist:
+    expect(parser.slice(0, 700)).not.toMatch(/valid = \['unconfirmed'/)
   })
 })
 

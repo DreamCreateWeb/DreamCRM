@@ -504,7 +504,10 @@ describe('runImport — backfill vs ongoing source stamping', () => {
     await runImport('org1')
     const row = store.appointments.find((a) => a.id === 'appt_y')!
     expect(row.status).toBe('completed')
-    expect(row.source).toBe('pms') // live-observed seat — the funnel may mint it
+    // 'pms_live', NOT 'pms' (round-4 audit): the seat may mint (honest
+    // startTime) but the row's connect-time createdAt must never mint a
+    // booked transition, and it stays in the imported-booked anchor.
+    expect(row.source).toBe('pms_live')
     expect(row.completedAt).toBeInstanceOf(Date)
   })
 

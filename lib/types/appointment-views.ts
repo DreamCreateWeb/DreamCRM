@@ -19,7 +19,10 @@ export type ApptAttention =
   | 'unmarked'
 
 const WINDOWS: ApptWindow[] = ['today', 'tomorrow', 'this_week', 'next_14d', 'all_upcoming', 'past_30d']
-const ATTENTION: ApptAttention[] = [
+// THE single home for the attention vocabulary (round-4 audit: the
+// appointments page kept its own copy and silently dropped 'unmarked' —
+// every URL parser must read THIS list, never a local one).
+export const APPT_ATTENTION_KEYS: readonly ApptAttention[] = [
   'unconfirmed',
   'needs_intake',
   'new_patients',
@@ -30,6 +33,7 @@ const ATTENTION: ApptAttention[] = [
   'needs_rebooking',
   'unmarked',
 ]
+const ATTENTION = APPT_ATTENTION_KEYS
 
 /** `next_14d` is the page's default window, so a view that carries only it
  *  reads as "no window constraint" (and is dropped from the query). */

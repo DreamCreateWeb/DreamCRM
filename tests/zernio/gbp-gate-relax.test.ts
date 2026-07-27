@@ -115,7 +115,7 @@ describe('Settings "Sync from Google" actions — relaxed to all plans', () => {
   it('syncFromGoogleAction passes for a Basic-plan owner', async () => {
     const r = await syncFromGoogleAction()
     expect(r.ok).toBe(true)
-    expect(gbpSync.syncGoogleBusinessProfile).toHaveBeenCalledWith('org_1', { force: true })
+    expect(gbpSync.syncGoogleBusinessProfile).toHaveBeenCalledWith('org_1', { force: true, initiatedByUserId: 'u1' })
   })
 
   it('rejects a member role with a friendly error', async () => {

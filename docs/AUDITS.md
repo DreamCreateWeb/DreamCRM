@@ -24,6 +24,21 @@ rejected, the backlog harvest, and the dry declaration.
 Proposals judged real-but-future-scope land here, newest first. The owner
 promotes items into phases; nothing here is a commitment until he does.
 
+**From Phase 1 round 4 (2026-07-27):**
+
+1. **The ledger's outcome-linkage seed** — DESIGN.md defines the ledger as
+   "what the machine did AND WHAT CAME OF IT"; no outcome field or pinned
+   detail-key contract exists, and `logReminderSent` omits the reminder-log
+   id it just minted. Nothing is irrecoverable (writers embed domain entity
+   ids; joins work via appointmentId+time), so the contract — and the
+   reminder-log id — ship with Phase 2's standup, whose consumer dictates
+   the shape.
+2. **Typed appointment-source registry** — 'pms'/'pms_live'/'pms_import'
+   are raw literals; the journey law is an inline-SQL denylist, so a future
+   bulk importer's new source value would mint fake timestamps by default.
+   Current behavior is correct and executed-tested; build the registry +
+   guard with the first new importer (Dentrix/Eaglesoft migration tooling).
+
 **From Phase 1 round 3 (2026-07-27):**
 
 1. **Ledger read shapes: `until`/cursor/capability filters** —
@@ -100,8 +115,50 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 1 — the spine (journey resolver · Action Ledger · autonomy schema)
 
-**Status: rounds 1–3 complete, fixes shipped; NOT yet dry** (dry = two
-consecutive clean rounds; round 4 pending).
+**Status: rounds 1–4 complete, fixes shipped; NOT yet dry** (dry = two
+consecutive clean rounds; round 5 pending).
+
+- **Round 4** (2026-07-27, range `1e8de2c..26ae6da`, direct-agent fan-out):
+  9 lenses → 21 raw → 10 defect / 4 depth candidates → 3 skeptics + 3
+  judges: **all 10 defects CONFIRMED** (1 critical, 3 major, 6 minor — the
+  audit's first critical), **1 in-phase gap** (unanimous), 3 → backlog,
+  0 rejected. Theme: the round-3 fixes' own seams.
+- **Round-4 fixes (all shipped):**
+  - **CRITICAL — the catch-net was dead at the URL seam.** The appointments
+    page kept a LOCAL copy of the attention allowlist and it lacked
+    'unmarked': the Overview CTA opened an unfiltered list and the chip
+    did nothing. The vocabulary now has ONE home (`APPT_ATTENTION_KEYS` in
+    lib/types/appointment-views.ts) that the page parser reads; pinned so
+    a local list can't come back.
+  - **The re-stamp's booked side sealed.** Live-observed completions now
+    stamp `'pms_live'`, not `'pms'`: the journey layer mints their SEATED
+    transition (honest startTime) but never their BOOKED one (createdAt is
+    the connect moment), and they stay in the imported-booked suppression
+    anchor. New `BOOKED_MINTABLE`/`IMPORTED_OR_LIVE` predicates, pinned
+    per-function WITH the anchor recipes (`least(coalesce(completedAt,
+    startTime), startTime)`, `least(startTime, createdAt)`) — round 4
+    proved the old pins matched reverted recipes.
+  - **listing_sync honesty, twice.** (1) The hours change-detection compared
+    `JSON.stringify` of builder-ordered keys against the jsonb round-trip
+    (Postgres reorders keys) — it would have written ~24 false "updated
+    your hours" entries per day per GBP clinic; now a canonical
+    sorted-key comparison, with a reordered-keys regression test. (2) The
+    initiator gate: staff-clicked "Sync from Google" and the owner's
+    connect flow pass `initiatedByUserId` and the machine ledger stays
+    silent — same actor law as staff campaign sends.
+  - **DST coherence:** the catch-net card's 30-day lookback now uses
+    `clinicDayStart(now, tz, -30)` — the same calendar-day arithmetic as
+    its CTA's window (the fixed-ms bound drifted 1h across DST).
+  - **In-phase gap — `review_feature` registered (17th capability):** a
+    newly-synced Google review at/above the feature threshold auto-
+    publishes onto the public testimonials; the sync now narrates that
+    moment ("Added Maria's 5-star Google review to your website"),
+    change-detected at ingest, collapsed when a batch lands, silent for
+    human-initiated connect syncs and demo orgs. Executed tests.
+  - **Regression pins for everything round 4 caught unpinned:** the
+    importedRoster fact (CSV roster stage, executed in all three readers),
+    the ledger readers' `since` windows, the unmarked chip's status guard,
+    and the staff-actor pass-through in sendCampaignAction.
 
 - **Round 3** (2026-07-27, range `1e8de2c..70c7853`, direct-agent fan-out):
   9 lenses → 30 raw findings → 15 defect / 7 depth candidates after

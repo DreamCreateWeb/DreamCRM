@@ -53,7 +53,9 @@ export async function syncFromGoogleAction(): Promise<GbpSyncResult> {
   if (!g.ok) {
     return { ok: false, applied: [], skippedManual: [], photoCount: 0, error: g.error }
   }
-  const r = await syncGoogleBusinessProfile(g.ctx.organizationId, { force: true })
+  // A staff click is THEIR work — the initiator id keeps the machine ledger
+  // from claiming it (round-4 audit).
+  const r = await syncGoogleBusinessProfile(g.ctx.organizationId, { force: true, initiatedByUserId: g.ctx.userId })
   if (r.ok) revalidateSynced(g.ctx.organizationSlug)
   return r
 }

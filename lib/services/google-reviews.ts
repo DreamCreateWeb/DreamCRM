@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { resolveGbpAccount } from '@/lib/services/zernio'
+import { recordAction } from '@/lib/services/action-ledger'
 import type { ClinicTestimonial } from '@/lib/types/clinic-content'
 import {
   listGoogleReviews as zernioListGoogleReviews,
@@ -100,13 +101,26 @@ function newReviewRowId(): string {
 }
 
 /** Idempotent upsert of one pulled review by (orgId, externalReviewId). Updates
- *  mutable fields (comment edits, rating changes, new/edited owner replies). */
+ *  mutable fields (comment edits, rating changes, new/edited owner replies).
+ *  Returns whether this pull INSERTED the review (first time we've seen it) —
+ *  the auto-feature narration keys on that moment (round-4 audit). */
 async function upsertReview(
   orgId: string,
   accountId: string,
   r: GoogleReview,
   isDemo: number,
-): Promise<void> {
+): Promise<{ inserted: boolean }> {
+  const [existing] = await db
+    .select({ id: schema.platformReview.id })
+    .from(schema.platformReview)
+    .where(
+      and(
+        eq(schema.platformReview.organizationId, orgId),
+        eq(schema.platformReview.platform, GOOGLE_BUSINESS),
+        eq(schema.platformReview.externalReviewId, r.id),
+      ),
+    )
+    .limit(1)
   const now = new Date()
   await db
     .insert(schema.platformReview)
@@ -151,6 +165,7 @@ async function upsertReview(
         updatedAt: now,
       },
     })
+  return { inserted: !existing }
 }
 
 export interface SyncGoogleReviewsResult {
@@ -168,13 +183,20 @@ export interface SyncGoogleReviewsResult {
  * the seeded rows stand and we report `skipped:'demo'`. On API failure we record
  * nothing destructive and surface `ok:false` with the error (callers catch).
  */
-export async function syncGoogleReviews(orgId: string): Promise<SyncGoogleReviewsResult> {
+export async function syncGoogleReviews(
+  orgId: string,
+  /** Set when a HUMAN drove this sync (the owner's connect flow) — setup they
+   *  performed, so the machine ledger stays silent (round-4 audit; the
+   *  unattended hourly cron omits it). */
+  opts: { initiatedByUserId?: string | null } = {},
+): Promise<SyncGoogleReviewsResult> {
   const account = await resolveGbpAccount(orgId)
   if (!account) return { ok: true, synced: 0, skipped: 'no_connection' }
   if (account.isDemo) return { ok: true, synced: 0, skipped: 'demo' }
 
   let synced = 0
   let pageToken: string | undefined
+  const fresh: Array<{ reviewerName: string | null; starRating: number | null; comment: string | null }> = []
   try {
     for (let page = 0; page < MAX_SYNC_PAGES; page++) {
       const { reviews, nextPageToken } = await zernioListGoogleReviews({
@@ -182,15 +204,64 @@ export async function syncGoogleReviews(orgId: string): Promise<SyncGoogleReview
         pageToken,
       })
       for (const r of reviews) {
-        await upsertReview(orgId, account.accountId, r, 0)
+        const { inserted } = await upsertReview(orgId, account.accountId, r, 0)
+        if (inserted) fresh.push({ reviewerName: r.reviewerName ?? null, starRating: r.starRating ?? null, comment: r.comment ?? null })
         synced++
       }
       if (!nextPageToken) break
       pageToken = nextPageToken
     }
+    // THE ACTION LEDGER — a newly-synced review at/above the feature threshold
+    // auto-publishes onto the clinic's PUBLIC testimonials (read-time rule, so
+    // the narration moment is THIS ingest — round-4 audit; same law as
+    // listing_sync). Machine runs only; the owner's connect-flow sync is their
+    // own setup. Collapses when a batch lands (e.g. the first cron after a
+    // failed connect sync) so the ledger stays a story, not a flood.
+    if (opts.initiatedByUserId == null && fresh.length > 0) {
+      await narrateAutoFeatured(orgId, fresh)
+    }
     return { ok: true, synced }
   } catch (e) {
     return { ok: false, synced, error: (e as Error).message }
+  }
+}
+
+/** Ledger the newly-ingested reviews that the public site will now feature.
+ *  Best-effort by recordAction's contract; never throws into the sync. */
+async function narrateAutoFeatured(
+  orgId: string,
+  fresh: Array<{ reviewerName: string | null; starRating: number | null; comment: string | null }>,
+): Promise<void> {
+  try {
+    const [cfg] = await db
+      .select({ featureMinStars: schema.clinicReviewConfig.featureMinStars })
+      .from(schema.clinicReviewConfig)
+      .where(eq(schema.clinicReviewConfig.organizationId, orgId))
+      .limit(1)
+    const minStars = cfg?.featureMinStars ?? 4
+    // Mirrors listFeaturableGoogleReviews' rule: rated at/above the threshold
+    // WITH a written comment (star-only reviews never feature).
+    const featured = fresh.filter((r) => (r.starRating ?? 0) >= minStars && !!r.comment?.trim())
+    if (featured.length === 0) return
+    if (featured.length <= 3) {
+      for (const r of featured) {
+        await recordAction({
+          organizationId: orgId,
+          capability: 'review_feature',
+          summary: `Added ${r.reviewerName?.trim() || 'a patient'}’s ${r.starRating}-star Google review to your website`,
+          detail: { reviewerName: r.reviewerName, starRating: r.starRating },
+        })
+      }
+    } else {
+      await recordAction({
+        organizationId: orgId,
+        capability: 'review_feature',
+        summary: `Added ${featured.length} new Google reviews to your website's testimonials`,
+        detail: { count: featured.length },
+      })
+    }
+  } catch (err) {
+    console.warn('[google-reviews] auto-feature narration failed (sync unaffected):', err)
   }
 }
 

@@ -28,7 +28,7 @@ export const metadata = { title: 'Practice Analytics - DreamCRM' }
 export const dynamic = 'force-dynamic'
 
 function humanize(s: string): string {
-  if (s === 'pms') return 'Practice system'
+  if (s === 'pms' || s === 'pms_live') return 'Practice system'
   if (s === 'pms_import') return 'Practice system (imported)'
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }

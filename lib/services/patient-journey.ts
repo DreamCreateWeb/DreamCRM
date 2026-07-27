@@ -39,9 +39,17 @@ import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
  * firstSeatedAt would count a long-time patient as a brand-new one. The
  * imported rows' startTime is the honest visit time (only their createdAt/
  * completedAt are sync-corrupted), so it anchors the suppression check.
+ *
+ * 'pms_live' (round-4 audit) is the backfilled-upcoming row the delta sync
+ * WATCHED complete. Its startTime is honest → it may mint SEATED; its
+ * createdAt is still the connect-sync moment → it must never mint BOOKED,
+ * and it stays in the imported-booked suppression anchor (it proves the
+ * person was on the book by import time).
  */
 const NOT_IMPORTED = sql`${schema.appointment.source} is distinct from 'pms_import'`
 const IMPORTED = sql`${schema.appointment.source} = 'pms_import'`
+const BOOKED_MINTABLE = sql`${schema.appointment.source} is distinct from 'pms_import' and ${schema.appointment.source} is distinct from 'pms_live'`
+const IMPORTED_OR_LIVE = sql`(${schema.appointment.source} = 'pms_import' or ${schema.appointment.source} = 'pms_live')`
 
 /** Null out a minted transition when imported history predates it. */
 function suppressIfImportedEarlier(minted: Date | null, importedAt: Date | null): Date | null {
@@ -92,7 +100,7 @@ export async function getJourneyForPatients(
   const appts = await db
     .select({
       patientId: schema.appointment.patientId,
-      firstBookedAt: sql<Date | null>`min(case when ${NOT_IMPORTED} then ${schema.appointment.createdAt} end)`,
+      firstBookedAt: sql<Date | null>`min(case when ${BOOKED_MINTABLE} then ${schema.appointment.createdAt} end)`,
       hasLiveAppointment: sql<boolean>`bool_or(${schema.appointment.status} <> 'cancelled')`,
       hasCompletedEver: sql<boolean>`bool_or(${schema.appointment.status} = 'completed')`,
       // Seated anchors on the EARLIER of completedAt and startTime: startTime
@@ -111,7 +119,7 @@ export async function getJourneyForPatients(
       // createdAt leg it couldn't suppress an earlier organic mint
       // (round-3 audit). Seated keeps startTime (the honest visit time; a
       // completed imported row's completedAt is sync-corrupted).
-      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
+      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED_OR_LIVE} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
       importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
     })
     .from(schema.appointment)
@@ -241,7 +249,7 @@ export async function getJourneyFunnel(
       patientId: schema.patient.id,
       source: schema.patient.source,
       firstSeenAt: schema.patient.firstSeenAt,
-      firstBookedAt: sql<Date | null>`min(case when ${NOT_IMPORTED} then ${schema.appointment.createdAt} end)`,
+      firstBookedAt: sql<Date | null>`min(case when ${BOOKED_MINTABLE} then ${schema.appointment.createdAt} end)`,
       // Same anchor rules as getJourneyForPatients above (round-3 audit):
       // seated takes the earlier of completedAt/startTime (late marking must
       // not shift the seat date); imported-booked takes the earlier of
@@ -252,7 +260,7 @@ export async function getJourneyFunnel(
              then least(coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime}), ${schema.appointment.startTime})
         end
       )`,
-      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
+      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED_OR_LIVE} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
       importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
     })
     .from(schema.patient)
