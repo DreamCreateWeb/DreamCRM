@@ -257,6 +257,28 @@ const finderResults = await parallel(
   ),
 )
 
+// INTEGRITY LAW: a finder that DIED is not a finder that found nothing.
+// parallel() resolves a failed agent to null — if any lens never reported
+// (tool faults, retry-cap, kill), the round is INVALID and must be re-run.
+// Without this, 9 dead auditors read as a perfect clean round (observed
+// 2026-07-27: a harness tool fault killed every finder and the round
+// self-declared clean).
+const deadLenses = LENSES.filter((_, i) => !finderResults[i]).map((l) => l.key)
+if (deadLenses.length > 0) {
+  return {
+    round,
+    range,
+    clean: false,
+    invalid: true,
+    deadLenses,
+    defects: [],
+    inPhaseGaps: [],
+    backlog: [],
+    rejected: [],
+    note: `ROUND INVALID — ${deadLenses.length}/${LENSES.length} lens auditor(s) never reported (${deadLenses.join(', ')}). A dead auditor is not a clean auditor; re-run the round.`,
+  }
+}
+
 const all = []
 for (const fr of finderResults.filter(Boolean)) {
   for (const f of fr.findings) all.push({ ...f, lens: fr.lens })
@@ -358,6 +380,29 @@ const [skepticVotes, judgeVotes] = await parallel([
           ),
         ),
 ])
+
+// Same integrity law for the verify chamber: a dead skeptic can never
+// confirm (defects silently die) and a dead judge can never vote in_phase
+// (gaps silently demote). Any dead voter invalidates the round.
+// A null PANEL (the whole thunk died) counts as all 3 voters dead — the
+// `?? []` fallback must not read as "zero dead".
+const deadIn = (votes, expected) => (!Array.isArray(votes) ? expected : votes.filter((v) => !v).length)
+const deadSkeptics = defectCandidates.length === 0 ? 0 : deadIn(skepticVotes, 3)
+const deadJudges = depthCandidates.length === 0 ? 0 : deadIn(judgeVotes, 3)
+if (deadSkeptics > 0 || deadJudges > 0) {
+  return {
+    round,
+    range,
+    clean: false,
+    invalid: true,
+    note: `ROUND INVALID — ${deadSkeptics} skeptic(s) and ${deadJudges} judge(s) never reported; the vote tally would be biased. Re-run the round.`,
+    defects: [],
+    inPhaseGaps: [],
+    backlog: [],
+    rejected: [],
+    unverifiedCandidates: candidates,
+  }
+}
 
 function tally(votesByAgent, id) {
   const out = []
