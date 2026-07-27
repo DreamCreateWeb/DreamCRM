@@ -1,35 +1,59 @@
 export const meta = {
   name: 'phase-audit',
-  description: 'One round of the phase-gate audit: lens finders → adversarial verify → triage',
+  description: 'One round of the phase-gate audit (v2): 4 lens finders → single verify pass → main-loop confirmation',
   whenToUse:
-    'After any transformation phase (or major feature slice): run rounds until TWO consecutive rounds return zero confirmed defects AND zero in-phase depth gaps. Certificate goes in docs/AUDITS.md.',
+    'After any transformation phase (or major feature slice). v2 gate: HARD CAP of 3 rounds. Done = a round with zero confirmed defects and zero in-phase depth gaps. If round 3 still finds significant items (any critical/major defect or in-phase gap), do NOT run a round 4 — stop and write a root-cause retrospective ("why are there so many gaps?") for the owner instead. Certificate goes in docs/AUDITS.md.',
   phases: [
-    { title: 'Find', detail: '8 independent lens auditors + 1 audit-the-audit critic' },
-    { title: 'Verify', detail: 'defect skeptics (refute) + depth judges (value/scope)' },
+    { title: 'Find', detail: '4 merged lens auditors', model: 'opus' },
+    { title: 'Verify', detail: 'one defect skeptic + one depth judge', model: 'opus' },
   ],
 }
 
 /**
- * THE PHASE AUDIT — the owner's standing quality gate (2026-07-27).
+ * THE PHASE AUDIT v2 — the owner's standing quality gate, re-shaped for cost
+ * (2026-07-27, after v1's Phase-1 run consumed ~75% of a monthly quota).
  *
- * Two chambers, per the owner's standard ("perfection plus depth"):
- *   PERFECTION — is what was built correct, complete, and law-abiding?
- *     Findings are DEFECTS; they face 3 adversarial skeptics; majority
- *     confirm → must be fixed before the phase can run dry.
- *   DEPTH — "would it make sense to add more?" Findings are PROPOSALS;
- *     they face 3 value judges who triage: in_phase (this phase is not
- *     honestly done without it) | backlog (real value, future scope) |
- *     reject. In-phase gaps block dry; backlog goes to the owner's menu.
+ * WHAT CHANGED FROM v1 (and why):
+ *  - MODELS: every subagent runs Opus 5 (`model:'opus'`) — near-flagship
+ *    quality at a fraction of the cost. The MAIN LOOP (the session's own
+ *    model) is the final arbiter: it re-verifies every survivor against the
+ *    cited code before fixing anything. The Phase-1 round-5 close-out proved
+ *    this works — main-loop verification of 11 candidates produced clean
+ *    verdicts (10 confirm / 1 reject) at a tiny fraction of a skeptic
+ *    chamber's cost.
+ *  - LENSES: 9 → 4 (merged, below). v1's lenses overlapped heavily; the
+ *    merged prompts keep every checklist item.
+ *  - VERIFY: 3 skeptics + 3 judges → ONE skeptic + ONE judge, because the
+ *    main loop now provides the second, decisive opinion.
+ *  - ROUNDS: HARD CAP 3 (enforced in this script — round > 3 refuses to
+ *    run). Done = a clean round (zero confirmed defects + zero in-phase
+ *    gaps). v1's "two consecutive clean rounds" is retired: with a healthy
+ *    phase, round 1 finds the real items, round 2 verifies the fixes and
+ *    comes back clean or near-clean, round 3 is the safety margin. If
+ *    round 3 STILL surfaces significant items, more auditing is the wrong
+ *    tool — the phase itself was under-built or the claims were wrong.
+ *    This script flags that state (`escalate: true`) and the orchestrator
+ *    must STOP and write the owner a root-cause retrospective ("why are
+ *    there so many gaps?") instead of scheduling a round 4.
  *
- * DRY = two consecutive rounds with zero confirmed defects and zero
- * in-phase gaps. The main loop orchestrates rounds (fixing between them);
- * this workflow is ONE round.
+ * Two chambers, unchanged in spirit ("perfection plus depth"):
+ *   PERFECTION — findings are DEFECTS; the skeptic tries to refute each;
+ *     skeptic-confirmed survivors go to the main loop for final
+ *     confirmation, then must be fixed.
+ *   DEPTH — "would it make sense to add more?" Findings are PROPOSALS the
+ *     judge triages: in_phase (blocks done) | backlog (owner's menu) |
+ *     reject.
+ *
+ * FALLBACK: if the Workflow runtime is broken (the 2026-07-27 permission-
+ * handler fault stripped tool params from workflow subagents), run the same
+ * shape via direct Agent-tool fan-out with `model: 'opus'` — the prompts
+ * below are self-contained on purpose.
  *
  * args: {
- *   phase: string          — e.g. "Phase 1 — the spine"
- *   range: string          — git commit range, e.g. "1e8de2c..181be84"
+ *   phase: string          — e.g. "Phase 2 — the voice"
+ *   range: string          — git commit range, e.g. "090747b..abc1234"
  *   claims: string[]       — what the phase says it delivered
- *   round: number          — 1-based round counter (for labels/report)
+ *   round: number          — 1-based; values > 3 are REFUSED
  *   priorFindings?: string — summary of previously fixed findings, so
  *                            round N doesn't re-report what round N-1 fixed
  *   extraDocs?: string[]   — additional governing docs beyond the defaults
@@ -48,6 +72,25 @@ const {
   extraDocs = [],
 } = A
 
+// ── THE ROUND CAP (the owner's mandate, 2026-07-27) ─────────────────────────
+// Three rounds, ever. A fourth round is never the answer; a phase that can't
+// come clean in three needs a retrospective, not more auditing.
+const MAX_ROUNDS = 3
+if (round > MAX_ROUNDS) {
+  return {
+    round,
+    range,
+    clean: false,
+    invalid: true,
+    escalate: true,
+    defects: [],
+    inPhaseGaps: [],
+    backlog: [],
+    rejected: [],
+    note: `REFUSED — round ${round} exceeds the hard cap of ${MAX_ROUNDS}. The gate is closed: if round 3 was not clean, write the owner a root-cause retrospective (why did the phase ship with this many gaps — under-scoped claims? rushed build? missing conventions?) and decide TOGETHER whether to re-open the phase as new build work. Do not audit further.`,
+  }
+}
+
 const GOVERNING_DOCS = [
   'DESIGN.md (the section "The North Star" is LAW and outranks everything)',
   'CLAUDE.md (the Conventions section — every convention is binding)',
@@ -60,7 +103,7 @@ Product: DreamCRM — a patient-relationship platform for dental clinics.
 The customers are kind, overworked, non-technical dental staff; the
 owner's standard is THE PINNACLE: "perfection plus depth."
 
-Phase under audit: ${phaseName}   (audit round ${round})
+Phase under audit: ${phaseName}   (audit round ${round} of max ${MAX_ROUNDS})
 Git range: ${range}
 
 The phase CLAIMS it delivered:
@@ -136,115 +179,90 @@ const VOTES_SCHEMA = {
   },
 }
 
-// ── The lenses. Six perfection, two depth. Each finder is independent and
+// ── The lenses: v1's nine, merged into four. Each finder is independent and
 //    never sees another finder's output or the author's reasoning. ──────────
 const LENSES = [
   {
-    key: 'semantics',
-    prompt: `You are the SEMANTICS auditor: does the code MEAN what its words claim?
-Hunt meaning drift: names, doc comments, and UI copy that promise one thing
-while the code does another. Read every SQL predicate and boundary condition
-in the changed files and ask "which real-world person/state does this
-misclassify?" (e.g. a status the query forgot, a state between states, an
-edge the enum hides). Check that every metric's NAME matches its actual
-measurement window/filter. kind='defect' for every finding.`,
-  },
-  {
-    key: 'completeness',
-    prompt: `You are the COMPLETENESS auditor: is everything that was REGISTERED,
-DECLARED, or PROMISED actually wired end-to-end? Build the full inventory
-first (registries, enums, capability lists, config keys, exported functions,
-claims in the manifest), then verify each item has its counterpart (writer,
-reader, handler, test, doc). N-of-M gaps are your specialty — "7 registered,
-3 wired" class failures. Also the inverse: dead exports nothing consumes.
+    key: 'claims',
+    prompt: `You are the CLAIMS auditor: does the code DO what the phase claims, ALL of
+what it claims, and NOTHING it doesn't own up to? Three hunts in one pass:
+(1) SEMANTICS — meaning drift: names, doc comments, UI copy, and metric names
+that promise one thing while the code does another. Read every SQL predicate
+and boundary condition in the changed files and ask "which real-world
+person/state does this misclassify?" (a status the query forgot, a state
+between states, an edge the enum hides).
+(2) COMPLETENESS — build the full inventory (registries, enums, capability
+lists, config keys, exported functions, the manifest's claims), then verify
+each item has its counterpart (writer, reader, handler, test, doc). N-of-M
+gaps ("7 registered, 3 wired") are your specialty; also dead exports nothing
+consumes.
+(3) UNCLAIMED CHANGES — anything in the git range no claim covers is
+unaudited change: name it, and check docs that now lie because of it.
 kind='defect' for every finding.`,
   },
   {
-    key: 'codebase-law',
-    prompt: `You are the CODEBASE-LAW auditor. CLAUDE.md's conventions are binding law;
-verify the changed files against ALL of them, especially: (1) clinic-timezone
-law — any server-side date/time render or day-window must use the clinic-tz
-helpers; (2) tenant scoping — every read filters organizationId, every insert
-sets it; (3) no-fake-content — every UI-visible value reads a real column,
-and the demo seeder covers every state a surface can show; (4) single-home
-assets; (5) services are 'import server-only'; (6) best-effort reads on hub
-surfaces; (7) anti-shame voice in reader-facing strings. kind='defect'.`,
+    key: 'law',
+    prompt: `You are the LAW auditor: the codebase's conventions and the product's
+doctrine are both binding. Verify the changed files against ALL of them:
+CLAUDE.md conventions — (1) clinic-timezone law: any server-side date/time
+render or day-window must use the clinic-tz helpers; (2) tenant scoping:
+every read filters organizationId, every insert sets it; (3) no-fake-content:
+every UI-visible value reads a real column and the demo seeder covers every
+state a surface can show; (4) single-home assets; (5) services are
+'import server-only'; (6) best-effort reads on hub surfaces; (7) anti-shame
+voice in reader-facing strings.
+DESIGN.md "The North Star" — (a) the design test: does anything here ask the
+clinic to OPERATE something where the employee should do the job and report?
+(b) narrator voice: machine-written summaries genuinely plain-English,
+name-carrying, anti-shame; (c) the autonomy law: nothing grants itself
+autonomy, defaults encode today's behavior; (d) derived-not-stamped: no
+journey state hand-written where it should be derived; (e) "new patients
+means seated" honored by every metric the phase touched.
+kind='defect' for every finding.`,
   },
   {
-    key: 'doctrine',
-    prompt: `You are the DOCTRINE auditor. Read DESIGN.md "The North Star" first — it is
-law. Verify the phase against it: (1) the design test — does anything here
-ask the clinic to OPERATE something where the employee should do the job and
-report? (2) narrator voice — are machine-written summaries (ledger entries
-etc.) genuinely plain-English, name-carrying, anti-shame — would a front desk
-smile reading them? (3) the autonomy law — nothing grants itself autonomy,
-defaults encode today's behavior; (4) derived-not-stamped — no journey state
-is hand-written where it should be derived; (5) "new patients means seated"
-is honored by every metric the phase touched. kind='defect'.`,
+    key: 'resilience',
+    prompt: `You are the RESILIENCE auditor: what breaks under realistic stress, and
+would the tests catch it? Two hunts in one pass:
+(1) FAILURE MODES — error paths (what happens when each await rejects — does
+the primary action survive its bookkeeping?); idempotency + races (crons
+overlapping, double-fires, unique-violation handling); migration safety on a
+LIVE database (order, defaults, nullability, index cost); performance of
+org-wide queries at a real clinic's scale (thousands of patients, tens of
+thousands of appointments); PMS-sync + bulk-import interactions with every
+new metric; null/legacy data (columns added mid-history).
+(2) TEST ADEQUACY — for each changed behavior ask: "what code change would
+break production but still pass these tests?" Every concrete answer is a
+finding. Look for tests that assert source strings where behavior is
+testable, mocked seams so wide the test can't fail, missing edge cases the
+code explicitly handles, and SQL-predicate layers with zero executed
+coverage.
+kind='defect' for every finding (severity = what the gap could let through).`,
   },
   {
-    key: 'failure-modes',
-    prompt: `You are the FAILURE-MODES auditor: what breaks under realistic stress?
-Check: error paths (what happens when each await rejects — does the primary
-action survive its bookkeeping?); idempotency + races (crons overlapping,
-double-fires, unique-violation handling); migration safety on a LIVE database
-(order, defaults, nullability, index cost); performance of org-wide queries
-at a real clinic's scale (thousands of patients, tens of thousands of
-appointments); PMS-sync + bulk-import interactions with every new metric;
-null/legacy data (columns added mid-history). kind='defect'.`,
-  },
-  {
-    key: 'test-adequacy',
-    prompt: `You are the TEST-ADEQUACY auditor: do the phase's tests pin BEHAVIOR, or do
-they merely mirror the implementation? For each changed behavior, ask: "what
-code change would break production but still pass these tests?" — every
-concrete answer is a finding. Look for: tests that assert source-code strings
-instead of behavior where behavior is testable; mocked seams so wide the test
-can't fail; missing edge cases the code explicitly handles; the service layer
-(SQL predicates) having ZERO executed coverage while only the pure layer is
-tested. kind='defect' (severity = what the gap could let through).`,
-  },
-  {
-    key: 'depth-pinnacle',
+    key: 'depth',
     prompt: `You are the DEPTH auditor — the owner's question is yours: "WOULD IT MAKE
 SENSE TO ADD MORE?" The standard is the pinnacle: the best imaginable version
-of THIS PHASE'S mission (not the whole roadmap). Study what shipped, then
-name what the pinnacle version would additionally contain: missing states,
-missing writers/readers, missing symmetry (X exists for A but not B), tooling
-the next phase will obviously need that this phase should have laid, hooks
-that cost 10x more to add later. For each: kind='depth', and in 'why' say
-plainly whether this phase is honestly incomplete without it, or whether it
-is genuinely future scope. Do not propose things the doctrine assigns to
-later phases unless deferring them creates rework.`,
-  },
-  {
-    key: 'depth-frontdesk',
-    prompt: `You are the FRONT-DESK depth auditor. Walk two humans through what this
-phase built: (1) a kind, non-technical office manager at a small dental
-clinic; (2) the platform owner reading next week's standup built from this
-phase's data. Where does the phase under-serve them? Missing narrator warmth
-(names, stories, outcomes)? Data recorded but useless for the story it must
-someday tell? States a real clinic hits that produce nothing? Every gap:
-kind='depth', with 'why' explaining the human moment it fails. Same in-phase
-vs future-scope honesty as the manifest demands.`,
-  },
-  {
-    key: 'audit-the-audit',
-    prompt: `You are the COMPLETENESS CRITIC — you audit what eight other auditors (whose
-reports you cannot see) probably all skipped. Assume they covered: named
-semantics, registry completeness, codebase conventions, doctrine conformance,
-failure modes, test adequacy, and depth. Now hunt the unexamined: files the
-phase SHOULD have touched but didn't; interactions with subsystems nobody
-associates with this phase; the second-order effects of renames/moves; docs
-that now lie; anything in the git range that no claim covers (unclaimed
-changes are unaudited changes). Report what you actually verify, either
-kind.`,
+of THIS PHASE'S mission (not the whole roadmap). Two viewpoints in one pass:
+(1) THE PINNACLE — study what shipped, then name what the pinnacle version
+would additionally contain: missing states, missing writers/readers, missing
+symmetry (X exists for A but not B), tooling the next phase will obviously
+need that this phase should have laid, hooks that cost 10x more to add later.
+(2) THE HUMANS — walk a kind non-technical office manager AND the platform
+owner (reading next week's standup built from this phase's data) through what
+shipped. Where does it under-serve them? Missing narrator warmth (names,
+stories, outcomes)? Data recorded but useless for the story it must someday
+tell? States a real clinic hits that produce nothing?
+For each: kind='depth', and in 'why' say plainly whether this phase is
+honestly incomplete without it, or whether it is genuinely future scope. Do
+not propose things the doctrine assigns to later phases unless deferring
+them creates rework.`,
   },
 ]
 
-// ── Stage 1: the finder fan-out ─────────────────────────────────────────────
+// ── Stage 1: the finder fan-out (Opus) ──────────────────────────────────────
 phase('Find')
-log(`Round ${round}: ${LENSES.length} independent auditors on ${range}`)
+log(`Round ${round}/${MAX_ROUNDS}: ${LENSES.length} merged lens auditors on ${range}`)
 
 const finderResults = await parallel(
   LENSES.map((l) => () =>
@@ -252,6 +270,7 @@ const finderResults = await parallel(
       label: `find:${l.key}`,
       phase: 'Find',
       schema: FINDINGS_SCHEMA,
+      model: 'opus',
       effort: 'high',
     }).then((r) => ({ lens: l.key, findings: r?.findings ?? [] })),
   ),
@@ -260,9 +279,8 @@ const finderResults = await parallel(
 // INTEGRITY LAW: a finder that DIED is not a finder that found nothing.
 // parallel() resolves a failed agent to null — if any lens never reported
 // (tool faults, retry-cap, kill), the round is INVALID and must be re-run.
-// Without this, 9 dead auditors read as a perfect clean round (observed
-// 2026-07-27: a harness tool fault killed every finder and the round
-// self-declared clean).
+// (Observed 2026-07-27: a harness tool fault killed every finder and the
+// round self-declared clean.)
 const deadLenses = LENSES.filter((_, i) => !finderResults[i]).map((l) => l.key)
 if (deadLenses.length > 0) {
   return {
@@ -275,7 +293,7 @@ if (deadLenses.length > 0) {
     inPhaseGaps: [],
     backlog: [],
     rejected: [],
-    note: `ROUND INVALID — ${deadLenses.length}/${LENSES.length} lens auditor(s) never reported (${deadLenses.join(', ')}). A dead auditor is not a clean auditor; re-run the round.`,
+    note: `ROUND INVALID — ${deadLenses.length}/${LENSES.length} lens auditor(s) never reported (${deadLenses.join(', ')}). A dead auditor is not a clean auditor; re-run the round (an invalid round does NOT consume one of the ${MAX_ROUNDS}).`,
   }
 }
 
@@ -307,7 +325,7 @@ if (candidates.length === 0) {
     inPhaseGaps: [],
     backlog: [],
     rejected: [],
-    note: 'CLEAN ROUND — no candidates from any lens.',
+    note: 'CLEAN ROUND — no candidates from any lens. The gate is satisfied: write the certificate in docs/AUDITS.md.',
   }
 }
 
@@ -319,26 +337,30 @@ const listFor = (items) =>
     )
     .join('\n\n')
 
-// ── Stage 2: adversarial verification (defects) + value judging (depth) ────
+// ── Stage 2: ONE skeptic (defects) + ONE judge (depth), both Opus. The main
+//    loop is the second, decisive vote — see the note in the return payload. ─
 phase('Verify')
 
-const skepticPrompt = (angle) => `You are an adversarial SKEPTIC on the phase audit for "${phaseName}"
+const skepticPrompt = `You are the adversarial SKEPTIC on the phase audit for "${phaseName}"
 (git range ${range}). Below are defect claims from independent auditors. Your
-job is to REFUTE each one from the ${angle} angle — read the actual code and
-try to prove the claim wrong, exaggerated, or already handled. Vote per id:
-'confirm' ONLY when you tried to kill it and could not (and the severity is
-honest); otherwise 'reject' with the disproof. When uncertain after real
-investigation, reject — a false defect wastes a fix cycle. Do not modify
-files. You may run typecheck/targeted tests.
+job is to REFUTE each one — read the actual code and try to prove the claim
+wrong, exaggerated, or already handled; also check the failure scenario
+actually occurs with real data/flows and that the severity is honest. Vote
+per id: 'confirm' ONLY when you tried to kill it and could not; otherwise
+'reject' with the disproof. When uncertain after real investigation, reject —
+a false defect wastes a fix cycle. Do not modify files. You may run
+typecheck/targeted tests.
 
 THE CLAIMS:
 ${listFor(defectCandidates)}`
 
-const judgePrompt = (persona) => `You are a DEPTH JUDGE on the phase audit for "${phaseName}" (git range
-${range}), judging from the standpoint of ${persona}. The owner's standard:
-"perfection plus depth — would it make sense to add more?" Below are depth
-proposals. Verify each against the actual code (is it truly missing?), then
-vote per id:
+const judgePrompt = `You are the DEPTH JUDGE on the phase audit for "${phaseName}" (git range
+${range}). Judge from three standpoints at once: the dental clinic's front
+desk (does this serve them?), the platform owner (pinnacle standard, but
+phases must end), and the next phase's builder (what gets 10x costlier if
+deferred?). The owner's standard: "perfection plus depth — would it make
+sense to add more?" Below are depth proposals. Verify each against the
+actual code (is it truly missing?), then vote per id:
 - 'in_phase'  — the phase is not honestly complete without it; deferring it
                 would betray the phase's own mission or create rework;
 - 'backlog'   — real value, but honestly future scope (a later phase or its
@@ -353,49 +375,38 @@ ${listFor(depthCandidates)}`
 const [skepticVotes, judgeVotes] = await parallel([
   () =>
     defectCandidates.length === 0
-      ? Promise.resolve([])
-      : parallel(
-          ['correctness (is the claimed behavior actually wrong?)', 'reproduction (does the failure scenario actually occur with real data/flows?)', 'severity (is the impact honestly rated, or inflated trivia?)'].map(
-            (angle, i) => () =>
-              agent(skepticPrompt(angle), {
-                label: `skeptic:${i + 1}`,
-                phase: 'Verify',
-                schema: VOTES_SCHEMA,
-                effort: 'high',
-              }),
-          ),
-        ),
+      ? Promise.resolve({ votes: [] })
+      : agent(skepticPrompt, {
+          label: 'skeptic',
+          phase: 'Verify',
+          schema: VOTES_SCHEMA,
+          model: 'opus',
+          effort: 'high',
+        }),
   () =>
     depthCandidates.length === 0
-      ? Promise.resolve([])
-      : parallel(
-          ["the dental clinic's front desk (does this serve them?)", 'the platform owner (pinnacle standard, but phases must end)', "the next phase's builder (what gets 10x costlier if deferred?)"].map(
-            (persona, i) => () =>
-              agent(judgePrompt(persona), {
-                label: `judge:${i + 1}`,
-                phase: 'Verify',
-                schema: VOTES_SCHEMA,
-                effort: 'high',
-              }),
-          ),
-        ),
+      ? Promise.resolve({ votes: [] })
+      : agent(judgePrompt, {
+          label: 'judge',
+          phase: 'Verify',
+          schema: VOTES_SCHEMA,
+          model: 'opus',
+          effort: 'high',
+        }),
 ])
 
 // Same integrity law for the verify chamber: a dead skeptic can never
 // confirm (defects silently die) and a dead judge can never vote in_phase
-// (gaps silently demote). Any dead voter invalidates the round.
-// A null PANEL (the whole thunk died) counts as all 3 voters dead — the
-// `?? []` fallback must not read as "zero dead".
-const deadIn = (votes, expected) => (!Array.isArray(votes) ? expected : votes.filter((v) => !v).length)
-const deadSkeptics = defectCandidates.length === 0 ? 0 : deadIn(skepticVotes, 3)
-const deadJudges = depthCandidates.length === 0 ? 0 : deadIn(judgeVotes, 3)
-if (deadSkeptics > 0 || deadJudges > 0) {
+// (gaps silently demote). A dead voter invalidates the round.
+const skepticDead = defectCandidates.length > 0 && !skepticVotes
+const judgeDead = depthCandidates.length > 0 && !judgeVotes
+if (skepticDead || judgeDead) {
   return {
     round,
     range,
     clean: false,
     invalid: true,
-    note: `ROUND INVALID — ${deadSkeptics} skeptic(s) and ${deadJudges} judge(s) never reported; the vote tally would be biased. Re-run the round.`,
+    note: `ROUND INVALID — the ${[skepticDead && 'skeptic', judgeDead && 'judge'].filter(Boolean).join(' and ')} never reported; the tally would be biased. Re-run the round (an invalid round does NOT consume one of the ${MAX_ROUNDS}).`,
     defects: [],
     inPhaseGaps: [],
     backlog: [],
@@ -404,47 +415,57 @@ if (deadSkeptics > 0 || deadJudges > 0) {
   }
 }
 
-function tally(votesByAgent, id) {
-  const out = []
-  for (const va of (votesByAgent ?? []).filter(Boolean)) {
-    const v = (va.votes ?? []).find((x) => x.id === id)
-    if (v) out.push(v)
-  }
-  return out
-}
+const voteFor = (panel, id) => (panel?.votes ?? []).find((v) => v.id === id) ?? null
 
 const defects = []
 const rejected = []
 for (const f of defectCandidates) {
-  const votes = tally(skepticVotes, f.id)
-  const confirms = votes.filter((v) => v.verdict === 'confirm').length
-  const entry = { ...f, votes }
-  if (confirms >= 2) defects.push(entry)
+  const vote = voteFor(skepticVotes, f.id)
+  const entry = { ...f, vote }
+  // No vote for an id = the skeptic dropped it; treat as unconfirmed but
+  // surface it in `rejected` so the main loop can see (and overrule) it.
+  if (vote?.verdict === 'confirm') defects.push(entry)
   else rejected.push(entry)
 }
 
 const inPhaseGaps = []
 const backlog = []
 for (const f of depthCandidates) {
-  const votes = tally(judgeVotes, f.id)
-  const inPhase = votes.filter((v) => v.verdict === 'in_phase').length
-  const rejects = votes.filter((v) => v.verdict === 'reject').length
-  const entry = { ...f, votes }
-  if (inPhase >= 2) inPhaseGaps.push(entry)
-  else if (rejects >= 2) rejected.push(entry)
-  else backlog.push(entry) // mixed/backlog-majority → the owner's menu
+  const vote = voteFor(judgeVotes, f.id)
+  const entry = { ...f, vote }
+  if (vote?.verdict === 'in_phase') inPhaseGaps.push(entry)
+  else if (vote?.verdict === 'reject') rejected.push(entry)
+  else backlog.push(entry) // backlog vote or dropped id → the owner's menu
 }
 
 log(
   `Verified: ${defects.length} defect(s) confirmed, ${inPhaseGaps.length} in-phase gap(s), ${backlog.length} for the backlog, ${rejected.length} rejected`,
 )
 
+// ── The verdicts + the round-3 escalation rule ──────────────────────────────
+const clean = defects.length === 0 && inPhaseGaps.length === 0
+const significant =
+  inPhaseGaps.length > 0 ||
+  defects.some((d) => d.severity === 'critical' || d.severity === 'major')
+const escalate = round >= MAX_ROUNDS && significant
+
+let note
+if (clean) {
+  note = 'CLEAN ROUND — the gate is satisfied. Write the certificate in docs/AUDITS.md.'
+} else if (escalate) {
+  note = `ROUND ${MAX_ROUNDS} IS STILL FINDING SIGNIFICANT ITEMS — the gate is CLOSED and a round 4 is FORBIDDEN. Three rounds of auditing did not converge, which means auditing is the wrong tool now: the phase was under-built, under-scoped, or its claims were wrong. Fix what is listed below, then write the owner a ROOT-CAUSE RETROSPECTIVE in docs/AUDITS.md ("why did this phase ship with this many gaps?") covering: which lens kept finding items and what that says about the build process, whether the phase's claims matched what was actually attempted, and what convention or checklist would have prevented the recurring class. The owner decides whether to re-open the phase as new build work.`
+} else {
+  note = `MAIN-LOOP CONFIRMATION REQUIRED before fixing: the survivors below carry ONE Opus skeptic/judge vote, not v1's three. You (the main loop, on the session's stronger model) are the second, decisive vote — re-verify each confirmed defect and in-phase gap against the cited code (read the files yourself; the Phase-1 round-5 close-out is the pattern), overturn anything that does not hold, then fix the true survivors and run the next round (${round + 1} of ${MAX_ROUNDS}) over the fix range. Also skim \`rejected\` — a skeptic 'reject' you disagree with may be overruled with cited evidence.`
+}
+
 return {
   round,
   range,
-  clean: defects.length === 0 && inPhaseGaps.length === 0,
+  clean,
+  escalate,
   defects,
   inPhaseGaps,
   backlog,
   rejected,
+  note,
 }

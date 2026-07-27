@@ -1,21 +1,38 @@
 # Phase Audit Certificates
 
 Every transformation phase (and any major feature slice) ends with the
-**phase-audit workflow** (`.claude/workflows/phase-audit.js`) run in rounds
-until DRY: **two consecutive rounds with zero confirmed defects and zero
-in-phase depth gaps**. The machine, per the owner's standard (2026-07-27):
+**phase-audit workflow** (`.claude/workflows/phase-audit.js`). The machine,
+per the owner's standard ("perfection plus depth", 2026-07-27), **v2 shape
+(2026-07-27, after v1 consumed ~75% of a monthly quota on Phase 1):**
 
-- **Perfection chamber** — independent lens auditors (semantics,
-  completeness, codebase law, doctrine, failure modes, test adequacy) file
-  DEFECTS; three adversarial skeptics try to refute each; majority-confirmed
-  defects must be fixed before dry.
-- **Depth chamber** — "would it make sense to add more?" Depth auditors
-  (pinnacle, front-desk) file PROPOSALS; three value judges triage each into
-  *in-phase gap* (blocks dry — the phase isn't honestly done without it),
-  *backlog* (the owner's menu below), or reject.
+- **Perfection chamber** — 4 merged lens auditors (claims/semantics ·
+  law/doctrine · resilience/tests · depth) file DEFECTS; ONE adversarial
+  skeptic tries to refute each; the MAIN LOOP (the session's stronger model)
+  re-verifies every survivor against the cited code before anything is
+  fixed — it is the second, decisive vote.
+- **Depth chamber** — "would it make sense to add more?" The depth lens
+  files PROPOSALS; ONE value judge (three standpoints in one prompt) triages
+  each into *in-phase gap* (blocks the gate), *backlog* (the owner's menu
+  below), or reject; in-phase gaps also get main-loop confirmation.
+- **All subagents run Opus** (`model:'opus'`) — near-flagship quality at a
+  fraction of the cost; the main loop supplies the flagship judgment where
+  it counts.
+- **DONE = one clean round** (zero confirmed defects + zero in-phase gaps).
+- **HARD CAP: 3 rounds.** The script refuses a round 4. If round 3 still
+  finds significant items (any critical/major defect or in-phase gap), more
+  auditing is the wrong tool — the phase was under-built or its claims were
+  wrong: fix what round 3 found, then write the owner a ROOT-CAUSE
+  RETROSPECTIVE here ("why did this phase ship with this many gaps?") and
+  decide together whether to re-open the phase as new build work.
+- Integrity law (unchanged from v1): a dead auditor/voter is never a clean
+  vote — the round is invalid and re-runs without consuming the cap.
+
+(Phase 1's rounds 1–5 below ran under **v1**: 9 lenses, 3 skeptics + 3
+judges, Fable subagents, dry = two consecutive clean rounds. Its certificate
+stands as written.)
 
 Each certificate records: rounds, findings found → confirmed → fixed →
-rejected, the backlog harvest, and the dry declaration.
+rejected, the backlog harvest, and the gate declaration.
 
 ---
 

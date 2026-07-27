@@ -454,12 +454,22 @@ sitemap/robots/OG.
   module subset: the repo-wide CI guards (legibility floor, tenant scoping,
   cron parity, token single-homes) only run in the full pass, and deploys
   don't run tests.
-- **The phase-audit gate is a convention (2026-07-27).** No transformation
-  phase (or major feature slice) is DONE until the `phase-audit` workflow
-  (`.claude/workflows/phase-audit.js`) runs DRY: two consecutive rounds with
-  zero confirmed defects AND zero in-phase depth gaps ("perfection plus
-  depth" — the depth chamber asks "would it make sense to add more?").
-  Certificates + the owner's depth-backlog menu live in `docs/AUDITS.md`.
+- **The phase-audit gate is a convention (2026-07-27; v2 re-shape same
+  day).** No transformation phase (or major feature slice) is DONE until the
+  `phase-audit` workflow (`.claude/workflows/phase-audit.js`) returns a CLEAN
+  round: zero confirmed defects AND zero in-phase depth gaps ("perfection
+  plus depth" — the depth chamber asks "would it make sense to add more?").
+  v2 cost shape: all subagents run Opus (`model:'opus'`), 4 merged lenses,
+  ONE skeptic + ONE judge, and the MAIN LOOP re-verifies every survivor
+  against the cited code before fixing (it is the second, decisive vote).
+  **HARD CAP: 3 rounds** — the script refuses round 4; if round 3 still
+  finds significant items (any critical/major or in-phase gap), auditing is
+  the wrong tool: fix what's found, then write the owner a root-cause
+  retrospective ("why did this phase ship with this many gaps?") in
+  docs/AUDITS.md. Certificates + the owner's depth-backlog menu live there
+  too. (Phase 1's rounds 1–5 ran under v1 — 9 lenses, 3+3 voters, Fable
+  subagents, two-consecutive-clean dry — which consumed ~75% of a monthly
+  quota in one night; v2 exists so that never happens again.)
 - **The North Star is a convention (2026-07-27).** DESIGN.md's "the employee,
   not the tool" doctrine governs every new feature: the design test is "does
   this ask the clinic to operate something, or does it do the job and
