@@ -36,7 +36,17 @@ export const meta = {
  * }
  */
 
-const { phase, range, claims, round = 1, priorFindings = '', extraDocs = [] } = args
+// Args may arrive as a parsed object or a JSON string depending on the
+// invoking surface — accept both, and default every field defensively.
+const A = typeof args === 'string' ? JSON.parse(args) : (args ?? {})
+const {
+  phase: phaseName = 'unnamed phase',
+  range = 'HEAD~1..HEAD',
+  claims = [],
+  round = 1,
+  priorFindings = '',
+  extraDocs = [],
+} = A
 
 const GOVERNING_DOCS = [
   'DESIGN.md (the section "The North Star" is LAW and outranks everything)',
@@ -50,7 +60,7 @@ Product: DreamCRM — a patient-relationship platform for dental clinics.
 The customers are kind, overworked, non-technical dental staff; the
 owner's standard is THE PINNACLE: "perfection plus depth."
 
-Phase under audit: ${phase}   (audit round ${round})
+Phase under audit: ${phaseName}   (audit round ${round})
 Git range: ${range}
 
 The phase CLAIMS it delivered:
@@ -290,7 +300,7 @@ const listFor = (items) =>
 // ── Stage 2: adversarial verification (defects) + value judging (depth) ────
 phase('Verify')
 
-const skepticPrompt = (angle) => `You are an adversarial SKEPTIC on the phase audit for "${phase}"
+const skepticPrompt = (angle) => `You are an adversarial SKEPTIC on the phase audit for "${phaseName}"
 (git range ${range}). Below are defect claims from independent auditors. Your
 job is to REFUTE each one from the ${angle} angle — read the actual code and
 try to prove the claim wrong, exaggerated, or already handled. Vote per id:
@@ -302,7 +312,7 @@ files. You may run typecheck/targeted tests.
 THE CLAIMS:
 ${listFor(defectCandidates)}`
 
-const judgePrompt = (persona) => `You are a DEPTH JUDGE on the phase audit for "${phase}" (git range
+const judgePrompt = (persona) => `You are a DEPTH JUDGE on the phase audit for "${phaseName}" (git range
 ${range}), judging from the standpoint of ${persona}. The owner's standard:
 "perfection plus depth — would it make sense to add more?" Below are depth
 proposals. Verify each against the actual code (is it truly missing?), then
