@@ -102,7 +102,7 @@ export default function FormsPanel({
           href="/leads"
           className="mt-3 inline-block text-xs font-medium text-teal-700 dark:text-teal-300 hover:underline underline-offset-4"
         >
-          All leads →
+          All inquiries →
         </Link>
       </section>
 

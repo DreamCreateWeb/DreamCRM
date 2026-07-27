@@ -290,13 +290,13 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           </AttentionCard>
 
           <AttentionCard
-            title="New leads"
+            title="New inquiries"
             count={data.newLeads.count}
             countSuffix={
               data.newLeads.count === 1 ? 'untouched website inquiry' : 'untouched website inquiries'
             }
             cta={data.newLeads.count > 0 ? { label: 'See new leads', href: '/leads?status=new' } : null}
-            emptyCopy="No new website leads waiting. Anyone who fills out your contact form lands here."
+            emptyCopy="No new inquiries waiting. Anyone who fills out your contact form lands here."
           >
             {data.newLeads.preview.map((l) => (
               <li key={l.id} className="flex items-center justify-between text-sm py-1.5">

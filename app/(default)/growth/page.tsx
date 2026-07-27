@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getActiveBundlesForSidebar } from '@/lib/services/integration-bundles'
 import { getGoogleReviewStats } from '@/lib/services/google-reviews'
-import { getNewPatientsPerWeek12 } from '@/lib/services/patients'
+import { getNewPatientsPerWeek12, getNewPatientCounts } from '@/lib/services/patients'
 import { getRecallStats } from '@/lib/services/recall-stats'
 import { getSitePerformance } from '@/lib/services/site-analytics'
 import { getGbpLocalMetrics } from '@/lib/services/gbp-metrics'
@@ -60,6 +60,7 @@ export default async function GrowthHubPage() {
     bundles,
     reviewStats,
     newPatientsWeekly,
+    newPatients30d,
     recall,
     sitePerf,
     gbp,
@@ -73,6 +74,7 @@ export default async function GrowthHubPage() {
     getNewPatientsPerWeek12(ctx.organizationId).catch(
       () => [] as Array<{ bucket: string; value: number }>,
     ),
+    getNewPatientCounts(ctx.organizationId).catch(() => null),
     getRecallStats(ctx.organizationId).catch(() => null),
     getSitePerformance(ctx.organizationId).catch(() => null),
     getGbpLocalMetrics(ctx.organizationId).catch(() => null),
@@ -163,9 +165,10 @@ export default async function GrowthHubPage() {
                 label="Website"
                 value={
                   sitePerf
-                    ? `${sitePerf.traffic.total.toLocaleString()} visits → ${sitePerf.leads30d} lead${sitePerf.leads30d === 1 ? '' : 's'} · 30d`
+                    ? `${sitePerf.traffic.total.toLocaleString()} visits → ${newPatients30d?.viaSite ?? 0} new patient${(newPatients30d?.viaSite ?? 0) === 1 ? '' : 's'} booked online · 30d`
                     : 'stats unavailable right now'
                 }
+                tone={(newPatients30d?.viaSite ?? 0) > 0 ? 'ok' : undefined}
               />
               <ChannelRow
                 href="/growth/reviews"
@@ -297,9 +300,9 @@ export default async function GrowthHubPage() {
           <NewsCard
             href="/leads"
             value={String(leadCounts?.new ?? 0)}
-            label={`new lead${(leadCounts?.new ?? 0) === 1 ? '' : 's'} to triage`}
+            label={`new inquir${(leadCounts?.new ?? 0) === 1 ? 'y' : 'ies'} to answer`}
             tone={(leadCounts?.new ?? 0) > 0 ? 'warn' : undefined}
-            aria={`Leads — ${leadCounts?.new ?? 0} new to triage`}
+            aria={`Inquiries — ${leadCounts?.new ?? 0} new to answer`}
           />
           {reviewStats && reviewStats.needsReply > 0 ? (
             <NewsCard

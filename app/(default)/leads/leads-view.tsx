@@ -68,17 +68,17 @@ function emptyCopy(status: LeadStatus | 'all'): { icon: string; title: string; b
     case 'new':
       return {
         icon: '🌱',
-        title: 'No new leads right now.',
+        title: 'No new inquiries right now.',
         body: 'When someone fills out the contact form on your public site, they land here.',
       }
     case 'contacted':
-      return { icon: '📞', title: 'No leads in the "contacted" queue.', body: 'Mark a new lead as contacted once you reach out.' }
+      return { icon: '📞', title: 'No inquiries in the "contacted" queue.', body: 'Mark a new inquiry as contacted once you reach out.' }
     case 'converted':
-      return { icon: '🎉', title: 'No conversions yet.', body: 'Convert a contacted lead into a patient to see it here.' }
+      return { icon: '🎉', title: 'No conversions yet.', body: 'Convert a contacted inquiry into a patient to see it here.' }
     case 'archived':
       return { icon: '📦', title: 'Archive is empty.', body: 'Spam, wrong numbers, and duplicates land here when you archive them.' }
     default:
-      return { icon: '📭', title: 'No leads found.', body: 'Try a different filter or share your website.' }
+      return { icon: '📭', title: 'No inquiries found.', body: 'Try a different filter or share your website.' }
   }
 }
 
@@ -165,7 +165,7 @@ export default function LeadsView({
       try {
         await action()
       } catch (e) {
-        setToast(e instanceof Error ? e.message : "Couldn't update that lead — please try again.")
+        setToast(e instanceof Error ? e.message : "Couldn't update that inquiry — please try again.")
       }
     })
   }

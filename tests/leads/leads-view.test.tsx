@@ -64,9 +64,9 @@ const baseCounts: LeadCounts = { new: 0, contacted: 0, converted: 0, archived: 0
 describe('LeadsView — list + filters + drawer trigger', () => {
   it('renders the contextual empty-state copy per status', () => {
     const { rerender } = render(<LeadsView rows={[]} counts={baseCounts} status="new" search="" />)
-    expect(screen.getByText(/No new leads right now/)).toBeInTheDocument()
+    expect(screen.getByText(/No new inquiries right now/)).toBeInTheDocument()
     rerender(<LeadsView rows={[]} counts={baseCounts} status="contacted" search="" />)
-    expect(screen.getByText(/No leads in the "contacted" queue/)).toBeInTheDocument()
+    expect(screen.getByText(/No inquiries in the "contacted" queue/)).toBeInTheDocument()
     rerender(<LeadsView rows={[]} counts={baseCounts} status="converted" search="" />)
     expect(screen.getByText(/No conversions yet/)).toBeInTheDocument()
     rerender(<LeadsView rows={[]} counts={baseCounts} status="archived" search="" />)

@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Leads - DreamCRM',
+  title: 'Inquiries - DreamCRM',
   description: 'People who reached out through the contact form on your website',
 }
 

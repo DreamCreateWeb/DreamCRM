@@ -134,7 +134,7 @@ export const MODULE_HINTS: Record<string, ModuleHintDef> = {
   },
   leads: {
     title: 'Every website inquiry, tracked until it becomes a patient',
-    body: 'Contact and insurance-check requests land here. Fresh leads are green, neglected ones turn red — call them, mark them contacted, and convert them with one click.',
+    body: 'Contact and insurance-check requests land here. Fresh inquiries are green, neglected ones turn red — call them, mark them contacted, and convert them with one click.',
   },
   'intake-forms': {
     title: 'Paperwork that fills itself out at home',

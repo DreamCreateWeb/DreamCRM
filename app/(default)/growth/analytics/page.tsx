@@ -174,12 +174,12 @@ export default async function AnalyticsPage({ searchParams }: Props) {
           <Funnel
             steps={[
               { label: 'Clicks from search', value: a.acquisition.websiteFunnel.clicks, note: a.acquisition.websiteFunnel.clicks == null ? 'Connect Search Console' : undefined, href: '/website/seo' },
-              { label: 'Website leads', value: a.acquisition.websiteFunnel.leads, href: '/leads' },
+              { label: 'Website inquiries', value: a.acquisition.websiteFunnel.leads, href: '/leads' },
               { label: 'Contacted', value: a.acquisition.websiteFunnel.contacted },
               {
                 label: 'Converted to patient',
                 value: a.acquisition.websiteFunnel.converted,
-                note: convNote(a.acquisition.websiteFunnel.converted, a.acquisition.websiteFunnel.leads, 'leads'),
+                note: convNote(a.acquisition.websiteFunnel.converted, a.acquisition.websiteFunnel.leads, 'inquiries'),
               },
             ]}
           />
@@ -190,10 +190,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             requiring Google Analytics. */}
         <Card className="mt-4">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-3">
-            Where website leads come from
+            Where website inquiries come from
           </p>
           {a.acquisition.leadChannels.length === 0 ? (
-            <Empty>No website leads in this window — this fills in as your forms get submissions.</Empty>
+            <Empty>No website inquiries in this window — this fills in as your forms get submissions.</Empty>
           ) : (
             <RankBars
               rows={a.acquisition.leadChannels.map((c) => ({

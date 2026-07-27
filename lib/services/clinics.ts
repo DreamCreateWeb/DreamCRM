@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { stripe } from '@/lib/stripe'
 import type Stripe from 'stripe'
 import { db } from '@/lib/db'
@@ -102,7 +102,10 @@ export async function listClinics(): Promise<ClinicListRow[]> {
       .groupBy(member.organizationId)
     const membersByOrg = new Map(memberCounts.map((r) => [r.orgId, Number(r.count)]))
 
-    // Patient count per org (clinic-scoped)
+    // Patient count per org — ACTIVE patients only (archived excluded), so
+    // this column agrees with what the clinic itself sees. Counting archived
+    // rows here once showed a clinic "19 patients" while its own surfaces
+    // said 17 — a platform column must never contradict the tenant's view.
     let patientsByOrg = new Map<string, number>()
     try {
       const patientCounts = await db
@@ -111,6 +114,7 @@ export async function listClinics(): Promise<ClinicListRow[]> {
           count: sql<number>`count(${patient.id})::int`,
         })
         .from(patient)
+        .where(ne(patient.lifecycle, 'archived'))
         .groupBy(patient.organizationId)
       patientsByOrg = new Map(patientCounts.map((r) => [r.orgId, Number(r.count)]))
     } catch (err) {

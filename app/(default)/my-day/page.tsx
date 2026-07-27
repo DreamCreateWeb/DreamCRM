@@ -90,7 +90,7 @@ export default async function MyDayPage() {
           href="/payments/collections"
         />
         <KpiStat
-          label="New leads"
+          label="New inquiries"
           value={data.newLeadsCount}
           sub="waiting on the team"
           tone={data.newLeadsCount > 0 ? 'warn' : 'neutral'}

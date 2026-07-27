@@ -90,7 +90,7 @@ export default async function WebsiteFormsPage() {
         subtitle="What your site asks visitors, and where their answers land."
         actions={
           <ActionButton variant="secondary" size="sm" href="/leads">
-            All leads →
+            All inquiries →
           </ActionButton>
         }
       />

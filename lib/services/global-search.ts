@@ -361,7 +361,7 @@ async function searchClinicEntities(orgId: string, q: string): Promise<SearchGro
   }
   if (leads.length > 0) {
     groups.push({
-      label: 'Leads',
+      label: 'Inquiries',
       results: leads.map((l) => ({
         id: `lead-${l.id}`,
         label: l.name,

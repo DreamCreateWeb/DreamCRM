@@ -50,8 +50,10 @@ const weeklyMock = vi.fn(async () => [
   { bucket: 'Jul 12', value: 1 },
   { bucket: 'Jul 19', value: 3 },
 ])
+const newCountsMock = vi.fn(async () => ({ total: 17, viaSite: 17 }))
 vi.mock('@/lib/services/patients', () => ({
   getNewPatientsPerWeek12: (...a: unknown[]) => weeklyMock(...(a as [])),
+  getNewPatientCounts: (...a: unknown[]) => newCountsMock(...(a as [])),
 }))
 
 const baseRecall = {
@@ -161,7 +163,7 @@ describe('the acquisition hero', () => {
 
   it('shows every channel with a real number when connected', async () => {
     render(await GrowthHubPage())
-    expect(screen.getByText('412 visits → 9 leads · 30d')).toBeTruthy()
+    expect(screen.getByText('412 visits → 17 new patients booked online · 30d')).toBeTruthy()
     expect(screen.getByText('4.8★ · 12 Google reviews')).toBeTruthy()
     expect(screen.getByText('14 calls · 22 direction requests · 30d')).toBeTruthy()
     expect(screen.getByText('5 posts published · 30d')).toBeTruthy()
@@ -254,9 +256,9 @@ describe('engine #2 — the reactivation funnel', () => {
 })
 
 describe("what's happening — attention tones", () => {
-  it('new leads to triage carry the warn tone and route to /leads', async () => {
+  it('new inquiries to answer carry the warn tone and route to /leads', async () => {
     render(await GrowthHubPage())
-    const leads = screen.getByLabelText('Leads — 5 new to triage')
+    const leads = screen.getByLabelText('Inquiries — 5 new to answer')
     expect(leads.getAttribute('href')).toBe('/leads')
     cleanup()
   })

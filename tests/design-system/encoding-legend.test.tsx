@@ -27,7 +27,7 @@ describe('EncodingLegend', () => {
   it('explains the aging colors from the preset', () => {
     render(<EncodingLegend aging="leads" />)
     fireEvent.click(screen.getByRole('button', { name: /key/i }))
-    expect(screen.getByText(/how long a new lead has waited/i)).toBeInTheDocument()
+    expect(screen.getByText(/how long a new inquiry has waited/i)).toBeInTheDocument()
     expect(screen.getByText('Fresh')).toBeInTheDocument()
     expect(screen.getByText(/call now, conversion is highest/i)).toBeInTheDocument()
     expect(screen.getByText('Overdue')).toBeInTheDocument()

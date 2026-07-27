@@ -61,7 +61,7 @@ export const clinicModules: ModuleRegistry = {
     { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', pinned: true, shortcut: '⌘3' },
     { id: 'patients',          path: '/patients',          label: 'Patients',         section: 'Daily',    icon: 'users',    status: 'live' },
     { id: 'followups',         path: '/followups',         label: 'Follow-ups',       section: 'Daily',    icon: 'check',    status: 'live' },
-    { id: 'leads',             path: '/leads',             label: 'Leads',            section: 'Daily',    icon: 'megaphone',status: 'live' },
+    { id: 'leads',             path: '/leads',             label: 'Inquiries',            section: 'Daily',    icon: 'megaphone',status: 'live' },
     { id: 'intake_forms',      path: '/intake-forms',      label: 'Intake Forms',     section: 'Daily',    icon: 'pen',      status: 'live' },
 
     // ── Growth ─────────────────────────────────────────────────────────

@@ -165,12 +165,12 @@ export default function LeadDrawer({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Lead"
+        aria-label="Inquiry"
         onClick={(e) => e.stopPropagation()}
         className={`drawer-enter-right ${closing ? 'is-closing' : ''} bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col`}
       >
         <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Lead</h2>
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Inquiry</h2>
           <button onClick={requestClose} aria-label="Close" title="Close (Esc)" className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors">✕</button>
         </div>
 
@@ -287,8 +287,8 @@ export default function LeadDrawer({
           {dedupeMatch && (
             <div className="rounded-[var(--r-lg)] border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-3 space-y-2">
               <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                This lead&rsquo;s email or phone matches an existing patient:{' '}
-                <span className="font-semibold">{dedupeMatch}</span>. Link this lead to
+                This inquiry&rsquo;s email or phone matches an existing patient:{' '}
+                <span className="font-semibold">{dedupeMatch}</span>. Link this inquiry to
                 them, or create a separate patient (e.g. a family member on a shared number)?
               </p>
               <div className="flex flex-wrap gap-2">
@@ -339,7 +339,7 @@ export default function LeadDrawer({
         {archiveOpen && (
           <div className="section-enter absolute inset-0 bg-[color:var(--color-surface-2)] rounded-l-[var(--r-lg)] flex flex-col">
             <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Archive lead</h3>
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Archive inquiry</h3>
               <button onClick={() => setArchiveOpen(false)} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700">← Back</button>
             </div>
             <div className="px-5 py-5 space-y-3 flex-1">
@@ -354,7 +354,7 @@ export default function LeadDrawer({
                 <option value="">(no reason)</option>
                 <option value="spam">Spam</option>
                 <option value="wrong_number">Wrong number / bad info</option>
-                <option value="duplicate">Duplicate of another lead</option>
+                <option value="duplicate">Duplicate of another inquiry</option>
                 <option value="not_interested">Not interested</option>
                 <option value="out_of_area">Out of service area</option>
                 <option value="other">Other</option>

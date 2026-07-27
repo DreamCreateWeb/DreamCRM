@@ -502,6 +502,58 @@ export interface NewPatientsPerWeekPoint {
  * JS. Bucket labels read like 'Jun 2' (the week's Sunday). `now` is
  * injectable for tests only.
  */
+/**
+ * Patient sources minted by the PLATFORM'S OWN public surfaces — online
+ * booking, the website inquiry form, the waitlist fast-pass. The subset of
+ * new patients we can honestly attribute to the clinic's site (vs. a
+ * front-desk manual add or a referral note).
+ */
+export const SITE_PATIENT_SOURCES: ReadonlySet<string> = new Set([
+  'booking',
+  'lead_form',
+  'waitlist',
+])
+
+export interface NewPatientWindowCounts {
+  /** New patients in the window — every channel except bulk backfills. */
+  total: number
+  /** Subset whose source is one of SITE_PATIENT_SOURCES (booked/asked online). */
+  viaSite: number
+}
+
+/**
+ * New patients over a rolling window (default 30 days) — the conversion side
+ * of the "visits → patients" story on the Growth + Website hubs. Same honesty
+ * rules as getNewPatientsPerWeek12: `firstSeenAt` (never createdAt), archived
+ * excluded, PMS/CSV backfills excluded so connecting a PMS can't fake a win.
+ */
+export async function getNewPatientCounts(
+  organizationId: string,
+  days = 30,
+  now: Date = new Date(),
+): Promise<NewPatientWindowCounts> {
+  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+  const rows = await db
+    .select({ source: schema.patient.source })
+    .from(schema.patient)
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        isNotNull(schema.patient.firstSeenAt),
+        gte(schema.patient.firstSeenAt, since),
+        ne(schema.patient.lifecycle, 'archived'),
+      ),
+    )
+  let total = 0
+  let viaSite = 0
+  for (const r of rows) {
+    if (BACKFILL_PATIENT_SOURCES.has(r.source ?? '')) continue
+    total++
+    if (SITE_PATIENT_SOURCES.has(r.source ?? '')) viaSite++
+  }
+  return { total, viaSite }
+}
+
 export async function getNewPatientsPerWeek12(
   organizationId: string,
   now: Date = new Date(),

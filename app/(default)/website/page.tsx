@@ -9,6 +9,7 @@ import { getSiteHealth } from '@/lib/services/seo'
 import { getCareersStats } from '@/lib/services/careers'
 import { getLastWebsiteEdit } from '@/lib/services/website-history'
 import { getNewLeadsSince } from '@/lib/services/leads'
+import { getNewPatientCounts } from '@/lib/services/patients'
 import { getClinicSeoPerformance } from '@/lib/services/gsc'
 import { getSiteTemplate } from '@/lib/site-templates/registry'
 import { contentCompleteness } from '@/lib/website-content-sections'
@@ -88,7 +89,7 @@ export default async function WebsiteHubPage() {
   const siteHost = siteUrl.replace(/^https?:\/\//, '')
 
   // Every read is best-effort — the hub must render even when a stat hiccups.
-  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d, activePlans] = await Promise.all([
+  const [performance, blogStats, siteHealth, careersStats, lastEdit, gscScope, leads7d, activePlans, newPatients30d] = await Promise.all([
     getSitePerformance(ctx.organizationId).catch(() => null),
     getBlogStats(ctx.organizationId).catch(() => null),
     getSiteHealth(ctx.organizationId).catch(() => null),
@@ -98,6 +99,7 @@ export default async function WebsiteHubPage() {
     canEdit ? getClinicSeoPerformance(ctx.organizationId, 28).catch(() => null) : null,
     getNewLeadsSince(ctx.organizationId, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).catch(() => 0),
     listActivePlans(ctx.organizationId).catch(() => []),
+    getNewPatientCounts(ctx.organizationId).catch(() => null),
   ])
   // The Quick-edits services modal needs the picker library (owner/admin only).
   const library = canEdit ? await listLibraryForPicker(ctx.organizationId).catch(() => []) : []
@@ -365,18 +367,20 @@ export default async function WebsiteHubPage() {
             </div>
             <div>
               <div className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
+                {(newPatients30d?.viaSite ?? 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                new patients booked online
+              </div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
                 {performance.leads30d.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">leads</div>
-            </div>
-            {performance.conversionPct != null && (
-              <div>
-                <div className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
-                  {performance.conversionPct}%
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">visit → lead</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                inquir{performance.leads30d === 1 ? 'y' : 'ies'} to answer
               </div>
-            )}
+            </div>
           </div>
           <TrendChart
             data={performance.traffic.daily.map((d) => ({

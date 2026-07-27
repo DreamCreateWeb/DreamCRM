@@ -1318,7 +1318,7 @@ function StudioModal({
             <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The fields on your “Check your insurance” form. Add, remove, reorder, or
-                rename fields. Keep an email or phone so you can reach the lead — the carrier
+                rename fields. Keep an email or phone so you can reach them — the carrier
                 and service dropdowns pull their options from your live lists.
               </p>
               <LeadFormBuilder
@@ -1334,8 +1334,8 @@ function StudioModal({
             <form ref={formRef} onChange={onFormChanged} onInput={onFormChanged}>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 The fields on your homepage contact form. Add, remove, reorder, or rename
-                fields. Keep a phone or email so you can reach the lead. Submissions land in
-                your Leads queue.
+                fields. Keep a phone or email so you can reach them. Submissions land in
+                your Inquiries queue.
               </p>
               <LeadFormBuilder
                 formKey="contact"

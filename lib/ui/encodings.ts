@@ -339,7 +339,7 @@ export interface AgingLegendPreset {
 
 export const AGING_LEGENDS = {
   leads: {
-    title: 'The colored left edge shows how long a new lead has waited for a first call.',
+    title: 'The colored left edge shows how long a new inquiry has waited for a first call.',
     rows: [
       { tier: 'fresh', meaning: 'Under 1 hour — call now, conversion is highest' },
       { tier: 'quiet', meaning: '1–4 hours old' },
