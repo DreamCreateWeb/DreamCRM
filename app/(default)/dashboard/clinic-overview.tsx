@@ -104,6 +104,18 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
     } else if (p.capability === 'review_reply') {
       meta = 'public reply on Google'
     }
+    // The thing being answered (generators store it in payload.context) —
+    // quoted on the card so staff never approve a public reply blind.
+    const rawCtx = payload.context as Record<string, unknown> | undefined
+    const context =
+      rawCtx && typeof rawCtx === 'object'
+        ? {
+            kind: typeof rawCtx.kind === 'string' ? rawCtx.kind : 'context',
+            author: typeof rawCtx.author === 'string' ? rawCtx.author : null,
+            starRating: typeof rawCtx.starRating === 'number' ? rawCtx.starRating : null,
+            text: typeof rawCtx.text === 'string' ? rawCtx.text : null,
+          }
+        : null
     return {
       id: p.id,
       capability: p.capability,
@@ -111,6 +123,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       title: p.title,
       body: p.body,
       meta,
+      context,
     }
   })
   // The checklist derives from live org data — only compute it while it's

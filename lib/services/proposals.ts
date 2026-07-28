@@ -158,23 +158,8 @@ export async function expireStaleProposals(organizationId?: string): Promise<num
   return rows.length
 }
 
-/** Mark one open proposal expired (used when its underlying work vanished —
- *  e.g. someone replied to the review at the counter). */
-export async function expireProposal(organizationId: string, proposalId: string): Promise<void> {
-  await db
-    .update(schema.proposal)
-    .set({ status: 'expired', updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.proposal.organizationId, organizationId),
-        eq(schema.proposal.id, proposalId),
-        eq(schema.proposal.status, 'open'),
-      ),
-    )
-}
-
 export type DecideResult =
-  | { ok: true; status: 'approved' | 'declined' }
+  | { ok: true; status: 'approved' | 'declined'; message?: string }
   | { ok: false; error: string; expired?: boolean }
 
 /** Decline — a human "no". The sourceKey stays claimed so the machine never
@@ -240,40 +225,51 @@ export async function approveProposal(
     .returning()
   if (!claimed) return { ok: false, error: 'This one was already handled.' }
 
+  // The reopen-on-throw region covers ONLY the execution itself. Once the
+  // executor reports success the work HAPPENED — the bookkeeping below must
+  // never reopen the proposal, because a reopened-but-executed proposal
+  // invites a second Approve and a duplicate send (round-1 Phase-2 audit).
+  let exec: ExecResult
   try {
-    const exec = await executeProposal(claimed)
-    if (!exec.ok) {
-      if (exec.expired) {
-        // The underlying work vanished (review already replied, inquiry
-        // already handled) — retire the proposal instead of reopening it.
-        await db
-          .update(schema.proposal)
-          .set({ status: 'expired', updatedAt: new Date() })
-          .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
-        return { ok: false, error: exec.error, expired: true }
-      }
-      await reopen(organizationId, proposalId)
-      return { ok: false, error: exec.error }
-    }
-
-    await db
-      .update(schema.proposal)
-      .set({ executedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
-
-    // THE ONE ledger entry for this yes (see the boundary law up top).
-    await recordAction({
-      organizationId,
-      capability: claimed.capability,
-      patientId: claimed.patientId,
-      summary: exec.ledgerSummary,
-      detail: { proposalId: claimed.id, approvedByUserId: userId, ...exec.ledgerDetail },
-    })
-    return { ok: true, status: 'approved' }
+    exec = await executeProposal(claimed)
   } catch (e) {
     await reopen(organizationId, proposalId)
     return { ok: false, error: (e as Error).message || 'Something went wrong — nothing was sent.' }
   }
+  if (!exec.ok) {
+    if (exec.expired) {
+      // The underlying work vanished (review already replied, inquiry
+      // already handled) — retire the proposal instead of reopening it.
+      await db
+        .update(schema.proposal)
+        .set({ status: 'expired', updatedAt: new Date() })
+        .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+      return { ok: false, error: exec.error, expired: true }
+    }
+    await reopen(organizationId, proposalId)
+    return { ok: false, error: exec.error }
+  }
+
+  // Post-execution bookkeeping — best-effort by design (recordAction already
+  // swallows its own errors; the executedAt stamp gets the same posture).
+  try {
+    await db
+      .update(schema.proposal)
+      .set({ executedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+  } catch (e) {
+    console.error('[proposals] executedAt stamp failed (work already done):', e)
+  }
+
+  // THE ONE ledger entry for this yes (see the boundary law up top).
+  await recordAction({
+    organizationId,
+    capability: claimed.capability,
+    patientId: claimed.patientId,
+    summary: exec.ledgerSummary,
+    detail: { proposalId: claimed.id, approvedByUserId: userId, ...exec.ledgerDetail },
+  })
+  return { ok: true, status: 'approved', message: exec.ledgerSummary }
 }
 
 async function reopen(organizationId: string, proposalId: string): Promise<void> {
@@ -376,11 +372,45 @@ async function executeSocialPost(
     accountIds,
   })
   if (!r.ok) return { ok: false, error: r.error ?? 'The post didn’t go out — nothing was published.' }
+
+  // Narrate what ACTUALLY published, never the requested channel list —
+  // createSocialPost reports ok on partial success and silently drops
+  // channels that disconnected since the proposal was filed (round-1
+  // Phase-2 audit: the ledger must not over-claim). Count the per-target
+  // rows; if the count read fails, fall back to the honest-vague form.
+  let publishedCount: number | null = null
+  try {
+    if (r.postId) {
+      const targets = await db
+        .select({ status: schema.socialPostTarget.status })
+        .from(schema.socialPostTarget)
+        .where(
+          and(
+            eq(schema.socialPostTarget.organizationId, p.organizationId),
+            eq(schema.socialPostTarget.socialPostId, r.postId),
+          ),
+        )
+      publishedCount = targets.filter((t) => t.status === 'published' || t.status === 'scheduled').length
+    }
+  } catch {
+    publishedCount = null
+  }
+  if (publishedCount === 0) {
+    return { ok: false, error: 'None of the channels accepted the post — nothing was published.' }
+  }
   const snippet = p.body.length > 60 ? `${p.body.slice(0, 57)}…` : p.body
+  const where =
+    publishedCount == null
+      ? 'your channels'
+      : `${publishedCount} ${publishedCount === 1 ? 'channel' : 'channels'}`
+  const partial =
+    publishedCount != null && publishedCount < accountIds.length
+      ? ` (${accountIds.length - publishedCount} ${accountIds.length - publishedCount === 1 ? 'channel' : 'channels'} didn’t take it)`
+      : ''
   return {
     ok: true,
-    ledgerSummary: `Published “${snippet}” to ${accountIds.length} ${accountIds.length === 1 ? 'channel' : 'channels'} — you approved it`,
-    ledgerDetail: { accountIds },
+    ledgerSummary: `Published “${snippet}” to ${where}${partial} — you approved it`,
+    ledgerDetail: { accountIds, publishedCount, postId: r.postId ?? null },
   }
 }
 
@@ -427,7 +457,14 @@ async function executeInquiryResponse(
     replyTo: sender.replyTo,
     ...(sender.gmail ? { gmail: sender.gmail } : {}),
   })
-  await markLeadContacted(p.organizationId, leadId)
+  // The email is OUT — from here on, best-effort only. If the status flip
+  // failed and this threw, the approve wrapper would reopen the proposal and
+  // a second Approve would email the same person twice (round-1 audit).
+  try {
+    await markLeadContacted(p.organizationId, leadId)
+  } catch (e) {
+    console.warn('[proposals] markLeadContacted failed after the reply was sent:', e)
+  }
   const first = lead.name.trim().split(/\s+/)[0] || 'them'
   return {
     ok: true,
@@ -449,30 +486,62 @@ async function executeOutreachCampaign(
     import('@/lib/services/marketing-campaigns'),
     import('@/lib/services/marketing-send'),
   ])
-  const campaign = await createMarketingCampaign(
-    p.organizationId,
-    {
-      name,
-      subject,
-      bodyHtml: textToCampaignHtml(p.body),
-      audienceId,
-      sendChannel: 'resend',
-      recipientSource: 'patients',
-    },
-    p.decidedByUserId ?? 'machine',
-  )
+
+  // ONE campaign row per proposal, ever: the id is stamped into the payload
+  // BEFORE sending, so a failed approve that reopens never mints a second
+  // campaign on retry — and a retry after a post-send failure runs into
+  // sendCampaign's own duplicate-send claim instead of re-blasting the
+  // audience through a fresh row (round-1 Phase-2 audit).
+  let campaignId = typeof payload.campaignId === 'number' ? (payload.campaignId as number) : null
+  if (campaignId == null) {
+    const campaign = await createMarketingCampaign(
+      p.organizationId,
+      {
+        name,
+        subject,
+        bodyHtml: textToCampaignHtml(p.body),
+        audienceId,
+        sendChannel: 'resend',
+        recipientSource: 'patients',
+      },
+      p.decidedByUserId ?? 'machine',
+    )
+    campaignId = campaign.id
+    await db
+      .update(schema.proposal)
+      .set({ payload: { ...payload, campaignId }, updatedAt: new Date() })
+      .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
+  }
+
   // The approver's id keeps sendCampaign's own campaign_send ledger writer
   // silent — this yes narrates once, here, as outreach_campaign.
   const r = await sendCampaign({
     organizationId: p.organizationId,
-    campaignId: campaign.id,
+    campaignId,
     initiatedByUserId: p.decidedByUserId ?? undefined,
   })
+  if (r.skipped === 'already_sending') {
+    // A reused campaign that already went out (a prior approve's send
+    // succeeded but its bookkeeping failed) — never re-blast; retire the card.
+    return { ok: false, error: 'It looks like this campaign already went out — I retired this card.', expired: true }
+  }
   if (r.skipped) return { ok: false, error: r.error ?? 'The send was refused before anyone was emailed.' }
+  // ZERO people reached is not a success — never ledger "Sent … to 0
+  // patients" (round-1 audit). The campaign row stays/returns to 'draft'
+  // (marketing-send resets it), so a later approve can retry cleanly.
+  if (r.sent === 0) {
+    return {
+      ok: false,
+      error:
+        r.attempted === 0
+          ? 'Nobody could receive it right now — everyone due was emailed recently or has opted out. I’ll hold onto it.'
+          : 'The send didn’t go through — nothing reached anyone, so I’ll hold onto it and you can try again.',
+    }
+  }
   return {
     ok: true,
     ledgerSummary: `Sent “${subject}” to ${r.sent} ${r.sent === 1 ? 'patient' : 'patients'} — you approved it`,
-    ledgerDetail: { campaignId: campaign.id, sent: r.sent, suppressed: r.suppressed ?? 0 },
+    ledgerDetail: { campaignId, sent: r.sent, suppressed: r.suppressed ?? 0 },
   }
 }
 

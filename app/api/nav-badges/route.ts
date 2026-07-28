@@ -6,6 +6,7 @@ import { getInboxStats } from '@/lib/services/patient-messaging'
 import { getLeadCounts } from '@/lib/services/leads'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
 import { getGoogleReviewStats } from '@/lib/services/google-reviews'
+import { countOpenProposals } from '@/lib/services/proposals'
 
 /**
  * GET /api/nav-badges
@@ -46,9 +47,13 @@ export interface NavBadgeCounts {
   followups: number
   appointments: number
   reviews: number
+  /** Open proposals waiting on a yes (the Approval Inbox on the Overview) —
+   *  a true state count; drops as staff decide. An inbox nobody is told
+   *  about is not an inbox (Phase-2 round-1 audit). */
+  proposals: number
 }
 
-const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0, reviews: 0 }
+const ZERO: NavBadgeCounts = { messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0, reviews: 0, proposals: 0 }
 
 /** Parse an epoch-ms query param into a Date, or null if absent/invalid. */
 function parseSince(raw: string | null): Date | null {
@@ -75,7 +80,7 @@ export async function GET(req: Request) {
 
   // Each count is independent + best-effort — one failing query (e.g. shop
   // tables absent) must not blank out the others. Settle all, default to 0.
-  const [messages, leads, shop, followups, appointments, reviews] = await Promise.all([
+  const [messages, leads, shop, followups, appointments, reviews, proposals] = await Promise.all([
     getInboxStats(orgId, ctx.userId)
       .then((s) => s.unread)
       .catch(() => 0),
@@ -86,9 +91,10 @@ export async function GET(req: Request) {
     getGoogleReviewStats(orgId)
       .then((s) => s.needsReply)
       .catch(() => 0),
+    countOpenProposals(orgId).catch(() => 0),
   ])
 
-  const body: NavBadgeCounts = { messages, leads, shop, followups, appointments, reviews }
+  const body: NavBadgeCounts = { messages, leads, shop, followups, appointments, reviews, proposals }
   return NextResponse.json(body, { headers: { 'Cache-Control': 'no-store' } })
 }
 

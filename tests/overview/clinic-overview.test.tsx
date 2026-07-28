@@ -37,12 +37,13 @@ const { mockListOpenProposals, mockBuildStandup } = vi.hoisted(() => ({
     weekEnd: new Date('2026-05-17T05:00:00Z'),
     weekLabel: 'May 10 – May 16',
     totalActions: 0,
-    lines: [],
-    stories: [],
+    lines: [] as Array<{ capability: string; noun: string; count: number }>,
+    stories: [] as string[],
     newPatientsSeated: 0,
     reviewsReceived: 0,
     humanTasks: { openProposals: 0, followupsDue: 0 },
     quiet: true,
+    quietNote: null as string | null,
   })),
 }))
 vi.mock('@/lib/services/proposals', () => ({ listOpenProposals: mockListOpenProposals }))
@@ -713,7 +714,10 @@ describe('the Approval Inbox on the Overview', () => {
         patientId: null,
         title: 'Reply to Rob’s 2-star Google review',
         body: 'Rob, thank you for telling us — the wait was on us.',
-        payload: { externalReviewId: 'r1' },
+        payload: {
+          externalReviewId: 'r1',
+          context: { kind: 'review', author: 'Rob Castellano', starRating: 2, text: 'I waited 45 minutes past my appointment time.' },
+        },
         status: 'open',
         createdAt: new Date('2026-05-19T12:00:00Z'),
         expiresAt: null,
@@ -737,8 +741,16 @@ describe('the Approval Inbox on the Overview', () => {
     expect(screen.getByText('Reply to Rob’s 2-star Google review')).toBeInTheDocument()
     // The work product itself is on the card — a proposal is finished work.
     expect(screen.getByText(/the wait was on us/)).toBeInTheDocument()
+    // …and so is the thing being ANSWERED — staff never approve a public
+    // reply blind (round-1 in-phase gap).
+    expect(screen.getByText(/waited 45 minutes/)).toBeInTheDocument()
+    expect(screen.getByText(/Rob Castellano, 2★/)).toBeInTheDocument()
     // The recipient-count honesty line rides the campaign card.
     expect(screen.getByText(/goes to ~41 patients/i)).toBeInTheDocument()
+    // Merge tokens render as a SAMPLE, never raw syntax at a non-technical
+    // reader (round-1 in-phase gap) — the raw text lives in edit mode only.
+    expect(screen.getByText(/Hi Maria, come see us\./)).toBeInTheDocument()
+    expect(screen.getByText(/Shown with a sample name/)).toBeInTheDocument()
     // One big Approve per card.
     expect(screen.getAllByRole('button', { name: /approve — send it/i })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
@@ -769,6 +781,7 @@ describe('the weekly standup card on the Overview', () => {
       reviewsReceived: 3,
       humanTasks: { openProposals: 0, followupsDue: 3 },
       quiet: false,
+      quietNote: null,
     })
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
@@ -779,10 +792,24 @@ describe('the weekly standup card on the Overview', () => {
     expect(screen.getByText(/3 follow-ups are due/)).toBeInTheDocument()
   })
 
-  it('stays hidden on a week the machine did nothing (never celebrate zero)', async () => {
+  it('a QUIET week renders the config-cross-checked narration, not a blank (round-1: dead engine vs healthy idle)', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
+    mockBuildStandup.mockResolvedValueOnce({
+      weekStart: new Date('2026-05-10T05:00:00Z'),
+      weekEnd: new Date('2026-05-17T05:00:00Z'),
+      weekLabel: 'May 10 – May 16',
+      totalActions: 0,
+      lines: [],
+      stories: [],
+      newPatientsSeated: 0,
+      reviewsReceived: 0,
+      humanTasks: { openProposals: 0, followupsDue: 0 },
+      quiet: true,
+      quietNote: 'A quiet week — one heads up: appointment reminders are switched off, so I can’t send any. Turn them on in Settings when you’re ready.',
+    })
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText('What I got done last week')).not.toBeInTheDocument()
+    expect(screen.getByText(/appointment reminders are switched off/)).toBeInTheDocument()
   })
 })

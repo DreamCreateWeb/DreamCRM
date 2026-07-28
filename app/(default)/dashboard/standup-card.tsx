@@ -9,7 +9,23 @@ import type { WeeklyStandup } from '@/lib/services/standup'
  * teaches people to stop reading).
  */
 export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
-  if (standup.totalActions === 0) return null
+  // A quiet week is NARRATED, never blanked (round-1 audit; the AUDITS.md
+  // mandate): the config-cross-checked quietNote tells the clinic whether
+  // "nothing happened" means healthy-idle or a switched-off engine.
+  if (standup.totalActions === 0) {
+    if (!standup.quietNote) return null
+    return (
+      <section className="mb-8" aria-label="Your week in review">
+        <div className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Last week
+            <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">{standup.weekLabel}</span>
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{standup.quietNote}</p>
+        </div>
+      </section>
+    )
+  }
   const human: string[] = []
   if (standup.humanTasks.openProposals > 0) {
     human.push(

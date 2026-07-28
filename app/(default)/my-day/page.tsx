@@ -96,6 +96,18 @@ export default async function MyDayPage() {
           tone={data.newLeadsCount > 0 ? 'warn' : 'neutral'}
           href="/leads?status=new"
         />
+        {/* The Approval Inbox reaches My Day too — finished work waiting on
+            a yes must never be a one-page secret (Phase-2 round-1 audit).
+            Renders only when something waits (a 7-tile grid reads cluttered). */}
+        {data.openProposalsCount > 0 && (
+          <KpiStat
+            label="Waiting on your yes"
+            value={data.openProposalsCount}
+            sub="finished work, ready to send"
+            tone="warn"
+            href="/dashboard"
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

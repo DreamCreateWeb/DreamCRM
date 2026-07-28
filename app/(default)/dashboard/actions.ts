@@ -20,7 +20,7 @@ export async function approveProposalAction(input: {
   proposalId: string
   /** The (possibly edited) work product. Omit to approve as drafted. */
   body?: string
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   const gate = ensureClinicStaff(ctx)
   if (gate) return { ok: false, error: gate }
@@ -29,12 +29,14 @@ export async function approveProposalAction(input: {
   })
   if (!r.ok) return { ok: false, error: r.error }
   revalidatePath('/dashboard')
-  return { ok: true }
+  // The ledger one-liner doubles as the confirmation toast — the yes is
+  // answered with what actually happened (round-1 audit).
+  return { ok: true, message: r.message }
 }
 
 export async function declineProposalAction(input: {
   proposalId: string
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   const gate = ensureClinicStaff(ctx)
   if (gate) return { ok: false, error: gate }

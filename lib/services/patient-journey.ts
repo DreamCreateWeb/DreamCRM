@@ -296,3 +296,55 @@ export async function getJourneyFunnel(
   }
   return funnel
 }
+
+/**
+ * New patients SEATED in an explicit window [since, until) — THE windowed
+ * form of the funnel's `seated` (round-1 Phase-2 audit: the standup shipped
+ * its own divergent re-implementation; "new patients means SEATED,
+ * everywhere" means ONE implementation, so every consumer that quotes the
+ * number by week reads THIS). Same anchors, suppression, backfill exclusion,
+ * and archived exclusion as getJourneyFunnel — by construction, because it
+ * runs the same aggregates.
+ */
+export async function countSeatedBetween(
+  organizationId: string,
+  since: Date,
+  until: Date,
+): Promise<number> {
+  const rows = await db
+    .select({
+      source: schema.patient.source,
+      firstSeatedAt: sql<Date | null>`min(
+        case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
+             then least(coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime}), ${schema.appointment.startTime})
+        end
+      )`,
+      importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
+    })
+    .from(schema.patient)
+    .leftJoin(
+      schema.appointment,
+      and(
+        eq(schema.appointment.patientId, schema.patient.id),
+        eq(schema.appointment.organizationId, organizationId),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        ne(schema.patient.lifecycle, 'archived'),
+      ),
+    )
+    .groupBy(schema.patient.id)
+
+  let seated = 0
+  for (const r of rows) {
+    if (BACKFILL_PATIENT_SOURCES.has(r.source ?? '')) continue
+    const firstSeatedAt = suppressIfImportedEarlier(
+      r.firstSeatedAt ? new Date(r.firstSeatedAt) : null,
+      r.importedSeatedAt ? new Date(r.importedSeatedAt) : null,
+    )
+    if (firstSeatedAt && firstSeatedAt >= since && firstSeatedAt < until) seated++
+  }
+  return seated
+}

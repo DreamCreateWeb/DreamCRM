@@ -2,15 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
  * The weekly standup (Transformation Phase 2 — the Narrator). Pins:
- *  - the window is the PRIOR clinic-local week, [weekStart-7d, weekStart),
- *    passed to the ledger readers as since/until (the `until` bound exists
- *    FOR this consumer — round-3 backlog item);
+ *  - the window is the PRIOR clinic-local week (SUNDAY-based, per
+ *    clinicWeekStart), [weekStart-7d, weekStart), passed to the ledger
+ *    readers as since/until AND to the journey spine's countSeatedBetween —
+ *    the standup never re-derives the seated law (round-1 audit);
  *  - counts become plural-noun lines, stories prefer person+outcome
  *    capabilities and never repeat a capability;
- *  - "new patients seated" follows the journey law (imported history and
- *    roster patients never count);
- *  - the email: Monday-only per clinic tz, once per week (claim before
- *    send), demo + quiet clinics never email, owners are the recipients;
+ *  - a quiet week is NARRATED from automation-config cross-checks
+ *    (quietNote), never blanked — a healthy idle clinic and a switched-off
+ *    engine must read differently (round-1 audit, the AUDITS.md mandate);
+ *  - the email: Monday-only per clinic tz, once per week via an ATOMIC
+ *    conditional claim before send, org-gated on the digest master switch,
+ *    ALL staff roles minus the per-staff opt-out, demo + quiet skipped;
  *  - the voice: no exclamation marks anywhere in the email body.
  */
 
@@ -31,15 +34,26 @@ vi.mock('@/lib/services/action-ledger', () => ({
   }),
 }))
 
-const deps = vi.hoisted(() => ({ openProposals: 0, followupsDue: 0 }))
+const deps = vi.hoisted(() => ({ openProposals: 0, followupsDue: 0, seated: 0, seatedCalls: [] as unknown[][] }))
 vi.mock('@/lib/services/proposals', () => ({
   countOpenProposals: vi.fn(async () => deps.openProposals),
 }))
 vi.mock('@/lib/services/patient-followups', () => ({
   countFollowupsDue: vi.fn(async () => deps.followupsDue),
 }))
+// THE seated law lives in the journey spine — the standup only asks it.
+vi.mock('@/lib/services/patient-journey', () => ({
+  countSeatedBetween: vi.fn(async (...a: unknown[]) => {
+    deps.seatedCalls.push(a)
+    return deps.seated
+  }),
+}))
 vi.mock('@/lib/services/clinic-timezone', () => ({
   getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
+}))
+const pref = vi.hoisted(() => ({ optedOut: new Set<string>() }))
+vi.mock('@/lib/services/staff-notification-pref', () => ({
+  getDigestOptOutUserIds: vi.fn(async () => pref.optedOut),
 }))
 
 const { sendNotificationEmailMock } = vi.hoisted(() => ({
@@ -48,19 +62,21 @@ const { sendNotificationEmailMock } = vi.hoisted(() => ({
 vi.mock('@/lib/email', () => ({ sendNotificationEmail: sendNotificationEmailMock }))
 
 const store: {
-  appointments: Array<Record<string, unknown>>
-  patients: Array<Record<string, unknown>>
   reviews: Array<Record<string, unknown>>
   clinics: Array<Record<string, unknown>>
   staff: Array<Record<string, unknown>>
-} = { appointments: [], patients: [], reviews: [], clinics: [], staff: [] }
+  profiles: Array<Record<string, unknown>>
+  reviewConfigs: Array<Record<string, unknown>>
+} = { reviews: [], clinics: [], staff: [], profiles: [], reviewConfigs: [] }
 
 vi.mock('@/lib/db', () => {
-  const tableRows = (name: string) => {
-    if (name === 'appointment') return store.appointments
-    if (name === 'patient') return store.patients
+  // clinic_profile serves TWO reads: the standup-send scan (joined shape,
+  // store.clinics) and readEngineSwitches' reminderSettings read
+  // (store.profiles). Disambiguate by the selected columns.
+  const tableRows = (name: string, cols?: Record<string, unknown>) => {
     if (name === 'platform_review') return store.reviews
-    if (name === 'clinic_profile') return store.clinics
+    if (name === 'clinic_profile') return cols && 'reminders' in cols ? store.profiles : store.clinics
+    if (name === 'clinic_review_config') return store.reviewConfigs
     if (name === 'member') return store.staff
     return []
   }
@@ -75,17 +91,7 @@ vi.mock('@/lib/db', () => {
       else if (typeof preds === 'function') filters.push(preds as never)
       return api
     }
-    const rowsFor = () => {
-      let out = tableRows(table).filter((r) => filters.every((f) => f(r)))
-      if (cols) {
-        out = out.map((r) =>
-          Object.fromEntries(
-            Object.keys(cols).map((k) => [k, k === 'seatedAt' ? r.completedAt : r[k]]),
-          ),
-        )
-      }
-      return out
-    }
+    const rowsFor = () => tableRows(table, cols).filter((r) => filters.every((f) => f(r)))
     api.groupBy = () => api
     api.orderBy = () => api
     api.limit = async (n?: number) => (typeof n === 'number' ? rowsFor().slice(0, n) : rowsFor())
@@ -102,23 +108,22 @@ vi.mock('@/lib/db', () => {
       else if (typeof preds === 'function') filters.push(preds as never)
       return api
     }
-    api.then = (resolve: (v: unknown) => void) => {
-      for (const r of tableRows(t.__name)) if (filters.every((f) => f(r))) Object.assign(r, patch)
-      resolve(undefined)
+    const apply = () => {
+      const touched: Array<Record<string, unknown>> = []
+      for (const r of tableRows(t.__name)) {
+        if (filters.every((f) => f(r))) {
+          Object.assign(r, patch)
+          touched.push(r)
+        }
+      }
+      return touched
     }
+    api.returning = async () => apply()
+    api.then = (resolve: (v: unknown) => void) => resolve(apply())
     return api
   }
   const col = (name: string) => ({ __col: name })
   const schema = {
-    appointment: {
-      __name: 'appointment',
-      organizationId: col('organizationId'),
-      patientId: col('patientId'),
-      status: col('status'),
-      source: col('source'),
-      completedAt: col('completedAt'),
-    },
-    patient: { __name: 'patient', id: col('id'), organizationId: col('organizationId'), source: col('source') },
     platformReview: {
       __name: 'platform_review',
       id: col('id'),
@@ -129,6 +134,13 @@ vi.mock('@/lib/db', () => {
       __name: 'clinic_profile',
       organizationId: col('organizationId'),
       standupLastSentAt: col('standupLastSentAt'),
+      dailyDigestEnabled: col('digestEnabled'),
+      reminderSettings: col('reminders'),
+    },
+    clinicReviewConfig: {
+      __name: 'clinic_review_config',
+      organizationId: col('organizationId'),
+      autoSendEnabled: col('autoSendEnabled'),
     },
     organization: { __name: 'organization', id: col('id'), name: col('name'), isDemo: col('isDemo') },
     member: { __name: 'member', organizationId: col('organizationId'), userId: col('userId'), role: col('role') },
@@ -139,21 +151,19 @@ vi.mock('@/lib/db', () => {
 
 vi.mock('drizzle-orm', () => ({
   eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => r[col.__col] === val,
+  ne: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => r[col.__col] !== val,
   and: (...preds: unknown[]) => preds.flat().filter(Boolean),
+  or: (...preds: Array<(r: Record<string, unknown>) => boolean>) => (r: Record<string, unknown>) =>
+    preds.some((p) => p(r)),
   gte: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) >= val,
   lt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) < val,
+  isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
   inArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
     vals.includes(r[col.__col]),
   desc: () => 'desc',
-  sql: (strings: TemplateStringsArray) => {
-    const s = strings.join('#')
-    if (s.includes('is distinct from')) return (r: Record<string, unknown>) => r.source !== 'pms_import'
-    if (s.includes('is not null')) return (r: Record<string, unknown>) => r.completedAt != null
-    if (s.includes("= 'pms_import'")) return (r: Record<string, unknown>) => r.source === 'pms_import'
-    return '__sql__'
-  },
+  sql: () => '__sql__',
 }))
 
 import {
@@ -170,7 +180,6 @@ const MONDAY = new Date('2026-07-27T15:00:00Z')
 // the prior week = Jul 19 05:00Z.
 const THIS_WEEK_START = new Date('2026-07-26T05:00:00Z')
 const PRIOR_WEEK_START = new Date('2026-07-19T05:00:00Z')
-const IN_PRIOR_WEEK = new Date('2026-07-21T16:00:00Z')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -180,19 +189,25 @@ beforeEach(() => {
   ledger.listCalls = []
   deps.openProposals = 0
   deps.followupsDue = 0
-  store.appointments = []
-  store.patients = []
+  deps.seated = 0
+  deps.seatedCalls = []
+  pref.optedOut = new Set()
   store.reviews = []
   store.clinics = []
   store.staff = []
+  store.profiles = []
+  store.reviewConfigs = []
 })
 
 describe('buildWeeklyStandup', () => {
-  it('reads EXACTLY the prior clinic-local week from the ledger (since + the until bound built for this consumer)', async () => {
+  it('reads EXACTLY the prior clinic-local week — from the ledger AND the journey spine (one seated law)', async () => {
     await buildWeeklyStandup(ORG, MONDAY)
     expect(ledger.countCalls[0][1]).toEqual(PRIOR_WEEK_START)
     expect(ledger.countCalls[0][2]).toEqual({ until: THIS_WEEK_START })
     expect(ledger.listCalls[0][1]).toMatchObject({ since: PRIOR_WEEK_START, until: THIS_WEEK_START })
+    // The seated count comes from countSeatedBetween with the SAME window —
+    // the round-1 defect was a local re-derivation that disagreed with /growth.
+    expect(deps.seatedCalls[0]).toEqual([ORG, PRIOR_WEEK_START, THIS_WEEK_START])
   })
 
   it('turns counts into plural-noun lines, biggest first', async () => {
@@ -201,6 +216,7 @@ describe('buildWeeklyStandup', () => {
     expect(s.totalActions).toBe(48)
     expect(s.lines[0]).toEqual({ capability: 'appointment_reminder', noun: 'appointment reminders', count: 41 })
     expect(s.lines.map((l) => l.capability)).toEqual(['appointment_reminder', 'review_request', 'listing_sync'])
+    expect(s.quietNote).toBeNull() // narration is for EMPTY windows only
   })
 
   it('stories prefer person+outcome capabilities, never repeat a capability, cap at 3', async () => {
@@ -218,26 +234,28 @@ describe('buildWeeklyStandup', () => {
     expect(s.stories).toContain('Charged Marcus’s card $100.00')
   })
 
-  it('new patients seated: counts first mintable completed visits in-window; imported rows and roster patients never count', async () => {
-    store.patients = [
-      { id: 'p_new', organizationId: ORG, source: 'booking' },
-      { id: 'p_roster_src', organizationId: ORG, source: 'pms_import' },
-      { id: 'p_roster_appt', organizationId: ORG, source: 'booking' },
-      { id: 'p_old', organizationId: ORG, source: 'booking' },
-    ]
-    store.appointments = [
-      // Organic first visit inside the window → counts.
-      { organizationId: ORG, patientId: 'p_new', status: 'completed', source: 'booking', completedAt: IN_PRIOR_WEEK },
-      // Backfill patient.source → never counts.
-      { organizationId: ORG, patientId: 'p_roster_src', status: 'completed', source: 'portal', completedAt: IN_PRIOR_WEEK },
-      // Roster-anchored (has an imported appointment) → the organic visit is a RETURN.
-      { organizationId: ORG, patientId: 'p_roster_appt', status: 'completed', source: 'booking', completedAt: IN_PRIOR_WEEK },
-      { organizationId: ORG, patientId: 'p_roster_appt', status: 'completed', source: 'pms_import', completedAt: new Date('2026-07-24T12:00:00Z') },
-      // First visit before the window → not this week's story.
-      { organizationId: ORG, patientId: 'p_old', status: 'completed', source: 'booking', completedAt: new Date('2026-07-01T12:00:00Z') },
-    ]
+  it('the seated number is whatever the spine says — no local recomputation', async () => {
+    deps.seated = 3
     const s = await buildWeeklyStandup(ORG, MONDAY)
-    expect(s.newPatientsSeated).toBe(1)
+    expect(s.newPatientsSeated).toBe(3)
+  })
+
+  it('a QUIET week narrates from config cross-checks: both engines on reads as healthy-idle', async () => {
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.totalActions).toBe(0)
+    expect(s.quietNote).toContain('quiet week')
+    expect(s.quietNote).toContain('watching')
+  })
+
+  it('a QUIET week with a switched-off engine says so — dead engine and healthy idle never look the same', async () => {
+    store.profiles = [{ organizationId: ORG, reminders: { enabled: false } }]
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.quietNote).toContain('appointment reminders are switched off')
+
+    store.profiles = []
+    store.reviewConfigs = [{ organizationId: ORG, autoSendEnabled: 0 }]
+    const s2 = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s2.quietNote).toContain('review requests are switched off')
   })
 
   it('quiet = nothing done AND nothing waiting', async () => {
@@ -272,6 +290,15 @@ describe('renderStandupEmailBody — the voice', () => {
     expect(body).not.toContain('!')
   })
 
+  it('an empty window renders the config-cross-checked quiet narration', async () => {
+    deps.followupsDue = 1 // not quiet overall, but zero actions
+    store.profiles = [{ organizationId: ORG, reminders: { enabled: false } }]
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    const body = renderStandupEmailBody(s, 'Dream Dental')
+    expect(body).toContain('appointment reminders are switched off')
+    expect(body).not.toContain('!')
+  })
+
   it('says so plainly when nothing is waiting on a human', async () => {
     ledger.counts = { appointment_reminder: 2 }
     const s = await buildWeeklyStandup(ORG, MONDAY)
@@ -285,6 +312,7 @@ describe('sendWeeklyStandups', () => {
     store.clinics.push({
       organizationId: ORG,
       standupLastSentAt: null,
+      digestEnabled: 1,
       isDemo: false,
       clinicName: 'Dream Dental',
       ...over,
@@ -292,16 +320,26 @@ describe('sendWeeklyStandups', () => {
     store.staff.push({ organizationId: ORG, userId: 'u1', role: 'owner', name: 'Dr. Reyes', email: 'dr@x.com' })
   }
 
-  it('sends to owners on the clinic-local Monday and claims the week BEFORE sending', async () => {
+  it('sends on the clinic-local Monday to ALL staff roles (the office manager is usually admin) minus the opt-out', async () => {
     seedClinic()
+    store.staff.push({ organizationId: ORG, userId: 'u2', role: 'admin', name: 'Sam Office', email: 'sam@x.com' })
+    store.staff.push({ organizationId: ORG, userId: 'u3', role: 'member', name: 'Kai Front', email: 'kai@x.com' })
+    store.staff.push({ organizationId: ORG, userId: 'u4', role: 'patient', name: 'Pat', email: 'pat@x.com' })
+    pref.optedOut = new Set(['u3']) // Kai muted DreamCRM email — respected here too
     ledger.counts = { appointment_reminder: 3 }
     const r = await sendWeeklyStandups({ now: MONDAY })
-    expect(r.sent).toBe(1)
-    expect(sendNotificationEmailMock).toHaveBeenCalledTimes(1)
-    const msg = sendNotificationEmailMock.mock.calls[0][0] as Record<string, unknown>
-    expect(msg.to).toBe('dr@x.com')
-    expect(String(msg.title)).toContain('Your week with DreamCRM')
+    expect(r.sent).toBe(2) // owner + admin; member opted out; patient never
+    const recipients = sendNotificationEmailMock.mock.calls.map((c) => (c[0] as Record<string, unknown>).to)
+    expect(recipients.sort()).toEqual(['dr@x.com', 'sam@x.com'])
     expect(store.clinics[0].standupLastSentAt).toEqual(MONDAY)
+  })
+
+  it('the org-level off switch: a clinic that disabled digest email gets no standup email either', async () => {
+    seedClinic({ digestEnabled: 0 })
+    ledger.counts = { appointment_reminder: 3 }
+    const r = await sendWeeklyStandups({ now: MONDAY })
+    expect(r.scanned).toBe(0)
+    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
   })
 
   it('does nothing on other weekdays', async () => {
@@ -312,12 +350,17 @@ describe('sendWeeklyStandups', () => {
     expect(r.skippedNotMonday).toBe(1)
   })
 
-  it('sends once per week (standupLastSentAt inside this week skips)', async () => {
-    seedClinic({ standupLastSentAt: new Date('2026-07-26T13:00:00Z') })
+  it('sends once per week — the claim is ATOMIC (conditional on the prior value), so overlapping ticks cannot double-email', async () => {
+    seedClinic()
     ledger.counts = { appointment_reminder: 3 }
-    const r = await sendWeeklyStandups({ now: MONDAY })
-    expect(r.sent).toBe(0)
-    expect(r.skippedAlready).toBe(1)
+    const first = await sendWeeklyStandups({ now: MONDAY })
+    expect(first.sent).toBe(1)
+    // Second at-least-once delivery of the same tick: the stored value now
+    // fails the conditional claim even if a racing run read stale state.
+    const second = await sendWeeklyStandups({ now: MONDAY })
+    expect(second.sent).toBe(0)
+    expect(second.skippedAlready).toBe(1)
+    expect(sendNotificationEmailMock).toHaveBeenCalledTimes(1)
   })
 
   it('demo clinics and quiet weeks never email', async () => {

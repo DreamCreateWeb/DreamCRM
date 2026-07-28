@@ -137,7 +137,12 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
   // 1. Review reply — anchored to the seeded UNREPLIED 2★ demo review
   //    (demo_gr_7, Rob Castellano — the reputation fire the demo showcases).
   const [lowStarReview] = await db
-    .select({ externalReviewId: schema.platformReview.externalReviewId })
+    .select({
+      externalReviewId: schema.platformReview.externalReviewId,
+      reviewerName: schema.platformReview.reviewerName,
+      starRating: schema.platformReview.starRating,
+      comment: schema.platformReview.comment,
+    })
     .from(schema.platformReview)
     .where(
       and(
@@ -157,7 +162,16 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
         sourceKey: `review_reply:${lowStarReview.externalReviewId}`,
         title: 'Reply to Rob Castellano’s 2-star review — worth answering today',
         body: 'Rob, thank you for telling us — the wait and the surprise on the bill are both on us. We’d like to make this right; please call the office and ask for the practice manager, and we’ll go through the estimate together.',
-        payload: { externalReviewId: lowStarReview.externalReviewId },
+        payload: {
+          externalReviewId: lowStarReview.externalReviewId,
+          // The real seeded review, quoted on the card (never approve blind).
+          context: {
+            kind: 'review',
+            author: lowStarReview.reviewerName,
+            starRating: lowStarReview.starRating,
+            text: lowStarReview.comment,
+          },
+        },
         status: 'open',
         expiresAt: expires,
         isDemo: 1,
@@ -168,7 +182,7 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
 
   // 2. Inquiry response — anchored to a seeded NEW lead with an email.
   const [freshLead] = await db
-    .select({ id: schema.lead.id, name: schema.lead.name })
+    .select({ id: schema.lead.id, name: schema.lead.name, message: schema.lead.message, preferredDate: schema.lead.preferredDate })
     .from(schema.lead)
     .where(
       and(
@@ -190,7 +204,16 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
         sourceKey: `inquiry_response:${freshLead.id}`,
         title: `Answer ${first}’s website inquiry`,
         body: `Hi ${first} — thanks for reaching out. We’d be glad to get you in; most new-patient visits take about an hour, and we’ll check your insurance before you arrive so there are no surprises. Pick a time on our booking page, or reply here and we’ll find one together.`,
-        payload: { leadId: freshLead.id, subject: 'Your question for Dream Dental' },
+        payload: {
+          leadId: freshLead.id,
+          subject: 'Your question for Dream Dental',
+          context: {
+            kind: 'inquiry',
+            author: freshLead.name,
+            text: freshLead.message,
+            preferredDate: freshLead.preferredDate,
+          },
+        },
         status: 'open',
         expiresAt: new Date(now.getTime() + 7 * DAY),
         isDemo: 1,
@@ -269,7 +292,11 @@ No judgment — life gets busy. Pick a time that works and we’ll take care of 
           audienceId: recallAudience.id,
           subject: 'Time for a cleaning? We’d love to see you',
           name: 'Recall — demo',
-          recipientCount: 3,
+          // The REAL resolved count — the meta line reads the payload, so a
+          // hardcoded number here contradicted the title built two lines up
+          // (round-1 Phase-2 audit). Null when the resolve failed: the card
+          // simply shows no count rather than an invented one.
+          ...(recipientCount != null && recipientCount > 0 ? { recipientCount } : {}),
         },
         status: 'open',
         expiresAt: new Date(now.getTime() + 14 * DAY),

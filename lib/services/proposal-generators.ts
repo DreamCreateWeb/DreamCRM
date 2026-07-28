@@ -39,9 +39,38 @@ const MAX_INQUIRY_RESPONSES_PER_RUN = 3
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** 'YYYY-MM' — the cadence key for at-most-monthly proposal types. */
-export function monthKey(now: Date = new Date()): string {
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+/** 'YYYY-MM' in the CLINIC's timezone — the cadence key for at-most-monthly
+ *  proposal types. Clinic-local per the CLAUDE.md bucketing law: a UTC key
+ *  rolled the month over up to 8h early for US clinics, so a decline on the
+ *  evening of the local month's last day could be re-asked within hours
+ *  (round-1 Phase-2 audit). */
+export function monthKey(now: Date, timeZone: string): string {
+  // en-CA formats YYYY-MM-DD; take the year-month.
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit' }).format(now)
+}
+
+/** Respect-the-no backstop for the cadence types: even across a month
+ *  boundary, a decline in the last 14 days means the machine does not
+ *  re-ask the same kind of question yet. */
+async function recentlyDeclined(
+  organizationId: string,
+  capability: string,
+  now: Date,
+): Promise<boolean> {
+  const cutoff = new Date(now.getTime() - 14 * DAY_MS)
+  const rows = await db
+    .select({ id: schema.proposal.id, decidedAt: schema.proposal.decidedAt })
+    .from(schema.proposal)
+    .where(
+      and(
+        eq(schema.proposal.organizationId, organizationId),
+        eq(schema.proposal.capability, capability),
+        eq(schema.proposal.status, 'declined'),
+        gte(schema.proposal.decidedAt, cutoff),
+      ),
+    )
+    .limit(1)
+  return rows.length > 0
 }
 
 export interface GeneratorRunResult {
@@ -65,11 +94,13 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
   for (const org of orgs) {
     result.orgsScanned++
     try {
+      const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
+      const tz = await getClinicTimeZone(org.id)
       result.expired += await sweepInvalidatedProposals(org.id)
-      result.filed += await generateReviewReplyProposals(org.id, org.name, now)
+      result.filed += await generateReviewReplyProposals(org.id, now)
       result.filed += await generateInquiryResponseProposals(org.id, org.name, now)
-      result.filed += await generateSocialPostProposals(org.id, org.name, now)
-      result.filed += await generateOutreachCampaignProposals(org.id, now)
+      result.filed += await generateSocialPostProposals(org.id, org.name, now, tz)
+      result.filed += await generateOutreachCampaignProposals(org.id, now, tz)
     } catch (e) {
       result.errors.push({ organizationId: org.id, error: (e as Error).message })
     }
@@ -203,7 +234,6 @@ async function sourceKeyTaken(organizationId: string, sourceKey: string): Promis
 
 export async function generateReviewReplyProposals(
   organizationId: string,
-  clinicName: string,
   now: Date = new Date(),
 ): Promise<number> {
   if (!aiConfigured()) return 0
@@ -230,6 +260,13 @@ export async function generateReviewReplyProposals(
     )
     .limit(10)
 
+  // THE ONE drafting home: lib/services/review-reply-ai.ts — the hardened
+  // public+HIPAA prompt ("never mention any visit, treatment, date, or
+  // clinical detail — even when the review does") and the one
+  // review_reply_draft meter. Round-1 Phase-2 audit: this generator briefly
+  // forked its own weaker prompt + a second meter; never again.
+  const { draftGoogleReviewReply } = await import('@/lib/services/review-reply-ai')
+
   let filed = 0
   for (const r of reviews) {
     if (filed >= MAX_REVIEW_REPLIES_PER_RUN) break
@@ -239,15 +276,12 @@ export async function generateReviewReplyProposals(
     const who = r.reviewerName?.trim() || 'A patient'
     const stars = r.starRating ? `${r.starRating}-star` : 'unrated'
     const lowStar = (r.starRating ?? 5) <= 2
-    const draft = await draftText(organizationId, {
-      system: `You are the owner of ${clinicName}, a dental clinic, drafting a public reply to a Google review. A staff member will review and edit before it posts. ${CORE_VOICE_RULES}
-Additional rules:
-- 1–3 sentences. Public forever — no patient health details, no confirming they are a patient beyond what they themselves wrote.
-- Thank them by first name when one is given.${lowStar ? `
-- This is an unhappy review: acknowledge the frustration plainly, don't argue or make excuses, never admit legal fault, and invite them to call the office so a human can make it right.` : ''}`,
-      user: `The ${stars} review${r.reviewerName ? ` from ${r.reviewerName}` : ''}:\n${r.comment?.trim() || '(no written comment — rating only)'}\n\nDraft the public reply.`,
+    const draft = await draftGoogleReviewReply({
+      organizationId,
+      externalReviewId: r.externalReviewId,
+      planTier: undefined,
     })
-    if (!draft) break // AI unavailable / over cap — try again next run
+    if (!draft.ok) break // AI unavailable / over the shared monthly cap — next run
 
     const { filed: ok } = await fileProposal({
       organizationId,
@@ -256,8 +290,18 @@ Additional rules:
       title: lowStar
         ? `Reply to ${who}’s ${stars} review — worth answering today`
         : `Reply to ${who}’s ${stars} Google review`,
-      body: draft,
-      payload: { externalReviewId: r.externalReviewId },
+      body: draft.draft,
+      payload: {
+        externalReviewId: r.externalReviewId,
+        // The thing being answered, quoted on the approval card — staff
+        // never approve a public reply blind (round-1 in-phase gap).
+        context: {
+          kind: 'review',
+          author: r.reviewerName,
+          starRating: r.starRating,
+          text: r.comment,
+        },
+      },
       expiresAt: new Date(now.getTime() + 30 * DAY_MS),
     })
     if (ok) filed++
@@ -318,7 +362,17 @@ Additional rules:
       sourceKey,
       title: `Answer ${first}’s website inquiry`,
       body: draft,
-      payload: { leadId: lead.id, subject: `Your question for ${clinicName}` },
+      payload: {
+        leadId: lead.id,
+        subject: `Your question for ${clinicName}`,
+        // The inquiry itself, quoted on the approval card (round-1 gap).
+        context: {
+          kind: 'inquiry',
+          author: lead.name,
+          text: lead.message,
+          preferredDate: lead.preferredDate,
+        },
+      },
       expiresAt: new Date(now.getTime() + 7 * DAY_MS),
     })
     if (ok) filed++
@@ -333,11 +387,13 @@ const SOCIAL_QUIET_DAYS = 14
 export async function generateSocialPostProposals(
   organizationId: string,
   clinicName: string,
-  now: Date = new Date(),
+  now: Date,
+  timeZone: string,
 ): Promise<number> {
   if (!aiConfigured()) return 0
-  const sourceKey = `social_post:${monthKey(now)}`
+  const sourceKey = `social_post:${monthKey(now, timeZone)}`
   if (await sourceKeyTaken(organizationId, sourceKey)) return 0
+  if (await recentlyDeclined(organizationId, 'social_post', now)) return 0
 
   const { getComposerChannels } = await import('@/lib/services/social-posts')
   const channels = await getComposerChannels(organizationId)
@@ -396,10 +452,12 @@ No judgment — life gets busy. Pick a time that works and we’ll take care of 
 
 export async function generateOutreachCampaignProposals(
   organizationId: string,
-  now: Date = new Date(),
+  now: Date,
+  timeZone: string,
 ): Promise<number> {
-  const sourceKey = `outreach_campaign:recall:${monthKey(now)}`
+  const sourceKey = `outreach_campaign:recall:${monthKey(now, timeZone)}`
   if (await sourceKeyTaken(organizationId, sourceKey)) return 0
+  if (await recentlyDeclined(organizationId, 'outreach_campaign', now)) return 0
 
   const { getRecallStats } = await import('@/lib/services/recall-stats')
   const stats = await getRecallStats(organizationId)
@@ -424,7 +482,7 @@ export async function generateOutreachCampaignProposals(
     payload: {
       audienceId,
       subject: RECALL_PROPOSAL_SUBJECT,
-      name: `Recall — ${monthKey(now)}`,
+      name: `Recall — ${monthKey(now, timeZone)}`,
       recipientCount: n,
     },
     expiresAt: new Date(now.getTime() + 14 * DAY_MS),

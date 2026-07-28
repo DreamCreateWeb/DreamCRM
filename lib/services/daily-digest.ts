@@ -92,9 +92,11 @@ export function buildDigestContent(
   const conversations = data.conversations.length
   const leads = data.newLeadsCount
   const balanceCount = data.balances.count
+  const proposals = data.openProposalsCount ?? 0
   const auditItems = data.tomorrow?.items ?? []
   const hasContent =
-    followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0 || auditItems.length > 0 ||
+    followupsDue > 0 || unconfirmed > 0 || conversations > 0 || leads > 0 || balanceCount > 0 || proposals > 0 ||
+    auditItems.length > 0 ||
     !!websiteSection
 
   const parts: string[] = []
@@ -112,6 +114,11 @@ export function buildDigestContent(
   }
   if (unconfirmed > 0) {
     parts.push(`📅 ${unconfirmed} visit${unconfirmed === 1 ? '' : 's'} today still need${unconfirmed === 1 ? 's' : ''} a confirmation.`)
+  }
+  if (proposals > 0) {
+    // Phase 2 (round-1 audit): the Approval Inbox must reach the morning
+    // email — drafted work expires quietly if nobody is told it exists.
+    parts.push(`✨ ${proposals} piece${proposals === 1 ? '' : 's'} of finished work ${proposals === 1 ? 'is' : 'are'} waiting on your yes (on your Overview).`)
   }
   if (conversations > 0) {
     parts.push(`💬 ${conversations} conversation${conversations === 1 ? '' : 's'} assigned to you.`)

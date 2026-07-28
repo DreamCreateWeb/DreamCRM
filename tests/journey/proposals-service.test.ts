@@ -36,7 +36,11 @@ const store: {
   proposals: ProposalRow[]
   reviews: Array<Record<string, unknown>>
   leads: Array<Record<string, unknown>>
-} = { proposals: [], reviews: [], leads: [] }
+  postTargets: Array<Record<string, unknown>>
+  /** When true, the next UPDATE that stamps executedAt throws — the
+   *  bookkeeping-after-success failure the reopen region must NOT catch. */
+  failExecutedAtStamp: boolean
+} = { proposals: [], reviews: [], leads: [], postTargets: [], failExecutedAtStamp: false }
 
 const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
@@ -76,6 +80,7 @@ vi.mock('@/lib/db', () => {
     if (name === T_PROPOSAL) return store.proposals as unknown as Array<Record<string, unknown>>
     if (name === T_REVIEW) return store.reviews
     if (name === T_LEAD) return store.leads
+    if (name === 'social_post_target') return store.postTargets
     return []
   }
 
@@ -142,6 +147,10 @@ vi.mock('@/lib/db', () => {
       return api
     }
     const apply = () => {
+      if (store.failExecutedAtStamp && t.__name === T_PROPOSAL && 'executedAt' in patch) {
+        store.failExecutedAtStamp = false
+        throw new Error('db blipped during bookkeeping')
+      }
       const touched: Array<Record<string, unknown>> = []
       for (const r of tableRows(t.__name)) {
         if (filters.every((f) => f(r))) {
@@ -152,7 +161,14 @@ vi.mock('@/lib/db', () => {
       return touched
     }
     api.returning = async () => apply()
-    api.then = (resolve: (v: unknown) => void) => resolve(apply())
+    api.then = (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
+      try {
+        resolve(apply())
+      } catch (e) {
+        if (reject) reject(e)
+        else throw e
+      }
+    }
     return api
   }
 
@@ -192,6 +208,13 @@ vi.mock('@/lib/db', () => {
       organizationId: col('organizationId'),
       name: col('name'),
       email: col('email'),
+      status: col('status'),
+    },
+    socialPostTarget: {
+      __name: 'social_post_target',
+      id: col('id'),
+      organizationId: col('organizationId'),
+      socialPostId: col('socialPostId'),
       status: col('status'),
     },
   }
@@ -255,6 +278,13 @@ beforeEach(() => {
   store.proposals = []
   store.reviews = [{ organizationId: ORG, externalReviewId: 'r1', replyComment: null, reviewerName: 'Rob', starRating: 2 }]
   store.leads = [{ id: 'lead_1', organizationId: ORG, name: 'Dana Reyes', email: 'dana@x.com', status: 'new' }]
+  store.postTargets = [
+    { id: 't1', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
+    { id: 't2', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
+  ]
+  store.failExecutedAtStamp = false
+  executors.markLeadContacted.mockResolvedValue(undefined)
+  executors.createSocialPost.mockResolvedValue({ ok: true, postId: 'sp1', status: 'published' } as never)
   executors.sendCampaign.mockResolvedValue({ channel: 'resend', attempted: 41, sent: 41, failed: 0, errors: [], suppressed: 2 })
 })
 
@@ -322,7 +352,7 @@ describe('approveProposal — review_reply', () => {
   it('executes with the body, narrates ONCE under the proposal capability', async () => {
     const p = seedProposal()
     const r = await approveProposal(ORG, p.id, 'user_1')
-    expect(r).toEqual({ ok: true, status: 'approved' })
+    expect(r).toMatchObject({ ok: true, status: 'approved' })
     expect(executors.replyToGoogleReview).toHaveBeenCalledWith(ORG, 'r1', p.body)
     expect(p.status).toBe('approved')
     expect(p.executedAt).toBeInstanceOf(Date)
@@ -404,7 +434,7 @@ describe('approveProposal — the other executors', () => {
     expect(executors.deliver).not.toHaveBeenCalled()
   })
 
-  it('social_post: publishes to the payload channels', async () => {
+  it('social_post: publishes to the payload channels and narrates the ACTUAL published count', async () => {
     const p = seedProposal({
       capability: 'social_post',
       sourceKey: 'social_post:2026-07',
@@ -419,6 +449,67 @@ describe('approveProposal — the other executors', () => {
       accountIds: ['acc_1', 'acc_2'],
     })
     expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain('2 channels')
+  })
+
+  it('social_post: a PARTIAL publish narrates what actually landed, never the requested list (round-1 #3)', async () => {
+    store.postTargets = [
+      { id: 't1', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
+      { id: 't2', organizationId: ORG, socialPostId: 'sp1', status: 'failed' },
+      { id: 't3', organizationId: ORG, socialPostId: 'sp1', status: 'failed' },
+    ]
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:k',
+      payload: { accountIds: ['a', 'b', 'c'] },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    const summary = String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)
+    expect(summary).toContain('1 channel')
+    expect(summary).toContain('2 channels didn’t take it')
+  })
+
+  it('social_post: ZERO channels accepting reopens — never a ledger entry for nothing', async () => {
+    store.postTargets = [{ id: 't1', organizationId: ORG, socialPostId: 'sp1', status: 'failed' }]
+    const p = seedProposal({ capability: 'social_post', sourceKey: 'social_post:k2', payload: { accountIds: ['a'] } })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open')
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('inquiry_response: a markLeadContacted blip after the email went out does NOT reopen (a reopen would re-send)', async () => {
+    executors.markLeadContacted.mockRejectedValueOnce(new Error('db blip'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const p = seedProposal({
+      capability: 'inquiry_response',
+      sourceKey: 'inquiry_response:lead_1b',
+      payload: { leadId: 'lead_1', subject: 'S' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(p.status).toBe('approved')
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
+  it('POST-EXECUTION bookkeeping failure never reopens — the work happened (round-1 #5)', async () => {
+    store.failExecutedAtStamp = true
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const p = seedProposal()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(p.status).toBe('approved') // NOT reopened — a second Approve would double-send
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    err.mockRestore()
+  })
+
+  it('approve answers with WHAT HAPPENED — the message is the ledger one-liner (the confirmation toast)', async () => {
+    const p = seedProposal()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.message).toContain('Replied to Rob')
   })
 
   it('outreach_campaign: creates + sends AS THE APPROVER so campaign_send stays silent, then narrates outreach_campaign once', async () => {
@@ -440,7 +531,7 @@ describe('approveProposal — the other executors', () => {
     expect(String(entry.summary)).toContain('41 patients')
   })
 
-  it('outreach_campaign: a refused send (compliance gate) reopens the proposal', async () => {
+  it('outreach_campaign: a refused send (compliance gate) reopens — and the RETRY reuses the SAME campaign row (round-1 #7)', async () => {
     executors.sendCampaign.mockResolvedValueOnce({
       channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [],
       skipped: 'missing_postal_address', error: 'Add your practice address first.',
@@ -450,10 +541,50 @@ describe('approveProposal — the other executors', () => {
       sourceKey: 'k9',
       payload: { audienceId: 5, subject: 'We miss you' },
     })
-    const r = await approveProposal(ORG, p.id, 'user_1')
-    expect(r.ok).toBe(false)
+    const first = await approveProposal(ORG, p.id, 'user_1')
+    expect(first.ok).toBe(false)
     expect(p.status).toBe('open')
     expect(recordActionMock).not.toHaveBeenCalled()
+    // The campaign id is stamped into the payload BEFORE sending…
+    expect((p.payload as Record<string, unknown>).campaignId).toBe(77)
+    // …so the retry never mints a second campaign row.
+    const second = await approveProposal(ORG, p.id, 'user_1')
+    expect(second.ok).toBe(true)
+    expect(executors.createMarketingCampaign).toHaveBeenCalledTimes(1)
+    expect(executors.sendCampaign).toHaveBeenLastCalledWith(expect.objectContaining({ campaignId: 77 }))
+  })
+
+  it('outreach_campaign: ZERO people reached is never a success — no "Sent to 0 patients" ledger lie (round-1 #6)', async () => {
+    executors.sendCampaign.mockResolvedValueOnce({
+      channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [], suppressed: 41,
+    } as never)
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k10',
+      payload: { audienceId: 5, subject: 'We miss you' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('emailed recently')
+    expect(p.status).toBe('open')
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('outreach_campaign: already_sending on a REUSED campaign retires the card — never a re-blast (round-1 #5)', async () => {
+    executors.sendCampaign.mockResolvedValueOnce({
+      channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [],
+      skipped: 'already_sending', error: 'This campaign is already sending or has already been sent.',
+    } as never)
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k11',
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 77 },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBe(true)
+    expect(p.status).toBe('expired')
+    expect(executors.createMarketingCampaign).not.toHaveBeenCalled()
   })
 
   it('DEMO proposals simulate: no executor runs, the ledger still tells the story', async () => {

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { FlashToast } from '@/components/ui/flash-toast'
 import { approveProposalAction, declineProposalAction } from './actions'
 
 /**
@@ -10,6 +11,15 @@ import { approveProposalAction, declineProposalAction } from './actions'
  * the reply / the post / the campaign; staff read it in plain English, tweak
  * the words if they like, and tap the one big Approve button. Approval
  * executes immediately — there is nothing else to operate.
+ *
+ * Round-1 audit laws baked in:
+ *  - The card QUOTES the thing being answered (the review, the inquiry) —
+ *    staff never approve a public reply blind.
+ *  - Bodies carrying merge tokens ({{firstName}}) read as a RENDERED sample
+ *    by default; the raw text only appears in edit mode, with a legend — a
+ *    non-technical reader must never mistake the token for a typo.
+ *  - Approving answers with a toast naming what just happened (the machine
+ *    acts AND reports; a card that silently vanishes is neither).
  */
 
 export interface ProposalCardData {
@@ -18,8 +28,10 @@ export interface ProposalCardData {
   capabilityLabel: string
   title: string
   body: string
-  /** Extra context line ("Goes to 41 patients", "Posts to 2 channels"). */
+  /** Extra context line ("goes to ~41 patients", "posts to 2 channels"). */
   meta: string | null
+  /** The thing being answered, quoted above the draft. */
+  context: { kind: string; author: string | null; starRating: number | null; text: string | null } | null
 }
 
 const CAPABILITY_ICON: Record<string, string> = {
@@ -29,13 +41,27 @@ const CAPABILITY_ICON: Record<string, string> = {
   outreach_campaign: '💌',
 }
 
+/** Substitute the campaign merge tokens with a readable sample so the card
+ *  shows what a patient will actually receive. Pure; pinned by tests. */
+export function renderTokenSample(text: string): string {
+  return text
+    .replace(/\{\{firstName\}\}/g, 'Maria')
+    .replace(/\{\{bookingUrl\}\}/g, '[your booking page link]')
+}
+
+const HAS_TOKENS = /\{\{(firstName|bookingUrl)\}\}/
+
 export default function ApprovalInbox({ proposals }: { proposals: ProposalCardData[] }) {
   const [gone, setGone] = useState<Set<string>>(new Set())
+  const [toast, setToast] = useState<string | null>(null)
   const visible = proposals.filter((p) => !gone.has(p.id))
-  if (visible.length === 0) return null
+  if (visible.length === 0) {
+    return toast ? <FlashToast message={toast} onDone={() => setToast(null)} /> : null
+  }
 
   return (
     <section className="mb-8" aria-label="Waiting on your yes">
+      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
           Waiting on your yes
@@ -46,7 +72,14 @@ export default function ApprovalInbox({ proposals }: { proposals: ProposalCardDa
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {visible.map((p) => (
-          <ProposalCard key={p.id} proposal={p} onDone={(id) => setGone((s) => new Set(s).add(id))} />
+          <ProposalCard
+            key={p.id}
+            proposal={p}
+            onDone={(id, message) => {
+              setGone((s) => new Set(s).add(id))
+              if (message) setToast(message)
+            }}
+          />
         ))}
       </div>
     </section>
@@ -58,13 +91,14 @@ function ProposalCard({
   onDone,
 }: {
   proposal: ProposalCardData
-  onDone: (id: string) => void
+  onDone: (id: string, message?: string) => void
 }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(proposal.body)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const tokens = HAS_TOKENS.test(body)
 
   const decide = (decision: 'approve' | 'decline') => {
     setError(null)
@@ -77,12 +111,12 @@ function ProposalCard({
             })
           : await declineProposalAction({ proposalId: proposal.id })
       if (r.ok) {
-        onDone(proposal.id)
+        onDone(proposal.id, decision === 'approve' ? (r.message ?? 'Done — it went out.') : undefined)
         router.refresh()
       } else {
         setError(r.error)
         // "Already handled" class errors mean the card is dead — clear it.
-        if (/already/i.test(r.error)) {
+        if (/already|retired/i.test(r.error)) {
           onDone(proposal.id)
           router.refresh()
         }
@@ -108,18 +142,42 @@ function ProposalCard({
         </div>
       </div>
 
+      {/* What we're answering — never approve a public reply blind. */}
+      {proposal.context?.text && (
+        <blockquote className="mt-3 border-l-2 border-gray-300 dark:border-gray-600 pl-3 text-xs text-gray-500 dark:text-gray-400">
+          <p className="whitespace-pre-wrap">“{proposal.context.text}”</p>
+          <footer className="mt-1 not-italic">
+            — {proposal.context.author?.trim() || 'Anonymous'}
+            {proposal.context.starRating != null ? `, ${proposal.context.starRating}★` : ''}
+          </footer>
+        </blockquote>
+      )}
+
       <div className="mt-3 flex-1">
         {editing ? (
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={Math.min(10, Math.max(4, body.split('\n').length + 1))}
-            className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 p-3 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
-            aria-label="Edit the drafted text"
-          />
+          <>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={Math.min(10, Math.max(4, body.split('\n').length + 1))}
+              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 p-3 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              aria-label="Edit the drafted text"
+            />
+            {tokens && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Keep the curly pieces as they are — {'{{firstName}}'} becomes each patient’s own name, and{' '}
+                {'{{bookingUrl}}'} becomes your booking link.
+              </p>
+            )}
+          </>
         ) : (
           <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3 border border-transparent">
-            {body}
+            {tokens ? renderTokenSample(body) : body}
+          </p>
+        )}
+        {tokens && !editing && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Shown with a sample name — each patient gets their own.
           </p>
         )}
       </div>

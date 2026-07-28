@@ -35,6 +35,17 @@ const proposalsSvc = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/services/proposals', () => proposalsSvc)
 
+// THE single review-reply drafting home (hardened public+HIPAA prompt +
+// the one review_reply_draft meter) — the generator must call this, never
+// its own prompt (round-1 audit #17).
+const reviewReplyAi = vi.hoisted(() => ({
+  draftGoogleReviewReply: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, draft: 'A warm, drafted public reply.', remaining: 100 })),
+}))
+vi.mock('@/lib/services/review-reply-ai', () => reviewReplyAi)
+vi.mock('@/lib/services/clinic-timezone', () => ({
+  getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
+}))
+
 const channels = vi.hoisted(() => ({
   list: [
     { accountId: 'acc_gbp', platform: 'googlebusiness', label: 'Google Business', icon: 'G', handle: 'Acme' },
@@ -153,6 +164,7 @@ vi.mock('@/lib/db', () => {
       sourceKey: col('sourceKey'),
       status: col('status'),
       payload: col('payload'),
+      decidedAt: col('decidedAt'),
       updatedAt: col('updatedAt'),
     },
   }
@@ -212,22 +224,29 @@ describe('review replies', () => {
     ...over,
   })
 
-  it('drafts + files for unreplied reviews, capped at 2 per run', async () => {
+  it('drafts through THE single review-reply home (the hardened HIPAA prompt), capped at 2 per run, with the review quoted in payload.context', async () => {
     store.reviews = [review('r1'), review('r2'), review('r3')]
-    const n = await generateReviewReplyProposals(ORG, 'Acme Dental', NOW)
+    const n = await generateReviewReplyProposals(ORG, NOW)
     expect(n).toBe(2)
+    // The single home — never a local prompt fork (round-1 audit #17).
+    expect(reviewReplyAi.draftGoogleReviewReply).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG, externalReviewId: 'r1' }),
+    )
     expect(proposalsSvc.fileProposal).toHaveBeenCalledTimes(2)
     const first = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
     expect(first.capability).toBe('review_reply')
     expect(first.sourceKey).toBe('review_reply:r1')
-    expect(first.payload).toEqual({ externalReviewId: 'r1' })
-    expect(String(first.body)).toBe('A warm, drafted reply.')
+    expect(first.payload).toMatchObject({
+      externalReviewId: 'r1',
+      context: { kind: 'review', author: 'Rob', starRating: 2, text: 'Long wait.' },
+    })
+    expect(String(first.body)).toBe('A warm, drafted public reply.')
   })
 
   it('SKIPS entirely when AI is unconfigured — no template fallback for a specific human', async () => {
     ai.configured = false
     store.reviews = [review('r1')]
-    const n = await generateReviewReplyProposals(ORG, 'Acme Dental', NOW)
+    const n = await generateReviewReplyProposals(ORG, NOW)
     expect(n).toBe(0)
     expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
   })
@@ -235,15 +254,15 @@ describe('review replies', () => {
   it('checks the sourceKey BEFORE spending an AI draft', async () => {
     store.reviews = [review('r1')]
     store.proposals = [{ organizationId: ORG, sourceKey: 'review_reply:r1', status: 'declined' }]
-    const n = await generateReviewReplyProposals(ORG, 'Acme Dental', NOW)
+    const n = await generateReviewReplyProposals(ORG, NOW)
     expect(n).toBe(0)
-    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+    expect(reviewReplyAi.draftGoogleReviewReply).not.toHaveBeenCalled()
   })
 
-  it('stops when the monthly draft cap is hit (retries next run, never half-files)', async () => {
-    usage.overCap = true
+  it('stops when the shared review-reply allowance says no (retries next run, never half-files)', async () => {
+    reviewReplyAi.draftGoogleReviewReply.mockResolvedValue({ ok: false, error: 'over the monthly cap' } as never)
     store.reviews = [review('r1')]
-    const n = await generateReviewReplyProposals(ORG, 'Acme Dental', NOW)
+    const n = await generateReviewReplyProposals(ORG, NOW)
     expect(n).toBe(0)
     expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
   })
@@ -264,7 +283,12 @@ describe('inquiry responses', () => {
     const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
     expect(call.capability).toBe('inquiry_response')
     expect(call.sourceKey).toBe('inquiry_response:l1')
-    expect(call.payload).toMatchObject({ leadId: 'l1', subject: 'Your question for Acme Dental' })
+    expect(call.payload).toMatchObject({
+      leadId: 'l1',
+      subject: 'Your question for Acme Dental',
+      // The inquiry itself rides the card (round-1 gap: never answer blind).
+      context: { kind: 'inquiry', author: 'Dana Reyes', text: 'Do you take my insurance?' },
+    })
     expect(String(call.title)).toContain('Dana')
   })
 
@@ -282,13 +306,15 @@ describe('inquiry responses', () => {
   })
 })
 
+const TZ = 'America/Chicago'
+
 describe('social posts (quiet channels)', () => {
-  it('files ONE per calendar month when channels exist and nothing published in 14d', async () => {
-    const n = await generateSocialPostProposals(ORG, 'Acme Dental', NOW)
+  it('files ONE per clinic-local calendar month when channels exist and nothing published in 14d', async () => {
+    const n = await generateSocialPostProposals(ORG, 'Acme Dental', NOW, TZ)
     expect(n).toBe(1)
     const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
     expect(call.capability).toBe('social_post')
-    expect(call.sourceKey).toBe(`social_post:${monthKey(NOW)}`)
+    expect(call.sourceKey).toBe(`social_post:${monthKey(NOW, TZ)}`)
     expect(call.payload).toEqual({ accountIds: ['acc_gbp', 'acc_ig'] })
   })
 
@@ -296,29 +322,47 @@ describe('social posts (quiet channels)', () => {
     store.postTargets = [
       { id: 't1', organizationId: ORG, status: 'published', publishedAt: new Date(NOW.getTime() - 3 * DAY) },
     ]
-    expect(await generateSocialPostProposals(ORG, 'Acme Dental', NOW)).toBe(0)
+    expect(await generateSocialPostProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
   })
 
   it('stays silent with no connected channels', async () => {
     channels.list = []
-    expect(await generateSocialPostProposals(ORG, 'Acme Dental', NOW)).toBe(0)
+    expect(await generateSocialPostProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
   })
 
   it('asks at most once per month (the monthKey sourceKey)', async () => {
-    store.proposals = [{ organizationId: ORG, sourceKey: `social_post:${monthKey(NOW)}`, status: 'declined' }]
-    expect(await generateSocialPostProposals(ORG, 'Acme Dental', NOW)).toBe(0)
+    store.proposals = [{ organizationId: ORG, sourceKey: `social_post:${monthKey(NOW, TZ)}`, status: 'declined' }]
+    expect(await generateSocialPostProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
     expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('RESPECTS a fresh no across the month boundary: declined <14 days ago blocks the next month key too', async () => {
+    // Declined July 25; it's now Aug 2 clinic-local — a new month key, but
+    // the no is 8 days old. The machine does not re-ask yet (round-1 audit).
+    const AUG = new Date('2026-08-02T15:00:00Z')
+    store.proposals = [
+      { organizationId: ORG, capability: 'social_post', sourceKey: 'social_post:2026-07', status: 'declined', decidedAt: new Date('2026-07-25T15:00:00Z') },
+    ]
+    expect(await generateSocialPostProposals(ORG, 'Acme Dental', AUG, TZ)).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('the clinic-local month key differs from UTC at the boundary (the CLAUDE.md bucketing law)', () => {
+    // 2026-08-01T02:00Z is still July 31 evening in Chicago.
+    const boundary = new Date('2026-08-01T02:00:00Z')
+    expect(monthKey(boundary, 'America/Chicago')).toBe('2026-07')
+    expect(monthKey(boundary, 'UTC')).toBe('2026-08')
   })
 })
 
 describe('quiet-engine recall campaign', () => {
   it('files with the real audience + reachable count when the engine is quiet — NO AI involved', async () => {
-    const n = await generateOutreachCampaignProposals(ORG, NOW)
+    const n = await generateOutreachCampaignProposals(ORG, NOW, TZ)
     expect(n).toBe(1)
     expect(ai.runClaudeJson).not.toHaveBeenCalled()
     const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
     expect(call.capability).toBe('outreach_campaign')
-    expect(call.sourceKey).toBe(`outreach_campaign:recall:${monthKey(NOW)}`)
+    expect(call.sourceKey).toBe(`outreach_campaign:recall:${monthKey(NOW, TZ)}`)
     expect(call.payload).toMatchObject({ audienceId: 5, recipientCount: 41 })
     expect(String(call.title)).toContain('41 patients')
     expect(String(call.body)).toContain('{{firstName}}')
@@ -328,15 +372,23 @@ describe('quiet-engine recall campaign', () => {
 
   it('stays silent below the reachable threshold', async () => {
     recall.stats.recallDueReachableCount = 9
-    expect(await generateOutreachCampaignProposals(ORG, NOW)).toBe(0)
+    expect(await generateOutreachCampaignProposals(ORG, NOW, TZ)).toBe(0)
   })
 
   it('stays silent when something was sent recently or is already scheduled', async () => {
     recall.stats.recentSends = [{ id: 1 }]
-    expect(await generateOutreachCampaignProposals(ORG, NOW)).toBe(0)
+    expect(await generateOutreachCampaignProposals(ORG, NOW, TZ)).toBe(0)
     recall.stats.recentSends = []
     recall.stats.upcomingSends = [{ id: 2 }]
-    expect(await generateOutreachCampaignProposals(ORG, NOW)).toBe(0)
+    expect(await generateOutreachCampaignProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('a fresh decline blocks the recall ask across the month boundary too', async () => {
+    const AUG = new Date('2026-08-02T15:00:00Z')
+    store.proposals = [
+      { organizationId: ORG, capability: 'outreach_campaign', sourceKey: 'outreach_campaign:recall:2026-07', status: 'declined', decidedAt: new Date('2026-07-25T15:00:00Z') },
+    ]
+    expect(await generateOutreachCampaignProposals(ORG, AUG, TZ)).toBe(0)
   })
 })
 

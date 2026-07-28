@@ -41,6 +41,32 @@ rejected, the backlog harvest, and the gate declaration.
 Proposals judged real-but-future-scope land here, newest first. The owner
 promotes items into phases; nothing here is a commitment until he does.
 
+**From Phase 2 round 1 (2026-07-28):**
+
+1. **The ledger outcome contract** — the standup narrates what the machine
+   DID, not what came of it ("41 reminders — 38 confirmed"). The judge kept
+   it backlog: writers embed domain ids so nothing is irrecoverable, and
+   per-capability outcome linkage across 20+ writers is its own slice.
+   (Re-affirms the round-4 item; the standup consumer arrived but dictates
+   only the read shape, which shipped as `until`.)
+2. **`originalBody` on proposals** — approving with edits overwrites the
+   draft, losing the send-as-written vs rewrote-it signal. Promote FIRST
+   into Phase 3 (its consumer): one nullable column + stash-at-approve.
+3. **"This week so far" line / the daily brief** — the standup card shows a
+   window up to 13 days old by Friday; DESIGN.md names the daily brief as
+   the Narrator's second voice. Build the ledger paragraph into the daily
+   digest as its own slice.
+4. **Ledger drill-down drawer** — the standup's counts are unclickable
+   numbers; a /dashboard ledger drawer filtered by capability + week serves
+   the standup, the daily brief, and Phase 4's guardian in one build.
+5. **Proposal-engine observability** — generator run results are discarded;
+   AI-off/over-cap no-ops silently. Fold generator counts into the daily
+   digest when Phase 4's Guardian lands (the clinic-facing half shipped as
+   the quiet-week config narration).
+6. **Decided-proposal history** — approved/declined/expired rows have no
+   reader ("what was in that campaign I approved Tuesday?"). The approve
+   TOAST shipped in round 1; the history strip is future scope.
+
 **From Phase 1 round 4 (2026-07-27):**
 
 1. **The ledger's outcome-linkage seed** — DESIGN.md defines the ledger as
@@ -129,6 +155,91 @@ promotes items into phases; nothing here is a commitment until he does.
 ## Certificates
 
 *(newest first)*
+
+### Phase 2 — the voice (proposals · Approval Inbox · weekly standup)
+
+**Status: round 1 COMPLETE + FIXED (v2 gate, 2026-07-28); round 2 pending.**
+First audit under the v2 shape (Opus lenses via direct-Agent fallback — the
+Workflow runtime's permission-handler fault recurred and the integrity guard
+correctly invalidated the workflow run; the same 4-lens shape re-ran through
+the Agent tool). Range `4f55238..708cd73`.
+
+- **Round 1:** 4 merged lenses → 18 defect candidates + 12 depth proposals
+  after dedupe (3 defects found by 2–3 lenses independently) → ONE skeptic
+  confirmed 13 / rejected 5, ONE judge ruled 7 in-phase / 5 backlog / 0
+  reject → main-loop confirmation upheld every skeptic verdict (the
+  decisive second vote; each survivor re-read at the cited lines).
+- **Confirmed + FIXED (13):**
+  1. [major, 3 lenses] The standup re-implemented the seated law
+     (min(completedAt) vs the spine's least-recipe; ANY-import suppression
+     vs imported-earlier; no archived exclusion) → **countSeatedBetween
+     shipped on the journey spine** (same aggregates + suppression by
+     construction, recipe-pinned + canned-row tested) and the standup
+     consumes it. One law, one implementation. [with in-phase gap D2]
+  2. [major, 3 lenses] demo recall proposal hardcoded payload
+     recipientCount 3 beside a title built from the real resolved count →
+     payload now carries the real count (omitted when unresolvable).
+  3. [major, 2 lenses] executeSocialPost ledgered the REQUESTED channel
+     count on partial publishes → narrates the actual per-target published
+     count ("(1 channel didn’t take it)"), and ZERO accepted channels
+     reopens instead of ledgering.
+  4. [major, 2 lenses] The standup email had no off switch → org-gated on
+     the digest master switch, sent to ALL staff roles (the office manager
+     is usually 'admin'), honors getDigestOptOutUserIds. [with gap D9]
+  5. [major, narrowed by the skeptic] reopen-after-execution double-send:
+     the try wrapped post-execution bookkeeping; inquiry sent email BEFORE
+     the status flip; campaign retries minted fresh rows → bookkeeping
+     moved OUT of the reopen region (a bookkeeping blip never reopens
+     executed work); markLeadContacted is best-effort after the send; ONE
+     campaign row per proposal (id stamped into payload pre-send, retries
+     reuse it; already_sending on a reused row retires the card — never a
+     re-blast).
+  6. [major] zero-recipient / total-failure sends ledgered "Sent … to 0
+     patients" as success → r.sent === 0 reopens with a friendly hold
+     message; the campaign row stays draft for a clean retry.
+  7. [minor] failed approves left duplicate draft campaigns in /growth →
+     closed by the campaignId reuse in #5.
+  8. [major] test gap: the standup harness stubbed min()+groupBy → the
+     semantics now live in the spine's pinned recipe; countSeatedBetween
+     has canned-row window/suppression tests + recipe/WHERE source pins;
+     the standup test pins only "asks the spine with the right window".
+  9. [major] test gap: unfailable mocked seams → new tests: post-execution
+     bookkeeping failure never reopens; partial/zero social publish;
+     zero-sent campaign; contact-mark blip; campaign-row reuse.
+  10. [minor] standup week claim was read-then-write → atomic conditional
+     claim (prior-value predicate + returning) before send.
+  11. [minor] WeeklyStandup doc claimed Monday-based weeks → corrected to
+     Sunday (clinicWeekStart) everywhere, example included.
+  12. [major] the review-reply generator forked a SECOND AI prompt that
+     weakened review-reply-ai.ts's hardened public+HIPAA rule and minted a
+     second meter → the generator now drafts through
+     **draftGoogleReviewReply (the single home)**: one prompt, one
+     review_reply_draft allowance, displayName voice.
+  13. [minor] cadence sourceKeys were UTC-month keyed → clinic-local
+     monthKey (CLAUDE.md bucketing law) + a 14-day respect-the-no
+     backstop: a decline blocks the same ask across the month boundary.
+- **Skeptic-rejected (5, upheld on main-loop review):** hourly
+  getRecallStats load + per-render buildWeeklyStandup (both consistent
+  with existing /growth query load — accepted design, optimization
+  welcome later); the 4,096-char review-reply edit (unreachable and
+  already graceful); the reachable-count population mismatch (populations
+  effectively coincide; '~' hedges the frequency-cap delta); the dead
+  expireProposal export (half-wrong evidence; the helper was deleted as
+  cleanup anyway).
+- **In-phase gaps SHIPPED (7):** D2 (the spine consolidation, above) ·
+  D3 the approval card QUOTES the thing being answered (generators + demo
+  store payload.context; blockquote on the card) · D4 proposals reach
+  beyond the Overview (sidebar badge on the Overview entry via
+  /api/nav-badges, a My Day tile, a morning-digest line) · D6 approving
+  answers with a FlashToast naming what happened (the ledger one-liner
+  rides the action result) · D9 (all-staff + opt-out, above) · D10 a
+  quiet week is NARRATED from automation-config cross-checks (quietNote:
+  "reminders are switched off" vs "on and watching" — the AUDITS.md
+  mandate, verified verbatim by the judge) · D12 merge-token bodies render
+  as a SAMPLE ("Hi Maria,") with an edit-mode legend — raw {{tokens}} are
+  never handed bare to a non-technical reader.
+- **Backlog: 6 items** (see the menu above). Full suite 5,548 green;
+  typecheck + build clean after the fix pass.
 
 ### Phase 1 — the spine (journey resolver · Action Ledger · autonomy schema)
 

@@ -1,12 +1,14 @@
 import 'server-only'
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { listRecentActions, countActionsSince } from '@/lib/services/action-ledger'
 import { countOpenProposals } from '@/lib/services/proposals'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
+import { countSeatedBetween } from '@/lib/services/patient-journey'
+import { resolveReminderSettings } from '@/lib/types/reminders'
+import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
 import { sendNotificationEmail } from '@/lib/email'
 
 /**
@@ -17,8 +19,11 @@ import { sendNotificationEmail } from '@/lib/email'
  * the email goes out clinic-local Monday mornings via the daily-digest cron
  * (idempotent through clinic_profile.standup_last_sent_at).
  *
- * The window is the PRIOR clinic-local week, [weekStart-7d, weekStart) —
- * exclusive upper bound so consecutive weeks tile exactly.
+ * The window is the PRIOR clinic-local week — weeks start SUNDAY midnight
+ * clinic-local (clinicWeekStart), so this is [Sun-7d, Sun), exclusive upper
+ * bound so consecutive weeks tile exactly. "New patients seated" comes from
+ * the Phase-1 journey spine (countSeatedBetween) — ONE implementation of the
+ * seated law, never a local re-derivation (round-1 Phase-2 audit).
  */
 
 export interface StandupLine {
@@ -29,25 +34,32 @@ export interface StandupLine {
 }
 
 export interface WeeklyStandup {
-  /** Prior-week window (clinic-local Monday to Monday). */
+  /** Prior-week window (clinic-local SUNDAY midnight to Sunday midnight —
+   *  clinicWeekStart is Sunday-based). */
   weekStart: Date
   weekEnd: Date
-  /** "Jul 20 – Jul 26" in the clinic's timezone. */
+  /** "Jul 19 – Jul 25" in the clinic's timezone (a Sun–Sat range). */
   weekLabel: string
   totalActions: number
   /** Per-capability counts, biggest first. */
   lines: StandupLine[]
   /** Up to three ledger one-liners with a person in them — the stories. */
   stories: string[]
-  /** New patients SEATED in the window (the honest definition). */
+  /** New patients SEATED in the window — read from the journey spine
+   *  (countSeatedBetween), the same law /growth quotes. */
   newPatientsSeated: number
   /** Google/Facebook reviews posted in the window. */
   reviewsReceived: number
   /** The short list of things only a human can do. */
   humanTasks: { openProposals: number; followupsDue: number }
   /** True when the machine has nothing to report AND nothing is waiting —
-   *  surfaces stay quiet instead of celebrating zero. */
+   *  the email stays quiet instead of celebrating zero. */
   quiet: boolean
+  /** The empty-window narration (round-1 audit, the AUDITS.md mandate: a
+   *  quiet week must be narrated from automation-CONFIG cross-checks so a
+   *  healthy idle clinic and a switched-off engine never look the same).
+   *  Set ONLY when totalActions === 0; the card renders it. */
+  quietNote: string | null
 }
 
 /** Short plural nouns for the counts line — the registry labels are verb
@@ -108,7 +120,9 @@ export async function buildWeeklyStandup(
       listRecentActions(organizationId, { since: weekStart, until: weekEnd, limit: 200 }),
       countOpenProposals(organizationId),
       countFollowupsDue(organizationId, now),
-      countSeatedInWindow(organizationId, weekStart, weekEnd),
+      // THE journey spine's windowed seated count — same anchors/suppression
+      // as /growth (one law, one implementation; round-1 Phase-2 audit).
+      countSeatedBetween(organizationId, weekStart, weekEnd),
       countReviewsInWindow(organizationId, weekStart, weekEnd),
     ])
 
@@ -137,6 +151,28 @@ export async function buildWeeklyStandup(
   const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short', day: 'numeric' })
   const lastDay = new Date(weekEnd.getTime() - 1)
 
+  // THE EMPTY-WINDOW NARRATION (round-1 audit; the AUDITS.md mandate): a
+  // quiet week is narrated from automation-CONFIG cross-checks, so "nothing
+  // needed doing" and "nothing ran because a switch is off" never look the
+  // same. Only computed when there is nothing else to say.
+  let quietNote: string | null = null
+  if (totalActions === 0) {
+    const engine = await readEngineSwitches(organizationId)
+    if (!engine.remindersOn && !engine.reviewRequestsOn) {
+      quietNote =
+        'A quiet week — and a heads up: appointment reminders and review requests are both switched off, so I can’t send any. Turn them on in Settings when you’re ready.'
+    } else if (!engine.remindersOn) {
+      quietNote =
+        'A quiet week — one heads up: appointment reminders are switched off, so I can’t send any. Turn them on in Settings when you’re ready.'
+    } else if (!engine.reviewRequestsOn) {
+      quietNote =
+        'A quiet week — one heads up: automatic review requests are switched off. Turn them on in Growth → Reviews when you’re ready.'
+    } else {
+      quietNote =
+        'A quiet week — nothing needed sending. Reminders and review requests are on, and I’m watching.'
+    }
+  }
+
   return {
     weekStart,
     weekEnd,
@@ -148,63 +184,39 @@ export async function buildWeeklyStandup(
     reviewsReceived,
     humanTasks: { openProposals, followupsDue },
     quiet: totalActions === 0 && openProposals === 0 && followupsDue === 0,
+    quietNote,
   }
 }
 
-/**
- * New patients SEATED in the window: first MINTABLE completed visit fell
- * inside it. Mirrors the journey law: 'pms_import' rows never mint (their
- * completedAt is the sync moment — counting them would spike the standup the
- * week a clinic connects Open Dental), and roster patients (an imported
- * appointment on file, or a backfill patient.source) are already patients —
- * their first organic visit with us is a return, not a new-patient seat.
- */
-async function countSeatedInWindow(organizationId: string, since: Date, until: Date): Promise<number> {
-  const firsts = await db
-    .select({
-      patientId: schema.appointment.patientId,
-      seatedAt: sql<Date | null>`min(${schema.appointment.completedAt})`,
-    })
-    .from(schema.appointment)
-    .where(
-      and(
-        eq(schema.appointment.organizationId, organizationId),
-        eq(schema.appointment.status, 'completed'),
-        sql`${schema.appointment.completedAt} is not null`,
-        sql`${schema.appointment.source} is distinct from 'pms_import'`,
-      ),
-    )
-    .groupBy(schema.appointment.patientId)
-
-  const candidates = firsts.filter((r) => {
-    if (!r.patientId || !r.seatedAt) return false
-    const t = r.seatedAt instanceof Date ? r.seatedAt : new Date(r.seatedAt as unknown as string)
-    return t >= since && t < until
-  })
-  if (candidates.length === 0) return 0
-  const ids = candidates.map((r) => r.patientId!)
-
-  const [importedAppts, patientRows] = await Promise.all([
-    db
-      .select({ patientId: schema.appointment.patientId })
-      .from(schema.appointment)
-      .where(
-        and(
-          eq(schema.appointment.organizationId, organizationId),
-          inArray(schema.appointment.patientId, ids),
-          sql`${schema.appointment.source} = 'pms_import'`,
-        ),
-      ),
-    db
-      .select({ id: schema.patient.id, source: schema.patient.source })
-      .from(schema.patient)
-      .where(and(eq(schema.patient.organizationId, organizationId), inArray(schema.patient.id, ids))),
-  ])
-  const rosterAnchored = new Set(importedAppts.map((r) => r.patientId))
-  const backfillPatients = new Set(
-    patientRows.filter((r) => BACKFILL_PATIENT_SOURCES.has(r.source ?? '')).map((r) => r.id),
-  )
-  return candidates.filter((r) => !rosterAnchored.has(r.patientId) && !backfillPatients.has(r.patientId!)).length
+/** The two always-on-by-default engine switches a quiet week cross-checks:
+ *  appointment reminders (clinic_profile.reminders jsonb, default enabled)
+ *  and automatic review requests (clinic_review_config.autoSendEnabled,
+ *  default 1). Best-effort — a read failure reads as "on" (never nag about
+ *  a switch we couldn't read). */
+async function readEngineSwitches(
+  organizationId: string,
+): Promise<{ remindersOn: boolean; reviewRequestsOn: boolean }> {
+  try {
+    const [[profile], [reviewCfg]] = await Promise.all([
+      db
+        .select({ reminders: schema.clinicProfile.reminderSettings })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, organizationId))
+        .limit(1),
+      db
+        .select({ autoSendEnabled: schema.clinicReviewConfig.autoSendEnabled })
+        .from(schema.clinicReviewConfig)
+        .where(eq(schema.clinicReviewConfig.organizationId, organizationId))
+        .limit(1),
+    ])
+    return {
+      remindersOn: resolveReminderSettings(profile?.reminders).enabled,
+      // No config row yet = the DB default (1, on).
+      reviewRequestsOn: (reviewCfg?.autoSendEnabled ?? 1) === 1,
+    }
+  } catch {
+    return { remindersOn: true, reviewRequestsOn: true }
+  }
 }
 
 async function countReviewsInWindow(organizationId: string, since: Date, until: Date): Promise<number> {
@@ -236,7 +248,8 @@ export function renderStandupEmailBody(s: WeeklyStandup, clinicName: string): st
       parts.push(`• …and ${rest} more small things`)
     }
   } else {
-    parts.push('• A quiet week on my side — nothing needed sending.')
+    // The config-cross-checked quiet narration — never a bare zero.
+    parts.push(`• ${s.quietNote ?? 'A quiet week on my side — nothing needed sending.'}`)
   }
   if (s.newPatientsSeated > 0 || s.reviewsReceived > 0) {
     parts.push('')
@@ -315,6 +328,7 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
     .select({
       organizationId: schema.clinicProfile.organizationId,
       standupLastSentAt: schema.clinicProfile.standupLastSentAt,
+      digestEnabled: schema.clinicProfile.dailyDigestEnabled,
       isDemo: schema.organization.isDemo,
       clinicName: schema.organization.name,
     })
@@ -323,6 +337,11 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
 
   for (const clinic of clinics) {
     if (!clinic.organizationId || clinic.isDemo) continue
+    // The clinic's automation-email master switch (the same one the morning
+    // digest honors) is the standup's org-level off switch too — a clinic
+    // that turned digest email off gets no un-silenceable new email
+    // (round-1 audit; a per-surface toggle can come with the settings page).
+    if (clinic.digestEnabled !== 1) continue
     result.scanned++
     try {
       const tz = await getClinicTimeZone(clinic.organizationId)
@@ -343,21 +362,44 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
         continue
       }
 
-      // Claim the week BEFORE sending so a concurrent run can't double-email.
-      await db
+      // Claim the week BEFORE sending so a concurrent run can't double-email —
+      // and claim ATOMICALLY (conditional on the prior value): the daily tick
+      // is at-least-once, and two overlapping runs both passing the JS check
+      // above must not both send (round-1 audit).
+      const claimed = await db
         .update(schema.clinicProfile)
         .set({ standupLastSentAt: now })
-        .where(eq(schema.clinicProfile.organizationId, clinic.organizationId))
+        .where(
+          and(
+            eq(schema.clinicProfile.organizationId, clinic.organizationId),
+            or(
+              isNull(schema.clinicProfile.standupLastSentAt),
+              lt(schema.clinicProfile.standupLastSentAt, thisWeekStart),
+            ),
+          ),
+        )
+        .returning({ organizationId: schema.clinicProfile.organizationId })
+      if (claimed.length === 0) {
+        result.skippedAlready++
+        continue
+      }
 
-      const staff = await db
-        .select({ name: schema.user.name, email: schema.user.email, role: schema.member.role })
-        .from(schema.member)
-        .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
-        .where(and(eq(schema.member.organizationId, clinic.organizationId), eq(schema.member.role, 'owner')))
+      // Every staff member (the office manager is usually 'admin', not
+      // 'owner' — the report about her own front desk must reach her),
+      // minus anyone who muted DreamCRM email (the same per-staff opt-out
+      // the morning digest honors). Round-1 audit.
+      const [staff, optedOut] = await Promise.all([
+        db
+          .select({ userId: schema.member.userId, name: schema.user.name, email: schema.user.email })
+          .from(schema.member)
+          .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+          .where(and(eq(schema.member.organizationId, clinic.organizationId), ne(schema.member.role, 'patient'))),
+        getDigestOptOutUserIds(clinic.organizationId),
+      ])
 
       const body = renderStandupEmailBody(standup, clinic.clinicName ?? 'your clinic')
       for (const s of staff) {
-        if (!s.email) continue
+        if (!s.email || optedOut.has(s.userId)) continue
         await sendNotificationEmail({
           to: s.email,
           name: s.name ?? undefined,

@@ -9,6 +9,7 @@ import { auditUpcomingDay, type DayAudit } from '@/lib/services/patient-audit'
 import { followupDueState } from '@/lib/types/followups'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { countOpenProposals } from '@/lib/services/proposals'
 
 /**
  * "My day" — a per-staff-member cockpit. Pulls the things actually assignable to
@@ -35,6 +36,11 @@ export interface MyDayData {
   newLeadsCount: number
   /** Patients carrying an outstanding PMS balance (shared collections nudge). */
   balances: { count: number; totalCents: number }
+  /** Open proposals waiting on a yes in the Approval Inbox (the Overview) —
+   *  finished work the machine can't send without a human. Phase-2 round-1
+   *  audit: the inbox must reach the person living in My Day, not just the
+   *  dashboard. */
+  openProposalsCount: number
   /** The per-patient audit of TOMORROW's schedule — who needs prep and why. */
   tomorrow: DayAudit
 }
@@ -114,7 +120,7 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
   // Clinic-local day for due-date bucketing (server clock is UTC).
   const today = clinicDayKey(now, await getClinicTimeZone(organizationId))
 
-  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow, tomorrow] = await Promise.all([
+  const [mine, unclaimed, conversations, todaysAppointments, leadCountRow, balanceRow, tomorrow, openProposalsCount] = await Promise.all([
     listOpenFollowups(organizationId, { assignedTo: userId }),
     listOpenFollowups(organizationId, { assignedTo: 'unassigned' }),
     listPatientThreads(organizationId, userId, { status: 'open', assignedTo: 'me' }),
@@ -137,6 +143,8 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
         ),
       ),
     auditUpcomingDay(organizationId, { now }),
+    // Best-effort — the cockpit must render even if the inbox read hiccups.
+    countOpenProposals(organizationId).catch(() => 0),
   ])
 
   // Merge my + unclaimed follow-ups (disjoint sets), soonest-due first.
@@ -169,6 +177,7 @@ export async function getMyDay(organizationId: string, userId: string): Promise<
       count: Number(balanceRow[0]?.n ?? 0),
       totalCents: Number(balanceRow[0]?.total ?? 0),
     },
+    openProposalsCount,
     tomorrow,
   }
 }

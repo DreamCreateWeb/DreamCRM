@@ -30,6 +30,7 @@ import {
   getJourneyForPatients,
   getJourneyFunnel,
   getJourneyStageCounts,
+  countSeatedBetween,
 } from '@/lib/services/patient-journey'
 
 beforeEach(() => {
@@ -223,6 +224,40 @@ describe('getJourneyFunnel — transitions inside the window, backfill excluded'
   })
 })
 
+describe('countSeatedBetween — the ONE windowed seated reader (Phase-2 round-1: the standup consumes this, never a local re-derivation)', () => {
+  const SINCE = new Date('2026-07-19T05:00:00Z')
+  const UNTIL = new Date('2026-07-26T05:00:00Z')
+
+  it('counts first seats inside [since, until) — inclusive start, exclusive end', async () => {
+    state.queue = [
+      [
+        { source: 'website', firstSeatedAt: SINCE, importedSeatedAt: null }, // boundary start: in
+        { source: 'booking_widget', firstSeatedAt: new Date('2026-07-22T15:00:00Z'), importedSeatedAt: null }, // in
+        { source: 'website', firstSeatedAt: UNTIL, importedSeatedAt: null }, // boundary end: OUT (next week's)
+        { source: 'website', firstSeatedAt: new Date('2026-07-01T15:00:00Z'), importedSeatedAt: null }, // before: out
+        { source: 'website', firstSeatedAt: null, importedSeatedAt: null }, // never seated
+      ],
+    ]
+    expect(await countSeatedBetween('org_1', SINCE, UNTIL)).toBe(2)
+  })
+
+  it('backfill patient sources and imported-earlier suppression both hold — the OD-connect week must not zero or spike the standup', async () => {
+    state.queue = [
+      [
+        // CSV/PMS roster members never count, whatever their timestamps say.
+        { source: 'pms_import', firstSeatedAt: new Date('2026-07-22'), importedSeatedAt: null },
+        { source: 'import', firstSeatedAt: new Date('2026-07-22'), importedSeatedAt: null },
+        // Contact-linked long-timer: organic source, but imported history
+        // predates the in-window "first" seat — suppressed.
+        { source: 'website', firstSeatedAt: new Date('2026-07-22'), importedSeatedAt: new Date('2021-03-01') },
+        // Genuinely new person whose imported row does NOT predate — counts.
+        { source: 'website', firstSeatedAt: new Date('2026-07-22'), importedSeatedAt: new Date('2026-08-01') },
+      ],
+    ]
+    expect(await countSeatedBetween('org_1', SINCE, UNTIL)).toBe(1)
+  })
+})
+
 describe('getJourneyStageCounts — the standing population', () => {
   it('buckets by live-booking + seated facts', async () => {
     state.queue = [
@@ -255,11 +290,11 @@ describe('the PMS-import exclusion lives in the SQL, not in hope', () => {
 
   it('every query is org-scoped and the population reads exclude archived (round-3 pin — the canned-row mock cannot see WHERE)', () => {
     const src = readFileSync(resolve(__dirname, '../../lib/services/patient-journey.ts'), 'utf8')
-    for (const fn of ['getJourneyForPatients', 'getJourneyStageCounts', 'getJourneyFunnel']) {
+    for (const fn of ['getJourneyForPatients', 'getJourneyStageCounts', 'getJourneyFunnel', 'countSeatedBetween']) {
       const slice = fnSlice(src, fn)
       expect(slice, `${fn} scopes by organizationId`).toMatch(/eq\((schema\.patient|schema\.appointment)\.organizationId, organizationId\)/)
     }
-    for (const fn of ['getJourneyStageCounts', 'getJourneyFunnel']) {
+    for (const fn of ['getJourneyStageCounts', 'getJourneyFunnel', 'countSeatedBetween']) {
       const slice = fnSlice(src, fn)
       expect(slice, `${fn} excludes archived from the population`).toMatch(/ne\(schema\.patient\.lifecycle, 'archived'\)/)
     }
@@ -287,5 +322,14 @@ describe('the PMS-import exclusion lives in the SQL, not in hope', () => {
       expect(slice, `${fn} importedSeatedAt anchor`).toMatch(/importedSeatedAt: sql[\s\S]*?'completed' and \$\{IMPORTED\}[\s\S]*?startTime/)
       expect(slice, `${fn} applies both suppressions`).toMatch(/suppressIfImportedEarlier/)
     }
+    // The windowed reader runs the SAME seated recipe + suppression — the
+    // Phase-2 standup reads it, so a divergent local recipe here would be
+    // the round-1 defect all over again.
+    const windowed = fnSlice(src, 'countSeatedBetween')
+    expect(windowed, 'countSeatedBetween seated gate+recipe').toMatch(
+      /firstSeatedAt: sql[\s\S]*?'completed' and \$\{NOT_IMPORTED\}[\s\S]*?least\(coalesce\([\s\S]*?completedAt\}, [\s\S]*?startTime\}\), [\s\S]*?startTime\}\)/,
+    )
+    expect(windowed, 'countSeatedBetween suppression').toMatch(/suppressIfImportedEarlier/)
+    expect(windowed, 'countSeatedBetween backfill skip').toMatch(/BACKFILL_PATIENT_SOURCES\.has/)
   })
 })

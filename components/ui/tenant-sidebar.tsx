@@ -38,6 +38,7 @@ interface NavBadgeCounts {
   followups: number
   appointments: number
   reviews: number
+  proposals: number
 }
 
 /** Maps a module id → which badge count drives its pill. */
@@ -48,6 +49,9 @@ const BADGE_FOR_MODULE: Record<string, keyof NavBadgeCounts> = {
   followups: 'followups',
   appointments: 'appointments',
   reviews: 'reviews',
+  // The Approval Inbox lives on the Overview — the badge is how a front
+  // desk that lives in /messages learns work is waiting on their yes.
+  overview: 'proposals',
 }
 
 const BADGE_POLL_MS = 60_000
@@ -113,7 +117,7 @@ export default function TenantSidebar({
   const sidebar = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const { sidebarOpen, setSidebarOpen, railCollapsed, toggleRail } = useAppProvider()
-  const [badges, setBadges] = useState<NavBadgeCounts>({ messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0, reviews: 0 })
+  const [badges, setBadges] = useState<NavBadgeCounts>({ messages: 0, leads: 0, shop: 0, followups: 0, appointments: 0, reviews: 0, proposals: 0 })
 
   // Live unread-count pills (Messages / Leads / Shop). Clinic tenants only —
   // platform + patient sidebars don't surface those entries. Polls on an
@@ -139,6 +143,7 @@ export default function TenantSidebar({
         followups: Number(json.followups ?? 0),
         appointments: Number(json.appointments ?? 0),
         reviews: Number(json.reviews ?? 0),
+        proposals: Number(json.proposals ?? 0),
       })
     } catch {
       // Swallow — keep prior counts; next tick retries.
