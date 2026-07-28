@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getCapability } from '@/lib/autonomy'
 import { recordAction } from '@/lib/services/action-ledger'
@@ -105,8 +105,12 @@ function toView(r: typeof schema.proposal.$inferSelect): ProposalView {
   }
 }
 
-/** Open, unexpired proposals, newest first — the Approval Inbox's list. */
-export async function listOpenProposals(organizationId: string, limit = 8): Promise<ProposalView[]> {
+/** Open, unexpired proposals — the Approval Inbox's list. SOONEST-TO-EXPIRE
+ *  first (round-2 audit): newest-first buried the most urgent work — a 7-day
+ *  inquiry draft sorted below a later-filed 30-day review reply, and the
+ *  truncated tail was exactly the set about to expire unseen. Postgres ASC
+ *  puts NULL expiries last; createdAt breaks ties oldest-first. */
+export async function listOpenProposals(organizationId: string, limit = 12): Promise<ProposalView[]> {
   const now = new Date()
   const rows = await db
     .select()
@@ -118,7 +122,7 @@ export async function listOpenProposals(organizationId: string, limit = 8): Prom
         or(isNull(schema.proposal.expiresAt), gt(schema.proposal.expiresAt, now)),
       ),
     )
-    .orderBy(desc(schema.proposal.createdAt))
+    .orderBy(asc(schema.proposal.expiresAt), asc(schema.proposal.createdAt))
     .limit(limit)
   return rows.map(toView)
 }
@@ -194,7 +198,7 @@ export async function approveProposal(
   organizationId: string,
   proposalId: string,
   userId: string,
-  opts: { body?: string } = {},
+  opts: { body?: string; subject?: string } = {},
 ): Promise<DecideResult> {
   const editedBody = opts.body?.trim()
   if (opts.body !== undefined && !editedBody) {
@@ -202,6 +206,39 @@ export async function approveProposal(
   }
   if (editedBody && editedBody.length > PROPOSAL_BODY_MAX) {
     return { ok: false, error: `Keep it under ${PROPOSAL_BODY_MAX.toLocaleString()} characters.` }
+  }
+  // Subject edits (email-sending capabilities): the patient-facing subject
+  // is part of the artifact the card shows — an edited one rides the
+  // payload so the executor sends exactly what was approved (round-2 gap).
+  const editedSubject = opts.subject?.trim()
+  if (opts.subject !== undefined && !editedSubject) {
+    return { ok: false, error: 'The subject can’t be empty.' }
+  }
+  if (editedSubject && editedSubject.length > 200) {
+    return { ok: false, error: 'Keep the subject under 200 characters.' }
+  }
+
+  // The subject lives inside payload jsonb — merge it before the claim so
+  // the executor (which reads the claimed row) sees the edit.
+  if (editedSubject) {
+    const [current] = await db
+      .select({ payload: schema.proposal.payload })
+      .from(schema.proposal)
+      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+      .limit(1)
+    if (current) {
+      const payload = (current.payload ?? {}) as Record<string, unknown>
+      await db
+        .update(schema.proposal)
+        .set({ payload: { ...payload, subject: editedSubject }, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.proposal.organizationId, organizationId),
+            eq(schema.proposal.id, proposalId),
+            eq(schema.proposal.status, 'open'),
+          ),
+        )
+    }
   }
 
   // Atomic claim: open → approved. Losing the race = already handled.
@@ -365,19 +402,50 @@ async function executeSocialPost(
     : []
   if (accountIds.length === 0) return { ok: false, error: 'This proposal is missing its channels.' }
 
+  // ONE post history per proposal: a prior failed approve leaves a dead
+  // 'failed' post row behind (createSocialPost persists parent + targets
+  // BEFORE the network calls). Supersede it on retry — delete the fully-
+  // failed row; if it has any non-failed target the work actually went out,
+  // so retire the card instead of double-publishing (round-2 audit; the
+  // campaign executor's reuse law, applied to its sibling).
+  const priorPostId = str(payload.socialPostId)
+  if (priorPostId) {
+    const priorTargets = await db
+      .select({ status: schema.socialPostTarget.status })
+      .from(schema.socialPostTarget)
+      .where(
+        and(
+          eq(schema.socialPostTarget.organizationId, p.organizationId),
+          eq(schema.socialPostTarget.socialPostId, priorPostId),
+        ),
+      )
+    if (priorTargets.some((t) => t.status === 'published' || t.status === 'scheduled')) {
+      return { ok: false, error: 'It looks like this post already went out — I retired this card.', expired: true }
+    }
+    await db
+      .delete(schema.socialPost)
+      .where(and(eq(schema.socialPost.organizationId, p.organizationId), eq(schema.socialPost.id, priorPostId)))
+  }
+
   const { createSocialPost } = await import('@/lib/services/social-posts')
   const r = await createSocialPost(p.organizationId, {
     postType: 'standard',
     summary: p.body,
     accountIds,
   })
+  if (r.postId) {
+    await db
+      .update(schema.proposal)
+      .set({ payload: { ...payload, socialPostId: r.postId }, updatedAt: new Date() })
+      .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
+  }
   if (!r.ok) return { ok: false, error: r.error ?? 'The post didn’t go out — nothing was published.' }
 
   // Narrate what ACTUALLY published, never the requested channel list —
-  // createSocialPost reports ok on partial success and silently drops
-  // channels that disconnected since the proposal was filed (round-1
-  // Phase-2 audit: the ledger must not over-claim). Count the per-target
-  // rows; if the count read fails, fall back to the honest-vague form.
+  // createSocialPost reports ok on partial success (ok ⇒ ≥1 non-failed
+  // target) and silently drops channels that disconnected since the
+  // proposal was filed (round-1 audit: the ledger must not over-claim).
+  // Count the per-target rows; if the read fails, use the honest-vague form.
   let publishedCount: number | null = null
   try {
     if (r.postId) {
@@ -394,9 +462,6 @@ async function executeSocialPost(
     }
   } catch {
     publishedCount = null
-  }
-  if (publishedCount === 0) {
-    return { ok: false, error: 'None of the channels accepted the post — nothing was published.' }
   }
   const snippet = p.body.length > 60 ? `${p.body.slice(0, 57)}…` : p.body
   const where =
@@ -511,6 +576,16 @@ async function executeOutreachCampaign(
       .update(schema.proposal)
       .set({ payload: { ...payload, campaignId }, updatedAt: new Date() })
       .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
+  } else {
+    // REUSED row (a prior approve failed and reopened): sync the CURRENT
+    // proposal body + subject onto it before sending — staff routinely edit
+    // the copy between attempts, and "the edited text is what executes" is
+    // the schema's contract. Without this, the retry sent the pre-edit
+    // draft while the ledger narrated the edit as approved (round-2 audit).
+    await db
+      .update(schema.campaigns)
+      .set({ subject, bodyHtml: textToCampaignHtml(p.body), updatedAt: new Date() })
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
   }
 
   // The approver's id keeps sendCampaign's own campaign_send ledger writer

@@ -259,12 +259,24 @@ describe('review replies', () => {
     expect(reviewReplyAi.draftGoogleReviewReply).not.toHaveBeenCalled()
   })
 
-  it('stops when the shared review-reply allowance says no (retries next run, never half-files)', async () => {
-    reviewReplyAi.draftGoogleReviewReply.mockResolvedValue({ ok: false, error: 'over the monthly cap' } as never)
-    store.reviews = [review('r1')]
+  it('STOPS at the first global refusal (no allowance) — never burns a call per remaining review (round-2)', async () => {
+    reviewReplyAi.draftGoogleReviewReply.mockResolvedValue({ ok: false, reason: 'no_allowance', error: 'over the monthly cap' } as never)
+    store.reviews = [review('r1'), review('r2')]
     const n = await generateReviewReplyProposals(ORG, NOW)
     expect(n).toBe(0)
+    expect(reviewReplyAi.draftGoogleReviewReply).toHaveBeenCalledTimes(1)
     expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
+  })
+
+  it('a PER-REVIEW failure skips just that review — the siblings still get their drafts (round-2)', async () => {
+    reviewReplyAi.draftGoogleReviewReply
+      .mockResolvedValueOnce({ ok: false, reason: 'failed', error: 'the model hiccuped' } as never)
+      .mockResolvedValueOnce({ ok: true, draft: 'A warm, drafted public reply.', remaining: 99 } as never)
+    store.reviews = [review('r1'), review('r2')]
+    const n = await generateReviewReplyProposals(ORG, NOW)
+    expect(n).toBe(1)
+    expect(reviewReplyAi.draftGoogleReviewReply).toHaveBeenCalledTimes(2)
+    expect(proposalsSvc.fileProposal).toHaveBeenCalledTimes(1)
   })
 })
 

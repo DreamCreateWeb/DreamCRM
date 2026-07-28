@@ -30,8 +30,9 @@ vi.mock('@/lib/services/staff-onboarding', () => ({
 // Phase 2 (the voice): the Overview now also loads the Approval Inbox +
 // weekly standup — mocked empty/quiet by default; the dedicated suite below
 // exercises the populated states.
-const { mockListOpenProposals, mockBuildStandup } = vi.hoisted(() => ({
+const { mockListOpenProposals, mockCountOpenProposals, mockBuildStandup } = vi.hoisted(() => ({
   mockListOpenProposals: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
+  mockCountOpenProposals: vi.fn(async (..._a: unknown[]) => 0),
   mockBuildStandup: vi.fn(async (..._a: unknown[]) => ({
     weekStart: new Date('2026-05-10T05:00:00Z'),
     weekEnd: new Date('2026-05-17T05:00:00Z'),
@@ -46,7 +47,10 @@ const { mockListOpenProposals, mockBuildStandup } = vi.hoisted(() => ({
     quietNote: null as string | null,
   })),
 }))
-vi.mock('@/lib/services/proposals', () => ({ listOpenProposals: mockListOpenProposals }))
+vi.mock('@/lib/services/proposals', () => ({
+  listOpenProposals: mockListOpenProposals,
+  countOpenProposals: mockCountOpenProposals,
+}))
 vi.mock('@/lib/services/standup', () => ({ buildWeeklyStandup: mockBuildStandup }))
 // The inbox's client cards call useRouter().refresh() after a decision.
 vi.mock('next/navigation', async (orig) => ({
@@ -751,9 +755,35 @@ describe('the Approval Inbox on the Overview', () => {
     // reader (round-1 in-phase gap) — the raw text lives in edit mode only.
     expect(screen.getByText(/Hi Maria, come see us\./)).toBeInTheDocument()
     expect(screen.getByText(/Shown with a sample name/)).toBeInTheDocument()
+    // The email SUBJECT is part of the artifact — shown on the card, never
+    // hidden from the approver (round-2 in-phase gap).
+    expect(screen.getByText('Subject')).toBeInTheDocument()
+    expect(screen.getByText('We miss you')).toBeInTheDocument()
     // One big Approve per card.
     expect(screen.getAllByRole('button', { name: /approve — send it/i })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
+  })
+
+  it('a truncated inbox says so — "Showing X of N" keeps the sidebar badge honest (round-2 gap)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      {
+        id: 'prop_only',
+        capability: 'inquiry_response',
+        capabilityLabel: 'Answer new inquiries',
+        patientId: null,
+        title: 'Sofia asked about veneers — I drafted the answer',
+        body: 'Hi Sofia, we’d love to help.',
+        payload: {},
+        status: 'open',
+        createdAt: new Date('2026-05-19T12:00:00Z'),
+        expiresAt: null,
+      },
+    ])
+    mockCountOpenProposals.mockResolvedValueOnce(15)
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Showing 1 of 15/)).toBeInTheDocument()
   })
 
   it('renders nothing when the inbox is empty — no empty-state chrome to operate', async () => {

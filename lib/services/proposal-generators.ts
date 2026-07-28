@@ -96,11 +96,24 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     try {
       const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
       const tz = await getClinicTimeZone(org.id)
-      result.expired += await sweepInvalidatedProposals(org.id)
-      result.filed += await generateReviewReplyProposals(org.id, now)
-      result.filed += await generateInquiryResponseProposals(org.id, org.name, now)
-      result.filed += await generateSocialPostProposals(org.id, org.name, now, tz)
-      result.filed += await generateOutreachCampaignProposals(org.id, now, tz)
+      // PER-GENERATOR isolation (round-2 audit): one generator throwing must
+      // never block its siblings — a review-draft AI blip once silenced the
+      // AI-free recall generator too. Each failure is recorded and the pass
+      // moves on ("best-effort everywhere", the law at the top of this file).
+      const generators: Array<[string, () => Promise<number>]> = [
+        ['sweep', async () => ((result.expired += await sweepInvalidatedProposals(org.id)), 0)],
+        ['review_reply', () => generateReviewReplyProposals(org.id, now)],
+        ['inquiry_response', () => generateInquiryResponseProposals(org.id, org.name, now)],
+        ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz)],
+        ['outreach_campaign', () => generateOutreachCampaignProposals(org.id, now, tz)],
+      ]
+      for (const [name, run] of generators) {
+        try {
+          result.filed += await run()
+        } catch (e) {
+          result.errors.push({ organizationId: org.id, error: `${name}: ${(e as Error).message}` })
+        }
+      }
     } catch (e) {
       result.errors.push({ organizationId: org.id, error: (e as Error).message })
     }
@@ -281,7 +294,14 @@ export async function generateReviewReplyProposals(
       externalReviewId: r.externalReviewId,
       planTier: undefined,
     })
-    if (!draft.ok) break // AI unavailable / over the shared monthly cap — next run
+    if (!draft.ok) {
+      // Org-global reasons (AI off / over the shared monthly cap) end the
+      // pass; a PER-REVIEW failure (model refusal, schema miss) skips just
+      // that review — one un-draftable rant must not freeze the whole
+      // generator behind the deterministic ordering (round-2 audit).
+      if (draft.reason === 'not_configured' || draft.reason === 'no_allowance') break
+      continue
+    }
 
     const { filed: ok } = await fileProposal({
       organizationId,
@@ -399,7 +419,12 @@ export async function generateSocialPostProposals(
   const channels = await getComposerChannels(organizationId)
   if (channels.length === 0) return 0
 
-  // Quiet = nothing published on any channel in the window.
+  // Quiet = nothing published in the window AND nothing waiting in the
+  // queue. A clinic that just scheduled a month of posts has published
+  // nothing lately, but its channels are the opposite of quiet — proposing
+  // an immediate post would contradict work they can see queued on
+  // /growth/social (round-2 audit; the recall generator's upcomingSends
+  // twin check, applied here).
   const since = new Date(now.getTime() - SOCIAL_QUIET_DAYS * DAY_MS)
   const [recent] = await db
     .select({ id: schema.socialPostTarget.id })
@@ -413,6 +438,17 @@ export async function generateSocialPostProposals(
     )
     .limit(1)
   if (recent) return 0
+  const [queued] = await db
+    .select({ id: schema.socialPostTarget.id })
+    .from(schema.socialPostTarget)
+    .where(
+      and(
+        eq(schema.socialPostTarget.organizationId, organizationId),
+        eq(schema.socialPostTarget.status, 'scheduled'),
+      ),
+    )
+    .limit(1)
+  if (queued) return 0
 
   const draft = await draftText(organizationId, {
     system: `You write short social posts for ${clinicName}, a dental clinic. A staff member reviews and edits before anything publishes. ${CORE_VOICE_RULES}

@@ -37,10 +37,12 @@ const store: {
   reviews: Array<Record<string, unknown>>
   leads: Array<Record<string, unknown>>
   postTargets: Array<Record<string, unknown>>
+  socialPosts: Array<Record<string, unknown>>
+  campaigns: Array<Record<string, unknown>>
   /** When true, the next UPDATE that stamps executedAt throws — the
    *  bookkeeping-after-success failure the reopen region must NOT catch. */
   failExecutedAtStamp: boolean
-} = { proposals: [], reviews: [], leads: [], postTargets: [], failExecutedAtStamp: false }
+} = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], failExecutedAtStamp: false }
 
 const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
@@ -81,6 +83,8 @@ vi.mock('@/lib/db', () => {
     if (name === T_REVIEW) return store.reviews
     if (name === T_LEAD) return store.leads
     if (name === 'social_post_target') return store.postTargets
+    if (name === 'social_post') return store.socialPosts
+    if (name === 'campaigns') return store.campaigns
     return []
   }
 
@@ -172,6 +176,20 @@ vi.mock('@/lib/db', () => {
     return api
   }
 
+  function del(t: { __name: string }) {
+    return {
+      where: async (preds: unknown) => {
+        const filters: Array<(r: Record<string, unknown>) => boolean> = []
+        if (Array.isArray(preds)) for (const p of preds) filters.push(p as never)
+        else if (typeof preds === 'function') filters.push(preds as never)
+        const rows = tableRows(t.__name)
+        for (let i = rows.length - 1; i >= 0; i--) {
+          if (filters.every((f) => f(rows[i]))) rows.splice(i, 1)
+        }
+      },
+    }
+  }
+
   const col = (name: string) => ({ __col: name })
   const schema = {
     proposal: {
@@ -217,8 +235,21 @@ vi.mock('@/lib/db', () => {
       socialPostId: col('socialPostId'),
       status: col('status'),
     },
+    socialPost: {
+      __name: 'social_post',
+      id: col('id'),
+      organizationId: col('organizationId'),
+    },
+    campaigns: {
+      __name: 'campaigns',
+      id: col('id'),
+      organizationId: col('organizationId'),
+      subject: col('subject'),
+      bodyHtml: col('bodyHtml'),
+      updatedAt: col('updatedAt'),
+    },
   }
-  return { db: { select, insert, update }, schema }
+  return { db: { select, insert, update, delete: del }, schema }
 })
 
 vi.mock('drizzle-orm', () => ({
@@ -233,6 +264,7 @@ vi.mock('drizzle-orm', () => ({
     r[col.__col] instanceof Date && (r[col.__col] as Date) < val,
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
   desc: () => 'desc',
+  asc: () => 'asc',
   sql: () => 'sql',
 }))
 
@@ -282,6 +314,8 @@ beforeEach(() => {
     { id: 't1', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
     { id: 't2', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
   ]
+  store.socialPosts = []
+  store.campaigns = []
   store.failExecutedAtStamp = false
   executors.markLeadContacted.mockResolvedValue(undefined)
   executors.createSocialPost.mockResolvedValue({ ok: true, postId: 'sp1', status: 'published' } as never)
@@ -470,12 +504,42 @@ describe('approveProposal — the other executors', () => {
     expect(summary).toContain('2 channels didn’t take it')
   })
 
-  it('social_post: ZERO channels accepting reopens — never a ledger entry for nothing', async () => {
-    store.postTargets = [{ id: 't1', organizationId: ORG, socialPostId: 'sp1', status: 'failed' }]
+  it('social_post: createSocialPost failing reopens — never a ledger entry for nothing, and the dead post row is superseded on retry (round-2)', async () => {
+    executors.createSocialPost.mockResolvedValueOnce({ ok: false, postId: 'sp_dead', status: 'failed', error: 'Every channel refused it.' } as never)
+    store.socialPosts.push({ id: 'sp_dead_seed', organizationId: ORG })
     const p = seedProposal({ capability: 'social_post', sourceKey: 'social_post:k2', payload: { accountIds: ['a'] } })
+    const first = await approveProposal(ORG, p.id, 'user_1')
+    expect(first.ok).toBe(false)
+    expect(p.status).toBe('open')
+    expect(recordActionMock).not.toHaveBeenCalled()
+    // The failed attempt stamped its post id into the payload…
+    expect((p.payload as Record<string, unknown>).socialPostId).toBe('sp_dead')
+    // …and a retry whose prior targets are all 'failed' DELETES the dead row
+    // before publishing fresh (one post history per proposal).
+    store.socialPosts.push({ id: 'sp_dead', organizationId: ORG })
+    store.postTargets = [
+      { id: 'td', organizationId: ORG, socialPostId: 'sp_dead', status: 'failed' },
+      { id: 't1', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
+    ]
+    const second = await approveProposal(ORG, p.id, 'user_1')
+    expect(second.ok).toBe(true)
+    expect(store.socialPosts.some((r) => r.id === 'sp_dead')).toBe(false)
+    expect(executors.createSocialPost).toHaveBeenCalledTimes(2)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('social_post: a prior post with a PUBLISHED target retires the card — never a double publish (round-2)', async () => {
+    store.postTargets = [{ id: 't1', organizationId: ORG, socialPostId: 'sp_prior', status: 'published' }]
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:k3',
+      payload: { accountIds: ['a'], socialPostId: 'sp_prior' },
+    })
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(false)
-    expect(p.status).toBe('open')
+    if (!r.ok) expect(r.expired).toBe(true)
+    expect(p.status).toBe('expired')
+    expect(executors.createSocialPost).not.toHaveBeenCalled()
     expect(recordActionMock).not.toHaveBeenCalled()
   })
 
@@ -547,11 +611,20 @@ describe('approveProposal — the other executors', () => {
     expect(recordActionMock).not.toHaveBeenCalled()
     // The campaign id is stamped into the payload BEFORE sending…
     expect((p.payload as Record<string, unknown>).campaignId).toBe(77)
-    // …so the retry never mints a second campaign row.
-    const second = await approveProposal(ORG, p.id, 'user_1')
+    // …so the retry never mints a second campaign row — and the CURRENT
+    // (staff-edited) subject + body are synced onto the reused row before
+    // sending, so the retry sends exactly what was approved (round-2 audit).
+    store.campaigns.push({ id: 77, organizationId: ORG, subject: 'We miss you', bodyHtml: '<p>old draft</p>' })
+    const second = await approveProposal(ORG, p.id, 'user_1', {
+      body: 'Hi {{firstName}}, the edited copy.',
+      subject: 'A fresh subject',
+    })
     expect(second.ok).toBe(true)
     expect(executors.createMarketingCampaign).toHaveBeenCalledTimes(1)
     expect(executors.sendCampaign).toHaveBeenLastCalledWith(expect.objectContaining({ campaignId: 77 }))
+    const row = store.campaigns.find((c) => c.id === 77)
+    expect(row?.subject).toBe('A fresh subject')
+    expect(String(row?.bodyHtml)).toContain('the edited copy')
   })
 
   it('outreach_campaign: ZERO people reached is never a success — no "Sent to 0 patients" ledger lie (round-1 #6)', async () => {

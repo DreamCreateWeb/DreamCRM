@@ -28,6 +28,10 @@ export interface ProposalCardData {
   capabilityLabel: string
   title: string
   body: string
+  /** The patient-facing email subject (email-sending capabilities only) —
+   *  part of the artifact, shown and editable like the body (round-2 gap:
+   *  a card that hides the subject shows two-thirds of the work). */
+  subject: string | null
   /** Extra context line ("goes to ~41 patients", "posts to 2 channels"). */
   meta: string | null
   /** The thing being answered, quoted above the draft. */
@@ -51,13 +55,22 @@ export function renderTokenSample(text: string): string {
 
 const HAS_TOKENS = /\{\{(firstName|bookingUrl)\}\}/
 
-export default function ApprovalInbox({ proposals }: { proposals: ProposalCardData[] }) {
+export default function ApprovalInbox({
+  proposals,
+  totalOpen,
+}: {
+  proposals: ProposalCardData[]
+  /** The true open count (the sidebar badge's number) — shown when the list
+   *  is truncated so the badge and the inbox never silently disagree. */
+  totalOpen?: number
+}) {
   const [gone, setGone] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
   const visible = proposals.filter((p) => !gone.has(p.id))
   if (visible.length === 0) {
     return toast ? <FlashToast message={toast} onDone={() => setToast(null)} /> : null
   }
+  const hiddenCount = Math.max(0, (totalOpen ?? proposals.length) - proposals.length)
 
   return (
     <section className="mb-8" aria-label="Waiting on your yes">
@@ -69,6 +82,11 @@ export default function ApprovalInbox({ proposals }: { proposals: ProposalCardDa
             I finished these — say the word and they go out.
           </span>
         </h2>
+        {hiddenCount > 0 && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Showing {visible.length} of {totalOpen} — the rest queue up as you decide these.
+          </p>
+        )}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {visible.map((p) => (
@@ -96,6 +114,11 @@ function ProposalCard({
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(proposal.body)
+  const [subject, setSubject] = useState(proposal.subject ?? '')
+  // Declining is permanent (the machine never re-asks about this work), so
+  // the first tap ARMS the button and the second confirms — a rushed
+  // mis-tap must not silently destroy drafted work (round-2 audit).
+  const [declineArmed, setDeclineArmed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const tokens = HAS_TOKENS.test(body)
@@ -108,10 +131,13 @@ function ProposalCard({
           ? await approveProposalAction({
               proposalId: proposal.id,
               ...(body !== proposal.body ? { body } : {}),
+              ...(proposal.subject != null && subject.trim() && subject !== proposal.subject
+                ? { subject }
+                : {}),
             })
           : await declineProposalAction({ proposalId: proposal.id })
       if (r.ok) {
-        onDone(proposal.id, decision === 'approve' ? (r.message ?? 'Done — it went out.') : undefined)
+        onDone(proposal.id, r.message ?? (decision === 'approve' ? 'Done — it went out.' : undefined))
         router.refresh()
       } else {
         setError(r.error)
@@ -151,6 +177,28 @@ function ProposalCard({
             {proposal.context.starRating != null ? `, ${proposal.context.starRating}★` : ''}
           </footer>
         </blockquote>
+      )}
+
+      {/* The email subject — the first line the patient reads is part of
+          the artifact, never hidden from the approver (round-2 gap). */}
+      {proposal.subject != null && (
+        <div className="mt-3">
+          {editing ? (
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              maxLength={200}
+              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              aria-label="Edit the email subject"
+            />
+          ) : (
+            <p className="text-sm text-gray-700 dark:text-gray-200">
+              <span className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-2">Subject</span>
+              <span className="font-medium">{subject}</span>
+            </p>
+          )}
+        </div>
       )}
 
       <div className="mt-3 flex-1">
@@ -203,11 +251,20 @@ function ProposalCard({
         </button>
         <button
           type="button"
-          onClick={() => decide('decline')}
+          onClick={() => {
+            if (declineArmed) decide('decline')
+            else setDeclineArmed(true)
+          }}
+          onBlur={() => setDeclineArmed(false)}
           disabled={pending}
-          className="ml-auto px-3 py-2 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 disabled:opacity-50"
+          className={[
+            'ml-auto px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50',
+            declineArmed
+              ? 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20'
+              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60',
+          ].join(' ')}
         >
-          No thanks
+          {declineArmed ? 'Sure? I won’t ask again' : 'No thanks'}
         </button>
       </div>
     </div>

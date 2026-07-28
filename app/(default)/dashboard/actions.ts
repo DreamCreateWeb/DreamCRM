@@ -20,12 +20,15 @@ export async function approveProposalAction(input: {
   proposalId: string
   /** The (possibly edited) work product. Omit to approve as drafted. */
   body?: string
+  /** The (possibly edited) email subject, for email-sending capabilities. */
+  subject?: string
 }): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
   const ctx = await requireTenant()
   const gate = ensureClinicStaff(ctx)
   if (gate) return { ok: false, error: gate }
   const r = await approveProposal(ctx.organizationId, input.proposalId, ctx.userId, {
     ...(input.body !== undefined ? { body: input.body } : {}),
+    ...(input.subject !== undefined ? { subject: input.subject } : {}),
   })
   if (!r.ok) return { ok: false, error: r.error }
   revalidatePath('/dashboard')
@@ -43,5 +46,7 @@ export async function declineProposalAction(input: {
   const r = await declineProposal(ctx.organizationId, input.proposalId, ctx.userId)
   if (!r.ok) return { ok: false, error: r.error }
   revalidatePath('/dashboard')
-  return { ok: true }
+  // A no is acknowledged too (round-2 audit): the machine says what the
+  // decline means — this piece of work is never re-asked about.
+  return { ok: true, message: 'Okay — I won’t ask about this one again.' }
 }

@@ -158,11 +158,61 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 2 — the voice (proposals · Approval Inbox · weekly standup)
 
-**Status: round 1 COMPLETE + FIXED (v2 gate, 2026-07-28); round 2 pending.**
-First audit under the v2 shape (Opus lenses via direct-Agent fallback — the
-Workflow runtime's permission-handler fault recurred and the integrity guard
-correctly invalidated the workflow run; the same 4-lens shape re-ran through
-the Agent tool). Range `4f55238..708cd73`.
+**Status: rounds 1–2 COMPLETE + FIXED (v2 gate, 2026-07-28); round 3 (the
+cap) pending.** First audit under the v2 shape (Opus lenses via
+direct-Agent fallback — the Workflow runtime's permission-handler fault
+recurred and the integrity guard correctly invalidated the workflow run;
+the same 4-lens shape re-ran through the Agent tool). Round-1 range
+`4f55238..708cd73`; round 2 audited the round-1 fix commit itself.
+
+- **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
+  / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation
+  upheld every verdict (both rejections re-verified at the cited code:
+  the "meter drain" claim ignored the top-10 slice cap; the "permanent
+  starvation" claim ignored newest-first admission within the star
+  bucket).
+- **Round-2 confirmed + FIXED (9):**
+  1. [major] Campaign-row REUSE sent the pre-edit draft: a reopened
+     campaign retry never synced the staff-edited body/subject onto the
+     reused row → the reuse path now updates subject + bodyHtml from the
+     claimed proposal before sending (pinned by test).
+  2. [major] One generator throwing killed its siblings for the org →
+     runProposalGenerators runs each generator in its own try/catch.
+  3. [major] An uncaught runClaudeJson throw in draftGoogleReviewReply
+     propagated through the review generator → the AI call is caught and
+     returns `{ok:false, reason:'failed'}`; the error union now carries
+     `reason: not_configured | no_allowance | not_found | failed`.
+  4. [major] The review generator treated every draft failure as global →
+     break ONLY on not_configured/no_allowance; a per-review failure
+     skips that review and the siblings still draft (pinned by tests).
+  5. [major] The Monday standup email was DEAD ON ARRIVAL: it gated on
+     dailyDigestEnabled, which defaults to 0 and is a different opt-in →
+     gate removed; the off switch is the per-staff digest opt-out (test
+     inverted to pin the always-sends behavior).
+  6. [minor] One bouncing mailbox cost the remaining staff their standup
+     (the week was already claimed, so no retry) → per-recipient
+     try/catch; failures land in result.errors.
+  7. [minor] The social quiet-window check ignored the SCHEDULED queue →
+     it now also checks status='scheduled' targets before proposing.
+  8. [minor] executeSocialPost could double-publish after a failed
+     attempt (createSocialPost persists the row before networking) →
+     supersede law: prior payload.socialPostId with all-failed targets is
+     deleted before the fresh publish; any published/scheduled target
+     retires the card instead. The dead publishedCount===0 branch (ok ⇒
+     ≥1 non-failed) was removed.
+  9. [minor] STANDUP_NOUNS were plural-only ("1 campaigns sent") + the
+     CLAUDE.md meter line contradicted the code → {one, many} pairs with
+     standupNoun(); doc corrected (review_reply drafts spend the shared
+     review_reply_draft 200/mo allowance).
+- **Round-2 in-phase gaps SHIPPED (4):** the email SUBJECT is shown and
+  editable on the card (merged into the payload pre-claim so the executor
+  sends exactly what was approved) · declining is two-tap ("Sure? I won't
+  ask again") since a decline is permanent, and answers with its own
+  toast · the quiet-week standup keeps the good-news lines (seated /
+  reviews / only-you) instead of going monosyllabic · the inbox lists
+  SOONEST-TO-EXPIRE first with an honest "Showing X of N" header when
+  truncated (D5, expired-work re-ask flow, went to the backlog).
+- Round-2 full suite 5,552 green; typecheck + build clean.
 
 - **Round 1:** 4 merged lenses → 18 defect candidates + 12 depth proposals
   after dedupe (3 defects found by 2–3 lenses independently) → ONE skeptic

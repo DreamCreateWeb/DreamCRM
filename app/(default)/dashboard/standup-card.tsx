@@ -11,17 +11,56 @@ import type { WeeklyStandup } from '@/lib/services/standup'
 export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
   // A quiet week is NARRATED, never blanked (round-1 audit; the AUDITS.md
   // mandate): the config-cross-checked quietNote tells the clinic whether
-  // "nothing happened" means healthy-idle or a switched-off engine.
+  // "nothing happened" means healthy-idle or a switched-off engine. And the
+  // quiet branch keeps the WEEK'S OWN GOOD NEWS + the only-you list — the
+  // email for the same state carries them, and the young clinic that seated
+  // two new patients by hand must not read as invisible (round-2 audit).
   if (standup.totalActions === 0) {
     if (!standup.quietNote) return null
+    const goodNews = [
+      standup.newPatientsSeated > 0
+        ? `${standup.newPatientsSeated} new ${standup.newPatientsSeated === 1 ? 'patient' : 'patients'} seated`
+        : null,
+      standup.reviewsReceived > 0
+        ? `${standup.reviewsReceived} new ${standup.reviewsReceived === 1 ? 'review' : 'reviews'}`
+        : null,
+    ].filter(Boolean)
+    const quietHuman: string[] = []
+    if (standup.humanTasks.openProposals > 0) {
+      quietHuman.push(
+        standup.humanTasks.openProposals === 1
+          ? '1 approval is waiting above'
+          : `${standup.humanTasks.openProposals} approvals are waiting above`,
+      )
+    }
+    if (standup.humanTasks.followupsDue > 0) {
+      quietHuman.push(
+        standup.humanTasks.followupsDue === 1
+          ? '1 follow-up is due'
+          : `${standup.humanTasks.followupsDue} follow-ups are due`,
+      )
+    }
     return (
       <section className="mb-8" aria-label="Your week in review">
         <div className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
-          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            Last week
-            <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">{standup.weekLabel}</span>
-          </h2>
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              Last week
+              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">{standup.weekLabel}</span>
+            </h2>
+            {goodNews.length > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">{goodNews.join(' · ')}</p>
+            )}
+          </div>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{standup.quietNote}</p>
+          {quietHuman.length > 0 && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Only you can do: {quietHuman.join(', and ')}.{' '}
+              <Link href="/followups" className="underline hover:no-underline">
+                Follow-ups
+              </Link>
+            </p>
+          )}
         </div>
       </section>
     )

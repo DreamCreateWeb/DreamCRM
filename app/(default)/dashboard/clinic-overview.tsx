@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
-import { listOpenProposals } from '@/lib/services/proposals'
+import { listOpenProposals, countOpenProposals } from '@/lib/services/proposals'
 import { buildWeeklyStandup } from '@/lib/services/standup'
 import ApprovalInbox, { type ProposalCardData } from './approval-inbox'
 import StandupCard from './standup-card'
@@ -83,12 +83,13 @@ function money(cents: number): string {
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [data, onboarding, proposals, standup] = await Promise.all([
+  const [data, onboarding, proposals, totalOpenProposals, standup] = await Promise.all([
     getClinicOverview(ctx.organizationId),
     getStaffOnboarding(ctx.organizationId, ctx.userId),
     // The Approval Inbox + the weekly standup are best-effort reads — the
     // morning huddle must never fail because the narrator hiccupped.
     listOpenProposals(ctx.organizationId).catch(() => []),
+    countOpenProposals(ctx.organizationId).catch(() => 0),
     buildWeeklyStandup(ctx.organizationId).catch(() => null),
   ])
   const proposalCards: ProposalCardData[] = proposals.map((p) => {
@@ -122,6 +123,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       capabilityLabel: p.capabilityLabel,
       title: p.title,
       body: p.body,
+      // The patient-facing subject is part of the artifact (round-2 gap) —
+      // shown + editable on the card for the email-sending capabilities.
+      subject: typeof payload.subject === 'string' ? payload.subject : null,
       meta,
       context,
     }
@@ -259,7 +263,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       )}
 
       {/* ── The Approval Inbox — finished work waiting on a yes ────────── */}
-      <ApprovalInbox proposals={proposalCards} />
+      <ApprovalInbox proposals={proposalCards} totalOpen={totalOpenProposals} />
 
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
       {/* Signature moment: this row cascades in once on first session entry

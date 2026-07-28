@@ -546,7 +546,9 @@ sitemap/robots/OG.
    pending** (migration 0137 `proposal` table; `lib/services/proposals.ts`
    file/list/approve/decline/expire + per-capability executors under the
    ledger-boundary law "an approved yes narrates ONCE, under the proposal's
-   capability"; `proposal-generators.ts` four first types — review_reply /
+   capability"; `proposal-generators.ts` four first types — review_reply
+   (drafted via review-reply-ai.ts, THE single hardened-prompt home, so it
+   spends the shared 'review_reply_draft' 200/mo allowance) /
    inquiry_response / social_post (AI-drafted, skip when AI off, metered
    flat via ai_usage 'proposal_draft') / outreach_campaign (quiet recall
    engine, code-owned copy, real audience + count) — hourly

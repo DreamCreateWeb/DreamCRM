@@ -62,36 +62,40 @@ export interface WeeklyStandup {
   quietNote: string | null
 }
 
-/** Short plural nouns for the counts line — the registry labels are verb
- *  phrases ("Send appointment reminders"), which read wrong after a number. */
-const STANDUP_NOUNS: Record<string, string> = {
-  appointment_reminder: 'appointment reminders',
-  review_request: 'review invitations',
-  campaign_send: 'campaign sends',
-  retention_automation: 'recall & win-back notes',
-  followup_rule: 'follow-ups opened',
-  balance_nudge: 'balance reminders',
-  auto_reply: 'after-hours replies',
-  forms_reminder: 'form nudges',
-  nps_survey: 'visit check-ins',
-  noshow_rebook: 'rebook invitations',
-  waitlist_offer: 'waitlist offers',
-  payment_autocharge: 'plan payments collected',
-  service_copywriting: 'service pages written',
-  scheduled_message: 'scheduled messages delivered',
-  blog_publish: 'blog posts published',
-  scheduled_social: 'social posts published',
-  domain_autorenew: 'domain renewals',
-  listing_sync: 'listing updates',
-  review_feature: 'reviews featured on your site',
-  review_reply: 'review replies',
-  social_post: 'posts published',
-  inquiry_response: 'inquiries answered',
-  outreach_campaign: 'campaigns sent',
+/** Count-line nouns, singular AND plural — the registry labels are verb
+ *  phrases ("Send appointment reminders"), which read wrong after a number,
+ *  and a hard-plural map read "1 blog posts published" in the normal
+ *  single-occurrence week (round-2 audit). */
+const STANDUP_NOUNS: Record<string, { one: string; many: string }> = {
+  appointment_reminder: { one: 'appointment reminder', many: 'appointment reminders' },
+  review_request: { one: 'review invitation', many: 'review invitations' },
+  campaign_send: { one: 'campaign send', many: 'campaign sends' },
+  retention_automation: { one: 'recall & win-back note', many: 'recall & win-back notes' },
+  followup_rule: { one: 'follow-up opened', many: 'follow-ups opened' },
+  balance_nudge: { one: 'balance reminder', many: 'balance reminders' },
+  auto_reply: { one: 'after-hours reply', many: 'after-hours replies' },
+  forms_reminder: { one: 'form nudge', many: 'form nudges' },
+  nps_survey: { one: 'visit check-in', many: 'visit check-ins' },
+  noshow_rebook: { one: 'rebook invitation', many: 'rebook invitations' },
+  waitlist_offer: { one: 'waitlist offer', many: 'waitlist offers' },
+  payment_autocharge: { one: 'plan payment collected', many: 'plan payments collected' },
+  service_copywriting: { one: 'service page written', many: 'service pages written' },
+  scheduled_message: { one: 'scheduled message delivered', many: 'scheduled messages delivered' },
+  blog_publish: { one: 'blog post published', many: 'blog posts published' },
+  scheduled_social: { one: 'social post published', many: 'social posts published' },
+  domain_autorenew: { one: 'domain renewal', many: 'domain renewals' },
+  listing_sync: { one: 'listing update', many: 'listing updates' },
+  review_feature: { one: 'review featured on your site', many: 'reviews featured on your site' },
+  review_reply: { one: 'review reply', many: 'review replies' },
+  social_post: { one: 'post published', many: 'posts published' },
+  inquiry_response: { one: 'inquiry answered', many: 'inquiries answered' },
+  outreach_campaign: { one: 'campaign sent', many: 'campaigns sent' },
 }
 
-export function standupNoun(capability: string): string {
-  return STANDUP_NOUNS[capability] ?? capability.replace(/_/g, ' ')
+export function standupNoun(capability: string, count = 2): string {
+  const pair = STANDUP_NOUNS[capability]
+  if (!pair) return capability.replace(/_/g, ' ')
+  return count === 1 ? pair.one : pair.many
 }
 
 /** Capabilities whose entries make the best stories (a person + an outcome). */
@@ -127,7 +131,7 @@ export async function buildWeeklyStandup(
     ])
 
   const lines: StandupLine[] = Object.entries(counts)
-    .map(([capability, count]) => ({ capability, noun: standupNoun(capability), count }))
+    .map(([capability, count]) => ({ capability, noun: standupNoun(capability, count), count }))
     .sort((a, b) => b.count - a.count)
   const totalActions = lines.reduce((sum, l) => sum + l.count, 0)
 
@@ -328,7 +332,6 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
     .select({
       organizationId: schema.clinicProfile.organizationId,
       standupLastSentAt: schema.clinicProfile.standupLastSentAt,
-      digestEnabled: schema.clinicProfile.dailyDigestEnabled,
       isDemo: schema.organization.isDemo,
       clinicName: schema.organization.name,
     })
@@ -337,11 +340,12 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
 
   for (const clinic of clinics) {
     if (!clinic.organizationId || clinic.isDemo) continue
-    // The clinic's automation-email master switch (the same one the morning
-    // digest honors) is the standup's org-level off switch too — a clinic
-    // that turned digest email off gets no un-silenceable new email
-    // (round-1 audit; a per-surface toggle can come with the settings page).
-    if (clinic.digestEnabled !== 1) continue
+    // NO org-level gate on dailyDigestEnabled (round-2 audit): that column
+    // defaults to 0 and no real clinic-creation path sets it, so gating on
+    // it made the Monday email dead on arrival for every production clinic
+    // — an off DEFAULT where round 1 wanted an off SWITCH. The off switch
+    // is the per-staff opt-out below ("every knob has a learned default");
+    // a dedicated org toggle ships with the notifications settings page.
     result.scanned++
     try {
       const tz = await getClinicTimeZone(clinic.organizationId)
@@ -400,14 +404,25 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
       const body = renderStandupEmailBody(standup, clinic.clinicName ?? 'your clinic')
       for (const s of staff) {
         if (!s.email || optedOut.has(s.userId)) continue
-        await sendNotificationEmail({
-          to: s.email,
-          name: s.name ?? undefined,
-          title: `Your week with DreamCRM — ${standup.weekLabel}`,
-          body,
-          linkPath: '/dashboard',
-        })
-        result.sent++
+        // Per-recipient isolation (round-2 audit): the week is already
+        // claimed, so one bouncing address must cost only that recipient —
+        // without this, staff #2..N lost their email and the claimed week
+        // never retried. Same shape as the morning digest's fan-out.
+        try {
+          await sendNotificationEmail({
+            to: s.email,
+            name: s.name ?? undefined,
+            title: `Your week with DreamCRM — ${standup.weekLabel}`,
+            body,
+            linkPath: '/dashboard',
+          })
+          result.sent++
+        } catch (err) {
+          result.errors.push({
+            organizationId: clinic.organizationId,
+            error: `send to ${s.email} failed: ${err instanceof Error ? err.message : 'unknown'}`,
+          })
+        }
       }
     } catch (err) {
       result.errors.push({

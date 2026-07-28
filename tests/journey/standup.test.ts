@@ -334,12 +334,23 @@ describe('sendWeeklyStandups', () => {
     expect(store.clinics[0].standupLastSentAt).toEqual(MONDAY)
   })
 
-  it('the org-level off switch: a clinic that disabled digest email gets no standup email either', async () => {
+  it('a clinic that never enabled the DAILY digest still gets the Monday standup — dailyDigestEnabled defaults to 0, so gating on it would make the email dead-on-arrival (round-2 fix); the off switch is the per-staff opt-out', async () => {
     seedClinic({ digestEnabled: 0 })
     ledger.counts = { appointment_reminder: 3 }
     const r = await sendWeeklyStandups({ now: MONDAY })
-    expect(r.scanned).toBe(0)
-    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
+    expect(r.sent).toBe(1)
+    expect(sendNotificationEmailMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('one bad mailbox never blocks the rest — per-recipient failures are recorded, siblings still send (round-2 fix)', async () => {
+    seedClinic()
+    store.staff.push({ organizationId: ORG, userId: 'u2', role: 'admin', name: 'Sam Office', email: 'sam@x.com' })
+    ledger.counts = { appointment_reminder: 3 }
+    sendNotificationEmailMock.mockRejectedValueOnce(new Error('mailbox on fire'))
+    const r = await sendWeeklyStandups({ now: MONDAY })
+    expect(r.sent).toBe(1)
+    expect(r.errors.some((e: { error: string }) => e.error.includes('send to') && e.error.includes('failed'))).toBe(true)
+    expect(sendNotificationEmailMock).toHaveBeenCalledTimes(2)
   })
 
   it('does nothing on other weekdays', async () => {

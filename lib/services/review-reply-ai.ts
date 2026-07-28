@@ -26,13 +26,23 @@ export function reviewReplyAllowance(): number {
 
 const DraftSchema = z.object({ reply: z.string().min(1).max(1500) })
 
+/** Machine-readable failure class — the proposal generator branches on it:
+ *  org-global reasons ('not_configured' | 'no_allowance') stop its whole
+ *  pass, per-review reasons ('not_found' | 'failed') skip just that review
+ *  (round-2 audit: conflating the two froze the generator on one
+ *  un-draftable review). */
+export type ReviewReplyDraftReason = 'not_configured' | 'no_allowance' | 'not_found' | 'failed'
+
 export async function draftGoogleReviewReply(opts: {
   organizationId: string
   externalReviewId: string
   planTier: string | null | undefined
-}): Promise<{ ok: true; draft: string; remaining: number } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; draft: string; remaining: number }
+  | { ok: false; error: string; reason: ReviewReplyDraftReason }
+> {
   if (!aiConfigured()) {
-    return { ok: false, error: 'AI drafting isn’t configured on this environment.' }
+    return { ok: false, error: 'AI drafting isn’t configured on this environment.', reason: 'not_configured' }
   }
   const cap = reviewReplyAllowance()
   const used = await getAiUsageCount(opts.organizationId, KIND)
@@ -40,6 +50,7 @@ export async function draftGoogleReviewReply(opts: {
     return {
       ok: false,
       error: `You've used this month's ${cap} AI reply drafts — replies still post fine, just written by hand.`,
+      reason: 'no_allowance',
     }
   }
 
@@ -58,7 +69,7 @@ export async function draftGoogleReviewReply(opts: {
       ),
     )
     .limit(1)
-  if (!review) return { ok: false, error: 'Review not found.' }
+  if (!review) return { ok: false, error: 'Review not found.', reason: 'not_found' }
 
   const [profile] = await db
     .select({ displayName: schema.clinicProfile.displayName })
@@ -67,8 +78,13 @@ export async function draftGoogleReviewReply(opts: {
     .limit(1)
   const clinicName = profile?.displayName ?? 'our practice'
 
+  // Caught, never thrown (round-2 audit): runClaudeJson rejects on
+  // transport/429/5xx, and an escaped throw here killed the proposal
+  // generators' whole per-org pass — including the AI-free recall one.
   const rating = review.starRating ?? null
-  const result = await runClaudeJson({
+  let result: unknown
+  try {
+    result = await runClaudeJson({
     model: 'sonnet',
     maxTokens: 400,
     system: [
@@ -93,11 +109,15 @@ export async function draftGoogleReviewReply(opts: {
       properties: { reply: { type: 'string' as const, description: 'The reply text, 2–4 sentences.' } },
       required: ['reply'],
     },
-  })
+    })
+  } catch (err) {
+    console.warn('[review-reply-ai] draft call failed', err)
+    return { ok: false, error: 'The draft didn’t come back — try again in a moment.', reason: 'failed' }
+  }
 
   const parsed = DraftSchema.safeParse(result)
   if (!parsed.success) {
-    return { ok: false, error: 'The draft didn’t come back usable — try again in a moment.' }
+    return { ok: false, error: 'The draft didn’t come back usable — try again in a moment.', reason: 'failed' }
   }
 
   await bumpAiUsage(opts.organizationId, KIND)
