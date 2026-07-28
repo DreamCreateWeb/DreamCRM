@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -45,11 +45,22 @@ const { mockListOpenProposals, mockCountOpenProposals, mockBuildStandup } = vi.h
     humanTasks: { openProposals: 0, followupsDue: 0 },
     quiet: true,
     quietNote: null as string | null,
+    predatesAccount: false,
   })),
 }))
 vi.mock('@/lib/services/proposals', () => ({
   listOpenProposals: mockListOpenProposals,
   countOpenProposals: mockCountOpenProposals,
+}))
+// The inbox cards' server actions — mocked so interaction tests never touch
+// requireTenant/db, and so we can assert an action was NOT called.
+const { mockApproveAction, mockDeclineAction } = vi.hoisted(() => ({
+  mockApproveAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, message: 'Done — it went out.' })),
+  mockDeclineAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, message: 'Okay — I won’t ask about this one again.' })),
+}))
+vi.mock('@/app/(default)/dashboard/actions', () => ({
+  approveProposalAction: mockApproveAction,
+  declineProposalAction: mockDeclineAction,
 }))
 vi.mock('@/lib/services/standup', () => ({ buildWeeklyStandup: mockBuildStandup }))
 // The inbox's client cards call useRouter().refresh() after a decision.
@@ -764,6 +775,58 @@ describe('the Approval Inbox on the Overview', () => {
     expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
   })
 
+  it('a BLANKED subject blocks Approve with an inline message — never a silent fallback to the original (round-3)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      {
+        id: 'prop_subj',
+        capability: 'outreach_campaign',
+        capabilityLabel: 'Launch outreach campaigns',
+        patientId: null,
+        title: 'Recall campaign',
+        body: 'Hi {{firstName}}, come see us.',
+        payload: { audienceId: 5, subject: 'We miss you', recipientCount: 41 },
+        status: 'open',
+        createdAt: new Date('2026-05-19T10:00:00Z'),
+        expiresAt: null,
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    fireEvent.click(screen.getByRole('button', { name: /edit first/i }))
+    fireEvent.change(screen.getByLabelText('Edit the email subject'), { target: { value: '   ' } })
+    fireEvent.click(screen.getByRole('button', { name: /approve — send it/i }))
+    expect(screen.getByText(/The subject can’t be empty/)).toBeInTheDocument()
+    expect(mockApproveAction).not.toHaveBeenCalled()
+  })
+
+  it('a DATE-ONLY inquiry still quotes its one statement — the date they asked about (round-3)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      {
+        id: 'prop_date',
+        capability: 'inquiry_response',
+        capabilityLabel: 'Answer new inquiries',
+        patientId: null,
+        title: 'Answer Sam’s website inquiry',
+        body: 'Hi Sam, we’d love to see you.',
+        payload: {
+          leadId: 'l1',
+          subject: 'Your question for Dream Dental',
+          context: { kind: 'inquiry', author: 'Sam Ortiz', text: null, preferredDate: 'next Tuesday morning' },
+        },
+        status: 'open',
+        createdAt: new Date('2026-05-19T10:00:00Z'),
+        expiresAt: null,
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Asked about/)).toBeInTheDocument()
+    expect(screen.getByText('next Tuesday morning')).toBeInTheDocument()
+    expect(screen.getByText(/Sam Ortiz/)).toBeInTheDocument()
+  })
+
   it('a truncated inbox says so — "Showing X of N" keeps the sidebar badge honest (round-2 gap)', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([
@@ -812,6 +875,7 @@ describe('the weekly standup card on the Overview', () => {
       humanTasks: { openProposals: 0, followupsDue: 3 },
       quiet: false,
       quietNote: null,
+      predatesAccount: false,
     })
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
@@ -820,6 +884,63 @@ describe('the weekly standup card on the Overview', () => {
     expect(screen.getByText(/Invited Noah back/)).toBeInTheDocument()
     expect(screen.getByText(/2 new patients seated · 3 new reviews/)).toBeInTheDocument()
     expect(screen.getByText(/3 follow-ups are due/)).toBeInTheDocument()
+  })
+
+  it('a busy week past 8 capabilities shows the overflow line — the card and the email must agree on the total (round-3)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const lines = [
+      { capability: 'appointment_reminder', noun: 'appointment reminders', count: 41 },
+      { capability: 'review_request', noun: 'review invitations', count: 12 },
+      { capability: 'campaign_send', noun: 'campaign sends', count: 9 },
+      { capability: 'retention_automation', noun: 'recall & win-back notes', count: 8 },
+      { capability: 'followup_rule', noun: 'follow-ups opened', count: 7 },
+      { capability: 'balance_nudge', noun: 'balance reminders', count: 6 },
+      { capability: 'auto_reply', noun: 'after-hours replies', count: 5 },
+      { capability: 'forms_reminder', noun: 'form nudges', count: 4 },
+      { capability: 'nps_survey', noun: 'visit check-ins', count: 3 },
+      { capability: 'noshow_rebook', noun: 'rebook invitations', count: 2 },
+    ]
+    mockBuildStandup.mockResolvedValueOnce({
+      weekStart: new Date('2026-05-10T05:00:00Z'),
+      weekEnd: new Date('2026-05-17T05:00:00Z'),
+      weekLabel: 'May 10 – May 16',
+      totalActions: lines.reduce((s, l) => s + l.count, 0),
+      lines,
+      stories: [],
+      newPatientsSeated: 0,
+      reviewsReceived: 0,
+      humanTasks: { openProposals: 0, followupsDue: 0 },
+      quiet: false,
+      quietNote: null,
+      predatesAccount: false,
+    })
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    // 3 + 2 — the two lines beyond the first eight, same math as the email.
+    expect(screen.getByText('…and 5 more small things')).toBeInTheDocument()
+    expect(screen.queryByText(/rebook invitations/)).not.toBeInTheDocument()
+  })
+
+  it('a window that PREDATES the account renders NOTHING — no report about a week the clinic wasn’t here (round-3)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockBuildStandup.mockResolvedValueOnce({
+      weekStart: new Date('2026-05-10T05:00:00Z'),
+      weekEnd: new Date('2026-05-17T05:00:00Z'),
+      weekLabel: 'May 10 – May 16',
+      totalActions: 0,
+      lines: [],
+      stories: [],
+      newPatientsSeated: 0,
+      reviewsReceived: 0,
+      humanTasks: { openProposals: 0, followupsDue: 3 },
+      quiet: false,
+      quietNote: null,
+      predatesAccount: true,
+    })
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText('Last week')).not.toBeInTheDocument()
+    expect(screen.queryByText('What I got done last week')).not.toBeInTheDocument()
   })
 
   it('a QUIET week renders the config-cross-checked narration, not a blank (round-1: dead engine vs healthy idle)', async () => {
@@ -836,6 +957,7 @@ describe('the weekly standup card on the Overview', () => {
       humanTasks: { openProposals: 0, followupsDue: 0 },
       quiet: true,
       quietNote: 'A quiet week — one heads up: appointment reminders are switched off, so I can’t send any. Turn them on in Settings when you’re ready.',
+      predatesAccount: false,
     })
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)

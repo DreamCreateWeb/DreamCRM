@@ -41,6 +41,18 @@ rejected, the backlog harvest, and the gate declaration.
 Proposals judged real-but-future-scope land here, newest first. The owner
 promotes items into phases; nothing here is a commitment until he does.
 
+**From Phase 2 round 3 (2026-07-28):**
+
+1. **Expiry visibility + expiry narration** — approval cards carry no
+   temporal cue (no age, no deadline) even though round 2 made
+   soonest-to-expire the sort key, and an expiry/invalidation flips status
+   with no word anywhere (no ledger entry, no standup line — the card just
+   vanishes). The judge kept it backlog: nothing on the card is WRONG and
+   no approval is made blind; a countdown pushes staff toward operating a
+   deadline system, and "I gave up on this" is new vocabulary that belongs
+   to Phase 4's guardian/failure work. The promotable half is a one-line
+   "expires Friday" cue.
+
 **From Phase 2 round 1 (2026-07-28):**
 
 1. **The ledger outcome contract** — the standup narrates what the machine
@@ -158,12 +170,118 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 2 — the voice (proposals · Approval Inbox · weekly standup)
 
-**Status: rounds 1–2 COMPLETE + FIXED (v2 gate, 2026-07-28); round 3 (the
-cap) pending.** First audit under the v2 shape (Opus lenses via
-direct-Agent fallback — the Workflow runtime's permission-handler fault
+**Status: CLOSED at round 3 (the hard cap) — all three rounds fixed; no
+clean-round certificate.** Round 3 still found significant items (2 major
+defects + 3 in-phase gaps confirmed), so per the v2 gate's own law the
+audit ends with the fixes SHIPPED plus the root-cause retrospective below —
+round 4 is forbidden, and the remaining assurance comes from the pinned
+tests, not another audit pass. First audit under the v2 shape (Opus lenses
+via direct-Agent fallback — the Workflow runtime's permission-handler fault
 recurred and the integrity guard correctly invalidated the workflow run;
 the same 4-lens shape re-ran through the Agent tool). Round-1 range
-`4f55238..708cd73`; round 2 audited the round-1 fix commit itself.
+`4f55238..708cd73`; round 2 audited the round-1 fix commit; round 3 audited
+the whole range through the round-2 fix commit `975ec80`.
+
+- **Round 3:** 4 lenses → 12 deduped defect candidates + 4 depth
+  candidates → skeptic confirmed 10 / refuted 2, judge ruled 3 in-phase /
+  2 backlog (one split ruling) → main-loop confirmation upheld every
+  verdict against the cited code.
+- **Round-3 confirmed + FIXED (10):**
+  1. [major, 3 lenses] The inquiry generator kept the exact
+     break-on-per-lead-failure bug round 2 fixed for reviews → draftText
+     returns a typed reason (not_configured | no_allowance | failed);
+     the loop breaks only on org-global refusals and skips a poisoned
+     lead (pinned both ways).
+  2. [major] outreach_campaign/social_post had NO staleness anywhere: the
+     sweep covered only reviews+inquiries and the executor never re-read
+     the engine → executeOutreachCampaign re-checks getRecallStats at the
+     tap (recent/upcoming sends ⇒ friendly retire) and the sweep now
+     expires quiet-channel social cards on any published-since-filing or
+     scheduled post, and quiet-engine recall cards once the engine wakes.
+  3. [minor, downgraded by the skeptic] A process death mid-approve
+     stranded status='approved' + executedAt NULL forever (invisible to
+     every reader, sourceKey claimed, no ledger entry — the one hole in
+     "work is never silently lost") → reconcileStrandedApprovals reopens
+     30-minute-stale stranded claims on the hourly sweep; executors
+     self-guard the rerun.
+  4. [minor] The Monday standup had no REACHABLE off switch at a real
+     clinic (the per-staff opt-out toggle rendered only behind the
+     daily-digest org switch, default 0) → the My Day toggle now renders
+     unconditionally and its copy covers both emails.
+  5. [minor] The reuse-path subject/body sync ran with no status guard
+     BEFORE the duplicate-send claim, so a refused retry rewrote a SENT
+     campaign's record → the sync runs only against
+     draft/scheduled/paused rows (pinned: a completed row's copy
+     survives the retire).
+  6. [minor] A staff-deleted reused campaign row made the proposal
+     un-approvable forever (update hits 0 rows → 'Campaign not found'
+     throw → reopen loop for 14 days, month sourceKey burned) → a
+     missing row un-stamps campaignId and the executor mints fresh.
+  7. [minor] Raw executor throws rendered verbatim on the card
+     ('RESEND_API_KEY env var is not set') → the approve wrapper logs
+     the raw error and answers in the voice; the inquiry executor
+     catches deliver()'s already-friendly transport errors and reopens
+     with THAT text.
+  8. [minor] The standup narrated a week that predated the account (every
+     new clinic saw "a quiet week" about a pre-signup week on day one) →
+     predatesAccount on WeeklyStandup: the card renders nothing and the
+     Monday email skips when the org is younger than the whole window.
+  9. [minor] Blanking the subject field silently sent the ORIGINAL
+     subject (the omit-when-empty client check made the server's
+     empty-subject guard unreachable) → Approve blocks client-side with
+     an inline message.
+  10. [minor] The demo-simulate comment claimed approvals feed the demo
+     standup (impossible — entries land in the current week; the standup
+     reads the prior week) → comment corrected.
+- **Skeptic-refuted (2, upheld):** the "AI-outage retry storm" (bounded at
+  10 calls/org/hour by the top-10 slice; the proposed consecutive-failure
+  bail would reintroduce the round-2 freeze) and the "standup gets one
+  attempt per week" (claim-before-send is the accepted round-1 design;
+  the in-app card carries the same narration all week).
+- **Round-3 in-phase gaps SHIPPED (3):** the approved inquiry reply is
+  READABLE on its lead — getSentInquiryReply (keyed by the executor's own
+  sourceKey) + the lead drawer's "What we sent · <clinic-tz date>" block,
+  demo rows labelled (the inquiry executor was the only one whose artifact
+  landed on no surface — an employee who answers your mail and keeps no
+  copy) · the inquiry card renders context.preferredDate ("Asked about:
+  next Tuesday morning") and a date-only inquiry no longer shows an empty
+  context block · the standup CARD gets the email's own overflow line
+  ("…and N more small things") so the two never disagree on a week's
+  total. (The ledger drill-down page stays backlog item 4; expiry
+  visibility went to the backlog as a new item.)
+- Round-3 full suite 5,570 green; typecheck + build clean.
+
+**Root-cause retrospective (the hard cap fired — owner-facing):**
+Three rounds, 32 confirmed defects + 14 shipped gaps, and round 3 was
+still not clean. Why did this phase ship with this many gaps?
+1. **The phase was four products in a trench coat.** "The voice" bundled
+   a transactional primitive (proposals), four executors that each touch a
+   different subsystem (Google reviews, social, email, campaigns), a cron
+   generator fleet, an email digest, and two dashboard surfaces — in one
+   slice. Every executor×failure-mode cell was its own audit surface; the
+   defect count tracked that combinatorial area, not carelessness. LESSON:
+   ship executors one per slice next time (Phase 3+ capabilities are
+   already planned proposal-first, one at a time — hold to that).
+2. **Fixes kept creating seams symmetrically.** Round 2's break/continue
+   repair fixed reviews and missed the IDENTICAL loop in inquiries; the
+   digest-gate removal fixed dead-on-arrival and orphaned the opt-out
+   toggle behind the very gate it removed. Roughly half of rounds 2–3's
+   majors were fix-introduced. LESSON: every fix now names its siblings —
+   "where else does this exact shape occur?" is a mandatory question in
+   the fix pass (it caught the sweep gap this round only because a lens
+   asked it).
+3. **The failure model matured mid-phase.** Round 1 hardened
+   in-process failures (reopen/expire), round 2 partial failures, and
+   only round 3 asked "what if the PROCESS dies?" — the stranded-approve
+   hole existed from day one but no earlier lens owned crash-consistency.
+   LESSON: the resilience lens's brief now includes process-death and
+   deploy-mid-write for any claim-then-act pattern, from round 1.
+The machinery itself held: every defect was caught by the gate before a
+clinic saw it, the skeptic killed 2 of 12 candidates, and the main-loop
+confirmation upheld every verdict. The cap did its job — the marginal
+round was fixing the auditor's own previous fixes, and the pinned tests
+(146 in the proposal/standup/generator suites alone) are now the durable
+guard.
 
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation

@@ -60,6 +60,11 @@ export interface WeeklyStandup {
    *  healthy idle clinic and a switched-off engine never look the same).
    *  Set ONLY when totalActions === 0; the card renders it. */
   quietNote: string | null
+  /** True when the whole window predates the clinic's account (round-3
+   *  audit): a three-day-old clinic must never read a confident report —
+   *  even "a quiet week" — about a week it wasn't a customer. The card
+   *  hides and the Monday email skips. */
+  predatesAccount: boolean
 }
 
 /** Count-line nouns, singular AND plural — the registry labels are verb
@@ -118,7 +123,7 @@ export async function buildWeeklyStandup(
   const weekEnd = clinicWeekStart(now, tz)
   const weekStart = clinicWeekStart(new Date(weekEnd.getTime() - 1), tz)
 
-  const [counts, entries, openProposals, followupsDue, newPatientsSeated, reviewsReceived] =
+  const [counts, entries, openProposals, followupsDue, newPatientsSeated, reviewsReceived, orgCreatedAt] =
     await Promise.all([
       countActionsSince(organizationId, weekStart, { until: weekEnd }),
       listRecentActions(organizationId, { since: weekStart, until: weekEnd, limit: 200 }),
@@ -128,7 +133,14 @@ export async function buildWeeklyStandup(
       // as /growth (one law, one implementation; round-1 Phase-2 audit).
       countSeatedBetween(organizationId, weekStart, weekEnd),
       countReviewsInWindow(organizationId, weekStart, weekEnd),
+      readOrgCreatedAt(organizationId),
     ])
+  // The account is younger than the whole window → there is no week to
+  // narrate; anything we'd say ("a quiet week…") would be about a period the
+  // clinic wasn't a customer (round-3 audit). Actions in the window anyway
+  // (imported history quirks) fall through to honest narration.
+  const predatesAccount =
+    orgCreatedAt != null && orgCreatedAt >= weekEnd && Object.keys(counts).length === 0
 
   const lines: StandupLine[] = Object.entries(counts)
     .map(([capability, count]) => ({ capability, noun: standupNoun(capability, count), count }))
@@ -160,7 +172,7 @@ export async function buildWeeklyStandup(
   // needed doing" and "nothing ran because a switch is off" never look the
   // same. Only computed when there is nothing else to say.
   let quietNote: string | null = null
-  if (totalActions === 0) {
+  if (totalActions === 0 && !predatesAccount) {
     const engine = await readEngineSwitches(organizationId)
     if (!engine.remindersOn && !engine.reviewRequestsOn) {
       quietNote =
@@ -189,6 +201,22 @@ export async function buildWeeklyStandup(
     humanTasks: { openProposals, followupsDue },
     quiet: totalActions === 0 && openProposals === 0 && followupsDue === 0,
     quietNote,
+    predatesAccount,
+  }
+}
+
+/** Best-effort org age read — unknown reads as "old enough to narrate"
+ *  (never suppress a real report over a failed lookup). */
+async function readOrgCreatedAt(organizationId: string): Promise<Date | null> {
+  try {
+    const [row] = await db
+      .select({ createdAt: schema.organization.createdAt })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, organizationId))
+      .limit(1)
+    return row?.createdAt ?? null
+  } catch {
+    return null
   }
 }
 
@@ -361,7 +389,10 @@ export async function sendWeeklyStandups(opts?: { now?: Date }): Promise<Standup
       }
 
       const standup = await buildWeeklyStandup(clinic.organizationId, now)
-      if (standup.quiet) {
+      // A window that predates the account is skipped like a quiet week —
+      // a brand-new clinic's first email must not report on a week it
+      // wasn't a customer (round-3 audit).
+      if (standup.quiet || standup.predatesAccount) {
         result.skippedQuiet++
         continue
       }

@@ -67,7 +67,8 @@ const store: {
   staff: Array<Record<string, unknown>>
   profiles: Array<Record<string, unknown>>
   reviewConfigs: Array<Record<string, unknown>>
-} = { reviews: [], clinics: [], staff: [], profiles: [], reviewConfigs: [] }
+  orgs: Array<Record<string, unknown>>
+} = { reviews: [], clinics: [], staff: [], profiles: [], reviewConfigs: [], orgs: [] }
 
 vi.mock('@/lib/db', () => {
   // clinic_profile serves TWO reads: the standup-send scan (joined shape,
@@ -78,6 +79,7 @@ vi.mock('@/lib/db', () => {
     if (name === 'clinic_profile') return cols && 'reminders' in cols ? store.profiles : store.clinics
     if (name === 'clinic_review_config') return store.reviewConfigs
     if (name === 'member') return store.staff
+    if (name === 'organization') return store.orgs
     return []
   }
   function select(cols?: Record<string, unknown>) {
@@ -142,7 +144,7 @@ vi.mock('@/lib/db', () => {
       organizationId: col('organizationId'),
       autoSendEnabled: col('autoSendEnabled'),
     },
-    organization: { __name: 'organization', id: col('id'), name: col('name'), isDemo: col('isDemo') },
+    organization: { __name: 'organization', id: col('id'), name: col('name'), isDemo: col('isDemo'), createdAt: col('createdAt') },
     member: { __name: 'member', organizationId: col('organizationId'), userId: col('userId'), role: col('role') },
     user: { __name: 'user', id: col('id'), name: col('name'), email: col('email') },
   }
@@ -197,6 +199,7 @@ beforeEach(() => {
   store.staff = []
   store.profiles = []
   store.reviewConfigs = []
+  store.orgs = [] // no row = createdAt unknown = "old enough to narrate"
 })
 
 describe('buildWeeklyStandup', () => {
@@ -305,6 +308,23 @@ describe('renderStandupEmailBody — the voice', () => {
     const body = renderStandupEmailBody(s, 'Dream Dental')
     expect(body).toContain('Nothing is waiting on you right now.')
   })
+
+  it('a window that PREDATES the account is never narrated — a 3-day-old clinic gets no confident report about a week it wasn’t here for (round-3)', async () => {
+    // Signed up Sunday of THIS week; the prior-week window ended before that.
+    store.orgs = [{ id: ORG, createdAt: new Date('2026-07-26T12:00:00Z') }]
+    deps.followupsDue = 2 // not "quiet" in the humanTasks sense — still suppressed
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.predatesAccount).toBe(true)
+    expect(s.quietNote).toBeNull() // the card renders nothing
+  })
+
+  it('an org old enough to have lived the window narrates normally', async () => {
+    store.orgs = [{ id: ORG, createdAt: new Date('2026-06-01T00:00:00Z') }]
+    ledger.counts = { appointment_reminder: 3 }
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.predatesAccount).toBe(false)
+    expect(s.totalActions).toBe(3)
+  })
 })
 
 describe('sendWeeklyStandups', () => {
@@ -372,6 +392,15 @@ describe('sendWeeklyStandups', () => {
     expect(second.sent).toBe(0)
     expect(second.skippedAlready).toBe(1)
     expect(sendNotificationEmailMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a brand-new clinic (account younger than the window) is skipped like a quiet week — no pre-account report (round-3)', async () => {
+    seedClinic()
+    store.orgs = [{ id: ORG, createdAt: new Date('2026-07-26T12:00:00Z') }]
+    deps.followupsDue = 2 // would otherwise pass the quiet check and email
+    const r = await sendWeeklyStandups({ now: MONDAY })
+    expect(r.skippedQuiet).toBe(1)
+    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
   })
 
   it('demo clinics and quiet weeks never email', async () => {

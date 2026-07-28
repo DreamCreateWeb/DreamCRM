@@ -54,6 +54,7 @@ const executors = vi.hoisted(() => ({
   deliver: vi.fn(async (..._a: unknown[]) => undefined),
   createMarketingCampaign: vi.fn(async (..._a: unknown[]) => ({ id: 77 })),
   sendCampaign: vi.fn(async (..._a: unknown[]) => ({ channel: 'resend', attempted: 41, sent: 41, failed: 0, errors: [], suppressed: 2 })),
+  getRecallStats: vi.fn(async (..._a: unknown[]) => ({ recallDueReachableCount: 41, recentSends: [] as unknown[], upcomingSends: [] as unknown[] })),
 }))
 vi.mock('@/lib/services/google-reviews', () => ({ replyToGoogleReview: executors.replyToGoogleReview }))
 vi.mock('@/lib/services/social-posts', () => ({ createSocialPost: executors.createSocialPost }))
@@ -72,6 +73,7 @@ vi.mock('@/lib/email', () => ({
 }))
 vi.mock('@/lib/services/marketing-campaigns', () => ({ createMarketingCampaign: executors.createMarketingCampaign }))
 vi.mock('@/lib/services/marketing-send', () => ({ sendCampaign: executors.sendCampaign }))
+vi.mock('@/lib/services/recall-stats', () => ({ getRecallStats: executors.getRecallStats }))
 
 vi.mock('@/lib/db', () => {
   const T_PROPOSAL = 'proposal'
@@ -244,6 +246,7 @@ vi.mock('@/lib/db', () => {
       __name: 'campaigns',
       id: col('id'),
       organizationId: col('organizationId'),
+      status: col('status'),
       subject: col('subject'),
       bodyHtml: col('bodyHtml'),
       updatedAt: col('updatedAt'),
@@ -275,6 +278,8 @@ import {
   approveProposal,
   declineProposal,
   expireStaleProposals,
+  reconcileStrandedApprovals,
+  getSentInquiryReply,
   textToCampaignHtml,
 } from '@/lib/services/proposals'
 
@@ -614,7 +619,7 @@ describe('approveProposal — the other executors', () => {
     // …so the retry never mints a second campaign row — and the CURRENT
     // (staff-edited) subject + body are synced onto the reused row before
     // sending, so the retry sends exactly what was approved (round-2 audit).
-    store.campaigns.push({ id: 77, organizationId: ORG, subject: 'We miss you', bodyHtml: '<p>old draft</p>' })
+    store.campaigns.push({ id: 77, organizationId: ORG, status: 'draft', subject: 'We miss you', bodyHtml: '<p>old draft</p>' })
     const second = await approveProposal(ORG, p.id, 'user_1', {
       body: 'Hi {{firstName}}, the edited copy.',
       subject: 'A fresh subject',
@@ -643,21 +648,125 @@ describe('approveProposal — the other executors', () => {
     expect(recordActionMock).not.toHaveBeenCalled()
   })
 
-  it('outreach_campaign: already_sending on a REUSED campaign retires the card — never a re-blast (round-1 #5)', async () => {
+  it('outreach_campaign: already_sending on a REUSED campaign retires the card — never a re-blast, and the sent row’s copy is NEVER rewritten (round-1 #5 + round-3)', async () => {
     executors.sendCampaign.mockResolvedValueOnce({
       channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [],
       skipped: 'already_sending', error: 'This campaign is already sending or has already been sent.',
     } as never)
+    // The reused row already went out (a prior approve's send succeeded but
+    // its bookkeeping failed) — it sits at 'completed'.
+    store.campaigns.push({ id: 77, organizationId: ORG, status: 'completed', subject: 'We miss you', bodyHtml: '<p>what actually sent</p>' })
     const p = seedProposal({
       capability: 'outreach_campaign',
       sourceKey: 'k11',
-      payload: { audienceId: 5, subject: 'We miss you', campaignId: 77 },
+      body: 'A body the staff edited after the send',
+      payload: { audienceId: 5, subject: 'A different subject', campaignId: 77 },
     })
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.expired).toBe(true)
     expect(p.status).toBe('expired')
     expect(executors.createMarketingCampaign).not.toHaveBeenCalled()
+    // The permanent record of what was SENT keeps its real copy (round-3:
+    // the sync must never run against a row that already went out).
+    const row = store.campaigns.find((c) => c.id === 77)
+    expect(row?.subject).toBe('We miss you')
+    expect(row?.bodyHtml).toBe('<p>what actually sent</p>')
+  })
+
+  it('outreach_campaign: a DELETED reused campaign row re-mints instead of failing forever (round-3)', async () => {
+    // payload.campaignId points at a row staff tidied away — no campaigns row.
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k12',
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 55 },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(executors.createMarketingCampaign).toHaveBeenCalledTimes(1)
+    expect((p.payload as Record<string, unknown>).campaignId).toBe(77)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('outreach_campaign: a card filed on a quiet engine EXPIRES at the tap when a campaign has since gone out (round-3 staleness)', async () => {
+    executors.getRecallStats.mockResolvedValueOnce({
+      recallDueReachableCount: 41,
+      recentSends: [{ id: 9 }],
+      upcomingSends: [],
+    } as never)
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k13',
+      payload: { audienceId: 5, subject: 'We miss you' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBe(true)
+    expect(p.status).toBe('expired')
+    expect(executors.createMarketingCampaign).not.toHaveBeenCalled()
+    expect(executors.sendCampaign).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('a STRANDED approve (process died mid-execution: approved, no executedAt, old) is reopened by the reconcile sweep (round-3)', async () => {
+    const stranded = seedProposal({
+      sourceKey: 'k14',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      decidedByUserId: 'user_1',
+      executedAt: null,
+    })
+    const fresh = seedProposal({
+      sourceKey: 'k15',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 2 * 60 * 1000), // an executor may still be running
+      executedAt: null,
+    })
+    const done = seedProposal({
+      sourceKey: 'k16',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      executedAt: new Date(),
+    })
+    const n = await reconcileStrandedApprovals(ORG)
+    expect(n).toBe(1)
+    expect(stranded.status).toBe('open')
+    expect(stranded.decidedByUserId).toBeNull()
+    expect(fresh.status).toBe('approved')
+    expect(done.status).toBe('approved')
+  })
+
+  it('inquiry_response: a transport failure REOPENS with the mapped friendly message, never generic swallow (round-3)', async () => {
+    executors.deliver.mockRejectedValueOnce(new Error('Their inbox said no thanks — try again in a bit.'))
+    const p = seedProposal({
+      capability: 'inquiry_response',
+      sourceKey: 'inquiry_response:lead_1c',
+      payload: { leadId: 'lead_1', subject: 'S' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toBe('Their inbox said no thanks — try again in a bit.')
+    expect(p.status).toBe('open')
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('an executor THROWING raw developer text answers in the voice, not the stack trace (round-3)', async () => {
+    executors.sendCampaign.mockRejectedValueOnce(new Error('Campaign missing subject'))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    store.campaigns.push({ id: 77, organizationId: ORG, status: 'draft', subject: 'S', bodyHtml: 'B' })
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k17',
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 77 },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.error).not.toContain('missing subject')
+      expect(r.error).toContain('Something went wrong on my side')
+    }
+    expect(p.status).toBe('open')
+    err.mockRestore()
   })
 
   it('DEMO proposals simulate: no executor runs, the ledger still tells the story', async () => {
@@ -680,6 +789,32 @@ describe('expiry + helpers', () => {
     expect(stale.status).toBe('expired')
     expect(fresh.status).toBe('open')
     expect(decided.status).toBe('declined')
+  })
+
+  it('getSentInquiryReply surfaces the APPROVED reply for its lead — and only approved (round-3, the lead drawer’s "What we sent")', async () => {
+    seedProposal({
+      capability: 'inquiry_response',
+      sourceKey: 'inquiry_response:lead_9',
+      status: 'approved',
+      body: 'Hi Dana — yes, we take your insurance.',
+      payload: { leadId: 'lead_9', subject: 'Your question for Acme Dental' },
+      executedAt: new Date('2026-07-20T15:00:00Z'),
+      isDemo: 1,
+    })
+    seedProposal({
+      capability: 'inquiry_response',
+      sourceKey: 'inquiry_response:lead_10',
+      status: 'declined',
+      payload: { leadId: 'lead_10', subject: 'S' },
+    })
+    const sent = await getSentInquiryReply(ORG, 'lead_9')
+    expect(sent).not.toBeNull()
+    expect(sent?.subject).toBe('Your question for Acme Dental')
+    expect(sent?.body).toContain('yes, we take your insurance')
+    expect(sent?.sentAt).toEqual(new Date('2026-07-20T15:00:00Z'))
+    expect(sent?.simulated).toBe(true) // demo rows are labelled, never claimed as real sends
+    expect(await getSentInquiryReply(ORG, 'lead_10')).toBeNull() // a decline sent nothing
+    expect(await getSentInquiryReply('org_2', 'lead_9')).toBeNull() // tenant-scoped
   })
 
   it('textToCampaignHtml escapes, keeps merge tokens, and adds a booking button when the draft has none', () => {

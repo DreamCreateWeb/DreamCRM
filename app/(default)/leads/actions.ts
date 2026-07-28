@@ -18,6 +18,41 @@ async function requireClinicTenant() {
   return ctx
 }
 
+/**
+ * The approved machine-sent reply for this inquiry, if there is one — the
+ * lead drawer's "What we sent" block (round-3 audit: the inquiry executor's
+ * artifact lands on no other surface, and a front desk that can't read its
+ * own outbound is blind when the person calls back). The date renders
+ * clinic-local per the timezone law.
+ */
+export async function getSentInquiryReplyAction(leadId: string): Promise<
+  | { ok: true; reply: { subject: string | null; body: string; sentAtLabel: string | null; simulated: boolean } | null }
+  | { ok: false }
+> {
+  try {
+    const ctx = await requireClinicTenant()
+    const [{ getSentInquiryReply }, { getClinicTimeZone }, { formatClinicDayTime }] = await Promise.all([
+      import('@/lib/services/proposals'),
+      import('@/lib/services/clinic-timezone'),
+      import('@/lib/format-datetime'),
+    ])
+    const reply = await getSentInquiryReply(ctx.organizationId, leadId)
+    if (!reply) return { ok: true, reply: null }
+    const tz = await getClinicTimeZone(ctx.organizationId)
+    return {
+      ok: true,
+      reply: {
+        subject: reply.subject,
+        body: reply.body,
+        sentAtLabel: reply.sentAt ? formatClinicDayTime(reply.sentAt, tz) : null,
+        simulated: reply.simulated,
+      },
+    }
+  } catch {
+    return { ok: false }
+  }
+}
+
 export async function markLeadContactedAction(id: string): Promise<{ ok: true }> {
   const ctx = await requireClinicTenant()
   await markLeadContacted(ctx.organizationId, id)

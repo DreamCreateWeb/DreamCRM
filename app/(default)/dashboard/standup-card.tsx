@@ -15,6 +15,10 @@ export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
   // quiet branch keeps the WEEK'S OWN GOOD NEWS + the only-you list — the
   // email for the same state carries them, and the young clinic that seated
   // two new patients by hand must not read as invisible (round-2 audit).
+  // A window that predates the account renders nothing — a three-day-old
+  // clinic must never read a report about a week it wasn't here for
+  // (round-3 audit).
+  if (standup.predatesAccount) return null
   if (standup.totalActions === 0) {
     if (!standup.quietNote) return null
     const goodNews = [
@@ -112,6 +116,14 @@ export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
               {l.count} {l.noun}
             </li>
           ))}
+          {/* Same overflow honesty as the email (round-3 audit): the card
+              and the Monday email must give the same total for the same
+              week — silent truncation under-reports real work. */}
+          {standup.lines.length > 8 && (
+            <li className="text-xs px-2.5 py-1 rounded-full text-gray-500 dark:text-gray-400 tabular-nums">
+              …and {standup.lines.slice(8).reduce((sum, l) => sum + l.count, 0)} more small things
+            </li>
+          )}
         </ul>
 
         {standup.stories.length > 0 && (

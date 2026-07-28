@@ -32,6 +32,7 @@ vi.mock('@/lib/services/ai-usage', () => ({
 const proposalsSvc = vi.hoisted(() => ({
   fileProposal: vi.fn(async (..._a: unknown[]) => ({ filed: true, id: 'prop_x' })),
   expireStaleProposals: vi.fn(async () => 0),
+  reconcileStrandedApprovals: vi.fn(async () => 0),
 }))
 vi.mock('@/lib/services/proposals', () => proposalsSvc)
 
@@ -165,6 +166,7 @@ vi.mock('@/lib/db', () => {
       status: col('status'),
       payload: col('payload'),
       decidedAt: col('decidedAt'),
+      createdAt: col('createdAt'),
       updatedAt: col('updatedAt'),
     },
   }
@@ -179,6 +181,12 @@ vi.mock('drizzle-orm', () => ({
     r[col.__col] instanceof Date && (r[col.__col] as Date) >= val,
   inArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
     vals.includes(r[col.__col]),
+  // An and(...) in this mock is an ARRAY of predicates — evaluate it as a
+  // conjunction, do NOT flatten it into the or's disjuncts.
+  or: (...preds: unknown[]) => (r: Record<string, unknown>) =>
+    preds
+      .filter(Boolean)
+      .some((p) => (typeof p === 'function' ? (p as (row: Record<string, unknown>) => boolean)(r) : Array.isArray(p) ? (p as Array<(row: Record<string, unknown>) => boolean>).every((f) => f(r)) : false)),
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
   desc: () => 'desc',
   sql: () => () => true,
@@ -316,6 +324,27 @@ describe('inquiry responses', () => {
     const n = await generateInquiryResponseProposals(ORG, 'Acme Dental', NOW)
     expect(n).toBe(3)
   })
+
+  it('a PER-LEAD draft failure skips just that lead — the older inquiries behind it still get answers (round-3)', async () => {
+    ai.runClaudeJson
+      .mockRejectedValueOnce(new Error('model hiccup'))
+      .mockResolvedValueOnce({ text: 'A warm, drafted reply.' })
+    store.leads = [lead('l1'), lead('l2', { createdAt: new Date(NOW.getTime() - 2 * DAY) })]
+    const n = await generateInquiryResponseProposals(ORG, 'Acme Dental', NOW)
+    expect(n).toBe(1)
+    expect(ai.runClaudeJson).toHaveBeenCalledTimes(2)
+    const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
+    expect(call.sourceKey).toBe('inquiry_response:l2')
+  })
+
+  it('an ORG-GLOBAL refusal (over the monthly cap) still ends the pass after one probe (round-3)', async () => {
+    usage.overCap = true
+    store.leads = [lead('l1'), lead('l2', { createdAt: new Date(NOW.getTime() - 2 * DAY) })]
+    const n = await generateInquiryResponseProposals(ORG, 'Acme Dental', NOW)
+    expect(n).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+    expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
+  })
 })
 
 const TZ = 'America/Chicago'
@@ -427,5 +456,45 @@ describe('the invalidation sweep', () => {
     expect(byId.get('p2')).toBe('open')
     expect(byId.get('p3')).toBe('expired')
     expect(byId.get('p4')).toBe('open')
+  })
+
+  it('expires a "quiet channels" social card once the clinic publishes or schedules a post itself (round-3)', async () => {
+    store.proposals = [
+      { id: 'p1', organizationId: ORG, capability: 'social_post', sourceKey: 'social_post:2026-07', status: 'open', payload: {}, createdAt: new Date(NOW.getTime() - 5 * DAY) },
+    ]
+    store.postTargets = [
+      { id: 't1', organizationId: ORG, status: 'published', publishedAt: new Date(NOW.getTime() - 2 * DAY) },
+    ]
+    expect(await sweepInvalidatedProposals(ORG)).toBe(1)
+    expect(store.proposals[0].status).toBe('expired')
+  })
+
+  it('leaves the social card open when the only activity PREDATES it (that quiet spell is why it was filed)', async () => {
+    store.proposals = [
+      { id: 'p1', organizationId: ORG, capability: 'social_post', sourceKey: 'social_post:2026-07', status: 'open', payload: {}, createdAt: new Date(NOW.getTime() - 5 * DAY) },
+    ]
+    store.postTargets = [
+      { id: 't1', organizationId: ORG, status: 'published', publishedAt: new Date(NOW.getTime() - 30 * DAY) },
+    ]
+    expect(await sweepInvalidatedProposals(ORG)).toBe(0)
+    expect(store.proposals[0].status).toBe('open')
+  })
+
+  it('expires a "quiet engine" recall card once a campaign has gone out or been scheduled (round-3)', async () => {
+    store.proposals = [
+      { id: 'p1', organizationId: ORG, capability: 'outreach_campaign', sourceKey: 'outreach_campaign:recall:2026-07', status: 'open', payload: { audienceId: 5 }, createdAt: new Date(NOW.getTime() - 5 * DAY) },
+    ]
+    recall.stats.recentSends = [{ id: 9 }]
+    expect(await sweepInvalidatedProposals(ORG)).toBe(1)
+    expect(store.proposals[0].status).toBe('expired')
+
+    // …and stays open while the engine is still quiet.
+    store.proposals = [
+      { id: 'p2', organizationId: ORG, capability: 'outreach_campaign', sourceKey: 'outreach_campaign:recall:2026-08', status: 'open', payload: { audienceId: 5 }, createdAt: new Date(NOW.getTime() - 5 * DAY) },
+    ]
+    recall.stats.recentSends = []
+    recall.stats.upcomingSends = []
+    expect(await sweepInvalidatedProposals(ORG)).toBe(0)
+    expect(store.proposals[0].status).toBe('open')
   })
 })

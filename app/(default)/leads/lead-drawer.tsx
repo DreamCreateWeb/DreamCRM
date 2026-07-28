@@ -15,6 +15,7 @@ import {
   reopenLeadAction,
   convertLeadAction,
   previewLeadConvertAction,
+  getSentInquiryReplyAction,
 } from './actions'
 
 // Same tone-contract mapping the list uses (see leads-view): new=special,
@@ -75,6 +76,15 @@ export default function LeadDrawer({
   // email/phone already matches a patient, show a heads-up chip so staff
   // know before they call/convert. Same dry-run the convert step uses.
   const [existingHint, setExistingHint] = useState<string | null>(null)
+  // The approved machine-sent reply, when there is one — "What we sent"
+  // (round-3 audit): the front desk must be able to read its own outbound
+  // when the person calls back. Best-effort; absent = block hidden.
+  const [sentReply, setSentReply] = useState<{
+    subject: string | null
+    body: string
+    sentAtLabel: string | null
+    simulated: boolean
+  } | null>(null)
 
   // Esc closes the drawer (the ✕ button's title already promises it). Pairs
   // with backdrop-click below for the two standard "dismiss" gestures.
@@ -106,6 +116,22 @@ export default function LeadDrawer({
     void checkExisting()
     return () => { cancelled = true }
   }, [row.id, row.status])
+
+  // Load the machine-sent reply (any status — a contacted/converted lead is
+  // exactly the one whose sent email staff need to re-read).
+  useEffect(() => {
+    let cancelled = false
+    async function loadSentReply() {
+      try {
+        const res = await getSentInquiryReplyAction(row.id)
+        if (!cancelled && res.ok && res.reply) setSentReply(res.reply)
+      } catch {
+        // non-blocking — leave the block hidden
+      }
+    }
+    void loadSentReply()
+    return () => { cancelled = true }
+  }, [row.id])
 
   function flash(msg: string) {
     setToast(msg)
@@ -237,6 +263,28 @@ export default function LeadDrawer({
               <p className={`${LABEL_CLASS} mb-1`}>Message</p>
               <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap italic">
                 &ldquo;{row.message}&rdquo;
+              </p>
+            </div>
+          )}
+
+          {/* What we sent — the approved machine reply, readable forever
+              (round-3 audit: staff must never be blind to their own
+              outbound when the person calls back). */}
+          {sentReply && (
+            <div className="pt-3 border-t border-[color:var(--color-hairline)]">
+              <p className={`${LABEL_CLASS} mb-1`}>
+                What we sent
+                {sentReply.sentAtLabel ? ` · ${sentReply.sentAtLabel}` : ''}
+                {sentReply.simulated ? ' · demo — nothing actually sent' : ''}
+              </p>
+              {sentReply.subject && (
+                <p className="text-sm text-gray-700 dark:text-gray-200">
+                  <span className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-2">Subject</span>
+                  <span className="font-medium">{sentReply.subject}</span>
+                </p>
+              )}
+              <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3">
+                {sentReply.body}
               </p>
             </div>
           )}

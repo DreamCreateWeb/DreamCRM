@@ -1,11 +1,11 @@
 import 'server-only'
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { z } from 'zod'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { CORE_VOICE_RULES } from '@/lib/services/service-library-ai'
 import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
-import { fileProposal, expireStaleProposals } from '@/lib/services/proposals'
+import { fileProposal, expireStaleProposals, reconcileStrandedApprovals } from '@/lib/services/proposals'
 
 /**
  * PROPOSAL GENERATORS (Transformation Phase 2). The machine notices work it
@@ -102,6 +102,10 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
       // moves on ("best-effort everywhere", the law at the top of this file).
       const generators: Array<[string, () => Promise<number>]> = [
         ['sweep', async () => ((result.expired += await sweepInvalidatedProposals(org.id)), 0)],
+        // A container death mid-approve leaves status='approved' with no
+        // executedAt — invisible to every reader. Reopen it so the yes is
+        // never silently lost (round-3 audit; executors self-guard reruns).
+        ['reconcile', async () => (await reconcileStrandedApprovals(org.id, now), 0)],
         ['review_reply', () => generateReviewReplyProposals(org.id, now)],
         ['inquiry_response', () => generateInquiryResponseProposals(org.id, org.name, now)],
         ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz)],
@@ -133,6 +137,7 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       id: schema.proposal.id,
       capability: schema.proposal.capability,
       payload: schema.proposal.payload,
+      createdAt: schema.proposal.createdAt,
     })
     .from(schema.proposal)
     .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.status, 'open')))
@@ -141,12 +146,18 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
   const toExpire: string[] = []
   const reviewIds = new Map<string, string>() // externalReviewId → proposalId
   const leadIds = new Map<string, string>()
+  const socialProposals: Array<{ id: string; createdAt: Date }> = []
+  const campaignProposals: string[] = []
   for (const p of open) {
     const payload = (p.payload ?? {}) as Record<string, unknown>
     if (p.capability === 'review_reply' && typeof payload.externalReviewId === 'string') {
       reviewIds.set(payload.externalReviewId, p.id)
     } else if (p.capability === 'inquiry_response' && typeof payload.leadId === 'string') {
       leadIds.set(payload.leadId, p.id)
+    } else if (p.capability === 'social_post') {
+      socialProposals.push({ id: p.id, createdAt: p.createdAt })
+    } else if (p.capability === 'outreach_campaign') {
+      campaignProposals.push(p.id)
     }
   }
   if (reviewIds.size > 0) {
@@ -180,6 +191,47 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
     }
     for (const [lid, pid] of Array.from(leadIds.entries())) if (!present.has(lid)) toExpire.push(pid)
   }
+  // The cadence types' premises can rot too (round-3 audit — the sweep
+  // covered only half the capabilities):
+  //  - a "your channels have been quiet" card is stale the moment the clinic
+  //    publishes or schedules a post itself;
+  //  - a "the recall engine is quiet" card is stale once a campaign goes out
+  //    or gets scheduled — approving it later would double-blast the same
+  //    recall patients. (executeOutreachCampaign re-checks at the tap too;
+  //    this keeps the card honest BETWEEN taps, same as reviews/inquiries.)
+  if (socialProposals.length > 0) {
+    const oldest = socialProposals.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b))
+    const [activity] = await db
+      .select({ id: schema.socialPostTarget.id })
+      .from(schema.socialPostTarget)
+      .where(
+        and(
+          eq(schema.socialPostTarget.organizationId, organizationId),
+          or(
+            eq(schema.socialPostTarget.status, 'scheduled'),
+            and(
+              eq(schema.socialPostTarget.status, 'published'),
+              gte(schema.socialPostTarget.publishedAt, oldest.createdAt),
+            ),
+          ),
+        ),
+      )
+      .limit(1)
+    if (activity) {
+      for (const sp of socialProposals) toExpire.push(sp.id)
+    }
+  }
+  if (campaignProposals.length > 0) {
+    try {
+      const { getRecallStats } = await import('@/lib/services/recall-stats')
+      const stats = await getRecallStats(organizationId)
+      if (stats.recentSends.length > 0 || stats.upcomingSends.length > 0) {
+        toExpire.push(...campaignProposals)
+      }
+    } catch {
+      // Best-effort: an unreadable stats snapshot never expires real work.
+    }
+  }
 
   if (toExpire.length > 0) {
     await db
@@ -201,12 +253,23 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
 
 const DraftSchema = z.object({ text: z.string().min(1).max(2000) })
 
+/** Typed failure channel (round-3 audit — the review generator's round-2
+ *  lesson, applied to its shared helper): callers in a loop must be able to
+ *  tell an ORG-GLOBAL refusal (AI off, over the monthly cap — stop the pass)
+ *  from a PER-ITEM failure (model hiccup, schema miss — skip just this one).
+ *  A bare null conflated them and one un-draftable inquiry froze the loop. */
+type DraftTextResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: 'not_configured' | 'no_allowance' | 'failed' }
+
 async function draftText(
   organizationId: string,
   opts: { system: string; user: string; maxTokens?: number },
-): Promise<string | null> {
-  if (!aiConfigured()) return null
-  if (await isAiUsageOverCap(organizationId, AI_KIND, PROPOSAL_DRAFT_MONTHLY_CAP)) return null
+): Promise<DraftTextResult> {
+  if (!aiConfigured()) return { ok: false, reason: 'not_configured' }
+  if (await isAiUsageOverCap(organizationId, AI_KIND, PROPOSAL_DRAFT_MONTHLY_CAP)) {
+    return { ok: false, reason: 'no_allowance' }
+  }
   let raw: unknown
   try {
     raw = await runClaudeJson({
@@ -224,12 +287,12 @@ async function draftText(
     })
   } catch (err) {
     console.warn('[proposal-generators] AI draft failed', err)
-    return null
+    return { ok: false, reason: 'failed' }
   }
   const parsed = DraftSchema.safeParse(raw)
-  if (!parsed.success) return null
+  if (!parsed.success) return { ok: false, reason: 'failed' }
   await bumpAiUsage(organizationId, AI_KIND)
-  return parsed.data.text.trim()
+  return { ok: true, text: parsed.data.text.trim() }
 }
 
 /** Cheap existence check so we never spend an AI draft on an already-claimed
@@ -374,14 +437,21 @@ Additional rules:
 - No signature block — the email template signs for the clinic.`,
       user: `Their name: ${lead.name}\n${lead.preferredDate ? `Preferred date they mentioned: ${lead.preferredDate}\n` : ''}Their message:\n${lead.message?.trim() || '(no message — they just left contact details)'}\n\nDraft the reply email body.`,
     })
-    if (!draft) break
+    if (!draft.ok) {
+      // Same law as the review generator (round-2/3 audits): org-global
+      // refusals end the pass; one un-draftable inquiry skips only itself —
+      // otherwise the newest-first ordering lets a single poisoned lead
+      // starve every older inquiry behind it for its whole 7-day window.
+      if (draft.reason === 'not_configured' || draft.reason === 'no_allowance') break
+      continue
+    }
 
     const { filed: ok } = await fileProposal({
       organizationId,
       capability: 'inquiry_response',
       sourceKey,
       title: `Answer ${first}’s website inquiry`,
-      body: draft,
+      body: draft.text,
       payload: {
         leadId: lead.id,
         subject: `Your question for ${clinicName}`,
@@ -458,14 +528,14 @@ Additional rules:
 - NEVER invent events, offers, staff names, or anything clinic-specific you weren't told.`,
     user: `Draft one post the clinic could publish this week.`,
   })
-  if (!draft) return 0
+  if (!draft.ok) return 0
 
   const { filed } = await fileProposal({
     organizationId,
     capability: 'social_post',
     sourceKey,
     title: `Your channels have been quiet — post this?`,
-    body: draft,
+    body: draft.text,
     payload: { accountIds: channels.map((c) => c.accountId) },
     expiresAt: new Date(now.getTime() + 21 * DAY_MS),
   })

@@ -251,8 +251,11 @@ export default async function MyDayPage() {
         )}
       </section>
 
-      {/* Personal morning-email switch — only when the clinic sends the digest. */}
-      {digestEnabled && <DigestToggle initialOptedOut={digestOptOut} />}
+      {/* Personal email switch — ALWAYS rendered (round-3 audit): this one
+          opt-out mutes both the morning digest AND the Monday week-in-review,
+          and the weekly email goes to every clinic, so hiding the control
+          behind the digest org-toggle left the weekly one unstoppable. */}
+      <DigestToggle initialOptedOut={digestOptOut} digestEnabled={digestEnabled} />
     </div>
   )
 }

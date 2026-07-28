@@ -162,6 +162,40 @@ export async function expireStaleProposals(organizationId?: string): Promise<num
   return rows.length
 }
 
+/**
+ * Reopen approvals stranded by a process death: status='approved' with no
+ * executedAt, decided long enough ago that no live executor can still be
+ * running. Without this, a container replacement mid-approve (deploys do
+ * this routinely) swallowed the yes forever — the card left the inbox, no
+ * ledger entry wrote, and the claimed sourceKey blocked a re-file (round-3
+ * audit). Reopening is safe because every executor self-guards a rerun:
+ * review/inquiry re-read their source rows, the campaign reuses its row
+ * behind sendCampaign's duplicate-send claim, social supersedes/retires via
+ * payload.socialPostId. The one residual window (an inquiry email delivered
+ * in the same instant the process died, before markLeadContacted) is
+ * accepted: it needs three simultaneous failures, and the alternative —
+ * silently losing approved work — is the thing this phase forbids.
+ */
+export async function reconcileStrandedApprovals(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - 30 * 60 * 1000)
+  const rows = await db
+    .update(schema.proposal)
+    .set({ status: 'open', decidedAt: null, decidedByUserId: null, updatedAt: now })
+    .where(
+      and(
+        eq(schema.proposal.organizationId, organizationId),
+        eq(schema.proposal.status, 'approved'),
+        isNull(schema.proposal.executedAt),
+        lt(schema.proposal.decidedAt, cutoff),
+      ),
+    )
+    .returning({ id: schema.proposal.id })
+  return rows.length
+}
+
 export type DecideResult =
   | { ok: true; status: 'approved' | 'declined'; message?: string }
   | { ok: false; error: string; expired?: boolean }
@@ -271,7 +305,12 @@ export async function approveProposal(
     exec = await executeProposal(claimed)
   } catch (e) {
     await reopen(organizationId, proposalId)
-    return { ok: false, error: (e as Error).message || 'Something went wrong — nothing was sent.' }
+    // A raw exception message here is developer-speak ('Campaign missing
+    // subject') on the most trust-critical card in the product — log it,
+    // answer in the voice (round-3 audit). Executors that can fail in ways
+    // worth explaining return ok:false with their own friendly text instead.
+    console.error('[proposals] executor threw:', e)
+    return { ok: false, error: 'Something went wrong on my side — nothing went out. Give it another try in a minute.' }
   }
   if (!exec.ok) {
     if (exec.expired) {
@@ -327,7 +366,9 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? 
 async function executeProposal(p: typeof schema.proposal.$inferSelect): Promise<ExecResult> {
   // Demo proposals SIMULATE: the inbox demoes the full approve flow without
   // networking (same demo-safe law as Zernio/PMS). The ledger entry still
-  // writes, so the demo standup tells the story too.
+  // writes and shows on the activity surfaces — though not on the standup
+  // card, which narrates the PRIOR week only (the demo seeder backdates its
+  // own entries into that window for exactly this reason).
   if (p.isDemo === 1) {
     return { ok: true, ledgerSummary: demoLedgerSummary(p), ledgerDetail: { simulated: true } }
   }
@@ -508,20 +549,28 @@ async function executeInquiryResponse(
     .split(/\n{2,}/)
     .map((para) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#333333;">${escapeHtml(para.trim()).replace(/\n/g, '<br/>')}</p>`)
     .join('')
-  // deliver() throws on transport failure — the approve wrapper catches and
-  // reopens the proposal, so a failed send is never silently lost.
-  await deliver({
-    to: lead.email,
-    subject,
-    html: authEmailShell({
-      heading: subject,
-      introHtml: paragraphs,
-      footnoteHtml: `You asked us a question through our website — this is our reply. Call or write back any time.`,
-    }),
-    from: sender.from,
-    replyTo: sender.replyTo,
-    ...(sender.gmail ? { gmail: sender.gmail } : {}),
-  })
+  // deliver() maps transport failures to reader-safe messages
+  // (friendlyEmailError) before throwing — catch here and return them as the
+  // executor's own error so the approve wrapper reopens WITH that useful
+  // text instead of genericizing it (round-3 audit: the wrapper's catch is
+  // for unexpected throws only).
+  try {
+    await deliver({
+      to: lead.email,
+      subject,
+      html: authEmailShell({
+        heading: subject,
+        introHtml: paragraphs,
+        footnoteHtml: `You asked us a question through our website — this is our reply. Call or write back any time.`,
+      }),
+      from: sender.from,
+      replyTo: sender.replyTo,
+      ...(sender.gmail ? { gmail: sender.gmail } : {}),
+    })
+  } catch (e) {
+    const msg = e instanceof Error && e.message ? e.message : ''
+    return { ok: false, error: msg || 'The email didn’t go out — nothing was sent. Try again in a minute.' }
+  }
   // The email is OUT — from here on, best-effort only. If the status flip
   // failed and this threw, the approve wrapper would reopen the proposal and
   // a second Approve would email the same person twice (round-1 audit).
@@ -547,6 +596,26 @@ async function executeOutreachCampaign(
   const name = str(payload.name) ?? subject ?? 'Outreach campaign'
   if (!audienceId || !subject) return { ok: false, error: 'This proposal is missing its audience or subject.' }
 
+  // Staleness (round-3 audit — the same at-the-tap re-check the review and
+  // inquiry executors do): this card was filed on a QUIET recall engine. If
+  // the clinic has since run a campaign of its own (or scheduled one), the
+  // premise printed on the card is false and approving it would blast the
+  // same recall patients twice — retire it instead. Best-effort: an
+  // unreadable snapshot never blocks a send.
+  try {
+    const { getRecallStats } = await import('@/lib/services/recall-stats')
+    const stats = await getRecallStats(p.organizationId)
+    if (stats.recentSends.length > 0 || stats.upcomingSends.length > 0) {
+      return {
+        ok: false,
+        error: 'A campaign already went out (or is scheduled) since I drafted this — I retired this card so nobody gets emailed twice.',
+        expired: true,
+      }
+    }
+  } catch {
+    // fall through — the frequency cap still guards the send itself
+  }
+
   const [{ createMarketingCampaign }, { sendCampaign }] = await Promise.all([
     import('@/lib/services/marketing-campaigns'),
     import('@/lib/services/marketing-send'),
@@ -558,6 +627,32 @@ async function executeOutreachCampaign(
   // sendCampaign's own duplicate-send claim instead of re-blasting the
   // audience through a fresh row (round-1 Phase-2 audit).
   let campaignId = typeof payload.campaignId === 'number' ? (payload.campaignId as number) : null
+  if (campaignId != null) {
+    // REUSED row (a prior approve failed and reopened): sync the CURRENT
+    // proposal body + subject onto it before sending — staff routinely edit
+    // the copy between attempts, and "the edited text is what executes" is
+    // the schema's contract (round-2 audit). Round-3 refinements: the sync
+    // only touches rows sendCampaign could still send (draft/scheduled/
+    // paused) — an 'active'/'completed' row already went out and its record
+    // must never be rewritten to copy nobody received; and a row STAFF
+    // DELETED (a stray draft from a failed approve looks like clutter)
+    // un-stamps the id so the retry mints fresh instead of failing forever.
+    const [existing] = await db
+      .select({ id: schema.campaigns.id, status: schema.campaigns.status })
+      .from(schema.campaigns)
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
+      .limit(1)
+    if (!existing) {
+      campaignId = null
+    } else if (existing.status === 'draft' || existing.status === 'scheduled' || existing.status === 'paused') {
+      await db
+        .update(schema.campaigns)
+        .set({ subject, bodyHtml: textToCampaignHtml(p.body), updatedAt: new Date() })
+        .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
+    }
+    // Any other status: skip the sync — sendCampaign's duplicate-send claim
+    // below turns this into the already_sending retirement.
+  }
   if (campaignId == null) {
     const campaign = await createMarketingCampaign(
       p.organizationId,
@@ -576,16 +671,6 @@ async function executeOutreachCampaign(
       .update(schema.proposal)
       .set({ payload: { ...payload, campaignId }, updatedAt: new Date() })
       .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
-  } else {
-    // REUSED row (a prior approve failed and reopened): sync the CURRENT
-    // proposal body + subject onto it before sending — staff routinely edit
-    // the copy between attempts, and "the edited text is what executes" is
-    // the schema's contract. Without this, the retry sent the pre-edit
-    // draft while the ledger narrated the edit as approved (round-2 audit).
-    await db
-      .update(schema.campaigns)
-      .set({ subject, bodyHtml: textToCampaignHtml(p.body), updatedAt: new Date() })
-      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
   }
 
   // The approver's id keeps sendCampaign's own campaign_send ledger writer
@@ -617,6 +702,45 @@ async function executeOutreachCampaign(
     ok: true,
     ledgerSummary: `Sent “${subject}” to ${r.sent} ${r.sent === 1 ? 'patient' : 'patients'} — you approved it`,
     ledgerDetail: { campaignId, sent: r.sent, suppressed: r.suppressed ?? 0 },
+  }
+}
+
+/**
+ * The approved inquiry reply, for the lead drawer's "What we sent" block
+ * (round-3 audit): the inquiry executor is the one whose artifact lands on
+ * no other surface — review replies live on the review, posts on
+ * /growth/social, campaigns on their campaign row — so the proposal row
+ * itself is the record. Keyed by the executor's own sourceKey; approved
+ * rows only (a decline/expiry sent nothing).
+ */
+export async function getSentInquiryReply(
+  organizationId: string,
+  leadId: string,
+): Promise<{ subject: string | null; body: string; sentAt: Date | null; simulated: boolean } | null> {
+  const [row] = await db
+    .select({
+      body: schema.proposal.body,
+      payload: schema.proposal.payload,
+      executedAt: schema.proposal.executedAt,
+      decidedAt: schema.proposal.decidedAt,
+      isDemo: schema.proposal.isDemo,
+    })
+    .from(schema.proposal)
+    .where(
+      and(
+        eq(schema.proposal.organizationId, organizationId),
+        eq(schema.proposal.sourceKey, `inquiry_response:${leadId}`),
+        eq(schema.proposal.status, 'approved'),
+      ),
+    )
+    .limit(1)
+  if (!row) return null
+  const payload = (row.payload ?? {}) as Record<string, unknown>
+  return {
+    subject: typeof payload.subject === 'string' ? payload.subject : null,
+    body: row.body,
+    sentAt: row.executedAt ?? row.decidedAt,
+    simulated: row.isDemo === 1,
   }
 }
 

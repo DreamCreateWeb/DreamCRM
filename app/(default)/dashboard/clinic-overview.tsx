@@ -115,6 +115,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             author: typeof rawCtx.author === 'string' ? rawCtx.author : null,
             starRating: typeof rawCtx.starRating === 'number' ? rawCtx.starRating : null,
             text: typeof rawCtx.text === 'string' ? rawCtx.text : null,
+            // The date an inquiry asked about — a date-only inquiry's whole
+            // statement (round-3 audit; the card renders it).
+            preferredDate: typeof rawCtx.preferredDate === 'string' ? rawCtx.preferredDate : null,
           }
         : null
     return {

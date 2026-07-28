@@ -34,8 +34,17 @@ export interface ProposalCardData {
   subject: string | null
   /** Extra context line ("goes to ~41 patients", "posts to 2 channels"). */
   meta: string | null
-  /** The thing being answered, quoted above the draft. */
-  context: { kind: string; author: string | null; starRating: number | null; text: string | null } | null
+  /** The thing being answered, quoted above the draft. preferredDate rides
+   *  along for inquiries (round-3 audit: a date-only inquiry otherwise
+   *  rendered NO context, and staff approved a reply that might contradict
+   *  a requested date they never saw). */
+  context: {
+    kind: string
+    author: string | null
+    starRating: number | null
+    text: string | null
+    preferredDate?: string | null
+  } | null
 }
 
 const CAPABILITY_ICON: Record<string, string> = {
@@ -125,6 +134,13 @@ function ProposalCard({
 
   const decide = (decision: 'approve' | 'decline') => {
     setError(null)
+    // A blanked subject must never silently fall back to the original —
+    // what the card shows is what sends (round-3 audit; the server's own
+    // empty-subject guard is only reachable when we transmit the field).
+    if (decision === 'approve' && proposal.subject != null && !subject.trim()) {
+      setError('The subject can’t be empty — give it a few words first.')
+      return
+    }
     startTransition(async () => {
       const r =
         decision === 'approve'
@@ -168,10 +184,17 @@ function ProposalCard({
         </div>
       </div>
 
-      {/* What we're answering — never approve a public reply blind. */}
-      {proposal.context?.text && (
+      {/* What we're answering — never approve a public reply blind. A
+          date-only inquiry (no message) still shows its one statement: the
+          date they asked about (round-3 audit). */}
+      {proposal.context && (proposal.context.text || proposal.context.preferredDate) && (
         <blockquote className="mt-3 border-l-2 border-gray-300 dark:border-gray-600 pl-3 text-xs text-gray-500 dark:text-gray-400">
-          <p className="whitespace-pre-wrap">“{proposal.context.text}”</p>
+          {proposal.context.text && <p className="whitespace-pre-wrap">“{proposal.context.text}”</p>}
+          {proposal.context.preferredDate && (
+            <p className={proposal.context.text ? 'mt-1' : ''}>
+              Asked about: <span className="font-medium">{proposal.context.preferredDate}</span>
+            </p>
+          )}
           <footer className="mt-1 not-italic">
             — {proposal.context.author?.trim() || 'Anonymous'}
             {proposal.context.starRating != null ? `, ${proposal.context.starRating}★` : ''}
