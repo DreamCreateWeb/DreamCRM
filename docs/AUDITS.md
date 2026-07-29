@@ -168,6 +168,68 @@ promotes items into phases; nothing here is a commitment until he does.
 
 *(newest first)*
 
+### Phase 3 — the autonomy ladder live ("always do this for me")
+
+**Status: IN AUDIT.** Round 1 closed 2026-07-29. v2 gate, four Opus lenses
+(claims · law · resilience · depth) → one skeptic → one judge → main-loop
+confirmation against the cited code before any fix.
+
+- **Round 1** (range `6fe9276..d4ed2cd`): the four lenses returned 29 raw
+  findings → 12 deduped defect candidates + 3 depth candidates. The
+  skeptic **confirmed 11 of 12** (one rejected: per-proposal re-reading of
+  trust inside the driver loop — read-then-execute is inherently TOCTOU,
+  the claim is atomic, and in-flight work must complete). The judge ruled
+  **all three depth candidates IN_PHASE**, and filed one of its own
+  (silent permanent autonomous failure) as a near-duplicate of the Phase-2
+  backlog. One critical was found and fixed by the main loop before the
+  chambers ran.
+- **Round-1 fixes (all shipped, commits `6173d02` + `9a86bda`):**
+  - **CRITICAL — every autonomous campaign would have failed forever.**
+    `createMarketingCampaign` was handed the string `'machine'` as
+    `createdBy`, a nullable FK to `user.id`; the insert would throw, the
+    card would reopen, and the retry loop would repeat hourly while the
+    card told the clinic it was handled. Now `null`; the parameter is
+    `string | null` by contract. The `'machine'` sentinel stays only on
+    `sendCampaign`'s never-stored `initiatedByUserId`.
+  - **The machine may not be its own witness.**
+    `countConsecutiveUneditedApprovals` had no `decidedByUserId`
+    predicate, so grant → six autonomous approvals → revoke left the next
+    card saying "you've said yes to the last 6 without changing a word".
+    Human decisions only; a **decline** now breaks the run (the judge's
+    D-C); a **subject-only edit** counts as an edit.
+  - **A settings change is not work.** Grant/revoke entries file under the
+    capability they change, so the standup counted them ("1 review reply"
+    in a week with zero replies) and could quote the switch as a story.
+    `countActionsSince` filters non-work rows in SQL; the story loop uses
+    the shared `isWorkEntry`.
+  - **THE HAND-BACK — autonomy could fail forever, silently.** A failed
+    autonomous execution reopened a card that is excluded from every
+    "waiting on you" count, under copy promising it goes out within the
+    hour, with the expiry pushed 3 more days every hour, unbounded. After
+    `AUTO_FAILURE_LIMIT` (2) consecutive autonomous failures the machine
+    stops trying, narrates one "I couldn't" note, the card counts as
+    waiting on a human again, the driver skips it, and the expiry stops
+    being extended.
+  - **No 3 AM mass emails.** Under ask-first the send hour was implicitly
+    gated by staff approving during office hours; autonomy removed the
+    human and the cron runs UTC. Patient-inbox capabilities now wait for
+    08:00–19:00 clinic-local — the rule `retention-automation.ts` already
+    followed.
+  - **THE TELL (depth D-A).** Three strings promised a "diary" that never
+    existed, and autonomous work was invisible until the next Monday's
+    aggregate standup, which never marked what the machine did alone. The
+    Overview strip now lists it — per-capability counts for the last 7
+    days plus the newest line verbatim, honest zero state, no new page.
+  - **Say what is being handed over (depth D-B).** The grant is
+    capability-wide, so a tick on a warm 5★ reply also hands over 1–2★
+    reviews; the consent line says so.
+  - Attribution asserted only when knowable; the inbox truncation notice
+    compares against its own population; a failed grant after a successful
+    approve is reported instead of swallowed; the two-part toast joins its
+    sentences; the demo hedges everywhere the grant promises delivery.
+  - Tests 5,626 → 5,646 (23 new pins incl. the harness now modelling the
+    jsonb payload probes rather than an opaque token — fixture realism).
+
 ### Phase 2 — the voice (proposals · Approval Inbox · weekly standup)
 
 **Status: CLOSED CLEAN 2026-07-28 — verification round 6 returned ZERO
