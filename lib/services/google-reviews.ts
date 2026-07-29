@@ -654,6 +654,22 @@ const DEMO_GOOGLE_REVIEWS: DemoReviewSeed[] = [
     replyDaysAgo: 15,
   },
   {
+    // Third REPLIED review — with demo_gr_1 and demo_gr_3 it gives the
+    // Approval Inbox's earned-trust history a run of three real,
+    // identity-anchored replies (Phase 3: the demo review card's "you've
+    // said yes to the last 3 without changing a word" line reads these).
+    externalReviewId: 'demo_gr_8',
+    reviewerName: 'Grace Okoye',
+    reviewerPhotoUrl: null,
+    starRating: 5,
+    comment:
+      'Chipped a tooth on a Friday, they fit me in the same afternoon and had it fixed before the weekend. Kind, fast, zero drama.',
+    daysAgo: 24,
+    replyComment:
+      'Thank you, Grace — a chipped tooth should never ruin a weekend. We’re glad we could catch it in time. — Dream Dental',
+    replyDaysAgo: 23,
+  },
+  {
     externalReviewId: 'demo_gr_4',
     reviewerName: 'Daniel Okafor',
     reviewerPhotoUrl: null,

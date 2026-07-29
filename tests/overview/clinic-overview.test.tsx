@@ -30,9 +30,17 @@ vi.mock('@/lib/services/staff-onboarding', () => ({
 // Phase 2 (the voice): the Overview now also loads the Approval Inbox +
 // weekly standup — mocked empty/quiet by default; the dedicated suite below
 // exercises the populated states.
-const { mockListOpenProposals, mockCountOpenProposals, mockBuildStandup } = vi.hoisted(() => ({
+const {
+  mockListOpenProposals,
+  mockCountOpenProposals,
+  mockUneditedRun,
+  mockListTrustGrants,
+  mockBuildStandup,
+} = vi.hoisted(() => ({
   mockListOpenProposals: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
   mockCountOpenProposals: vi.fn(async (..._a: unknown[]) => 0),
+  mockUneditedRun: vi.fn(async (..._a: unknown[]) => 0),
+  mockListTrustGrants: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
   mockBuildStandup: vi.fn(async (..._a: unknown[]) => ({
     weekStart: new Date('2026-05-10T05:00:00Z'),
     weekEnd: new Date('2026-05-17T05:00:00Z'),
@@ -51,16 +59,25 @@ const { mockListOpenProposals, mockCountOpenProposals, mockBuildStandup } = vi.h
 vi.mock('@/lib/services/proposals', () => ({
   listOpenProposals: mockListOpenProposals,
   countOpenProposals: mockCountOpenProposals,
+  countConsecutiveUneditedApprovals: mockUneditedRun,
 }))
+vi.mock('@/lib/services/autonomy', () => ({ listTrustGrants: mockListTrustGrants }))
 // The inbox cards' server actions — mocked so interaction tests never touch
 // requireTenant/db, and so we can assert an action was NOT called.
 const { mockApproveAction, mockDeclineAction } = vi.hoisted(() => ({
   mockApproveAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, message: 'Done — it went out.' })),
   mockDeclineAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, message: 'Okay — I won’t ask about this one again.' })),
 }))
+const { mockSetAutonomyAction } = vi.hoisted(() => ({
+  mockSetAutonomyAction: vi.fn(async (..._a: unknown[]) => ({
+    ok: true as const,
+    message: 'From now on I’ll handle “Reply to Google reviews” on my own — you’ll see each one in the diary.',
+  })),
+}))
 vi.mock('@/app/(default)/dashboard/actions', () => ({
   approveProposalAction: mockApproveAction,
   declineProposalAction: mockDeclineAction,
+  setAutonomyAction: mockSetAutonomyAction,
 }))
 vi.mock('@/lib/services/standup', () => ({ buildWeeklyStandup: mockBuildStandup }))
 // The inbox's client cards call useRouter().refresh() after a decision.
@@ -885,6 +902,116 @@ describe('the Approval Inbox on the Overview', () => {
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText('Waiting on your yes')).not.toBeInTheDocument()
+  })
+})
+
+describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
+  const reviewCard = {
+    id: 'prop_r',
+    capability: 'review_reply',
+    capabilityLabel: 'Reply to Google reviews',
+    patientId: null,
+    title: 'Reply to Rob’s 2-star Google review',
+    body: 'Rob, thank you for telling us.',
+    payload: { externalReviewId: 'r1' },
+    status: 'open',
+    createdAt: new Date('2026-05-19T12:00:00Z'),
+    expiresAt: null,
+  }
+
+  it('offers the hand-over on a grantable card — NEVER pre-ticked, and granting only rides a SUCCESSFUL approve', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    const box = screen.getByRole('checkbox', { name: /handle these for me on your own/i })
+    expect(box).not.toBeChecked() // nothing grants itself autonomy
+    // Approving WITHOUT ticking never grants.
+    fireEvent.click(screen.getByRole('button', { name: /approve — send it/i }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mockSetAutonomyAction).not.toHaveBeenCalled()
+  })
+
+  it('ticking the box + approving hands the job over — after the work went out', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    fireEvent.click(screen.getByRole('checkbox', { name: /handle these for me on your own/i }))
+    fireEvent.click(screen.getByRole('button', { name: /approve — send it/i }))
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mockApproveAction).toHaveBeenCalled()
+    expect(mockSetAutonomyAction).toHaveBeenCalledWith({ capability: 'review_reply', level: 'auto' })
+  })
+
+  it('a FAILED approve never hands over the keys', async () => {
+    mockApproveAction.mockResolvedValueOnce({ ok: false, error: 'Google said no' } as never)
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    fireEvent.click(screen.getByRole('checkbox', { name: /handle these for me on your own/i }))
+    fireEvent.click(screen.getByRole('button', { name: /approve — send it/i }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mockSetAutonomyAction).not.toHaveBeenCalled()
+  })
+
+  it('suggests the hand-over only after a real run of unedited yeses', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    mockUneditedRun.mockResolvedValueOnce(4)
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/said yes to the last 4 of these without changing a word/i)).toBeInTheDocument()
+  })
+
+  it('stays quiet below the threshold — a suggestion is earned, not nagged', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    mockUneditedRun.mockResolvedValueOnce(2)
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/without changing a word/i)).not.toBeInTheDocument()
+  })
+
+  it('a card whose capability is ALREADY automatic tells the truth: it goes out on its own, and offers no second hand-over', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
+      { capability: 'social_post', label: 'Publish social & Google posts', level: 'ask' },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/goes out on its own within the hour/i)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /handle these for me on your own/i })).toBeNull()
+  })
+
+  it('the take-it-back strip lists what was handed over and gives one tap back — and SURVIVES an empty inbox (autonomy empties it)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([]) // granted work leaves no cards
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/I handle these on my own now/i)).toBeInTheDocument()
+    expect(screen.getByText('Reply to Google reviews')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /go back to asking before Reply to Google reviews/i }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mockSetAutonomyAction).toHaveBeenCalledWith({ capability: 'review_reply', level: 'ask' })
+  })
+
+  it('no grants, no strip — the Overview stays quiet for a clinic that hasn’t handed anything over', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/I handle these on my own now/i)).not.toBeInTheDocument()
   })
 })
 

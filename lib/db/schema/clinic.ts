@@ -2081,6 +2081,12 @@ export const proposal = pgTable(
     title: text('title').notNull(),
     // The finished work product, editable by staff before approval.
     body: text('body').notNull(),
+    // The machine's draft AS FILED, stashed the first time staff approve
+    // with edits (null = approved exactly as written). Phase 3's earned-
+    // trust signal reads this: a run of unedited yeses is the evidence
+    // behind "want me to just handle these?" — and it preserves the
+    // sent-as-written vs rewrote-it distinction the ledger can't recover.
+    originalBody: text('original_body'),
     // Executable facts the executor needs (externalReviewId, leadId,
     // audienceId, subject, recipientCount, accountIds…).
     payload: jsonb('payload'),

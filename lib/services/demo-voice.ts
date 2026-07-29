@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -48,6 +48,22 @@ export async function seedDemoVoice(
 
   await seedLedger(organizationId, personas, now)
   await seedProposals(organizationId, now)
+  await resetAutonomy(organizationId)
+}
+
+/**
+ * Delete-and-reseed for the LADDER (Phase 3): a demo session may grant
+ * "always do this for me" (the toast + strip must work in demos), but a
+ * grant left behind would make the reseeded inbox incoherent — cards for a
+ * capability the strip says is automatic, which the demo cron (skipped for
+ * demo orgs) would never execute. Every resync returns the demo to
+ * ask-first across the board.
+ */
+async function resetAutonomy(organizationId: string): Promise<void> {
+  await db
+    .update(schema.clinicProfile)
+    .set({ autonomy: null })
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
 // ── The ledger entries behind the standup card ───────────────────────────────
@@ -63,7 +79,7 @@ async function seedLedger(
     .where(
       and(
         eq(schema.actionLedger.organizationId, organizationId),
-        sql`(${schema.actionLedger.id} like 'act_demo_%' or ${schema.actionLedger.detail}->>'proposalId' like 'prop_demo_%')`,
+        sql`(${schema.actionLedger.id} like 'act_demo_%' or ${schema.actionLedger.detail}->>'proposalId' like 'prop_demo_%' or ${schema.actionLedger.detail}->>'autonomyChange' is not null)`,
       ),
     )
 
@@ -347,6 +363,64 @@ No judgment — life gets busy. Pick a time that works and we’ll take care of 
         expiresAt: new Date(now.getTime() + 14 * DAY),
         isDemo: 1,
         createdAt: new Date(now.getTime() - 30 * HOUR),
+      })
+      .onConflictDoNothing()
+  }
+
+  await seedApprovedHistory(organizationId, now)
+}
+
+/**
+ * The EARNED-TRUST history (Phase 3): three past review replies the clinic
+ * approved exactly as written (originalBody null = unedited), so the demo's
+ * open review card shows the real suggestion — "you've said yes to the last
+ * 3 of these without changing a word". Anchored BY IDENTITY to the demo
+ * reviews that actually carry a reply (demo_gr_1/3/8): a seeded "we replied
+ * to this" for a review with no reply on it would be fake content, and the
+ * count must read the same rows the reviews page shows. Missing review →
+ * skip that entry, never substitute another.
+ */
+async function seedApprovedHistory(organizationId: string, now: Date): Promise<void> {
+  const REPLIED = ['demo_gr_1', 'demo_gr_3', 'demo_gr_8'] as const
+  const rows = await db
+    .select({
+      externalReviewId: schema.platformReview.externalReviewId,
+      reviewerName: schema.platformReview.reviewerName,
+      replyComment: schema.platformReview.replyComment,
+    })
+    .from(schema.platformReview)
+    .where(
+      and(
+        eq(schema.platformReview.organizationId, organizationId),
+        inArray(schema.platformReview.externalReviewId, [...REPLIED]),
+        sql`${schema.platformReview.replyComment} is not null`,
+      ),
+    )
+  let n = 0
+  for (const r of rows) {
+    n++
+    const first = r.reviewerName?.trim().split(/\s+/)[0] ?? 'a patient'
+    const decidedAt = new Date(now.getTime() - n * 2 * DAY)
+    await db
+      .insert(schema.proposal)
+      .values({
+        id: `prop_demo_hist_${n}_${organizationId.slice(0, 8)}`,
+        organizationId,
+        capability: 'review_reply',
+        sourceKey: `review_reply:${r.externalReviewId}`,
+        title: `Reply to ${first}’s Google review`,
+        // The body IS the reply that sits on the review — the history says
+        // "this went out", so it must match what actually went out.
+        body: r.replyComment ?? '',
+        // null originalBody = approved without a single edit; that is the
+        // whole signal the suggestion counts.
+        originalBody: null,
+        payload: { externalReviewId: r.externalReviewId },
+        status: 'approved',
+        decidedAt,
+        executedAt: decidedAt,
+        isDemo: 1,
+        createdAt: new Date(decidedAt.getTime() - 3 * HOUR),
       })
       .onConflictDoNothing()
   }

@@ -22,6 +22,7 @@ interface ProposalRow {
   title: string
   body: string
   payload: Record<string, unknown> | null
+  originalBody: string | null
   status: string
   decidedAt: Date | null
   decidedByUserId: string | null
@@ -39,10 +40,11 @@ const store: {
   postTargets: Array<Record<string, unknown>>
   socialPosts: Array<Record<string, unknown>>
   campaigns: Array<Record<string, unknown>>
+  profiles: Array<Record<string, unknown>>
   /** When true, the next UPDATE that stamps executedAt throws — the
    *  bookkeeping-after-success failure the reopen region must NOT catch. */
   failExecutedAtStamp: boolean
-} = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], failExecutedAtStamp: false }
+} = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], profiles: [], failExecutedAtStamp: false }
 
 const { recordActionMock, hasEntryForProposalMock } = vi.hoisted(() => ({
   recordActionMock: vi.fn(async (..._a: unknown[]) => true),
@@ -106,6 +108,7 @@ vi.mock('@/lib/db', () => {
     if (name === 'social_post_target') return store.postTargets
     if (name === 'social_post') return store.socialPosts
     if (name === 'campaigns') return store.campaigns
+    if (name === 'clinic_profile') return store.profiles
     return []
   }
 
@@ -234,6 +237,7 @@ vi.mock('@/lib/db', () => {
       sourceKey: col('sourceKey'),
       title: col('title'),
       body: col('body'),
+      originalBody: col('originalBody'),
       payload: col('payload'),
       status: col('status'),
       decidedAt: col('decidedAt'),
@@ -274,6 +278,11 @@ vi.mock('@/lib/db', () => {
       id: col('id'),
       organizationId: col('organizationId'),
     },
+    clinicProfile: {
+      __name: 'clinic_profile',
+      organizationId: col('organizationId'),
+      autonomy: col('autonomy'),
+    },
     campaigns: {
       __name: 'campaigns',
       id: col('id'),
@@ -302,12 +311,16 @@ vi.mock('drizzle-orm', () => ({
   lt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) < val,
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
+  notInArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
+    !vals.includes(r[col.__col]),
   desc: () => 'desc',
   asc: () => 'asc',
   sql: () => 'sql',
 }))
 
 import {
+  autoExecuteProposal,
+  countConsecutiveUneditedApprovals,
   fileProposal,
   listOpenProposals,
   countOpenProposals,
@@ -333,6 +346,7 @@ function seedProposal(over: Partial<ProposalRow> = {}): ProposalRow {
     title: 'Reply to a review',
     body: 'Thank you for the kind words.',
     payload: { externalReviewId: 'r1' },
+    originalBody: null,
     status: 'open',
     decidedAt: null,
     decidedByUserId: null,
@@ -358,6 +372,7 @@ beforeEach(() => {
   ]
   store.socialPosts = []
   store.campaigns = []
+  store.profiles = [{ organizationId: ORG, autonomy: null }]
   store.failExecutedAtStamp = false
   executors.markLeadContacted.mockResolvedValue(undefined)
   executors.createSocialPost.mockImplementation(
@@ -400,6 +415,22 @@ describe('listOpenProposals / countOpenProposals', () => {
     seedProposal({ id: 'p_other_org', sourceKey: 'k4', organizationId: 'org_2' })
     const rows = await listOpenProposals(ORG)
     expect(rows.map((r) => r.id)).toEqual(['p_open'])
+    expect(await countOpenProposals(ORG)).toBe(1)
+  })
+
+  it('"waiting on your yes" EXCLUDES a capability the clinic handed over — the badge, the digest and the standup all read this count, and none of that work waits on a human (Phase 3)', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    seedProposal({ id: 'p_auto', capability: 'review_reply', sourceKey: 'ka' })
+    seedProposal({ id: 'p_ask', capability: 'social_post', sourceKey: 'kb' })
+    expect(await countOpenProposals(ORG)).toBe(1)
+    // …but the inbox still LISTS both: the count means "on you", the list
+    // means "in my hands" (the granted card renders its own honest line).
+    expect((await listOpenProposals(ORG)).map((r) => r.id).sort()).toEqual(['p_ask', 'p_auto'])
+  })
+
+  it('an unreadable trust setting counts EVERYTHING — never hide real work behind a failed read', async () => {
+    store.profiles = []
+    seedProposal({ id: 'p1', capability: 'review_reply', sourceKey: 'kc' })
     expect(await countOpenProposals(ORG)).toBe(1)
   })
 
@@ -1195,6 +1226,117 @@ describe('approveProposal — the other executors', () => {
       'demo — nothing actually went out',
     )
     if (r.ok) expect(r.message).toContain('demo — nothing actually went out')
+  })
+})
+
+describe('THE LADDER LIVE (Phase 3): autoExecuteProposal', () => {
+  it('the machine says yes to its own card: same execution, the AUTONOMOUS voice, and the ledger says autonomous — not "you approved it"', async () => {
+    const p = seedProposal()
+    const r = await autoExecuteProposal(ORG, p.id)
+    expect(r.ok).toBe(true)
+    // Identical execution to a human approve — autonomy reuses every guard.
+    expect(executors.replyToGoogleReview).toHaveBeenCalledWith(ORG, 'r1', p.body)
+    expect(p.status).toBe('approved')
+    expect(p.executedAt).toBeInstanceOf(Date)
+    // NO human is credited for work no human touched.
+    expect(p.decidedByUserId).toBeNull()
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toContain('handled on my own, as you asked')
+    expect(String(entry.summary)).not.toContain('you approved it')
+    expect(entry.detail).toMatchObject({ autonomous: true })
+    expect(entry.detail).not.toHaveProperty('approvedByUserId')
+    if (r.ok) expect(r.message).toContain('handled on my own')
+  })
+
+  it('autonomous work respects EVERY staleness guard — a review handled at the counter retires instead of double-replying', async () => {
+    store.reviews[0].replyComment = 'Handled in person'
+    const p = seedProposal()
+    const r = await autoExecuteProposal(ORG, p.id)
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('expired')
+    expect(executors.replyToGoogleReview).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('an autonomous FAILURE reopens the card — the work returns to human view, never silently lost', async () => {
+    executors.replyToGoogleReview.mockResolvedValueOnce({ ok: false, error: 'Google said no' } as never)
+    const p = seedProposal()
+    const r = await autoExecuteProposal(ORG, p.id)
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open')
+    expect((p.payload as Record<string, unknown>).approveAttempted).toBe(true)
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('an autonomous campaign still SILENCES the underlying send’s own ledger writer — one yes, one entry, whoever said it', async () => {
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'auto:k1',
+      payload: { audienceId: 5, subject: 'We miss you' },
+    })
+    const r = await autoExecuteProposal(ORG, p.id)
+    expect(r.ok).toBe(true)
+    // decidedByUserId is null for autonomy, so the sentinel must ride —
+    // a null initiator would make sendCampaign narrate campaign_send too.
+    const call = executors.sendCampaign.mock.calls[0][0] as Record<string, unknown>
+    expect(call.initiatedByUserId).toBe('machine')
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).capability).toBe('outreach_campaign')
+  })
+
+  it('a DEMO card’s autonomous narration keeps both hedges — the demo hedge AND the honest voice', async () => {
+    const p = seedProposal({ isDemo: 1 })
+    const r = await autoExecuteProposal(ORG, p.id)
+    expect(r.ok).toBe(true)
+    const summary = String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)
+    expect(summary).toContain('handled on my own')
+    expect(summary).toContain('demo — nothing actually went out')
+  })
+})
+
+describe('EARNED TRUST (Phase 3): originalBody + the unedited run', () => {
+  it('approving WITH edits stashes the machine’s draft as filed; approving as written leaves it null', async () => {
+    const edited = seedProposal({ sourceKey: 'trust:k1' })
+    const draft = edited.body
+    await approveProposal(ORG, edited.id, 'user_1', { body: 'Rob — my own words entirely.' })
+    expect(edited.body).toBe('Rob — my own words entirely.')
+    expect(edited.originalBody).toBe(draft) // what the machine wrote, preserved
+
+    const asWritten = seedProposal({ sourceKey: 'trust:k2' })
+    await approveProposal(ORG, asWritten.id, 'user_1')
+    expect(asWritten.originalBody).toBeNull() // the signal the suggestion counts
+  })
+
+  it('a second edit never overwrites the FIRST stash — the machine’s original draft is what it is', async () => {
+    const p = seedProposal({ sourceKey: 'trust:k3', originalBody: 'the machine’s first draft' })
+    await approveProposal(ORG, p.id, 'user_1', { body: 'a later rewrite' })
+    expect(p.originalBody).toBe('the machine’s first draft')
+  })
+
+  it('an "edit" that changes nothing is not an edit — the run survives a no-op save', async () => {
+    const p = seedProposal({ sourceKey: 'trust:k4' })
+    await approveProposal(ORG, p.id, 'user_1', { body: p.body })
+    expect(p.originalBody).toBeNull()
+  })
+
+  it('countConsecutiveUneditedApprovals counts the RUN and breaks at the first edited yes', async () => {
+    const mk = (n: number, originalBody: string | null) =>
+      seedProposal({
+        sourceKey: `run:${n}`,
+        status: 'approved',
+        decidedAt: new Date(Date.now() - n * 1000),
+        originalBody,
+      })
+    mk(1, null)
+    mk(2, null)
+    mk(3, 'they rewrote this one')
+    mk(4, null)
+    expect(await countConsecutiveUneditedApprovals(ORG, 'review_reply')).toBe(2)
+  })
+
+  it('no history is no suggestion (a run of zero)', async () => {
+    expect(await countConsecutiveUneditedApprovals(ORG, 'review_reply')).toBe(0)
   })
 })
 

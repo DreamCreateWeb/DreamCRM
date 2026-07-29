@@ -1,7 +1,7 @@
 import 'server-only'
-import { and, asc, desc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { getCapability } from '@/lib/autonomy'
+import { GRANTABLE_CAPABILITIES, getCapability, resolveTrust } from '@/lib/autonomy'
 import { recordAction } from '@/lib/services/action-ledger'
 
 /**
@@ -132,10 +132,33 @@ export async function listOpenProposals(organizationId: string, limit = 12): Pro
   return rows.map(toView)
 }
 
-/** How many proposals wait on a yes (drives the inbox count + the standup's
- *  "things only you can do" line). */
+/**
+ * How many proposals WAIT ON A YES — the sidebar badge, the morning-digest
+ * line and the standup's "only you can do" list all read this, and every
+ * one of them says "waiting on your yes".
+ *
+ * So a capability the clinic handed over is EXCLUDED (Phase 3): its cards
+ * sit here for at most an hour before the machine executes them itself,
+ * and counting them would tell the clinic that work waits on them when it
+ * does not. The inbox still LISTS those cards (a courtesy preview, labelled
+ * as going out on its own) — the count means "on you", the list means
+ * "in my hands".
+ */
 export async function countOpenProposals(organizationId: string): Promise<number> {
   const now = new Date()
+  let granted: string[] = []
+  try {
+    const [profile] = await db
+      .select({ autonomy: schema.clinicProfile.autonomy })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    granted = GRANTABLE_CAPABILITIES.filter(
+      (k) => resolveTrust(profile?.autonomy ?? null, k) === 'auto',
+    )
+  } catch {
+    granted = [] // unreadable trust → count everything (never hide real work)
+  }
   const [row] = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(schema.proposal)
@@ -144,9 +167,43 @@ export async function countOpenProposals(organizationId: string): Promise<number
         eq(schema.proposal.organizationId, organizationId),
         eq(schema.proposal.status, 'open'),
         or(isNull(schema.proposal.expiresAt), gt(schema.proposal.expiresAt, now)),
+        ...(granted.length > 0 ? [notInArray(schema.proposal.capability, granted)] : []),
       ),
     )
   return Number(row?.c ?? 0)
+}
+
+/**
+ * EARNED TRUST (Phase 3): how many of this capability's most recent
+ * approvals in a row went out exactly as the machine wrote them
+ * (originalBody null = approved without edits). A run of unedited yeses is
+ * the evidence behind the card's gentle "want me to just handle these?"
+ * suggestion — the machine may SUGGEST the grant, never take it. The run
+ * breaks on the first edited approval; capped at a small window because
+ * the suggestion needs "recently and consistently", not history.
+ */
+export async function countConsecutiveUneditedApprovals(
+  organizationId: string,
+  capability: string,
+): Promise<number> {
+  const rows = await db
+    .select({ originalBody: schema.proposal.originalBody })
+    .from(schema.proposal)
+    .where(
+      and(
+        eq(schema.proposal.organizationId, organizationId),
+        eq(schema.proposal.capability, capability),
+        eq(schema.proposal.status, 'approved'),
+      ),
+    )
+    .orderBy(desc(schema.proposal.decidedAt))
+    .limit(6)
+  let run = 0
+  for (const r of rows) {
+    if (r.originalBody != null) break
+    run++
+  }
+  return run
 }
 
 /** Sweep open proposals past their expiresAt into 'expired'. Org-scoped when
@@ -307,7 +364,9 @@ export async function closeRecoveredProposal(
         summary: recovered.ledgerSummary,
         detail: {
           proposalId: p.id,
-          ...(p.decidedByUserId ? { approvedByUserId: p.decidedByUserId } : {}),
+          // A stranded APPROVED row with no decider is the machine's own
+          // yes under a standing grant — the diary says which it was.
+          ...(p.decidedByUserId ? { approvedByUserId: p.decidedByUserId } : { autonomous: true }),
           recovered: true,
           ...recovered.ledgerDetail,
         },
@@ -379,7 +438,7 @@ async function detectRecoveredWork(
     const who = review.reviewerName?.trim() || 'a patient'
     const stars = review.starRating ? `${review.starRating}-star ` : ''
     return {
-      ledgerSummary: `Replied to ${who}’s ${stars}Google review — you approved it`,
+      ledgerSummary: `Replied to ${who}’s ${stars}Google review`,
       ledgerDetail: { externalReviewId },
     }
   }
@@ -399,7 +458,7 @@ async function detectRecoveredWork(
     if (landed === 0) return null
     const snippet = p.body.length > 60 ? `${p.body.slice(0, 57)}…` : p.body
     return {
-      ledgerSummary: `Published “${snippet}” to ${landed} ${landed === 1 ? 'channel' : 'channels'} — you approved it`,
+      ledgerSummary: `Published “${snippet}” to ${landed} ${landed === 1 ? 'channel' : 'channels'}`,
       ledgerDetail: { publishedCount: landed, postId: priorPostId },
     }
   }
@@ -418,7 +477,7 @@ async function detectRecoveredWork(
     // executor's own-row check repairs stuck claims at the next tap.
     if (!campaign || (campaign.status !== 'completed' && campaign.sentAt == null)) return null
     return {
-      ledgerSummary: `Sent “${subject}” to your recall list — you approved it`,
+      ledgerSummary: `Sent “${subject}” to your recall list`,
       ledgerDetail: { campaignId },
     }
   }
@@ -454,6 +513,13 @@ export async function declineProposal(
   return { ok: true, status: 'declined' }
 }
 
+/** Who is saying yes: a staff member tapping Approve, or the machine
+ *  acting under a standing human grant (Phase 3 — the ladder live). The
+ *  actor decides the narration's voice and the ledger's attribution;
+ *  nothing else in the flow differs, so autonomy reuses every hardened
+ *  guard the human path has (dedupe, staleness, recovery, narrate-once). */
+type DecisionActor = { kind: 'human'; userId: string } | { kind: 'auto' }
+
 /**
  * Approve — the big yes. Atomically claims the open proposal (a double-tap
  * or a second staff member racing loses cleanly), executes the work with the
@@ -464,6 +530,29 @@ export async function approveProposal(
   organizationId: string,
   proposalId: string,
   userId: string,
+  opts: { body?: string; subject?: string } = {},
+): Promise<DecideResult> {
+  return decideAndExecute(organizationId, proposalId, { kind: 'human', userId }, opts)
+}
+
+/**
+ * The machine saying yes to its own proposal under a standing human grant
+ * ("always do this for me"). NOTHING here grants autonomy — the caller must
+ * have resolved the clinic's stored trust to 'auto' first; this function
+ * only executes through the same claim → execute → narrate flow as a human
+ * approve, with the honest autonomous voice. Never edits the work product.
+ */
+export async function autoExecuteProposal(
+  organizationId: string,
+  proposalId: string,
+): Promise<DecideResult> {
+  return decideAndExecute(organizationId, proposalId, { kind: 'auto' })
+}
+
+async function decideAndExecute(
+  organizationId: string,
+  proposalId: string,
+  actor: DecisionActor,
   opts: { body?: string; subject?: string } = {},
 ): Promise<DecideResult> {
   const editedBody = opts.body?.trim()
@@ -484,15 +573,26 @@ export async function approveProposal(
     return { ok: false, error: 'Keep the subject under 200 characters.' }
   }
 
-  // The subject lives inside payload jsonb — merge it before the claim so
-  // the executor (which reads the claimed row) sees the edit.
-  if (editedSubject) {
+  // One pre-claim read serves both edit flows: the subject merge (the
+  // executor reads the claimed row's payload) and the originalBody stash
+  // (Phase 3 — the machine's draft AS FILED is kept the first time staff
+  // approve with changes; a run of unedited yeses is the earned-trust
+  // signal, and null originalBody = sent exactly as written).
+  let stashOriginal: string | null = null
+  if (editedSubject || editedBody) {
     const [current] = await db
-      .select({ payload: schema.proposal.payload })
+      .select({
+        payload: schema.proposal.payload,
+        body: schema.proposal.body,
+        originalBody: schema.proposal.originalBody,
+      })
       .from(schema.proposal)
       .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
       .limit(1)
-    if (current) {
+    if (current && editedBody && current.originalBody == null && current.body !== editedBody) {
+      stashOriginal = current.body
+    }
+    if (current && editedSubject) {
       const payload = (current.payload ?? {}) as Record<string, unknown>
       await db
         .update(schema.proposal)
@@ -514,8 +614,11 @@ export async function approveProposal(
     .set({
       status: 'approved',
       decidedAt: now,
-      decidedByUserId: userId,
+      // Autonomous claims carry NO user — the ledger detail says
+      // autonomous, and recovery attribution treats null as the machine.
+      decidedByUserId: actor.kind === 'human' ? actor.userId : null,
       ...(editedBody ? { body: editedBody } : {}),
+      ...(stashOriginal != null ? { originalBody: stashOriginal } : {}),
       updatedAt: now,
     })
     .where(
@@ -537,7 +640,10 @@ export async function approveProposal(
   // invites a second Approve and a duplicate send (round-1 Phase-2 audit).
   let exec: ExecResult
   try {
-    exec = await executeProposal(claimed)
+    exec = await executeProposal(
+      claimed,
+      actor.kind === 'human' ? '— you approved it' : '— handled on my own, as you asked',
+    )
   } catch (e) {
     await reopen(claimed)
     // A raw exception message here is developer-speak ('Campaign missing
@@ -571,7 +677,7 @@ export async function approveProposal(
               summary: exec.recovered.ledgerSummary,
               detail: {
                 proposalId: claimed.id,
-                approvedByUserId: userId,
+                ...(actor.kind === 'human' ? { approvedByUserId: actor.userId } : { autonomous: true }),
                 recovered: true,
                 ...exec.recovered.ledgerDetail,
               },
@@ -625,7 +731,11 @@ export async function approveProposal(
       capability: claimed.capability,
       patientId: claimed.patientId,
       summary: exec.ledgerSummary,
-      detail: { proposalId: claimed.id, approvedByUserId: userId, ...exec.ledgerDetail },
+      detail: {
+        proposalId: claimed.id,
+        ...(actor.kind === 'human' ? { approvedByUserId: actor.userId } : { autonomous: true }),
+        ...exec.ledgerDetail,
+      },
     })
   }
   try {
@@ -696,7 +806,10 @@ type ExecResult =
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
-async function executeProposal(p: typeof schema.proposal.$inferSelect): Promise<ExecResult> {
+async function executeProposal(
+  p: typeof schema.proposal.$inferSelect,
+  saidYes: string,
+): Promise<ExecResult> {
   // Demo proposals SIMULATE: the inbox demoes the full approve flow without
   // networking (same demo-safe law as Zernio/PMS). The ledger entry is
   // written for shape + the resync cleanup sweep, and its summary doubles
@@ -708,38 +821,39 @@ async function executeProposal(p: typeof schema.proposal.$inferSelect): Promise<
   if (p.isDemo === 1) {
     return {
       ok: true,
-      ledgerSummary: `${demoLedgerSummary(p)} · demo — nothing actually went out`,
+      ledgerSummary: `${demoLedgerSummary(p, saidYes)} · demo — nothing actually went out`,
       ledgerDetail: { simulated: true },
     }
   }
   const payload = (p.payload ?? {}) as Record<string, unknown>
   switch (p.capability) {
     case 'review_reply':
-      return executeReviewReply(p, payload)
+      return executeReviewReply(p, payload, saidYes)
     case 'social_post':
-      return executeSocialPost(p, payload)
+      return executeSocialPost(p, payload, saidYes)
     case 'inquiry_response':
-      return executeInquiryResponse(p, payload)
+      return executeInquiryResponse(p, payload, saidYes)
     case 'outreach_campaign':
-      return executeOutreachCampaign(p, payload)
+      return executeOutreachCampaign(p, payload, saidYes)
     default:
       return { ok: false, error: 'I don’t know how to carry this one out yet.' }
   }
 }
 
-function demoLedgerSummary(p: typeof schema.proposal.$inferSelect): string {
+function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: string): string {
   switch (p.capability) {
-    case 'review_reply': return `Replied to a Google review — you approved it`
-    case 'social_post': return `Published the post you approved`
-    case 'inquiry_response': return `Answered a website inquiry — you approved it`
-    case 'outreach_campaign': return `Sent the campaign you approved`
-    default: return `Did the work you approved`
+    case 'review_reply': return `Replied to a Google review ${saidYes}`
+    case 'social_post': return `Published a post ${saidYes}`
+    case 'inquiry_response': return `Answered a website inquiry ${saidYes}`
+    case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
+    default: return `Did the work ${saidYes}`
   }
 }
 
 async function executeReviewReply(
   p: typeof schema.proposal.$inferSelect,
   payload: Record<string, unknown>,
+  saidYes: string,
 ): Promise<ExecResult> {
   const externalReviewId = str(payload.externalReviewId)
   if (!externalReviewId) return { ok: false, error: 'This proposal is missing its review reference.' }
@@ -770,7 +884,7 @@ async function executeReviewReply(
         error: 'It turns out this reply already went out on the earlier approve — I recorded it. Nothing posted twice.',
         expired: true,
         recovered: {
-          ledgerSummary: `Replied to ${who}’s ${stars}Google review — you approved it`,
+          ledgerSummary: `Replied to ${who}’s ${stars}Google review`,
           ledgerDetail: { externalReviewId },
         },
       }
@@ -785,7 +899,7 @@ async function executeReviewReply(
   const stars = review.starRating ? `${review.starRating}-star ` : ''
   return {
     ok: true,
-    ledgerSummary: `Replied to ${who}’s ${stars}Google review — you approved it`,
+    ledgerSummary: `Replied to ${who}’s ${stars}Google review ${saidYes}`,
     ledgerDetail: { externalReviewId },
   }
 }
@@ -793,6 +907,7 @@ async function executeReviewReply(
 async function executeSocialPost(
   p: typeof schema.proposal.$inferSelect,
   payload: Record<string, unknown>,
+  saidYes: string,
 ): Promise<ExecResult> {
   const accountIds = Array.isArray(payload.accountIds)
     ? (payload.accountIds as unknown[]).filter((v): v is string => typeof v === 'string' && !!v.trim())
@@ -830,7 +945,7 @@ async function executeSocialPost(
         error: 'It turns out this post already went out on the earlier approve — I recorded it. Nothing posted twice.',
         expired: true,
         recovered: {
-          ledgerSummary: `Published “${snippet}” to ${landed} ${landed === 1 ? 'channel' : 'channels'} — you approved it`,
+          ledgerSummary: `Published “${snippet}” to ${landed} ${landed === 1 ? 'channel' : 'channels'}`,
           ledgerDetail: { accountIds, publishedCount: landed, postId: priorPostId },
         },
       }
@@ -929,7 +1044,7 @@ async function executeSocialPost(
       : ''
   return {
     ok: true,
-    ledgerSummary: `Published “${snippet}” to ${where}${partial} — you approved it`,
+    ledgerSummary: `Published “${snippet}” to ${where}${partial} ${saidYes}`,
     ledgerDetail: { accountIds, publishedCount, postId: r.postId ?? null },
   }
 }
@@ -937,6 +1052,7 @@ async function executeSocialPost(
 async function executeInquiryResponse(
   p: typeof schema.proposal.$inferSelect,
   payload: Record<string, unknown>,
+  saidYes: string,
 ): Promise<ExecResult> {
   const leadId = str(payload.leadId)
   const subject = str(payload.subject) ?? 'About your question'
@@ -1017,7 +1133,7 @@ async function executeInquiryResponse(
   const first = lead.name.trim().split(/\s+/)[0] || 'them'
   return {
     ok: true,
-    ledgerSummary: `Answered ${first}’s website inquiry by email — you approved it`,
+    ledgerSummary: `Answered ${first}’s website inquiry by email ${saidYes}`,
     ledgerDetail: { leadId },
   }
 }
@@ -1025,6 +1141,7 @@ async function executeInquiryResponse(
 async function executeOutreachCampaign(
   p: typeof schema.proposal.$inferSelect,
   payload: Record<string, unknown>,
+  saidYes: string,
 ): Promise<ExecResult> {
   const audienceId = typeof payload.audienceId === 'number' ? payload.audienceId : null
   const subject = str(payload.subject)
@@ -1080,7 +1197,7 @@ async function executeOutreachCampaign(
         error: 'It turns out this campaign already went out on the earlier approve — I recorded it. Nobody was emailed twice.',
         expired: true,
         recovered: {
-          ledgerSummary: `Sent “${subject}” to your recall list — you approved it`,
+          ledgerSummary: `Sent “${subject}” to your recall list`,
           ledgerDetail: { campaignId },
         },
       }
@@ -1168,10 +1285,14 @@ async function executeOutreachCampaign(
 
   // The approver's id keeps sendCampaign's own campaign_send ledger writer
   // silent — this yes narrates once, here, as outreach_campaign.
+  // 'machine' is the suppression sentinel for AUTONOMOUS sends (null
+  // decidedByUserId): sendCampaign narrates campaign_send itself only when
+  // initiatedByUserId is null, and this yes must narrate exactly once,
+  // here, as outreach_campaign — whoever the actor was.
   const r = await sendCampaign({
     organizationId: p.organizationId,
     campaignId,
-    initiatedByUserId: p.decidedByUserId ?? undefined,
+    initiatedByUserId: p.decidedByUserId ?? 'machine',
   })
   if (r.skipped === 'already_sending') {
     // Our own-row check saw a sendable status moments ago, so this is a
@@ -1199,7 +1320,7 @@ async function executeOutreachCampaign(
   }
   return {
     ok: true,
-    ledgerSummary: `Sent “${subject}” to ${r.sent} ${r.sent === 1 ? 'patient' : 'patients'} — you approved it`,
+    ledgerSummary: `Sent “${subject}” to ${r.sent} ${r.sent === 1 ? 'patient' : 'patients'} ${saidYes}`,
     ledgerDetail: { campaignId, sent: r.sent, suppressed: r.suppressed ?? 0 },
   }
 }

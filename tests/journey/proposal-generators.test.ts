@@ -33,6 +33,7 @@ const proposalsSvc = vi.hoisted(() => ({
   fileProposal: vi.fn(async (..._a: unknown[]) => ({ filed: true, id: 'prop_x' })),
   expireStaleProposals: vi.fn(async () => 0),
   reconcileStrandedApprovals: vi.fn(async () => 0),
+  autoExecuteProposal: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, status: 'approved' as const })),
   // 'not_ours' = not attributable → the sweep's plain batch expiry proceeds.
   closeRecoveredProposal: vi.fn(async (..._a: unknown[]) => 'not_ours' as const),
 }))
@@ -79,7 +80,8 @@ const store: {
   leads: Array<Record<string, unknown>>
   postTargets: Array<Record<string, unknown>>
   proposals: Array<Record<string, unknown>>
-} = { orgs: [], reviews: [], leads: [], postTargets: [], proposals: [] }
+  profiles: Array<Record<string, unknown>>
+} = { orgs: [], reviews: [], leads: [], postTargets: [], proposals: [], profiles: [] }
 
 vi.mock('@/lib/db', () => {
   const tableRows = (name: string) => {
@@ -88,6 +90,7 @@ vi.mock('@/lib/db', () => {
     if (name === 'lead') return store.leads
     if (name === 'social_post_target') return store.postTargets
     if (name === 'proposal') return store.proposals
+    if (name === 'clinic_profile') return store.profiles
     return []
   }
   function select(cols?: Record<string, unknown>) {
@@ -159,6 +162,11 @@ vi.mock('@/lib/db', () => {
       status: col('status'),
       publishedAt: col('publishedAt'),
     },
+    clinicProfile: {
+      __name: 'clinic_profile',
+      organizationId: col('organizationId'),
+      autonomy: col('autonomy'),
+    },
     proposal: {
       __name: 'proposal',
       id: col('id'),
@@ -168,6 +176,7 @@ vi.mock('@/lib/db', () => {
       status: col('status'),
       payload: col('payload'),
       decidedAt: col('decidedAt'),
+      expiresAt: col('expiresAt'),
       createdAt: col('createdAt'),
       updatedAt: col('updatedAt'),
     },
@@ -195,6 +204,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import {
+  autoExecuteGrantedProposals,
   generateReviewReplyProposals,
   generateInquiryResponseProposals,
   generateSocialPostProposals,
@@ -223,7 +233,9 @@ beforeEach(() => {
   store.leads = []
   store.postTargets = []
   store.proposals = []
+  store.profiles = [{ organizationId: ORG, autonomy: null }]
   proposalsSvc.fileProposal.mockResolvedValue({ filed: true, id: 'prop_x' })
+  proposalsSvc.autoExecuteProposal.mockResolvedValue({ ok: true, status: 'approved' } as never)
 })
 
 describe('review replies', () => {
@@ -440,6 +452,62 @@ describe('quiet-engine recall campaign', () => {
       { organizationId: ORG, capability: 'outreach_campaign', sourceKey: 'outreach_campaign:recall:2026-07', status: 'declined', decidedAt: new Date('2026-07-25T15:00:00Z') },
     ]
     expect(await generateOutreachCampaignProposals(ORG, AUG, TZ)).toBe(0)
+  })
+})
+
+describe('THE LADDER LIVE (Phase 3): autoExecuteGrantedProposals', () => {
+  const openCard = (id: string, capability: string, over: Record<string, unknown> = {}) => ({
+    id, organizationId: ORG, capability, sourceKey: `k_${id}`, status: 'open',
+    payload: {}, expiresAt: new Date(NOW.getTime() + DAY), ...over,
+  })
+
+  it('executes ONLY the capabilities the clinic actually handed over', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    store.proposals = [
+      openCard('p1', 'review_reply'),
+      openCard('p2', 'social_post'), // still ask-first — must stay untouched
+    ]
+    const n = await autoExecuteGrantedProposals(ORG, NOW)
+    expect(n).toBe(1)
+    expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledTimes(1)
+    expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledWith(ORG, 'p1')
+  })
+
+  it('a clinic that granted NOTHING is never touched — no reads, no executions', async () => {
+    store.proposals = [openCard('p1', 'review_reply')]
+    expect(await autoExecuteGrantedProposals(ORG, NOW)).toBe(0)
+    expect(proposalsSvc.autoExecuteProposal).not.toHaveBeenCalled()
+  })
+
+  it('never resurrects an EXPIRED card — the machine acts only on live work', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    store.proposals = [
+      openCard('p_dead', 'review_reply', { expiresAt: new Date(NOW.getTime() - DAY) }),
+      openCard('p_live', 'review_reply', { expiresAt: null }), // no expiry = live
+    ]
+    const n = await autoExecuteGrantedProposals(ORG, NOW)
+    expect(n).toBe(1)
+    expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledWith(ORG, 'p_live')
+  })
+
+  it('one card failing never blocks its siblings, and a non-ok result is a normal outcome (retire or retry), not a crash', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    store.proposals = [openCard('p1', 'review_reply'), openCard('p2', 'review_reply'), openCard('p3', 'review_reply')]
+    proposalsSvc.autoExecuteProposal
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ ok: false, error: 'someone handled it', expired: true } as never)
+      .mockResolvedValueOnce({ ok: true, status: 'approved' } as never)
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const n = await autoExecuteGrantedProposals(ORG, NOW)
+    expect(n).toBe(1) // only the genuine success counts
+    expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledTimes(3) // all three attempted
+    err.mockRestore()
+  })
+
+  it('a clinic with no profile row resolves to nothing granted', async () => {
+    store.profiles = []
+    store.proposals = [openCard('p1', 'review_reply')]
+    expect(await autoExecuteGrantedProposals(ORG, NOW)).toBe(0)
   })
 })
 

@@ -65,6 +65,26 @@ export function getCapability(key: string): CapabilityDef | null {
 }
 
 /**
+ * The capabilities a clinic can hand over from a card (Phase 3 — "always
+ * do this for me"): exactly the proposal-backed, ask-by-default four. The
+ * auto-by-default capabilities are managed by their own feature switches
+ * (reminders, review requests, …), never through the ladder's grant flow —
+ * and nothing outside this list may ever be granted 'auto' via the ladder,
+ * so a typo'd or not-yet-registered capability can't be switched to acting
+ * on its own by accident.
+ */
+export const GRANTABLE_CAPABILITIES = [
+  'review_reply',
+  'social_post',
+  'inquiry_response',
+  'outreach_campaign',
+] as const
+
+export function isGrantable(key: string): boolean {
+  return (GRANTABLE_CAPABILITIES as readonly string[]).includes(key)
+}
+
+/**
  * Resolve a clinic's trust level for a capability from the stored overrides
  * (clinic_profile.autonomy). With no stored grant, unknown capabilities
  * resolve 'ask' — the safe floor for anything not yet registered. An explicit

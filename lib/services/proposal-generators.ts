@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { GRANTABLE_CAPABILITIES, resolveTrust } from '@/lib/autonomy'
 import { z } from 'zod'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { CORE_VOICE_RULES } from '@/lib/services/service-library-ai'
@@ -10,6 +11,7 @@ import {
   expireStaleProposals,
   reconcileStrandedApprovals,
   closeRecoveredProposal,
+  autoExecuteProposal,
 } from '@/lib/services/proposals'
 
 /**
@@ -82,13 +84,16 @@ export interface GeneratorRunResult {
   orgsScanned: number
   filed: number
   expired: number
+  /** Proposals the machine approved ITSELF under a standing human grant
+   *  (Phase 3 — the ladder live). */
+  autoExecuted: number
   errors: Array<{ organizationId: string; error: string }>
 }
 
 /** The cron entrypoint: sweep staleness, then run all four generators for
  *  every real (non-demo) clinic org. */
 export async function runProposalGenerators(now: Date = new Date()): Promise<GeneratorRunResult> {
-  const result: GeneratorRunResult = { orgsScanned: 0, filed: 0, expired: 0, errors: [] }
+  const result: GeneratorRunResult = { orgsScanned: 0, filed: 0, expired: 0, autoExecuted: 0, errors: [] }
   result.expired += await expireStaleProposals()
 
   const orgs = await db
@@ -118,6 +123,13 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
         ['inquiry_response', () => generateInquiryResponseProposals(org.id, org.name, now)],
         ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz)],
         ['outreach_campaign', () => generateOutreachCampaignProposals(org.id, now, tz)],
+        // THE LADDER LIVE (Phase 3): LAST, after the generators file — a
+        // capability the clinic switched to automatic gets its open cards
+        // executed by the machine itself, through the exact human-approve
+        // flow (claim → staleness re-checks → execute → narrate once).
+        // Freshly-filed and pre-grant cards alike; failures reopen and
+        // retry next tick under the same guards a human retry gets.
+        ['autonomy', async () => ((result.autoExecuted += await autoExecuteGrantedProposals(org.id)), 0)],
       ]
       for (const [name, run] of generators) {
         try {
@@ -131,6 +143,57 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     }
   }
   return result
+}
+
+/**
+ * Execute the open proposals of every capability this clinic has switched
+ * to automatic (Phase 3 — "always do this for me"). READS the stored trust
+ * only; nothing here can widen it. Each proposal runs through
+ * autoExecuteProposal — the same claim/staleness/recovery/narrate-once
+ * machinery as a human approve — so autonomy inherits every guard the
+ * audit hardened. Per-proposal isolation: one failure reopens that card
+ * (it retries next tick, and stays visible to humans meanwhile) and never
+ * blocks its siblings.
+ */
+export async function autoExecuteGrantedProposals(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const [profile] = await db
+    .select({ autonomy: schema.clinicProfile.autonomy })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  if (!profile) return 0
+  const granted = GRANTABLE_CAPABILITIES.filter(
+    (key) => resolveTrust(profile.autonomy, key) === 'auto',
+  )
+  if (granted.length === 0) return 0
+
+  const open = await db
+    .select({ id: schema.proposal.id, capability: schema.proposal.capability })
+    .from(schema.proposal)
+    .where(
+      and(
+        eq(schema.proposal.organizationId, organizationId),
+        eq(schema.proposal.status, 'open'),
+        inArray(schema.proposal.capability, granted),
+        or(isNull(schema.proposal.expiresAt), gte(schema.proposal.expiresAt, now)),
+      ),
+    )
+  let executed = 0
+  for (const p of open) {
+    try {
+      const r = await autoExecuteProposal(organizationId, p.id)
+      if (r.ok) executed++
+      // ok:false is a normal outcome here — a retire (someone handled the
+      // work) or a reopen (transient failure; next tick retries). Both are
+      // already narrated/guarded inside the decide flow.
+    } catch (e) {
+      console.error('[proposal-generators] auto-execute failed for', p.id, e)
+    }
+  }
+  return executed
 }
 
 /**

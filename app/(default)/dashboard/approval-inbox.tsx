@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FlashToast } from '@/components/ui/flash-toast'
-import { approveProposalAction, declineProposalAction } from './actions'
+import { isGrantable } from '@/lib/autonomy'
+import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
 
 /**
  * THE APPROVAL INBOX (Transformation Phase 2 — DESIGN.md primitive #2).
@@ -45,6 +46,10 @@ export interface ProposalCardData {
     text: string | null
     preferredDate?: string | null
   } | null
+  /** EARNED TRUST (Phase 3): how many recent approvals of this capability
+   *  in a row went out exactly as written. At 3+ the card gently suggests
+   *  the grant — a suggestion only; the box is never pre-ticked. */
+  uneditedRun?: number
 }
 
 const CAPABILITY_ICON: Record<string, string> = {
@@ -64,22 +69,44 @@ export function renderTokenSample(text: string): string {
 
 const HAS_TOKENS = /\{\{(firstName|bookingUrl)\}\}/
 
+/** A capability the clinic switched to automatic — the take-it-back strip
+ *  reads these (Phase 3: trust is reversible ALWAYS, and the way back must
+ *  live somewhere that still renders when autonomy empties the inbox). */
+export interface TrustGrantChip {
+  capability: string
+  label: string
+}
+
 export default function ApprovalInbox({
   proposals,
   totalOpen,
+  grants = [],
 }: {
   proposals: ProposalCardData[]
   /** The true open count (the sidebar badge's number) — shown when the list
    *  is truncated so the badge and the inbox never silently disagree. */
   totalOpen?: number
+  /** Capabilities currently at 'auto' for this clinic. */
+  grants?: TrustGrantChip[]
 }) {
   const [gone, setGone] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
   const visible = proposals.filter((p) => !gone.has(p.id))
   if (visible.length === 0) {
-    return toast ? <FlashToast message={toast} onDone={() => setToast(null)} /> : null
+    // The strip stays even with no cards — a granted capability produces
+    // no cards, and the way back to asking must never disappear with them.
+    return (
+      <>
+        {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+        {grants.length > 0 && <GrantsStrip grants={grants} onToast={setToast} />}
+      </>
+    )
   }
   const hiddenCount = Math.max(0, (totalOpen ?? proposals.length) - proposals.length)
+  // A granted capability's cards still sit here until the next hourly pass
+  // executes them. The header promises "say the word and they go out" — for
+  // these that is FALSE (they go out either way), so each one says so.
+  const grantedSet = new Set(grants.map((g) => g.capability))
 
   return (
     <section className="mb-8" aria-label="Waiting on your yes">
@@ -102,6 +129,7 @@ export default function ApprovalInbox({
           <ProposalCard
             key={p.id}
             proposal={p}
+            alreadyGranted={grantedSet.has(p.capability)}
             onDone={(id, message) => {
               setGone((s) => new Set(s).add(id))
               if (message) setToast(message)
@@ -109,15 +137,75 @@ export default function ApprovalInbox({
           />
         ))}
       </div>
+      {grants.length > 0 && <GrantsStrip grants={grants} onToast={setToast} />}
     </section>
+  )
+}
+
+/**
+ * "On my own" — the ladder's take-it-back strip (Phase 3). Lists what the
+ * clinic has handed over, each with one tap back to asking. Lives on the
+ * Overview because trust must be REVERSIBLE ALWAYS from a surface that
+ * still renders when autonomy has emptied the inbox — a settings page is
+ * never the way in, and a vanished inbox must never strand a grant.
+ */
+function GrantsStrip({
+  grants,
+  onToast,
+}: {
+  grants: TrustGrantChip[]
+  onToast: (message: string) => void
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [gone, setGone] = useState<Set<string>>(new Set())
+  const shown = grants.filter((g) => !gone.has(g.capability))
+  if (shown.length === 0) return null
+
+  return (
+    <div className="mt-3 mb-8 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <span>I handle these on my own now and report each one in the diary:</span>
+      {shown.map((g) => (
+        <span
+          key={g.capability}
+          className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-700/60 px-2.5 py-1 text-gray-700 dark:text-gray-200"
+        >
+          {g.label}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                const r = await setAutonomyAction({ capability: g.capability, level: 'ask' })
+                if (r.ok) {
+                  setGone((s) => new Set(s).add(g.capability))
+                  onToast(r.message)
+                  router.refresh()
+                } else {
+                  onToast(r.error)
+                }
+              })
+            }
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline decoration-dotted underline-offset-2 disabled:opacity-50"
+            aria-label={`Go back to asking before ${g.label}`}
+          >
+            back to asking
+          </button>
+        </span>
+      ))}
+    </div>
   )
 }
 
 function ProposalCard({
   proposal,
+  alreadyGranted = false,
   onDone,
 }: {
   proposal: ProposalCardData
+  /** This capability is already on automatic — the card is a courtesy
+   *  preview, not a gate; it goes out on the next pass regardless. */
+  alreadyGranted?: boolean
   onDone: (id: string, message?: string) => void
 }) {
   const router = useRouter()
@@ -128,6 +216,10 @@ function ProposalCard({
   // the first tap ARMS the button and the second confirms — a rushed
   // mis-tap must not silently destroy drafted work (round-2 audit).
   const [declineArmed, setDeclineArmed] = useState(false)
+  // "Always do this for me" (Phase 3): NEVER pre-checked — nothing grants
+  // itself autonomy; the human ticks it, and the grant only lands after
+  // THIS approve succeeds (a failed send must not hand over the keys).
+  const [alwaysDo, setAlwaysDo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const tokens = HAS_TOKENS.test(body)
@@ -160,7 +252,14 @@ function ProposalCard({
             })
           : await declineProposalAction({ proposalId: proposal.id })
       if (r.ok) {
-        onDone(proposal.id, r.message ?? (decision === 'approve' ? 'Done — it went out.' : undefined))
+        let message = r.message ?? (decision === 'approve' ? 'Done — it went out.' : undefined)
+        if (decision === 'approve' && alwaysDo && isGrantable(proposal.capability)) {
+          const grant = await setAutonomyAction({ capability: proposal.capability, level: 'auto' })
+          if (grant.ok) message = `${message ?? ''} ${grant.message}`.trim()
+          // A failed grant never blocks the approve's own good news — the
+          // checkbox simply didn't take; the card flow stays honest.
+        }
+        onDone(proposal.id, message)
         router.refresh()
       } else {
         setError(r.error)
@@ -284,6 +383,34 @@ function ProposalCard({
       </div>
 
       {error && <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">{error}</p>}
+
+      {alreadyGranted && (
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          You’ve handed these to me — this one goes out on its own within the hour. Approve now if
+          you’d like it to go this minute, or take the job back below.
+        </p>
+      )}
+      {!alreadyGranted && isGrantable(proposal.capability) && (proposal.uneditedRun ?? 0) >= 3 && (
+        <p className="mt-3 text-xs text-sky-700 dark:text-sky-300">
+          You’ve said yes to the last {proposal.uneditedRun} of these without changing a word — tick
+          the box below and I’ll take them over.
+        </p>
+      )}
+      {!alreadyGranted && isGrantable(proposal.capability) && (
+        <label className="mt-3 flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={alwaysDo}
+            onChange={(e) => setAlwaysDo(e.target.checked)}
+            disabled={pending}
+            className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+          />
+          <span>
+            From now on, handle these for me on your own — I’ll see each one in the diary, and I can
+            take it back any time.
+          </span>
+        </label>
+      )}
 
       <div className="mt-3 flex items-center gap-2">
         <button

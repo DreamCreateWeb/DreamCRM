@@ -571,8 +571,27 @@ sitemap/robots/OG.
    weekly standup card on the clinic Overview; `standup.ts` Narrator
    (prior clinic-week window via the new ledger `until` bound) + Monday
    standup email riding daily-digest; demo-voice seeder), Phase 3 the
-   autonomy ladder live ("always do this for me" — the proposals carry no
-   trust toggle yet by design),
+   autonomy ladder live — **SHIPPED 2026-07-28, audit pending** (migration
+   0138 `proposal.original_body`; `lib/autonomy.ts` GRANTABLE_CAPABILITIES
+   = the four proposal-backed types ONLY — the auto-by-default automations
+   keep their own switches and nothing unregistered can be granted;
+   `lib/services/autonomy.ts` setCapabilityTrust/listTrustGrants, every
+   change NARRATED in the ledger (a no-op change narrates nothing);
+   `autoExecuteProposal` = the machine saying yes to its own card through
+   the SAME claim → staleness → execute → narrate-once flow as a human
+   approve (autonomy inherits every guard the Phase-2 audit hardened),
+   driven by `autoExecuteGrantedProposals` LAST in the hourly generator
+   list; the honest autonomous voice ("handled on my own, as you asked" vs
+   "you approved it") threaded through every executor + the demo hedge;
+   `original_body` stashes the machine's draft the first time staff edit,
+   so `countConsecutiveUneditedApprovals` can earn the card's "you've said
+   yes to the last N without changing a word" SUGGESTION — the machine may
+   suggest, never take; the card's never-pre-ticked "always do this for
+   me" grants only AFTER a successful approve; the Overview's take-it-back
+   strip survives an empty inbox; `countOpenProposals` EXCLUDES granted
+   capabilities so the badge/digest/standup never claim work waits on a
+   human that doesn't; demo resync resets all grants + seeds three
+   identity-anchored unedited approvals),
    Phase 4 guardian + shared brain, Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +

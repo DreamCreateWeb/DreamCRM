@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
-import { listOpenProposals, countOpenProposals } from '@/lib/services/proposals'
+import { listOpenProposals, countOpenProposals, countConsecutiveUneditedApprovals } from '@/lib/services/proposals'
+import { listTrustGrants } from '@/lib/services/autonomy'
+import { isGrantable } from '@/lib/autonomy'
 import { buildWeeklyStandup } from '@/lib/services/standup'
 import ApprovalInbox, { type ProposalCardData } from './approval-inbox'
 import StandupCard from './standup-card'
@@ -83,15 +85,36 @@ function money(cents: number): string {
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [data, onboarding, proposals, totalOpenProposals, standup] = await Promise.all([
+  const [data, onboarding, proposals, totalOpenProposals, trustGrants, standup] = await Promise.all([
     getClinicOverview(ctx.organizationId),
     getStaffOnboarding(ctx.organizationId, ctx.userId),
     // The Approval Inbox + the weekly standup are best-effort reads — the
     // morning huddle must never fail because the narrator hiccupped.
     listOpenProposals(ctx.organizationId).catch(() => []),
     countOpenProposals(ctx.organizationId).catch(() => 0),
+    // The ladder's current grants — the take-it-back strip (Phase 3).
+    listTrustGrants(ctx.organizationId).catch(() => []),
     buildWeeklyStandup(ctx.organizationId).catch(() => null),
   ])
+  // EARNED TRUST (Phase 3): for each still-ask-first capability with a card
+  // showing, how many recent approvals in a row went out unedited — the
+  // card suggests the grant at 3+. Best-effort; at most four tiny reads.
+  const grantedSet = new Set(trustGrants.filter((g) => g.level === 'auto').map((g) => g.capability))
+  const suggestFor = Array.from(
+    new Set(
+      proposals
+        .map((p) => p.capability)
+        .filter((c) => isGrantable(c) && !grantedSet.has(c)),
+    ),
+  )
+  const uneditedRuns = new Map<string, number>(
+    await Promise.all(
+      suggestFor.map(async (c) => {
+        const n = await countConsecutiveUneditedApprovals(ctx.organizationId, c).catch(() => 0)
+        return [c, n] as const
+      }),
+    ),
+  )
   const proposalCards: ProposalCardData[] = proposals.map((p) => {
     const payload = (p.payload ?? {}) as Record<string, unknown>
     let meta: string | null = null
@@ -146,6 +169,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       subject: typeof payload.subject === 'string' ? payload.subject : null,
       meta,
       context,
+      uneditedRun: uneditedRuns.get(p.capability) ?? 0,
     }
   })
   // The checklist derives from live org data — only compute it while it's
@@ -281,7 +305,13 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       )}
 
       {/* ── The Approval Inbox — finished work waiting on a yes ────────── */}
-      <ApprovalInbox proposals={proposalCards} totalOpen={totalOpenProposals} />
+      <ApprovalInbox
+        proposals={proposalCards}
+        totalOpen={totalOpenProposals}
+        grants={trustGrants
+          .filter((g) => g.level === 'auto')
+          .map((g) => ({ capability: g.capability, label: g.label }))}
+      />
 
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}
       {/* Signature moment: this row cascades in once on first session entry
