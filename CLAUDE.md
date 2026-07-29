@@ -590,8 +590,14 @@ sitemap/robots/OG.
    me" grants only AFTER a successful approve; the Overview's take-it-back
    strip survives an empty inbox; `countOpenProposals` EXCLUDES granted
    capabilities so the badge/digest/standup never claim work waits on a
-   human that doesn't; demo resync resets all grants + seeds three
-   identity-anchored unedited approvals),
+   human that doesn't; demo resync resets the ladder to a KNOWN
+   MIXED baseline — social_post handed over (dated before the seeded cards)
+   so the demo shows the granted card, the take-back chip and the "what I
+   handled on my own" tell; everything else ask-first, so the review card
+   still shows the earned-trust nudge and the never-pre-ticked consent box.
+   `countOpenProposals` excludes demo orgs from the granted-subtraction for
+   the same reason it excludes billing-walled ones: nothing will ever
+   execute those cards. Plus three identity-anchored unedited approvals),
    Phase 4 guardian + shared brain, Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +

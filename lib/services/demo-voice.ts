@@ -141,31 +141,44 @@ async function seedLedger(
     // Current-week freshness (the activity trail keeps breathing).
     { capability: 'appointment_reminder', persona: emma, summary: (f) => `Reminded ${f} about tomorrow's visit`, at: new Date(now.getTime() - 1 * DAY) },
     { capability: 'scheduled_message', persona: mia, summary: (f) => `Delivered the message the front desk scheduled for ${f}`, at: new Date(now.getTime() - 5 * HOUR) },
-    // THE TELL, inside the strip's 7-day window: what a handed-over
-    // capability actually produced. The voice matches the executors' own
-    // ("— handled on my own, as you asked"), and the demo org is excluded
-    // from the driver, so these seeds are the only way the demo can show
-    // the payoff its checkbox promises.
-    // THE TELL. Deliberately NOT review_reply: every replied demo review is
-    // already spoken for (demo_gr_1/3/8 are the earned-trust history the
-    // clinic approved by hand), and claiming a reply on an unreplied one
-    // would contradict the reviews page.
-    //
-    // ANCHORED BY IDENTITY to the post that actually exists — DEMO_SOCIAL_
-    // POSTS' demo_spost_1, published 4 days ago to Google, Instagram and
-    // Facebook (verification round 1: the first version of this seed
-    // narrated two posts a prospect could not find on /growth/social, and
-    // said "as you asked" for a grant the resync had just deleted). The
-    // matching grant is seeded by resetAutonomy below, so the claim is true.
-    {
+    // (The autonomous entry that fills the "what I handled on my own"
+    // strip is appended below — it has to read the seeded post's REAL
+    // publish date, so it can't be a literal in this list.)
+  ]
+
+  // THE TELL. Deliberately NOT review_reply: every replied demo review is
+  // already spoken for (demo_gr_1/3/8 are the earned-trust history the
+  // clinic approved by hand), and claiming a reply on an unreplied one
+  // would contradict the reviews page.
+  //
+  // ANCHORED BY IDENTITY *AND BY DATE* to the post that actually exists —
+  // DEMO_SOCIAL_POSTS' demo_spost_1. Its row is seeded insert-once, so its
+  // publishedAt freezes at the demo org's creation and drifts away from any
+  // date we hard-code (verification round 2: the entry claimed "this week"
+  // for a post /growth/social showed as weeks old). Read the real instant,
+  // narrate at it, and when the post has aged out of the strip's 7-day
+  // window seed nothing — a quiet strip is true; a fresh-sounding lie is
+  // not. The matching grant is seeded by resetAutonomy below.
+  const [seededPost] = await db
+    .select({ publishedAt: schema.socialPost.publishedAt })
+    .from(schema.socialPost)
+    .where(
+      and(
+        eq(schema.socialPost.organizationId, organizationId),
+        eq(schema.socialPost.id, 'spost_demo_demo_spost_1'),
+      ),
+    )
+    .limit(1)
+  if (seededPost?.publishedAt && seededPost.publishedAt.getTime() > now.getTime() - 7 * DAY) {
+    entries.push({
       capability: 'social_post',
       persona: null,
       summary: () =>
         `Posted your new-patient invitation to Google, Instagram and Facebook — handled on my own, as you asked`,
-      at: new Date(now.getTime() - 4 * DAY),
+      at: seededPost.publishedAt,
       autonomous: true,
-    },
-  ]
+    })
+  }
 
   let n = 0
   for (const e of entries) {

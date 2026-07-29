@@ -1029,6 +1029,29 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     expect(mockSetAutonomyAction).toHaveBeenCalledWith({ capability: 'review_reply', level: 'ask' })
   })
 
+  it('the take-back chip follows the SERVER, not a local hide — revoke then hand it back in one session and the way out is still there (verification round 2)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    fireEvent.click(
+      screen.getByRole('button', { name: /go back to asking before Reply to Google reviews/i }),
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mockSetAutonomyAction).toHaveBeenCalledWith({ capability: 'review_reply', level: 'ask' })
+    // The grant is still what the server says it is (this render's props), so
+    // the chip is still here. It used to be hidden by a local set that only
+    // ever grew — and router.refresh() preserves client state, so re-granting
+    // the same capability left no take-back control at all.
+    expect(
+      screen.getByRole('button', { name: /go back to asking before Reply to Google reviews/i }),
+    ).toBeInTheDocument()
+  })
+
   it('the strip TELLS what the machine did alone — counts per capability and the newest line, verbatim (round-1 Phase-3 audit: the do had no tell)', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([])
@@ -1229,6 +1252,30 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/came in before you handed these over/i)).toBeInTheDocument()
+  })
+
+  it('a machine-handled card is MARKED on the loudest element — the generated title still asks "Send it?" (verification round 2)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...reviewCard, title: 'Reply to Maria’s 5-star Google review' },
+    ])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText('I’m handling this one')).toBeInTheDocument() // the pill
+    // …and the section header stops speaking for it.
+    expect(screen.getByText(/go out either way/)).toBeInTheDocument()
+  })
+
+  it('an all-ask-first inbox keeps the plain header — nothing to qualify', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/go out either way/)).toBeNull()
+    expect(screen.queryByText('I’m handling this one')).toBeNull()
   })
 
   it('a granted card names the THIRD exit — skipping one draft must not cost the whole hand-over', async () => {

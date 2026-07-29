@@ -163,6 +163,9 @@ export default function ApprovalInbox({
   // executes them. The header promises "say the word and they go out" — for
   // these that is FALSE (they go out either way), so each one says so.
   const grantedSet = new Set(grants.map((g) => g.capability))
+  // The header speaks for every card in the list, so it has to acknowledge
+  // the ones that are not waiting on anyone (verification round 2).
+  const anyMachineHandled = visible.some((p) => p.machineHandles ?? grantedSet.has(p.capability))
 
   return (
     <section className="mb-8" aria-label="Waiting on your yes">
@@ -171,7 +174,9 @@ export default function ApprovalInbox({
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
           Waiting on your yes
           <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-            I finished these — say the word and they go out.
+            {anyMachineHandled
+              ? 'I finished these — say the word and they go out. The ones marked “I’m handling this one” go out either way.'
+              : 'I finished these — say the word and they go out.'}
           </span>
         </h2>
         {hiddenCount > 0 && (
@@ -231,8 +236,15 @@ function GrantsStrip({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [gone, setGone] = useState<Set<string>>(new Set())
-  const shown = grants.filter((g) => !gone.has(g.capability))
+  // THE SERVER STATE IS THE ONLY STATE (verification round 2). This used to
+  // hide a revoked chip optimistically and never un-hide it: router.refresh()
+  // preserves client state, so revoking and then handing the SAME capability
+  // back in one session left no chip — no take-back control anywhere in the
+  // product for the rest of that session, while a card beside it pointed at
+  // the missing control and the machine kept acting. "Reversible always"
+  // cannot depend on a local set that only ever grows. The transition's
+  // pending flag covers the beat before the refresh lands.
+  const shown = grants
   // THE TELL OUTLIVES THE GRANT (round-2 audit): taking a job back used to
   // delete, in the same click, the record of everything the machine had
   // done with it — the one moment a clinic most wants to read that list.
@@ -276,7 +288,6 @@ function GrantsStrip({
                   error: 'I couldn’t switch this one back just now — give it another try in a minute.',
                 }))
                 if (r.ok) {
-                  setGone((s) => new Set(s).add(g.capability))
                   onToast(r.message)
                   router.refresh()
                 } else {
@@ -293,9 +304,11 @@ function GrantsStrip({
       ))}
       </div>
       )}
-      {/* THE TELL. Counts plus the newest line, verbatim — no drill-down, no
-          filters, nothing to operate. The zero state is honest rather than
-          hidden: silence after a hand-over reads as "did it break?". */}
+      {/* THE TELL. Every entry the machine handled alone, in its own words —
+          no drill-down, no filters, nothing to operate. Clamped per
+          capability with an honest "…and N more" rather than a silent cut.
+          The zero state is honest rather than hidden: silence after a
+          hand-over reads as "did it break?". */}
       <div className="mt-2 pl-0.5">
         {work.length === 0 ? (
           <p>
@@ -453,7 +466,24 @@ function ProposalCard({
           {CAPABILITY_ICON[proposal.capability] ?? '✨'}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{proposal.title}</p>
+          <div className="flex items-start gap-2">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex-1 min-w-0">
+              {proposal.title}
+            </p>
+            {/* THE TRUTH ON THE LOUDEST ELEMENT (verification round 2). The
+                generators write titles for a human who must act — "Send
+                it?", "Answer Maria's website inquiry" — and a machine-
+                handled card renders them verbatim under a header that says
+                "say the word and they go out". Both are false for this
+                card, and the honest line lives in gray under the draft. The
+                titles are correct for the ask-first majority, so the card
+                carries the fact instead of rewriting generated prose. */}
+            {alreadyGranted && (
+              <span className="shrink-0 rounded-full bg-sky-50 dark:bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
+                {isDemo ? 'mine (demo)' : 'I’m handling this one'}
+              </span>
+            )}
+          </div>
           <p className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-0.5">
             {proposal.capabilityLabel}
             {proposal.meta ? ` · ${proposal.meta}` : ''}

@@ -81,10 +81,13 @@ export interface AutonomousWorkView {
  * a clinic that handed something over could go up to 13 days without seeing
  * a single thing it did. This is the read behind the Overview strip: the
  * last 7 days of ledger entries the executors stamped `autonomous: true`,
- * per capability, with the newest line quoted verbatim.
+ * grouped per capability, carrying EVERY entry's summary (newest first) —
+ * the consent line promises "I'll list each one", and a count plus one
+ * example is not a list (verification round 1).
  *
  * Deliberately NOT a page: the North Star says the machine reports, it does
- * not hand over a console to operate. Counts and one sentence, in place.
+ * not hand over a console to operate. The strip names the work in place and
+ * says so when it clamps.
  */
 export async function listAutonomousWork(
   organizationId: string,

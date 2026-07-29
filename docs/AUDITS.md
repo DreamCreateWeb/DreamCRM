@@ -281,6 +281,38 @@ retrospective's own author:
 - Also fixed: this file's own round-by-round had a duplicated Round-1 header
   and no record of rounds 2–3 at all.
 
+#### Verification round 2 (2026-07-29) — NOT clean
+
+Five findings, four unique, and again every one of them lived in the newest
+code — verification round 1's own fixes:
+
+- **MAJOR: the take-back could vanish for a whole session.** The strip hid a
+  revoked chip optimistically in local state that only ever grew, and
+  `router.refresh()` preserves client state — so revoking and then handing
+  the SAME capability back in one session left no take-back control anywhere
+  in the product, while a card beside it pointed at the missing control and
+  the machine kept acting. "Reversible always" cannot depend on a local set.
+  The strip now renders the server's grants, full stop.
+- **The demo tell claimed "this week" for a post frozen weeks in the past.**
+  Round 1 fixed the tell's IDENTITY (narrate a post that exists); its DATE
+  still drifted, because the seeded post is insert-once and its `publishedAt`
+  freezes at demo creation while the reseeded ledger row was always stamped
+  4 days back. The entry now reads the post's real publish instant and seeds
+  nothing when it has aged out of the strip's window — a quiet strip is true.
+- **The card's loudest elements still asked permission on machine-handled
+  work.** The generators write titles for a human who must act ("Send it?",
+  "Answer Maria's website inquiry"), and a granted card rendered them
+  verbatim under a header saying "say the word and they go out", with the
+  truth in gray under the draft. Round 1 had fixed exactly this string on the
+  DEMO seed and never swept the production generators. Machine-handled cards
+  now carry an "I'm handling this one" pill and the header stops speaking for
+  them. (A repo CI guard — the legibility floor — caught the pill's first
+  font size, which is the guard doing its job.)
+- **Stale docs, twice:** `listAutonomousWork`'s docstrings still described
+  the count-plus-one-example the same commit had replaced, and CLAUDE.md
+  still said the demo resync "resets all grants" after that commit made it
+  seed a standing one.
+
 #### Round-by-round
 
 v2 gate throughout: four Opus lenses (claims · law · resilience · depth) →
