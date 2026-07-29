@@ -549,29 +549,22 @@ export async function approveProposal(
   }
   if (!exec.ok) {
     if (exec.expired) {
-      // The underlying work vanished (review already replied, inquiry
-      // already handled) — retire the proposal instead of reopening it.
-      await db
-        .update(schema.proposal)
-        .set({
-          status: 'expired',
-          // Evidence says OUR OWN prior attempt executed → the work
-          // happened; stamp it so the reconcile sweep never reopens this
-          // row again.
-          ...(exec.recovered ? { executedAt: new Date() } : {}),
-          updatedAt: new Date(),
-        })
-        .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
-      // Narrate-EXACTLY-ONCE under recovery: a stranded approve (process
-      // died between the send and the bookkeeping) reaches this branch on
-      // its retry — the work reached patients but no ledger entry exists.
-      // Write it now, guarded against the stamp-failed sibling case where
-      // recordAction DID run.
       if (exec.recovered) {
+        // Narrate-EXACTLY-ONCE under recovery, NARRATION FIRST (verification
+        // round 5 — this was the file's last stamp-before-narrate): a
+        // stranded approve's work reached patients but no ledger entry
+        // exists. Only a successful (or already-present) narration may
+        // write the terminal expired+executedAt state; on a transient
+        // narration failure the row stays 'approved' with executedAt NULL,
+        // squarely inside the hourly reconcile's view, which re-attributes
+        // and narrates — never a terminal unnarrated close.
+        let narrated = false
         try {
           const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
-          if (!(await hasEntryForProposal(organizationId, proposalId))) {
-            await recordAction({
+          if (await hasEntryForProposal(organizationId, proposalId)) {
+            narrated = true
+          } else {
+            narrated = await recordAction({
               organizationId,
               capability: claimed.capability,
               patientId: claimed.patientId,
@@ -585,8 +578,21 @@ export async function approveProposal(
             })
           }
         } catch (e) {
-          console.error('[proposals] recovery narration failed (work already done):', e)
+          console.error('[proposals] recovery narration failed — the reconcile will retry:', e)
         }
+        if (narrated) {
+          await db
+            .update(schema.proposal)
+            .set({ status: 'expired', executedAt: new Date(), updatedAt: new Date() })
+            .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+        }
+      } else {
+        // The underlying work vanished (review already replied, inquiry
+        // already handled) — retire the proposal instead of reopening it.
+        await db
+          .update(schema.proposal)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
       }
       return { ok: false, error: exec.error, expired: true }
     }
@@ -643,7 +649,19 @@ export async function approveProposal(
 async function reopen(claimed: typeof schema.proposal.$inferSelect): Promise<void> {
   const now = new Date()
   const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
-  const payload = (claimed.payload ?? {}) as Record<string, unknown>
+  // RE-READ the payload — never write back the claim-time snapshot
+  // (verification round 5): executors stamp campaignId/socialPostId into
+  // the payload DURING execution, after the claim's .returning()
+  // materialized `claimed`. Writing {...claimed.payload} back would erase
+  // those stamps on every post-stamp failure — the retry would mint a
+  // second campaign row, the stuck-claim repair could never fire, and
+  // genuinely-sent work would be unattributable.
+  const [current] = await db
+    .select({ payload: schema.proposal.payload })
+    .from(schema.proposal)
+    .where(and(eq(schema.proposal.organizationId, claimed.organizationId), eq(schema.proposal.id, claimed.id)))
+    .limit(1)
+  const payload = ((current ? current.payload : claimed.payload) ?? {}) as Record<string, unknown>
   await db
     .update(schema.proposal)
     .set({

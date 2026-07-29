@@ -477,11 +477,22 @@ recovery machinery, all main-loop confirmed and fixed:**
 - [minor] The standup-card header comment still described the pre-round-1
   hide-on-quiet behavior — corrected (the quiet week narrates in-app; the
   EMAIL is what stays silent).
-Verification round 5 pending. Convergence: every V4 finding sits in the
-recovery subsystem the verification rounds themselves built, each round's
-findings narrower than the last; the subsystem now runs on completion
-evidence, atomic status-guarded closes, three-state results, and marked
-reopen paths, pinned by ~150 proposal-suite tests.
+**Verification round 5 (2026-07-28): NOT clean — but ALL FOUR lenses
+independently converged on ONE finding**, the strongest convergence
+signal of the audit: round 4's reopen() wrote back the CLAIM-TIME payload
+snapshot, erasing the campaignId/socialPostId the executors stamp during
+execution — real in production (drizzle .returning() materializes a
+snapshot) and invisible in tests because the mock's returning() handed
+back live aliased rows, making the pinning tests false-green. Fixed both
+sides: reopen() re-reads the payload before merging the marker, and the
+harness now returns MATERIALIZED SNAPSHOTS from every select/returning
+(jsonb deep-copied) — the aliasing class can never hide a bug again, and
+the existing stamp-survival tests became the regression net. Resilience
+added one last minor: the tap's recovered-retire was the file's final
+stamp-before-narrate — reordered to narration-first (a failed narration
+leaves the row approved for the hourly reconcile; the card still clears).
+Round-5 full suite 5,593 green; typecheck + build clean. Verification
+round 6 pending.
 
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation

@@ -109,6 +109,18 @@ vi.mock('@/lib/db', () => {
     return []
   }
 
+  // PRODUCTION REALISM (verification round 5): real drizzle/node-postgres
+  // returns MATERIALIZED SNAPSHOTS — never live references into storage.
+  // The old aliasing harness hid a real bug: reopen() wrote back a stale
+  // claim-time payload, which "worked" here only because `claimed` WAS the
+  // store row. Snapshot everything a query hands out (jsonb deep-copied).
+  const snap = (r: Record<string, unknown>): Record<string, unknown> => ({
+    ...r,
+    ...(r.payload && typeof r.payload === 'object'
+      ? { payload: JSON.parse(JSON.stringify(r.payload)) }
+      : {}),
+  })
+
   function select(cols?: Record<string, unknown>) {
     let table = ''
     const filters: Array<(r: Record<string, unknown>) => boolean> = []
@@ -120,7 +132,7 @@ vi.mock('@/lib/db', () => {
       return api
     }
     const rowsFor = () => {
-      let out = tableRows(table).filter((r) => filters.every((f) => f(r)))
+      let out = tableRows(table).filter((r) => filters.every((f) => f(r))).map(snap)
       if (cols) out = out.map((r) => Object.fromEntries(Object.keys(cols).map((k) => [k, k === 'c' ? out.length : r[k]])))
       return out
     }
@@ -180,7 +192,7 @@ vi.mock('@/lib/db', () => {
       for (const r of tableRows(t.__name)) {
         if (filters.every((f) => f(r))) {
           Object.assign(r, patch)
-          touched.push(r)
+          touched.push(snap(r)) // RETURNING yields a snapshot, not the live row
         }
       }
       return touched
@@ -751,6 +763,21 @@ describe('approveProposal — the other executors', () => {
     })
     expect(await closeRecoveredProposal(p, 'open')).toBe('skip')
     expect(p.status).toBe('approved') // the approve owns it
+  })
+
+  it('the TAP’s recovered retire narrates FIRST: a failed narration leaves the row approved for the hourly reconcile — never a terminal unnarrated close (verification round 5)', async () => {
+    recordActionMock.mockResolvedValueOnce(false) // ledger insert swallowed a failure
+    store.postTargets = [{ id: 't1', organizationId: ORG, socialPostId: 'sp_prior', status: 'published' }]
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:k3d',
+      payload: { accountIds: ['a'], socialPostId: 'sp_prior' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBe(true) // the card still clears for the staffer
+    expect(p.status).toBe('approved') // NOT terminally expired — the reconcile re-attributes
+    expect(p.executedAt).toBeNull()
   })
 
   it('recovery narration is GUARDED: a prior ledger entry for the proposal (the stamp-failed sibling case) means no second entry', async () => {
