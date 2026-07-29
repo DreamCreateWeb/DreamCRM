@@ -137,7 +137,10 @@ export async function getMarketingCampaign(organizationId: string, id: number) {
 export async function createMarketingCampaign(
   organizationId: string,
   input: z.infer<typeof CampaignInput>,
-  userId: string,
+  // Nullable BY CONTRACT: created_by is a nullable FK to user.id, and a
+  // campaign the machine files on its own (Phase 3 autonomy) has no human
+  // author. Passing a sentinel string would violate the constraint.
+  userId: string | null,
 ) {
   const data = CampaignInput.parse(input)
   // "Start from" a template: seed the content fields the caller didn't set

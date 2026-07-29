@@ -1274,7 +1274,13 @@ async function executeOutreachCampaign(
         sendChannel: 'resend',
         recipientSource: 'patients',
       },
-      p.decidedByUserId ?? 'machine',
+      // createdBy is a nullable FK to user.id — an autonomous campaign has
+      // NO human author, and the 'machine' sentinel would violate the
+      // constraint and throw (round-1 audit, critical: every autonomous
+      // recall send would have failed forever inside a reopen loop while
+      // the card claimed it was handled). The sentinel belongs ONLY to
+      // sendCampaign's initiatedByUserId, which is never stored.
+      p.decidedByUserId ?? null,
     )
     campaignId = campaign.id
     await db
