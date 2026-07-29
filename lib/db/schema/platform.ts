@@ -123,6 +123,14 @@ export const clinicProfile = pgTable('clinic_profile', {
   // cron sends on clinic-local Monday only when this predates the current
   // clinic week's start.
   standupLastSentAt: timestamp('standup_last_sent_at'),
+  // THE GUARDIAN (Transformation Phase 4): the platform's own bookkeeping
+  // about this clinic — the engine state Dream Create last reported, and
+  // when it last alerted on it. NOT clinic data and never shown to the
+  // clinic; it exists so a persisting problem is raised once and then at a
+  // humane cadence, instead of the same email every morning until the
+  // guardian gets muted (which is how a guardian stops working).
+  guardianState: text('guardian_state'),
+  guardianAlertedAt: timestamp('guardian_alerted_at'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

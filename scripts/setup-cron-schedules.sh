@@ -78,6 +78,10 @@ JOBS=(
   "prospect-outreach|prospect-outreach|rate(30 minutes)"
   "domain-renewals|domain-renewals|rate(1 day)"
   "generate-proposals|generate-proposals|rate(1 hour)"
+  # THE GUARDIAN (Phase 4): Dream Create's own daily watch over every
+  # clinic's engine. 14:00 UTC — after the morning digest, so a clinic's
+  # overnight automations are already in the ledger when we judge them.
+  "guardian|guardian|cron(0 14 * * ? *)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

@@ -3,9 +3,11 @@ import {
   assessEngine,
   needsAttention,
   summarizeSweep,
+  shouldAlert,
   ENGINE_STATE_RANK,
   FAILURE_ALARM_COUNT,
   NEW_CLINIC_GRACE_DAYS,
+  RE_ALERT_DAYS,
   STALL_MIN_BASELINE,
   type EngineSignals,
 } from '@/lib/guardian'
@@ -171,5 +173,45 @@ describe('the guardian voice', () => {
       // (the tenant-voice convention).
       expect(text).not.toMatch(/\byour patients\b|\byour practice\b|\byour clinic\b/i)
     }
+  })
+})
+
+/**
+ * WHEN TO INTERRUPT. A guardian that emails the same problem every morning
+ * gets muted, and a muted guardian is worse than none.
+ */
+describe('shouldAlert', () => {
+  const NOW = new Date('2026-07-29T12:00:00Z')
+  const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
+
+  it('never interrupts for a state that does not need a human', () => {
+    expect(shouldAlert({ state: null, alertedAt: null }, 'healthy', NOW)).toBe(false)
+    expect(shouldAlert({ state: null, alertedAt: null }, 'quiet', NOW)).toBe(false)
+  })
+
+  it('raises a NEW problem immediately', () => {
+    expect(shouldAlert({ state: null, alertedAt: null }, 'silent', NOW)).toBe(true)
+    expect(shouldAlert({ state: 'healthy', alertedAt: null }, 'blocked', NOW)).toBe(true)
+  })
+
+  it('raises a CHANGED problem — silent becoming blocked is news even though both were bad', () => {
+    expect(shouldAlert({ state: 'silent', alertedAt: daysAgo(1) }, 'blocked', NOW)).toBe(true)
+  })
+
+  it('stays quiet about the SAME problem until the re-alert cadence', () => {
+    expect(shouldAlert({ state: 'silent', alertedAt: daysAgo(1) }, 'silent', NOW)).toBe(false)
+    expect(shouldAlert({ state: 'silent', alertedAt: daysAgo(RE_ALERT_DAYS - 1) }, 'silent', NOW)).toBe(
+      false,
+    )
+    expect(shouldAlert({ state: 'silent', alertedAt: daysAgo(RE_ALERT_DAYS) }, 'silent', NOW)).toBe(true)
+  })
+
+  it('a missing stamp never silences a real alarm', () => {
+    expect(shouldAlert({ state: 'silent', alertedAt: null }, 'silent', NOW)).toBe(true)
+  })
+
+  it('a recovered clinic that breaks again is a new problem, not a repeat', () => {
+    // silent → healthy (memory now 'healthy') → silent again
+    expect(shouldAlert({ state: 'healthy', alertedAt: daysAgo(2) }, 'silent', NOW)).toBe(true)
   })
 })

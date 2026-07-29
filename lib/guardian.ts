@@ -193,3 +193,36 @@ export function summarizeSweep(states: EngineState[]): string {
   }
   return `${flagged} of ${states.length} ${states.length === 1 ? 'practice needs' : 'practices need'} you.`
 }
+
+/**
+ * ALERTING POLICY. A guardian that emails the same problem every morning
+ * gets muted, and a muted guardian is worse than none — so a persisting
+ * problem is raised once and then only at this cadence.
+ */
+export const RE_ALERT_DAYS = 7
+
+export interface AlertMemory {
+  /** The state Dream Create last reported for this clinic. */
+  state: EngineState | null
+  /** When it last emailed about it. */
+  alertedAt: Date | null
+}
+
+/**
+ * Should this clinic's state reach the owner's inbox right now?
+ *
+ *  - Nothing that does not need a human ever alerts.
+ *  - A NEW or CHANGED problem always alerts: "silent" becoming "blocked" is
+ *    news even though both were already bad.
+ *  - The SAME problem alerts again only after RE_ALERT_DAYS, so a clinic
+ *    that stays broken for a fortnight produces two emails, not fourteen.
+ *  - A problem with no memory of ever being alerted alerts (a missing stamp
+ *    must never silence a real alarm — the same posture the sweep takes
+ *    with a missing createdAt).
+ */
+export function shouldAlert(memory: AlertMemory, next: EngineState, now: Date): boolean {
+  if (!needsAttention(next)) return false
+  if (memory.state !== next) return true
+  if (!memory.alertedAt) return true
+  return now.getTime() - memory.alertedAt.getTime() >= RE_ALERT_DAYS * 24 * 60 * 60 * 1000
+}

@@ -100,7 +100,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0138 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0139 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -368,7 +368,7 @@ sitemap/robots/OG.
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 18 routes, all `Authorization: Bearer $CRON_SECRET`:**
+- **Crons — 19 routes, all `Authorization: Bearer $CRON_SECRET`:**
   `pms-sync` (hourly) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
@@ -378,7 +378,9 @@ sitemap/robots/OG.
   `prospect-enrich` (30m) · `prospect-outreach` (30m) · `domain-renewals` (daily) ·
   `generate-proposals` (hourly — the Phase-2 proposal generators + staleness
   sweep; the weekly standup email rides `daily-digest` on clinic-local
-  Mondays) — 16 EventBridge rules
+  Mondays) · `guardian` (daily 14:00 UTC — Phase 4's watch over every
+  clinic's engine; emails platform admins about practices that need a human,
+  once per new/changed problem and then weekly) — 17 EventBridge rules
   managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
   every merge** (idempotent self-heal — a new cron route can't ship un-fired,
   the drift that once left prospecting + 4 other jobs silently dead); the
@@ -514,8 +516,9 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0138** (`proposal.original_body` — the autonomy ladder; 0137
-  was `proposal` + `clinic_profile.standup_last_sent_at`, the voice). Workflow:
+  migration: **0139** (`clinic_profile.guardian_state` +
+  `guardian_alerted_at` — the Guardian's alert memory; 0138 was
+  `proposal.original_body`, the autonomy ladder). Workflow:
   `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
   self-heal; idempotent; scoped to the isDemo org).
