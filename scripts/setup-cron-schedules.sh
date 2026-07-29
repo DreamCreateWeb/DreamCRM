@@ -82,6 +82,9 @@ JOBS=(
   # clinic's engine. 14:00 UTC — after the morning digest, so a clinic's
   # overnight automations are already in the ledger when we judge them.
   "guardian|guardian|cron(0 14 * * ? *)"
+  # The shared brain: one learning pass over the whole platform. Weekly —
+  # send-time behaviour moves on the scale of seasons, not days.
+  "learn-defaults|learn-defaults|cron(0 15 ? * MON *)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

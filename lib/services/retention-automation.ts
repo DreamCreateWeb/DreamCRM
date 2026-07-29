@@ -6,6 +6,8 @@ import { resolvePatientAudience, type PatientAudienceFilterT } from './marketing
 import { getAutomationTemplate } from './marketing-templates'
 import { getClinicTimeZone } from './clinic-timezone'
 import { clinicDayStart } from '@/lib/clinic-timezone'
+import { getSharedBrain } from './shared-brain'
+import { DEFAULT_SEND_HOUR } from '@/lib/shared-brain'
 import type { RetentionKind } from '@/lib/types/retention'
 
 export type { RetentionKind }
@@ -119,20 +121,27 @@ function weekKey(now: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-/** Hour (clinic-local) automation campaigns aim for — mid-morning, when a
- *  patient inbox glance is likeliest and a booking call is answerable. */
-const SEND_HOUR_LOCAL = 10
-
 /**
  * When this automation's campaign should go out (phase-4 send window): today
- * at 10:00 clinic-local when that's still ahead; otherwise NOW — never
- * tomorrow, because the daily birthday key must send on the birthday itself,
- * and a late cron run is better late-today than wrong-day. (The cron's UTC
- * clock made 3 AM local sends possible before this.)
+ * at the target hour clinic-local when that's still ahead; otherwise NOW —
+ * never tomorrow, because the daily birthday key must send on the birthday
+ * itself, and a late cron run is better late-today than wrong-day. (The
+ * cron's UTC clock made 3 AM local sends possible before this.)
+ *
+ * THE HOUR IS LEARNED (Transformation Phase 4 — the shared brain). It used
+ * to be a hardcoded 10, a reasonable guess somebody made once. The platform
+ * watches every clinic's sends and every open, so it is in a position to
+ * know the real answer, and it hands it down here. `sendHour` is always a
+ * valid daylight hour: `resolveSharedBrain` floors anything missing or
+ * malformed at DEFAULT_SEND_HOUR, so this can never schedule at NaN o'clock.
  */
-export function automationSendAt(now: Date, timeZone: string | null | undefined): Date {
-  const tenAmLocal = new Date(clinicDayStart(now, timeZone).getTime() + SEND_HOUR_LOCAL * 3_600_000)
-  return tenAmLocal > now ? tenAmLocal : now
+export function automationSendAt(
+  now: Date,
+  timeZone: string | null | undefined,
+  sendHour: number = DEFAULT_SEND_HOUR,
+): Date {
+  const targetLocal = new Date(clinicDayStart(now, timeZone).getTime() + sendHour * 3_600_000)
+  return targetLocal > now ? targetLocal : now
 }
 
 export interface RetentionRunResult {
@@ -253,10 +262,15 @@ async function runOne(
             ? `New-patient welcome · week of ${automationKey.slice(-10)}`
             : `Reactivation · ${MONTH_NAMES[now.getUTCMonth()]} ${now.getUTCFullYear()}`
 
-    // Send window (phase 4): aim for 10:00 clinic-local instead of whatever
+    // Send window: aim for the learned hour clinic-local instead of whatever
     // UTC hour the cron happened to fire at — no more 3 AM birthday emails.
-    const timeZone = await getClinicTimeZone(organizationId).catch(() => null)
-    const scheduledAt = automationSendAt(now, timeZone)
+    // The hour comes from the shared brain (Phase 4); best-effort, because a
+    // clinic's campaign must never fail to schedule over a config read.
+    const [timeZone, brain] = await Promise.all([
+      getClinicTimeZone(organizationId).catch(() => null),
+      getSharedBrain().catch(() => ({ sendHour: DEFAULT_SEND_HOUR })),
+    ])
+    const scheduledAt = automationSendAt(now, timeZone, brain.sendHour)
 
     let campaignId: number
     try {

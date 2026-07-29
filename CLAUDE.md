@@ -368,7 +368,7 @@ sitemap/robots/OG.
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 19 routes, all `Authorization: Bearer $CRON_SECRET`:**
+- **Crons — 20 routes, all `Authorization: Bearer $CRON_SECRET`:**
   `pms-sync` (hourly) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
@@ -380,8 +380,11 @@ sitemap/robots/OG.
   sweep; the weekly standup email rides `daily-digest` on clinic-local
   Mondays) · `guardian` (daily 14:00 UTC — Phase 4's watch over every
   clinic's engine; reports the practices that need a human, once per
-  new/changed problem and then weekly, to whoever the AUDIENCE LOCK says)
-  — 17 EventBridge rules
+  new/changed problem and then weekly, to whoever the AUDIENCE LOCK says) ·
+  `learn-defaults` (WEEKLY Mon 15:00 UTC — the shared brain's one learning
+  pass over the whole platform; weekly because send-time behaviour moves on
+  the scale of seasons and a faster cadence only chases noise)
+  — 18 EventBridge rules
   managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
   every merge** (idempotent self-heal — a new cron route can't ship un-fired,
   the drift that once left prospecting + 4 other jobs silently dead); the
@@ -682,8 +685,35 @@ sitemap/robots/OG.
    by nothing while its own comment claimed it coloured the recommendation —
    it now appends the `PILEUP_COUNT` clause to findings that actually reach
    the owner, and still never changes the state (a pile-up is a fact about the
-   person, not the machine). Remaining: the shared brain (cross-clinic
-   patterns → per-clinic defaults), then the phase-audit gate. Phase 5+ new limbs proposal-first.
+   person, not the machine). (5) THE SHARED BRAIN — "no
+   individual clinic has to be smart, because the platform already knows."
+   Pure `lib/shared-brain.ts` + `lib/services/shared-brain.ts`; the first
+   thing it learns is WHEN TO SEND (the hardcoded `SEND_HOUR_LOCAL = 10` in
+   retention-automation.ts, a reasonable guess somebody made once, is now a
+   learned default threaded through `automationSendAt`). THE PRIVACY LINE:
+   correlating a send with an open needs the recipient's address, so that
+   join happens INSIDE Postgres (`sendHourStatsQuery`) and nothing but
+   `(hour, sent, opened, clinics)` crosses into application memory — the
+   stored value is one integer. Three floors stop a learned default being
+   worse than the guess it replaces: MIN_SENDS_PER_HOUR (a 100% open rate on
+   four sends is not a finding), MIN_CLINICS_PER_HOUR (this is the floor that
+   makes the word "cross-clinic" TRUE rather than "one big clinic has a
+   habit"), and MIN_LIFT (only move off the default by a real margin, or the
+   platform's send hour wobbles weekly chasing noise). Hours are confined to
+   LEARNABLE_HOUR_MIN..MAX so the brain can never discover that 3 AM sends
+   get opened nicely (by insomniacs, hours later) and start mailing patients
+   overnight. It SHIPS INERT on purpose — with one live clinic nothing clears
+   the clinic floor, which is correct behaviour, not a bug — and the
+   `SharedBrainCard` on the platform Overview says "Still learning" out loud,
+   because a learned default nobody can inspect is indistinguishable from a
+   magic number. `resolveSharedBrain` floors every failure path (a stored 25,
+   a "10", a null all resolve to 10) since this value reaches a SCHEDULER; a
+   rejected hour is never reported as learned. A failed learning pass never
+   OVERWRITES what was known — "we lost the database for an hour" must not
+   read as "we un-learned the best send hour". `writePlatformConfig` is now
+   the shared jsonb-merge writer (top-level keys replace; every writer owns
+   its own key), with `setGuardianAudience` riding it. Remaining: the
+   phase-audit gate. Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live

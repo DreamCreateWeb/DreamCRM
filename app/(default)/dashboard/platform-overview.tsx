@@ -5,6 +5,9 @@ import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/ope
 import { getPmsDemand } from '@/lib/services/pms-interest'
 import { sweepEngineHealth } from '@/lib/services/guardian'
 import { getGuardianAudience } from '@/lib/services/platform-config'
+import { getSharedBrain } from '@/lib/services/shared-brain'
+import { resolveSharedBrain } from '@/lib/shared-brain'
+import SharedBrainCard from './shared-brain-card'
 import GuardianPanel from './guardian-panel'
 import { PROVIDER_LABELS } from '@/lib/types/pms'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
@@ -42,7 +45,7 @@ function moneyFull(cents: number): string {
 }
 
 export default async function PlatformOverview() {
-  const [subs, clinicGrowth, attention, activity, pmsDemand, engineHealth, guardianAudience] = await Promise.all([
+  const [subs, clinicGrowth, attention, activity, pmsDemand, engineHealth, guardianAudience, sharedBrain] = await Promise.all([
     getSubscriptionStats(),
     // New clinic signups per week, last 12 weeks — the Active Clinics tile's
     // heartbeat (law 7). Same series the Platform Metrics dashboard plots;
@@ -57,6 +60,10 @@ export default async function PlatformOverview() {
     // Floored at 'platform' by the service; floored again here so a failed
     // read can never render the panel as though practices are being told.
     getGuardianAudience().catch(() => 'platform' as const),
+    // THE SHARED BRAIN (Phase 4): floored at the shipped defaults inside the
+    // resolver, and floored again here — the panel must never claim the
+    // platform learned something because a read failed.
+    getSharedBrain().catch(() => resolveSharedBrain(null)),
   ])
   const pmsWanted = pmsDemand.filter((d) => d.pending > 0)
 
@@ -80,6 +87,8 @@ export default async function PlatformOverview() {
 
       {/* ── The Guardian — whose engine needs a human (Phase 4) ────────── */}
       <GuardianPanel sweep={engineHealth} audience={guardianAudience} />
+
+      <SharedBrainCard brain={sharedBrain} />
 
       {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

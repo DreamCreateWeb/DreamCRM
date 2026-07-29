@@ -36,21 +36,27 @@ export async function getGuardianAudience(): Promise<GuardianAudience> {
 }
 
 /**
- * Widen (or narrow) the Guardian's audience. Merged in SQL against the
- * row's own current value so a concurrent write to another key cannot be
- * lost — the Phase-3 lesson about read-modify-write, applied on the way in
- * rather than after an audit finds it.
+ * Merge a patch into the platform config. Merged in SQL against the row's
+ * own current value so a concurrent write to another key cannot be lost —
+ * the Phase-3 lesson about read-modify-write, applied on the way in rather
+ * than after an audit finds it. Top-level keys REPLACE (jsonb `||` is a
+ * shallow merge), so every writer owns its own key and passes it whole.
  */
-export async function setGuardianAudience(audience: GuardianAudience): Promise<void> {
-  const patch = JSON.stringify({ guardianAudience: audience })
+export async function writePlatformConfig(patch: Record<string, unknown>): Promise<void> {
+  const json = JSON.stringify(patch)
   await db
     .insert(schema.platformConfig)
-    .values({ id: CONFIG_ID, config: sql`${patch}::jsonb` })
+    .values({ id: CONFIG_ID, config: sql`${json}::jsonb` })
     .onConflictDoUpdate({
       target: schema.platformConfig.id,
       set: {
-        config: sql`coalesce(${schema.platformConfig.config}, '{}'::jsonb) || ${patch}::jsonb`,
+        config: sql`coalesce(${schema.platformConfig.config}, '{}'::jsonb) || ${json}::jsonb`,
         updatedAt: new Date(),
       },
     })
+}
+
+/** Widen (or narrow) the Guardian's audience. */
+export async function setGuardianAudience(audience: GuardianAudience): Promise<void> {
+  await writePlatformConfig({ guardianAudience: audience })
 }
