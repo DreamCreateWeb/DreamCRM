@@ -226,3 +226,72 @@ export function shouldAlert(memory: AlertMemory, next: EngineState, now: Date): 
   if (!memory.alertedAt) return true
   return now.getTime() - memory.alertedAt.getTime() >= RE_ALERT_DAYS * 24 * 60 * 60 * 1000
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * WHO THE GUARDIAN TELLS (Phase 4 slice 3)
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The Guardian can speak to two audiences, and it ships LOCKED to one.
+ *
+ *  - 'platform' (DEFAULT): only Dream Create hears it. The owner reads the
+ *    panel and gets the email; the clinic is told nothing.
+ *  - 'clinic': the practice is told directly, in its own voice, in its own
+ *    ledger — and the owner stops being emailed about that clinic (they
+ *    keep the panel). The report went where it belongs.
+ *
+ * Unlocking is a human decision, made once, by the platform owner. Nothing
+ * here can widen it: the resolver FLOORS anything unrecognized at
+ * 'platform', the same posture resolveTrust takes with an unknown level, so
+ * a typo or a half-written config can never start talking to customers.
+ */
+export type GuardianAudience = 'platform' | 'clinic'
+
+export function resolveGuardianAudience(stored: unknown): GuardianAudience {
+  if (!stored || typeof stored !== 'object') return 'platform'
+  const v = (stored as Record<string, unknown>).guardianAudience
+  return v === 'clinic' ? 'clinic' : 'platform'
+}
+
+/**
+ * Is this something the CLINIC can actually do something about?
+ *
+ * This is the judgment that keeps the clinic-facing half kind. A silent
+ * engine or a stale Google token is OUR failure — telling a practice "the
+ * machine has done nothing for two weeks" hands them alarm and no lever,
+ * and the fix was never theirs. Those stay with Dream Create no matter what
+ * the audience is set to. What a clinic CAN act on is a switch they turned
+ * off, and a conversation about their own growth.
+ */
+export function clinicActionable(state: EngineState, s: EngineSignals): boolean {
+  if (state === 'stalled') return true
+  // Blocked by their own switches — actionable. Blocked by repeated
+  // failures — ours.
+  if (state === 'blocked') return !s.remindersOn || !s.reviewRequestsOn
+  return false
+}
+
+/**
+ * The same finding, said to the practice instead of about it. Second
+ * person, no percentages thrown at anybody, and never a number without a
+ * next step — the anti-shame law applies hardest here, because this is the
+ * machine telling somebody their business is slower than it was.
+ *
+ * Returns null when the finding is not the clinic's to act on.
+ */
+export function clinicNote(state: EngineState, s: EngineSignals): string | null {
+  if (!clinicActionable(state, s)) return null
+  if (state === 'blocked') {
+    if (!s.remindersOn && !s.reviewRequestsOn) {
+      return 'Appointment reminders and automatic review requests are both switched off right now, so I can’t send either. Turn them back on whenever you’re ready and I’ll pick them straight back up.'
+    }
+    if (!s.remindersOn) {
+      return 'Appointment reminders are switched off right now, so I can’t send any. Turn them back on whenever you’re ready.'
+    }
+    return 'Automatic review requests are switched off right now, so I can’t ask happy patients for reviews. Turn them back on whenever you’re ready.'
+  }
+  // stalled. No offer of anything that isn't already wired: the recall
+  // engine files its own card when there are patients due, so promising one
+  // here would be the machine writing a cheque another module may not cash.
+  return `Fewer new patients came in this past month than the month before (${s.seated30} against ${s.seatedPrev30}). Nothing is broken on my side — everything is still running. It’s worth a look at where new patients usually find you, and whether anything changed there.`
+}

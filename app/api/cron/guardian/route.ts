@@ -7,12 +7,15 @@ export const maxDuration = 300
 
 /**
  * THE GUARDIAN (Transformation Phase 4) — Dream Create's daily watch over
- * every clinic's engine. Sweeps engine health, emails the platform admins
- * about the practices that need a human, and remembers what it said so a
- * persisting problem is raised weekly rather than every morning.
+ * every clinic's engine. Sweeps engine health, reports the practices that
+ * need a human, and remembers what it said so a persisting problem is
+ * raised weekly rather than every morning.
  *
- * Platform-facing only: no clinic ever receives any of this, and the sweep
- * never touches clinic data. CRON_SECRET-gated; scheduled once daily.
+ * WHO it reports to is the audience lock (platform_config), which ships
+ * closed: platform-only, so no clinic receives any of this until the owner
+ * opens it. Even open, only findings a practice can ACT on reach them. The
+ * sweep itself never writes to clinic data beyond that one ledger note.
+ * CRON_SECRET-gated; scheduled once daily.
  */
 async function run(request: Request) {
   const secret = process.env.CRON_SECRET

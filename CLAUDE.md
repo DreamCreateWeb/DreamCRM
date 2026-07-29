@@ -100,7 +100,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0139 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0140 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~135 server-only modules (import 'server-only') — one per
@@ -379,8 +379,9 @@ sitemap/robots/OG.
   `generate-proposals` (hourly — the Phase-2 proposal generators + staleness
   sweep; the weekly standup email rides `daily-digest` on clinic-local
   Mondays) · `guardian` (daily 14:00 UTC — Phase 4's watch over every
-  clinic's engine; emails platform admins about practices that need a human,
-  once per new/changed problem and then weekly) — 17 EventBridge rules
+  clinic's engine; reports the practices that need a human, once per
+  new/changed problem and then weekly, to whoever the AUDIENCE LOCK says)
+  — 17 EventBridge rules
   managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
   every merge** (idempotent self-heal — a new cron route can't ship un-fired,
   the drift that once left prospecting + 4 other jobs silently dead); the
@@ -516,8 +517,10 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0139** (`clinic_profile.guardian_state` +
-  `guardian_alerted_at` — the Guardian's alert memory; 0138 was
+  migration: **0140** (`platform_config` — Dream Create's own platform-global
+  switches, one row id 'default'; today it carries only the Guardian's
+  audience lock. 0139 was `clinic_profile.guardian_state` +
+  `guardian_alerted_at`, the Guardian's alert memory; 0138 was
   `proposal.original_body`, the autonomy ladder). Workflow:
   `pnpm db:generate`, commit, merge.
 - **Demo auto-resync on boot** (`scripts/resync-demo.mjs` → `createDemoClinic()`
@@ -616,7 +619,52 @@ sitemap/robots/OG.
    `countOpenProposals` excludes demo orgs from the granted-subtraction for
    the same reason it excludes billing-walled ones: nothing will ever
    execute those cards. Plus three identity-anchored unedited approvals),
-   Phase 4 guardian + shared brain, Phase 5+ new limbs proposal-first.
+   Phase 4 the guardian + the shared brain — **IN PROGRESS**. Slices 1–3
+   shipped: (1) the VERDICT — pure `lib/guardian.ts` (`assessEngine` over
+   `EngineSignals`, five states ranked worst-first: silent > blocked >
+   stalled > quiet > healthy; `needsAttention` keeps `quiet` off the list
+   because crying wolf is how a guardian gets ignored; the stall is measured
+   against the practice's OWN prior month, never against other clinics, with
+   a `STALL_MIN_BASELINE` floor so a 2→1 month isn't an alarm) +
+   `lib/services/guardian.ts` sweep (clinic orgs only, never demo — the demo
+   is excluded from every cron so it would report permanently silent and
+   train the owner to ignore the list; best-effort per clinic) + the
+   Overview panel, built as a REPORT not a console. The ledger grew a
+   FAILURE vocabulary (`recordFailure`, `detail.failure`) so "tried and
+   couldn't" is a real entry and `isWorkEntry` excludes it — a broken clinic
+   must not look busy. (2) the ALERT MEMORY — migration 0139
+   (`clinic_profile.guardian_state` + `guardian_alerted_at`), pure
+   `shouldAlert` (a NEW or CHANGED problem interrupts immediately, the SAME
+   one only every `RE_ALERT_DAYS`=7), the daily `guardian` cron; the stamp
+   moves ONLY on a delivery that landed, so an outage never buys a problem a
+   week of silence. (3) the AUDIENCE LOCK — migration 0140 `platform_config`
+   + `lib/services/platform-config.ts`; the Guardian can report to the owner
+   OR to the practice itself, and it **ships locked to the owner**. Only the
+   platform owner opens it (`setGuardianAudienceAction`, the control on the
+   Guardian panel); every read FLOORS at 'platform' (missing row, unreadable
+   DB, malformed value, wire input) so nothing undefined can start the
+   machine talking to customers. Even unlocked, only `clinicActionable`
+   findings reach a practice — a switch they turned off, or a stall worth a
+   conversation. SILENCE and repeated FAILURES stay with Dream Create at
+   every setting: those are ours to fix, and telling a clinic would hand
+   them alarm with no lever. A clinic-bound finding is written as a
+   `guardian_note` ledger entry in the clinic's own voice (registered in
+   `lib/autonomy.ts`, auto-by-default because it only ever REPORTS, and
+   deliberately NOT in `GRANTABLE_CAPABILITIES` — there is no judgment to
+   hand over) and the owner is NOT also emailed: one problem, one report.
+   ONE alert memory serves both audiences by design (the stamp means "this
+   problem was reported", not "reported to X"). The note is READ back by
+   `getActiveGuardianNote` + the amber heads-up card on the clinic Overview
+   — without that the sentence would be invisible (the ledger's only clinic
+   surfaces are the standup's count chips and the autonomous strip), i.e. a
+   report nobody reads. It self-expires with the re-alert window and is
+   RE-VERIFIED against live switches at render, because telling a practice
+   something untrue about their own settings is worse than saying nothing.
+   NOT seeded in the demo on purpose: the demo org is excluded from the
+   sweep, and the audience lock ships closed, so seeding one would
+   demonstrate a surface no real clinic can currently reach. Remaining: proposal-engine
+   observability, then the shared brain (cross-clinic patterns → per-clinic
+   defaults), then the phase-audit gate. Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live

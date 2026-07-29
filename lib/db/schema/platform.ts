@@ -656,3 +656,18 @@ export const stripeWebhookEvent = pgTable('stripe_webhook_event', {
 })
 
 export type StripeWebhookEvent = typeof stripeWebhookEvent.$inferSelect
+
+/**
+ * PLATFORM-GLOBAL CONFIG (Phase 4). One row, id 'default' — the same shape
+ * prospecting_config uses. Holds the switches that belong to Dream Create
+ * rather than to any clinic; today that is the Guardian's audience lock
+ * (`{ guardianAudience: 'platform' | 'clinic' }`, floored at 'platform' by
+ * resolveGuardianAudience so an absent or malformed row can never start
+ * talking to customers).
+ */
+export const platformConfig = pgTable('platform_config', {
+  id: text('id').primaryKey(), // 'default'
+  config: jsonb('config'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+export type PlatformConfigRow = typeof platformConfig.$inferSelect

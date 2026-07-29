@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { ClinicEngineReport, GuardianSweep } from '@/lib/services/guardian'
-import type { EngineState } from '@/lib/guardian'
+import { clinicActionable, type EngineState, type GuardianAudience } from '@/lib/guardian'
+import GuardianAudienceControl from './guardian-audience-control'
 
 /**
  * THE GUARDIAN's report (Transformation Phase 4 — DESIGN.md primitive #5).
@@ -47,8 +48,18 @@ const STATE_STYLE: Record<EngineState, { glyph: string; chip: string; label: str
   },
 }
 
-function ReportRow({ report }: { report: ClinicEngineReport }) {
+function ReportRow({
+  report,
+  audience,
+}: {
+  report: ClinicEngineReport
+  audience: GuardianAudience
+}) {
   const style = STATE_STYLE[report.verdict.state]
+  // Once the lock is open the owner needs to know, per finding, whether the
+  // practice has already heard it — otherwise they call to break news that
+  // was already delivered, or assume a delivery that never happened.
+  const toldThem = audience === 'clinic' && clinicActionable(report.verdict.state, report.signals)
   return (
     <li className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
       <div className="flex items-start gap-3">
@@ -74,26 +85,40 @@ function ReportRow({ report }: { report: ClinicEngineReport }) {
               <span className="font-medium">What I&rsquo;d do:</span> {report.verdict.recommendation}
             </p>
           )}
+          {audience === 'clinic' && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {toldThem
+                ? 'I told them directly — it is in their own activity.'
+                : 'This one is only with you. It is ours to fix, not theirs to notice.'}
+            </p>
+          )}
         </div>
       </div>
     </li>
   )
 }
 
-export default function GuardianPanel({ sweep }: { sweep: GuardianSweep }) {
+export default function GuardianPanel({
+  sweep,
+  audience,
+}: {
+  sweep: GuardianSweep
+  audience: GuardianAudience
+}) {
   // No clinics yet: the guardian has nothing to say, and saying it loudly
   // would be noise on a brand-new platform.
   if (sweep.reports.length === 0) return null
 
   return (
     <section className="mb-8" aria-label="Engine health">
-      <div className="flex items-baseline justify-between mb-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
           Engine health
           <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
             {sweep.summary}
           </span>
         </h2>
+        <GuardianAudienceControl audience={audience} />
       </div>
 
       {sweep.flagged.length === 0 ? (
@@ -104,7 +129,7 @@ export default function GuardianPanel({ sweep }: { sweep: GuardianSweep }) {
       ) : (
         <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {sweep.flagged.map((r) => (
-            <ReportRow key={r.organizationId} report={r} />
+            <ReportRow key={r.organizationId} report={r} audience={audience} />
           ))}
         </ul>
       )}

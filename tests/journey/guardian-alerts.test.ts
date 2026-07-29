@@ -16,6 +16,11 @@ const sweepState = vi.hoisted(() => ({
   reports: [] as Array<Record<string, unknown>>,
 }))
 const mail = vi.hoisted(() => ({ sent: [] as Array<Record<string, unknown>>, fail: false }))
+const lock = vi.hoisted(() => ({ audience: 'platform' as 'platform' | 'clinic', fail: false }))
+const ledger = vi.hoisted(() => ({
+  recorded: [] as Array<Record<string, unknown>>,
+  fail: false,
+}))
 
 vi.mock('@/lib/services/guardian', () => ({
   sweepEngineHealth: vi.fn(async () => ({
@@ -32,6 +37,20 @@ vi.mock('@/lib/email', () => ({
   sendNotificationEmail: vi.fn(async (input: Record<string, unknown>) => {
     if (mail.fail) throw new Error('smtp down')
     mail.sent.push(input)
+  }),
+}))
+vi.mock('@/lib/services/platform-config', () => ({
+  getGuardianAudience: vi.fn(async () => {
+    if (lock.fail) throw new Error('config unreadable')
+    return lock.audience
+  }),
+}))
+vi.mock('@/lib/services/action-ledger', () => ({
+  // Mirrors the real contract: recordAction never throws, it returns false.
+  recordAction: vi.fn(async (input: Record<string, unknown>) => {
+    if (ledger.fail) return false
+    ledger.recorded.push(input)
+    return true
   }),
 }))
 
@@ -103,7 +122,26 @@ import { runGuardianSweep } from '@/lib/services/guardian-alerts'
 const NOW = new Date('2026-07-29T14:00:00Z')
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
 
-function report(orgId: string, name: string, state: string) {
+/** Realistic signals — `clinicActionable` reads them, so an empty object
+ *  would make every 'blocked' look switch-caused by accident. */
+const SIGNALS = {
+  ageDays: 200,
+  actions7: 10,
+  actionsPrev7: 10,
+  failures7: 0,
+  remindersOn: true,
+  reviewRequestsOn: true,
+  seated30: 3,
+  seatedPrev30: 12,
+  openProposals: 0,
+}
+
+function report(
+  orgId: string,
+  name: string,
+  state: string,
+  signals: Partial<typeof SIGNALS> = {},
+) {
   return {
     organizationId: orgId,
     clinicName: name,
@@ -113,9 +151,13 @@ function report(orgId: string, name: string, state: string) {
       why: 'because',
       recommendation: state === 'healthy' ? null : 'do the thing',
     },
-    signals: {},
+    signals: { ...SIGNALS, ...signals },
   }
 }
+
+/** The two shapes of 'blocked': one the clinic caused, one we did. */
+const switchedOff = { remindersOn: false, reviewRequestsOn: false }
+const keepsFailing = { failures7: 5 }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -124,6 +166,10 @@ beforeEach(() => {
   sweepState.reports = []
   mail.sent = []
   mail.fail = false
+  lock.audience = 'platform'
+  lock.fail = false
+  ledger.recorded = []
+  ledger.fail = false
 })
 
 describe('runGuardianSweep', () => {
@@ -206,6 +252,139 @@ describe('runGuardianSweep', () => {
     const r = await runGuardianSweep(NOW)
     expect(r.scanned).toBe(1)
     expect(r.flagged).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+  })
+})
+
+/**
+ * THE AUDIENCE LOCK. It ships closed, and the failure this suite exists to
+ * prevent is the machine starting to talk to customers because something
+ * was undefined, mistyped, or unreachable.
+ */
+describe('runGuardianSweep — who hears it', () => {
+  it('LOCKED by default: a clinic-fixable problem still goes only to the owner', async () => {
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.audience).toBe('platform')
+    expect(r.alerted).toBe(1)
+    expect(r.notified).toBe(0)
+    expect(ledger.recorded).toHaveLength(0)
+  })
+
+  it('an unreadable lock stays CLOSED — the safe side is silence toward customers', async () => {
+    lock.fail = true
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.audience).toBe('platform')
+    expect(ledger.recorded).toHaveLength(0)
+    expect(mail.sent).toHaveLength(1)
+  })
+
+  it('unlocked: a switched-off engine is told to the PRACTICE, and the owner is not emailed', async () => {
+    lock.audience = 'clinic'
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.audience).toBe('clinic')
+    expect(r.notified).toBe(1)
+    expect(r.notifiedClinics).toEqual(['Ash Dental'])
+    expect(r.alerted).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+
+    const entry = ledger.recorded[0]
+    expect(entry.organizationId).toBe('org_a')
+    expect(entry.capability).toBe('guardian_note')
+    // Second person, and it names the lever rather than the diagnosis.
+    expect(String(entry.summary)).toMatch(/switched off/i)
+    expect(String(entry.summary)).not.toContain('!')
+    // The practice must never read the platform's word for itself.
+    expect(String(entry.summary)).not.toMatch(/\bthey\b|\bpractice\b/i)
+  })
+
+  it('unlocked: SILENCE is still ours — a dead machine never becomes the clinic’s problem', async () => {
+    lock.audience = 'clinic'
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent', { actions7: 0, actionsPrev7: 0 })]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(0)
+    expect(ledger.recorded).toHaveLength(0)
+    // It did not vanish — it went to the people who can fix it.
+    expect(r.alerted).toBe(1)
+    expect(mail.sent).toHaveLength(1)
+  })
+
+  it('unlocked: repeated FAILURES are ours too — a stale token is not something a front desk can fix', async () => {
+    lock.audience = 'clinic'
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', keepsFailing)]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(0)
+    expect(ledger.recorded).toHaveLength(0)
+    expect(r.alerted).toBe(1)
+  })
+
+  it('unlocked: a STALL is the clinic’s to hear, in their own numbers', async () => {
+    lock.audience = 'clinic'
+    sweepState.reports = [report('org_a', 'Ash Dental', 'stalled')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(1)
+    const summary = String(ledger.recorded[0].summary)
+    expect(summary).toContain('3')
+    expect(summary).toContain('12')
+    // Never a number without a next step, and never a percentage thrown at
+    // somebody about their own business.
+    expect(summary).not.toContain('%')
+    expect(summary).toMatch(/worth a look/i)
+  })
+
+  it('a mix routes each finding to whoever can act on it, in one run', async () => {
+    lock.audience = 'clinic'
+    store.profiles = [
+      { organizationId: 'org_a', guardianState: null, guardianAlertedAt: null },
+      { organizationId: 'org_b', guardianState: null, guardianAlertedAt: null },
+    ]
+    sweepState.reports = [
+      report('org_a', 'Ash Dental', 'silent', { actions7: 0, actionsPrev7: 0 }),
+      report('org_b', 'Birch Dental', 'blocked', switchedOff),
+    ]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.alertedClinics).toEqual(['Ash Dental'])
+    expect(r.notifiedClinics).toEqual(['Birch Dental'])
+  })
+
+  it('the same cadence governs both halves — a clinic is not told the same thing daily', async () => {
+    lock.audience = 'clinic'
+    store.profiles[0].guardianState = 'stalled'
+    store.profiles[0].guardianAlertedAt = daysAgo(1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'stalled')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(0)
+    expect(ledger.recorded).toHaveLength(0)
+  })
+
+  it('a FAILED ledger write never moves the stamp either — the note is retried tomorrow', async () => {
+    lock.audience = 'clinic'
+    ledger.fail = true
+    sweepState.reports = [report('org_a', 'Ash Dental', 'stalled')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(0)
+    expect(r.errors.length).toBeGreaterThan(0)
+    expect(store.profiles[0].guardianState).toBe('stalled')
+    expect(store.profiles[0].guardianAlertedAt).toBeNull()
+  })
+
+  it('a clinic-bound note is never ALSO emailed to the owner — one problem, one report', async () => {
+    lock.audience = 'clinic'
+    sweepState.reports = [report('org_a', 'Ash Dental', 'stalled')]
+
+    await runGuardianSweep(NOW)
+    expect(ledger.recorded).toHaveLength(1)
     expect(mail.sent).toHaveLength(0)
   })
 })

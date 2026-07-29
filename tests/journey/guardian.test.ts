@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   assessEngine,
+  clinicActionable,
+  clinicNote,
   needsAttention,
+  resolveGuardianAudience,
   summarizeSweep,
   shouldAlert,
   ENGINE_STATE_RANK,
@@ -10,6 +13,7 @@ import {
   RE_ALERT_DAYS,
   STALL_MIN_BASELINE,
   type EngineSignals,
+  type EngineState,
 } from '@/lib/guardian'
 
 /**
@@ -213,5 +217,112 @@ describe('shouldAlert', () => {
   it('a recovered clinic that breaks again is a new problem, not a repeat', () => {
     // silent → healthy (memory now 'healthy') → silent again
     expect(shouldAlert({ state: 'healthy', alertedAt: daysAgo(2) }, 'silent', NOW)).toBe(true)
+  })
+})
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * THE AUDIENCE LOCK (Phase 4 slice 3)
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The Guardian ships talking only to Dream Create. Everything here defends
+ * one property: nothing that is merely absent, malformed, or half-written
+ * may ever widen it to customers.
+ */
+describe('resolveGuardianAudience — closed unless a human opened it', () => {
+  it('defaults to platform-only', () => {
+    expect(resolveGuardianAudience(undefined)).toBe('platform')
+    expect(resolveGuardianAudience(null)).toBe('platform')
+    expect(resolveGuardianAudience({})).toBe('platform')
+  })
+
+  it('opens ONLY on the exact literal — anything else floors closed', () => {
+    expect(resolveGuardianAudience({ guardianAudience: 'clinic' })).toBe('clinic')
+    for (const bad of ['Clinic', 'clinics', 'CLINIC', true, 1, ['clinic'], { v: 'clinic' }, '']) {
+      expect(resolveGuardianAudience({ guardianAudience: bad })).toBe('platform')
+    }
+  })
+
+  it('a non-object config never opens it', () => {
+    for (const bad of ['clinic', 42, true, []]) {
+      expect(resolveGuardianAudience(bad)).toBe('platform')
+    }
+  })
+})
+
+describe('clinicActionable — what is theirs to fix, and what is ours', () => {
+  it('a switch THEY turned off is theirs', () => {
+    expect(clinicActionable('blocked', sig({ remindersOn: false }))).toBe(true)
+    expect(clinicActionable('blocked', sig({ reviewRequestsOn: false }))).toBe(true)
+    expect(clinicActionable('blocked', sig({ remindersOn: false, reviewRequestsOn: false }))).toBe(
+      true,
+    )
+  })
+
+  it('a machine that keeps failing is OURS — a stale token has no front-desk lever', () => {
+    expect(clinicActionable('blocked', sig({ failures7: 9 }))).toBe(false)
+  })
+
+  it('SILENCE is ours at every setting — telling a practice their machine is dead is alarm without a lever', () => {
+    expect(clinicActionable('silent', sig({ actions7: 0, actionsPrev7: 0 }))).toBe(false)
+  })
+
+  it('a stall is a conversation worth having with them', () => {
+    expect(clinicActionable('stalled', sig({ seated30: 3, seatedPrev30: 12 }))).toBe(true)
+  })
+
+  it('nothing that is not a problem is ever sent anywhere', () => {
+    expect(clinicActionable('healthy', sig())).toBe(false)
+    expect(clinicActionable('quiet', sig())).toBe(false)
+  })
+})
+
+describe('clinicNote — the same finding, said TO the practice', () => {
+  const states: EngineState[] = ['healthy', 'quiet', 'silent', 'blocked', 'stalled']
+
+  it('says nothing at all when the finding is not theirs', () => {
+    expect(clinicNote('silent', sig({ actions7: 0, actionsPrev7: 0 }))).toBeNull()
+    expect(clinicNote('blocked', sig({ failures7: 9 }))).toBeNull()
+    expect(clinicNote('healthy', sig())).toBeNull()
+    expect(clinicNote('quiet', sig())).toBeNull()
+  })
+
+  it('names the exact switch that is off, not a vague "something is off"', () => {
+    expect(clinicNote('blocked', sig({ remindersOn: false }))).toMatch(/appointment reminders/i)
+    expect(clinicNote('blocked', sig({ reviewRequestsOn: false }))).toMatch(/review requests/i)
+    const both = clinicNote('blocked', sig({ remindersOn: false, reviewRequestsOn: false }))!
+    expect(both).toMatch(/reminders/i)
+    expect(both).toMatch(/review requests/i)
+  })
+
+  it('the stall note gives the two numbers and a next step, never a percentage', () => {
+    const note = clinicNote('stalled', sig({ seated30: 3, seatedPrev30: 12 }))!
+    expect(note).toContain('3')
+    expect(note).toContain('12')
+    expect(note).not.toContain('%')
+    expect(note).toMatch(/worth a look/i)
+    // It must say the machine is fine, or the clinic reads a slow month as
+    // the product failing them.
+    expect(note).toMatch(/nothing is broken|still running/i)
+  })
+
+  it('is written in the CLINIC voice — never the platform talking about them', () => {
+    for (const state of states) {
+      const note = clinicNote(state, sig({ remindersOn: false, seated30: 3, seatedPrev30: 12 }))
+      if (!note) continue
+      expect(note).not.toContain('!')
+      // "they", "the practice", "the clinic" are how the owner's report
+      // reads; a practice reading that about itself is the tenant-voice bug.
+      expect(note).not.toMatch(/\bthey\b|\btheir\b|\bthe practice\b|\bthe clinic\b/i)
+      // Anti-shame: no should, no failing to, no neglect.
+      expect(note).not.toMatch(/\bshould\b|\bfailed to\b|\bneglect/i)
+    }
+  })
+
+  it('every clinic-actionable state HAS a note — a routed finding must never arrive empty', () => {
+    for (const state of states) {
+      const s = sig({ remindersOn: false, seated30: 3, seatedPrev30: 12 })
+      if (clinicActionable(state, s)) expect(clinicNote(state, s)).toBeTruthy()
+    }
   })
 })

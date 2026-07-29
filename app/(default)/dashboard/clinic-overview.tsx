@@ -14,7 +14,9 @@ import {
 import { listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 import { isGrantable } from '@/lib/autonomy'
 import { buildWeeklyStandup } from '@/lib/services/standup'
+import { getActiveGuardianNote } from '@/lib/services/guardian'
 import ApprovalInbox, { type ProposalCardData } from './approval-inbox'
+import GuardianNoteCard from './guardian-note-card'
 import StandupCard from './standup-card'
 import WelcomeModal from '@/components/onboarding/welcome-modal'
 import GettingStarted from '@/components/onboarding/getting-started'
@@ -94,8 +96,16 @@ function money(cents: number): string {
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [data, onboarding, proposals, totalOpenProposals, trustGrants, autonomousWork, standup] =
-    await Promise.all([
+  const [
+    data,
+    onboarding,
+    proposals,
+    totalOpenProposals,
+    trustGrants,
+    autonomousWork,
+    standup,
+    guardianNote,
+  ] = await Promise.all([
       getClinicOverview(ctx.organizationId),
       getStaffOnboarding(ctx.organizationId, ctx.userId),
       // The Approval Inbox + the weekly standup are best-effort reads — the
@@ -111,6 +121,10 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       // "do and tell" (round-1 Phase-3 audit).
       listAutonomousWork(ctx.organizationId).catch(() => []),
       buildWeeklyStandup(ctx.organizationId).catch(() => null),
+      // THE GUARDIAN's heads-up (Phase 4), when the audience lock is open
+      // and the finding is one this practice can act on. Self-expiring and
+      // re-verified against live switches inside the service.
+      getActiveGuardianNote(ctx.organizationId).catch(() => null),
     ])
   // EARNED TRUST (Phase 3): for each still-ask-first capability with a card
   // showing, how many recent approvals in a row went out unedited — the
@@ -347,6 +361,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           </div>
         </section>
       )}
+
+      {/* ── The Guardian's heads-up — the machine asking for a hand ────── */}
+      <GuardianNoteCard note={guardianNote} />
 
       {/* ── The Approval Inbox — finished work waiting on a yes ────────── */}
       <ApprovalInbox

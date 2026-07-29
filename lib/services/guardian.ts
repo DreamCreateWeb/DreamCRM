@@ -1,12 +1,14 @@
 import 'server-only'
-import { and, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   assessEngine,
   needsAttention,
   ENGINE_STATE_RANK,
   summarizeSweep,
+  RE_ALERT_DAYS,
   type EngineSignals,
+  type EngineState,
   type EngineVerdict,
 } from '@/lib/guardian'
 import { readEngineSwitches } from '@/lib/services/engine-switches'
@@ -187,5 +189,82 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
     reports,
     flagged: reports.filter((r) => needsAttention(r.verdict.state)),
     summary: summarizeSweep(reports.map((r) => r.verdict.state)),
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * THE CLINIC-FACING NOTE (Phase 4 slice 3)
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The heads-up a practice is currently carrying, for its own Overview.
+ *
+ * Without this reader the clinic-facing half would be a write nobody reads:
+ * a guardian_note lands in the ledger, and the ledger's only clinic surfaces
+ * are the weekly standup's COUNT chips ("1 heads up") and the autonomous
+ * strip — neither of which shows the sentence. A report that does not reach
+ * the reader is not a report.
+ *
+ * Two properties make it safe to render:
+ *
+ *  - It EXPIRES on its own. Only notes inside the re-alert window count, so
+ *    a problem the guardian stops writing about fades without anything
+ *    having to remember to clear it.
+ *  - It is RE-VERIFIED against live state, never trusted from the ledger.
+ *    A switch flipped back on ten minutes after the nightly sweep would
+ *    otherwise leave the machine insisting for days that it can't send —
+ *    telling a practice something untrue about their own settings is worse
+ *    than saying nothing at all. The stall note has no such live check by
+ *    design: it describes a closed 30-day window, which cannot become false
+ *    inside a week.
+ */
+export interface ActiveGuardianNote {
+  summary: string
+  /** What the note is about, so the surface can offer the right next step:
+   *  a switch note points at the automation settings, a stall note points at
+   *  where new patients come from. */
+  state: EngineState
+  occurredAt: Date
+}
+
+export async function getActiveGuardianNote(
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<ActiveGuardianNote | null> {
+  try {
+    const since = new Date(now.getTime() - RE_ALERT_DAYS * DAY_MS)
+    const [row] = await db
+      .select({
+        summary: schema.actionLedger.summary,
+        detail: schema.actionLedger.detail,
+        occurredAt: schema.actionLedger.occurredAt,
+      })
+      .from(schema.actionLedger)
+      .where(
+        and(
+          eq(schema.actionLedger.organizationId, organizationId),
+          eq(schema.actionLedger.capability, 'guardian_note'),
+          gte(schema.actionLedger.occurredAt, since),
+        ),
+      )
+      .orderBy(desc(schema.actionLedger.occurredAt))
+      .limit(1)
+    if (!row) return null
+
+    const state = (row.detail as { guardianState?: unknown } | null)?.guardianState
+    // Only the two states the clinic-facing half ever writes. Anything else
+    // is an entry this reader doesn't understand, and showing a warning it
+    // can't characterize would be worse than staying quiet.
+    if (state !== 'blocked' && state !== 'stalled') return null
+    if (state === 'blocked') {
+      const switches = await readEngineSwitches(organizationId)
+      // Both back on — the note is spent, whatever the ledger still says.
+      if (switches.remindersOn && switches.reviewRequestsOn) return null
+    }
+    return { summary: row.summary, state, occurredAt: row.occurredAt }
+  } catch {
+    // A note the machine can't read is a note it doesn't show. Never a
+    // half-rendered warning.
+    return null
   }
 }
