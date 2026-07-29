@@ -36,6 +36,7 @@ const {
   mockUneditedRun,
   mockListTrustGrants,
   mockListAutonomousWork,
+  mockInsideSendWindow,
   mockBuildStandup,
 } = vi.hoisted(() => ({
   mockListOpenProposals: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
@@ -43,6 +44,7 @@ const {
   mockUneditedRun: vi.fn(async (..._a: unknown[]) => 0),
   mockListTrustGrants: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
   mockListAutonomousWork: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
+  mockInsideSendWindow: vi.fn((..._a: unknown[]) => true),
   mockBuildStandup: vi.fn(async (..._a: unknown[]) => ({
     weekStart: new Date('2026-05-10T05:00:00Z'),
     weekEnd: new Date('2026-05-17T05:00:00Z'),
@@ -62,6 +64,21 @@ vi.mock('@/lib/services/proposals', () => ({
   listOpenProposals: mockListOpenProposals,
   countOpenProposals: mockCountOpenProposals,
   countConsecutiveUneditedApprovals: mockUneditedRun,
+  // THE law, real — the page's job is to ASK it once per card, not to
+  // re-implement it, so the test exercises the actual predicate.
+  machineHandlesCardRow: (
+    granted: Array<{ capability: string; grantedAt: Date | null }>,
+    card: { capability: string; createdAt: Date; handedBack?: boolean },
+  ) => {
+    if (card.handedBack) return false
+    const g = granted.find((x) => x.capability === card.capability)
+    if (!g) return false
+    return g.grantedAt == null || card.createdAt >= g.grantedAt
+  },
+}))
+vi.mock('@/lib/services/proposal-generators', () => ({
+  insidePatientSendWindow: (...a: unknown[]) => mockInsideSendWindow(...a),
+  PATIENT_INBOX_CAPABILITIES: ['outreach_campaign', 'inquiry_response'],
 }))
 vi.mock('@/lib/services/autonomy', () => ({
   listTrustGrants: mockListTrustGrants,
@@ -1076,6 +1093,73 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     const ui = await ClinicOverview({ ctx: { ...makeCtx(), isDemo: true } })
     render(ui)
     expect(screen.getByText(/nothing actually goes out/i)).toBeInTheDocument()
+  })
+
+  it('an evening card for patient mail says it goes out in the MORNING — the send window holds it overnight', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...reviewCard, id: 'prop_mail', capability: 'outreach_campaign', capabilityLabel: 'Launch outreach campaigns' },
+    ])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'outreach_campaign', label: 'Launch outreach campaigns', level: 'auto', grantedAt: null },
+    ])
+    mockInsideSendWindow.mockReturnValueOnce(false)
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/goes out in the morning/i)).toBeInTheDocument()
+    expect(screen.queryByText(/within the hour/i)).toBeNull()
+  })
+
+  it('a card filed BEFORE the grant stays a human’s to decide — no "goes out on its own", and it still offers nothing to re-grant', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...reviewCard, createdAt: new Date('2026-05-01T00:00:00Z') },
+    ])
+    mockListTrustGrants.mockResolvedValueOnce([
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        level: 'auto',
+        grantedAt: new Date('2026-06-01T00:00:00Z'),
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/goes out on its own within the hour/i)).toBeNull()
+    // …and it must not re-ask for a trust the clinic already gave.
+    expect(screen.queryByRole('checkbox', { name: /handle these for me on your own/i })).toBeNull()
+  })
+
+  it('a HANDED-BACK card never re-offers the hand-over for a capability already on automatic', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...reviewCard, payload: { ...(reviewCard.payload ?? {}), handBack: true } },
+    ])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/tried this one on my own twice/i)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /handle these for me on your own/i })).toBeNull()
+  })
+
+  it('the week’s autonomous work OUTLIVES the grant — taking the job back must not erase the record', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([])
+    mockListTrustGrants.mockResolvedValueOnce([]) // already taken back
+    mockListAutonomousWork.mockResolvedValueOnce([
+      {
+        capability: 'outreach_campaign',
+        label: 'Launch outreach campaigns',
+        count: 1,
+        latestSummary: 'Sent “We miss you” to 412 patients — handled on my own, as you asked',
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Here’s what I handled on my own this week/i)).toBeInTheDocument()
+    expect(screen.getByText(/412 patients/)).toBeInTheDocument()
   })
 
   it('no grants, no strip — the Overview stays quiet for a clinic that hasn’t handed anything over', async () => {

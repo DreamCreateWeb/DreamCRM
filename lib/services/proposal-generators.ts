@@ -1,7 +1,6 @@
 import 'server-only'
 import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { GRANTABLE_CAPABILITIES, resolveTrust } from '@/lib/autonomy'
 import { z } from 'zod'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { CORE_VOICE_RULES } from '@/lib/services/service-library-ai'
@@ -12,9 +11,10 @@ import {
   reconcileStrandedApprovals,
   closeRecoveredProposal,
   autoExecuteProposal,
-  notHandedBack,
+  machineHandlesCard,
+  resolveGrantedCapabilities,
 } from '@/lib/services/proposals'
-import { clinicDayStart } from '@/lib/clinic-timezone'
+import { clinicLocalHour } from '@/lib/clinic-timezone'
 
 /**
  * PROPOSAL GENERATORS (Transformation Phase 2). The machine notices work it
@@ -129,8 +129,9 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
         // capability the clinic switched to automatic gets its open cards
         // executed by the machine itself, through the exact human-approve
         // flow (claim → staleness re-checks → execute → narrate once).
-        // Freshly-filed and pre-grant cards alike; failures reopen and
-        // retry next tick under the same guards a human retry gets.
+        // Only cards filed AT OR AFTER the grant ("from now on" means what
+        // it says) and not already handed back; failures reopen and retry
+        // next tick under the same guards a human retry gets.
         ['autonomy', async () => ((result.autoExecuted += await autoExecuteGrantedProposals(org.id)), 0)],
       ]
       for (const [name, run] of generators) {
@@ -150,10 +151,18 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
 /** Clinic-local hours inside which the machine may send to a patient's
  *  inbox on its own — mid-morning through early evening, the same daylight
  *  rule the retention automations follow (SEND_HOUR_LOCAL there). */
-const SEND_WINDOW_START_HOUR = 8
-const SEND_WINDOW_END_HOUR = 19
+export const SEND_WINDOW_START_HOUR = 8
+export const SEND_WINDOW_END_HOUR = 19
 /** The granted capabilities whose execution puts mail in a patient's inbox. */
-const PATIENT_INBOX_CAPABILITIES: string[] = ['outreach_campaign', 'inquiry_response']
+export const PATIENT_INBOX_CAPABILITIES: string[] = ['outreach_campaign', 'inquiry_response']
+
+/** Whether the machine may send to patient inboxes right now, in the
+ *  clinic's own wall clock. Exported so the card's copy and the driver
+ *  answer from the same rule. */
+export function insidePatientSendWindow(now: Date, timeZone: string | null | undefined): boolean {
+  const hour = clinicLocalHour(now, timeZone)
+  return hour >= SEND_WINDOW_START_HOUR && hour < SEND_WINDOW_END_HOUR
+}
 
 /**
  * Execute the open proposals of every capability this clinic has switched
@@ -175,9 +184,7 @@ export async function autoExecuteGrantedProposals(
     .where(eq(schema.clinicProfile.organizationId, organizationId))
     .limit(1)
   if (!profile) return 0
-  const granted = GRANTABLE_CAPABILITIES.filter(
-    (key) => resolveTrust(profile.autonomy, key) === 'auto',
-  )
+  const granted = resolveGrantedCapabilities(profile.autonomy)
   if (granted.length === 0) return 0
   // THE SEND WINDOW (round-1 Phase-3 audit). Under "ask" the hour a patient
   // email went out was implicitly human-gated — staff tap Approve during
@@ -187,13 +194,15 @@ export async function autoExecuteGrantedProposals(
   // for daylight; the card simply stays open until the next tick inside the
   // window. (Public replies and posts have no inbox to wake and stay
   // immediate — a 1-star review answered at midnight is a good thing.)
-  const localHour =
-    (now.getTime() - clinicDayStart(now, profile.timezone).getTime()) / 3_600_000
-  const insideSendWindow = localHour >= SEND_WINDOW_START_HOUR && localHour < SEND_WINDOW_END_HOUR
-  const runnable = insideSendWindow
+  const runnable = insidePatientSendWindow(now, profile.timezone)
     ? granted
-    : granted.filter((key) => !PATIENT_INBOX_CAPABILITIES.includes(key))
+    : granted.filter((g) => !PATIENT_INBOX_CAPABILITIES.includes(g.capability))
   if (runnable.length === 0) return 0
+  // THE one law for "in my hands": granted, filed at or after the grant,
+  // and not already given up on. Shared with the badge count and the
+  // card's copy so the three can never disagree.
+  const mine = machineHandlesCard(runnable)
+  if (!mine) return 0
 
   const open = await db
     .select({ id: schema.proposal.id, capability: schema.proposal.capability })
@@ -202,11 +211,8 @@ export async function autoExecuteGrantedProposals(
       and(
         eq(schema.proposal.organizationId, organizationId),
         eq(schema.proposal.status, 'open'),
-        inArray(schema.proposal.capability, runnable),
         or(isNull(schema.proposal.expiresAt), gte(schema.proposal.expiresAt, now)),
-        // A handed-back card is waiting on a human again — the machine
-        // already said it couldn't do this one alone and stopped trying.
-        notHandedBack(),
+        mine,
       ),
     )
   let executed = 0

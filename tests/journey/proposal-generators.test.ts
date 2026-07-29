@@ -36,12 +36,28 @@ const proposalsSvc = vi.hoisted(() => ({
   autoExecuteProposal: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, status: 'approved' as const })),
   // 'not_ours' = not attributable → the sweep's plain batch expiry proceeds.
   closeRecoveredProposal: vi.fn(async (..._a: unknown[]) => 'not_ours' as const),
-  // The hand-back predicate — a lazy sql builder in the real module; here a
-  // row filter, so a handed-back card really is excluded from the driver's
-  // selection rather than silently matching everything.
-  notHandedBack: () => (r: Record<string, unknown>) => {
-    const payload = (r.payload ?? {}) as Record<string, unknown>
-    return payload.handBack !== true
+  // THE law + its resolver, modelled as row predicates (lazy sql builders
+  // in the real module) so the driver's selection is really exercised: a
+  // handed-back or pre-grant card must be excluded, not silently matched.
+  resolveGrantedCapabilities: (stored: unknown) => {
+    const map = (stored ?? {}) as Record<string, unknown>
+    const at = (map._grantedAt ?? {}) as Record<string, unknown>
+    return ['review_reply', 'social_post', 'inquiry_response', 'outreach_campaign']
+      .filter((k) => map[k] === 'auto')
+      .map((k) => ({
+        capability: k,
+        grantedAt: typeof at[k] === 'string' ? new Date(at[k] as string) : null,
+      }))
+  },
+  machineHandlesCard: (granted: Array<{ capability: string; grantedAt: Date | null }>) => {
+    if (granted.length === 0) return null
+    return (r: Record<string, unknown>) => {
+      const payload = (r.payload ?? {}) as Record<string, unknown>
+      if (payload.handBack === true) return false
+      const g = granted.find((x) => x.capability === r.capability)
+      if (!g) return false
+      return g.grantedAt == null || (r.createdAt as Date) >= g.grantedAt
+    }
   },
 }))
 vi.mock('@/lib/services/proposals', () => proposalsSvc)
@@ -466,7 +482,9 @@ describe('quiet-engine recall campaign', () => {
 describe('THE LADDER LIVE (Phase 3): autoExecuteGrantedProposals', () => {
   const openCard = (id: string, capability: string, over: Record<string, unknown> = {}) => ({
     id, organizationId: ORG, capability, sourceKey: `k_${id}`, status: 'open',
-    payload: {}, expiresAt: new Date(NOW.getTime() + DAY), ...over,
+    payload: {}, expiresAt: new Date(NOW.getTime() + DAY),
+    // Production always stamps createdAt; the grant-instant law reads it.
+    createdAt: new Date(NOW.getTime() - 60_000), ...over,
   })
 
   it('executes ONLY the capabilities the clinic actually handed over', async () => {
@@ -545,6 +563,32 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteGrantedProposals', () => {
     store.proposals = [openCard('p_mail', 'outreach_campaign')]
     // 18:00 UTC = 11 AM in Los Angeles.
     expect(await autoExecuteGrantedProposals(ORG, new Date('2026-07-27T18:00:00Z'))).toBe(1)
+  })
+
+  // "FROM NOW ON" MEANS FROM NOW ON (round-2 audit): a grant used to flush
+  // the whole standing queue within the hour — including the 1-star review
+  // the clinic had parked while deciding what to say.
+  it('never touches a card filed BEFORE the grant — the yes pointed forward', async () => {
+    store.profiles = [
+      {
+        organizationId: ORG,
+        autonomy: { review_reply: 'auto', _grantedAt: { review_reply: NOW.toISOString() } },
+      },
+    ]
+    store.proposals = [
+      openCard('p_parked', 'review_reply', { createdAt: new Date(NOW.getTime() - DAY) }),
+      openCard('p_after', 'review_reply', { createdAt: new Date(NOW.getTime() + 1000) }),
+    ]
+    const n = await autoExecuteGrantedProposals(ORG, new Date(NOW.getTime() + 2000))
+    expect(n).toBe(1)
+    expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledWith(ORG, 'p_after')
+    expect(proposalsSvc.autoExecuteProposal).not.toHaveBeenCalledWith(ORG, 'p_parked')
+  })
+
+  it('an older UNDATED grant keeps its original behavior rather than silently freezing', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    store.proposals = [openCard('p_old', 'review_reply', { createdAt: new Date(NOW.getTime() - DAY) })]
+    expect(await autoExecuteGrantedProposals(ORG, NOW)).toBe(1)
   })
 
   // THE HAND-BACK: the machine tried twice, said so, and stopped. It must

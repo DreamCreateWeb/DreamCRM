@@ -85,6 +85,24 @@ export function clinicDayStart(now: Date, timeZone: string | null | undefined, d
   return zonedMidnightToUtc(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate(), tz)
 }
 
+/**
+ * The clinic's WALL-CLOCK hour (0–23) at `now`. Read from Intl, never
+ * derived by subtracting local midnight: a DST day is 23 or 25 hours long,
+ * so elapsed-hours-since-midnight is off by one for the rest of that day —
+ * which on the fall-back Sunday let an autonomous send window open at 7 AM
+ * local (round-2 Phase-3 audit). Single home for "what time is it there".
+ */
+export function clinicLocalHour(now: Date, timeZone: string | null | undefined): number {
+  const h = Number(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: resolveClinicTimeZone(timeZone),
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(now),
+  )
+  return Number.isNaN(h) ? 0 : h
+}
+
 /** Clinic-local start of the week (Sunday midnight) containing `now`. */
 export function clinicWeekStart(now: Date, timeZone: string | null | undefined): Date {
   const tz = resolveClinicTimeZone(timeZone)

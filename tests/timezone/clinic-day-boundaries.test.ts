@@ -3,6 +3,7 @@ import {
   clinicDayStart,
   clinicWeekStart,
   clinicMonthStart,
+  clinicLocalHour,
   resolveClinicTimeZone,
 } from '@/lib/clinic-timezone'
 import {
@@ -108,6 +109,41 @@ describe('clinicWeekStart / clinicMonthStart', () => {
     expect(clinicMonthStart(lateJune, 'America/Chicago').toISOString()).toBe(
       '2026-06-01T05:00:00.000Z',
     )
+  })
+})
+
+/**
+ * The clinic's WALL-CLOCK hour. Used as the gate on autonomous patient
+ * sends, so a DST-day drift means the machine mails patients outside the
+ * daylight window it promised (round-2 Phase-3 audit).
+ */
+describe('clinicLocalHour', () => {
+  it('reads the wall clock, not elapsed time since local midnight', () => {
+    expect(clinicLocalHour(new Date('2026-07-27T15:00:00Z'), 'America/Chicago')).toBe(10)
+    expect(clinicLocalHour(new Date('2026-07-27T15:00:00Z'), 'America/Los_Angeles')).toBe(8)
+  })
+
+  it('holds on the FALL-BACK day — the 25-hour day that let a 7 AM blast through', () => {
+    // 2026-11-01, US fall back. Local midnight is EDT (04:00 UTC); at 12:00
+    // UTC the wall clock reads 07:00 EST while ELAPSED hours since midnight
+    // are 8 — the old subtraction opened the 8am window an hour early.
+    const now = new Date('2026-11-01T12:00:00Z')
+    const elapsed =
+      (now.getTime() - clinicDayStart(now, 'America/New_York').getTime()) / 3_600_000
+    expect(elapsed).toBe(8) // what the buggy computation saw
+    expect(clinicLocalHour(now, 'America/New_York')).toBe(7) // what the clinic sees
+  })
+
+  it('holds on the SPRING-FORWARD day too', () => {
+    // 2027-03-14: local midnight is EST (05:00 UTC); at 13:00 UTC the wall
+    // clock reads 09:00 EDT while elapsed reads 8.
+    const now = new Date('2027-03-14T13:00:00Z')
+    expect(clinicLocalHour(now, 'America/New_York')).toBe(9)
+  })
+
+  it('falls back to the default zone rather than throwing on a null', () => {
+    const now = new Date('2026-07-27T15:00:00Z')
+    expect(clinicLocalHour(now, null)).toBe(clinicLocalHour(now, resolveClinicTimeZone(null)))
   })
 })
 

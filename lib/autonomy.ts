@@ -100,3 +100,27 @@ export function resolveTrust(stored: unknown, capability: string): TrustLevel {
   const v = (stored as Record<string, unknown>)[capability]
   return v === 'ask' || v === 'auto' ? v : fallback
 }
+
+/**
+ * WHEN the grant was given. Stored beside the levels under a reserved key
+ * (never a capability name, so resolveTrust and every GRANTABLE-driven
+ * reader ignore it). "From now on, handle these for me" is a promise about
+ * the FUTURE: work already sitting in the inbox — the 1-star review the
+ * clinic parked while deciding what to say — was never part of the yes, so
+ * the machine only acts on cards filed at or after this instant
+ * (round-2 Phase-3 audit).
+ *
+ * null means an older grant with no stamp: those keep the original
+ * everything-open behavior rather than silently freezing.
+ */
+export const GRANTED_AT_KEY = '_grantedAt'
+
+export function resolveGrantedAt(stored: unknown, capability: string): Date | null {
+  if (!stored || typeof stored !== 'object') return null
+  const map = (stored as Record<string, unknown>)[GRANTED_AT_KEY]
+  if (!map || typeof map !== 'object') return null
+  const raw = (map as Record<string, unknown>)[capability]
+  if (typeof raw !== 'string') return null
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? null : d
+}

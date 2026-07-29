@@ -1,10 +1,12 @@
 import 'server-only'
-import { eq } from 'drizzle-orm'
+import { and, eq, gte, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
   GRANTABLE_CAPABILITIES,
+  GRANTED_AT_KEY,
   getCapability,
   isGrantable,
+  resolveGrantedAt,
   resolveTrust,
   type TrustLevel,
 } from '@/lib/autonomy'
@@ -30,6 +32,9 @@ export interface TrustGrantView {
   capability: string
   label: string
   level: TrustLevel
+  /** When this capability was handed over — the boundary of "from now on"
+   *  (null for an older grant made before the stamp existed). */
+  grantedAt: Date | null
 }
 
 /** The four grantable capabilities with their resolved levels — the
@@ -45,6 +50,7 @@ export async function listTrustGrants(organizationId: string): Promise<TrustGran
     capability: key,
     label: getCapability(key)?.label ?? key,
     level: resolveTrust(stored, key),
+    grantedAt: resolveGrantedAt(stored, key),
   }))
 }
 
@@ -76,7 +82,16 @@ export async function listAutonomousWork(
 ): Promise<AutonomousWorkView[]> {
   const now = opts.now ?? new Date()
   const since = opts.since ?? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const entries = await listRecentActions(organizationId, { since, until: now, limit: 100 })
+  // autonomousOnly filters in SQL. Without it the limit capped the newest
+  // rows of EVERYTHING and the JS filter threw most away — on a clinic that
+  // writes a row per reminder, a whole week of the machine's own work fell
+  // off the end and this strip said "nothing on my own yet" (round-2 audit).
+  const entries = await listRecentActions(organizationId, {
+    since,
+    until: now,
+    limit: 200,
+    autonomousOnly: true,
+  })
   const byCapability = new Map<string, AutonomousWorkView>()
   // listRecentActions is newest-first, so the first entry per capability is
   // the newest one — the summary to quote.
@@ -126,11 +141,30 @@ export async function setCapabilityTrust(
   const current = resolveTrust(row.autonomy, capability)
   if (current === level) return { ok: true, level } // nothing changed — no entry
 
-  const stored =
-    row.autonomy && typeof row.autonomy === 'object' ? (row.autonomy as Record<string, unknown>) : {}
+  // MERGE IN SQL, never read-modify-write (round-2 audit): two staff on the
+  // Overview at the same instant — one revoking, one granting something
+  // else — both wrote the whole object, and the loser could be the REVOKE.
+  // "Trust is reversible always" is the one write in this phase that must
+  // never be silently lost. `||` is a shallow jsonb merge, so each patch
+  // below replaces exactly the keys it names.
+  //
+  // A grant is DATED so it can mean "from now on"; taking it back clears the
+  // stamp so a later re-grant starts its own clock. The nested map is merged
+  // against the row's own current value inside the statement, so a sibling
+  // capability's stamp can't be clobbered either.
+  const levelPatch = JSON.stringify({ [capability]: level })
+  const col = schema.clinicProfile.autonomy
+  const grantedAt =
+    level === 'auto'
+      ? sql`coalesce(${col} -> ${GRANTED_AT_KEY}, '{}'::jsonb) || ${JSON.stringify({
+          [capability]: new Date().toISOString(),
+        })}::jsonb`
+      : sql`coalesce(${col} -> ${GRANTED_AT_KEY}, '{}'::jsonb) - ${capability}`
   await db
     .update(schema.clinicProfile)
-    .set({ autonomy: { ...stored, [capability]: level } })
+    .set({
+      autonomy: sql`coalesce(${col}, '{}'::jsonb) || ${levelPatch}::jsonb || jsonb_build_object(${GRANTED_AT_KEY}, ${grantedAt})`,
+    })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 
   // The diary explains the change in the machine's own voice — this is how

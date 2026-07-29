@@ -57,7 +57,10 @@ vi.mock('@/lib/db', () => {
       return api
     }
     api.then = (resolve: (v: unknown) => void) => {
-      for (const r of store.profiles) if (filters.every((f) => f(r))) Object.assign(r, patch)
+      for (const r of store.profiles) {
+        if (!filters.every((f) => f(r))) continue
+        for (const [k, v] of Object.entries(patch)) r[k] = evalSql(v, r)
+      }
       resolve(undefined)
     }
     return api
@@ -75,9 +78,39 @@ vi.mock('@/lib/db', () => {
   }
 })
 
+// The trust write is a jsonb merge done IN SQL (round-2 audit: a
+// read-modify-write could drop a concurrent revoke). The harness therefore
+// models the expression rather than stubbing it away — otherwise the tests
+// below would assert against a value the database never computes.
 vi.mock('drizzle-orm', () => ({
   eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => r[col.__col] === val,
+  and: (...preds: unknown[]) => preds.flat().filter(Boolean),
+  inArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
+    vals.includes(r[col.__col]),
+  gte: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
+    r[col.__col] instanceof Date && (r[col.__col] as Date) >= val,
+  sql: (strings: TemplateStringsArray, ...vals: unknown[]) => ({
+    __sqlText: (strings as unknown as string[]).join('?'),
+    __vals: vals,
+  }),
 }))
+
+/** Evaluate the mocked sql fragments against a row, the way Postgres would. */
+export function evalSql(node: unknown, row: Record<string, unknown>): unknown {
+  if (!node || typeof node !== 'object' || !('__sqlText' in node)) return node
+  const { __sqlText: text, __vals: vals } = node as { __sqlText: string; __vals: unknown[] }
+  const autonomy = (row.autonomy ?? {}) as Record<string, unknown>
+  if (text.includes('jsonb_build_object')) {
+    // coalesce(autonomy,'{}') || <levelPatch> || jsonb_build_object(key, <inner>)
+    const levelPatch = JSON.parse(vals[1] as string) as Record<string, unknown>
+    const key = vals[2] as string
+    return { ...autonomy, ...levelPatch, [key]: evalSql(vals[3], row) }
+  }
+  const base = { ...((autonomy[vals[1] as string] ?? {}) as Record<string, unknown>) }
+  if (text.includes('||')) return { ...base, ...(JSON.parse(vals[2] as string) as object) }
+  delete base[vals[2] as string] // the `- key` deletion
+  return base
+}
 
 import { setCapabilityTrust, listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 
@@ -92,7 +125,11 @@ describe('setCapabilityTrust', () => {
   it('grants a proposal-backed capability and NARRATES the change in the machine’s voice', async () => {
     const r = await setCapabilityTrust(ORG, 'review_reply', 'auto', 'user_1')
     expect(r).toEqual({ ok: true, level: 'auto' })
-    expect(store.profiles[0].autonomy).toEqual({ review_reply: 'auto' })
+    expect(store.profiles[0].autonomy).toMatchObject({ review_reply: 'auto' })
+    // A grant is DATED so "from now on" can mean what it says: cards filed
+    // before this instant stay a human's to decide (round-2 audit).
+    const stamped = (store.profiles[0].autonomy as Record<string, Record<string, string>>)._grantedAt
+    expect(typeof stamped.review_reply).toBe('string')
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
     expect(entry.capability).toBe('review_reply')
@@ -105,7 +142,11 @@ describe('setCapabilityTrust', () => {
     store.profiles[0].autonomy = { review_reply: 'auto' }
     const r = await setCapabilityTrust(ORG, 'review_reply', 'ask', 'user_1')
     expect(r).toEqual({ ok: true, level: 'ask' })
-    expect(store.profiles[0].autonomy).toEqual({ review_reply: 'ask' })
+    expect(store.profiles[0].autonomy).toMatchObject({ review_reply: 'ask' })
+    // Taking it back clears the stamp, so a later re-grant starts its own clock.
+    expect(
+      (store.profiles[0].autonomy as Record<string, Record<string, string>>)._grantedAt,
+    ).toEqual({})
     expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain(
       'ask-first',
     )
@@ -136,7 +177,10 @@ describe('setCapabilityTrust', () => {
   it('keeps the other capabilities’ grants intact (a merge, never a replace)', async () => {
     store.profiles[0].autonomy = { review_reply: 'auto' }
     await setCapabilityTrust(ORG, 'inquiry_response', 'auto', 'user_1')
-    expect(store.profiles[0].autonomy).toEqual({ review_reply: 'auto', inquiry_response: 'auto' })
+    expect(store.profiles[0].autonomy).toMatchObject({
+      review_reply: 'auto',
+      inquiry_response: 'auto',
+    })
   })
 })
 
@@ -210,10 +254,14 @@ describe('listAutonomousWork', () => {
     expect(await listAutonomousWork(ORG, { now: NOW })).toEqual([])
   })
 
-  it('asks for a 7-day window ending now', async () => {
+  it('asks for a 7-day window ending now, filtered IN THE QUERY', async () => {
     await listAutonomousWork(ORG, { now: NOW })
     const [, opts] = listRecentActionsMock.mock.calls[0] as [string, Record<string, unknown>]
     expect((opts.since as Date).toISOString()).toBe('2026-07-20T15:00:00.000Z')
     expect(opts.until).toEqual(NOW)
+    // NOT a top-N slice of everything (round-2 audit): the ledger writes one
+    // row per reminder, so a busy clinic's autonomous work fell off the end
+    // of the newest 100 rows and the strip said "nothing on my own yet".
+    expect(opts.autonomousOnly).toBe(true)
   })
 })

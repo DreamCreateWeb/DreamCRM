@@ -1,7 +1,12 @@
 import 'server-only'
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, not, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { GRANTABLE_CAPABILITIES, getCapability, resolveTrust } from '@/lib/autonomy'
+import {
+  GRANTABLE_CAPABILITIES,
+  getCapability,
+  resolveGrantedAt,
+  resolveTrust,
+} from '@/lib/autonomy'
 import { recordAction } from '@/lib/services/action-ledger'
 
 /**
@@ -46,9 +51,70 @@ export const AUTO_FAILURE_LIMIT = 2
 /** payload.handBack — the machine gave up on doing this one alone. Built
  *  per call, never at module scope: a module-level sql template touches the
  *  schema at import time and every slim-schema test mock explodes on it. */
-const handedBack = () => sql`(${schema.proposal.payload} ->> 'handBack') = 'true'`
 /** Its inverse, for the autonomy driver's selection (NULL-safe). */
 export const notHandedBack = () => sql`(${schema.proposal.payload} ->> 'handBack') is distinct from 'true'`
+
+/** A capability the clinic has switched to automatic, with the instant it
+ *  did so (null = an older grant made before grants were dated). */
+export interface GrantedCapability {
+  capability: string
+  grantedAt: Date | null
+}
+
+/**
+ * THE ONE LAW for "this card is in my hands, not yours" — the single
+ * predicate the autonomy driver acts on, the badge count subtracts, and
+ * the card's copy branches on. Three clauses, each learned:
+ *
+ *  - the capability is granted;
+ *  - the card was filed AT OR AFTER the grant. "From now on, handle these
+ *    for me" is a promise about the future. Before this, ticking the box on
+ *    one warm 5-star reply also published the 1-star review the clinic had
+ *    deliberately parked while deciding what to say — every open card of
+ *    that capability went out within the hour (round-2 audit). A card older
+ *    than the grant stays a human's to decide, and keeps counting as such;
+ *  - the machine hasn't already given up on it (the hand-back).
+ *
+ * An undated grant keeps the original everything-open behavior rather than
+ * silently freezing a clinic's existing cards.
+ */
+/** The clinic's granted capabilities, each with the instant it was handed
+ *  over — the input to the law below. */
+export function resolveGrantedCapabilities(stored: unknown): GrantedCapability[] {
+  return GRANTABLE_CAPABILITIES.filter((k) => resolveTrust(stored, k) === 'auto').map((k) => ({
+    capability: k,
+    grantedAt: resolveGrantedAt(stored, k),
+  }))
+}
+
+export function machineHandlesCard(granted: GrantedCapability[]) {
+  if (granted.length === 0) return null
+  return and(
+    or(
+      ...granted.map((g) =>
+        g.grantedAt
+          ? and(
+              eq(schema.proposal.capability, g.capability),
+              gte(schema.proposal.createdAt, g.grantedAt),
+            )
+          : eq(schema.proposal.capability, g.capability),
+      ),
+    ),
+    notHandedBack(),
+  )
+}
+
+/** The same law in memory, for a card already loaded (the Overview's copy
+ *  branch). Kept beside the SQL so the two can never drift. */
+export function machineHandlesCardRow(
+  granted: GrantedCapability[],
+  card: { capability: string; createdAt: Date; handedBack?: boolean },
+): boolean {
+  if (card.handedBack) return false
+  const g = granted.find((x) => x.capability === card.capability)
+  if (!g) return false
+  return g.grantedAt == null || card.createdAt >= g.grantedAt
+}
 
 export interface FileProposalInput {
   organizationId: string
@@ -160,20 +226,22 @@ export async function listOpenProposals(organizationId: string, limit = 12): Pro
  * as going out on its own) — the count means "on you", the list means
  * "in my hands".
  *
- * TWO EXCEPTIONS, both "it really is on you again":
- *  - a HANDED-BACK card (payload.handBack — the machine tried twice and
- *    couldn't) counts even under a grant. Round-1 Phase-3 audit: a
- *    permanently-failing autonomous job was invisible in both directions.
- *  - `includeGranted` counts the whole open population. The inbox's
- *    truncation math needs the list's OWN population, not the on-you one
- *    (subtracting one from the other hid genuinely-waiting cards).
+ * Excluded means exactly `machineHandlesCard` — one law, one home. So a
+ * card the machine will NOT act on still counts even under a grant: a
+ * HANDED-BACK card (it tried twice and gave up) and a card filed BEFORE
+ * the grant (the yes pointed forward) are both back on a human, and
+ * saying otherwise would hide real work.
+ *
+ * `includeGranted` counts the whole open population instead. The inbox's
+ * truncation math needs the list's OWN population, not the on-you one
+ * (subtracting one from the other hid genuinely-waiting cards).
  */
 export async function countOpenProposals(
   organizationId: string,
   opts: { includeGranted?: boolean } = {},
 ): Promise<number> {
   const now = new Date()
-  let granted: string[] = []
+  let granted: GrantedCapability[] = []
   if (!opts.includeGranted) {
     try {
       const [profile] = await db
@@ -181,13 +249,12 @@ export async function countOpenProposals(
         .from(schema.clinicProfile)
         .where(eq(schema.clinicProfile.organizationId, organizationId))
         .limit(1)
-      granted = GRANTABLE_CAPABILITIES.filter(
-        (k) => resolveTrust(profile?.autonomy ?? null, k) === 'auto',
-      )
+      granted = resolveGrantedCapabilities(profile?.autonomy ?? null)
     } catch {
       granted = [] // unreadable trust → count everything (never hide real work)
     }
   }
+  const mine = machineHandlesCard(granted)
   const [row] = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(schema.proposal)
@@ -196,9 +263,7 @@ export async function countOpenProposals(
         eq(schema.proposal.organizationId, organizationId),
         eq(schema.proposal.status, 'open'),
         or(isNull(schema.proposal.expiresAt), gt(schema.proposal.expiresAt, now)),
-        ...(granted.length > 0
-          ? [or(notInArray(schema.proposal.capability, granted), handedBack())]
-          : []),
+        ...(mine ? [not(mine)] : []),
       ),
     )
   return Number(row?.c ?? 0)

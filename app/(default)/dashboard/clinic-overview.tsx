@@ -1,7 +1,16 @@
 import Link from 'next/link'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
-import { listOpenProposals, countOpenProposals, countConsecutiveUneditedApprovals } from '@/lib/services/proposals'
+import {
+  listOpenProposals,
+  countOpenProposals,
+  countConsecutiveUneditedApprovals,
+  machineHandlesCardRow,
+} from '@/lib/services/proposals'
+import {
+  insidePatientSendWindow,
+  PATIENT_INBOX_CAPABILITIES,
+} from '@/lib/services/proposal-generators'
 import { listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 import { isGrantable } from '@/lib/autonomy'
 import { buildWeeklyStandup } from '@/lib/services/standup'
@@ -107,6 +116,12 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
   // showing, how many recent approvals in a row went out unedited — the
   // card suggests the grant at 3+. Best-effort; at most four tiny reads.
   const grantedSet = new Set(trustGrants.filter((g) => g.level === 'auto').map((g) => g.capability))
+  const grantedCapabilities = trustGrants
+    .filter((g) => g.level === 'auto')
+    .map((g) => ({ capability: g.capability, grantedAt: g.grantedAt }))
+  // One clinic-local read for every card's copy — the same rule the hourly
+  // driver applies before it sends anything to a patient's inbox.
+  const insideSendWindow = insidePatientSendWindow(new Date(), data.timeZone)
   const suggestFor = Array.from(
     new Set(
       proposals
@@ -180,6 +195,20 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       // The machine tried this one alone and gave up — the card says so
       // instead of promising it goes out within the hour.
       handedBack: payload.handBack === true,
+      // THE one law, asked once per card: is this mine to send, or yours to
+      // decide? (granted + filed at or after the grant + not handed back).
+      machineHandles: machineHandlesCardRow(grantedCapabilities, {
+        capability: p.capability,
+        createdAt: p.createdAt,
+        handedBack: payload.handBack === true,
+      }),
+      // The capability is automatic AT ALL — the consent checkbox's gate, so
+      // a card the machine won't act on never re-asks for a standing trust.
+      capabilityGranted: grantedSet.has(p.capability),
+      // Patient mail waits for daylight, so "within the hour" would be a lie
+      // in the evening (round-2 audit).
+      waitsForMorning:
+        PATIENT_INBOX_CAPABILITIES.includes(p.capability) && !insideSendWindow,
     }
   })
   // The checklist derives from live org data — only compute it while it's

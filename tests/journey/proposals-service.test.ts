@@ -48,8 +48,22 @@ const store: {
 
 const { recordActionMock, hasEntryForProposalMock } = vi.hoisted(() => ({
   recordActionMock: vi.fn(async (..._a: unknown[]) => true),
-  // The recovery-narration double-guard: false = no prior entry, narrate.
-  hasEntryForProposalMock: vi.fn(async (..._a: unknown[]) => false),
+  // The narrate-once guard, MODELLED rather than stubbed (round-2 audit):
+  // it answers "is there already a WORK entry for this proposal?" from the
+  // entries actually recorded. A blanket false hid the seam where a
+  // hand-back note ("I couldn't do this") satisfied the guard and swallowed
+  // the entry for the send that eventually happened.
+  hasEntryForProposalMock: vi.fn(async (..._a: unknown[]) => {
+    const proposalId = _a[1]
+    return recordActionMock.mock.calls.some((c) => {
+      const detail = ((c[0] as Record<string, unknown>)?.detail ?? {}) as Record<string, unknown>
+      return (
+        detail.proposalId === proposalId &&
+        detail.autonomyChange === undefined &&
+        detail.autoFailure !== true
+      )
+    })
+  }),
 }))
 vi.mock('@/lib/services/action-ledger', () => ({
   recordAction: recordActionMock,
@@ -312,6 +326,17 @@ vi.mock('drizzle-orm', () => ({
     r[col.__col] instanceof Date && (r[col.__col] as Date) < val,
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
   isNotNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] != null,
+  // and(...) yields an ARRAY of predicates in this mock, so not() has to
+  // evaluate it as a conjunction (mirrors the or() handling below).
+  not: (pred: unknown) => (r: Record<string, unknown>) => {
+    const run = (p: unknown): boolean =>
+      typeof p === 'function'
+        ? (p as (row: Record<string, unknown>) => boolean)(r)
+        : Array.isArray(p)
+          ? (p as unknown[]).every(run)
+          : false
+    return !run(pred)
+  },
   inArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
     vals.includes(r[col.__col]),
   notInArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
@@ -1334,6 +1359,24 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteProposal', () => {
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     expect((p.expiresAt as Date).getTime()).toBe(afterFirst.getTime())
     executors.replyToGoogleReview.mockResolvedValue({ ok: true } as never)
+  })
+
+  it('a human approving a HANDED-BACK card still narrates the work — the "I couldn’t" note must not eat the entry (round-2 audit)', async () => {
+    executors.replyToGoogleReview.mockResolvedValueOnce({ ok: false, error: 'Google said no' } as never)
+    executors.replyToGoogleReview.mockResolvedValueOnce({ ok: false, error: 'Google said no' } as never)
+    const p = seedProposal()
+    await autoExecuteProposal(ORG, p.id)
+    await autoExecuteProposal(ORG, p.id)
+    expect((p.payload as Record<string, unknown>).handBack).toBe(true)
+    expect(recordActionMock).toHaveBeenCalledTimes(1) // the hand-back note
+
+    // Google is healthy again and a human taps Approve: the reply really
+    // posts, so the ledger must say so.
+    await approveProposal(ORG, p.id, 'user_1')
+    expect(recordActionMock).toHaveBeenCalledTimes(2)
+    const entry = recordActionMock.mock.calls[1][0] as Record<string, unknown>
+    expect((entry.detail as Record<string, unknown>).approvedByUserId).toBe('user_1')
+    expect((entry.detail as Record<string, unknown>).autoFailure).toBeUndefined()
   })
 
   it('a HUMAN retry never counts against the machine’s two tries', async () => {

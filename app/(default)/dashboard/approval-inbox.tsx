@@ -54,6 +54,18 @@ export interface ProposalCardData {
    *  its own, failed twice, and stopped. The card must say so instead of
    *  promising it goes out within the hour. */
   handedBack?: boolean
+  /** This card is the machine's to send, but its capability puts mail in a
+   *  patient's inbox and it is currently outside the clinic's daylight send
+   *  window — so "within the hour" would be false (round-2 audit). */
+  waitsForMorning?: boolean
+  /** The capability is on automatic, and this card is one the machine will
+   *  act on. Kept separate from `capabilityGranted` so a handed-back or
+   *  pre-grant card can say the truth without re-offering the hand-over. */
+  machineHandles?: boolean
+  /** The capability is on automatic AT ALL — the gate for the "always do
+   *  this for me" checkbox, which must never re-ask for a trust the clinic
+   *  already gave (round-2 audit). */
+  capabilityGranted?: boolean
 }
 
 const CAPABILITY_ICON: Record<string, string> = {
@@ -123,7 +135,7 @@ export default function ApprovalInbox({
     return (
       <>
         {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
-        {grants.length > 0 && (
+        {(grants.length > 0 || autonomousWork.length > 0) && (
           <GrantsStrip
             grants={grants}
             work={autonomousWork}
@@ -161,7 +173,7 @@ export default function ApprovalInbox({
           <ProposalCard
             key={p.id}
             proposal={p}
-            alreadyGranted={grantedSet.has(p.capability) && !p.handedBack}
+            alreadyGranted={p.machineHandles ?? grantedSet.has(p.capability)}
             isDemo={isDemo}
             onDone={(id, message) => {
               setGone((s) => new Set(s).add(id))
@@ -170,7 +182,7 @@ export default function ApprovalInbox({
           />
         ))}
       </div>
-      {grants.length > 0 && (
+      {(grants.length > 0 || autonomousWork.length > 0) && (
         <GrantsStrip grants={grants} work={autonomousWork} isDemo={isDemo} onToast={setToast} />
       )}
     </section>
@@ -209,10 +221,15 @@ function GrantsStrip({
   const [pending, startTransition] = useTransition()
   const [gone, setGone] = useState<Set<string>>(new Set())
   const shown = grants.filter((g) => !gone.has(g.capability))
-  if (shown.length === 0) return null
+  // THE TELL OUTLIVES THE GRANT (round-2 audit): taking a job back used to
+  // delete, in the same click, the record of everything the machine had
+  // done with it — the one moment a clinic most wants to read that list.
+  // The chips need a live grant; the week's work does not.
+  if (shown.length === 0 && work.length === 0) return null
 
   return (
     <div className="mt-3 mb-8 text-xs text-gray-500 dark:text-gray-400">
+      {shown.length > 0 && (
       <div className="flex flex-wrap items-center gap-2">
       <span>
         {isDemo
@@ -248,6 +265,7 @@ function GrantsStrip({
         </span>
       ))}
       </div>
+      )}
       {/* THE TELL. Counts plus the newest line, verbatim — no drill-down, no
           filters, nothing to operate. The zero state is honest rather than
           hidden: silence after a hand-over reads as "did it break?". */}
@@ -255,14 +273,19 @@ function GrantsStrip({
         {work.length === 0 ? (
           <p>Nothing on my own yet — I’ll list each one right here.</p>
         ) : (
-          <ul className="space-y-0.5">
-            {work.map((w) => (
-              <li key={w.capability}>
-                <span className="text-gray-700 dark:text-gray-200">{w.label}</span> —{' '}
-                {w.count} this week. Latest: {w.latestSummary}
-              </li>
-            ))}
-          </ul>
+          <>
+            {shown.length === 0 && (
+              <p className="mb-0.5">Here’s what I handled on my own this week:</p>
+            )}
+            <ul className="space-y-0.5">
+              {work.map((w) => (
+                <li key={w.capability}>
+                  <span className="text-gray-700 dark:text-gray-200">{w.label}</span> —{' '}
+                  {w.count} this week. Latest: {w.latestSummary}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>
@@ -298,6 +321,9 @@ function ProposalCard({
   const [alwaysDo, setAlwaysDo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  // Defaults keep the card honest when a caller omits the flag: an
+  // already-granted card means the capability is granted.
+  const capabilityGranted = proposal.capabilityGranted ?? alreadyGranted
   const tokens = HAS_TOKENS.test(body)
   // The send APPENDS a booking button for these capabilities when the body
   // doesn't place the link itself — say so on the card, because "what the
@@ -488,16 +514,25 @@ function ProposalCard({
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           {isDemo
             ? 'You’ve handed these to me — in the demo I’ll show you how it works, but nothing actually goes out. Approve to see the whole flow, or take the job back below.'
-            : 'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, or take the job back below.'}
+            : proposal.waitsForMorning
+              ? // The send window (round-1 P4) holds patient mail overnight,
+                // which made the old "within the hour" line false all evening
+                // (round-2 audit). Say the real thing — it reassures.
+                'You’ve handed these to me — this one goes out in the morning; I don’t put mail in patients’ inboxes overnight. Approve now if you’d like it to go this minute, or take the job back below.'
+              : 'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, or take the job back below.'}
         </p>
       )}
-      {!alreadyGranted && isGrantable(proposal.capability) && (proposal.uneditedRun ?? 0) >= 3 && (
+      {/* The hand-over offer and its nudge are gated on whether the CAPABILITY
+          is already automatic — not on whether this particular card is the
+          machine's. A handed-back card was re-asking for a trust the clinic
+          had already given, while the strip below said so (round-2 audit). */}
+      {!capabilityGranted && isGrantable(proposal.capability) && (proposal.uneditedRun ?? 0) >= 3 && (
         <p className="mt-3 text-xs text-sky-700 dark:text-sky-300">
           You’ve said yes to the last {proposal.uneditedRun} of these without changing a word — tick
           the box below and I’ll take them over.
         </p>
       )}
-      {!alreadyGranted && isGrantable(proposal.capability) && (
+      {!capabilityGranted && isGrantable(proposal.capability) && (
         <label className="mt-3 flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
           <input
             type="checkbox"

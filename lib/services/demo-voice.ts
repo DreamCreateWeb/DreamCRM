@@ -379,9 +379,26 @@ No judgment — life gets busy. Pick a time that works and we’ll take care of 
  * to this" for a review with no reply on it would be fake content, and the
  * count must read the same rows the reviews page shows. Missing review →
  * skip that entry, never substitute another.
+ *
+ * Each row carries a REAL HUMAN decider (round-2 audit). The run counts only
+ * human yeses now — a null decider means "the machine's own yes under a
+ * standing grant" — so an unstamped seed both vanished from the count and
+ * asserted the machine had approved its own drafts. No owner on the demo
+ * org → skip the seed rather than seed a lie.
  */
 async function seedApprovedHistory(organizationId: string, now: Date): Promise<void> {
   const REPLIED = ['demo_gr_1', 'demo_gr_3', 'demo_gr_8'] as const
+  const [decider] = await db
+    .select({ userId: schema.member.userId })
+    .from(schema.member)
+    .where(
+      and(
+        eq(schema.member.organizationId, organizationId),
+        inArray(schema.member.role, ['owner', 'admin']),
+      ),
+    )
+    .limit(1)
+  if (!decider) return
   const rows = await db
     .select({
       externalReviewId: schema.platformReview.externalReviewId,
@@ -418,6 +435,7 @@ async function seedApprovedHistory(organizationId: string, now: Date): Promise<v
         payload: { externalReviewId: r.externalReviewId },
         status: 'approved',
         decidedAt,
+        decidedByUserId: decider.userId,
         executedAt: decidedAt,
         isDemo: 1,
         createdAt: new Date(decidedAt.getTime() - 3 * HOUR),

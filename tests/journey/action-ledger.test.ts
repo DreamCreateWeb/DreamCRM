@@ -35,7 +35,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-import { recordAction, listRecentActions, countActionsSince } from '@/lib/services/action-ledger'
+import { recordAction, listRecentActions, countActionsSince, isWorkEntry } from '@/lib/services/action-ledger'
 
 beforeEach(() => {
   insertMock.mockReset()
@@ -108,6 +108,32 @@ describe('the read half', () => {
     const src = readFileSync(resolve(__dirname, '../../lib/services/action-ledger.ts'), 'utf8')
     const scoped = src.match(/eq\(schema\.actionLedger\.organizationId, (organizationId|input\.organizationId)\)/g) ?? []
     expect(scoped.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('isWorkEntry: settings changes and "I couldn’t" notes are not work', () => {
+    expect(isWorkEntry(null)).toBe(true)
+    expect(isWorkEntry({ proposalId: 'p1', approvedByUserId: 'u1' })).toBe(true)
+    expect(isWorkEntry({ autonomyChange: 'auto' })).toBe(false)
+    expect(isWorkEntry({ autonomyChange: 'ask' })).toBe(false)
+    expect(isWorkEntry({ proposalId: 'p1', autoFailure: true })).toBe(false)
+  })
+
+  it('the narrate-once guard asks only about WORK rows — the hand-back note carries the same proposalId (round-2 Phase-3 pin)', () => {
+    const src = readFileSync(resolve(__dirname, '../../lib/services/action-ledger.ts'), 'utf8')
+    const fn = src.slice(src.indexOf('export async function hasEntryForProposal'))
+    const body = fn.slice(0, fn.indexOf('\n}'))
+    // Without this the machine giving up ("I tried twice and couldn't")
+    // satisfied the guard, so the send a human then approved for real
+    // wrote NOTHING to the ledger.
+    expect(body).toContain('workOnly()')
+  })
+
+  it('an autonomous-only read filters in SQL, not after the limit (round-2 Phase-3 pin)', () => {
+    const src = readFileSync(resolve(__dirname, '../../lib/services/action-ledger.ts'), 'utf8')
+    const fn = src.slice(src.indexOf('export async function listRecentActions'))
+    const body = fn.slice(0, fn.indexOf('\n}'))
+    expect(body).toMatch(/opts\.autonomousOnly \? \[autonomousOnly\(\)\]/)
+    expect(src).toMatch(/autonomousOnly = \(\) => sql`\(\$\{schema\.actionLedger\.detail\} ->> 'autonomous'\) = 'true'`/)
   })
 
   it('the time windows are laws too — dropping either gte turns "this week" into "all time" (round-4 pin)', () => {

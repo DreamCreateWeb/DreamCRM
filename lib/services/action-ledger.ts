@@ -54,6 +54,15 @@ export async function recordAction(input: RecordActionInput): Promise<boolean> {
   }
 }
 
+/** Entries the executors stamped as the machine acting alone (Phase 3). */
+const autonomousOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomous') = 'true'`
+
+/** The same rule in SQL, for the grouped count. Built per call, not at
+ *  module scope: a module-level template would touch the schema at import
+ *  time, which every test that mocks a slim schema would explode on. */
+const workOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomyChange') is null
+  and (${schema.actionLedger.detail} ->> 'autoFailure') is distinct from 'true'`
+
 export interface LedgerEntry {
   id: string
   capability: string
@@ -69,7 +78,7 @@ export interface LedgerEntry {
  *  round-3 backlog item). */
 export async function listRecentActions(
   organizationId: string,
-  opts: { since?: Date; until?: Date; limit?: number } = {},
+  opts: { since?: Date; until?: Date; limit?: number; autonomousOnly?: boolean } = {},
 ): Promise<LedgerEntry[]> {
   const limit = Math.min(opts.limit ?? 100, 500)
   const rows = await db
@@ -87,6 +96,13 @@ export async function listRecentActions(
         eq(schema.actionLedger.organizationId, organizationId),
         ...(opts.since ? [gte(schema.actionLedger.occurredAt, opts.since)] : []),
         ...(opts.until ? [lt(schema.actionLedger.occurredAt, opts.until)] : []),
+        // FILTER IN SQL, never after the slice (round-2 audit): the limit
+        // caps rows the DATABASE returns, so a caller wanting only the
+        // machine's own work got the newest N rows of everything and then
+        // threw most of them away — on a clinic writing one row per
+        // reminder, a whole week of autonomous work fell off the end and
+        // the Overview strip said "nothing on my own yet".
+        ...(opts.autonomousOnly ? [autonomousOnly()] : []),
       ),
     )
     .orderBy(desc(schema.actionLedger.occurredAt))
@@ -94,11 +110,19 @@ export async function listRecentActions(
   return rows
 }
 
-/** Whether a ledger entry already narrates this proposal (detail.proposalId
- *  — approveProposal always stamps it). The recovery-narration path uses
- *  this as its double-narration guard: a stranded approve whose
- *  recordAction DID run (only the executedAt stamp failed) must not get a
- *  second entry when the reconcile-reopen-retire loop closes it. */
+/** Whether a ledger entry already narrates THE WORK of this proposal
+ *  (detail.proposalId — approveProposal always stamps it). The
+ *  recovery-narration path uses this as its double-narration guard: a
+ *  stranded approve whose recordAction DID run (only the executedAt stamp
+ *  failed) must not get a second entry when the reconcile-reopen-retire
+ *  loop closes it.
+ *
+ *  WORK ONLY (round-2 audit). The hand-back note carries the same
+ *  proposalId and is explicitly NOT work — without this filter, a card the
+ *  machine gave up on and a human then approved published its reply / sent
+ *  its campaign for real and wrote NOTHING to the ledger, because the
+ *  guard mistook "I couldn't do this" for "this was already narrated".
+ *  Narrate-exactly-once had become narrate-zero. */
 export async function hasEntryForProposal(
   organizationId: string,
   proposalId: string,
@@ -110,6 +134,7 @@ export async function hasEntryForProposal(
       and(
         eq(schema.actionLedger.organizationId, organizationId),
         sql`${schema.actionLedger.detail}->>'proposalId' = ${proposalId}`,
+        workOnly(),
       ),
     )
     .limit(1)
@@ -130,12 +155,6 @@ export function isWorkEntry(detail: unknown): boolean {
   const d = detail as Record<string, unknown>
   return d.autonomyChange === undefined && d.autoFailure !== true
 }
-/** The same rule in SQL, for the grouped count. Built per call, not at
- *  module scope: a module-level template would touch the schema at import
- *  time, which every test that mocks a slim schema would explode on. */
-const workOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomyChange') is null
-  and (${schema.actionLedger.detail} ->> 'autoFailure') is distinct from 'true'`
-
 /** Per-capability counts in a window — the standup's "41 reminders,
  *  4 posts, 6 answers" line in one query. `until` exclusive, as above.
  *  WORK only: settings changes and "I couldn't" notes never count. */
