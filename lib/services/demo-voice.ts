@@ -105,6 +105,11 @@ async function seedLedger(
     persona: DemoVoicePersona | null
     summary: (first: string) => string
     at: Date
+    /** Work the machine did ON ITS OWN under a standing grant (Phase 3).
+     *  The Overview's "what I handled on my own" strip counts exactly these
+     *  rows, so without a few the demo shows the ladder's ASK and leaves its
+     *  TELL permanently in the zero state (round-3 audit). */
+    autonomous?: true
   }> = [
     { capability: 'appointment_reminder', persona: mia, summary: (f) => `Reminded ${f} about Tuesday's cleaning`, at: new Date(weekStart.getTime() + 1 * DAY + 9 * HOUR) },
     { capability: 'appointment_reminder', persona: liam, summary: (f) => `Reminded ${f} about Wednesday's checkup`, at: new Date(weekStart.getTime() + 2 * DAY + 9 * HOUR) },
@@ -119,6 +124,32 @@ async function seedLedger(
     // Current-week freshness (the activity trail keeps breathing).
     { capability: 'appointment_reminder', persona: emma, summary: (f) => `Reminded ${f} about tomorrow's visit`, at: new Date(now.getTime() - 1 * DAY) },
     { capability: 'scheduled_message', persona: mia, summary: (f) => `Delivered the message the front desk scheduled for ${f}`, at: new Date(now.getTime() - 5 * HOUR) },
+    // THE TELL, inside the strip's 7-day window: what a handed-over
+    // capability actually produced. The voice matches the executors' own
+    // ("— handled on my own, as you asked"), and the demo org is excluded
+    // from the driver, so these seeds are the only way the demo can show
+    // the payoff its checkbox promises.
+    // Deliberately NOT review_reply: every replied demo review is already
+    // spoken for (demo_gr_1/3/8 are the earned-trust history the clinic
+    // approved by hand), and claiming a reply on an unreplied one would
+    // contradict the reviews page. These two are narration-only in exactly
+    // the way listing_sync and auto_reply above are.
+    {
+      capability: 'social_post',
+      persona: null,
+      summary: () =>
+        `Posted your “meet the team” photo to Instagram and your Google listing — handled on my own, as you asked`,
+      at: new Date(now.getTime() - 2 * DAY - 4 * HOUR),
+      autonomous: true,
+    },
+    {
+      capability: 'social_post',
+      persona: null,
+      summary: () =>
+        `Posted a Friday reminder that you’re open late — handled on my own, as you asked`,
+      at: new Date(now.getTime() - 5 * DAY),
+      autonomous: true,
+    },
   ]
 
   let n = 0
@@ -134,7 +165,7 @@ async function seedLedger(
       capability: e.capability,
       patientId: e.persona?.patientId ?? null,
       summary: e.summary(e.persona?.firstName ?? ''),
-      detail: { demoSeed: true },
+      detail: { demoSeed: true, ...(e.autonomous ? { autonomous: true } : {}) },
       occurredAt: e.at,
     })
   }
