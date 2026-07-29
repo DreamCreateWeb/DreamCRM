@@ -1041,12 +1041,41 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         label: 'Reply to Google reviews',
         count: 3,
         latestSummary: 'Replied to Maria’s 5-star Google review — handled on my own, as you asked',
+        summaries: [
+          'Replied to Maria’s 5-star Google review — handled on my own, as you asked',
+          'Replied to Daniel’s 4-star Google review — handled on my own, as you asked',
+          'Replied to Priya’s 5-star Google review — handled on my own, as you asked',
+        ],
       },
     ])
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/3 this week/)).toBeInTheDocument()
+    // EACH one — the consent line promises a list, not a count plus an
+    // example (verification round 1).
     expect(screen.getByText(/Replied to Maria’s 5-star Google review/)).toBeInTheDocument()
+    expect(screen.getByText(/Replied to Daniel’s 4-star Google review/)).toBeInTheDocument()
+    expect(screen.getByText(/Replied to Priya’s 5-star Google review/)).toBeInTheDocument()
+  })
+
+  it('clamps a very busy week and SAYS it is clamping — silence about the rest would be the same lie', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
+    ])
+    mockListAutonomousWork.mockResolvedValueOnce([
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        count: 11,
+        latestSummary: 'Reply 1 — handled on my own, as you asked',
+        summaries: Array.from({ length: 11 }, (_, i) => `Reply ${i + 1} — handled on my own, as you asked`),
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/…and 3 more this week/)).toBeInTheDocument()
   })
 
   it('a FRESH hand-over that has done nothing yet says so — silence after a hand-over reads as broken', async () => {

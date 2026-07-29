@@ -41,10 +41,12 @@ const store: {
   socialPosts: Array<Record<string, unknown>>
   campaigns: Array<Record<string, unknown>>
   profiles: Array<Record<string, unknown>>
+  /** The org row the count joins for isDemo — production always has one. */
+  orgs: Array<Record<string, unknown>>
   /** When true, the next UPDATE that stamps executedAt throws — the
    *  bookkeeping-after-success failure the reopen region must NOT catch. */
   failExecutedAtStamp: boolean
-} = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], profiles: [], failExecutedAtStamp: false }
+} = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], profiles: [], orgs: [], failExecutedAtStamp: false }
 
 const { recordActionMock, hasEntryForProposalMock } = vi.hoisted(() => ({
   recordActionMock: vi.fn(async (..._a: unknown[]) => true),
@@ -123,6 +125,7 @@ vi.mock('@/lib/db', () => {
     if (name === 'social_post') return store.socialPosts
     if (name === 'campaigns') return store.campaigns
     if (name === 'clinic_profile') return store.profiles
+    if (name === 'organization') return store.orgs
     return []
   }
 
@@ -140,9 +143,14 @@ vi.mock('@/lib/db', () => {
 
   function select(cols?: Record<string, unknown>) {
     let table = ''
+    let joined = ''
     const filters: Array<(r: Record<string, unknown>) => boolean> = []
     const api: Record<string, unknown> = {}
     api.from = (t: { __name: string }) => { table = t.__name; return api }
+    // The billing/demo gate joins organization for isDemo. Modelled rather
+    // than ignored: a join stubbed to a no-op would have let the demo seam
+    // this test pins pass silently (verification round 1).
+    api.innerJoin = (t: { __name: string }) => { joined = t.__name; return api }
     api.where = (preds: unknown) => {
       if (Array.isArray(preds)) for (const p of preds) filters.push(p as never)
       else if (typeof preds === 'function') filters.push(preds as never)
@@ -150,6 +158,16 @@ vi.mock('@/lib/db', () => {
     }
     const rowsFor = () => {
       let out = tableRows(table).filter((r) => filters.every((f) => f(r))).map(snap)
+      if (joined === 'organization') {
+        // Flatten the joined org row's columns onto the profile row, and
+        // drop profiles with no org (an INNER join returns nothing).
+        out = out
+          .map((r) => {
+            const org = store.orgs.find((o) => o.id === r.organizationId)
+            return org ? { ...org, ...r } : null
+          })
+          .filter((r): r is Record<string, unknown> => r !== null)
+      }
       if (cols) out = out.map((r) => Object.fromEntries(Object.keys(cols).map((k) => [k, k === 'c' ? out.length : r[k]])))
       return out
     }
@@ -296,7 +314,11 @@ vi.mock('@/lib/db', () => {
       __name: 'clinic_profile',
       organizationId: col('organizationId'),
       autonomy: col('autonomy'),
+      trialEndsAt: col('trialEndsAt'),
+      subscriptionStatus: col('subscriptionStatus'),
+      stripeSubscriptionId: col('stripeSubscriptionId'),
     },
+    organization: { __name: 'organization', id: col('id'), isDemo: col('isDemo') },
     campaigns: {
       __name: 'campaigns',
       id: col('id'),
@@ -418,6 +440,9 @@ beforeEach(() => {
   store.socialPosts = []
   store.campaigns = []
   store.profiles = [{ organizationId: ORG, autonomy: null }]
+  // Production always has the org row the count's gate joins — a real
+  // clinic, not a demo (fixture realism).
+  store.orgs = [{ id: ORG, isDemo: false }]
   store.failExecutedAtStamp = false
   executors.markLeadContacted.mockResolvedValue(undefined)
   executors.createSocialPost.mockImplementation(
@@ -499,6 +524,13 @@ describe('listOpenProposals / countOpenProposals', () => {
       },
     ]
     seedProposal({ id: 'p_auto', capability: 'review_reply', sourceKey: 'kw1' })
+    expect(await countOpenProposals(ORG)).toBe(1)
+  })
+
+  it('a DEMO org’s granted cards count as waiting on a human — demo orgs never enter the generator loop, so nothing will execute them (verification round 1)', async () => {
+    store.orgs = [{ id: ORG, isDemo: true }]
+    store.profiles = [{ organizationId: ORG, autonomy: { social_post: 'auto' } }]
+    seedProposal({ id: 'p_demo', capability: 'social_post', sourceKey: 'kd1' })
     expect(await countOpenProposals(ORG)).toBe(1)
   })
 

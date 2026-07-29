@@ -66,6 +66,10 @@ export interface AutonomousWorkView {
   count: number
   /** The most recent thing the machine did alone, in its own words. */
   latestSummary: string
+  /** EVERY one of them, newest first — the consent line promises "I'll list
+   *  each one", and a count plus one example is not a list (verification
+   *  round 1). The strip renders these and says so when it has to clamp. */
+  summaries: string[]
 }
 
 /**
@@ -105,13 +109,16 @@ export async function listAutonomousWork(
     const detail = (e.detail ?? {}) as Record<string, unknown>
     if (detail.autonomous !== true) continue
     const found = byCapability.get(e.capability)
-    if (found) found.count++
-    else
+    if (found) {
+      found.count++
+      found.summaries.push(e.summary)
+    } else
       byCapability.set(e.capability, {
         capability: e.capability,
         label: getCapability(e.capability)?.label ?? e.capability,
         count: 1,
         latestSummary: e.summary,
+        summaries: [e.summary],
       })
   }
   return Array.from(byCapability.values()).sort((a, b) => b.count - a.count)

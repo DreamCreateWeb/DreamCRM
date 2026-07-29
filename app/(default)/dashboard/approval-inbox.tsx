@@ -85,6 +85,11 @@ export function renderTokenSample(text: string): string {
 
 const HAS_TOKENS = /\{\{(firstName|bookingUrl)\}\}/
 
+/** How many of a capability's autonomous entries the strip names before it
+ *  clamps and says how many it is holding back. Generous on purpose: the
+ *  consent line promises each one, and real weekly volumes are small. */
+const WORK_LINES_PER_CAPABILITY = 8
+
 /** A capability the clinic switched to automatic — the take-it-back strip
  *  reads these (Phase 3: trust is reversible ALWAYS, and the way back must
  *  live somewhere that still renders when autonomy empties the inbox). */
@@ -105,6 +110,9 @@ export interface AutonomousWorkChip {
   label: string
   count: number
   latestSummary: string
+  /** Every entry, newest first. The consent line promises "I'll list each
+   *  one" — a count and one example is not a list (verification round 1). */
+  summaries?: string[]
 }
 
 export default function ApprovalInbox({
@@ -300,13 +308,26 @@ function GrantsStrip({
             {shown.length === 0 && (
               <p className="mb-0.5">Here’s what I handled on my own this week:</p>
             )}
-            <ul className="space-y-0.5">
-              {work.map((w) => (
-                <li key={w.capability}>
-                  <span className="text-gray-700 dark:text-gray-200">{w.label}</span> —{' '}
-                  {w.count} this week. Latest: {w.latestSummary}
-                </li>
-              ))}
+            <ul className="space-y-1.5">
+              {work.map((w) => {
+                const lines = w.summaries?.length ? w.summaries : [w.latestSummary]
+                const shownLines = lines.slice(0, WORK_LINES_PER_CAPABILITY)
+                const rest = w.count - shownLines.length
+                return (
+                  <li key={w.capability}>
+                    <span className="text-gray-700 dark:text-gray-200">{w.label}</span> — {w.count}{' '}
+                    this week:
+                    <ul className="mt-0.5 ml-3 space-y-0.5">
+                      {shownLines.map((line, i) => (
+                        <li key={i}>{`· ${line}`}</li>
+                      ))}
+                      {rest > 0 && (
+                        <li>{`· …and ${rest} more this week`}</li>
+                      )}
+                    </ul>
+                  </li>
+                )
+              })}
             </ul>
           </>
         )}

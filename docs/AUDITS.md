@@ -249,11 +249,43 @@ audit round:
    new `_revokedAt` stamp with everything else, and the tell now has seeded
    rows to render.
 
+#### Verification round 1 (2026-07-29) — NOT clean
+
+Four lenses, four findings, three unique. All three were seams in the
+POST-CAP work itself, which is the retrospective's lesson #1 landing on the
+retrospective's own author:
+
+- **The demo's tell claimed a grant the demo had just deleted.** The
+  self-sweep's seeded `autonomous: true` rows said "handled on my own, as
+  you asked" while `resetAutonomy` wiped every grant on the same pass, the
+  same screen still asked permission for that capability, and the two posts
+  named existed nowhere on /growth/social. Fixed by making the claim TRUE:
+  the reset now restores a known MIXED baseline (social_post handed over and
+  dated before the seeded cards; everything else ask-first), and the seeded
+  entry narrates the post that actually exists — `demo_spost_1`, published
+  4 days ago to Google, Instagram and Facebook.
+- **"I'll list each one" against a per-capability count.** Five strings
+  promise an item-by-item record; the strip rendered one line per capability
+  with a count and the newest summary. The same imprecision class round 1
+  fixed (the "diary" that did not exist) and round 3 fixed ("nothing *yet*"
+  from a 7-day read), in the same paragraph. `listAutonomousWork` already
+  read every entry; the strip now names them, clamping at 8 per capability
+  with an honest "…and N more this week".
+- **The demo grant re-opened the walled-clinic seam.** Demo orgs are
+  structurally excluded from the generator loop, so a granted demo card is
+  subtracted from the badge while nothing will ever execute it — exactly the
+  law the self-sweep had just codified, with one reader too few.
+  `countOpenProposals` now applies the demo exclusion alongside the billing
+  one. The harness models the join rather than stubbing it, because a
+  no-op join would have let this pass silently.
+- Also fixed: this file's own round-by-round had a duplicated Round-1 header
+  and no record of rounds 2–3 at all.
+
 #### Round-by-round
 
-- **Round 1** (range `6fe9276..d4ed2cd`). v2 gate, four Opus lenses
-(claims · law · resilience · depth) → one skeptic → one judge → main-loop
-confirmation against the cited code before any fix.
+v2 gate throughout: four Opus lenses (claims · law · resilience · depth) →
+one skeptic → one judge → main-loop confirmation against the cited code
+before any fix.
 
 - **Round 1** (range `6fe9276..d4ed2cd`): the four lenses returned 29 raw
   findings → 12 deduped defect candidates + 3 depth candidates. The
@@ -312,6 +344,91 @@ confirmation against the cited code before any fix.
     sentences; the demo hedges everywhere the grant promises delivery.
   - Tests 5,626 → 5,646 (23 new pins incl. the harness now modelling the
     jsonb payload probes rather than an opaque token — fixture realism).
+
+- **Round 2** (range extended through the round-1 fixes): the lenses were
+  pointed at the FIXES as much as the phase, and that is where the damage
+  was — 11 deduped candidates, **9 confirmed**, four of them living inside
+  round-1 fixes. Two rejected and upheld: the 12-card list starving on-you
+  cards (unreachable given the per-run filing caps, and the truncation
+  notice renders) and the autonomy.ts comment about explaining why the
+  asking stopped (forward-looking rationale, not a claim of a shipped
+  surface).
+- **Round-2 fixes (commit `2c18f64`):**
+  - **"From now on" did not mean from now on.** A grant executed EVERY open
+    card of that capability within the hour — including the 1–2★ review a
+    clinic had parked while deciding what to say. Grants are now DATED
+    (`_grantedAt`), and one shared predicate — `machineHandlesCard` /
+    `machineHandlesCardRow` — decides what the machine acts on: granted,
+    filed at or after the grant, not handed back. The driver, the badge
+    count and the card's copy all read it, so they cannot drift. An older
+    undated grant keeps its original behavior rather than silently freezing.
+  - **The hand-back note was eating real ledger entries.** It carries the
+    proposal's id and `hasEntryForProposal` matched on id alone, so a card
+    the machine gave up on, that a human then approved and that really
+    published, wrote NOTHING to the ledger. The guard is work-only now.
+  - **The tell lied on busy clinics** — it read the newest 100 ledger rows
+    of everything and filtered in JS, so on a clinic writing a row per
+    reminder a week of autonomous work fell off the end and the strip said
+    "nothing on my own yet". Filtered in SQL. And the tell now outlives the
+    grant: taking a job back used to delete the record of what it did.
+  - **The demo's earned-trust history had gone inert** — round 1 made a
+    human decider mandatory and the seeded approvals had none, so the
+    suggestion could never render; worse, a null decider now MEANS "the
+    machine's own yes", so the seed asserted the machine approved itself.
+  - **The send window read elapsed hours, not the wall clock** — on the
+    fall-back Sunday the 8am gate opened at 7am local. `clinicLocalHour`
+    joins the timezone helpers as the single home for "what time is it
+    there".
+  - Also: `setCapabilityTrust` merges in SQL instead of read-modify-write (a
+    concurrent grant could drop a revoke), a held card says it goes out in
+    the morning, and a handed-back card stops re-offering a hand-over the
+    clinic already made. Tests 5,646 → 5,660.
+
+- **Round 3** (the hard cap): 10 deduped candidates + 4 depth. **9 defects
+  confirmed** (one rejected and upheld: the reviews nav badge counting
+  machine-destined work — an unreplied review is a different claim than
+  "waiting on your yes", and subtracting would hide genuinely human work).
+  The judge ruled **3 depth candidates IN_PHASE** and backlogged the fourth
+  (per-capability consent disclosures beyond review_reply) as re-litigation
+  of a round-1 ruling.
+- **Round-3 fixes (commits `f0f1567`, `34bb3f8`, `937deae`):**
+  - **CRITICAL — the whole ladder was inert on Postgres.** Round 2's SQL
+    merge interpolated the reserved key as an UNTYPED bind parameter inside
+    `jsonb_build_object`, which is VARIADIC `"any"`; Postgres cannot infer a
+    type there, so every grant AND every revoke failed with 42P18 and left
+    the row unchanged. Two lenses found it independently, one reproducing
+    the drizzle-generated statement against a real Postgres 16. Nothing in
+    5,660 tests could see it: the harness mocks `sql` into a descriptor and
+    re-implements the merge in JavaScript. Every parameter is cast now, and
+    `tests/journey/autonomy-sql.test.ts` renders the real statement through
+    drizzle's own `PgDialect` and fails if any `$n` is bound uncast
+    (confirmed failing against the pre-fix code).
+  - **Autonomy acted for clinics that could not stop it.** The Overview
+    strip is the only take-back surface and `TrialEndedWall` replaces the
+    entire dashboard, so a lapsed or cancelled clinic kept having public
+    replies published and recall mail sent in its name, hourly, with no
+    reachable brake. The driver now declines to act for a walled clinic.
+  - **A crash mid-execute never counted toward the hand-back** — the
+    reconcile hand-rolled its own reopen, so a proposal whose execution
+    reliably kills the process retried every hour forever, with its expiry
+    renewed each pass so it could not even age out. Both paths share one
+    reopen.
+  - **A revoke was not counter-evidence** — the next card answered it by
+    asking for the grant back, citing approvals the clinic had just
+    overruled. Revokes are dated (`_revokedAt`) and floor the earned-trust
+    run.
+  - **Depth:** the pre-grant card says why it is still theirs (round 2
+    created that card class and left it silent); a granted card names the
+    third exit — skipping one draft instead of revoking the whole
+    capability; and the demo seeds the tell so the ladder's payoff is
+    showable.
+  - Also: every server-action call on the card has a failure boundary (the
+    take-back had none — the direction that most needs one), the tell's zero
+    state distinguishes a fresh grant from a quiet week, the driver gets the
+    run's clock, and five documentation claims were corrected (migration
+    numbers, the law's docblock placement, an orphaned comment, the false
+    "retention already enforced a daylight window", and the gate's own cap
+    semantics). Tests 5,660 → 5,674.
 
 ### Phase 2 — the voice (proposals · Approval Inbox · weekly standup)
 

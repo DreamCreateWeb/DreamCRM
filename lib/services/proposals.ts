@@ -251,16 +251,22 @@ export async function countOpenProposals(
           trialEndsAt: schema.clinicProfile.trialEndsAt,
           subscriptionStatus: schema.clinicProfile.subscriptionStatus,
           stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+          isDemo: schema.organization.isDemo,
         })
         .from(schema.clinicProfile)
+        .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
         .where(eq(schema.clinicProfile.organizationId, organizationId))
         .limit(1)
-      // A WALLED clinic has no working grants (self-sweep after round 3):
-      // the driver refuses to act for one, so subtracting its granted cards
-      // here would hide work that nothing is going to do — the count and the
-      // driver have to answer "is this mine?" the same way.
+      // THE COUNT AND THE DRIVER ANSWER "is this mine?" THE SAME WAY.
+      // Subtracting a granted card is only honest when something is
+      // actually going to execute it, so both ways the driver can decline
+      // apply here too: a WALLED clinic (it refuses to act while the
+      // take-back is behind the billing wall) and a DEMO org (structurally
+      // excluded from the generator loop, so its granted cards wait on a
+      // human forever). Verification round 1 re-opened this seam by
+      // seeding a demo grant; the law had one reader too few.
       granted =
-        profile && !resolveTrialState(profile, now).expired
+        profile && !profile.isDemo && !resolveTrialState(profile, now).expired
           ? resolveGrantedCapabilities(profile.autonomy)
           : []
     } catch {

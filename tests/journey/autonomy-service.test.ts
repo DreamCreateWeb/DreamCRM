@@ -235,12 +235,19 @@ describe('listAutonomousWork', () => {
         count: 2,
         // listRecentActions is newest-first, so the first one is the newest.
         latestSummary: 'Replied to Maria’s review — handled on my own, as you asked',
+        // EACH one, newest first — the consent line promises a list, not a
+        // count with one example (verification round 1).
+        summaries: [
+          'Replied to Maria’s review — handled on my own, as you asked',
+          'Replied to an older review — handled on my own, as you asked',
+        ],
       },
       {
         capability: 'social_post',
         label: 'Publish social & Google posts',
         count: 1,
         latestSummary: 'Posted to Instagram — handled on my own, as you asked',
+        summaries: ['Posted to Instagram — handled on my own, as you asked'],
       },
     ])
   })

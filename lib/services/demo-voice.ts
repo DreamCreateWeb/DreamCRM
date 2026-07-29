@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { GRANTED_AT_KEY } from '@/lib/autonomy'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { platformLabel } from '@/lib/types/zernio'
 
@@ -48,21 +49,37 @@ export async function seedDemoVoice(
 
   await seedLedger(organizationId, personas, now)
   await seedProposals(organizationId, now)
-  await resetAutonomy(organizationId)
+  await resetAutonomy(organizationId, now)
 }
 
 /**
- * Delete-and-reseed for the LADDER (Phase 3): a demo session may grant
- * "always do this for me" (the toast + strip must work in demos), but a
- * grant left behind would make the reseeded inbox incoherent — cards for a
- * capability the strip says is automatic, which the demo cron (skipped for
- * demo orgs) would never execute. Every resync returns the demo to
- * ask-first across the board.
+ * Reset the LADDER to the demo's BASELINE (Phase 3). A demo session may
+ * grant or revoke "always do this for me" — the toast, the strip and the
+ * take-back all have to work in demos — so every resync throws that away
+ * and restores one known state.
+ *
+ * The baseline is deliberately MIXED, because the ladder has two rungs and
+ * a demo that shows one of them shows half the phase:
+ *  - social_post is HANDED OVER, dated before the seeded cards, so the demo
+ *    renders the granted card (hedged), the take-back chip, and the "what I
+ *    handled on my own" tell — whose seeded entry narrates the real post
+ *    published 4 days ago;
+ *  - everything else stays ask-first, so the review card still shows the
+ *    earned-trust nudge and the never-pre-ticked consent checkbox.
+ *
+ * Verification round 1: seeding the tell WITHOUT this grant made the strip
+ * say "handled on my own, as you asked" while the same screen asked for
+ * that permission — a claim about a grant the reset had just deleted.
  */
-async function resetAutonomy(organizationId: string): Promise<void> {
+async function resetAutonomy(organizationId: string, now: Date): Promise<void> {
   await db
     .update(schema.clinicProfile)
-    .set({ autonomy: null })
+    .set({
+      autonomy: {
+        social_post: 'auto',
+        [GRANTED_AT_KEY]: { social_post: new Date(now.getTime() - 10 * DAY).toISOString() },
+      },
+    })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 }
 
@@ -129,25 +146,23 @@ async function seedLedger(
     // ("— handled on my own, as you asked"), and the demo org is excluded
     // from the driver, so these seeds are the only way the demo can show
     // the payoff its checkbox promises.
-    // Deliberately NOT review_reply: every replied demo review is already
-    // spoken for (demo_gr_1/3/8 are the earned-trust history the clinic
-    // approved by hand), and claiming a reply on an unreplied one would
-    // contradict the reviews page. These two are narration-only in exactly
-    // the way listing_sync and auto_reply above are.
+    // THE TELL. Deliberately NOT review_reply: every replied demo review is
+    // already spoken for (demo_gr_1/3/8 are the earned-trust history the
+    // clinic approved by hand), and claiming a reply on an unreplied one
+    // would contradict the reviews page.
+    //
+    // ANCHORED BY IDENTITY to the post that actually exists — DEMO_SOCIAL_
+    // POSTS' demo_spost_1, published 4 days ago to Google, Instagram and
+    // Facebook (verification round 1: the first version of this seed
+    // narrated two posts a prospect could not find on /growth/social, and
+    // said "as you asked" for a grant the resync had just deleted). The
+    // matching grant is seeded by resetAutonomy below, so the claim is true.
     {
       capability: 'social_post',
       persona: null,
       summary: () =>
-        `Posted your “meet the team” photo to Instagram and your Google listing — handled on my own, as you asked`,
-      at: new Date(now.getTime() - 2 * DAY - 4 * HOUR),
-      autonomous: true,
-    },
-    {
-      capability: 'social_post',
-      persona: null,
-      summary: () =>
-        `Posted a Friday reminder that you’re open late — handled on my own, as you asked`,
-      at: new Date(now.getTime() - 5 * DAY),
+        `Posted your new-patient invitation to Google, Instagram and Facebook — handled on my own, as you asked`,
+      at: new Date(now.getTime() - 4 * DAY),
       autonomous: true,
     },
   ]
@@ -318,7 +333,7 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
         organizationId,
         capability: 'social_post',
         sourceKey: `social_post:demo`,
-        title: 'I drafted a post for your channels — want it out there?',
+        title: 'A post for your channels, ready to go',
         body: 'A gentle reminder from our chairs to yours: if it’s been more than six months since your last cleaning, this is your sign. New patients are always welcome — book online in about a minute.',
         payload: {
           accountIds: demoAccounts.map((a) => a.id),
