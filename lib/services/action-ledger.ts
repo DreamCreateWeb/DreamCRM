@@ -94,8 +94,6 @@ export async function listRecentActions(
   return rows
 }
 
-/** Per-capability counts in a window — the standup's "41 reminders,
- *  4 posts, 6 answers" line in one query. `until` exclusive, as above. */
 /** Whether a ledger entry already narrates this proposal (detail.proposalId
  *  — approveProposal always stamps it). The recovery-narration path uses
  *  this as its double-narration guard: a stranded approve whose
@@ -118,6 +116,8 @@ export async function hasEntryForProposal(
   return !!row
 }
 
+/** Per-capability counts in a window — the standup's "41 reminders,
+ *  4 posts, 6 answers" line in one query. `until` exclusive, as above. */
 export async function countActionsSince(
   organizationId: string,
   since: Date,

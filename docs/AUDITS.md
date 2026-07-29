@@ -410,7 +410,43 @@ can shadow a branch added by another), and the SWEEPS must uphold the
 same laws as the tap paths; (6) FIXTURE REALISM — fixtures carry every
 field production writes (a fixture that omits publishedAt can make dead
 code look tested); (7) demo ANCHOR-BY-IDENTITY applies to every
-demo-voice reference, not just premises. Verification round 3 pending.
+demo-voice reference, not just premises.
+
+**Verification round 3 (2026-07-28): NOT clean — LAW came back EMPTY
+(with a full verification trace) and depth found only one seam in the
+round-2 fix itself, but claims + resilience independently found the
+recovery class one level deeper.** All main-loop confirmed and fixed:
+- [major, 2 lenses] THE UNSTAMPED WINDOW: social's payload.socialPostId
+  was stamped only AFTER createSocialPost's entire network publish loop
+  (the campaign sibling stamps BEFORE its send), so a death mid-publish
+  left published targets with no link back to the proposal — every
+  recovery mechanism keys on that link. createSocialPost gained an
+  `onPersisted(postId)` hook that fires the moment the rows are durable,
+  before any network call; the executor stamps there. Pinned: the mock
+  now honors the hook (fixture realism) and a die-mid-publish test
+  asserts the stamp landed first.
+- [major] The invalidation sweep expired open cards on rot-evidence it
+  could not attribute (it never read the body) — the review-timeout path
+  (Google accepted, local write failed, reopen, hourly sync mirrors the
+  reply, sweep silently expires) narrated zero. The recovery-closing
+  logic moved to ONE home — exported closeRecoveredProposal (attribution
+  via detectRecoveredWork, guarded narration, expire with executedAt) —
+  used by BOTH the reconcile and now the sweep, which routes every
+  expiry candidate through it before the silent batch expire.
+- [minor] approveProposal stamped executedAt BEFORE recordAction — a
+  death between the statements was the one unnarrated window the
+  recovery machinery could never see (reconcile filters executedAt IS
+  NULL). Swapped: narrate, then stamp — record-then-stamp is idempotent
+  via the hasEntryForProposal guard.
+- [minor, depth] The round-2 identity anchor made the demo inquiry card
+  UNRECOVERABLE once Olivia was triaged (the lead reseed only inserts
+  missing-by-name; nothing reset status) → seedProposals restores the
+  anchor lead to a fresh 'new' before anchoring — the delete-and-reseed
+  contract holds again.
+- [minor] The countActionsSince JSDoc had been orphaned above
+  hasEntryForProposal — moved to its function.
+Verification round 4 pending (law already clean; every remaining finding
+this round was inside the recovery machinery the round itself hardened).
 
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation

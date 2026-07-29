@@ -56,7 +56,15 @@ vi.mock('@/lib/services/action-ledger', () => ({
 
 const executors = vi.hoisted(() => ({
   replyToGoogleReview: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
-  createSocialPost: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, postId: 'sp1', status: 'published' })),
+  // Mirrors the real service's persist-then-publish contract: onPersisted
+  // fires with the post id BEFORE any network work (fixture realism — the
+  // executor's stamp now rides this hook).
+  createSocialPost: vi.fn(
+    async (_org: unknown, _input: unknown, opts?: { onPersisted?: (id: string) => Promise<void> }) => {
+      await opts?.onPersisted?.('sp1')
+      return { ok: true as const, postId: 'sp1', status: 'published' }
+    },
+  ),
   markLeadContacted: vi.fn(async (..._a: unknown[]) => undefined),
   deliver: vi.fn(async (..._a: unknown[]) => undefined),
   createMarketingCampaign: vi.fn(async (..._a: unknown[]) => ({ id: 77 })),
@@ -295,6 +303,7 @@ import {
   declineProposal,
   expireStaleProposals,
   reconcileStrandedApprovals,
+  closeRecoveredProposal,
   getSentInquiryReply,
   textToCampaignHtml,
 } from '@/lib/services/proposals'
@@ -339,7 +348,12 @@ beforeEach(() => {
   store.campaigns = []
   store.failExecutedAtStamp = false
   executors.markLeadContacted.mockResolvedValue(undefined)
-  executors.createSocialPost.mockResolvedValue({ ok: true, postId: 'sp1', status: 'published' } as never)
+  executors.createSocialPost.mockImplementation(
+    (async (_org: unknown, _input: unknown, opts?: { onPersisted?: (id: string) => Promise<void> }) => {
+      await opts?.onPersisted?.('sp1')
+      return { ok: true, postId: 'sp1', status: 'published' }
+    }) as never,
+  )
   executors.sendCampaign.mockResolvedValue({ channel: 'resend', attempted: 41, sent: 41, failed: 0, errors: [], suppressed: 2 })
 })
 
@@ -504,11 +518,15 @@ describe('approveProposal — the other executors', () => {
     })
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(true)
-    expect(executors.createSocialPost).toHaveBeenCalledWith(ORG, {
-      postType: 'standard',
-      summary: p.body,
-      accountIds: ['acc_1', 'acc_2'],
-    })
+    expect(executors.createSocialPost).toHaveBeenCalledWith(
+      ORG,
+      {
+        postType: 'standard',
+        summary: p.body,
+        accountIds: ['acc_1', 'acc_2'],
+      },
+      expect.objectContaining({ onPersisted: expect.any(Function) }),
+    )
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain('2 channels')
   })
@@ -532,7 +550,12 @@ describe('approveProposal — the other executors', () => {
   })
 
   it('social_post: createSocialPost failing reopens — never a ledger entry for nothing, and the dead post row is superseded on retry (round-2)', async () => {
-    executors.createSocialPost.mockResolvedValueOnce({ ok: false, postId: 'sp_dead', status: 'failed', error: 'Every channel refused it.' } as never)
+    executors.createSocialPost.mockImplementationOnce(
+      (async (_org: unknown, _input: unknown, opts?: { onPersisted?: (id: string) => Promise<void> }) => {
+        await opts?.onPersisted?.('sp_dead')
+        return { ok: false, postId: 'sp_dead', status: 'failed', error: 'Every channel refused it.' }
+      }) as never,
+    )
     store.socialPosts.push({ id: 'sp_dead_seed', organizationId: ORG })
     const p = seedProposal({ capability: 'social_post', sourceKey: 'social_post:k2', payload: { accountIds: ['a'] } })
     const first = await approveProposal(ORG, p.id, 'user_1')
@@ -644,6 +667,43 @@ describe('approveProposal — the other executors', () => {
     // The strongest ordering pin: the staleness read never ran — a match
     // there can therefore only ever be the clinic's own sending.
     expect(executors.getRecallStats).not.toHaveBeenCalled()
+  })
+
+  it('social_post: the post id is stamped the moment rows PERSIST — a death mid-publish stays attributable (verification round 3, the unstamped window)', async () => {
+    executors.createSocialPost.mockImplementationOnce(
+      (async (_org: unknown, _input: unknown, opts?: { onPersisted?: (id: string) => Promise<void> }) => {
+        await opts?.onPersisted?.('sp_new')
+        throw new Error('container replaced mid-publish')
+      }) as never,
+    )
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const p = seedProposal({ capability: 'social_post', sourceKey: 'social_post:k6', payload: { accountIds: ['a'] } })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open') // reopened for retry
+    // THE pin: the link was written before the network work began, so the
+    // retry (or the reconcile) can attribute whatever published.
+    expect((p.payload as Record<string, unknown>).socialPostId).toBe('sp_new')
+    err.mockRestore()
+  })
+
+  it('closeRecoveredProposal (the sweep + reconcile shared home): attributable work narrates once and closes; unattributable returns false and touches nothing (verification round 3)', async () => {
+    // Attributable: our verbatim reply is on the review.
+    store.reviews[0].replyComment = 'Thank you for the kind words.'
+    const ours = seedProposal({ sourceKey: 'review_reply:r1x' })
+    expect(await closeRecoveredProposal(ours)).toBe(true)
+    expect(ours.status).toBe('expired')
+    expect(ours.executedAt).toBeInstanceOf(Date)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
+
+    // Unattributable: someone else's words.
+    recordActionMock.mockClear()
+    store.reviews[0].replyComment = 'Handled at the counter'
+    const theirs = seedProposal({ sourceKey: 'review_reply:r1y' })
+    expect(await closeRecoveredProposal(theirs)).toBe(false)
+    expect(theirs.status).toBe('open')
+    expect(recordActionMock).not.toHaveBeenCalled()
   })
 
   it('recovery narration is GUARDED: a prior ledger entry for the proposal (the stamp-failed sibling case) means no second entry', async () => {

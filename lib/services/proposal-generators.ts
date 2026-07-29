@@ -5,7 +5,12 @@ import { z } from 'zod'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
 import { CORE_VOICE_RULES } from '@/lib/services/service-library-ai'
 import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
-import { fileProposal, expireStaleProposals, reconcileStrandedApprovals } from '@/lib/services/proposals'
+import {
+  fileProposal,
+  expireStaleProposals,
+  reconcileStrandedApprovals,
+  closeRecoveredProposal,
+} from '@/lib/services/proposals'
 
 /**
  * PROPOSAL GENERATORS (Transformation Phase 2). The machine notices work it
@@ -141,6 +146,13 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       capability: schema.proposal.capability,
       payload: schema.proposal.payload,
       createdAt: schema.proposal.createdAt,
+      // The attribution fields (verification round 3): before expiring on
+      // premise-rot evidence, the sweep must check whether that evidence IS
+      // our own completed work — the verbatim reply / our sent campaign /
+      // our published post — and close it WITH its narration instead.
+      body: schema.proposal.body,
+      patientId: schema.proposal.patientId,
+      isDemo: schema.proposal.isDemo,
     })
     .from(schema.proposal)
     .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.status, 'open')))
@@ -237,17 +249,49 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
   }
 
   if (toExpire.length > 0) {
-    await db
-      .update(schema.proposal)
-      .set({ status: 'expired', updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.proposal.organizationId, organizationId),
-          eq(schema.proposal.status, 'open'),
-          inArray(schema.proposal.id, toExpire),
-        ),
-      )
-    expired = toExpire.length
+    // NARRATE-ONCE UNDER RECOVERY, in the sweep too (verification round 3):
+    // the rot-evidence above can be OUR OWN completed work — a reply that
+    // posted to Google before the local write failed, a stranded approve's
+    // sent campaign or published post. closeRecoveredProposal (THE single
+    // recovery-closing home) attributes and, when it's ours, writes the
+    // missing ledger entry and expires with executedAt; only unattributable
+    // rot falls through to the silent batch expiry.
+    const byId = new Map(open.map((p) => [p.id, p]))
+    const plainExpire: string[] = []
+    for (const id of toExpire) {
+      const p = byId.get(id)
+      let closed = false
+      if (p) {
+        try {
+          closed = await closeRecoveredProposal({
+            id: p.id,
+            organizationId,
+            capability: p.capability,
+            patientId: p.patientId,
+            body: p.body,
+            payload: p.payload,
+            isDemo: p.isDemo,
+          })
+        } catch {
+          closed = false // best-effort — never let attribution block the sweep
+        }
+      }
+      if (closed) expired++
+      else plainExpire.push(id)
+    }
+    if (plainExpire.length > 0) {
+      await db
+        .update(schema.proposal)
+        .set({ status: 'expired', updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.proposal.organizationId, organizationId),
+            eq(schema.proposal.status, 'open'),
+            inArray(schema.proposal.id, plainExpire),
+          ),
+        )
+      expired += plainExpire.length
+    }
   }
   return expired
 }

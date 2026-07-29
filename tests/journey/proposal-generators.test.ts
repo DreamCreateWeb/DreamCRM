@@ -33,6 +33,8 @@ const proposalsSvc = vi.hoisted(() => ({
   fileProposal: vi.fn(async (..._a: unknown[]) => ({ filed: true, id: 'prop_x' })),
   expireStaleProposals: vi.fn(async () => 0),
   reconcileStrandedApprovals: vi.fn(async () => 0),
+  // false = not attributable → the sweep's plain batch expiry proceeds.
+  closeRecoveredProposal: vi.fn(async (..._a: unknown[]) => false),
 }))
 vi.mock('@/lib/services/proposals', () => proposalsSvc)
 
@@ -464,6 +466,26 @@ describe('the invalidation sweep', () => {
     expect(byId.get('p2')).toBe('open')
     expect(byId.get('p3')).toBe('expired')
     expect(byId.get('p4')).toBe('open')
+  })
+
+  it('routes every expiry candidate through closeRecoveredProposal FIRST — our own completed work closes with its narration, never a silent batch expire (verification round 3)', async () => {
+    store.proposals = [
+      { id: 'p1', organizationId: ORG, capability: 'review_reply', sourceKey: 'k1', status: 'open', payload: { externalReviewId: 'r1' }, body: 'Our reply.', patientId: null, isDemo: 0 },
+    ]
+    store.reviews = [
+      { organizationId: ORG, platform: 'googlebusiness', externalReviewId: 'r1', replyComment: 'Our reply.' },
+    ]
+    // Attributable: the shared closer handles it (narration + expire live
+    // in proposals.ts — pinned there); the sweep must NOT batch-expire it.
+    proposalsSvc.closeRecoveredProposal.mockResolvedValueOnce(true)
+    const n = await sweepInvalidatedProposals(ORG)
+    expect(n).toBe(1)
+    expect(proposalsSvc.closeRecoveredProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'p1', organizationId: ORG, capability: 'review_reply', body: 'Our reply.' }),
+    )
+    // The mock didn't mutate the row, and the sweep's own batch expiry
+    // skipped it — proof the close path owned it.
+    expect(store.proposals[0].status).toBe('open')
   })
 
   it('expires a "quiet channels" social card once the clinic publishes or schedules a post itself (round-3)', async () => {

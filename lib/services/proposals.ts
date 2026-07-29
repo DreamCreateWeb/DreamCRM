@@ -209,28 +209,8 @@ export async function reconcileStrandedApprovals(
   let resolved = 0
   for (const p of stranded) {
     try {
-      const recovered = await detectRecoveredWork(p)
-      if (recovered) {
-        const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
-        if (!(await hasEntryForProposal(organizationId, p.id))) {
-          await recordAction({
-            organizationId,
-            capability: p.capability,
-            patientId: p.patientId,
-            summary: recovered.ledgerSummary,
-            detail: {
-              proposalId: p.id,
-              ...(p.decidedByUserId ? { approvedByUserId: p.decidedByUserId } : {}),
-              recovered: true,
-              ...recovered.ledgerDetail,
-            },
-          })
-        }
-        await db
-          .update(schema.proposal)
-          .set({ status: 'expired', executedAt: now, updatedAt: now })
-          .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, p.id)))
-      } else {
+      const closed = await closeRecoveredProposal(p, now)
+      if (!closed) {
         const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
         await db
           .update(schema.proposal)
@@ -251,6 +231,62 @@ export async function reconcileStrandedApprovals(
   return resolved
 }
 
+/** The fields attribution + narration need — a structural pick so the
+ *  reconcile (full rows) and the invalidation sweep (its slimmer select)
+ *  can both close recovered work through the ONE implementation. */
+export interface RecoverableProposal {
+  id: string
+  organizationId: string
+  capability: string
+  patientId: string | null
+  body: string
+  payload: unknown
+  isDemo: number
+  decidedByUserId?: string | null
+  expiresAt?: Date | null
+}
+
+/**
+ * Close a proposal whose work EVIDENTLY EXECUTED (attribution via
+ * detectRecoveredWork): narrate once (hasEntryForProposal guard), expire
+ * with executedAt. Returns false when nothing attributable was found —
+ * the caller decides what happens to the row then. THE single home for
+ * recovery-closing (verification round 3): the reconcile AND the
+ * invalidation sweep both route through it, so the sweep can never again
+ * expire our own completed work without its narration.
+ */
+export async function closeRecoveredProposal(
+  p: RecoverableProposal,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const recovered = await detectRecoveredWork(p)
+  if (!recovered) return false
+  try {
+    const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
+    if (!(await hasEntryForProposal(p.organizationId, p.id))) {
+      await recordAction({
+        organizationId: p.organizationId,
+        capability: p.capability,
+        patientId: p.patientId,
+        summary: recovered.ledgerSummary,
+        detail: {
+          proposalId: p.id,
+          ...(p.decidedByUserId ? { approvedByUserId: p.decidedByUserId } : {}),
+          recovered: true,
+          ...recovered.ledgerDetail,
+        },
+      })
+    }
+  } catch (e) {
+    console.error('[proposals] recovery narration failed (work already done):', e)
+  }
+  await db
+    .update(schema.proposal)
+    .set({ status: 'expired', executedAt: now, updatedAt: now })
+    .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
+  return true
+}
+
 /**
  * Evidence-based attribution for a stranded approve: did the PRIOR
  * attempt's work actually execute? Mirrors the executors' own recovered
@@ -259,7 +295,7 @@ export async function reconcileStrandedApprovals(
  * status flip could be a staff member's own doing).
  */
 async function detectRecoveredWork(
-  p: typeof schema.proposal.$inferSelect,
+  p: RecoverableProposal,
 ): Promise<{ ledgerSummary: string; ledgerDetail?: Record<string, unknown> } | null> {
   const payload = (p.payload ?? {}) as Record<string, unknown>
   if (p.isDemo === 1) return null // demo approves simulate; nothing to recover
@@ -496,17 +532,13 @@ export async function approveProposal(
     return { ok: false, error: exec.error }
   }
 
-  // Post-execution bookkeeping — best-effort by design (recordAction already
+  // Post-execution bookkeeping — best-effort by design (recordAction
   // swallows its own errors; the executedAt stamp gets the same posture).
-  try {
-    await db
-      .update(schema.proposal)
-      .set({ executedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
-  } catch (e) {
-    console.error('[proposals] executedAt stamp failed (work already done):', e)
-  }
-
+  // NARRATE BEFORE STAMPING (verification round 3): a death between the
+  // two statements must leave executedAt NULL so the reconcile can still
+  // see the row — record-then-stamp is idempotent (hasEntryForProposal
+  // guards the reconcile's narration), while stamp-then-record put the
+  // one unnarrated window permanently outside the recovery machinery.
   // THE ONE ledger entry for this yes (see the boundary law up top).
   await recordAction({
     organizationId,
@@ -515,6 +547,14 @@ export async function approveProposal(
     summary: exec.ledgerSummary,
     detail: { proposalId: claimed.id, approvedByUserId: userId, ...exec.ledgerDetail },
   })
+  try {
+    await db
+      .update(schema.proposal)
+      .set({ executedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+  } catch (e) {
+    console.error('[proposals] executedAt stamp failed (work already done):', e)
+  }
   return { ok: true, status: 'approved', message: exec.ledgerSummary }
 }
 
@@ -722,17 +762,28 @@ async function executeSocialPost(
   }
 
   const { createSocialPost } = await import('@/lib/services/social-posts')
-  const r = await createSocialPost(p.organizationId, {
-    postType: 'standard',
-    summary: p.body,
-    accountIds,
-  })
-  if (r.postId) {
-    await db
-      .update(schema.proposal)
-      .set({ payload: { ...payload, socialPostId: r.postId }, updatedAt: new Date() })
-      .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
-  }
+  const r = await createSocialPost(
+    p.organizationId,
+    {
+      postType: 'standard',
+      summary: p.body,
+      accountIds,
+    },
+    {
+      // Stamp the link the MOMENT the rows persist, before any network
+      // publish (verification round 3): stamping after the call left a
+      // death-mid-publish with real published targets and no way to
+      // attribute them — narrate-once became narrate-zero, and the retire
+      // copy blamed the clinic's own activity. A throw here aborts before
+      // anything publishes.
+      onPersisted: async (postId) => {
+        await db
+          .update(schema.proposal)
+          .set({ payload: { ...payload, socialPostId: postId }, updatedAt: new Date() })
+          .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
+      },
+    },
+  )
   if (!r.ok) return { ok: false, error: r.error ?? 'The post didn’t go out — nothing was published.' }
 
   // Narrate what ACTUALLY published, never the requested channel list —

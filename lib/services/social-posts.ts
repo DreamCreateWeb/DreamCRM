@@ -324,6 +324,16 @@ function rollupStatus(targets: GbpPostStatus[]): GbpPostStatus {
 export async function createSocialPost(
   orgId: string,
   input: CreateSocialPostFormInput,
+  opts: {
+    /** Invoked the moment the post + target rows are DURABLY persisted,
+     *  before any network publish call. The Approval Inbox executor stamps
+     *  its proposal's payload.socialPostId here so a process death during
+     *  the (multi-second) publish loop stays attributable — stamping after
+     *  the call left published work with no link back to its proposal
+     *  (Phase-2 verification round 3). A throw here aborts BEFORE anything
+     *  publishes, which is the safe side. */
+    onPersisted?: (postId: string) => Promise<void>
+  } = {},
 ): Promise<CreateSocialPostResult> {
   // Resolve the connection + the targeted accounts.
   const conn = await getZernioConnection(orgId)
@@ -400,6 +410,10 @@ export async function createSocialPost(
       publishedAt: isDemo && !v.scheduledAt ? now : null,
     })
   }
+
+  // The rows are durable — let the caller link them to its own records
+  // BEFORE any network work (see the opts.onPersisted doc above).
+  if (opts.onPersisted) await opts.onPersisted(postId)
 
   // DEMO: rows are already in their final published/scheduled state. No network.
   if (isDemo) {
