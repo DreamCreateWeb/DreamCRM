@@ -186,7 +186,28 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
   // round 2: the demo site is publicly live, so a newest-lead query could
   // quote a REAL person's name and message on the demo card (the exact
   // arbitrary-query anchoring the demo-org convention forbids). Seeded
-  // lead missing or already handled → skip the card, never fall back.
+  // lead missing → skip the card, never fall back to a real person.
+  //
+  // RESTORE THE ANCHOR first (verification round 3): triaging Olivia once
+  // on /leads must not permanently cost the demo inbox its inquiry card —
+  // the module's contract is "a resync always refills the demo inbox", and
+  // the lead reseed only inserts leads missing BY NAME, never resetting
+  // status. Same delete-and-reseed posture as every other demo artifact:
+  // her lifecycle resets to a fresh 'new' (a patient minted by a past
+  // convert keeps existing; the drawer's existing-patient hint covers the
+  // rerun gracefully).
+  await db
+    .update(schema.lead)
+    .set({
+      status: 'new',
+      convertedToPatientId: null,
+      contactedAt: null,
+      convertedAt: null,
+      archivedAt: null,
+      archivedReason: null,
+      createdAt: new Date(now.getTime() - 30 * 60 * 1000), // fresh again — the "call within the hour" demo state
+    })
+    .where(and(eq(schema.lead.organizationId, organizationId), eq(schema.lead.email, 'olivia.c@example.com')))
   const [freshLead] = await db
     .select({ id: schema.lead.id, name: schema.lead.name, message: schema.lead.message, preferredDate: schema.lead.preferredDate })
     .from(schema.lead)
