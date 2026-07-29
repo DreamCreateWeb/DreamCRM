@@ -260,24 +260,30 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
     const plainExpire: string[] = []
     for (const id of toExpire) {
       const p = byId.get(id)
-      let closed = false
+      let outcome: 'closed' | 'not_ours' | 'skip' = 'not_ours'
       if (p) {
         try {
-          closed = await closeRecoveredProposal({
-            id: p.id,
-            organizationId,
-            capability: p.capability,
-            patientId: p.patientId,
-            body: p.body,
-            payload: p.payload,
-            isDemo: p.isDemo,
-          })
+          outcome = await closeRecoveredProposal(
+            {
+              id: p.id,
+              organizationId,
+              capability: p.capability,
+              patientId: p.patientId,
+              body: p.body,
+              payload: p.payload,
+              isDemo: p.isDemo,
+            },
+            'open',
+          )
         } catch {
-          closed = false // best-effort — never let attribution block the sweep
+          // A failed close must never turn into a silent expire — leave the
+          // row for the next hourly pass (verification round 4).
+          outcome = 'skip'
         }
       }
-      if (closed) expired++
-      else plainExpire.push(id)
+      if (outcome === 'closed') expired++
+      else if (outcome === 'not_ours') plainExpire.push(id)
+      // 'skip' → neither: the row stays as-is for the next pass.
     }
     if (plainExpire.length > 0) {
       await db

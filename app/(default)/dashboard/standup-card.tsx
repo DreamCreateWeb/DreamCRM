@@ -5,8 +5,11 @@ import type { WeeklyStandup } from '@/lib/services/standup'
  * THE WEEKLY STANDUP CARD (Transformation Phase 2 — the Narrator, in-app).
  * "Here's what I got done last week" — counts as chips, up to three stories
  * with names in them, and the only-you list. Pure display; the ledger did
- * the remembering. Hidden entirely on a quiet week (celebrating zero
- * teaches people to stop reading).
+ * the remembering. A QUIET week is narrated (the config-cross-checked
+ * quietNote below), never blanked; the card hides only when the window
+ * predates the account or no quietNote could be built. (The quiet-week
+ * EMAIL is the thing that stays silent — celebrating zero by email teaches
+ * people to stop reading.)
  */
 export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
   // A quiet week is NARRATED, never blanked (round-1 audit; the AUDITS.md

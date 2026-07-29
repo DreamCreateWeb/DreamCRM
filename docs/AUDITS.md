@@ -445,8 +445,43 @@ recovery class one level deeper.** All main-loop confirmed and fixed:
   contract holds again.
 - [minor] The countActionsSince JSDoc had been orphaned above
   hasEntryForProposal — moved to its function.
-Verification round 4 pending (law already clean; every remaining finding
-this round was inside the recovery machinery the round itself hardened).
+**Verification round 4 (2026-07-28): NOT clean — LAW EMPTY for the second
+consecutive round; claims/resilience/depth found 6, all inside the
+recovery machinery, all main-loop confirmed and fixed:**
+- [major] Campaign recovery attributed from sendCampaign's 'active' CLAIM
+  flag, which is set before any email exists — a post-claim pre-send
+  throw would have narrated a send that never happened, with the row
+  stuck 'active' and the month's recall silently lost. Attribution now
+  requires COMPLETION evidence ('completed'/sentAt, written only by the
+  post-send block); a stale stuck claim (active, no sentAt, >15 min) is
+  REPAIRED at the tap — released to draft, copy synced, and the send
+  actually runs; a fresh active claim holds the card; already_sending
+  after our own check is a live race and holds without narrating.
+- [major] reopen() after a failed approve was the reconcile-reopen's
+  forgotten sibling: no expiry extension ("try again in a minute" on a
+  near-expiry card meant invisible + swept within the hour, sourceKey
+  burned) and no attempt marker. Both added.
+- [minor ×2, depth] The sweep's closer could MIS-CREDIT (a staff member
+  hand-pasting the drafted reply into Google produced a verbatim match on
+  a never-approved card → false "you approved it") and a transient read
+  failure terminally closed real work unnarrated. closeRecoveredProposal
+  is now three-state ('closed' / 'not_ours' / 'skip'): review attribution
+  requires evidence of OUR OWN attempt (approved status or the new
+  reopened-from-approval marker both reopen paths stamp); transient
+  attribution/narration failures skip the pass and retry hourly.
+- [minor] The closer's expire was status-unguarded against a concurrent
+  approve → now an atomic conditional close on the caller's expected
+  status (0 rows = the approve owns it), and the approve's own narration
+  gained the hasEntryForProposal guard so whoever narrates second is
+  suppressed — one yes stays one entry from both directions.
+- [minor] The standup-card header comment still described the pre-round-1
+  hide-on-quiet behavior — corrected (the quiet week narrates in-app; the
+  EMAIL is what stays silent).
+Verification round 5 pending. Convergence: every V4 finding sits in the
+recovery subsystem the verification rounds themselves built, each round's
+findings narrower than the last; the subsystem now runs on completion
+evidence, atomic status-guarded closes, three-state results, and marked
+reopen paths, pinned by ~150 proposal-suite tests.
 
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation

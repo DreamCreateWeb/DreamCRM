@@ -209,15 +209,23 @@ export async function reconcileStrandedApprovals(
   let resolved = 0
   for (const p of stranded) {
     try {
-      const closed = await closeRecoveredProposal(p, now)
-      if (!closed) {
+      const outcome = await closeRecoveredProposal(p, 'approved', now)
+      if (outcome === 'skip') continue // transient — the next hourly pass retries
+      if (outcome === 'not_ours') {
         const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+        const payload = (p.payload ?? {}) as Record<string, unknown>
         await db
           .update(schema.proposal)
           .set({
             status: 'open',
             decidedAt: null,
             decidedByUserId: null,
+            // The reopened row WAS approved once — the marker lets later
+            // attribution (the sweep's verbatim review match) know the
+            // evidence can be ours (verification round 4's mis-credit
+            // guard needs it to tell our stranded reply from a staff
+            // member's hand-pasted one).
+            payload: { ...payload, approveAttempted: true },
             ...(p.expiresAt && p.expiresAt > minExpiry ? {} : { expiresAt: minExpiry }),
             updatedAt: now,
           })
@@ -248,23 +256,51 @@ export interface RecoverableProposal {
 
 /**
  * Close a proposal whose work EVIDENTLY EXECUTED (attribution via
- * detectRecoveredWork): narrate once (hasEntryForProposal guard), expire
- * with executedAt. Returns false when nothing attributable was found —
- * the caller decides what happens to the row then. THE single home for
+ * detectRecoveredWork): narrate once (hasEntryForProposal guard), then
+ * ATOMICALLY expire with executedAt — conditional on the row still being
+ * in the caller's expected status, so a concurrent approve can never be
+ * clobbered to 'expired' (verification round 4). THE single home for
  * recovery-closing (verification round 3): the reconcile AND the
- * invalidation sweep both route through it, so the sweep can never again
- * expire our own completed work without its narration.
+ * invalidation sweep both route through it.
+ *
+ * Three-state result (verification round 4 — a boolean conflated "not our
+ * work" with "couldn't tell this pass", and a transient read failure
+ * terminally closed real work unnarrated):
+ *  - 'closed'   — ours, narrated (or already narrated), expired.
+ *  - 'not_ours' — attribution says the evidence is NOT our own attempt's
+ *                 work; the caller proceeds with its default handling.
+ *  - 'skip'     — leave the row alone THIS PASS: the attribution or
+ *                 narration read failed transiently, or a concurrent
+ *                 approve claimed the row mid-close. The next hourly pass
+ *                 retries; an un-closed rotten card for one hour is
+ *                 harmless, a terminal narrate-zero is not.
  */
 export async function closeRecoveredProposal(
   p: RecoverableProposal,
+  expectedStatus: 'open' | 'approved',
   now: Date = new Date(),
-): Promise<boolean> {
-  const recovered = await detectRecoveredWork(p)
-  if (!recovered) return false
+): Promise<'closed' | 'not_ours' | 'skip'> {
+  let recovered: { ledgerSummary: string; ledgerDetail?: Record<string, unknown> } | null
+  try {
+    // MIS-CREDIT GUARD (verification round 4): attribution needs evidence
+    // of OUR OWN prior attempt, not just matching artifacts. An approved
+    // row IS that evidence; an open row must carry the reopened-from-
+    // approval marker — otherwise a staff member who copy-pasted the
+    // drafted reply into Google by hand would earn the machine a false
+    // "you approved it" story. (Social/campaign attribution already
+    // implies our attempt: the payload ids are stamped by executors.)
+    const payload = (p.payload ?? {}) as Record<string, unknown>
+    const hadOwnAttempt = expectedStatus === 'approved' || payload.approveAttempted === true
+    recovered = await detectRecoveredWork(p, hadOwnAttempt)
+  } catch (e) {
+    console.error('[proposals] recovery attribution failed — retrying next pass:', e)
+    return 'skip'
+  }
+  if (!recovered) return 'not_ours'
   try {
     const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
     if (!(await hasEntryForProposal(p.organizationId, p.id))) {
-      await recordAction({
+      const narrated = await recordAction({
         organizationId: p.organizationId,
         capability: p.capability,
         patientId: p.patientId,
@@ -276,15 +312,29 @@ export async function closeRecoveredProposal(
           ...recovered.ledgerDetail,
         },
       })
+      // recordAction swallows its own errors — a false means no entry
+      // landed; expiring now would be the terminal narrate-zero.
+      if (!narrated) return 'skip'
     }
   } catch (e) {
-    console.error('[proposals] recovery narration failed (work already done):', e)
+    console.error('[proposals] recovery narration failed — retrying next pass:', e)
+    return 'skip'
   }
-  await db
+  // Conditional close: 0 rows = a concurrent approve claimed the row
+  // between our read and this write — leave it to that approve (its own
+  // narration is suppressed by the same hasEntryForProposal guard).
+  const closedRows = await db
     .update(schema.proposal)
     .set({ status: 'expired', executedAt: now, updatedAt: now })
-    .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
-  return true
+    .where(
+      and(
+        eq(schema.proposal.organizationId, p.organizationId),
+        eq(schema.proposal.id, p.id),
+        eq(schema.proposal.status, expectedStatus),
+      ),
+    )
+    .returning({ id: schema.proposal.id })
+  return closedRows.length > 0 ? 'closed' : 'skip'
 }
 
 /**
@@ -296,10 +346,18 @@ export async function closeRecoveredProposal(
  */
 async function detectRecoveredWork(
   p: RecoverableProposal,
+  /** Whether a PRIOR APPROVE ATTEMPT is evidenced for this row (approved
+   *  status, or the reopened-from-approval marker). Review attribution is
+   *  a verbatim text match and needs this — without it, a hand-pasted
+   *  draft would read as machine work (verification round 4). The
+   *  social/campaign branches need no gate: their payload ids only exist
+   *  once our own attempt started. */
+  hadOwnAttempt = true,
 ): Promise<{ ledgerSummary: string; ledgerDetail?: Record<string, unknown> } | null> {
   const payload = (p.payload ?? {}) as Record<string, unknown>
   if (p.isDemo === 1) return null // demo approves simulate; nothing to recover
   if (p.capability === 'review_reply') {
+    if (!hadOwnAttempt) return null
     const externalReviewId = str(payload.externalReviewId)
     if (!externalReviewId) return null
     const [review] = await db
@@ -350,11 +408,15 @@ async function detectRecoveredWork(
     const subject = str(payload.subject)
     if (campaignId == null || !subject) return null
     const [campaign] = await db
-      .select({ status: schema.campaigns.status })
+      .select({ status: schema.campaigns.status, sentAt: schema.campaigns.sentAt })
       .from(schema.campaigns)
       .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
       .limit(1)
-    if (!campaign || (campaign.status !== 'active' && campaign.status !== 'completed')) return null
+    // COMPLETION evidence only (verification round 4): 'active' is
+    // sendCampaign's pre-send CLAIM flag — a stuck claim means nothing was
+    // sent, and narrating it would credit a send that never happened. The
+    // executor's own-row check repairs stuck claims at the next tap.
+    if (!campaign || (campaign.status !== 'completed' && campaign.sentAt == null)) return null
     return {
       ledgerSummary: `Sent “${subject}” to your recall list — you approved it`,
       ledgerDetail: { campaignId },
@@ -477,7 +539,7 @@ export async function approveProposal(
   try {
     exec = await executeProposal(claimed)
   } catch (e) {
-    await reopen(organizationId, proposalId)
+    await reopen(claimed)
     // A raw exception message here is developer-speak ('Campaign missing
     // subject') on the most trust-critical card in the product — log it,
     // answer in the voice (round-3 audit). Executors that can fail in ways
@@ -528,7 +590,7 @@ export async function approveProposal(
       }
       return { ok: false, error: exec.error, expired: true }
     }
-    await reopen(organizationId, proposalId)
+    await reopen(claimed)
     return { ok: false, error: exec.error }
   }
 
@@ -540,13 +602,26 @@ export async function approveProposal(
   // guards the reconcile's narration), while stamp-then-record put the
   // one unnarrated window permanently outside the recovery machinery.
   // THE ONE ledger entry for this yes (see the boundary law up top).
-  await recordAction({
-    organizationId,
-    capability: claimed.capability,
-    patientId: claimed.patientId,
-    summary: exec.ledgerSummary,
-    detail: { proposalId: claimed.id, approvedByUserId: userId, ...exec.ledgerDetail },
-  })
+  // Guarded (verification round 4): the sweep/reconcile recovery closer can
+  // narrate this proposal in a race window — whoever narrates second is
+  // suppressed, so one yes stays one entry. Guard-read failure falls back
+  // to recording (favor narration over silence).
+  let alreadyNarrated = false
+  try {
+    const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
+    alreadyNarrated = await hasEntryForProposal(organizationId, claimed.id)
+  } catch {
+    alreadyNarrated = false
+  }
+  if (!alreadyNarrated) {
+    await recordAction({
+      organizationId,
+      capability: claimed.capability,
+      patientId: claimed.patientId,
+      summary: exec.ledgerSummary,
+      detail: { proposalId: claimed.id, approvedByUserId: userId, ...exec.ledgerDetail },
+    })
+  }
   try {
     await db
       .update(schema.proposal)
@@ -558,11 +633,28 @@ export async function approveProposal(
   return { ok: true, status: 'approved', message: exec.ledgerSummary }
 }
 
-async function reopen(organizationId: string, proposalId: string): Promise<void> {
+/** Reopen after a FAILED approve. Two laws learned across the audit ride
+ *  here (verification round 4 — this was the reconcile-reopen's forgotten
+ *  sibling): (1) stamp the approve-attempt marker so later attribution can
+ *  tell our stranded work from a human's; (2) extend a passed/imminent
+ *  expiry — "give it another try in a minute" is a lie when the reopened
+ *  card is already invisible to the inbox and the next hourly tick expires
+ *  it with the sourceKey burned. */
+async function reopen(claimed: typeof schema.proposal.$inferSelect): Promise<void> {
+  const now = new Date()
+  const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+  const payload = (claimed.payload ?? {}) as Record<string, unknown>
   await db
     .update(schema.proposal)
-    .set({ status: 'open', decidedAt: null, decidedByUserId: null, updatedAt: new Date() })
-    .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+    .set({
+      status: 'open',
+      decidedAt: null,
+      decidedByUserId: null,
+      payload: { ...payload, approveAttempted: true },
+      ...(claimed.expiresAt && claimed.expiresAt > minExpiry ? {} : { expiresAt: minExpiry }),
+      updatedAt: now,
+    })
+    .where(and(eq(schema.proposal.organizationId, claimed.organizationId), eq(schema.proposal.id, claimed.id)))
 }
 
 // ── Executors ─────────────────────────────────────────────────────────────────
@@ -947,16 +1039,24 @@ async function executeOutreachCampaign(
     // DELETED (a stray draft from a failed approve looks like clutter)
     // un-stamps the id so the retry mints fresh instead of failing forever.
     const [existing] = await db
-      .select({ id: schema.campaigns.id, status: schema.campaigns.status })
+      .select({
+        id: schema.campaigns.id,
+        status: schema.campaigns.status,
+        sentAt: schema.campaigns.sentAt,
+        updatedAt: schema.campaigns.updatedAt,
+      })
       .from(schema.campaigns)
       .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
       .limit(1)
+    let syncCopy = false
     if (!existing) {
       campaignId = null
-    } else if (existing.status === 'active' || existing.status === 'completed') {
-      // OUR OWN campaign row already sent (or is mid-send from the prior
-      // attempt) — the stranded-approve recovery case; narrate the work
-      // that reached patients (once) instead of retiring silently.
+    } else if (existing.status === 'completed' || existing.sentAt != null) {
+      // COMPLETION evidence — sentAt/'completed' are written only by
+      // sendCampaign's post-send block, never by its claim (verification
+      // round 4: attributing from the 'active' CLAIM flag narrated a send
+      // that a post-claim pre-send throw never made). Recovery-narrate the
+      // work that really reached patients.
       return {
         ok: false,
         error: 'It turns out this campaign already went out on the earlier approve — I recorded it. Nobody was emailed twice.',
@@ -966,14 +1066,44 @@ async function executeOutreachCampaign(
           ledgerDetail: { campaignId },
         },
       }
+    } else if (existing.status === 'active') {
+      // 'active' with NO completion evidence: either a claim left stuck by
+      // a pre-send throw/death (nothing sent — the row would refuse every
+      // future send and the month's recall would be silently lost), or a
+      // concurrent send still running. Age decides: no legitimate send is
+      // still mid-flight after 15 minutes.
+      const staleClaim = !existing.updatedAt || existing.updatedAt < new Date(Date.now() - 15 * 60 * 1000)
+      if (staleClaim) {
+        await db
+          .update(schema.campaigns)
+          .set({ status: 'draft', updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.campaigns.id, campaignId),
+              eq(schema.campaigns.organizationId, p.organizationId),
+              eq(schema.campaigns.status, 'active'),
+            ),
+          )
+        syncCopy = true // repaired — proceed like a normal draft reuse
+      } else {
+        return {
+          ok: false,
+          error: 'This send looks like it’s still running from a moment ago — nothing extra went out. Try again in a few minutes.',
+        }
+      }
     } else if (existing.status === 'draft' || existing.status === 'scheduled' || existing.status === 'paused') {
+      syncCopy = true
+    }
+    if (campaignId != null && syncCopy) {
+      // REUSED row: sync the CURRENT proposal body + subject before sending
+      // — staff routinely edit the copy between attempts, and "the edited
+      // text is what executes" is the schema's contract (round-2 audit).
+      // Never runs against a row with completion evidence (above).
       await db
         .update(schema.campaigns)
         .set({ subject, bodyHtml: textToCampaignHtml(p.body), updatedAt: new Date() })
         .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
     }
-    // Any other status: skip the sync — sendCampaign's duplicate-send claim
-    // below turns this into the already_sending retirement.
   }
 
   // Staleness (round-3 audit — the same at-the-tap re-check the review and
@@ -1026,19 +1156,14 @@ async function executeOutreachCampaign(
     initiatedByUserId: p.decidedByUserId ?? undefined,
   })
   if (r.skipped === 'already_sending') {
-    // A reused campaign that already went out (a prior approve's send
-    // succeeded but its bookkeeping failed, or a concurrent approve won the
-    // send claim) — never re-blast; retire the card. Recovery-narrate: the
-    // hasEntryForProposal guard upstream keeps this to exactly once even
-    // when a racing approve narrated already.
+    // Our own-row check saw a sendable status moments ago, so this is a
+    // LIVE race: a concurrent approve won the claim and is sending right
+    // now. Hold the card (no retire, no narration — the claim flag is not
+    // completion evidence, verification round 4); once that send finishes,
+    // the next tap or hourly pass sees sentAt and recovery-narrates.
     return {
       ok: false,
-      error: 'It looks like this campaign already went out — I retired this card. Nobody was emailed twice.',
-      expired: true,
-      recovered: {
-        ledgerSummary: `Sent “${subject}” to your recall list — you approved it`,
-        ledgerDetail: { campaignId },
-      },
+      error: 'Another approve looks like it’s sending this right now — nothing extra went out. Check back in a minute.',
     }
   }
   if (r.skipped) return { ok: false, error: r.error ?? 'The send was refused before anyone was emailed.' }

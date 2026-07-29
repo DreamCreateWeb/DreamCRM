@@ -449,14 +449,19 @@ describe('approveProposal — review_reply', () => {
     expect(executors.replyToGoogleReview).not.toHaveBeenCalled()
   })
 
-  it('REOPENS when the execution fails — the work is never silently lost', async () => {
+  it('REOPENS when the execution fails — the work is never silently lost, the approve-attempt marker is stamped, and a near-death expiry is EXTENDED so "try again" is true (rounds 1 + verification 4)', async () => {
     executors.replyToGoogleReview.mockResolvedValueOnce({ ok: false, error: 'Google rejected the reply: 500' } as never)
-    const p = seedProposal()
+    const p = seedProposal({ expiresAt: new Date(Date.now() + 60 * 1000) }) // last minute of the card's life
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(false)
     expect(p.status).toBe('open')
     expect(p.decidedByUserId).toBeNull()
     expect(recordActionMock).not.toHaveBeenCalled()
+    // The marker lets later attribution tell our stranded work from a
+    // human's; the extension keeps the reopened card VISIBLE (a reopen the
+    // inbox can't show is a slower way to lose the yes).
+    expect((p.payload as Record<string, unknown>).approveAttempted).toBe(true)
+    expect(p.expiresAt!.getTime()).toBeGreaterThan(Date.now() + 24 * 60 * 60 * 1000)
   })
 
   it('EXPIRES (not reopens) when someone already replied at the counter', async () => {
@@ -687,11 +692,15 @@ describe('approveProposal — the other executors', () => {
     err.mockRestore()
   })
 
-  it('closeRecoveredProposal (the sweep + reconcile shared home): attributable work narrates once and closes; unattributable returns false and touches nothing (verification round 3)', async () => {
-    // Attributable: our verbatim reply is on the review.
+  it('closeRecoveredProposal (the sweep + reconcile shared home): attributable work narrates once and closes; unattributable is not_ours and touches nothing (verification rounds 3–4)', async () => {
+    // Attributable on an OPEN row requires the reopened-from-approval
+    // marker — verbatim text alone is not proof of OUR attempt.
     store.reviews[0].replyComment = 'Thank you for the kind words.'
-    const ours = seedProposal({ sourceKey: 'review_reply:r1x' })
-    expect(await closeRecoveredProposal(ours)).toBe(true)
+    const ours = seedProposal({
+      sourceKey: 'review_reply:r1x',
+      payload: { externalReviewId: 'r1', approveAttempted: true },
+    })
+    expect(await closeRecoveredProposal(ours, 'open')).toBe('closed')
     expect(ours.status).toBe('expired')
     expect(ours.executedAt).toBeInstanceOf(Date)
     expect(recordActionMock).toHaveBeenCalledTimes(1)
@@ -700,10 +709,48 @@ describe('approveProposal — the other executors', () => {
     // Unattributable: someone else's words.
     recordActionMock.mockClear()
     store.reviews[0].replyComment = 'Handled at the counter'
-    const theirs = seedProposal({ sourceKey: 'review_reply:r1y' })
-    expect(await closeRecoveredProposal(theirs)).toBe(false)
+    const theirs = seedProposal({
+      sourceKey: 'review_reply:r1y',
+      payload: { externalReviewId: 'r1', approveAttempted: true },
+    })
+    expect(await closeRecoveredProposal(theirs, 'open')).toBe('not_ours')
     expect(theirs.status).toBe('open')
     expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('MIS-CREDIT GUARD: a hand-pasted verbatim reply on a NEVER-APPROVED card is not_ours — the machine never claims "you approved it" for the front desk’s own work (verification round 4)', async () => {
+    store.reviews[0].replyComment = 'Thank you for the kind words.'
+    const neverApproved = seedProposal({ sourceKey: 'review_reply:r1z' }) // no marker, never decided
+    expect(await closeRecoveredProposal(neverApproved, 'open')).toBe('not_ours')
+    expect(neverApproved.status).toBe('open')
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('a TRANSIENT narration failure is skip — never a terminal unnarrated close (verification round 4)', async () => {
+    hasEntryForProposalMock.mockRejectedValueOnce(new Error('db blip'))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    store.reviews[0].replyComment = 'Thank you for the kind words.'
+    const p = seedProposal({
+      sourceKey: 'review_reply:r1s',
+      payload: { externalReviewId: 'r1', approveAttempted: true },
+    })
+    expect(await closeRecoveredProposal(p, 'open')).toBe('skip')
+    expect(p.status).toBe('open') // untouched — the next hourly pass retries
+    expect(p.executedAt).toBeNull()
+    expect(recordActionMock).not.toHaveBeenCalled()
+    err.mockRestore()
+  })
+
+  it('the close is ATOMIC on the expected status: a row a concurrent approve just claimed is skip, never clobbered to expired (verification round 4)', async () => {
+    hasEntryForProposalMock.mockResolvedValueOnce(true) // the approve already narrated
+    store.reviews[0].replyComment = 'Thank you for the kind words.'
+    const p = seedProposal({
+      sourceKey: 'review_reply:r1r',
+      status: 'approved', // flipped by the racing approve after the sweep read it as open
+      payload: { externalReviewId: 'r1', approveAttempted: true },
+    })
+    expect(await closeRecoveredProposal(p, 'open')).toBe('skip')
+    expect(p.status).toBe('approved') // the approve owns it
   })
 
   it('recovery narration is GUARDED: a prior ledger entry for the proposal (the stamp-failed sibling case) means no second entry', async () => {
@@ -865,7 +912,7 @@ describe('approveProposal — the other executors', () => {
     expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
   })
 
-  it('outreach_campaign: the already_sending RACE (row flips after our check) still retires + recovery-narrates, never re-blasts', async () => {
+  it('outreach_campaign: the already_sending RACE (row flips after our check) HOLDS the card — the claim flag is not completion evidence, so no retire and no narration (verification round 4)', async () => {
     executors.sendCampaign.mockResolvedValueOnce({
       channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [],
       skipped: 'already_sending', error: 'This campaign is already sending or has already been sent.',
@@ -878,11 +925,58 @@ describe('approveProposal — the other executors', () => {
     })
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.expired).toBe(true)
-    expect(p.status).toBe('expired')
+    if (!r.ok) {
+      expect(r.expired).toBeUndefined()
+      expect(r.error).toContain('sending this right now')
+    }
+    expect(p.status).toBe('open') // held for the next look
     expect(executors.createMarketingCampaign).not.toHaveBeenCalled()
-    expect(recordActionMock).toHaveBeenCalledTimes(1)
-    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('outreach_campaign: a STUCK claim (active, no sentAt, stale) is REPAIRED — released to draft, copy synced, and the send actually runs (verification round 4)', async () => {
+    store.campaigns.push({
+      id: 77,
+      organizationId: ORG,
+      status: 'active', // sendCampaign's claim flag, orphaned by a pre-send throw
+      sentAt: null,
+      updatedAt: new Date(Date.now() - 60 * 60 * 1000),
+      subject: 'old', bodyHtml: '<p>old</p>',
+    })
+    // The harness sendCampaign default succeeds; the repair must let it run.
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k11c',
+      body: 'Hi {{firstName}}, the recovered copy.',
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 77 },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(executors.sendCampaign).toHaveBeenCalledWith(expect.objectContaining({ campaignId: 77 }))
+    const row = store.campaigns.find((c) => c.id === 77)
+    expect(String(row?.bodyHtml)).toContain('the recovered copy') // the sync ran after the repair
+    expect(recordActionMock).toHaveBeenCalledTimes(1) // the normal narrate-once, not a recovery
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).not.toMatchObject({ recovered: true })
+  })
+
+  it('outreach_campaign: a FRESH active claim (possibly mid-flight) holds — no repair, no send, no narration', async () => {
+    store.campaigns.push({
+      id: 77, organizationId: ORG, status: 'active', sentAt: null,
+      updatedAt: new Date(), subject: 'S', bodyHtml: 'B',
+    })
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k11d',
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 77 },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBeUndefined()
+    expect(p.status).toBe('open')
+    expect(executors.sendCampaign).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+    const row = store.campaigns.find((c) => c.id === 77)
+    expect(row?.status).toBe('active') // untouched — it may genuinely be sending
   })
 
   it('outreach_campaign: a DELETED reused campaign row re-mints instead of failing forever (round-3)', async () => {
@@ -1011,6 +1105,9 @@ describe('approveProposal — the other executors', () => {
     expect(n).toBe(1)
     expect(theirs.status).toBe('open') // not ours — a human decides what happens next
     expect(recordActionMock).not.toHaveBeenCalled()
+    // The reconcile's reopen stamps the marker too — this row WAS approved
+    // once, so a later verbatim match may be attributed (verification 4).
+    expect((theirs.payload as Record<string, unknown>).approveAttempted).toBe(true)
   })
 
   it('inquiry executor: a draft staff signed THEMSELVES sends as written — no second sign-off appended (verification round 2)', async () => {
