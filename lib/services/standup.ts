@@ -4,10 +4,10 @@ import { db, schema } from '@/lib/db'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { listRecentActions, countActionsSince, isWorkEntry } from '@/lib/services/action-ledger'
+import { readEngineSwitches } from '@/lib/services/engine-switches'
 import { countOpenProposals } from '@/lib/services/proposals'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
-import { resolveReminderSettings } from '@/lib/types/reminders'
 import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
 import { sendNotificationEmail } from '@/lib/email'
 
@@ -222,37 +222,6 @@ async function readOrgCreatedAt(organizationId: string): Promise<Date | null> {
     return row?.createdAt ?? null
   } catch {
     return null
-  }
-}
-
-/** The two always-on-by-default engine switches a quiet week cross-checks:
- *  appointment reminders (clinic_profile.reminders jsonb, default enabled)
- *  and automatic review requests (clinic_review_config.autoSendEnabled,
- *  default 1). Best-effort — a read failure reads as "on" (never nag about
- *  a switch we couldn't read). */
-async function readEngineSwitches(
-  organizationId: string,
-): Promise<{ remindersOn: boolean; reviewRequestsOn: boolean }> {
-  try {
-    const [[profile], [reviewCfg]] = await Promise.all([
-      db
-        .select({ reminders: schema.clinicProfile.reminderSettings })
-        .from(schema.clinicProfile)
-        .where(eq(schema.clinicProfile.organizationId, organizationId))
-        .limit(1),
-      db
-        .select({ autoSendEnabled: schema.clinicReviewConfig.autoSendEnabled })
-        .from(schema.clinicReviewConfig)
-        .where(eq(schema.clinicReviewConfig.organizationId, organizationId))
-        .limit(1),
-    ])
-    return {
-      remindersOn: resolveReminderSettings(profile?.reminders).enabled,
-      // No config row yet = the DB default (1, on).
-      reviewRequestsOn: (reviewCfg?.autoSendEnabled ?? 1) === 1,
-    }
-  } catch {
-    return { remindersOn: true, reviewRequestsOn: true }
   }
 }
 

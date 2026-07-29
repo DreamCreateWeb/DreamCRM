@@ -3,6 +3,8 @@ import { getSubscriptionStats } from '@/lib/services/projects'
 import { getClinicGrowth } from '@/lib/services/platform-metrics'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { getPmsDemand } from '@/lib/services/pms-interest'
+import { sweepEngineHealth } from '@/lib/services/guardian'
+import GuardianPanel from './guardian-panel'
 import { PROVIDER_LABELS } from '@/lib/types/pms'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
 import { PageHeader } from '@/components/ui/page-header'
@@ -39,7 +41,7 @@ function moneyFull(cents: number): string {
 }
 
 export default async function PlatformOverview() {
-  const [subs, clinicGrowth, attention, activity, pmsDemand] = await Promise.all([
+  const [subs, clinicGrowth, attention, activity, pmsDemand, engineHealth] = await Promise.all([
     getSubscriptionStats(),
     // New clinic signups per week, last 12 weeks — the Active Clinics tile's
     // heartbeat (law 7). Same series the Platform Metrics dashboard plots;
@@ -48,6 +50,9 @@ export default async function PlatformOverview() {
     getAttentionItems({ perKind: 3 }),
     getRecentPlatformActivity(10),
     getPmsDemand(),
+    // THE GUARDIAN (Phase 4): whose machine is actually running. Best-effort
+    // — the owner's overview must never fail because the watcher hiccupped.
+    sweepEngineHealth().catch(() => ({ reports: [], flagged: [], summary: '' })),
   ])
   const pmsWanted = pmsDemand.filter((d) => d.pending > 0)
 
@@ -68,6 +73,9 @@ export default async function PlatformOverview() {
           </>
         }
       />
+
+      {/* ── The Guardian — whose engine needs a human (Phase 4) ────────── */}
+      <GuardianPanel sweep={engineHealth} />
 
       {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
