@@ -174,9 +174,11 @@ export default function ApprovalInbox({
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
           Waiting on your yes
           <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-            {anyMachineHandled
-              ? 'I finished these — say the word and they go out. The ones marked “I’m handling this one” go out either way.'
-              : 'I finished these — say the word and they go out.'}
+            {!anyMachineHandled
+              ? 'I finished these — say the word and they go out.'
+              : isDemo
+                ? 'I finished these — say the word and they go out. The ones marked “I’m handling this one” I’d send myself, though in the demo nothing actually goes out.'
+                : 'I finished these — say the word and they go out. The ones marked “I’m handling this one” go out either way.'}
           </span>
         </h2>
         {hiddenCount > 0 && (
@@ -216,8 +218,9 @@ export default function ApprovalInbox({
  * strand a grant.
  *
  * AND TELL (round-1 Phase-3 audit): what those grants actually produced in
- * the last 7 days, counted per capability with the newest line quoted in
- * the machine's own words. Without it the phase shipped the DO with no
+ * the last 7 days — grouped per capability and NAMING EACH ONE in the
+ * machine's own words (clamped per capability with an honest "…and N more";
+ * the consent line promises a list, not a count with an example). Without it the phase shipped the DO with no
  * TELL — granted work is absent from every daily signal by design, and the
  * weekly standup narrates the PRIOR week in aggregate without ever marking
  * which of it was the machine's own. A clinic could hand something over and
@@ -480,7 +483,11 @@ function ProposalCard({
                 carries the fact instead of rewriting generated prose. */}
             {alreadyGranted && (
               <span className="shrink-0 rounded-full bg-sky-50 dark:bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
-                {isDemo ? 'mine (demo)' : 'I’m handling this one'}
+                {/* ONE label everywhere: the header names this exact phrase,
+                    so a demo-only variant sent the reader looking for a mark
+                    that did not exist (verification round 3). The demo's
+                    hedge lives in the header and on the card itself. */}
+                I’m handling this one
               </span>
             )}
           </div>

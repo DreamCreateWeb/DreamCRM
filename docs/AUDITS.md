@@ -313,6 +313,38 @@ code — verification round 1's own fixes:
   still said the demo resync "resets all grants" after that commit made it
   seed a standing one.
 
+#### Verification round 3 (2026-07-29) — NOT clean
+
+Six findings, two unique issues plus three stale-doc items. Three of the four
+lenses independently landed on the same root cause and prescribed the same
+fix, which is a good sign the diagnosis is right:
+
+- **The demo's tell was permanently dead, and the docs said otherwise.**
+  Round 2 correctly killed a fresh-sounding lie (an entry claiming "this
+  week" for a post whose date is frozen at demo creation) by gating the seed
+  on the post's real publish instant — but that instant can only age, so the
+  fix did not make the demo occasionally quiet, it disabled the TELL half of
+  "do and tell" in the demo forever, on the surface the owner sells from,
+  while CLAUDE.md and a docstring written in the same commit asserted the
+  tell renders. **Root cause, now fixed:** the demo's social posts were
+  seeded insert-once and never re-dated, so a standing demo org's "published
+  4 days ago" silently became "published three weeks ago" — and every
+  surface reading recency drifted with it. `seedDemoSocialPosts` now
+  self-heals those dates on each resync (the posture every other demo
+  artifact already uses). The age-out guard stays as the correctness
+  backstop: if the anchor ever is stale, the strip says the week was quiet
+  rather than claiming stale work is fresh.
+- **The header qualifier round 2 added was false in the demo** — "the ones
+  marked 'I'm handling this one' go out either way", on a tenant where
+  nothing goes out, naming a pill the demo rendered as "mine (demo)". The
+  production sweep landed; the demo sweep did not. There is one label
+  everywhere now, and the header hedges in the demo. The lenses also noted
+  the demo path was untested — it is pinned now.
+- Three stale docs: `GrantsStrip`'s docblock still described the
+  count-plus-one-example the strip stopped rendering two rounds ago (its own
+  sibling comment 88 lines down had been corrected and this one missed),
+  plus the two above.
+
 #### Round-by-round
 
 v2 gate throughout: four Opus lenses (claims · law · resilience · depth) →

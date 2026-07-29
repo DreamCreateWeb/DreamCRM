@@ -593,7 +593,9 @@ sitemap/robots/OG.
    human that doesn't; demo resync resets the ladder to a KNOWN
    MIXED baseline — social_post handed over (dated before the seeded cards)
    so the demo shows the granted card, the take-back chip and the "what I
-   handled on my own" tell; everything else ask-first, so the review card
+   handled on my own" tell (whose entry anchors to the seeded social post's
+   own publish instant — `seedDemoSocialPosts` re-dates those rows on every
+   resync so the demo never ages into staleness); everything else ask-first, so the review card
    still shows the earned-trust nudge and the never-pre-ticked consent box.
    `countOpenProposals` excludes demo orgs from the granted-subtraction for
    the same reason it excludes billing-walled ones: nothing will ever

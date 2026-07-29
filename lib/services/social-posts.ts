@@ -806,13 +806,11 @@ export async function seedDemoSocialPosts(organizationId: string): Promise<void>
   const dayMs = 24 * 60 * 60 * 1000
   for (const seed of DEMO_SOCIAL_POSTS) {
     const postId = `spost_demo_${seed.externalId}`
-    // Idempotent: skip if the parent already exists.
     const [existing] = await db
       .select({ id: schema.socialPost.id })
       .from(schema.socialPost)
       .where(eq(schema.socialPost.id, postId))
       .limit(1)
-    if (existing) continue
 
     const createdAt = new Date(now - seed.createdDaysAgo * dayMs)
     const publishedAt = seed.publishedDaysAgo != null ? new Date(now - seed.publishedDaysAgo * dayMs) : null
@@ -821,6 +819,26 @@ export async function seedDemoSocialPosts(organizationId: string): Promise<void>
       seed.eventStartDaysFromNow != null ? new Date(now + seed.eventStartDaysFromNow * dayMs) : null
     const eventEndAt = seed.eventEndDaysFromNow != null ? new Date(now + seed.eventEndDaysFromNow * dayMs) : null
     const ctaUrl = seed.ctaType === 'BOOK' ? bookUrl : seed.ctaUrl
+
+    // SELF-HEAL THE DATES (Phase-3 verification round 3). These rows were
+    // insert-once, so a standing demo org's "published 4 days ago" post
+    // silently aged into "published three weeks ago" and every surface that
+    // reads recency drifted with it — including the Overview's "what I
+    // handled on my own" strip, whose seeded entry anchors to this exact
+    // instant and correctly refuses to claim a stale post is this week's
+    // work. Re-dating on resync is how the rest of the demo already behaves
+    // (every other artifact is seeded relative to `now`).
+    if (existing) {
+      await db
+        .update(schema.socialPost)
+        .set({ scheduledAt, publishedAt, createdAt, updatedAt: createdAt })
+        .where(eq(schema.socialPost.id, postId))
+      await db
+        .update(schema.socialPostTarget)
+        .set({ publishedAt })
+        .where(eq(schema.socialPostTarget.socialPostId, postId))
+      continue
+    }
 
     await db
       .insert(schema.socialPost)

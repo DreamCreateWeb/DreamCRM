@@ -62,8 +62,11 @@ export async function seedDemoVoice(
  * a demo that shows one of them shows half the phase:
  *  - social_post is HANDED OVER, dated before the seeded cards, so the demo
  *    renders the granted card (hedged), the take-back chip, and the "what I
- *    handled on my own" tell — whose seeded entry narrates the real post
- *    published 4 days ago;
+ *    handled on my own" tell — whose seeded entry narrates the real seeded
+ *    post at ITS OWN publish instant (the social seeder re-dates that row on
+ *    every resync, so it stays inside the tell's 7-day window; if it ever
+ *    falls outside, the entry is skipped and the strip says the week was
+ *    quiet rather than claiming stale work is fresh);
  *  - everything else stays ask-first, so the review card still shows the
  *    earned-trust nudge and the never-pre-ticked consent checkbox.
  *

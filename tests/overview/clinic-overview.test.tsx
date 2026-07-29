@@ -1269,6 +1269,20 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     expect(screen.getByText(/go out either way/)).toBeInTheDocument()
   })
 
+  it('in the DEMO the same header hedges — nothing goes out there, and the pill it names must exist (verification round 3)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
+    ])
+    const ui = await ClinicOverview({ ctx: { ...makeCtx(), isDemo: true } })
+    render(ui)
+    // ONE label everywhere, so the header can name it.
+    expect(screen.getByText('I’m handling this one')).toBeInTheDocument()
+    expect(screen.getByText(/in the demo nothing actually goes out/i)).toBeInTheDocument()
+    expect(screen.queryByText(/go out either way/)).toBeNull()
+  })
+
   it('an all-ask-first inbox keeps the plain header — nothing to qualify', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
