@@ -98,8 +98,23 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
     if (p.capability === 'outreach_campaign' && typeof payload.recipientCount === 'number') {
       meta = `goes to ~${payload.recipientCount} patients`
     } else if (p.capability === 'social_post' && Array.isArray(payload.accountIds)) {
-      const n = (payload.accountIds as unknown[]).length
-      meta = `posts to ${n} ${n === 1 ? 'channel' : 'channels'}`
+      // NAME the destinations when the payload carries them (verification
+      // round: "posts to 3 channels" hid that one is the clinic's Google
+      // Business listing — the destination is the other half of a public
+      // post). Older payloads without labels keep the honest count.
+      const labels = Array.isArray(payload.channels)
+        ? (payload.channels as unknown[])
+            .map((c) => (c && typeof c === 'object' ? (c as Record<string, unknown>).label : null))
+            .filter((l): l is string => typeof l === 'string' && !!l.trim())
+        : []
+      if (labels.length > 0) {
+        const shown = labels.slice(0, 3)
+        const rest = labels.length - shown.length
+        meta = `posts to ${shown.join(', ')}${rest > 0 ? ` +${rest} more` : ''}`
+      } else {
+        const n = (payload.accountIds as unknown[]).length
+        meta = `posts to ${n} ${n === 1 ? 'channel' : 'channels'}`
+      }
     } else if (p.capability === 'inquiry_response') {
       meta = 'replies by email'
     } else if (p.capability === 'review_reply') {

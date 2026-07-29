@@ -22,7 +22,7 @@ export async function approveProposalAction(input: {
   body?: string
   /** The (possibly edited) email subject, for email-sending capabilities. */
   subject?: string
-}): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; message?: string } | { ok: false; error: string; expired?: boolean }> {
   const ctx = await requireTenant()
   const gate = ensureClinicStaff(ctx)
   if (gate) return { ok: false, error: gate }
@@ -30,7 +30,11 @@ export async function approveProposalAction(input: {
     ...(input.body !== undefined ? { body: input.body } : {}),
     ...(input.subject !== undefined ? { subject: input.subject } : {}),
   })
-  if (!r.ok) return { ok: false, error: r.error }
+  // The STRUCTURED dead-card signal rides through to the client — the card
+  // clears on the flag, never on matching the error copy (verification
+  // round: three retire messages didn't match the old regex and left a
+  // dead card with a live Approve button).
+  if (!r.ok) return { ok: false, error: r.error, ...(r.expired ? { expired: true } : {}) }
   revalidatePath('/dashboard')
   // The ledger one-liner doubles as the confirmation toast — the yes is
   // answered with what actually happened (round-1 audit).
@@ -39,12 +43,12 @@ export async function approveProposalAction(input: {
 
 export async function declineProposalAction(input: {
   proposalId: string
-}): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; message?: string } | { ok: false; error: string; expired?: boolean }> {
   const ctx = await requireTenant()
   const gate = ensureClinicStaff(ctx)
   if (gate) return { ok: false, error: gate }
   const r = await declineProposal(ctx.organizationId, input.proposalId, ctx.userId)
-  if (!r.ok) return { ok: false, error: r.error }
+  if (!r.ok) return { ok: false, error: r.error, ...(r.expired ? { expired: true } : {}) }
   revalidatePath('/dashboard')
   // A no is acknowledged too (round-2 audit): the machine says what the
   // decline means — this piece of work is never re-asked about.

@@ -536,7 +536,14 @@ Additional rules:
     sourceKey,
     title: `Your channels have been quiet — post this?`,
     body: draft.text,
-    payload: { accountIds: channels.map((c) => c.accountId) },
+    payload: {
+      accountIds: channels.map((c) => c.accountId),
+      // The DESTINATIONS, named on the card (verification round: "posts to
+      // 3 channels" hid that one of them is the clinic's Google Business
+      // listing — the destination is the other half of a public post).
+      // accountIds stays the executor's source of truth.
+      channels: channels.map((c) => ({ accountId: c.accountId, label: c.label })),
+    },
     expiresAt: new Date(now.getTime() + 21 * DAY_MS),
   })
   return filed ? 1 : 0

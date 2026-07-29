@@ -770,6 +770,10 @@ describe('the Approval Inbox on the Overview', () => {
     // hidden from the approver (round-2 in-phase gap).
     expect(screen.getByText('Subject')).toBeInTheDocument()
     expect(screen.getByText('We miss you')).toBeInTheDocument()
+    // The send appends a booking button to this draft (no {{bookingUrl}} in
+    // the body) — the card says so, because what the card shows must be
+    // literally what sends (verification round).
+    expect(screen.getByText('Your booking button goes at the bottom.')).toBeInTheDocument()
     // One big Approve per card.
     expect(screen.getAllByRole('button', { name: /approve — send it/i })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
@@ -825,6 +829,33 @@ describe('the Approval Inbox on the Overview', () => {
     expect(screen.getByText(/Asked about/)).toBeInTheDocument()
     expect(screen.getByText('next Tuesday morning')).toBeInTheDocument()
     expect(screen.getByText(/Sam Ortiz/)).toBeInTheDocument()
+  })
+
+  it('a social card NAMES its destinations — never a bare count hiding the Google Business listing (verification round)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      {
+        id: 'prop_social',
+        capability: 'social_post',
+        capabilityLabel: 'Publish social posts',
+        patientId: null,
+        title: 'I drafted a post for your channels — want it out there?',
+        body: 'A friendly reminder from our chairs to yours.',
+        payload: {
+          accountIds: ['a1', 'a2'],
+          channels: [
+            { accountId: 'a1', label: 'Google Business' },
+            { accountId: 'a2', label: 'Instagram' },
+          ],
+        },
+        status: 'open',
+        createdAt: new Date('2026-05-19T10:00:00Z'),
+        expiresAt: null,
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/posts to Google Business, Instagram/)).toBeInTheDocument()
   })
 
   it('a truncated inbox says so — "Showing X of N" keeps the sidebar badge honest (round-2 gap)', async () => {

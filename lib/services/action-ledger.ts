@@ -96,6 +96,28 @@ export async function listRecentActions(
 
 /** Per-capability counts in a window — the standup's "41 reminders,
  *  4 posts, 6 answers" line in one query. `until` exclusive, as above. */
+/** Whether a ledger entry already narrates this proposal (detail.proposalId
+ *  — approveProposal always stamps it). The recovery-narration path uses
+ *  this as its double-narration guard: a stranded approve whose
+ *  recordAction DID run (only the executedAt stamp failed) must not get a
+ *  second entry when the reconcile-reopen-retire loop closes it. */
+export async function hasEntryForProposal(
+  organizationId: string,
+  proposalId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: schema.actionLedger.id })
+    .from(schema.actionLedger)
+    .where(
+      and(
+        eq(schema.actionLedger.organizationId, organizationId),
+        sql`${schema.actionLedger.detail}->>'proposalId' = ${proposalId}`,
+      ),
+    )
+    .limit(1)
+  return !!row
+}
+
 export async function countActionsSince(
   organizationId: string,
   since: Date,

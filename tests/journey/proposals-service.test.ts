@@ -44,8 +44,15 @@ const store: {
   failExecutedAtStamp: boolean
 } = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], failExecutedAtStamp: false }
 
-const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
-vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+const { recordActionMock, hasEntryForProposalMock } = vi.hoisted(() => ({
+  recordActionMock: vi.fn(async (..._a: unknown[]) => true),
+  // The recovery-narration double-guard: false = no prior entry, narrate.
+  hasEntryForProposalMock: vi.fn(async (..._a: unknown[]) => false),
+}))
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: recordActionMock,
+  hasEntryForProposal: hasEntryForProposalMock,
+}))
 
 const executors = vi.hoisted(() => ({
   replyToGoogleReview: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
@@ -69,10 +76,14 @@ vi.mock('@/lib/services/clinic-sender', () => ({
 }))
 vi.mock('@/lib/email', () => ({
   deliver: executors.deliver,
-  authEmailShell: (o: { introHtml: string }) => `<html>${o.introHtml}</html>`,
+  authEmailShell: (o: { introHtml: string; buttonUrl?: string; buttonLabel?: string }) =>
+    `<html>${o.introHtml}${o.buttonUrl ? `<a href="${o.buttonUrl}">${o.buttonLabel}</a>` : ''}</html>`,
 }))
 vi.mock('@/lib/services/marketing-campaigns', () => ({ createMarketingCampaign: executors.createMarketingCampaign }))
-vi.mock('@/lib/services/marketing-send', () => ({ sendCampaign: executors.sendCampaign }))
+vi.mock('@/lib/services/marketing-send', () => ({
+  sendCampaign: executors.sendCampaign,
+  resolveClinicBookingUrl: vi.fn(async () => 'https://acme.dreamcreatestudio.com/book'),
+}))
 vi.mock('@/lib/services/recall-stats', () => ({ getRecallStats: executors.getRecallStats }))
 
 vi.mock('@/lib/db', () => {
@@ -460,6 +471,12 @@ describe('approveProposal — the other executors', () => {
     const msg = executors.deliver.mock.calls[0][0] as Record<string, unknown>
     expect(msg.to).toBe('dana@x.com')
     expect(msg.subject).toBe('Your question for Acme Dental')
+    // The email SIGNS for the clinic (the shell's own footer names the
+    // platform) and carries the booking button — the draft invites them to
+    // book, so the invitation has somewhere to go (verification round).
+    expect(String(msg.html)).toContain('— Acme Dental')
+    expect(String(msg.html)).toContain('https://acme.dreamcreatestudio.com/book')
+    expect(String(msg.html)).toContain('Book a time')
     expect(executors.markLeadContacted).toHaveBeenCalledWith(ORG, 'lead_1')
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain('Dana')
@@ -566,7 +583,7 @@ describe('approveProposal — the other executors', () => {
     expect(executors.createSocialPost).toHaveBeenCalledTimes(1)
   })
 
-  it('social_post: a prior post with a PUBLISHED target retires the card — never a double publish (round-2)', async () => {
+  it('social_post: a prior post with a PUBLISHED target retires the card, never double-publishes — and RECOVERY-NARRATES the work that landed exactly once (round-2 + verification)', async () => {
     store.postTargets = [{ id: 't1', organizationId: ORG, socialPostId: 'sp_prior', status: 'published' }]
     const p = seedProposal({
       capability: 'social_post',
@@ -577,7 +594,47 @@ describe('approveProposal — the other executors', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.expired).toBe(true)
     expect(p.status).toBe('expired')
+    expect(p.executedAt).toBeInstanceOf(Date) // the work happened — never reopened by the reconcile sweep
     expect(executors.createSocialPost).not.toHaveBeenCalled()
+    // The stranded-approve loop (die mid-approve → reconcile reopens →
+    // re-approve → retire) must still satisfy narrate-EXACTLY-ONCE: the
+    // prior attempt's post reached a channel and nothing had narrated it.
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('social_post')
+    expect((entry.detail as Record<string, unknown>).recovered).toBe(true)
+    expect(String(entry.summary)).toContain('1 channel')
+  })
+
+  it('recovery narration is GUARDED: a prior ledger entry for the proposal (the stamp-failed sibling case) means no second entry', async () => {
+    hasEntryForProposalMock.mockResolvedValueOnce(true)
+    store.postTargets = [{ id: 't1', organizationId: ORG, socialPostId: 'sp_prior', status: 'published' }]
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:k3b',
+      payload: { accountIds: ['a'], socialPostId: 'sp_prior' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('expired')
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('review_reply: OUR OWN reply already on the review recovery-narrates; SOMEONE ELSE’S words never do (verification)', async () => {
+    store.reviews[0].replyComment = 'Thank you for the kind words.' // === the seeded proposal body
+    const ours = seedProposal({ sourceKey: 'review_reply:r1a' })
+    const r1 = await approveProposal(ORG, ours.id, 'user_1')
+    expect(r1.ok).toBe(false)
+    expect(ours.status).toBe('expired')
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).capability).toBe('review_reply')
+
+    recordActionMock.mockClear()
+    store.reviews[0].replyComment = 'Handled at the counter by Dr. Reyes'
+    const theirs = seedProposal({ sourceKey: 'review_reply:r1b' })
+    const r2 = await approveProposal(ORG, theirs.id, 'user_1')
+    expect(r2.ok).toBe(false)
+    expect(theirs.status).toBe('expired')
     expect(recordActionMock).not.toHaveBeenCalled()
   })
 
@@ -681,11 +738,7 @@ describe('approveProposal — the other executors', () => {
     expect(recordActionMock).not.toHaveBeenCalled()
   })
 
-  it('outreach_campaign: already_sending on a REUSED campaign retires the card — never a re-blast, and the sent row’s copy is NEVER rewritten (round-1 #5 + round-3)', async () => {
-    executors.sendCampaign.mockResolvedValueOnce({
-      channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [],
-      skipped: 'already_sending', error: 'This campaign is already sending or has already been sent.',
-    } as never)
+  it('outreach_campaign: a reused row that already WENT OUT retires the card pre-send, keeps the sent copy, and recovery-narrates once (rounds 1+3 + verification)', async () => {
     // The reused row already went out (a prior approve's send succeeded but
     // its bookkeeping failed) — it sits at 'completed'.
     store.campaigns.push({ id: 77, organizationId: ORG, status: 'completed', subject: 'We miss you', bodyHtml: '<p>what actually sent</p>' })
@@ -700,11 +753,36 @@ describe('approveProposal — the other executors', () => {
     if (!r.ok) expect(r.expired).toBe(true)
     expect(p.status).toBe('expired')
     expect(executors.createMarketingCampaign).not.toHaveBeenCalled()
+    expect(executors.sendCampaign).not.toHaveBeenCalled() // caught BEFORE any send attempt
     // The permanent record of what was SENT keeps its real copy (round-3:
     // the sync must never run against a row that already went out).
     const row = store.campaigns.find((c) => c.id === 77)
     expect(row?.subject).toBe('We miss you')
     expect(row?.bodyHtml).toBe('<p>what actually sent</p>')
+    // …and the work that reached patients narrates exactly once (recovery).
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).capability).toBe('outreach_campaign')
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
+  })
+
+  it('outreach_campaign: the already_sending RACE (row flips after our check) still retires + recovery-narrates, never re-blasts', async () => {
+    executors.sendCampaign.mockResolvedValueOnce({
+      channel: 'resend', attempted: 0, sent: 0, failed: 0, errors: [],
+      skipped: 'already_sending', error: 'This campaign is already sending or has already been sent.',
+    } as never)
+    store.campaigns.push({ id: 77, organizationId: ORG, status: 'draft', subject: 'We miss you', bodyHtml: '<p>b</p>' })
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k11b',
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 77 },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBe(true)
+    expect(p.status).toBe('expired')
+    expect(executors.createMarketingCampaign).not.toHaveBeenCalled()
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
   })
 
   it('outreach_campaign: a DELETED reused campaign row re-mints instead of failing forever (round-3)', async () => {
@@ -802,13 +880,17 @@ describe('approveProposal — the other executors', () => {
     err.mockRestore()
   })
 
-  it('DEMO proposals simulate: no executor runs, the ledger still tells the story', async () => {
+  it('DEMO proposals simulate: no executor runs, and the narration carries the demo hedge — the toast never claims real work went out (verification)', async () => {
     const p = seedProposal({ isDemo: 1 })
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(true)
     expect(executors.replyToGoogleReview).not.toHaveBeenCalled()
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ simulated: true })
+    expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain(
+      'demo — nothing actually went out',
+    )
+    if (r.ok) expect(r.message).toContain('demo — nothing actually went out')
   })
 })
 

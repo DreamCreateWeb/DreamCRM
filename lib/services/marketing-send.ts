@@ -412,7 +412,7 @@ type InternalSendOpts = SendOptions & {
  * public-site home (basic-tier routes "Book" to the contact form). Returns null
  * when the org has no slug or isn't a clinic — the token then strips to empty.
  */
-async function resolveClinicBookingUrl(organizationId: string): Promise<string | null> {
+export async function resolveClinicBookingUrl(organizationId: string): Promise<string | null> {
   const [[org], [profile]] = await Promise.all([
     db
       .select({ slug: schema.organization.slug })

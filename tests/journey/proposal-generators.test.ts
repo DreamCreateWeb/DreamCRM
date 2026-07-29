@@ -356,7 +356,15 @@ describe('social posts (quiet channels)', () => {
     const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
     expect(call.capability).toBe('social_post')
     expect(call.sourceKey).toBe(`social_post:${monthKey(NOW, TZ)}`)
-    expect(call.payload).toEqual({ accountIds: ['acc_gbp', 'acc_ig'] })
+    // The DESTINATIONS ride the payload, named on the card (verification
+    // round: a count hid that one channel is the Google Business listing).
+    expect(call.payload).toEqual({
+      accountIds: ['acc_gbp', 'acc_ig'],
+      channels: [
+        { accountId: 'acc_gbp', label: 'Google Business' },
+        { accountId: 'acc_ig', label: 'Instagram' },
+      ],
+    })
   })
 
   it('stays silent when a post went out recently — the channels are not quiet', async () => {

@@ -323,6 +323,56 @@ The gate itself was amended to encode the corrected cap semantics
 `{ verification: true }` round type that is only legal after a documented
 self-sweep).
 
+**Verification round 1 (2026-07-28): NOT clean — the sweep missed four
+classes.** 4 lenses → 6 deduped defect candidates + 4 depth candidates →
+skeptic confirmed 5 / refuted 1 (the standup one-attempt re-file — the
+round-3 rejection stands), judge ruled all 4 depth gaps in-phase →
+main-loop confirmation upheld every verdict. Everything fixed:
+- [gap, major] The inquiry reply — the ONE public-facing email the phase
+  sends — invited booking with nothing clickable → it now carries the
+  booking button (the exported resolveClinicBookingUrl; button-less when
+  no site resolves) AND a clinic sign-off ("— {clinic}"), which also
+  makes the drafting prompt's "the template signs for the clinic" true
+  (it wasn't: the shell's only foot-name was the platform's).
+- [defect] A stranded-then-retired approve narrated ZERO times →
+  narrate-once-under-recovery: executors report `recovered` when the
+  evidence says OUR OWN prior attempt executed (our reply on the review /
+  our campaign row active-or-completed / our post's target published),
+  and approveProposal writes the missing entry guarded by the new
+  hasEntryForProposal (no double when only the executedAt stamp had
+  failed); recovered retires stamp executedAt so the reconcile never
+  loops.
+- [defect] The client cleared dead cards by regexing the error copy →
+  the structured `expired` flag rides through both actions and the card
+  clears on it (claim-lost + decline-lost now carry the flag too).
+- [defect ×2 lenses] The demo's "Your channels have been quiet" card
+  contradicted the demo org's own seeded posts (4d-old publish + two
+  scheduled) → premise-free demo title ("I drafted a post for your
+  channels — want it out there?"); the recall demo card's visible title
+  ("N patients are due") was never false and stands.
+- [defect] The round-3 "corrected" demo comment was still false (no
+  "activity surfaces" read the ledger) → rewritten truthfully; and the
+  demo narration/toast now carries the hedge ("· demo — nothing actually
+  went out") so the demo never over-claims (the lead drawer's label was
+  the standard).
+- [gap] Social cards said "posts to 3 channels" while one was the Google
+  Business listing → the generator (and demo seeder) store channel
+  labels; the card names them ("posts to Google Business, Instagram",
+  +N more past 3); old payloads fall back to the count.
+- [gap] The recall (and now inquiry) send appends a booking button the
+  card never showed → read-mode line "Your booking button goes at the
+  bottom."; the edit legend mentions {{bookingUrl}} only when the body
+  contains it.
+**The four classes the sweep lacked, now in its checklist:** (1)
+END-TO-END ARTIFACT RENDERING — render the final artifact (shell + body +
+auto-appended button + sign-off) and diff against the card and the
+sibling sends, never just the executor inputs; (2) DEMO COHERENCE —
+demo-voice premises must hold against the OTHER demo seeders' rows, and
+demo actions must never over-claim; (3) STRUCTURED SIGNALS OVER PROSE —
+typed server flags are consumed as flags, never string-matched; (4) LAWS
+UNDER RECOVERY — every recovery path must preserve every law the happy
+path had (narrate-once, here). Verification round 2 pending.
+
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation
   upheld every verdict (both rejections re-verified at the cited code:

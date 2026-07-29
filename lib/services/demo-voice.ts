@@ -3,6 +3,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { platformLabel } from '@/lib/types/zernio'
 
 /**
  * Demo seeding for THE VOICE (Transformation Phase 2): the Approval Inbox's
@@ -222,9 +223,18 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
       .onConflictDoNothing()
   }
 
-  // 3. Social post — anchored to the seeded demo channels.
+  // 3. Social post — anchored to the seeded demo channels. TITLE LAW
+  // (verification round): the demo org seeds posts published 4 and 11 days
+  // ago plus two scheduled, so the real generator's "quiet channels"
+  // premise is FALSE here — the demo card must never state it (a prospect
+  // sees /growth/social one click away). The demo card demonstrates the
+  // capability with a premise-free title instead.
   const demoAccounts = await db
-    .select({ id: schema.zernioAccount.id })
+    .select({
+      id: schema.zernioAccount.id,
+      platform: schema.zernioAccount.platform,
+      displayName: schema.zernioAccount.displayName,
+    })
     .from(schema.zernioAccount)
     .where(eq(schema.zernioAccount.organizationId, organizationId))
     .limit(3)
@@ -236,9 +246,16 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
         organizationId,
         capability: 'social_post',
         sourceKey: `social_post:demo`,
-        title: 'Your channels have been quiet — post this?',
+        title: 'I drafted a post for your channels — want it out there?',
         body: 'A gentle reminder from our chairs to yours: if it’s been more than six months since your last cleaning, this is your sign. New patients are always welcome — book online in about a minute.',
-        payload: { accountIds: demoAccounts.map((a) => a.id) },
+        payload: {
+          accountIds: demoAccounts.map((a) => a.id),
+          // Destinations named on the card, same as the real generator.
+          channels: demoAccounts.map((a) => ({
+            accountId: a.id,
+            label: a.displayName?.trim() || platformLabel(a.platform),
+          })),
+        },
         status: 'open',
         expiresAt: new Date(now.getTime() + 21 * DAY),
         isDemo: 1,

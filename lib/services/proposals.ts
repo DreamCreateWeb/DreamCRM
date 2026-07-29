@@ -198,6 +198,9 @@ export async function reconcileStrandedApprovals(
 
 export type DecideResult =
   | { ok: true; status: 'approved' | 'declined'; message?: string }
+  /** expired: the card is DEAD (retired, or already decided by someone
+   *  else) — the client clears it on this structured flag. Absent =
+   *  reopened; the card stays live for a retry. */
   | { ok: false; error: string; expired?: boolean }
 
 /** Decline — a human "no". The sourceKey stays claimed so the machine never
@@ -218,7 +221,7 @@ export async function declineProposal(
       ),
     )
     .returning({ id: schema.proposal.id })
-  if (rows.length === 0) return { ok: false, error: 'This one was already handled.' }
+  if (rows.length === 0) return { ok: false, error: 'This one was already handled.', expired: true }
   return { ok: true, status: 'declined' }
 }
 
@@ -294,7 +297,10 @@ export async function approveProposal(
       ),
     )
     .returning()
-  if (!claimed) return { ok: false, error: 'This one was already handled.' }
+  // Losing the claim means the proposal is already decided — the card is
+  // dead; the expired flag lets the client clear it (verification round:
+  // the UI must act on this STRUCTURED signal, never regex the copy).
+  if (!claimed) return { ok: false, error: 'This one was already handled.', expired: true }
 
   // The reopen-on-throw region covers ONLY the execution itself. Once the
   // executor reports success the work HAPPENED — the bookkeeping below must
@@ -318,8 +324,41 @@ export async function approveProposal(
       // already handled) — retire the proposal instead of reopening it.
       await db
         .update(schema.proposal)
-        .set({ status: 'expired', updatedAt: new Date() })
+        .set({
+          status: 'expired',
+          // Evidence says OUR OWN prior attempt executed → the work
+          // happened; stamp it so the reconcile sweep never reopens this
+          // row again.
+          ...(exec.recovered ? { executedAt: new Date() } : {}),
+          updatedAt: new Date(),
+        })
         .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+      // Narrate-EXACTLY-ONCE under recovery: a stranded approve (process
+      // died between the send and the bookkeeping) reaches this branch on
+      // its retry — the work reached patients but no ledger entry exists.
+      // Write it now, guarded against the stamp-failed sibling case where
+      // recordAction DID run.
+      if (exec.recovered) {
+        try {
+          const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
+          if (!(await hasEntryForProposal(organizationId, proposalId))) {
+            await recordAction({
+              organizationId,
+              capability: claimed.capability,
+              patientId: claimed.patientId,
+              summary: exec.recovered.ledgerSummary,
+              detail: {
+                proposalId: claimed.id,
+                approvedByUserId: userId,
+                recovered: true,
+                ...exec.recovered.ledgerDetail,
+              },
+            })
+          }
+        } catch (e) {
+          console.error('[proposals] recovery narration failed (work already done):', e)
+        }
+      }
       return { ok: false, error: exec.error, expired: true }
     }
     await reopen(organizationId, proposalId)
@@ -359,18 +398,38 @@ async function reopen(organizationId: string, proposalId: string): Promise<void>
 
 type ExecResult =
   | { ok: true; ledgerSummary: string; ledgerDetail?: Record<string, unknown> }
-  | { ok: false; error: string; expired?: boolean }
+  | {
+      ok: false
+      error: string
+      expired?: boolean
+      /** Set on an expired retire when the evidence says the PRIOR attempt's
+       *  work actually went out (our reply is on the review, our campaign
+       *  row is sent, our post has a published target) — the stranded-
+       *  approve recovery loop (reconcile → re-approve → retire) must still
+       *  satisfy the narrate-EXACTLY-ONCE law, so approveProposal writes
+       *  this entry iff none exists for the proposal yet (verification
+       *  round: without it, recovered work narrated ZERO times and the
+       *  standup under-reported the week). */
+      recovered?: { ledgerSummary: string; ledgerDetail?: Record<string, unknown> }
+    }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 async function executeProposal(p: typeof schema.proposal.$inferSelect): Promise<ExecResult> {
   // Demo proposals SIMULATE: the inbox demoes the full approve flow without
-  // networking (same demo-safe law as Zernio/PMS). The ledger entry still
-  // writes and shows on the activity surfaces — though not on the standup
-  // card, which narrates the PRIOR week only (the demo seeder backdates its
-  // own entries into that window for exactly this reason).
+  // networking (same demo-safe law as Zernio/PMS). The ledger entry is
+  // written for shape + the resync cleanup sweep, and its summary doubles
+  // as the approve toast — but NO surface reads it today (the standup is
+  // the ledger's only reader and it narrates the PRIOR week; the demo
+  // seeder backdates its own entries into that window). The summary
+  // carries the demo hedge so the toast never claims real work went out
+  // (verification round — the lead drawer's demo label is the standard).
   if (p.isDemo === 1) {
-    return { ok: true, ledgerSummary: demoLedgerSummary(p), ledgerDetail: { simulated: true } }
+    return {
+      ok: true,
+      ledgerSummary: `${demoLedgerSummary(p)} · demo — nothing actually went out`,
+      ledgerDetail: { simulated: true },
+    }
   }
   const payload = (p.payload ?? {}) as Record<string, unknown>
   switch (p.capability) {
@@ -419,6 +478,22 @@ async function executeReviewReply(
     .limit(1)
   if (!review) return { ok: false, error: 'That review is no longer available.', expired: true }
   if (review.replyComment) {
+    // OUR OWN reply already on the review = the stranded-approve recovery
+    // case — narrate the work that happened (once). Someone else's words =
+    // handled at the counter; nothing of ours to narrate.
+    const who = review.reviewerName?.trim() || 'a patient'
+    const stars = review.starRating ? `${review.starRating}-star ` : ''
+    if (review.replyComment.trim() === p.body.trim()) {
+      return {
+        ok: false,
+        error: 'It turns out this reply already went out on the earlier approve — I recorded it. Nothing posted twice.',
+        expired: true,
+        recovered: {
+          ledgerSummary: `Replied to ${who}’s ${stars}Google review — you approved it`,
+          ledgerDetail: { externalReviewId },
+        },
+      }
+    }
     return { ok: false, error: 'Someone already replied to this review — I tossed this draft.', expired: true }
   }
 
@@ -491,7 +566,19 @@ async function executeSocialPost(
         ),
       )
     if (priorTargets.some((t) => t.status === 'published' || t.status === 'scheduled')) {
-      return { ok: false, error: 'It looks like this post already went out — I retired this card.', expired: true }
+      // OUR OWN prior attempt's post landed — the stranded-approve recovery
+      // case; narrate it (once) instead of letting real work vanish.
+      const landed = priorTargets.filter((t) => t.status === 'published' || t.status === 'scheduled').length
+      const snippet = p.body.length > 60 ? `${p.body.slice(0, 57)}…` : p.body
+      return {
+        ok: false,
+        error: 'It turns out this post already went out on the earlier approve — I recorded it. Nothing posted twice.',
+        expired: true,
+        recovered: {
+          ledgerSummary: `Published “${snippet}” to ${landed} ${landed === 1 ? 'channel' : 'channels'} — you approved it`,
+          ledgerDetail: { accountIds, publishedCount: landed, postId: priorPostId },
+        },
+      }
     }
     await db
       .delete(schema.socialPost)
@@ -569,16 +656,28 @@ async function executeInquiryResponse(
   }
   if (!lead.email) return { ok: false, error: 'This inquiry has no email address to write to.', expired: true }
 
-  const [{ getClinicSenderIdentity }, { deliver, authEmailShell }, { markLeadContacted }] = await Promise.all([
-    import('@/lib/services/clinic-sender'),
-    import('@/lib/email'),
-    import('@/lib/services/leads'),
-  ])
+  const [{ getClinicSenderIdentity }, { deliver, authEmailShell }, { markLeadContacted }, { resolveClinicBookingUrl }] =
+    await Promise.all([
+      import('@/lib/services/clinic-sender'),
+      import('@/lib/email'),
+      import('@/lib/services/leads'),
+      import('@/lib/services/marketing-send'),
+    ])
   const sender = await getClinicSenderIdentity(p.organizationId)
-  const paragraphs = p.body
-    .split(/\n{2,}/)
-    .map((para) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#333333;">${escapeHtml(para.trim()).replace(/\n/g, '<br/>')}</p>`)
-    .join('')
+  // The draft invites them to book — give the invitation somewhere to go
+  // (verification round: this was the ONE patient-facing send in the
+  // product without the booking link, aimed at the highest-intent person
+  // in the funnel). Best-effort: no resolvable site → button-less.
+  const bookingUrl = await resolveClinicBookingUrl(p.organizationId).catch(() => null)
+  const paragraphs =
+    p.body
+      .split(/\n{2,}/)
+      .map((para) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#333333;">${escapeHtml(para.trim()).replace(/\n/g, '<br/>')}</p>`)
+      .join('') +
+    // The clinic's sign-off — the shell's own footer names the platform,
+    // and the drafting prompt promises "the email template signs for the
+    // clinic", so the template must actually do it (verification round).
+    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#333333;">— ${escapeHtml(sender.name)}</p>`
   // deliver() maps transport failures to reader-safe messages
   // (friendlyEmailError) before throwing — catch here and return them as the
   // executor's own error so the approve wrapper reopens WITH that useful
@@ -591,6 +690,7 @@ async function executeInquiryResponse(
       html: authEmailShell({
         heading: subject,
         introHtml: paragraphs,
+        ...(bookingUrl ? { buttonUrl: bookingUrl, buttonLabel: 'Book a time' } : {}),
         footnoteHtml: `You asked us a question through our website — this is our reply. Call or write back any time.`,
       }),
       from: sender.from,
@@ -674,6 +774,19 @@ async function executeOutreachCampaign(
       .limit(1)
     if (!existing) {
       campaignId = null
+    } else if (existing.status === 'active' || existing.status === 'completed') {
+      // OUR OWN campaign row already sent (or is mid-send from the prior
+      // attempt) — the stranded-approve recovery case; narrate the work
+      // that reached patients (once) instead of retiring silently.
+      return {
+        ok: false,
+        error: 'It turns out this campaign already went out on the earlier approve — I recorded it. Nobody was emailed twice.',
+        expired: true,
+        recovered: {
+          ledgerSummary: `Sent “${subject}” to your recall list — you approved it`,
+          ledgerDetail: { campaignId },
+        },
+      }
     } else if (existing.status === 'draft' || existing.status === 'scheduled' || existing.status === 'paused') {
       await db
         .update(schema.campaigns)
@@ -712,8 +825,19 @@ async function executeOutreachCampaign(
   })
   if (r.skipped === 'already_sending') {
     // A reused campaign that already went out (a prior approve's send
-    // succeeded but its bookkeeping failed) — never re-blast; retire the card.
-    return { ok: false, error: 'It looks like this campaign already went out — I retired this card.', expired: true }
+    // succeeded but its bookkeeping failed, or a concurrent approve won the
+    // send claim) — never re-blast; retire the card. Recovery-narrate: the
+    // hasEntryForProposal guard upstream keeps this to exactly once even
+    // when a racing approve narrated already.
+    return {
+      ok: false,
+      error: 'It looks like this campaign already went out — I retired this card. Nobody was emailed twice.',
+      expired: true,
+      recovered: {
+        ledgerSummary: `Sent “${subject}” to your recall list — you approved it`,
+        ledgerDetail: { campaignId },
+      },
+    }
   }
   if (r.skipped) return { ok: false, error: r.error ?? 'The send was refused before anyone was emailed.' }
   // ZERO people reached is not a success — never ledger "Sent … to 0

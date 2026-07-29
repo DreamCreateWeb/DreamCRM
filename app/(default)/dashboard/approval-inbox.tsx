@@ -131,6 +131,13 @@ function ProposalCard({
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const tokens = HAS_TOKENS.test(body)
+  // The send APPENDS a booking button for these capabilities when the body
+  // doesn't place the link itself — say so on the card, because "what the
+  // card shows is what sends" must be literally true (verification round:
+  // staff could rewrite the invitation and still ship a button unseen).
+  const appendsBookingButton =
+    (proposal.capability === 'outreach_campaign' || proposal.capability === 'inquiry_response') &&
+    !body.includes('{{bookingUrl}}')
 
   const decide = (decision: 'approve' | 'decline') => {
     setError(null)
@@ -157,9 +164,13 @@ function ProposalCard({
         router.refresh()
       } else {
         setError(r.error)
-        // "Already handled" class errors mean the card is dead — clear it.
-        if (/already|retired/i.test(r.error)) {
-          onDone(proposal.id)
+        // The server says the card is DEAD (retired / already decided) —
+        // clear it on the STRUCTURED flag, never by matching the copy
+        // (verification round: three retire messages missed the old
+        // /already|retired/ regex and left a dead card with a live
+        // Approve button).
+        if (r.expired) {
+          onDone(proposal.id, r.error)
           router.refresh()
         }
       }
@@ -236,8 +247,15 @@ function ProposalCard({
             />
             {tokens && (
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Keep the curly pieces as they are — {'{{firstName}}'} becomes each patient’s own name, and{' '}
-                {'{{bookingUrl}}'} becomes your booking link.
+                {/* Explain only the tokens actually IN the draft — a legend
+                    describing a {{bookingUrl}} the body doesn't contain
+                    reads as a promise about invisible content. */}
+                Keep the curly pieces as they are — {'{{firstName}}'} becomes each patient’s own name
+                {body.includes('{{bookingUrl}}') ? (
+                  <>, and {'{{bookingUrl}}'} becomes your booking link.</>
+                ) : (
+                  '.'
+                )}
               </p>
             )}
           </>
@@ -249,6 +267,11 @@ function ProposalCard({
         {tokens && !editing && (
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             Shown with a sample name — each patient gets their own.
+          </p>
+        )}
+        {appendsBookingButton && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Your booking button goes at the bottom.
           </p>
         )}
       </div>
