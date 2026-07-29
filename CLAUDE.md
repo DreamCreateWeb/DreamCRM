@@ -551,13 +551,14 @@ sitemap/robots/OG.
    owner-approved amended gate after the spend limit killed round 5's
    skeptic chamber — certificate + the amended-gate note in docs/AUDITS.md;
    future phases should use a cheaper audit shape: fewer lenses, one verify
-   pass, 2–3 round cap), Phase 2 the voice — **SHIPPED 2026-07-27; 3
-   discovery rounds + retrospective + self-sweep done 2026-07-28 (32
-   confirmed defects fixed + 14 in-phase gaps shipped across rounds 1–3,
-   plus 3 more seams the self-sweep found and fixed); awaiting the clean
-   verification round** (retrospective + sweep record in docs/AUDITS.md —
-   the "four products in a trench coat"
-   lesson: ship future executors one per slice) (migration 0137 `proposal` table; `lib/services/proposals.ts`
+   pass, 2–3 round cap), Phase 2 the voice — **SHIPPED 2026-07-27; audit
+   CLOSED CLEAN 2026-07-28** (3 discovery rounds at the hard cap +
+   retrospective + main-loop self-sweep + 6 verification rounds, the 6th
+   returning ZERO findings across all four lenses; totals 58 defects
+   fixed + 18 in-phase gaps shipped + 3 sweep seams; certificate, the
+   "four products in a trench coat" retrospective, and the standing
+   self-sweep class checklist all in docs/AUDITS.md — ship future
+   executors one per slice) (migration 0137 `proposal` table; `lib/services/proposals.ts`
    file/list/approve/decline/expire + per-capability executors under the
    ledger-boundary law "an approved yes narrates ONCE, under the proposal's
    capability"; `proposal-generators.ts` four first types — review_reply

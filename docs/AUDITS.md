@@ -170,19 +170,31 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 2 — the voice (proposals · Approval Inbox · weekly standup)
 
-**Status: three discovery rounds fixed → SELF-SWEEP shipped → verification
-round pending.** Round 3 still found significant items (2 major defects +
-3 in-phase gaps confirmed), which fired the hard cap — and the owner
-clarified what the cap MEANS (2026-07-28): discovery-by-audit is over, but
-the phase still has to reach a clean state, and the remaining discovery is
-the main loop's own job. So after the round-3 fixes + the retrospective
-below, the retrospective's lessons ran as a DIRECT SELF-SWEEP (sibling
-sweep of every fix from all three rounds, the executor × failure-mode
+**Status: CLOSED CLEAN 2026-07-28 — verification round 6 returned ZERO
+findings across all four lenses.** ✅ **CERTIFICATE**: 3 discovery rounds
+(the hard cap) + the owner-mandated main-loop self-sweep + 6 verification
+rounds. Totals: **58 confirmed defects fixed, 18 in-phase depth gaps
+shipped, 3 self-sweep seams closed, 9 skeptic/judge rejections upheld**;
+the proposal/standup/generator surface grew from 5,532 to 5,593 passing
+tests. The final clean round: depth EMPTY, law EMPTY (third consecutive,
+with a full verification trace), claims EMPTY (first of the audit),
+resilience EMPTY (with every remaining candidate developed and rejected
+on evidence). The cap semantics that produced this close (the owner's
+2026-07-28 clarification): discovery-by-audit ends at round 3, the
+remaining discovery is the main loop's own — retrospective lessons run as
+direct sweeps, verification rounds only confirm. The class checklist that
+accumulated along the way (artifact rendering, demo coherence, structured
+signals, laws-under-recovery, recovery-paths-vs-each-other, fixture
+realism, anchor-by-identity, snapshot-vs-alias semantics) is now the
+standing self-sweep list for every future phase.
+
+Round 3 had fired the hard cap (2 major defects + 3 in-phase gaps), and
+the close ran exactly as the corrected gate directs: fixes + the
+retrospective below, then the retrospective's lessons as a DIRECT
+SELF-SWEEP (sibling sweep of every fix, the executor × failure-mode
 matrix, crash-consistency of every claim-then-act, reachable-control and
-doc-drift checks) — its findings are recorded below — and ONE verification
-round (allowed by the gate as `{ verification: true }`, doesn't count
-against the cap) confirms clean. A phase closes CLEAN or it is not closed.
-First audit under the v2 shape (Opus lenses
+doc-drift checks), then verification until clean. A phase closes CLEAN or
+it is not closed. First audit under the v2 shape (Opus lenses
 via direct-Agent fallback — the Workflow runtime's permission-handler fault
 recurred and the integrity guard correctly invalidated the workflow run;
 the same 4-lens shape re-ran through the Agent tool). Round-1 range
@@ -491,8 +503,18 @@ the existing stamp-survival tests became the regression net. Resilience
 added one last minor: the tap's recovered-retire was the file's final
 stamp-before-narrate — reordered to narration-first (a failed narration
 leaves the row approved for the hourly reconcile; the card still clears).
-Round-5 full suite 5,593 green; typecheck + build clean. Verification
-round 6 pending.
+Round-5 full suite 5,593 green; typecheck + build clean.
+
+**Verification round 6 (2026-07-28): CLEAN — zero findings, all four
+lenses.** Depth and claims empty; law empty with a full verification
+trace (tenant scoping, ledger-boundary law + its recovered-expiry
+exception, clinic-tz, demo coherence, voice, authorization, cron
+parity); resilience empty after tracing every interleaving of the new
+reopen re-read and narration-first retire, cross-checking all recovery
+paths in execution order, and rejecting its own remaining candidates on
+evidence (each unreachable or absorbed by the executors' own-work
+guards). The gate is satisfied; the certificate is in the status block
+above.
 
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation
