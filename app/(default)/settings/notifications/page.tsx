@@ -15,6 +15,14 @@ export default async function NotificationsSettings() {
   const user = await requireUser()
   const ctx = await getTenantContext()
   const prefs = await getNotificationPrefs(user.id)
+  // The recurring report emails (morning digest + Monday week-in-review) are
+  // per-staff mutable, and their footer points at THIS page — so this page
+  // carries the mute (Phase-2 self-sweep). Clinic staff only.
+  let emailReportsOptedOut: boolean | null = null
+  if (ctx?.tenantType === 'clinic' && ctx.organizationId) {
+    const { getDigestOptOut } = await import('@/lib/services/staff-notification-pref')
+    emailReportsOptedOut = await getDigestOptOut(ctx.organizationId, user.id).catch(() => false)
+  }
 
   return (
     <>
@@ -35,6 +43,7 @@ export default async function NotificationsSettings() {
             pushEmail: prefs.pushEmail,
             pushNothing: prefs.pushNothing,
           }}
+          emailReportsOptedOut={emailReportsOptedOut}
         />
       </SettingsPage>
     </>

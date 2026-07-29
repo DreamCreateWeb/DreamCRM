@@ -170,12 +170,19 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 2 — the voice (proposals · Approval Inbox · weekly standup)
 
-**Status: CLOSED at round 3 (the hard cap) — all three rounds fixed; no
-clean-round certificate.** Round 3 still found significant items (2 major
-defects + 3 in-phase gaps confirmed), so per the v2 gate's own law the
-audit ends with the fixes SHIPPED plus the root-cause retrospective below —
-round 4 is forbidden, and the remaining assurance comes from the pinned
-tests, not another audit pass. First audit under the v2 shape (Opus lenses
+**Status: three discovery rounds fixed → SELF-SWEEP shipped → verification
+round pending.** Round 3 still found significant items (2 major defects +
+3 in-phase gaps confirmed), which fired the hard cap — and the owner
+clarified what the cap MEANS (2026-07-28): discovery-by-audit is over, but
+the phase still has to reach a clean state, and the remaining discovery is
+the main loop's own job. So after the round-3 fixes + the retrospective
+below, the retrospective's lessons ran as a DIRECT SELF-SWEEP (sibling
+sweep of every fix from all three rounds, the executor × failure-mode
+matrix, crash-consistency of every claim-then-act, reachable-control and
+doc-drift checks) — its findings are recorded below — and ONE verification
+round (allowed by the gate as `{ verification: true }`, doesn't count
+against the cap) confirms clean. A phase closes CLEAN or it is not closed.
+First audit under the v2 shape (Opus lenses
 via direct-Agent fallback — the Workflow runtime's permission-handler fault
 recurred and the integrity guard correctly invalidated the workflow run;
 the same 4-lens shape re-ran through the Agent tool). Round-1 range
@@ -279,9 +286,42 @@ still not clean. Why did this phase ship with this many gaps?
 The machinery itself held: every defect was caught by the gate before a
 clinic saw it, the skeptic killed 2 of 12 candidates, and the main-loop
 confirmation upheld every verdict. The cap did its job — the marginal
-round was fixing the auditor's own previous fixes, and the pinned tests
-(146 in the proposal/standup/generator suites alone) are now the durable
-guard.
+round was fixing the auditor's own previous fixes.
+
+**The self-sweep (2026-07-28, post-retrospective — the lessons run as
+checklists by the main loop itself):**
+- *Sibling sweep of every fix from all 3 rounds* → found ONE: the social
+  executor lacked the at-the-tap staleness re-check its campaign sibling
+  got in round 3 (the sweep covered social between taps, but inside the
+  hour a "quiet channels" card could publish right after the clinic
+  posted). FIXED: executeSocialPost retires when any post is queued or
+  published since the card was drafted; activity predating the card never
+  retires it (both pinned).
+- *Reachable-control check on every user-facing pointer* → found ONE: the
+  report emails' footer says "manage them at settings → notifications",
+  and that page could not silence them (the skeptic had narrowed round
+  3's #4 to the My Day toggle but the misdirection itself remained).
+  FIXED the honest way — the destination gained the capability: a "My
+  report emails" mute on the notifications page (same per-staff opt-out,
+  immediate save, clinic staff only; pinned incl. never-renders for
+  platform/patient tenants).
+- *Doc-drift grep across every phase file* → found ONE: the standup test
+  header still claimed the email was "org-gated on the digest master
+  switch" (removed in round 2). Corrected; repo-wide grep for the stale
+  phrases now returns nothing.
+- *Crash-consistency of every claim-then-act* (approve claim → reconcile
+  sweep; standup week claim → accepted round-1 design; social/campaign
+  row-before-network → supersede/reuse) and the *executor × failure-mode
+  matrix* (staleness / partial / throw / crash / retry / empty-input /
+  tenant-scope / tz / voice per executor) → walked in full; no further
+  findings. Two accepted residuals documented in code: the
+  three-simultaneous-failure inquiry double-email window (reconcile
+  comment), and the ≤90-min window where a stranded approve's "What we
+  sent" block could show before the reconcile flips it back.
+The gate itself was amended to encode the corrected cap semantics
+(`.claude/workflows/phase-audit.js`: refusal note, escalation note, and a
+`{ verification: true }` round type that is only legal after a documented
+self-sweep).
 
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation

@@ -478,14 +478,23 @@ sitemap/robots/OG.
   v2 cost shape: all subagents run Opus (`model:'opus'`), 4 merged lenses,
   ONE skeptic + ONE judge, and the MAIN LOOP re-verifies every survivor
   against the cited code before fixing (it is the second, decisive vote).
-  **HARD CAP: 3 rounds** — the script refuses round 4; if round 3 still
-  finds significant items (any critical/major or in-phase gap), auditing is
-  the wrong tool: fix what's found, then write the owner a root-cause
-  retrospective ("why did this phase ship with this many gaps?") in
-  docs/AUDITS.md. Certificates + the owner's depth-backlog menu live there
-  too. (Phase 1's rounds 1–5 ran under v1 — 9 lenses, 3+3 voters, Fable
-  subagents, two-consecutive-clean dry — which consumed ~75% of a monthly
-  quota in one night; v2 exists so that never happens again.)
+  **HARD CAP: 3 discovery rounds** — the script refuses round 4. The cap
+  semantics (owner clarification 2026-07-28): if round 3 still finds
+  significant items (any critical/major or in-phase gap), discovery-by-audit
+  is the wrong tool — but **the phase still has to reach a clean state, and
+  the remaining discovery is the main loop's own job**: fix what round 3
+  found, write the owner a root-cause retrospective ("why did this phase
+  ship with this many gaps?") in docs/AUDITS.md, run the retrospective's
+  lessons as a DIRECT SELF-SWEEP (sibling-sweep every fix from all rounds,
+  walk the component × failure-mode matrix, check crash-consistency of
+  every claim-then-act), fix what that finds, then confirm with ONE
+  `{ verification: true }` round (legal past the cap, only after a
+  documented sweep). A phase closes CLEAN or it is not closed — the
+  retrospective is never the finish line. Certificates + the owner's
+  depth-backlog menu live in docs/AUDITS.md too. (Phase 1's rounds 1–5 ran
+  under v1 — 9 lenses, 3+3 voters, Fable subagents, two-consecutive-clean
+  dry — which consumed ~75% of a monthly quota in one night; v2 exists so
+  that never happens again.)
 - **The North Star is a convention (2026-07-27).** DESIGN.md's "the employee,
   not the tool" doctrine governs every new feature: the design test is "does
   this ask the clinic to operate something, or does it do the job and
@@ -542,12 +551,13 @@ sitemap/robots/OG.
    owner-approved amended gate after the spend limit killed round 5's
    skeptic chamber — certificate + the amended-gate note in docs/AUDITS.md;
    future phases should use a cheaper audit shape: fewer lenses, one verify
-   pass, 2–3 round cap), Phase 2 the voice — **SHIPPED 2026-07-27; audit
-   CLOSED 2026-07-28 at the round-3 hard cap** (3 rounds under the v2
-   gate: 32 confirmed defects fixed + 14 in-phase gaps shipped; round 3
-   was not clean, so the close is fixes + the root-cause retrospective in
-   docs/AUDITS.md — the "four products in a trench coat" lesson: ship
-   future executors one per slice) (migration 0137 `proposal` table; `lib/services/proposals.ts`
+   pass, 2–3 round cap), Phase 2 the voice — **SHIPPED 2026-07-27; 3
+   discovery rounds + retrospective + self-sweep done 2026-07-28 (32
+   confirmed defects fixed + 14 in-phase gaps shipped across rounds 1–3,
+   plus 3 more seams the self-sweep found and fixed); awaiting the clean
+   verification round** (retrospective + sweep record in docs/AUDITS.md —
+   the "four products in a trench coat"
+   lesson: ship future executors one per slice) (migration 0137 `proposal` table; `lib/services/proposals.ts`
    file/list/approve/decline/expire + per-capability executors under the
    ledger-boundary law "an approved yes narrates ONCE, under the proposal's
    capability"; `proposal-generators.ts` four first types — review_reply

@@ -160,6 +160,26 @@ export async function saveNotificationPrefs(input: unknown) {
   return row
 }
 
+/** Mute / un-mute the current staff member's recurring report emails (the
+ *  morning digest + the Monday week-in-review) from the notifications
+ *  settings page — the same per-staff opt-out My Day's toggle writes. The
+ *  report emails' footer points HERE, so this page must actually be able
+ *  to silence them (Phase-2 self-sweep). */
+export async function setMyEmailReportsOptOutAction(
+  optedOut: boolean,
+): Promise<{ ok: true } | { error: string }> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { error: 'Only clinic staff get these report emails.' }
+  try {
+    const { setDigestOptOut } = await import('@/lib/services/staff-notification-pref')
+    await setDigestOptOut(ctx.organizationId, ctx.userId, optedOut)
+    revalidatePath('/settings/notifications')
+    return { ok: true }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not save your preference.' }
+  }
+}
+
 export async function sendFeedback(input: unknown) {
   const user = await requireUser()
   const row = await submitFeedback(user.id, FeedbackInput.parse(input))

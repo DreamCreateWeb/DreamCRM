@@ -443,6 +443,36 @@ async function executeSocialPost(
     : []
   if (accountIds.length === 0) return { ok: false, error: 'This proposal is missing its channels.' }
 
+  // Staleness at the tap (round-3 self-sweep — the campaign executor's
+  // re-check, applied to its sibling): this card was filed on QUIET
+  // channels. If anything published since it was drafted, or a post sits in
+  // the queue, the premise is false — retire instead of stacking a second
+  // post on channels the clinic just fed. The hourly sweep catches this
+  // between taps; this catches the gap inside the hour.
+  const [activity] = await db
+    .select({ id: schema.socialPostTarget.id })
+    .from(schema.socialPostTarget)
+    .where(
+      and(
+        eq(schema.socialPostTarget.organizationId, p.organizationId),
+        or(
+          eq(schema.socialPostTarget.status, 'scheduled'),
+          and(
+            eq(schema.socialPostTarget.status, 'published'),
+            gt(schema.socialPostTarget.publishedAt, p.createdAt),
+          ),
+        ),
+      ),
+    )
+    .limit(1)
+  if (activity) {
+    return {
+      ok: false,
+      error: 'A post went out (or is queued) since I drafted this — I retired the card so your channels don’t double up.',
+      expired: true,
+    }
+  }
+
   // ONE post history per proposal: a prior failed approve leaves a dead
   // 'failed' post row behind (createSocialPost persists parent + targets
   // BEFORE the network calls). Supersede it on retry — delete the fully-

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { saveNotificationPrefs } from '../actions'
+import { saveNotificationPrefs, setMyEmailReportsOptOutAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { Toggle } from '@/components/ui/toggle'
@@ -109,12 +109,41 @@ const EMAIL_LABELS: Record<
   },
 }
 
-export default function NotificationsPanel({ initial, tenantType }: { initial: Prefs; tenantType: TenantType }) {
+export default function NotificationsPanel({
+  initial,
+  tenantType,
+  emailReportsOptedOut = null,
+}: {
+  initial: Prefs
+  tenantType: TenantType
+  /** Clinic staff only: whether this member muted the recurring report
+   *  emails (morning digest + Monday week-in-review). null hides the
+   *  section (platform/patient tenants don't get these emails). */
+  emailReportsOptedOut?: boolean | null
+}) {
   const labels = EMAIL_LABELS[tenantType]
   const [prefs, setPrefs] = useState<Prefs>(initial)
   const [pending, startTransition] = useTransition()
   const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
   const dirty = JSON.stringify(prefs) !== JSON.stringify(initial)
+  // The report-emails mute saves IMMEDIATELY (it's the same switch as My
+  // Day's — one tap, no Save button), separate from the form's dirty flow.
+  const [reportsOptedOut, setReportsOptedOut] = useState(emailReportsOptedOut ?? false)
+  const [reportsPending, startReportsTransition] = useTransition()
+
+  function toggleEmailReports() {
+    const next = !reportsOptedOut
+    setReportsOptedOut(next)
+    startReportsTransition(async () => {
+      const res = await setMyEmailReportsOptOutAction(next)
+      if ('error' in res) {
+        setReportsOptedOut(!next)
+        setToast({ message: res.error, tone: 'urgent' })
+      } else {
+        setToast({ message: next ? 'Report emails muted for you.' : 'Report emails back on for you.', tone: 'ok' })
+      }
+    })
+  }
 
   function toggle<K extends keyof Prefs>(key: K) {
     setPrefs((p) => ({ ...p, [key]: !p[key] }))
@@ -177,6 +206,34 @@ export default function NotificationsPanel({ initial, tenantType }: { initial: P
                     Email digest + Pause all are the two delivery controls that act. */}
                 {prefRow('pushEmail', 'Email digest', 'Email a copy of these alerts to your inbox.')}
                 {prefRow('pushNothing', 'Pause all', 'Temporarily silence every alert (overrides the buckets above).')}
+
+                {/* The recurring REPORT emails — the morning digest + the
+                    Monday week-in-review — are a different pipeline from the
+                    alert digest above, and their footer points at this page,
+                    so this page must actually be able to silence them
+                    (Phase-2 self-sweep). Saves immediately; same per-staff
+                    switch as My Day's. */}
+                {emailReportsOptedOut != null && (
+                  <SettingsRow
+                    label="My report emails"
+                    description={
+                      <>
+                        The Monday week-in-review, plus the morning digest when your clinic has it on.
+                        <span className="mt-1 block text-gray-400 dark:text-gray-500">
+                          Just for you — the rest of the team keeps theirs. Saves right away.
+                        </span>
+                      </>
+                    }
+                    control={
+                      <Toggle
+                        checked={!reportsOptedOut}
+                        onChange={toggleEmailReports}
+                        disabled={reportsPending}
+                        srLabel="My report emails"
+                      />
+                    }
+                  />
+                )}
 
                 {prefs.pushNothing && (
                   <div

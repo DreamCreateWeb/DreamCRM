@@ -12,8 +12,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *    (quietNote), never blanked — a healthy idle clinic and a switched-off
  *    engine must read differently (round-1 audit, the AUDITS.md mandate);
  *  - the email: Monday-only per clinic tz, once per week via an ATOMIC
- *    conditional claim before send, org-gated on the digest master switch,
- *    ALL staff roles minus the per-staff opt-out, demo + quiet skipped;
+ *    conditional claim before send, sent to ALL staff roles minus the
+ *    per-staff opt-out (NO org digest gate — round 2 removed it; the
+ *    default-0 column made the email dead on arrival), demo + quiet +
+ *    pre-account weeks skipped;
  *  - the voice: no exclamation marks anywhere in the email body.
  */
 

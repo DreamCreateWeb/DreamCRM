@@ -236,6 +236,7 @@ vi.mock('@/lib/db', () => {
       organizationId: col('organizationId'),
       socialPostId: col('socialPostId'),
       status: col('status'),
+      publishedAt: col('publishedAt'),
     },
     socialPost: {
       __name: 'social_post',
@@ -259,8 +260,12 @@ vi.mock('drizzle-orm', () => ({
   eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) =>
     (col.__col === 'platform' ? (r.platform ?? 'googlebusiness') : r[col.__col]) === val,
   and: (...preds: unknown[]) => preds.flat().filter(Boolean),
-  or: (...preds: Array<(r: Record<string, unknown>) => boolean>) => (r: Record<string, unknown>) =>
-    preds.some((p) => p(r)),
+  // An and(...) in this mock is an ARRAY of predicates — evaluate it as a
+  // conjunction inside the disjunction.
+  or: (...preds: unknown[]) => (r: Record<string, unknown>) =>
+    preds
+      .filter(Boolean)
+      .some((p) => (typeof p === 'function' ? (p as (row: Record<string, unknown>) => boolean)(r) : Array.isArray(p) ? (p as Array<(row: Record<string, unknown>) => boolean>).every((f) => f(r)) : false)),
   gt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) > val,
   lt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
@@ -531,6 +536,34 @@ describe('approveProposal — the other executors', () => {
     expect(store.socialPosts.some((r) => r.id === 'sp_dead')).toBe(false)
     expect(executors.createSocialPost).toHaveBeenCalledTimes(2)
     expect(recordActionMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('social_post: a card filed on QUIET channels expires at the tap once a post is queued or published since drafting (round-3 self-sweep)', async () => {
+    // A post the CLINIC scheduled after this card was drafted.
+    store.postTargets = [{ id: 'tq', organizationId: ORG, socialPostId: 'sp_theirs', status: 'scheduled' }]
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:k4',
+      payload: { accountIds: ['a'] },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBe(true)
+    expect(p.status).toBe('expired')
+    expect(executors.createSocialPost).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('social_post: activity that PREDATES the card does not retire it — that quiet spell is why it was filed', async () => {
+    store.postTargets = [
+      { id: 'told', organizationId: ORG, socialPostId: 'sp_old', status: 'published', publishedAt: new Date(Date.now() - 20 * DAY) },
+      { id: 't1', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
+      { id: 't2', organizationId: ORG, socialPostId: 'sp1', status: 'published' },
+    ]
+    const p = seedProposal({ capability: 'social_post', sourceKey: 'social_post:k5', payload: { accountIds: ['a', 'b'] } })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(executors.createSocialPost).toHaveBeenCalledTimes(1)
   })
 
   it('social_post: a prior post with a PUBLISHED target retires the card — never a double publish (round-2)', async () => {

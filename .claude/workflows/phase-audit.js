@@ -2,7 +2,7 @@ export const meta = {
   name: 'phase-audit',
   description: 'One round of the phase-gate audit (v2): 4 lens finders → single verify pass → main-loop confirmation',
   whenToUse:
-    'After any transformation phase (or major feature slice). v2 gate: HARD CAP of 3 rounds. Done = a round with zero confirmed defects and zero in-phase depth gaps. If round 3 still finds significant items (any critical/major defect or in-phase gap), do NOT run a round 4 — stop and write a root-cause retrospective ("why are there so many gaps?") for the owner instead. Certificate goes in docs/AUDITS.md.',
+    'After any transformation phase (or major feature slice). v2 gate: HARD CAP of 3 discovery rounds; done = a round with zero confirmed defects and zero in-phase depth gaps. If round 3 still finds significant items: fix them, write the root-cause retrospective, do the remaining discovery YOURSELF (sibling sweep + failure-mode matrix + crash-consistency), fix that, then confirm with ONE { verification: true } round. A phase closes CLEAN or it is not closed. Certificate goes in docs/AUDITS.md.',
   phases: [
     { title: 'Find', detail: '4 merged lens auditors', model: 'opus' },
     { title: 'Verify', detail: 'one defect skeptic + one depth judge', model: 'opus' },
@@ -25,16 +25,24 @@ export const meta = {
  *    merged prompts keep every checklist item.
  *  - VERIFY: 3 skeptics + 3 judges → ONE skeptic + ONE judge, because the
  *    main loop now provides the second, decisive opinion.
- *  - ROUNDS: HARD CAP 3 (enforced in this script — round > 3 refuses to
- *    run). Done = a clean round (zero confirmed defects + zero in-phase
- *    gaps). v1's "two consecutive clean rounds" is retired: with a healthy
- *    phase, round 1 finds the real items, round 2 verifies the fixes and
- *    comes back clean or near-clean, round 3 is the safety margin. If
- *    round 3 STILL surfaces significant items, more auditing is the wrong
- *    tool — the phase itself was under-built or the claims were wrong.
- *    This script flags that state (`escalate: true`) and the orchestrator
- *    must STOP and write the owner a root-cause retrospective ("why are
- *    there so many gaps?") instead of scheduling a round 4.
+ *  - ROUNDS: HARD CAP 3 discovery rounds (enforced in this script — round
+ *    > 3 refuses to run unless { verification: true }). Done = a clean
+ *    round (zero confirmed defects + zero in-phase gaps). v1's "two
+ *    consecutive clean rounds" is retired: with a healthy phase, round 1
+ *    finds the real items, round 2 verifies the fixes and comes back clean
+ *    or near-clean, round 3 is the safety margin. If round 3 STILL
+ *    surfaces significant items, more DISCOVERY-BY-AUDIT is the wrong tool
+ *    — but the phase still has to reach a clean state (the owner's
+ *    2026-07-28 clarification: the retrospective is not the finish line).
+ *    The orchestrator fixes what round 3 found, writes the retrospective,
+ *    runs the retrospective's lessons as a direct main-loop SELF-SWEEP
+ *    (sibling-sweep every fix from all rounds, walk the component ×
+ *    failure-mode matrix, check crash-consistency of every claim-then-act),
+ *    fixes what that finds, then confirms with ONE { verification: true }
+ *    round — which doesn't count against the cap. A failed verification
+ *    means the sweep was insufficient: extend the sweep to the missed
+ *    class, fix, verify once more. A phase closes CLEAN or it is not
+ *    closed.
  *
  * Two chambers, unchanged in spirit ("perfection plus depth"):
  *   PERFECTION — findings are DEFECTS; the skeptic tries to refute each;
@@ -72,11 +80,23 @@ const {
   extraDocs = [],
 } = A
 
-// ── THE ROUND CAP (the owner's mandate, 2026-07-27) ─────────────────────────
-// Three rounds, ever. A fourth round is never the answer; a phase that can't
-// come clean in three needs a retrospective, not more auditing.
+// ── THE ROUND CAP (the owner's mandate, 2026-07-27; semantics clarified
+//    2026-07-28) ─────────────────────────────────────────────────────────────
+// Three DISCOVERY rounds, ever. The cap does NOT mean "file a retrospective
+// and move on" — the phase still has to reach a clean state; the cap means
+// the AUDIT is the wrong tool for finding what's left. When round 3 is not
+// clean: (1) fix everything confirmed, (2) write the root-cause
+// retrospective, (3) the MAIN LOOP does the remaining discovery itself — a
+// direct systematic sweep applying the retrospective's lessons (sibling
+// sweep of every fix, the full component × failure-mode matrix,
+// crash-consistency of every claim-then-act) — and fixes what it finds,
+// then (4) ONE verification round (`verification: true`) confirms clean.
+// Verification rounds don't count against the cap; they are allowed only
+// AFTER a documented self-sweep, and only one per sweep — if verification
+// is not clean, the sweep was insufficient: fix, sweep deeper, verify again.
 const MAX_ROUNDS = 3
-if (round > MAX_ROUNDS) {
+const isVerification = A.verification === true
+if (round > MAX_ROUNDS && !isVerification) {
   return {
     round,
     range,
@@ -87,7 +107,7 @@ if (round > MAX_ROUNDS) {
     inPhaseGaps: [],
     backlog: [],
     rejected: [],
-    note: `REFUSED — round ${round} exceeds the hard cap of ${MAX_ROUNDS}. The gate is closed: if round 3 was not clean, write the owner a root-cause retrospective (why did the phase ship with this many gaps — under-scoped claims? rushed build? missing conventions?) and decide TOGETHER whether to re-open the phase as new build work. Do not audit further.`,
+    note: `REFUSED — round ${round} exceeds the hard cap of ${MAX_ROUNDS} discovery rounds. The audit is the wrong tool now, but the JOB remains: fix what round 3 found, write the owner a root-cause retrospective, do the remaining discovery YOURSELF (sibling sweep of every fix, the component × failure-mode matrix, crash-consistency of every claim-then-act), fix what that finds, then run ONE confirmation pass with { verification: true }.`,
   }
 }
 
@@ -447,13 +467,17 @@ const clean = defects.length === 0 && inPhaseGaps.length === 0
 const significant =
   inPhaseGaps.length > 0 ||
   defects.some((d) => d.severity === 'critical' || d.severity === 'major')
-const escalate = round >= MAX_ROUNDS && significant
+const escalate = !isVerification && round >= MAX_ROUNDS && significant
 
 let note
 if (clean) {
-  note = 'CLEAN ROUND — the gate is satisfied. Write the certificate in docs/AUDITS.md.'
+  note = isVerification
+    ? 'VERIFICATION ROUND CLEAN — the self-sweep held. The gate is satisfied; write the certificate (noting it closed via self-sweep + verification) in docs/AUDITS.md.'
+    : 'CLEAN ROUND — the gate is satisfied. Write the certificate in docs/AUDITS.md.'
+} else if (isVerification) {
+  note = `VERIFICATION ROUND NOT CLEAN — the self-sweep missed the items below. This is on the sweep, not the auditors: fix these, ask what CLASS each one belongs to that the sweep's checklists didn't cover, extend the sweep to that class across the whole phase, then run ONE more verification round. Do not fall back to discovery rounds.`
 } else if (escalate) {
-  note = `ROUND ${MAX_ROUNDS} IS STILL FINDING SIGNIFICANT ITEMS — the gate is CLOSED and a round 4 is FORBIDDEN. Three rounds of auditing did not converge, which means auditing is the wrong tool now: the phase was under-built, under-scoped, or its claims were wrong. Fix what is listed below, then write the owner a ROOT-CAUSE RETROSPECTIVE in docs/AUDITS.md ("why did this phase ship with this many gaps?") covering: which lens kept finding items and what that says about the build process, whether the phase's claims matched what was actually attempted, and what convention or checklist would have prevented the recurring class. The owner decides whether to re-open the phase as new build work.`
+  note = `ROUND ${MAX_ROUNDS} IS STILL FINDING SIGNIFICANT ITEMS — discovery-by-audit is over, but the JOB is not: the phase still has to reach a clean state, and the remaining discovery is YOURS now (2026-07-28 owner clarification). Do, in order: (1) fix everything listed below; (2) write the owner a ROOT-CAUSE RETROSPECTIVE in docs/AUDITS.md ("why did this phase ship with this many gaps?") covering which lens kept finding items, whether the phase's claims matched what was attempted, and what convention would have prevented each recurring class; (3) run those lessons as a DIRECT SELF-SWEEP in the main loop — sibling-sweep every fix from all rounds, walk the full component × failure-mode matrix, check crash-consistency of every claim-then-act — and fix what it finds; (4) confirm with ONE { verification: true } round. A phase closes CLEAN or it is not closed.`
 } else {
   note = `MAIN-LOOP CONFIRMATION REQUIRED before fixing: the survivors below carry ONE Opus skeptic/judge vote, not v1's three. You (the main loop, on the session's stronger model) are the second, decisive vote — re-verify each confirmed defect and in-phase gap against the cited code (read the files yourself; the Phase-1 round-5 close-out is the pattern), overturn anything that does not hold, then fix the true survivors and run the next round (${round + 1} of ${MAX_ROUNDS}) over the fix range. Also skim \`rejected\` — a skeptic 'reject' you disagree with may be overruled with cited evidence.`
 }

@@ -11,8 +11,11 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
  *  - The real save action still fires with the honest 5-field payload.
  */
 
-const { saveNotificationPrefs } = vi.hoisted(() => ({ saveNotificationPrefs: vi.fn() }))
-vi.mock('@/app/(default)/settings/actions', () => ({ saveNotificationPrefs }))
+const { saveNotificationPrefs, setMyEmailReportsOptOutAction } = vi.hoisted(() => ({
+  saveNotificationPrefs: vi.fn(),
+  setMyEmailReportsOptOutAction: vi.fn(async (..._a: unknown[]) => ({ ok: true as const })),
+}))
+vi.mock('@/app/(default)/settings/actions', () => ({ saveNotificationPrefs, setMyEmailReportsOptOutAction }))
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
 import NotificationsPanel from '@/app/(default)/settings/notifications/notifications-panel'
@@ -25,7 +28,10 @@ const initial = {
   pushNothing: false,
 }
 
-beforeEach(() => saveNotificationPrefs.mockReset())
+beforeEach(() => {
+  saveNotificationPrefs.mockReset()
+  setMyEmailReportsOptOutAction.mockClear()
+})
 
 describe('NotificationsPanel v2', () => {
   it('renders exactly the 5 honest switches (no push_everything row)', () => {
@@ -71,5 +77,23 @@ describe('NotificationsPanel v2', () => {
       ['candidates', 'comments', 'offers', 'pushEmail', 'pushNothing'].sort(),
     )
     expect(payload.pushEmail).toBe(false)
+  })
+
+  it('clinic staff get the "My report emails" mute — the report emails\' footer points at this page, so it must be able to silence them (Phase-2 self-sweep)', async () => {
+    render(<NotificationsPanel initial={initial} tenantType="clinic" emailReportsOptedOut={false} />)
+    const toggle = screen.getByRole('switch', { name: 'My report emails' })
+    expect(toggle).toBeInTheDocument()
+    // Saves immediately — no Save button involved.
+    fireEvent.click(toggle)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(setMyEmailReportsOptOutAction).toHaveBeenCalledWith(true)
+    expect(saveNotificationPrefs).not.toHaveBeenCalled()
+  })
+
+  it('the report-emails mute never renders for tenants who don\'t get those emails (null prop)', () => {
+    render(<NotificationsPanel initial={initial} tenantType="platform" />)
+    expect(screen.queryByRole('switch', { name: 'My report emails' })).toBeNull()
+    expect(screen.getAllByRole('switch')).toHaveLength(5)
   })
 })
