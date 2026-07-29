@@ -177,7 +177,81 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 3 — the autonomy ladder live ("always do this for me")
 
-**Status: IN AUDIT.** Round 1 closed 2026-07-29. v2 gate, four Opus lenses
+**Status: IN AUDIT — the hard cap fired at round 3.** Rounds 1–3 closed
+2026-07-29 with 2 criticals, 29 confirmed defects and 6 in-phase depth gaps.
+Per the corrected cap semantics the remaining discovery is the main loop's
+own: retrospective (below) → direct self-sweep → verification rounds until
+one comes back clean.
+
+#### Retrospective: why did this phase ship with this many gaps?
+
+Written for the owner, per the gate. The honest headline is not "Phase 3 was
+sloppy" — it is that **the audit's own fixes became the largest source of new
+defects**, and the shape of the test suite guaranteed the two worst ones
+would be invisible.
+
+1. **The fixes outproduced the phase.** Round 2 confirmed 9 defects, 4 of
+   them inside round-1 fixes. Round 3 confirmed 9 more, including a CRITICAL
+   inside a round-2 fix. The original Phase-3 build was not the problem by
+   round 2 — the repair work was. Each fix was written under audit pressure,
+   shipped with tests asserting its own semantics, and never swept against
+   its siblings. The standing class checklist existed and I applied it to the
+   PHASE, not to each FIX. **Lesson: a fix is a new feature and gets the full
+   checklist, including the demo and the copy.**
+2. **Mocked boundaries prove semantics, never executability.** Both criticals
+   lived exactly where the harness stops: a string sentinel written into a
+   column that is a foreign key, and an untyped bind parameter inside a
+   VARIADIC function. 5,660 tests could not see either, because the DB is
+   modelled in JavaScript. **Lesson: any new raw SQL, or any new write to a
+   constrained column, needs a test at the real boundary** — render the
+   statement through the dialect, or assert the column's constraint. Shipped
+   as `tests/journey/autonomy-sql.test.ts`.
+3. **Every new behavioral state needs a sentence.** The hand-back, the
+   pre-grant card, the held-overnight card, the walled clinic: each time I
+   drew a new distinction in the mechanism I forgot the human-facing copy,
+   and each time a lens found a screen that said nothing, or said the
+   opposite of what the code did. **Lesson: a new card state IS a new string;
+   they ship together or the behavior is invisible.**
+4. **A law added late has readers that predate it.** The dated grant needed
+   the driver, the badge count, the card copy, the demo seeder and the
+   earned-trust run to all agree. I swept some readers each time and found
+   the rest by audit. **Lesson: when a new predicate lands, enumerate its
+   readers exhaustively in the same commit.**
+5. **The demo is a reader.** Twice a rule change silently invalidated seed
+   data (the human-decider requirement killed the earned-trust history; the
+   `autonomous: true` marker was never seeded, so the tell could never fire
+   in the demo). **Lesson: every rule change runs against the seeder.**
+
+#### The self-sweep (main loop, post-cap)
+
+Ran the retrospective's five lessons as direct checks rather than another
+audit round:
+
+1. **Every raw SQL fragment in the phase**, for parameter typing and operator
+   resolution — `notHandedBack`, `autonomousOnly`, `workOnly` bind nothing;
+   `hasEntryForProposal`'s one param resolves against a text expression; the
+   trust write is now cast-complete and pinned by a rendering test.
+2. **Every constrained-column write** — the `'machine'` sentinel's only
+   surviving home (`sendCampaign`'s `initiatedByUserId`) verified as
+   read-only, never stored.
+3. **Every reader of the new law** — the driver, `countOpenProposals` and the
+   card's flags are the complete set, and **this found a real seam**: the
+   round-3 billing gate lived in the driver only, so a walled clinic's
+   granted cards were subtracted from the badge *and* never executed. The
+   count now applies the same gate (its comment had claimed so; the code did
+   not). Fixed + pinned.
+4. **The card's copy matrix** — five branches (handed back · pre-grant ·
+   granted · earned-trust nudge · consent checkbox), no silent cell, and the
+   precedence is right: a handed-back card of a granted capability shows the
+   hand-back, not the pre-grant line.
+5. **Demo coherence for every rule changed** — the demo org is not walled
+   (no `stripeSubscriptionId`, no `trialEndsAt`), `resetAutonomy` clears the
+   new `_revokedAt` stamp with everything else, and the tell now has seeded
+   rows to render.
+
+#### Round-by-round
+
+- **Round 1** (range `6fe9276..d4ed2cd`). v2 gate, four Opus lenses
 (claims · law · resilience · depth) → one skeptic → one judge → main-loop
 confirmation against the cited code before any fix.
 

@@ -488,6 +488,20 @@ describe('listOpenProposals / countOpenProposals', () => {
     expect(await countOpenProposals(ORG)).toBe(1)
   })
 
+  it('a WALLED clinic’s granted cards count as waiting on a human again — the driver won’t act for one, so subtracting them would hide work nothing will do (self-sweep)', async () => {
+    store.profiles = [
+      {
+        organizationId: ORG,
+        autonomy: { review_reply: 'auto' },
+        trialEndsAt: new Date(Date.now() - 30 * DAY),
+        subscriptionStatus: null,
+        stripeSubscriptionId: null,
+      },
+    ]
+    seedProposal({ id: 'p_auto', capability: 'review_reply', sourceKey: 'kw1' })
+    expect(await countOpenProposals(ORG)).toBe(1)
+  })
+
   it('an unreadable trust setting counts EVERYTHING — never hide real work behind a failed read', async () => {
     store.profiles = []
     seedProposal({ id: 'p1', capability: 'review_reply', sourceKey: 'kc' })

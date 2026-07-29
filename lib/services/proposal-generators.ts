@@ -201,9 +201,9 @@ export async function autoExecuteGrantedProposals(
   // autonomy can be handed back. Acting on its behalf while it cannot stop
   // us breaks "trust is reversible always", and the work is public and
   // patient-facing. A walled clinic goes back to being asked; its cards
-  // simply wait (countOpenProposals counts them again, because
-  // machineHandlesCard is what the badge subtracts and nothing here widens
-  // it — the driver just declines to act).
+  // simply wait, and countOpenProposals applies the SAME billing gate so
+  // they are counted as waiting on a human again rather than subtracted for
+  // a machine that will never touch them.
   if (resolveTrialState(profile, now).expired) return 0
   const granted = resolveGrantedCapabilities(profile.autonomy)
   if (granted.length === 0) return 0

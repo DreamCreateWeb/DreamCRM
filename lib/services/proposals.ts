@@ -8,6 +8,7 @@ import {
   resolveTrust,
 } from '@/lib/autonomy'
 import { recordAction } from '@/lib/services/action-ledger'
+import { resolveTrialState } from '@/lib/trial'
 
 /**
  * PROPOSALS + THE APPROVAL INBOX (Transformation Phase 2 — DESIGN.md "The
@@ -245,11 +246,23 @@ export async function countOpenProposals(
   if (!opts.includeGranted) {
     try {
       const [profile] = await db
-        .select({ autonomy: schema.clinicProfile.autonomy })
+        .select({
+          autonomy: schema.clinicProfile.autonomy,
+          trialEndsAt: schema.clinicProfile.trialEndsAt,
+          subscriptionStatus: schema.clinicProfile.subscriptionStatus,
+          stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+        })
         .from(schema.clinicProfile)
         .where(eq(schema.clinicProfile.organizationId, organizationId))
         .limit(1)
-      granted = resolveGrantedCapabilities(profile?.autonomy ?? null)
+      // A WALLED clinic has no working grants (self-sweep after round 3):
+      // the driver refuses to act for one, so subtracting its granted cards
+      // here would hide work that nothing is going to do — the count and the
+      // driver have to answer "is this mine?" the same way.
+      granted =
+        profile && !resolveTrialState(profile, now).expired
+          ? resolveGrantedCapabilities(profile.autonomy)
+          : []
     } catch {
       granted = [] // unreadable trust → count everything (never hide real work)
     }
