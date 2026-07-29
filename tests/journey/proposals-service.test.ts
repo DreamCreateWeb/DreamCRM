@@ -606,6 +606,46 @@ describe('approveProposal — the other executors', () => {
     expect(String(entry.summary)).toContain('1 channel')
   })
 
+  it('ORDERING PIN (fixture realism): our own published target carries a real publishedAt AFTER the card was drafted — recovery still narrates; the org-wide staleness check must never shadow it (verification round 2)', async () => {
+    store.postTargets = [
+      { id: 't1', organizationId: ORG, socialPostId: 'sp_mine', status: 'published', publishedAt: new Date(Date.now() + 1000) },
+    ]
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:k3c',
+      payload: { accountIds: ['a'], socialPostId: 'sp_mine' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.expired).toBe(true)
+      // The honest message — our own earlier approve, not "a post went out
+      // since I drafted this" blaming the clinic.
+      expect(r.error).toContain('earlier approve')
+    }
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
+  })
+
+  it('ORDERING PIN: the own-row recovery runs BEFORE the recall staleness check — getRecallStats (whose recentSends would include our own completed campaign) is never even consulted (verification round 2)', async () => {
+    store.campaigns.push({ id: 77, organizationId: ORG, status: 'completed', subject: 'We miss you', bodyHtml: '<p>b</p>' })
+    const p = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k18',
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 77 },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('earlier approve')
+    expect(p.status).toBe('expired')
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((recordActionMock.mock.calls[0][0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
+    expect(executors.sendCampaign).not.toHaveBeenCalled()
+    // The strongest ordering pin: the staleness read never ran — a match
+    // there can therefore only ever be the clinic's own sending.
+    expect(executors.getRecallStats).not.toHaveBeenCalled()
+  })
+
   it('recovery narration is GUARDED: a prior ledger entry for the proposal (the stamp-failed sibling case) means no second entry', async () => {
     hasEntryForProposalMock.mockResolvedValueOnce(true)
     store.postTargets = [{ id: 't1', organizationId: ORG, socialPostId: 'sp_prior', status: 'published' }]
@@ -819,13 +859,14 @@ describe('approveProposal — the other executors', () => {
     expect(recordActionMock).not.toHaveBeenCalled()
   })
 
-  it('a STRANDED approve (process died mid-execution: approved, no executedAt, old) is reopened by the reconcile sweep (round-3)', async () => {
+  it('a STRANDED approve with NO evidence of executed work is reopened by the reconcile sweep — with a passed expiry EXTENDED so the card is visible again (rounds 3 + verification 2)', async () => {
     const stranded = seedProposal({
       sourceKey: 'k14',
       status: 'approved',
       decidedAt: new Date(Date.now() - 60 * 60 * 1000),
       decidedByUserId: 'user_1',
       executedAt: null,
+      expiresAt: new Date(Date.now() - 60 * 1000), // expired while stranded — must not reopen into invisibility
     })
     const fresh = seedProposal({
       sourceKey: 'k15',
@@ -843,8 +884,87 @@ describe('approveProposal — the other executors', () => {
     expect(n).toBe(1)
     expect(stranded.status).toBe('open')
     expect(stranded.decidedByUserId).toBeNull()
+    expect(stranded.expiresAt!.getTime()).toBeGreaterThan(Date.now()) // the inbox can show it again
     expect(fresh.status).toBe('approved')
     expect(done.status).toBe('approved')
+    expect(recordActionMock).not.toHaveBeenCalled() // unexecuted work never narrates
+  })
+
+  it('reconcile CLOSES a stranded approve whose work evidently executed — narrated once, expired with executedAt, never handed to the sweep (verification round 2)', async () => {
+    // Social: our post's target published.
+    store.postTargets = [
+      { id: 't1', organizationId: ORG, socialPostId: 'sp_r', status: 'published', publishedAt: new Date() },
+    ]
+    const social = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'k19',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      decidedByUserId: 'user_1',
+      executedAt: null,
+      payload: { accountIds: ['a'], socialPostId: 'sp_r' },
+    })
+    // Campaign: our row completed.
+    store.campaigns.push({ id: 88, organizationId: ORG, status: 'completed', subject: 'S', bodyHtml: 'B' })
+    const campaign = seedProposal({
+      capability: 'outreach_campaign',
+      sourceKey: 'k20',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      executedAt: null,
+      payload: { audienceId: 5, subject: 'We miss you', campaignId: 88 },
+    })
+    const n = await reconcileStrandedApprovals(ORG)
+    expect(n).toBe(2)
+    expect(social.status).toBe('expired')
+    expect(social.executedAt).toBeInstanceOf(Date)
+    expect(campaign.status).toBe('expired')
+    expect(campaign.executedAt).toBeInstanceOf(Date)
+    expect(recordActionMock).toHaveBeenCalledTimes(2)
+    for (const call of recordActionMock.mock.calls) {
+      expect((call[0] as Record<string, unknown>).detail).toMatchObject({ recovered: true })
+    }
+  })
+
+  it('reconcile closes a stranded review approve when OUR reply is on the review; someone else’s words reopen instead', async () => {
+    store.reviews[0].replyComment = 'Thank you for the kind words.'
+    const ours = seedProposal({
+      sourceKey: 'k21',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      executedAt: null,
+    })
+    let n = await reconcileStrandedApprovals(ORG)
+    expect(n).toBe(1)
+    expect(ours.status).toBe('expired')
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+
+    recordActionMock.mockClear()
+    store.reviews[0].replyComment = 'Handled at the counter'
+    const theirs = seedProposal({
+      sourceKey: 'k22',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      executedAt: null,
+    })
+    n = await reconcileStrandedApprovals(ORG)
+    expect(n).toBe(1)
+    expect(theirs.status).toBe('open') // not ours — a human decides what happens next
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('inquiry executor: a draft staff signed THEMSELVES sends as written — no second sign-off appended (verification round 2)', async () => {
+    const p = seedProposal({
+      capability: 'inquiry_response',
+      sourceKey: 'inquiry_response:lead_1d',
+      body: 'Hi Dana — happy to help.\n\n— Dr. Reyes',
+      payload: { leadId: 'lead_1', subject: 'S' },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    const msg = executors.deliver.mock.calls[0][0] as Record<string, unknown>
+    expect(String(msg.html)).toContain('— Dr. Reyes')
+    expect(String(msg.html)).not.toContain('— Acme Dental')
   })
 
   it('inquiry_response: a transport failure REOPENS with the mapped friendly message, never generic swallow (round-3)', async () => {

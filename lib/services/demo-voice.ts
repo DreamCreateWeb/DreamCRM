@@ -181,7 +181,12 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
       .onConflictDoNothing()
   }
 
-  // 2. Inquiry response — anchored to a seeded NEW lead with an email.
+  // 2. Inquiry response — anchored BY IDENTITY to the seeded demo lead
+  // (Olivia Chen, olivia.c@example.com — DEMO_LEAD_SEEDS). Verification
+  // round 2: the demo site is publicly live, so a newest-lead query could
+  // quote a REAL person's name and message on the demo card (the exact
+  // arbitrary-query anchoring the demo-org convention forbids). Seeded
+  // lead missing or already handled → skip the card, never fall back.
   const [freshLead] = await db
     .select({ id: schema.lead.id, name: schema.lead.name, message: schema.lead.message, preferredDate: schema.lead.preferredDate })
     .from(schema.lead)
@@ -189,10 +194,9 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
       and(
         eq(schema.lead.organizationId, organizationId),
         eq(schema.lead.status, 'new'),
-        sql`${schema.lead.email} is not null`,
+        eq(schema.lead.email, 'olivia.c@example.com'),
       ),
     )
-    .orderBy(sql`${schema.lead.createdAt} desc`)
     .limit(1)
   if (freshLead) {
     const first = freshLead.name.trim().split(/\s+/)[0] || 'there'
@@ -250,10 +254,13 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
         body: 'A gentle reminder from our chairs to yours: if it’s been more than six months since your last cleaning, this is your sign. New patients are always welcome — book online in about a minute.',
         payload: {
           accountIds: demoAccounts.map((a) => a.id),
-          // Destinations named on the card, same as the real generator.
+          // Destinations named on the card, same label choice as the real
+          // generator (platformLabel — verification round 2: every demo
+          // account's displayName is 'Dream Dental', which rendered
+          // 'posts to Dream Dental, Dream Dental, Dream Dental').
           channels: demoAccounts.map((a) => ({
             accountId: a.id,
-            label: a.displayName?.trim() || platformLabel(a.platform),
+            label: platformLabel(a.platform),
           })),
         },
         status: 'open',

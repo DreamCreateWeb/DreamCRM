@@ -371,7 +371,46 @@ demo-voice premises must hold against the OTHER demo seeders' rows, and
 demo actions must never over-claim; (3) STRUCTURED SIGNALS OVER PROSE —
 typed server flags are consumed as flags, never string-matched; (4) LAWS
 UNDER RECOVERY — every recovery path must preserve every law the happy
-path had (narrate-once, here). Verification round 2 pending.
+path had (narrate-once, here).
+
+**Verification round 2 (2026-07-28): NOT clean — depth EMPTY (its first
+clean lens of the audit), but claims/law/resilience found 7, all
+main-loop confirmed.** The two majors were the same discovery made
+independently by two lenses: verification round 1's recovery narration
+was SHADOWED DEAD CODE for social + campaigns — the earlier-added
+staleness checks match OUR OWN completed work (publishedAt is always
+after createdAt; recentSends includes our own completed campaign) and
+return first, and the pinning tests passed only because their fixtures
+omitted fields production always writes. All fixed:
+- OWN-WORK CHECKS NOW RUN FIRST in both executors (a staleness match is
+  therefore always genuinely the clinic's own activity), pinned by
+  ordering tests with REALISTIC fixtures (publishedAt set; the campaign
+  pin asserts getRecallStats is never even consulted).
+- reconcileStrandedApprovals redesigned: it CLOSES attributable executed
+  work itself (narrate-once guarded by hasEntryForProposal + expire with
+  executedAt, via the new detectRecoveredWork attribution — review reply
+  = ours verbatim / campaign row active-or-completed / post target
+  landed) and reopens only unattributable work, EXTENDING a passed
+  expiry so the card is visible again (the reopen-into-invisibility
+  hole); reconcile now runs BEFORE the sweep, killing the
+  reopen-then-sweep race that silently expired recovered work.
+- The demo inquiry card now anchors BY IDENTITY to the seeded demo lead
+  (olivia.c@example.com) — the newest-lead query could quote a REAL
+  person who used the live demo site's contact form (the exact
+  arbitrary-query anchoring the demo convention forbids); demo channel
+  labels use platformLabel (displayName rendered 'Dream Dental ×3').
+- The ledger-boundary law comment documents the deliberate recovered-
+  expiry exception; the inquiry sign-off is CONDITIONAL (a staff-signed
+  draft sends as written — never two sign-offs) and the card's
+  disclosure line covers the sign-off alongside the button, mirroring
+  the same heuristic.
+**Classes added to the sweep:** (5) RECOVERY PATHS AGAINST EACH OTHER —
+stacked fixes are checked in execution order (a guard added by one fix
+can shadow a branch added by another), and the SWEEPS must uphold the
+same laws as the tap paths; (6) FIXTURE REALISM — fixtures carry every
+field production writes (a fixture that omits publishedAt can make dead
+code look tested); (7) demo ANCHOR-BY-IDENTITY applies to every
+demo-voice reference, not just premises. Verification round 3 pending.
 
 - **Round 2:** 4 lenses over the fix commit → skeptic confirmed 9 defects
   / rejected 2, judge ruled 4 in-phase gaps → main-loop confirmation

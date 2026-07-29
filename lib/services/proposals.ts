@@ -19,7 +19,12 @@ import { recordAction } from '@/lib/services/action-ledger'
  * approver's userId wherever the underlying service takes an initiator
  * (e.g. sendCampaign) so the underlying automation's own ledger writer stays
  * silent — otherwise one yes would narrate twice. Declines and expiries
- * never ledger (nothing happened).
+ * never ledger (nothing happened) — with ONE deliberate exception
+ * (verification rounds 1–2): a RECOVERED expiry, where the evidence says a
+ * stranded prior approve's work actually executed (our reply on the review,
+ * our campaign row sent, our post's target published), writes the missing
+ * entry exactly once, guarded by hasEntryForProposal. Without it, the
+ * reconcile-reopen-retire loop turned narrate-once into narrate-zero.
  *
  * Dedupe law: `sourceKey` is unique per org — one proposal EVER per piece of
  * underlying work. A declined proposal is a human "no" and is never re-filed
@@ -163,27 +168,36 @@ export async function expireStaleProposals(organizationId?: string): Promise<num
 }
 
 /**
- * Reopen approvals stranded by a process death: status='approved' with no
+ * Resolve approvals stranded by a process death: status='approved' with no
  * executedAt, decided long enough ago that no live executor can still be
  * running. Without this, a container replacement mid-approve (deploys do
  * this routinely) swallowed the yes forever — the card left the inbox, no
  * ledger entry wrote, and the claimed sourceKey blocked a re-file (round-3
- * audit). Reopening is safe because every executor self-guards a rerun:
- * review/inquiry re-read their source rows, the campaign reuses its row
- * behind sendCampaign's duplicate-send claim, social supersedes/retires via
- * payload.socialPostId. The one residual window (an inquiry email delivered
- * in the same instant the process died, before markLeadContacted) is
- * accepted: it needs three simultaneous failures, and the alternative —
- * silently losing approved work — is the thing this phase forbids.
+ * audit). Verification round 2 taught the deeper law: RECONCILE MUST CLOSE
+ * ATTRIBUTABLE WORK ITSELF. Blind reopening handed the row to the hourly
+ * invalidation sweep, which expired it with no narration before anyone
+ * could tap Approve — narrate-once became narrate-zero on a timer. So:
+ *  - evidence says the prior attempt's work EXECUTED (our reply on the
+ *    review / our campaign row active-or-completed / our post's target
+ *    published or scheduled) → write the missing ledger entry (guarded by
+ *    hasEntryForProposal) and close the row as executed;
+ *  - no such evidence → reopen for a human retry, EXTENDING a passed or
+ *    imminent expiry (a reopened row the inbox can't show is just a slower
+ *    way to lose the yes — the expiresAt > now filter hid it and the next
+ *    tick expired it, sourceKey still claimed). Executors self-guard the
+ *    rerun. The one residual window (an inquiry email delivered in the
+ *    same instant the process died, before markLeadContacted) is accepted:
+ *    it needs three simultaneous failures, and inquiry work is not
+ *    attributable from data (a lead status flip could be staff).
  */
 export async function reconcileStrandedApprovals(
   organizationId: string,
   now: Date = new Date(),
 ): Promise<number> {
   const cutoff = new Date(now.getTime() - 30 * 60 * 1000)
-  const rows = await db
-    .update(schema.proposal)
-    .set({ status: 'open', decidedAt: null, decidedByUserId: null, updatedAt: now })
+  const stranded = await db
+    .select()
+    .from(schema.proposal)
     .where(
       and(
         eq(schema.proposal.organizationId, organizationId),
@@ -192,8 +206,125 @@ export async function reconcileStrandedApprovals(
         lt(schema.proposal.decidedAt, cutoff),
       ),
     )
-    .returning({ id: schema.proposal.id })
-  return rows.length
+  let resolved = 0
+  for (const p of stranded) {
+    try {
+      const recovered = await detectRecoveredWork(p)
+      if (recovered) {
+        const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
+        if (!(await hasEntryForProposal(organizationId, p.id))) {
+          await recordAction({
+            organizationId,
+            capability: p.capability,
+            patientId: p.patientId,
+            summary: recovered.ledgerSummary,
+            detail: {
+              proposalId: p.id,
+              ...(p.decidedByUserId ? { approvedByUserId: p.decidedByUserId } : {}),
+              recovered: true,
+              ...recovered.ledgerDetail,
+            },
+          })
+        }
+        await db
+          .update(schema.proposal)
+          .set({ status: 'expired', executedAt: now, updatedAt: now })
+          .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, p.id)))
+      } else {
+        const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+        await db
+          .update(schema.proposal)
+          .set({
+            status: 'open',
+            decidedAt: null,
+            decidedByUserId: null,
+            ...(p.expiresAt && p.expiresAt > minExpiry ? {} : { expiresAt: minExpiry }),
+            updatedAt: now,
+          })
+          .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, p.id)))
+      }
+      resolved++
+    } catch (e) {
+      console.error('[proposals] reconcile failed for', p.id, e)
+    }
+  }
+  return resolved
+}
+
+/**
+ * Evidence-based attribution for a stranded approve: did the PRIOR
+ * attempt's work actually execute? Mirrors the executors' own recovered
+ * branches (one law, two entry points — the tap and the reconcile).
+ * Returns null when nothing attributable is found (inquiry always: a lead
+ * status flip could be a staff member's own doing).
+ */
+async function detectRecoveredWork(
+  p: typeof schema.proposal.$inferSelect,
+): Promise<{ ledgerSummary: string; ledgerDetail?: Record<string, unknown> } | null> {
+  const payload = (p.payload ?? {}) as Record<string, unknown>
+  if (p.isDemo === 1) return null // demo approves simulate; nothing to recover
+  if (p.capability === 'review_reply') {
+    const externalReviewId = str(payload.externalReviewId)
+    if (!externalReviewId) return null
+    const [review] = await db
+      .select({
+        replyComment: schema.platformReview.replyComment,
+        reviewerName: schema.platformReview.reviewerName,
+        starRating: schema.platformReview.starRating,
+      })
+      .from(schema.platformReview)
+      .where(
+        and(
+          eq(schema.platformReview.organizationId, p.organizationId),
+          eq(schema.platformReview.platform, 'googlebusiness'),
+          eq(schema.platformReview.externalReviewId, externalReviewId),
+        ),
+      )
+      .limit(1)
+    if (!review?.replyComment || review.replyComment.trim() !== p.body.trim()) return null
+    const who = review.reviewerName?.trim() || 'a patient'
+    const stars = review.starRating ? `${review.starRating}-star ` : ''
+    return {
+      ledgerSummary: `Replied to ${who}’s ${stars}Google review — you approved it`,
+      ledgerDetail: { externalReviewId },
+    }
+  }
+  if (p.capability === 'social_post') {
+    const priorPostId = str(payload.socialPostId)
+    if (!priorPostId) return null
+    const targets = await db
+      .select({ status: schema.socialPostTarget.status })
+      .from(schema.socialPostTarget)
+      .where(
+        and(
+          eq(schema.socialPostTarget.organizationId, p.organizationId),
+          eq(schema.socialPostTarget.socialPostId, priorPostId),
+        ),
+      )
+    const landed = targets.filter((t) => t.status === 'published' || t.status === 'scheduled').length
+    if (landed === 0) return null
+    const snippet = p.body.length > 60 ? `${p.body.slice(0, 57)}…` : p.body
+    return {
+      ledgerSummary: `Published “${snippet}” to ${landed} ${landed === 1 ? 'channel' : 'channels'} — you approved it`,
+      ledgerDetail: { publishedCount: landed, postId: priorPostId },
+    }
+  }
+  if (p.capability === 'outreach_campaign') {
+    const campaignId = typeof payload.campaignId === 'number' ? (payload.campaignId as number) : null
+    const subject = str(payload.subject)
+    if (campaignId == null || !subject) return null
+    const [campaign] = await db
+      .select({ status: schema.campaigns.status })
+      .from(schema.campaigns)
+      .where(and(eq(schema.campaigns.id, campaignId), eq(schema.campaigns.organizationId, p.organizationId)))
+      .limit(1)
+    if (!campaign || (campaign.status !== 'active' && campaign.status !== 'completed')) return null
+    return {
+      ledgerSummary: `Sent “${subject}” to your recall list — you approved it`,
+      ledgerDetail: { campaignId },
+    }
+  }
+  return null
 }
 
 export type DecideResult =
@@ -518,42 +649,16 @@ async function executeSocialPost(
     : []
   if (accountIds.length === 0) return { ok: false, error: 'This proposal is missing its channels.' }
 
-  // Staleness at the tap (round-3 self-sweep — the campaign executor's
-  // re-check, applied to its sibling): this card was filed on QUIET
-  // channels. If anything published since it was drafted, or a post sits in
-  // the queue, the premise is false — retire instead of stacking a second
-  // post on channels the clinic just fed. The hourly sweep catches this
-  // between taps; this catches the gap inside the hour.
-  const [activity] = await db
-    .select({ id: schema.socialPostTarget.id })
-    .from(schema.socialPostTarget)
-    .where(
-      and(
-        eq(schema.socialPostTarget.organizationId, p.organizationId),
-        or(
-          eq(schema.socialPostTarget.status, 'scheduled'),
-          and(
-            eq(schema.socialPostTarget.status, 'published'),
-            gt(schema.socialPostTarget.publishedAt, p.createdAt),
-          ),
-        ),
-      ),
-    )
-    .limit(1)
-  if (activity) {
-    return {
-      ok: false,
-      error: 'A post went out (or is queued) since I drafted this — I retired the card so your channels don’t double up.',
-      expired: true,
-    }
-  }
-
+  // OWN-WORK check FIRST — before any org-wide staleness read (verification
+  // round 2: the org-wide check matched OUR OWN published target, whose
+  // publishedAt is always after the proposal's createdAt, so the recovery
+  // branch below was unreachable and stranded work narrated zero times).
   // ONE post history per proposal: a prior failed approve leaves a dead
   // 'failed' post row behind (createSocialPost persists parent + targets
   // BEFORE the network calls). Supersede it on retry — delete the fully-
   // failed row; if it has any non-failed target the work actually went out,
-  // so retire the card instead of double-publishing (round-2 audit; the
-  // campaign executor's reuse law, applied to its sibling).
+  // so retire the card (with the recovery narration) instead of
+  // double-publishing (round-2 audit + verification rounds 1–2).
   const priorPostId = str(payload.socialPostId)
   if (priorPostId) {
     const priorTargets = await db
@@ -583,6 +688,37 @@ async function executeSocialPost(
     await db
       .delete(schema.socialPost)
       .where(and(eq(schema.socialPost.organizationId, p.organizationId), eq(schema.socialPost.id, priorPostId)))
+  }
+
+  // Staleness at the tap (round-3 self-sweep — the campaign executor's
+  // re-check, applied to its sibling): this card was filed on QUIET
+  // channels. If anything published since it was drafted, or a post sits in
+  // the queue, the premise is false — retire instead of stacking a second
+  // post on channels the clinic just fed. Runs AFTER the own-work check, so
+  // any match here is genuinely the clinic's own activity (our prior
+  // attempt's live targets returned above; its dead row was just deleted).
+  const [activity] = await db
+    .select({ id: schema.socialPostTarget.id })
+    .from(schema.socialPostTarget)
+    .where(
+      and(
+        eq(schema.socialPostTarget.organizationId, p.organizationId),
+        or(
+          eq(schema.socialPostTarget.status, 'scheduled'),
+          and(
+            eq(schema.socialPostTarget.status, 'published'),
+            gt(schema.socialPostTarget.publishedAt, p.createdAt),
+          ),
+        ),
+      ),
+    )
+    .limit(1)
+  if (activity) {
+    return {
+      ok: false,
+      error: 'A post went out (or is queued) since I drafted this — I retired the card so your channels don’t double up.',
+      expired: true,
+    }
   }
 
   const { createSocialPost } = await import('@/lib/services/social-posts')
@@ -669,15 +805,23 @@ async function executeInquiryResponse(
   // product without the booking link, aimed at the highest-intent person
   // in the funnel). Best-effort: no resolvable site → button-less.
   const bookingUrl = await resolveClinicBookingUrl(p.organizationId).catch(() => null)
+  // The clinic's sign-off — the shell's own footer names the platform, and
+  // the drafting prompt promises "the email template signs for the clinic",
+  // so the template must actually do it (verification round 1). CONDITIONAL
+  // (verification round 2): when staff already signed the draft themselves
+  // (a last line starting with an em-dash — '— Dr. Reyes'), appending a
+  // second sign-off would ship an email the card never showed; their words
+  // win. The card's read-mode line discloses the appended sign-off.
+  const lastLine = p.body.trim().split('\n').filter((l) => l.trim()).pop() ?? ''
+  const alreadySigned = lastLine.trim().startsWith('—') || lastLine.trim().startsWith('-')
   const paragraphs =
     p.body
       .split(/\n{2,}/)
       .map((para) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#333333;">${escapeHtml(para.trim()).replace(/\n/g, '<br/>')}</p>`)
       .join('') +
-    // The clinic's sign-off — the shell's own footer names the platform,
-    // and the drafting prompt promises "the email template signs for the
-    // clinic", so the template must actually do it (verification round).
-    `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#333333;">— ${escapeHtml(sender.name)}</p>`
+    (alreadySigned
+      ? ''
+      : `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#333333;">— ${escapeHtml(sender.name)}</p>`)
   // deliver() maps transport failures to reader-safe messages
   // (friendlyEmailError) before throwing — catch here and return them as the
   // executor's own error so the approve wrapper reopens WITH that useful
@@ -726,26 +870,6 @@ async function executeOutreachCampaign(
   const name = str(payload.name) ?? subject ?? 'Outreach campaign'
   if (!audienceId || !subject) return { ok: false, error: 'This proposal is missing its audience or subject.' }
 
-  // Staleness (round-3 audit — the same at-the-tap re-check the review and
-  // inquiry executors do): this card was filed on a QUIET recall engine. If
-  // the clinic has since run a campaign of its own (or scheduled one), the
-  // premise printed on the card is false and approving it would blast the
-  // same recall patients twice — retire it instead. Best-effort: an
-  // unreadable snapshot never blocks a send.
-  try {
-    const { getRecallStats } = await import('@/lib/services/recall-stats')
-    const stats = await getRecallStats(p.organizationId)
-    if (stats.recentSends.length > 0 || stats.upcomingSends.length > 0) {
-      return {
-        ok: false,
-        error: 'A campaign already went out (or is scheduled) since I drafted this — I retired this card so nobody gets emailed twice.',
-        expired: true,
-      }
-    }
-  } catch {
-    // fall through — the frequency cap still guards the send itself
-  }
-
   const [{ createMarketingCampaign }, { sendCampaign }] = await Promise.all([
     import('@/lib/services/marketing-campaigns'),
     import('@/lib/services/marketing-send'),
@@ -756,6 +880,10 @@ async function executeOutreachCampaign(
   // campaign on retry — and a retry after a post-send failure runs into
   // sendCampaign's own duplicate-send claim instead of re-blasting the
   // audience through a fresh row (round-1 Phase-2 audit).
+  // OWN-ROW check FIRST — before the org-wide staleness read (verification
+  // round 2: getRecallStats.recentSends INCLUDES our own completed campaign,
+  // so the staleness retire shadowed the recovery narration below and
+  // stranded work narrated zero times).
   let campaignId = typeof payload.campaignId === 'number' ? (payload.campaignId as number) : null
   if (campaignId != null) {
     // REUSED row (a prior approve failed and reopened): sync the CURRENT
@@ -796,6 +924,29 @@ async function executeOutreachCampaign(
     // Any other status: skip the sync — sendCampaign's duplicate-send claim
     // below turns this into the already_sending retirement.
   }
+
+  // Staleness (round-3 audit — the same at-the-tap re-check the review and
+  // inquiry executors do): this card was filed on a QUIET recall engine. If
+  // the clinic has since run a campaign of its own (or scheduled one), the
+  // premise printed on the card is false and approving it would blast the
+  // same recall patients twice — retire it instead. Runs AFTER the own-row
+  // check, so a recentSends match here is genuinely the clinic's own
+  // sending, never our stranded prior attempt. Best-effort: an unreadable
+  // snapshot never blocks a send.
+  try {
+    const { getRecallStats } = await import('@/lib/services/recall-stats')
+    const stats = await getRecallStats(p.organizationId)
+    if (stats.recentSends.length > 0 || stats.upcomingSends.length > 0) {
+      return {
+        ok: false,
+        error: 'A campaign already went out (or is scheduled) since I drafted this — I retired this card so nobody gets emailed twice.',
+        expired: true,
+      }
+    }
+  } catch {
+    // fall through — the frequency cap still guards the send itself
+  }
+
   if (campaignId == null) {
     const campaign = await createMarketingCampaign(
       p.organizationId,

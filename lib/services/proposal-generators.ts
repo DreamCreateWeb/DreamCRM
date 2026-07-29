@@ -101,11 +101,14 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
       // AI-free recall generator too. Each failure is recorded and the pass
       // moves on ("best-effort everywhere", the law at the top of this file).
       const generators: Array<[string, () => Promise<number>]> = [
-        ['sweep', async () => ((result.expired += await sweepInvalidatedProposals(org.id)), 0)],
-        // A container death mid-approve leaves status='approved' with no
-        // executedAt — invisible to every reader. Reopen it so the yes is
-        // never silently lost (round-3 audit; executors self-guard reruns).
+        // RECONCILE BEFORE SWEEP (verification round 2): a container death
+        // mid-approve leaves status='approved' with no executedAt.
+        // Reconcile closes attributable executed work WITH its narration —
+        // running the sweep first let it expire the reopened row silently
+        // (the sweep's premise-rot checks all match the stranded work's own
+        // evidence), turning narrate-once into narrate-zero on a timer.
         ['reconcile', async () => (await reconcileStrandedApprovals(org.id, now), 0)],
+        ['sweep', async () => ((result.expired += await sweepInvalidatedProposals(org.id)), 0)],
         ['review_reply', () => generateReviewReplyProposals(org.id, now)],
         ['inquiry_response', () => generateInquiryResponseProposals(org.id, org.name, now)],
         ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz)],

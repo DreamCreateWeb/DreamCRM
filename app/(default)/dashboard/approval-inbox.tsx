@@ -271,7 +271,14 @@ function ProposalCard({
         )}
         {appendsBookingButton && (
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Your booking button goes at the bottom.
+            {/* The sign-off half mirrors the executor's own heuristic: a
+                draft whose last line is an em-dash signature sends as
+                written — the appended sign-off (and this claim) only apply
+                when the draft is unsigned. */}
+            {proposal.capability === 'inquiry_response' &&
+            !(body.trim().split('\n').filter((l) => l.trim()).pop() ?? '').trim().match(/^[—-]/)
+              ? 'Your booking button and your clinic’s sign-off go at the bottom.'
+              : 'Your booking button goes at the bottom.'}
           </p>
         )}
       </div>
