@@ -50,6 +50,10 @@ export interface ProposalCardData {
    *  in a row went out exactly as written. At 3+ the card gently suggests
    *  the grant — a suggestion only; the box is never pre-ticked. */
   uneditedRun?: number
+  /** THE HAND-BACK (round-1 Phase-3 audit): the machine tried this one on
+   *  its own, failed twice, and stopped. The card must say so instead of
+   *  promising it goes out within the hour. */
+  handedBack?: boolean
 }
 
 const CAPABILITY_ICON: Record<string, string> = {
@@ -77,17 +81,38 @@ export interface TrustGrantChip {
   label: string
 }
 
+/** One capability's worth of work the machine did alone this past week —
+ *  the "here's what I handled on my own" half of the strip (Phase 3's
+ *  do-and-TELL). */
+export interface AutonomousWorkChip {
+  capability: string
+  label: string
+  count: number
+  latestSummary: string
+}
+
 export default function ApprovalInbox({
   proposals,
   totalOpen,
   grants = [],
+  autonomousWork = [],
+  isDemo = false,
 }: {
   proposals: ProposalCardData[]
-  /** The true open count (the sidebar badge's number) — shown when the list
-   *  is truncated so the badge and the inbox never silently disagree. */
+  /** How many open cards EXIST for this clinic — the same population this
+   *  list is drawn from (granted capabilities included), so the truncation
+   *  notice compares like with like. Deliberately NOT the sidebar badge's
+   *  number, which counts only what waits on a human (round-1 Phase-3
+   *  audit: subtracting one population from the other hid the notice on
+   *  exactly the clinics that had handed something over). */
   totalOpen?: number
   /** Capabilities currently at 'auto' for this clinic. */
   grants?: TrustGrantChip[]
+  /** What those grants actually produced in the last 7 days. */
+  autonomousWork?: AutonomousWorkChip[]
+  /** The demo clinic never really sends — the grant strip says so rather
+   *  than promising work that the demo's own cron exclusion prevents. */
+  isDemo?: boolean
 }) {
   const [gone, setGone] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
@@ -98,7 +123,14 @@ export default function ApprovalInbox({
     return (
       <>
         {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
-        {grants.length > 0 && <GrantsStrip grants={grants} onToast={setToast} />}
+        {grants.length > 0 && (
+          <GrantsStrip
+            grants={grants}
+            work={autonomousWork}
+            isDemo={isDemo}
+            onToast={setToast}
+          />
+        )}
       </>
     )
   }
@@ -129,7 +161,8 @@ export default function ApprovalInbox({
           <ProposalCard
             key={p.id}
             proposal={p}
-            alreadyGranted={grantedSet.has(p.capability)}
+            alreadyGranted={grantedSet.has(p.capability) && !p.handedBack}
+            isDemo={isDemo}
             onDone={(id, message) => {
               setGone((s) => new Set(s).add(id))
               if (message) setToast(message)
@@ -137,23 +170,39 @@ export default function ApprovalInbox({
           />
         ))}
       </div>
-      {grants.length > 0 && <GrantsStrip grants={grants} onToast={setToast} />}
+      {grants.length > 0 && (
+        <GrantsStrip grants={grants} work={autonomousWork} isDemo={isDemo} onToast={setToast} />
+      )}
     </section>
   )
 }
 
 /**
- * "On my own" — the ladder's take-it-back strip (Phase 3). Lists what the
- * clinic has handed over, each with one tap back to asking. Lives on the
- * Overview because trust must be REVERSIBLE ALWAYS from a surface that
- * still renders when autonomy has emptied the inbox — a settings page is
- * never the way in, and a vanished inbox must never strand a grant.
+ * "On my own" — the ladder's strip (Phase 3), which does two jobs.
+ *
+ * TAKE IT BACK: what the clinic has handed over, each with one tap back to
+ * asking. It lives on the Overview because trust must be REVERSIBLE ALWAYS
+ * from a surface that still renders when autonomy has emptied the inbox —
+ * a settings page is never the way in, and a vanished inbox must never
+ * strand a grant.
+ *
+ * AND TELL (round-1 Phase-3 audit): what those grants actually produced in
+ * the last 7 days, counted per capability with the newest line quoted in
+ * the machine's own words. Without it the phase shipped the DO with no
+ * TELL — granted work is absent from every daily signal by design, and the
+ * weekly standup narrates the PRIOR week in aggregate without ever marking
+ * which of it was the machine's own. A clinic could hand something over and
+ * not see one thing it did for up to 13 days.
  */
 function GrantsStrip({
   grants,
+  work = [],
+  isDemo = false,
   onToast,
 }: {
   grants: TrustGrantChip[]
+  work?: AutonomousWorkChip[]
+  isDemo?: boolean
   onToast: (message: string) => void
 }) {
   const router = useRouter()
@@ -163,8 +212,13 @@ function GrantsStrip({
   if (shown.length === 0) return null
 
   return (
-    <div className="mt-3 mb-8 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-      <span>I handle these on my own now and report each one in the diary:</span>
+    <div className="mt-3 mb-8 text-xs text-gray-500 dark:text-gray-400">
+      <div className="flex flex-wrap items-center gap-2">
+      <span>
+        {isDemo
+          ? 'In the demo I show you how this works — nothing actually goes out:'
+          : 'I handle these on my own now, and list each one right here:'}
+      </span>
       {shown.map((g) => (
         <span
           key={g.capability}
@@ -193,6 +247,24 @@ function GrantsStrip({
           </button>
         </span>
       ))}
+      </div>
+      {/* THE TELL. Counts plus the newest line, verbatim — no drill-down, no
+          filters, nothing to operate. The zero state is honest rather than
+          hidden: silence after a hand-over reads as "did it break?". */}
+      <div className="mt-2 pl-0.5">
+        {work.length === 0 ? (
+          <p>Nothing on my own yet — I’ll list each one right here.</p>
+        ) : (
+          <ul className="space-y-0.5">
+            {work.map((w) => (
+              <li key={w.capability}>
+                <span className="text-gray-700 dark:text-gray-200">{w.label}</span> —{' '}
+                {w.count} this week. Latest: {w.latestSummary}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }
@@ -200,9 +272,13 @@ function GrantsStrip({
 function ProposalCard({
   proposal,
   alreadyGranted = false,
+  isDemo = false,
   onDone,
 }: {
   proposal: ProposalCardData
+  /** Demo clinic — the grant never actually fires (the generator cron skips
+   *  demo orgs), so the card must not promise autonomous delivery. */
+  isDemo?: boolean
   /** This capability is already on automatic — the card is a courtesy
    *  preview, not a gate; it goes out on the next pass regardless. */
   alreadyGranted?: boolean
@@ -254,10 +330,24 @@ function ProposalCard({
       if (r.ok) {
         let message = r.message ?? (decision === 'approve' ? 'Done — it went out.' : undefined)
         if (decision === 'approve' && alwaysDo && isGrantable(proposal.capability)) {
-          const grant = await setAutonomyAction({ capability: proposal.capability, level: 'auto' })
-          if (grant.ok) message = `${message ?? ''} ${grant.message}`.trim()
-          // A failed grant never blocks the approve's own good news — the
-          // checkbox simply didn't take; the card flow stays honest.
+          // A failed grant never blocks the approve's own good news — but it
+          // must not vanish either (round-1 Phase-3 audit): a swallowed
+          // failure left the clinic believing it had handed the job over
+          // while the machine kept asking, with no trace anywhere on a
+          // first-ever grant. Both halves get said, joined so two sentences
+          // never run together (the ledger summary has no full stop).
+          const grant = await setAutonomyAction({
+            capability: proposal.capability,
+            level: 'auto',
+          }).catch(() => ({ ok: false as const, error: 'I couldn’t switch this one to automatic.' }))
+          message = [
+            message,
+            grant.ok
+              ? grant.message
+              : `${grant.error} I’ll keep asking for now — tick the box again next time.`,
+          ]
+            .filter(Boolean)
+            .join(' · ')
         }
         onDone(proposal.id, message)
         router.refresh()
@@ -384,10 +474,21 @@ function ProposalCard({
 
       {error && <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">{error}</p>}
 
+      {/* THE HAND-BACK, said plainly (round-1 Phase-3 audit): the machine
+          tried this one alone, couldn't, and stopped trying. It outranks the
+          "goes out on its own" line — that promise is exactly what was
+          false while a granted card retried invisibly every hour. */}
+      {proposal.handedBack && (
+        <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+          I tried this one on my own twice and couldn’t send it — it’s back with you. Approving it
+          here is the surest way through.
+        </p>
+      )}
       {alreadyGranted && (
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          You’ve handed these to me — this one goes out on its own within the hour. Approve now if
-          you’d like it to go this minute, or take the job back below.
+          {isDemo
+            ? 'You’ve handed these to me — in the demo I’ll show you how it works, but nothing actually goes out. Approve to see the whole flow, or take the job back below.'
+            : 'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, or take the job back below.'}
         </p>
       )}
       {!alreadyGranted && isGrantable(proposal.capability) && (proposal.uneditedRun ?? 0) >= 3 && (
@@ -405,9 +506,18 @@ function ProposalCard({
             disabled={pending}
             className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
           />
+          {/* SAY WHAT IS BEING HANDED OVER (round-1 Phase-3 audit). A grant
+              is capability-WIDE, so a tick on a warm 5-star reply also hands
+              over the angry ones — the class of review the rest of the
+              product treats as an escalation. A grant the granter doesn't
+              understand is not a grant. And the promise names a real place:
+              the strip under this inbox, not a "diary" that never existed. */}
           <span>
-            From now on, handle these for me on your own — I’ll see each one in the diary, and I can
-            take it back any time.
+            From now on, handle these for me on your own
+            {proposal.capability === 'review_reply'
+              ? ' — including 1- and 2-star reviews, which I’d answer publicly too'
+              : ''}
+            . I’ll list each one on your Overview, and you can take it back any time.
           </span>
         </label>
       )}

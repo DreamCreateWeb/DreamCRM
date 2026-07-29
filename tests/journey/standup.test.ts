@@ -26,6 +26,13 @@ const ledger = vi.hoisted(() => ({
   listCalls: [] as unknown[][],
 }))
 vi.mock('@/lib/services/action-ledger', () => ({
+  // The real predicate — the standup's story filter is under test, not a
+  // stub of it (round-1 Phase-3 audit: settings changes are not stories).
+  isWorkEntry: (detail: unknown) =>
+    !detail ||
+    typeof detail !== 'object' ||
+    ((detail as Record<string, unknown>).autonomyChange === undefined &&
+      (detail as Record<string, unknown>).autoFailure !== true),
   countActionsSince: vi.fn(async (...a: unknown[]) => {
     ledger.countCalls.push(a)
     return ledger.counts
@@ -237,6 +244,38 @@ describe('buildWeeklyStandup', () => {
     expect(s.stories[0]).toContain('Priya') // review_feature outranks the rest
     expect(s.stories).toContain('Invited Noah back for a new time')
     expect(s.stories).toContain('Charged Marcus’s card $100.00')
+  })
+
+  it('an autonomy switch flip is never a STORY — a settings change is not work the machine did (round-1 Phase-3 audit)', async () => {
+    ledger.entries = [
+      {
+        capability: 'review_reply',
+        patientId: null,
+        summary: 'You switched “Reply to Google reviews” to automatic — I’ll handle these on my own and list them on your Overview',
+        detail: { autonomyChange: 'auto', changedByUserId: 'user_1' },
+      },
+      {
+        capability: 'noshow_rebook',
+        patientId: 'p3',
+        summary: 'Invited Noah back for a new time',
+        detail: null,
+      },
+    ]
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.stories).toEqual(['Invited Noah back for a new time'])
+  })
+
+  it('an "I couldn’t" hand-back note is never a STORY either', async () => {
+    ledger.entries = [
+      {
+        capability: 'review_reply',
+        patientId: null,
+        summary: 'I tried 2 times to handle “A reply for Maria” on my own and couldn’t — it’s back with you',
+        detail: { autoFailure: true, attempts: 2 },
+      },
+    ]
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.stories).toEqual([])
   })
 
   it('the seated number is whatever the spine says — no local recomputation', async () => {

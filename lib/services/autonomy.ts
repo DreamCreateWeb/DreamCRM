@@ -8,7 +8,7 @@ import {
   resolveTrust,
   type TrustLevel,
 } from '@/lib/autonomy'
-import { recordAction } from '@/lib/services/action-ledger'
+import { recordAction, listRecentActions } from '@/lib/services/action-ledger'
 
 /**
  * THE AUTONOMY LADDER, LIVE (Transformation Phase 3 — DESIGN.md primitive
@@ -46,6 +46,54 @@ export async function listTrustGrants(organizationId: string): Promise<TrustGran
     label: getCapability(key)?.label ?? key,
     level: resolveTrust(stored, key),
   }))
+}
+
+export interface AutonomousWorkView {
+  capability: string
+  label: string
+  count: number
+  /** The most recent thing the machine did alone, in its own words. */
+  latestSummary: string
+}
+
+/**
+ * WHAT I HANDLED ON MY OWN (round-1 Phase-3 audit, the depth ruling). "Do
+ * and tell" is the rung this phase shipped, and the DO had no TELL: granted
+ * capabilities are deliberately absent from every daily signal (they are
+ * not waiting on a human), and the weekly standup narrates the PRIOR week
+ * in aggregate without ever marking which work was the machine's own — so
+ * a clinic that handed something over could go up to 13 days without seeing
+ * a single thing it did. This is the read behind the Overview strip: the
+ * last 7 days of ledger entries the executors stamped `autonomous: true`,
+ * per capability, with the newest line quoted verbatim.
+ *
+ * Deliberately NOT a page: the North Star says the machine reports, it does
+ * not hand over a console to operate. Counts and one sentence, in place.
+ */
+export async function listAutonomousWork(
+  organizationId: string,
+  opts: { since?: Date; now?: Date } = {},
+): Promise<AutonomousWorkView[]> {
+  const now = opts.now ?? new Date()
+  const since = opts.since ?? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const entries = await listRecentActions(organizationId, { since, until: now, limit: 100 })
+  const byCapability = new Map<string, AutonomousWorkView>()
+  // listRecentActions is newest-first, so the first entry per capability is
+  // the newest one — the summary to quote.
+  for (const e of entries) {
+    const detail = (e.detail ?? {}) as Record<string, unknown>
+    if (detail.autonomous !== true) continue
+    const found = byCapability.get(e.capability)
+    if (found) found.count++
+    else
+      byCapability.set(e.capability, {
+        capability: e.capability,
+        label: getCapability(e.capability)?.label ?? e.capability,
+        count: 1,
+        latestSummary: e.summary,
+      })
+  }
+  return Array.from(byCapability.values()).sort((a, b) => b.count - a.count)
 }
 
 export type SetTrustResult = { ok: true; level: TrustLevel } | { ok: false; error: string }
@@ -93,7 +141,7 @@ export async function setCapabilityTrust(
     capability,
     summary:
       level === 'auto'
-        ? `You switched “${label}” to automatic — I’ll handle these on my own and report here`
+        ? `You switched “${label}” to automatic — I’ll handle these on my own and list them on your Overview`
         : `You switched “${label}” back to ask-first — I’ll check with you before each one`,
     detail: { autonomyChange: level, changedByUserId: userId },
   })

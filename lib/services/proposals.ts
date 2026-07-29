@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, desc, eq, gt, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { GRANTABLE_CAPABILITIES, getCapability, resolveTrust } from '@/lib/autonomy'
 import { recordAction } from '@/lib/services/action-ledger'
@@ -33,6 +33,22 @@ import { recordAction } from '@/lib/services/action-ledger'
 
 export const PROPOSAL_BODY_MAX = 5000
 export const PROPOSAL_TITLE_MAX = 200
+
+/**
+ * THE HAND-BACK (round-1 Phase-3 audit). Under a grant the machine retries a
+ * failed card every hour, silently: the card is excluded from every "waiting
+ * on you" signal and still reads "this one goes out on its own within the
+ * hour". After AUTO_FAILURE_LIMIT consecutive autonomous failures the
+ * machine STOPS trying, says so in the ledger, and puts the card back in
+ * human hands — the honest end of "I couldn't do this one".
+ */
+export const AUTO_FAILURE_LIMIT = 2
+/** payload.handBack — the machine gave up on doing this one alone. Built
+ *  per call, never at module scope: a module-level sql template touches the
+ *  schema at import time and every slim-schema test mock explodes on it. */
+const handedBack = () => sql`(${schema.proposal.payload} ->> 'handBack') = 'true'`
+/** Its inverse, for the autonomy driver's selection (NULL-safe). */
+export const notHandedBack = () => sql`(${schema.proposal.payload} ->> 'handBack') is distinct from 'true'`
 
 export interface FileProposalInput {
   organizationId: string
@@ -143,21 +159,34 @@ export async function listOpenProposals(organizationId: string, limit = 12): Pro
  * does not. The inbox still LISTS those cards (a courtesy preview, labelled
  * as going out on its own) — the count means "on you", the list means
  * "in my hands".
+ *
+ * TWO EXCEPTIONS, both "it really is on you again":
+ *  - a HANDED-BACK card (payload.handBack — the machine tried twice and
+ *    couldn't) counts even under a grant. Round-1 Phase-3 audit: a
+ *    permanently-failing autonomous job was invisible in both directions.
+ *  - `includeGranted` counts the whole open population. The inbox's
+ *    truncation math needs the list's OWN population, not the on-you one
+ *    (subtracting one from the other hid genuinely-waiting cards).
  */
-export async function countOpenProposals(organizationId: string): Promise<number> {
+export async function countOpenProposals(
+  organizationId: string,
+  opts: { includeGranted?: boolean } = {},
+): Promise<number> {
   const now = new Date()
   let granted: string[] = []
-  try {
-    const [profile] = await db
-      .select({ autonomy: schema.clinicProfile.autonomy })
-      .from(schema.clinicProfile)
-      .where(eq(schema.clinicProfile.organizationId, organizationId))
-      .limit(1)
-    granted = GRANTABLE_CAPABILITIES.filter(
-      (k) => resolveTrust(profile?.autonomy ?? null, k) === 'auto',
-    )
-  } catch {
-    granted = [] // unreadable trust → count everything (never hide real work)
+  if (!opts.includeGranted) {
+    try {
+      const [profile] = await db
+        .select({ autonomy: schema.clinicProfile.autonomy })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, organizationId))
+        .limit(1)
+      granted = GRANTABLE_CAPABILITIES.filter(
+        (k) => resolveTrust(profile?.autonomy ?? null, k) === 'auto',
+      )
+    } catch {
+      granted = [] // unreadable trust → count everything (never hide real work)
+    }
   }
   const [row] = await db
     .select({ c: sql<number>`count(*)::int` })
@@ -167,7 +196,9 @@ export async function countOpenProposals(organizationId: string): Promise<number
         eq(schema.proposal.organizationId, organizationId),
         eq(schema.proposal.status, 'open'),
         or(isNull(schema.proposal.expiresAt), gt(schema.proposal.expiresAt, now)),
-        ...(granted.length > 0 ? [notInArray(schema.proposal.capability, granted)] : []),
+        ...(granted.length > 0
+          ? [or(notInArray(schema.proposal.capability, granted), handedBack())]
+          : []),
       ),
     )
   return Number(row?.c ?? 0)
@@ -175,32 +206,43 @@ export async function countOpenProposals(organizationId: string): Promise<number
 
 /**
  * EARNED TRUST (Phase 3): how many of this capability's most recent
- * approvals in a row went out exactly as the machine wrote them
- * (originalBody null = approved without edits). A run of unedited yeses is
- * the evidence behind the card's gentle "want me to just handle these?"
- * suggestion — the machine may SUGGEST the grant, never take it. The run
- * breaks on the first edited approval; capped at a small window because
- * the suggestion needs "recently and consistently", not history.
+ * decisions in a row were a HUMAN saying yes to the machine's words exactly
+ * as written (originalBody null = approved without edits). A run of unedited
+ * yeses is the evidence behind the card's gentle "want me to just handle
+ * these?" suggestion — the machine may SUGGEST the grant, never take it.
+ * Capped at a small window because the suggestion needs "recently and
+ * consistently", not history.
+ *
+ * Three things break the run, all from the round-1 Phase-3 audit — the
+ * evidence for handing over judgment has to be the human's own:
+ *  - an EDITED approval (the original claim);
+ *  - a DECLINE, which is the strongest counter-evidence there is: an
+ *    unedited yes says "your words were fine", a no says "don't act at all";
+ *  - the MACHINE's own yeses (decidedByUserId null under a standing grant).
+ *    Without this, grant → auto-execute 6 → revoke → the next card cites the
+ *    machine's own behavior to re-take the trust just withdrawn.
  */
 export async function countConsecutiveUneditedApprovals(
   organizationId: string,
   capability: string,
 ): Promise<number> {
   const rows = await db
-    .select({ originalBody: schema.proposal.originalBody })
+    .select({ status: schema.proposal.status, originalBody: schema.proposal.originalBody })
     .from(schema.proposal)
     .where(
       and(
         eq(schema.proposal.organizationId, organizationId),
         eq(schema.proposal.capability, capability),
-        eq(schema.proposal.status, 'approved'),
+        inArray(schema.proposal.status, ['approved', 'declined']),
+        // A human decision only — the machine is not a witness for itself.
+        isNotNull(schema.proposal.decidedByUserId),
       ),
     )
     .orderBy(desc(schema.proposal.decidedAt))
     .limit(6)
   let run = 0
   for (const r of rows) {
-    if (r.originalBody != null) break
+    if (r.status !== 'approved' || r.originalBody != null) break
     run++
   }
   return run
@@ -364,9 +406,17 @@ export async function closeRecoveredProposal(
         summary: recovered.ledgerSummary,
         detail: {
           proposalId: p.id,
-          // A stranded APPROVED row with no decider is the machine's own
-          // yes under a standing grant — the diary says which it was.
-          ...(p.decidedByUserId ? { approvedByUserId: p.decidedByUserId } : { autonomous: true }),
+          // WHO decided, asserted only when it is actually knowable. A
+          // stranded APPROVED row with no decider is the machine's own yes
+          // under a standing grant. An OPEN row (the invalidation sweep's
+          // path) has had decidedByUserId nulled by reopen and may not even
+          // carry the column — silence beats crediting the machine with a
+          // human's approval (round-1 Phase-3 audit).
+          ...(p.decidedByUserId
+            ? { approvedByUserId: p.decidedByUserId }
+            : expectedStatus === 'approved'
+              ? { autonomous: true }
+              : {}),
           recovered: true,
           ...recovered.ledgerDetail,
         },
@@ -594,6 +644,19 @@ async function decideAndExecute(
     }
     if (current && editedSubject) {
       const payload = (current.payload ?? {}) as Record<string, unknown>
+      // A SUBJECT edit is an edit (round-1 Phase-3 audit): the subject is
+      // the first thing the patient reads, and staff who rewrite it every
+      // time were being told they "never changed a word" — and nudged to
+      // hand over a capability they demonstrably edit. Stash the body as
+      // the marker so the earned-trust run breaks on any change to the
+      // artifact, whichever half of it moved.
+      if (
+        current.originalBody == null &&
+        stashOriginal == null &&
+        editedSubject !== (typeof payload.subject === 'string' ? payload.subject : null)
+      ) {
+        stashOriginal = current.body
+      }
       await db
         .update(schema.proposal)
         .set({ payload: { ...payload, subject: editedSubject }, updatedAt: new Date() })
@@ -645,7 +708,7 @@ async function decideAndExecute(
       actor.kind === 'human' ? '— you approved it' : '— handled on my own, as you asked',
     )
   } catch (e) {
-    await reopen(claimed)
+    await reopen(claimed, { autonomous: actor.kind === 'auto' })
     // A raw exception message here is developer-speak ('Campaign missing
     // subject') on the most trust-critical card in the product — log it,
     // answer in the voice (round-3 audit). Executors that can fail in ways
@@ -702,7 +765,7 @@ async function decideAndExecute(
       }
       return { ok: false, error: exec.error, expired: true }
     }
-    await reopen(claimed)
+    await reopen(claimed, { autonomous: actor.kind === 'auto' })
     return { ok: false, error: exec.error }
   }
 
@@ -749,14 +812,25 @@ async function decideAndExecute(
   return { ok: true, status: 'approved', message: exec.ledgerSummary }
 }
 
-/** Reopen after a FAILED approve. Two laws learned across the audit ride
- *  here (verification round 4 — this was the reconcile-reopen's forgotten
+/** Reopen after a FAILED approve. Three laws ride here. Two from the Phase-2
+ *  audit (verification round 4 — this was the reconcile-reopen's forgotten
  *  sibling): (1) stamp the approve-attempt marker so later attribution can
  *  tell our stranded work from a human's; (2) extend a passed/imminent
  *  expiry — "give it another try in a minute" is a lie when the reopened
  *  card is already invisible to the inbox and the next hourly tick expires
- *  it with the sourceKey burned. */
-async function reopen(claimed: typeof schema.proposal.$inferSelect): Promise<void> {
+ *  it with the sourceKey burned.
+ *
+ *  And one from Phase 3's round 1: (3) an AUTONOMOUS failure counts. The
+ *  machine retrying every hour forever, invisibly, while the card says the
+ *  work goes out on its own is the one way autonomy can fail silently. At
+ *  AUTO_FAILURE_LIMIT the card is HANDED BACK — the machine stops trying,
+ *  says so in the ledger, the card counts as waiting on a human again, and
+ *  the expiry stops being extended so the clinic's normal expiry sweep can
+ *  eventually retire it. */
+async function reopen(
+  claimed: typeof schema.proposal.$inferSelect,
+  opts: { autonomous?: boolean } = {},
+): Promise<void> {
   const now = new Date()
   const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
   // RE-READ the payload — never write back the claim-time snapshot
@@ -772,17 +846,40 @@ async function reopen(claimed: typeof schema.proposal.$inferSelect): Promise<voi
     .where(and(eq(schema.proposal.organizationId, claimed.organizationId), eq(schema.proposal.id, claimed.id)))
     .limit(1)
   const payload = ((current ? current.payload : claimed.payload) ?? {}) as Record<string, unknown>
+  const priorFailures = typeof payload.autoFailures === 'number' ? payload.autoFailures : 0
+  const autoFailures = opts.autonomous ? priorFailures + 1 : priorFailures
+  const handBack = payload.handBack === true || autoFailures >= AUTO_FAILURE_LIMIT
   await db
     .update(schema.proposal)
     .set({
       status: 'open',
       decidedAt: null,
       decidedByUserId: null,
-      payload: { ...payload, approveAttempted: true },
-      ...(claimed.expiresAt && claimed.expiresAt > minExpiry ? {} : { expiresAt: minExpiry }),
+      payload: {
+        ...payload,
+        approveAttempted: true,
+        ...(autoFailures > 0 ? { autoFailures } : {}),
+        ...(handBack ? { handBack: true } : {}),
+      },
+      // A handed-back card stops having its life extended: it is visible
+      // and counted again, so letting it expire on the normal schedule is
+      // honest rather than a silent disappearance.
+      ...(handBack || (claimed.expiresAt && claimed.expiresAt > minExpiry) ? {} : { expiresAt: minExpiry }),
       updatedAt: now,
     })
     .where(and(eq(schema.proposal.organizationId, claimed.organizationId), eq(schema.proposal.id, claimed.id)))
+  // Say it out loud, ONCE, the tick the machine gives up. Not work — a
+  // note that work did NOT happen, so it carries autoFailure and the
+  // standup's counts skip it.
+  if (opts.autonomous && handBack && payload.handBack !== true) {
+    await recordAction({
+      organizationId: claimed.organizationId,
+      capability: claimed.capability,
+      patientId: claimed.patientId,
+      summary: `I tried ${AUTO_FAILURE_LIMIT} times to handle “${claimed.title}” on my own and couldn’t — it’s back with you`,
+      detail: { proposalId: claimed.id, autoFailure: true, attempts: autoFailures },
+    })
+  }
 }
 
 // ── Executors ─────────────────────────────────────────────────────────────────

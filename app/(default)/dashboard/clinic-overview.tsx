@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
 import { listOpenProposals, countOpenProposals, countConsecutiveUneditedApprovals } from '@/lib/services/proposals'
-import { listTrustGrants } from '@/lib/services/autonomy'
+import { listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 import { isGrantable } from '@/lib/autonomy'
 import { buildWeeklyStandup } from '@/lib/services/standup'
 import ApprovalInbox, { type ProposalCardData } from './approval-inbox'
@@ -85,17 +85,24 @@ function money(cents: number): string {
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [data, onboarding, proposals, totalOpenProposals, trustGrants, standup] = await Promise.all([
-    getClinicOverview(ctx.organizationId),
-    getStaffOnboarding(ctx.organizationId, ctx.userId),
-    // The Approval Inbox + the weekly standup are best-effort reads — the
-    // morning huddle must never fail because the narrator hiccupped.
-    listOpenProposals(ctx.organizationId).catch(() => []),
-    countOpenProposals(ctx.organizationId).catch(() => 0),
-    // The ladder's current grants — the take-it-back strip (Phase 3).
-    listTrustGrants(ctx.organizationId).catch(() => []),
-    buildWeeklyStandup(ctx.organizationId).catch(() => null),
-  ])
+  const [data, onboarding, proposals, totalOpenProposals, trustGrants, autonomousWork, standup] =
+    await Promise.all([
+      getClinicOverview(ctx.organizationId),
+      getStaffOnboarding(ctx.organizationId, ctx.userId),
+      // The Approval Inbox + the weekly standup are best-effort reads — the
+      // morning huddle must never fail because the narrator hiccupped.
+      listOpenProposals(ctx.organizationId).catch(() => []),
+      // includeGranted: the inbox's truncation notice compares against the
+      // list's OWN population. The sidebar badge's "waiting on your yes"
+      // count is a different number on purpose (round-1 Phase-3 audit).
+      countOpenProposals(ctx.organizationId, { includeGranted: true }).catch(() => 0),
+      // The ladder's current grants — the take-it-back strip (Phase 3).
+      listTrustGrants(ctx.organizationId).catch(() => []),
+      // ...and what those grants actually did this week — the TELL half of
+      // "do and tell" (round-1 Phase-3 audit).
+      listAutonomousWork(ctx.organizationId).catch(() => []),
+      buildWeeklyStandup(ctx.organizationId).catch(() => null),
+    ])
   // EARNED TRUST (Phase 3): for each still-ask-first capability with a card
   // showing, how many recent approvals in a row went out unedited — the
   // card suggests the grant at 3+. Best-effort; at most four tiny reads.
@@ -170,6 +177,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       meta,
       context,
       uneditedRun: uneditedRuns.get(p.capability) ?? 0,
+      // The machine tried this one alone and gave up — the card says so
+      // instead of promising it goes out within the hour.
+      handedBack: payload.handBack === true,
     }
   })
   // The checklist derives from live org data — only compute it while it's
@@ -311,6 +321,8 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         grants={trustGrants
           .filter((g) => g.level === 'auto')
           .map((g) => ({ capability: g.capability, label: g.label }))}
+        autonomousWork={autonomousWork}
+        isDemo={ctx.isDemo}
       />
 
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}

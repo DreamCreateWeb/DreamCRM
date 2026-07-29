@@ -116,8 +116,29 @@ export async function hasEntryForProposal(
   return !!row
 }
 
+/**
+ * NOT WORK (round-1 Phase-3 audit). Two kinds of entry belong in the
+ * clinic's story but are not something the machine DID for them: an
+ * autonomy grant/revoke (a settings change — filed under the capability it
+ * changes so the story can later explain why the asking stopped) and a
+ * hand-back note (the machine saying it could NOT do a thing). Counting
+ * either as work made the standup report "1 review reply" in a week when
+ * zero replies went out, in the product's flagship honesty surface.
+ */
+export function isWorkEntry(detail: unknown): boolean {
+  if (!detail || typeof detail !== 'object') return true
+  const d = detail as Record<string, unknown>
+  return d.autonomyChange === undefined && d.autoFailure !== true
+}
+/** The same rule in SQL, for the grouped count. Built per call, not at
+ *  module scope: a module-level template would touch the schema at import
+ *  time, which every test that mocks a slim schema would explode on. */
+const workOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomyChange') is null
+  and (${schema.actionLedger.detail} ->> 'autoFailure') is distinct from 'true'`
+
 /** Per-capability counts in a window — the standup's "41 reminders,
- *  4 posts, 6 answers" line in one query. `until` exclusive, as above. */
+ *  4 posts, 6 answers" line in one query. `until` exclusive, as above.
+ *  WORK only: settings changes and "I couldn't" notes never count. */
 export async function countActionsSince(
   organizationId: string,
   since: Date,
@@ -131,6 +152,7 @@ export async function countActionsSince(
         eq(schema.actionLedger.organizationId, organizationId),
         gte(schema.actionLedger.occurredAt, since),
         ...(opts.until ? [lt(schema.actionLedger.occurredAt, opts.until)] : []),
+        workOnly(),
       ),
     )
     .groupBy(schema.actionLedger.capability)

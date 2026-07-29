@@ -35,12 +35,14 @@ const {
   mockCountOpenProposals,
   mockUneditedRun,
   mockListTrustGrants,
+  mockListAutonomousWork,
   mockBuildStandup,
 } = vi.hoisted(() => ({
   mockListOpenProposals: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
   mockCountOpenProposals: vi.fn(async (..._a: unknown[]) => 0),
   mockUneditedRun: vi.fn(async (..._a: unknown[]) => 0),
   mockListTrustGrants: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
+  mockListAutonomousWork: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
   mockBuildStandup: vi.fn(async (..._a: unknown[]) => ({
     weekStart: new Date('2026-05-10T05:00:00Z'),
     weekEnd: new Date('2026-05-17T05:00:00Z'),
@@ -61,7 +63,10 @@ vi.mock('@/lib/services/proposals', () => ({
   countOpenProposals: mockCountOpenProposals,
   countConsecutiveUneditedApprovals: mockUneditedRun,
 }))
-vi.mock('@/lib/services/autonomy', () => ({ listTrustGrants: mockListTrustGrants }))
+vi.mock('@/lib/services/autonomy', () => ({
+  listTrustGrants: mockListTrustGrants,
+  listAutonomousWork: mockListAutonomousWork,
+}))
 // The inbox cards' server actions — mocked so interaction tests never touch
 // requireTenant/db, and so we can assert an action was NOT called.
 const { mockApproveAction, mockDeclineAction } = vi.hoisted(() => ({
@@ -1005,6 +1010,72 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     await Promise.resolve()
     await Promise.resolve()
     expect(mockSetAutonomyAction).toHaveBeenCalledWith({ capability: 'review_reply', level: 'ask' })
+  })
+
+  it('the strip TELLS what the machine did alone — counts per capability and the newest line, verbatim (round-1 Phase-3 audit: the do had no tell)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
+    ])
+    mockListAutonomousWork.mockResolvedValueOnce([
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        count: 3,
+        latestSummary: 'Replied to Maria’s 5-star Google review — handled on my own, as you asked',
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/3 this week/)).toBeInTheDocument()
+    expect(screen.getByText(/Replied to Maria’s 5-star Google review/)).toBeInTheDocument()
+  })
+
+  it('a handed-over capability that has done nothing yet says so — silence after a hand-over reads as broken', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Nothing on my own yet/i)).toBeInTheDocument()
+  })
+
+  it('the review-reply consent says plainly that ANGRY reviews are included — a grant the granter doesn’t understand is not a grant', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(
+      screen.getByRole('checkbox', { name: /including 1- and 2-star reviews/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('a HANDED-BACK card says the machine gave up, and never claims it goes out on its own', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...reviewCard, payload: { ...(reviewCard.payload ?? {}), handBack: true } },
+    ])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/tried this one on my own twice and couldn’t send it/i)).toBeInTheDocument()
+    expect(screen.queryByText(/goes out on its own within the hour/i)).toBeNull()
+  })
+
+  it('in the DEMO a grant never actually fires — the strip says so instead of promising sends', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
+    ])
+    const ui = await ClinicOverview({ ctx: { ...makeCtx(), isDemo: true } })
+    render(ui)
+    expect(screen.getByText(/nothing actually goes out/i)).toBeInTheDocument()
   })
 
   it('no grants, no strip — the Overview stays quiet for a clinic that hasn’t handed anything over', async () => {

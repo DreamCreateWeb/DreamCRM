@@ -36,6 +36,13 @@ const proposalsSvc = vi.hoisted(() => ({
   autoExecuteProposal: vi.fn(async (..._a: unknown[]) => ({ ok: true as const, status: 'approved' as const })),
   // 'not_ours' = not attributable → the sweep's plain batch expiry proceeds.
   closeRecoveredProposal: vi.fn(async (..._a: unknown[]) => 'not_ours' as const),
+  // The hand-back predicate — a lazy sql builder in the real module; here a
+  // row filter, so a handed-back card really is excluded from the driver's
+  // selection rather than silently matching everything.
+  notHandedBack: () => (r: Record<string, unknown>) => {
+    const payload = (r.payload ?? {}) as Record<string, unknown>
+    return payload.handBack !== true
+  },
 }))
 vi.mock('@/lib/services/proposals', () => proposalsSvc)
 
@@ -166,6 +173,7 @@ vi.mock('@/lib/db', () => {
       __name: 'clinic_profile',
       organizationId: col('organizationId'),
       autonomy: col('autonomy'),
+      timezone: col('timezone'),
     },
     proposal: {
       __name: 'proposal',
@@ -508,6 +516,49 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteGrantedProposals', () => {
     store.profiles = []
     store.proposals = [openCard('p1', 'review_reply')]
     expect(await autoExecuteGrantedProposals(ORG, NOW)).toBe(0)
+  })
+
+  // THE SEND WINDOW (round-1 Phase-3 audit): under "ask" the hour a patient
+  // email went out was human-gated by office hours. Autonomy removed the
+  // human; the cron runs on a UTC clock.
+  it('holds patient-inbox sends until daylight in the CLINIC’s timezone', async () => {
+    store.profiles = [
+      {
+        organizationId: ORG,
+        autonomy: { outreach_campaign: 'auto', review_reply: 'auto' },
+        timezone: 'America/Los_Angeles',
+      },
+    ]
+    store.proposals = [openCard('p_mail', 'outreach_campaign'), openCard('p_reply', 'review_reply')]
+    // 10:00 UTC = 3 AM in Los Angeles — the exact blast this guard exists for.
+    const n = await autoExecuteGrantedProposals(ORG, new Date('2026-07-27T10:00:00Z'))
+    expect(n).toBe(1)
+    // The public reply still goes (no inbox to wake); the campaign waits.
+    expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledWith(ORG, 'p_reply')
+    expect(proposalsSvc.autoExecuteProposal).not.toHaveBeenCalledWith(ORG, 'p_mail')
+  })
+
+  it('sends inside the window — the same card goes out on a mid-morning tick', async () => {
+    store.profiles = [
+      { organizationId: ORG, autonomy: { outreach_campaign: 'auto' }, timezone: 'America/Los_Angeles' },
+    ]
+    store.proposals = [openCard('p_mail', 'outreach_campaign')]
+    // 18:00 UTC = 11 AM in Los Angeles.
+    expect(await autoExecuteGrantedProposals(ORG, new Date('2026-07-27T18:00:00Z'))).toBe(1)
+  })
+
+  // THE HAND-BACK: the machine tried twice, said so, and stopped. It must
+  // not quietly resume retrying every hour forever.
+  it('never retries a card it already handed back', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    store.proposals = [
+      openCard('p_given_up', 'review_reply', { payload: { handBack: true, autoFailures: 2 } }),
+      openCard('p_fresh', 'review_reply'),
+    ]
+    const n = await autoExecuteGrantedProposals(ORG, NOW)
+    expect(n).toBe(1)
+    expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledWith(ORG, 'p_fresh')
+    expect(proposalsSvc.autoExecuteProposal).not.toHaveBeenCalledWith(ORG, 'p_given_up')
   })
 })
 

@@ -3,7 +3,7 @@ import { and, eq, gte, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { listRecentActions, countActionsSince } from '@/lib/services/action-ledger'
+import { listRecentActions, countActionsSince, isWorkEntry } from '@/lib/services/action-ledger'
 import { countOpenProposals } from '@/lib/services/proposals'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
@@ -158,6 +158,11 @@ export async function buildWeeklyStandup(
   })
   for (const e of ranked) {
     if (storied.length >= 3) break
+    // WORK only — an autonomy switch flip and an "I couldn't" note are real
+    // events, but neither is a story about something that got done, and the
+    // grant sentence was story-eligible under every grantable capability
+    // (round-1 Phase-3 audit).
+    if (!isWorkEntry(e.detail)) continue
     if (!e.patientId && !STORY_PRIORITY.includes(e.capability)) continue
     if (seenCapability.has(e.capability)) continue
     seenCapability.add(e.capability)

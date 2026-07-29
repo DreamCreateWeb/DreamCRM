@@ -12,7 +12,9 @@ import {
   reconcileStrandedApprovals,
   closeRecoveredProposal,
   autoExecuteProposal,
+  notHandedBack,
 } from '@/lib/services/proposals'
+import { clinicDayStart } from '@/lib/clinic-timezone'
 
 /**
  * PROPOSAL GENERATORS (Transformation Phase 2). The machine notices work it
@@ -145,6 +147,14 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
   return result
 }
 
+/** Clinic-local hours inside which the machine may send to a patient's
+ *  inbox on its own — mid-morning through early evening, the same daylight
+ *  rule the retention automations follow (SEND_HOUR_LOCAL there). */
+const SEND_WINDOW_START_HOUR = 8
+const SEND_WINDOW_END_HOUR = 19
+/** The granted capabilities whose execution puts mail in a patient's inbox. */
+const PATIENT_INBOX_CAPABILITIES: string[] = ['outreach_campaign', 'inquiry_response']
+
 /**
  * Execute the open proposals of every capability this clinic has switched
  * to automatic (Phase 3 — "always do this for me"). READS the stored trust
@@ -160,7 +170,7 @@ export async function autoExecuteGrantedProposals(
   now: Date = new Date(),
 ): Promise<number> {
   const [profile] = await db
-    .select({ autonomy: schema.clinicProfile.autonomy })
+    .select({ autonomy: schema.clinicProfile.autonomy, timezone: schema.clinicProfile.timezone })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, organizationId))
     .limit(1)
@@ -169,6 +179,21 @@ export async function autoExecuteGrantedProposals(
     (key) => resolveTrust(profile.autonomy, key) === 'auto',
   )
   if (granted.length === 0) return 0
+  // THE SEND WINDOW (round-1 Phase-3 audit). Under "ask" the hour a patient
+  // email went out was implicitly human-gated — staff tap Approve during
+  // office hours. Autonomy removes the human, and this cron runs on a UTC
+  // clock, so a granted recall campaign filed on the 10:00 UTC tick lands in
+  // a Pacific clinic's patients' inboxes at 3 AM. Patient-facing sends wait
+  // for daylight; the card simply stays open until the next tick inside the
+  // window. (Public replies and posts have no inbox to wake and stay
+  // immediate — a 1-star review answered at midnight is a good thing.)
+  const localHour =
+    (now.getTime() - clinicDayStart(now, profile.timezone).getTime()) / 3_600_000
+  const insideSendWindow = localHour >= SEND_WINDOW_START_HOUR && localHour < SEND_WINDOW_END_HOUR
+  const runnable = insideSendWindow
+    ? granted
+    : granted.filter((key) => !PATIENT_INBOX_CAPABILITIES.includes(key))
+  if (runnable.length === 0) return 0
 
   const open = await db
     .select({ id: schema.proposal.id, capability: schema.proposal.capability })
@@ -177,8 +202,11 @@ export async function autoExecuteGrantedProposals(
       and(
         eq(schema.proposal.organizationId, organizationId),
         eq(schema.proposal.status, 'open'),
-        inArray(schema.proposal.capability, granted),
+        inArray(schema.proposal.capability, runnable),
         or(isNull(schema.proposal.expiresAt), gte(schema.proposal.expiresAt, now)),
+        // A handed-back card is waiting on a human again — the machine
+        // already said it couldn't do this one alone and stopped trying.
+        notHandedBack(),
       ),
     )
   let executed = 0

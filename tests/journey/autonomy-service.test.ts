@@ -10,10 +10,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *  - trust is reversible: the same call sets it back to ask.
  */
 
-const { recordActionMock } = vi.hoisted(() => ({
+const { recordActionMock, listRecentActionsMock } = vi.hoisted(() => ({
   recordActionMock: vi.fn(async (..._a: unknown[]) => true),
+  listRecentActionsMock: vi.fn(async (..._a: unknown[]) => [] as Array<Record<string, unknown>>),
 }))
-vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
+vi.mock('@/lib/services/action-ledger', () => ({
+  recordAction: recordActionMock,
+  listRecentActions: listRecentActionsMock,
+}))
 
 const store: { profiles: Array<Record<string, unknown>> } = { profiles: [] }
 
@@ -75,7 +79,7 @@ vi.mock('drizzle-orm', () => ({
   eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => r[col.__col] === val,
 }))
 
-import { setCapabilityTrust, listTrustGrants } from '@/lib/services/autonomy'
+import { setCapabilityTrust, listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 
 const ORG = 'org_1'
 
@@ -154,5 +158,62 @@ describe('listTrustGrants', () => {
   it('a clinic with no stored grants is all ask-first', async () => {
     const grants = await listTrustGrants(ORG)
     expect(grants.every((g) => g.level === 'ask')).toBe(true)
+  })
+})
+
+/**
+ * THE TELL (round-1 Phase-3 audit). "Do and tell" is the rung this phase
+ * shipped; the DO had no TELL. This read is the Overview strip's source.
+ */
+describe('listAutonomousWork', () => {
+  const NOW = new Date('2026-07-27T15:00:00Z')
+  const entry = (over: Record<string, unknown>) => ({
+    id: 'act_x',
+    capability: 'review_reply',
+    patientId: null,
+    summary: 'Replied to a review — handled on my own, as you asked',
+    detail: { autonomous: true },
+    occurredAt: NOW,
+    ...over,
+  })
+
+  it('counts what the machine did ALONE, per capability, quoting the newest line', async () => {
+    listRecentActionsMock.mockResolvedValueOnce([
+      entry({ summary: 'Replied to Maria’s review — handled on my own, as you asked' }),
+      entry({ summary: 'Replied to an older review — handled on my own, as you asked' }),
+      entry({ capability: 'social_post', summary: 'Posted to Instagram — handled on my own, as you asked' }),
+    ])
+    const work = await listAutonomousWork(ORG, { now: NOW })
+    expect(work).toEqual([
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        count: 2,
+        // listRecentActions is newest-first, so the first one is the newest.
+        latestSummary: 'Replied to Maria’s review — handled on my own, as you asked',
+      },
+      {
+        capability: 'social_post',
+        label: 'Publish social & Google posts',
+        count: 1,
+        latestSummary: 'Posted to Instagram — handled on my own, as you asked',
+      },
+    ])
+  })
+
+  it('never counts a HUMAN’s approval as the machine’s own work', async () => {
+    listRecentActionsMock.mockResolvedValueOnce([
+      entry({ detail: { approvedByUserId: 'user_1' } }),
+      entry({ detail: null }),
+      entry({ detail: { autonomyChange: 'auto' } }),
+    ])
+    expect(await listAutonomousWork(ORG, { now: NOW })).toEqual([])
+  })
+
+  it('asks for a 7-day window ending now', async () => {
+    await listAutonomousWork(ORG, { now: NOW })
+    const [, opts] = listRecentActionsMock.mock.calls[0] as [string, Record<string, unknown>]
+    expect((opts.since as Date).toISOString()).toBe('2026-07-20T15:00:00.000Z')
+    expect(opts.until).toEqual(NOW)
   })
 })

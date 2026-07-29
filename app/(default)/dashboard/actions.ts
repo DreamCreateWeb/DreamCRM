@@ -64,7 +64,9 @@ export async function setAutonomyAction(input: {
     ok: true,
     message:
       input.level === 'auto'
-        ? `From now on I’ll handle “${label}” on my own — you’ll see each one in the diary.`
+        ? ctx.isDemo
+          ? `From now on I’d handle “${label}” on my own — in the demo I’ll show you how, but nothing actually goes out.`
+          : `From now on I’ll handle “${label}” on my own — you’ll see each one listed on your Overview.`
         : `Okay — I’ll check with you again before “${label}”.`,
   }
 }

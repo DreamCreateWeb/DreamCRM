@@ -311,11 +311,29 @@ vi.mock('drizzle-orm', () => ({
   lt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) < val,
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
+  isNotNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] != null,
+  inArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
+    vals.includes(r[col.__col]),
   notInArray: (col: { __col: string }, vals: unknown[]) => (r: Record<string, unknown>) =>
     !vals.includes(r[col.__col]),
   desc: () => 'desc',
   asc: () => 'asc',
-  sql: () => 'sql',
+  // The raw fragments this service uses are jsonb payload probes, so the
+  // harness models them as row predicates rather than an opaque token —
+  // a mock that matched nothing would have made the hand-back guard look
+  // like it worked while excluding every card (fixture realism).
+  sql: (strings?: TemplateStringsArray, ..._vals: unknown[]) => {
+    const text = Array.isArray(strings) ? (strings as unknown as string[]).join('?') : ''
+    if (text.includes("'handBack'")) {
+      const negated = text.includes('is distinct from')
+      return (r: Record<string, unknown>) => {
+        const payload = (r.payload ?? {}) as Record<string, unknown>
+        const given = payload.handBack === true
+        return negated ? !given : given
+      }
+    }
+    return 'sql'
+  },
 }))
 
 import {
@@ -426,6 +444,21 @@ describe('listOpenProposals / countOpenProposals', () => {
     // …but the inbox still LISTS both: the count means "on you", the list
     // means "in my hands" (the granted card renders its own honest line).
     expect((await listOpenProposals(ORG)).map((r) => r.id).sort()).toEqual(['p_ask', 'p_auto'])
+  })
+
+  it('includeGranted counts the whole open population — the inbox truncation notice must compare against the list it draws from (round-1 Phase-3 audit)', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    seedProposal({ id: 'p_auto', capability: 'review_reply', sourceKey: 'kg1' })
+    seedProposal({ id: 'p_ask', capability: 'social_post', sourceKey: 'kg2' })
+    expect(await countOpenProposals(ORG, { includeGranted: true })).toBe(2)
+    expect(await countOpenProposals(ORG)).toBe(1)
+  })
+
+  it('a HANDED-BACK card counts again even under a grant — the machine stopped trying, so it really is on a human', async () => {
+    store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
+    seedProposal({ id: 'p_given_up', capability: 'review_reply', sourceKey: 'kh1', payload: { handBack: true } })
+    seedProposal({ id: 'p_running', capability: 'review_reply', sourceKey: 'kh2' })
+    expect(await countOpenProposals(ORG)).toBe(1)
   })
 
   it('an unreadable trust setting counts EVERYTHING — never hide real work behind a failed read', async () => {
@@ -1269,6 +1302,48 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteProposal', () => {
     expect(recordActionMock).not.toHaveBeenCalled()
   })
 
+  it('the SECOND autonomous failure hands the card back: the machine says so once, stops retrying, and stops extending the expiry (round-1 Phase-3 audit)', async () => {
+    executors.replyToGoogleReview.mockResolvedValue({ ok: false, error: 'Google said no' } as never)
+    const p = seedProposal({ expiresAt: new Date(Date.now() + 60 * 60 * 1000) })
+    await autoExecuteProposal(ORG, p.id)
+    let payload = p.payload as Record<string, unknown>
+    expect(payload.autoFailures).toBe(1)
+    expect(payload.handBack).toBeUndefined() // one blip is not giving up
+    expect(recordActionMock).not.toHaveBeenCalled()
+    // A retryable failure keeps the card alive to be retried.
+    const afterFirst = p.expiresAt as Date
+    expect(afterFirst.getTime()).toBeGreaterThan(Date.now() + 2 * DAY)
+
+    await autoExecuteProposal(ORG, p.id)
+    payload = p.payload as Record<string, unknown>
+    expect(payload.autoFailures).toBe(2)
+    expect(payload.handBack).toBe(true)
+    // Said out loud, once, and marked as NOT work — the standup must never
+    // count "I couldn't" as something that got done.
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toContain('couldn’t')
+    expect((entry.detail as Record<string, unknown>).autoFailure).toBe(true)
+
+    // Giving up stops the life support: an unbounded +3d on every hourly
+    // retry meant a permanently-failing card could never expire.
+    expect((p.expiresAt as Date).getTime()).toBe(afterFirst.getTime())
+
+    // A third failure never re-narrates — one hand-back, one sentence.
+    await autoExecuteProposal(ORG, p.id)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect((p.expiresAt as Date).getTime()).toBe(afterFirst.getTime())
+    executors.replyToGoogleReview.mockResolvedValue({ ok: true } as never)
+  })
+
+  it('a HUMAN retry never counts against the machine’s two tries', async () => {
+    executors.replyToGoogleReview.mockResolvedValueOnce({ ok: false, error: 'Google said no' } as never)
+    const p = seedProposal()
+    await approveProposal(ORG, p.id, 'user_1')
+    expect((p.payload as Record<string, unknown>).autoFailures).toBeUndefined()
+    expect((p.payload as Record<string, unknown>).handBack).toBeUndefined()
+  })
+
   it('an autonomous campaign still SILENCES the underlying send’s own ledger writer — one yes, one entry, whoever said it', async () => {
     const p = seedProposal({
       capability: 'outreach_campaign',
@@ -1326,6 +1401,7 @@ describe('EARNED TRUST (Phase 3): originalBody + the unedited run', () => {
         sourceKey: `run:${n}`,
         status: 'approved',
         decidedAt: new Date(Date.now() - n * 1000),
+        decidedByUserId: 'user_1',
         originalBody,
       })
     mk(1, null)
@@ -1333,6 +1409,49 @@ describe('EARNED TRUST (Phase 3): originalBody + the unedited run', () => {
     mk(3, 'they rewrote this one')
     mk(4, null)
     expect(await countConsecutiveUneditedApprovals(ORG, 'review_reply')).toBe(2)
+  })
+
+  it('the MACHINE’s own yeses are not the human’s — a grant, six auto-sends and a revoke leave the run at zero (round-1 Phase-3 audit)', async () => {
+    for (let n = 1; n <= 6; n++)
+      seedProposal({
+        sourceKey: `auto:${n}`,
+        status: 'approved',
+        decidedAt: new Date(Date.now() - n * 1000),
+        decidedByUserId: null, // autonomous claims carry no user
+        originalBody: null,
+      })
+    expect(await countConsecutiveUneditedApprovals(ORG, 'review_reply')).toBe(0)
+  })
+
+  it('a DECLINE breaks the run — "you said yes to the last 3" must not skip over the noes in between', async () => {
+    seedProposal({
+      sourceKey: 'mix:1',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 1000),
+      decidedByUserId: 'user_1',
+      originalBody: null,
+    })
+    seedProposal({
+      sourceKey: 'mix:2',
+      status: 'declined',
+      decidedAt: new Date(Date.now() - 2000),
+      decidedByUserId: 'user_1',
+      originalBody: null,
+    })
+    seedProposal({
+      sourceKey: 'mix:3',
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 3000),
+      decidedByUserId: 'user_1',
+      originalBody: null,
+    })
+    expect(await countConsecutiveUneditedApprovals(ORG, 'review_reply')).toBe(1)
+  })
+
+  it('a SUBJECT-only edit is an edit — the run breaks on it too', async () => {
+    const p = seedProposal({ sourceKey: 'subj:1', payload: { subject: 'Time for your checkup' } })
+    await approveProposal(ORG, p.id, 'user_1', { subject: 'We miss you at the office' })
+    expect(p.originalBody).toBe(p.body)
   })
 
   it('no history is no suggestion (a run of zero)', async () => {
