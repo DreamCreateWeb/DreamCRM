@@ -571,7 +571,17 @@ sitemap/robots/OG.
    weekly standup card on the clinic Overview; `standup.ts` Narrator
    (prior clinic-week window via the new ledger `until` bound) + Monday
    standup email riding daily-digest; demo-voice seeder), Phase 3 the
-   autonomy ladder live — **SHIPPED 2026-07-28, audit pending** (migration
+   autonomy ladder live — **SHIPPED 2026-07-28; audit CLOSED CLEAN
+   2026-07-29** (3 discovery rounds at the hard cap + retrospective +
+   main-loop self-sweep + 5 verification rounds, the 5th returning ZERO
+   findings across all four lenses; totals 2 criticals + 42 defects fixed +
+   12 in-phase gaps shipped + 1 sweep seam; certificate and the "the fixes
+   outproduced the phase" retrospective in docs/AUDITS.md. BOTH criticals
+   were invisible to the suite because the DB is modelled in JavaScript — a
+   FK-violating sentinel and an untyped jsonb bind parameter — so any new
+   raw SQL or new write to a constrained column now needs a boundary test;
+   `tests/journey/autonomy-sql.test.ts` renders the real statement through
+   drizzle's own dialect) (migration
    0138 `proposal.original_body`; `lib/autonomy.ts` GRANTABLE_CAPABILITIES
    = the four proposal-backed types ONLY — the auto-by-default automations
    keep their own switches and nothing unregistered can be granted;

@@ -177,11 +177,36 @@ promotes items into phases; nothing here is a commitment until he does.
 
 ### Phase 3 — the autonomy ladder live ("always do this for me")
 
-**Status: IN AUDIT — the hard cap fired at round 3.** Rounds 1–3 closed
-2026-07-29 with 2 criticals, 29 confirmed defects and 6 in-phase depth gaps.
-Per the corrected cap semantics the remaining discovery is the main loop's
-own: retrospective (below) → direct self-sweep → verification rounds until
-one comes back clean.
+**Status: CLOSED CLEAN 2026-07-29 — verification round 5 returned ZERO
+findings across all four lenses.** ✅ **CERTIFICATE**: 3 discovery rounds
+(the hard cap) + the owner-mandated main-loop self-sweep + 5 verification
+rounds. Totals: **2 criticals, 42 confirmed defects fixed, 12 in-phase depth
+gaps shipped, 1 self-sweep seam closed, 7 skeptic/judge rejections upheld**;
+the suite grew from 5,626 to 5,681 passing tests.
+
+The closing round: claims EMPTY, law EMPTY (second consecutive), depth EMPTY,
+resilience EMPTY. The convergence was legible round over round — critical →
+major → demo surface → stale comments → nothing.
+
+**The two criticals are why this gate exists.** Both were invisible to 5,600+
+passing tests because both lived exactly where a JavaScript-modelled database
+stops being a database: a string sentinel written into a column that is a
+foreign key (every autonomous campaign would have thrown, forever, inside a
+retry loop, while the card claimed it was handled), and an untyped bind
+parameter inside a VARIADIC function (every grant and every revoke would have
+failed with 42P18 — the entire ladder inert in production). Neither is
+reachable by a test that mocks `sql`. Both now have boundary tests, one of
+which renders the real statement through drizzle's own dialect.
+
+**The dominant finding of the audit is about the audit.** Every round from 2
+onward found most of its defects inside the PREVIOUS round's fixes — a
+critical among them. The retrospective below names the cause; the standing
+lesson for future phases is that **a fix is a new feature and gets the whole
+checklist, including the demo, the copy, and the sibling readers of any law
+it touches.**
+
+**Verification round 5 (2026-07-29) — CLEAN.** All four lenses empty against
+`git show d3d8b90` and the phase as a whole.
 
 #### Retrospective: why did this phase ship with this many gaps?
 
@@ -221,6 +246,24 @@ would be invisible.
    data (the human-decider requirement killed the earned-trust history; the
    `autonomous: true` marker was never seeded, so the tell could never fire
    in the demo). **Lesson: every rule change runs against the seeder.**
+
+#### The standing lesson this phase adds to the checklist
+
+**A DATABASE MODELLED IN JAVASCRIPT IS NOT A DATABASE.** Both of this
+phase's criticals were unreachable by the test suite for the same structural
+reason: the harnesses model rows and predicates in JS, so a foreign-key
+constraint and Postgres's parameter-type inference simply do not exist there.
+Any new raw SQL fragment, and any new write to a constrained column, needs a
+test at the real boundary — render the statement through the dialect
+(`tests/journey/autonomy-sql.test.ts`), or assert the constraint. Add this to
+the class list alongside artifact rendering, demo coherence, structured
+signals, laws-under-recovery, recovery-paths-vs-each-other, fixture realism,
+anchor-by-identity and snapshot-vs-alias semantics.
+
+**AND: A FIX IS A NEW FEATURE.** Run the whole checklist on it — including
+the demo, the user-facing copy, and every sibling reader of any law it
+touches. Six consecutive rounds found most of their defects inside the
+previous round's repairs; that is the single largest cost in this audit.
 
 #### The self-sweep (main loop, post-cap)
 
