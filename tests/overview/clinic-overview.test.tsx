@@ -1049,15 +1049,37 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     expect(screen.getByText(/Replied to Maria’s 5-star Google review/)).toBeInTheDocument()
   })
 
-  it('a handed-over capability that has done nothing yet says so — silence after a hand-over reads as broken', async () => {
+  it('a FRESH hand-over that has done nothing yet says so — silence after a hand-over reads as broken', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([])
     mockListTrustGrants.mockResolvedValueOnce([
-      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        level: 'auto',
+        grantedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      },
     ])
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/Nothing on my own yet/i)).toBeInTheDocument()
+  })
+
+  it('an OLD hand-over with a quiet week says QUIET, not "nothing yet" — the read covers 7 days, not all of history (round-3 audit)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([])
+    mockListTrustGrants.mockResolvedValueOnce([
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        level: 'auto',
+        grantedAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000),
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/Nothing this past week/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Nothing on my own yet/i)).toBeNull()
   })
 
   it('the review-reply consent says plainly that ANGRY reviews are included — a grant the granter doesn’t understand is not a grant', async () => {
@@ -1160,6 +1182,45 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     render(ui)
     expect(screen.getByText(/Here’s what I handled on my own this week/i)).toBeInTheDocument()
     expect(screen.getByText(/412 patients/)).toBeInTheDocument()
+  })
+
+  it('a PRE-GRANT card says why it is still theirs — round 2 created this card class and left it silent', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...reviewCard, createdAt: new Date('2026-05-01T00:00:00Z') },
+    ])
+    mockListTrustGrants.mockResolvedValueOnce([
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        level: 'auto',
+        grantedAt: new Date('2026-06-01T00:00:00Z'),
+      },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/came in before you handed these over/i)).toBeInTheDocument()
+  })
+
+  it('a granted card names the THIRD exit — skipping one draft must not cost the whole hand-over', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    mockListTrustGrants.mockResolvedValueOnce([
+      { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
+    ])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/tell me to skip this one/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Skip this one$/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /No thanks/ })).toBeNull()
+  })
+
+  it('an ask-first card keeps the permanent-decline wording — the machine really will stop asking', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByRole('button', { name: /No thanks/ })).toBeInTheDocument()
   })
 
   it('no grants, no strip — the Overview stays quiet for a clinic that hasn’t handed anything over', async () => {

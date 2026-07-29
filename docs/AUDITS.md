@@ -18,12 +18,19 @@ per the owner's standard ("perfection plus depth", 2026-07-27), **v2 shape
   fraction of the cost; the main loop supplies the flagship judgment where
   it counts.
 - **DONE = one clean round** (zero confirmed defects + zero in-phase gaps).
-- **HARD CAP: 3 rounds.** The script refuses a round 4. If round 3 still
-  finds significant items (any critical/major defect or in-phase gap), more
-  auditing is the wrong tool — the phase was under-built or its claims were
-  wrong: fix what round 3 found, then write the owner a ROOT-CAUSE
-  RETROSPECTIVE here ("why did this phase ship with this many gaps?") and
-  decide together whether to re-open the phase as new build work.
+- **HARD CAP: 3 discovery rounds.** The script refuses a round 4 unless it
+  is marked `{ verification: true }`. If round 3 still finds significant
+  items (any critical/major defect or in-phase gap), discovery-BY-AUDIT is
+  the wrong tool — but **the phase still has to reach a clean state, and the
+  remaining discovery is the main loop's own job** (owner's clarification,
+  2026-07-28): (1) fix everything round 3 found; (2) write the owner a
+  ROOT-CAUSE RETROSPECTIVE here ("why did this phase ship with this many
+  gaps?"); (3) run the retrospective's lessons as a DIRECT SELF-SWEEP —
+  sibling-sweep every fix from every round, walk the component × failure-mode
+  matrix, check crash-consistency of every claim-then-act; (4) fix what that
+  finds; (5) confirm with `{ verification: true }` rounds until one comes
+  back clean. A phase closes CLEAN or it is not closed — the retrospective
+  is never the finish line.
 - Integrity law (unchanged from v1): a dead auditor/voter is never a clean
   vote — the round is invalid and re-runs without consuming the cap.
 
@@ -213,8 +220,10 @@ confirmation against the cited code before any fix.
   - **No 3 AM mass emails.** Under ask-first the send hour was implicitly
     gated by staff approving during office hours; autonomy removed the
     human and the cron runs UTC. Patient-inbox capabilities now wait for
-    08:00–19:00 clinic-local — the rule `retention-automation.ts` already
-    followed.
+    08:00–19:00 clinic-local — the same daylight INTENT as
+    `retention-automation.ts`, which aims at 10:00 local but falls back to
+    "now" and so bounds nothing on its own (corrected in round 3; the
+    round-1 wording claimed the window already existed there).
   - **THE TELL (depth D-A).** Three strings promised a "diary" that never
     existed, and autonomous work was invisible until the next Monday's
     aggregate standup, which never marked what the machine did alone. The

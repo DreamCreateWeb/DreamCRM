@@ -48,10 +48,10 @@ export const PROPOSAL_TITLE_MAX = 200
  * human hands — the honest end of "I couldn't do this one".
  */
 export const AUTO_FAILURE_LIMIT = 2
-/** payload.handBack — the machine gave up on doing this one alone. Built
- *  per call, never at module scope: a module-level sql template touches the
- *  schema at import time and every slim-schema test mock explodes on it. */
-/** Its inverse, for the autonomy driver's selection (NULL-safe). */
+/** The NULL-safe negation of payload.handBack — the clause that keeps a
+ *  card the machine gave up on out of its own selection. Built per call,
+ *  never at module scope: a module-level sql template touches the schema at
+ *  import time and every slim-schema test mock explodes on it. */
 export const notHandedBack = () => sql`(${schema.proposal.payload} ->> 'handBack') is distinct from 'true'`
 
 /** A capability the clinic has switched to automatic, with the instant it
@@ -59,6 +59,15 @@ export const notHandedBack = () => sql`(${schema.proposal.payload} ->> 'handBack
 export interface GrantedCapability {
   capability: string
   grantedAt: Date | null
+}
+
+/** The clinic's granted capabilities, each with the instant it was handed
+ *  over — the input to the law below. */
+export function resolveGrantedCapabilities(stored: unknown): GrantedCapability[] {
+  return GRANTABLE_CAPABILITIES.filter((k) => resolveTrust(stored, k) === 'auto').map((k) => ({
+    capability: k,
+    grantedAt: resolveGrantedAt(stored, k),
+  }))
 }
 
 /**
@@ -78,15 +87,6 @@ export interface GrantedCapability {
  * An undated grant keeps the original everything-open behavior rather than
  * silently freezing a clinic's existing cards.
  */
-/** The clinic's granted capabilities, each with the instant it was handed
- *  over — the input to the law below. */
-export function resolveGrantedCapabilities(stored: unknown): GrantedCapability[] {
-  return GRANTABLE_CAPABILITIES.filter((k) => resolveTrust(stored, k) === 'auto').map((k) => ({
-    capability: k,
-    grantedAt: resolveGrantedAt(stored, k),
-  }))
-}
-
 export function machineHandlesCard(granted: GrantedCapability[]) {
   if (granted.length === 0) return null
   return and(
@@ -278,6 +278,11 @@ export async function countOpenProposals(
  * Capped at a small window because the suggestion needs "recently and
  * consistently", not history.
  *
+ * The window starts at the clinic's last REVOKE of this capability
+ * (round-3 audit): taking the job back is the strongest "no" the ladder can
+ * receive, and without this floor the very next card answered it by asking
+ * for the grant again, citing approvals the clinic had already overruled.
+ *
  * Three things break the run, all from the round-1 Phase-3 audit — the
  * evidence for handing over judgment has to be the human's own:
  *  - an EDITED approval (the original claim);
@@ -290,6 +295,7 @@ export async function countOpenProposals(
 export async function countConsecutiveUneditedApprovals(
   organizationId: string,
   capability: string,
+  opts: { since?: Date | null } = {},
 ): Promise<number> {
   const rows = await db
     .select({ status: schema.proposal.status, originalBody: schema.proposal.originalBody })
@@ -301,6 +307,7 @@ export async function countConsecutiveUneditedApprovals(
         inArray(schema.proposal.status, ['approved', 'declined']),
         // A human decision only — the machine is not a witness for itself.
         isNotNull(schema.proposal.decidedByUserId),
+        ...(opts.since ? [gte(schema.proposal.decidedAt, opts.since)] : []),
       ),
     )
     .orderBy(desc(schema.proposal.decidedAt))
@@ -376,24 +383,15 @@ export async function reconcileStrandedApprovals(
       const outcome = await closeRecoveredProposal(p, 'approved', now)
       if (outcome === 'skip') continue // transient — the next hourly pass retries
       if (outcome === 'not_ours') {
-        const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
-        const payload = (p.payload ?? {}) as Record<string, unknown>
-        await db
-          .update(schema.proposal)
-          .set({
-            status: 'open',
-            decidedAt: null,
-            decidedByUserId: null,
-            // The reopened row WAS approved once — the marker lets later
-            // attribution (the sweep's verbatim review match) know the
-            // evidence can be ours (verification round 4's mis-credit
-            // guard needs it to tell our stranded reply from a staff
-            // member's hand-pasted one).
-            payload: { ...payload, approveAttempted: true },
-            ...(p.expiresAt && p.expiresAt > minExpiry ? {} : { expiresAt: minExpiry }),
-            updatedAt: now,
-          })
-          .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, p.id)))
+        // ONE reopen, shared with the in-process failure path (round-3
+        // audit). This branch used to hand-roll the update, so a crash or
+        // request timeout mid-execute — the likelier failure on a container
+        // platform — never counted toward the hand-back: the card was
+        // re-selected by the driver every hour, stayed subtracted from every
+        // "waiting on you" count, kept promising delivery, and had its
+        // expiry renewed each pass, so the loop could not even age out.
+        // A stranded APPROVED row with no decider is the machine's own yes.
+        await reopen(p, { autonomous: p.decidedByUserId == null, now })
       }
       resolved++
     } catch (e) {
@@ -894,9 +892,9 @@ async function decideAndExecute(
  *  eventually retire it. */
 async function reopen(
   claimed: typeof schema.proposal.$inferSelect,
-  opts: { autonomous?: boolean } = {},
+  opts: { autonomous?: boolean; now?: Date } = {},
 ): Promise<void> {
-  const now = new Date()
+  const now = opts.now ?? new Date()
   const minExpiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
   // RE-READ the payload — never write back the claim-time snapshot
   // (verification round 5): executors stamp campaignId/socialPostId into

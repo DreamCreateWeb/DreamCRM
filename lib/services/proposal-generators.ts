@@ -15,6 +15,7 @@ import {
   resolveGrantedCapabilities,
 } from '@/lib/services/proposals'
 import { clinicLocalHour } from '@/lib/clinic-timezone'
+import { resolveTrialState } from '@/lib/trial'
 
 /**
  * PROPOSAL GENERATORS (Transformation Phase 2). The machine notices work it
@@ -132,7 +133,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
         // Only cards filed AT OR AFTER the grant ("from now on" means what
         // it says) and not already handed back; failures reopen and retry
         // next tick under the same guards a human retry gets.
-        ['autonomy', async () => ((result.autoExecuted += await autoExecuteGrantedProposals(org.id)), 0)],
+        ['autonomy', async () => ((result.autoExecuted += await autoExecuteGrantedProposals(org.id, now)), 0)],
       ]
       for (const [name, run] of generators) {
         try {
@@ -149,8 +150,12 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
 }
 
 /** Clinic-local hours inside which the machine may send to a patient's
- *  inbox on its own — mid-morning through early evening, the same daylight
- *  rule the retention automations follow (SEND_HOUR_LOCAL there). */
+ *  inbox on its own — mid-morning through early evening. The same daylight
+ *  INTENT as the retention automations, which aim their sends at
+ *  SEND_HOUR_LOCAL (10:00 clinic-local); this is a hard WINDOW, not a
+ *  target — automationSendAt falls back to "now" when 10:00 has passed, so
+ *  it bounds nothing on its own (round-3 audit corrected the earlier claim
+ *  that this rule already existed there). */
 export const SEND_WINDOW_START_HOUR = 8
 export const SEND_WINDOW_END_HOUR = 19
 /** The granted capabilities whose execution puts mail in a patient's inbox. */
@@ -179,11 +184,27 @@ export async function autoExecuteGrantedProposals(
   now: Date = new Date(),
 ): Promise<number> {
   const [profile] = await db
-    .select({ autonomy: schema.clinicProfile.autonomy, timezone: schema.clinicProfile.timezone })
+    .select({
+      autonomy: schema.clinicProfile.autonomy,
+      timezone: schema.clinicProfile.timezone,
+      trialEndsAt: schema.clinicProfile.trialEndsAt,
+      subscriptionStatus: schema.clinicProfile.subscriptionStatus,
+      stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+    })
     .from(schema.clinicProfile)
     .where(eq(schema.clinicProfile.organizationId, organizationId))
     .limit(1)
   if (!profile) return 0
+  // THE TAKE-BACK MUST BE REACHABLE (round-3 audit). A clinic whose trial
+  // lapsed or whose subscription is canceled has its whole dashboard
+  // replaced by the billing wall — and the Overview strip is the ONLY place
+  // autonomy can be handed back. Acting on its behalf while it cannot stop
+  // us breaks "trust is reversible always", and the work is public and
+  // patient-facing. A walled clinic goes back to being asked; its cards
+  // simply wait (countOpenProposals counts them again, because
+  // machineHandlesCard is what the badge subtracts and nothing here widens
+  // it — the driver just declines to act).
+  if (resolveTrialState(profile, now).expired) return 0
   const granted = resolveGrantedCapabilities(profile.autonomy)
   if (granted.length === 0) return 0
   // THE SEND WINDOW (round-1 Phase-3 audit). Under "ask" the hour a patient

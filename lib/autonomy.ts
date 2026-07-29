@@ -115,12 +115,30 @@ export function resolveTrust(stored: unknown, capability: string): TrustLevel {
  */
 export const GRANTED_AT_KEY = '_grantedAt'
 
-export function resolveGrantedAt(stored: unknown, capability: string): Date | null {
+/**
+ * WHEN the clinic last took this capability BACK. A revoke is the strongest
+ * "no" the ladder can receive — stronger than the decline the earned-trust
+ * run already honors — so the run that suggests handing the job over counts
+ * only decisions made SINCE it. Without this, revoking was answered by the
+ * very next card asking for the grant back, citing approvals the clinic had
+ * already overruled (round-3 audit).
+ */
+export const REVOKED_AT_KEY = '_revokedAt'
+
+function resolveStamp(stored: unknown, key: string, capability: string): Date | null {
   if (!stored || typeof stored !== 'object') return null
-  const map = (stored as Record<string, unknown>)[GRANTED_AT_KEY]
+  const map = (stored as Record<string, unknown>)[key]
   if (!map || typeof map !== 'object') return null
   const raw = (map as Record<string, unknown>)[capability]
   if (typeof raw !== 'string') return null
   const d = new Date(raw)
   return Number.isNaN(d.getTime()) ? null : d
+}
+
+export function resolveGrantedAt(stored: unknown, capability: string): Date | null {
+  return resolveStamp(stored, GRANTED_AT_KEY, capability)
+}
+
+export function resolveRevokedAt(stored: unknown, capability: string): Date | null {
+  return resolveStamp(stored, REVOKED_AT_KEY, capability)
 }

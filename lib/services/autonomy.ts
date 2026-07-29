@@ -4,9 +4,11 @@ import { db, schema } from '@/lib/db'
 import {
   GRANTABLE_CAPABILITIES,
   GRANTED_AT_KEY,
+  REVOKED_AT_KEY,
   getCapability,
   isGrantable,
   resolveGrantedAt,
+  resolveRevokedAt,
   resolveTrust,
   type TrustLevel,
 } from '@/lib/autonomy'
@@ -35,6 +37,9 @@ export interface TrustGrantView {
   /** When this capability was handed over — the boundary of "from now on"
    *  (null for an older grant made before the stamp existed). */
   grantedAt: Date | null
+  /** When the clinic last took it back — the floor on the earned-trust run,
+   *  so the machine never re-cites approvals a revoke has overruled. */
+  revokedAt: Date | null
 }
 
 /** The four grantable capabilities with their resolved levels — the
@@ -51,6 +56,7 @@ export async function listTrustGrants(organizationId: string): Promise<TrustGran
     label: getCapability(key)?.label ?? key,
     level: resolveTrust(stored, key),
     grantedAt: resolveGrantedAt(stored, key),
+    revokedAt: resolveRevokedAt(stored, key),
   }))
 }
 
@@ -161,16 +167,22 @@ export async function setCapabilityTrust(
   // suite that mocks `sql` away).
   const levelPatch = JSON.stringify({ [capability]: level })
   const col = schema.clinicProfile.autonomy
+  const stamp = JSON.stringify({ [capability]: new Date().toISOString() })
   const grantedAt =
     level === 'auto'
-      ? sql`coalesce(${col} -> ${GRANTED_AT_KEY}::text, '{}'::jsonb) || ${JSON.stringify({
-          [capability]: new Date().toISOString(),
-        })}::jsonb`
+      ? sql`coalesce(${col} -> ${GRANTED_AT_KEY}::text, '{}'::jsonb) || ${stamp}::jsonb`
       : sql`coalesce(${col} -> ${GRANTED_AT_KEY}::text, '{}'::jsonb) - ${capability}::text`
+  // The mirror stamp: a revoke is dated so the earned-trust run can refuse
+  // to cite decisions the clinic has since overruled; a fresh grant clears
+  // it, because the clinic just said yes again.
+  const revokedAt =
+    level === 'ask'
+      ? sql`coalesce(${col} -> ${REVOKED_AT_KEY}::text, '{}'::jsonb) || ${stamp}::jsonb`
+      : sql`coalesce(${col} -> ${REVOKED_AT_KEY}::text, '{}'::jsonb) - ${capability}::text`
   await db
     .update(schema.clinicProfile)
     .set({
-      autonomy: sql`coalesce(${col}, '{}'::jsonb) || ${levelPatch}::jsonb || jsonb_build_object(${GRANTED_AT_KEY}::text, ${grantedAt})`,
+      autonomy: sql`coalesce(${col}, '{}'::jsonb) || ${levelPatch}::jsonb || jsonb_build_object(${GRANTED_AT_KEY}::text, ${grantedAt}) || jsonb_build_object(${REVOKED_AT_KEY}::text, ${revokedAt})`,
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 

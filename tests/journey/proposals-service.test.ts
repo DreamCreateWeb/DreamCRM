@@ -322,6 +322,8 @@ vi.mock('drizzle-orm', () => ({
       .some((p) => (typeof p === 'function' ? (p as (row: Record<string, unknown>) => boolean)(r) : Array.isArray(p) ? (p as Array<(row: Record<string, unknown>) => boolean>).every((f) => f(r)) : false)),
   gt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) > val,
+  gte: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
+    r[col.__col] instanceof Date && (r[col.__col] as Date) >= val,
   lt: (col: { __col: string }, val: Date) => (r: Record<string, unknown>) =>
     r[col.__col] instanceof Date && (r[col.__col] as Date) < val,
   isNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] == null,
@@ -1379,6 +1381,46 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteProposal', () => {
     expect((entry.detail as Record<string, unknown>).autoFailure).toBeUndefined()
   })
 
+  it('a CRASH-stranded autonomous approve counts toward the hand-back too — the reconcile shares the one reopen (round-3 audit)', async () => {
+    // Two container deaths mid-execute: no executor result is ever seen, so
+    // only the reconcile can account for them. Before this they never
+    // counted, and the card retried hourly forever, invisibly.
+    const p = seedProposal({
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      decidedByUserId: null, // the machine's own yes under a standing grant
+      executedAt: null,
+    })
+    await reconcileStrandedApprovals(ORG)
+    expect(p.status).toBe('open')
+    expect((p.payload as Record<string, unknown>).autoFailures).toBe(1)
+
+    p.status = 'approved'
+    p.decidedAt = new Date(Date.now() - 60 * 60 * 1000)
+    p.decidedByUserId = null
+    p.executedAt = null
+    await reconcileStrandedApprovals(ORG)
+    expect((p.payload as Record<string, unknown>).autoFailures).toBe(2)
+    expect((p.payload as Record<string, unknown>).handBack).toBe(true)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    expect(
+      String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary),
+    ).toContain('couldn’t')
+  })
+
+  it('a HUMAN-stranded approve is NOT the machine’s failure — a staff approve that died mid-flight never counts', async () => {
+    const p = seedProposal({
+      status: 'approved',
+      decidedAt: new Date(Date.now() - 60 * 60 * 1000),
+      decidedByUserId: 'user_1',
+      executedAt: null,
+    })
+    await reconcileStrandedApprovals(ORG)
+    expect(p.status).toBe('open')
+    expect((p.payload as Record<string, unknown>).autoFailures).toBeUndefined()
+    expect((p.payload as Record<string, unknown>).handBack).toBeUndefined()
+  })
+
   it('a HUMAN retry never counts against the machine’s two tries', async () => {
     executors.replyToGoogleReview.mockResolvedValueOnce({ ok: false, error: 'Google said no' } as never)
     const p = seedProposal()
@@ -1489,6 +1531,25 @@ describe('EARNED TRUST (Phase 3): originalBody + the unedited run', () => {
       originalBody: null,
     })
     expect(await countConsecutiveUneditedApprovals(ORG, 'review_reply')).toBe(1)
+  })
+
+  it('a REVOKE floors the run — the machine never re-cites approvals the clinic has overruled (round-3 audit)', async () => {
+    const mk = (n: number, at: Date) =>
+      seedProposal({
+        sourceKey: `rev:${n}`,
+        status: 'approved',
+        decidedAt: at,
+        decidedByUserId: 'user_1',
+        originalBody: null,
+      })
+    const revokedAt = new Date(Date.now() - 60 * 60 * 1000)
+    mk(1, new Date(revokedAt.getTime() - 3000)) // before the take-back
+    mk(2, new Date(revokedAt.getTime() - 2000))
+    mk(3, new Date(revokedAt.getTime() - 1000))
+    expect(await countConsecutiveUneditedApprovals(ORG, 'review_reply')).toBe(3)
+    expect(
+      await countConsecutiveUneditedApprovals(ORG, 'review_reply', { since: revokedAt }),
+    ).toBe(0)
   })
 
   it('a SUBJECT-only edit is an edit — the run breaks on it too', async () => {

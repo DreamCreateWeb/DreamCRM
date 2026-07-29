@@ -129,10 +129,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         .filter((c) => isGrantable(c) && !grantedSet.has(c)),
     ),
   )
+  // A revoke floors the run: the machine never cites approvals the clinic
+  // has since overruled by taking the job back (round-3 audit).
+  const revokedAt = new Map(trustGrants.map((g) => [g.capability, g.revokedAt] as const))
   const uneditedRuns = new Map<string, number>(
     await Promise.all(
       suggestFor.map(async (c) => {
-        const n = await countConsecutiveUneditedApprovals(ctx.organizationId, c).catch(() => 0)
+        const n = await countConsecutiveUneditedApprovals(ctx.organizationId, c, {
+          since: revokedAt.get(c) ?? null,
+        }).catch(() => 0)
         return [c, n] as const
       }),
     ),
@@ -349,7 +354,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         totalOpen={totalOpenProposals}
         grants={trustGrants
           .filter((g) => g.level === 'auto')
-          .map((g) => ({ capability: g.capability, label: g.label }))}
+          .map((g) => ({ capability: g.capability, label: g.label, grantedAt: g.grantedAt }))}
         autonomousWork={autonomousWork}
         isDemo={ctx.isDemo}
       />

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /**
  * The proposal generators (Transformation Phase 2). Pins the generator laws:
@@ -190,6 +192,9 @@ vi.mock('@/lib/db', () => {
       organizationId: col('organizationId'),
       autonomy: col('autonomy'),
       timezone: col('timezone'),
+      trialEndsAt: col('trialEndsAt'),
+      subscriptionStatus: col('subscriptionStatus'),
+      stripeSubscriptionId: col('stripeSubscriptionId'),
     },
     proposal: {
       __name: 'proposal',
@@ -528,6 +533,47 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteGrantedProposals', () => {
     expect(n).toBe(1) // only the genuine success counts
     expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledTimes(3) // all three attempted
     err.mockRestore()
+  })
+
+  it('a clinic behind the BILLING WALL is never acted for — the only take-back lives on the screen the wall replaces (round-3 audit)', async () => {
+    store.profiles = [
+      {
+        organizationId: ORG,
+        autonomy: { review_reply: 'auto' },
+        trialEndsAt: new Date(NOW.getTime() - 30 * DAY),
+        subscriptionStatus: null,
+        stripeSubscriptionId: null,
+      },
+    ]
+    store.proposals = [openCard('p1', 'review_reply')]
+    expect(await autoExecuteGrantedProposals(ORG, NOW)).toBe(0)
+    expect(proposalsSvc.autoExecuteProposal).not.toHaveBeenCalled()
+  })
+
+  it('a paying clinic past its trial end is acted for normally — the wall is about billing state, not the calendar', async () => {
+    store.profiles = [
+      {
+        organizationId: ORG,
+        autonomy: { review_reply: 'auto' },
+        trialEndsAt: new Date(NOW.getTime() - 30 * DAY),
+        subscriptionStatus: 'active',
+        stripeSubscriptionId: 'sub_1',
+      },
+    ]
+    store.proposals = [openCard('p1', 'review_reply')]
+    expect(await autoExecuteGrantedProposals(ORG, NOW)).toBe(1)
+  })
+
+  it('the cron entrypoint hands the driver the RUN’s clock — every sibling step gets it (round-3 audit)', async () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../lib/services/proposal-generators.ts'),
+      'utf8',
+    )
+    // The send-window gate and the expiry filter both read this instant; a
+    // driver on its own clock cannot be exercised or replayed through the
+    // entrypoint, and would evaluate daylight against wall time while the
+    // generators used `now`.
+    expect(src).toMatch(/autoExecuteGrantedProposals\(org\.id, now\)/)
   })
 
   it('a clinic with no profile row resolves to nothing granted', async () => {

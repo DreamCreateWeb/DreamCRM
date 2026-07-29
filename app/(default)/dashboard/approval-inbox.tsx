@@ -91,6 +91,10 @@ const HAS_TOKENS = /\{\{(firstName|bookingUrl)\}\}/
 export interface TrustGrantChip {
   capability: string
   label: string
+  /** When the clinic handed this over. The tell reads a 7-DAY window, so a
+   *  grant older than that must not be told "nothing yet" — that is a claim
+   *  about all of history from a week's worth of data (round-3 audit). */
+  grantedAt?: Date | null
 }
 
 /** One capability's worth of work the machine did alone this past week —
@@ -226,6 +230,11 @@ function GrantsStrip({
   // done with it — the one moment a clinic most wants to read that list.
   // The chips need a live grant; the week's work does not.
   if (shown.length === 0 && work.length === 0) return null
+  // "Yet" is a statement about all of history; the read behind it covers
+  // seven days. It stays only while every live grant is younger than that.
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const everyGrantIsFresh =
+    shown.length > 0 && shown.every((g) => (g.grantedAt ? g.grantedAt.getTime() >= weekAgo : false))
 
   return (
     <div className="mt-3 mb-8 text-xs text-gray-500 dark:text-gray-400">
@@ -247,7 +256,17 @@ function GrantsStrip({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const r = await setAutonomyAction({ capability: g.capability, level: 'ask' })
+                // The take-back gets the same failure boundary the hand-over
+                // has (round-3 audit): a throw here used to reject inside the
+                // transition, so the click said nothing, the chip stayed, and
+                // staff could not tell whether the machine had stopped.
+                const r = await setAutonomyAction({
+                  capability: g.capability,
+                  level: 'ask',
+                }).catch(() => ({
+                  ok: false as const,
+                  error: 'I couldn’t switch this one back just now — give it another try in a minute.',
+                }))
                 if (r.ok) {
                   setGone((s) => new Set(s).add(g.capability))
                   onToast(r.message)
@@ -271,7 +290,11 @@ function GrantsStrip({
           hidden: silence after a hand-over reads as "did it break?". */}
       <div className="mt-2 pl-0.5">
         {work.length === 0 ? (
-          <p>Nothing on my own yet — I’ll list each one right here.</p>
+          <p>
+            {everyGrantIsFresh
+              ? 'Nothing on my own yet — I’ll list each one right here.'
+              : 'Nothing this past week — I’ll list each one right here.'}
+          </p>
         ) : (
           <>
             {shown.length === 0 && (
@@ -343,16 +366,23 @@ function ProposalCard({
       return
     }
     startTransition(async () => {
-      const r =
-        decision === 'approve'
-          ? await approveProposalAction({
-              proposalId: proposal.id,
-              ...(body !== proposal.body ? { body } : {}),
-              ...(proposal.subject != null && subject.trim() && subject !== proposal.subject
-                ? { subject }
-                : {}),
-            })
-          : await declineProposalAction({ proposalId: proposal.id })
+      // Every server-action call on this card has a failure boundary: a
+      // rejected promise inside a transition is invisible, and the card would
+      // sit there looking live with nothing said (round-3 audit).
+      const r = await (decision === 'approve'
+        ? approveProposalAction({
+            proposalId: proposal.id,
+            ...(body !== proposal.body ? { body } : {}),
+            ...(proposal.subject != null && subject.trim() && subject !== proposal.subject
+              ? { subject }
+              : {}),
+          })
+        : declineProposalAction({ proposalId: proposal.id })
+      ).catch(() => ({
+        ok: false as const,
+        error: 'Something went wrong on my side — nothing went out. Give it another try in a minute.',
+        expired: false,
+      }))
       if (r.ok) {
         let message = r.message ?? (decision === 'approve' ? 'Done — it went out.' : undefined)
         if (decision === 'approve' && alwaysDo && isGrantable(proposal.capability)) {
@@ -510,6 +540,18 @@ function ProposalCard({
           here is the surest way through.
         </p>
       )}
+      {/* THE PRE-GRANT CARD (round-3 audit). Round 2 made "from now on" mean
+          from now on, which created a card the machine will never touch even
+          though its capability is automatic — and gave it no copy at all. It
+          sat silent beside a strip announcing the machine handles these now,
+          and the reasonable reading ("the machine has this") is exactly
+          wrong: this is the parked 1-star review the boundary protects. */}
+      {capabilityGranted && !alreadyGranted && !proposal.handedBack && (
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          This one came in before you handed these over, so it’s still yours to say yes to — I only
+          take the ones filed after.
+        </p>
+      )}
       {alreadyGranted && (
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           {isDemo
@@ -518,8 +560,13 @@ function ProposalCard({
               ? // The send window (round-1 P4) holds patient mail overnight,
                 // which made the old "within the hour" line false all evening
                 // (round-2 audit). Say the real thing — it reassures.
-                'You’ve handed these to me — this one goes out in the morning; I don’t put mail in patients’ inboxes overnight. Approve now if you’d like it to go this minute, or take the job back below.'
-              : 'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, or take the job back below.'}
+                'You’ve handed these to me — this one goes out in the morning; I don’t put mail in patients’ inboxes overnight. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'
+              : // THE THIRD EXIT (round-3 audit): the preview window exists so
+                // a human can stop ONE draft. Naming only "approve" and "take
+                // the job back" made a single bad draft cost the whole
+                // hand-over — a ladder whose only correction is climbing all
+                // the way down.
+                'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'}
         </p>
       )}
       {/* The hand-over offer and its nudge are gated on whether the CAPABILITY
@@ -589,7 +636,13 @@ function ProposalCard({
               : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60',
           ].join(' ')}
         >
-          {declineArmed ? 'Sure? I won’t ask again' : 'No thanks'}
+          {alreadyGranted
+            ? declineArmed
+              ? 'Sure? I’ll drop it'
+              : 'Skip this one'
+            : declineArmed
+              ? 'Sure? I won’t ask again'
+              : 'No thanks'}
         </button>
       </div>
     </div>
