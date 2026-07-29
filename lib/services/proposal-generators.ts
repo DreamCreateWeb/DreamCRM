@@ -14,6 +14,7 @@ import {
   machineHandlesCard,
   resolveGrantedCapabilities,
 } from '@/lib/services/proposals'
+import { recordFailure } from '@/lib/services/action-ledger'
 import { clinicLocalHour } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 
@@ -91,12 +92,91 @@ export interface GeneratorRunResult {
    *  (Phase 3 — the ladder live). */
   autoExecuted: number
   errors: Array<{ organizationId: string; error: string }>
+  /** Failures WRITTEN to a clinic's ledger this run (Phase 4). Fewer than
+   *  `errors` by design: the same break is recorded once a day, not once an
+   *  hour. Surfaced so the cron response distinguishes "recorded" from
+   *  "suppressed as a repeat". */
+  failuresRecorded: number
+}
+
+/* ── OBSERVABILITY (Transformation Phase 4) ──────────────────────────────
+ * Until now a broken generator was a console line nobody reads. A clinic
+ * whose review-reply drafting had been failing for a week saw an empty
+ * Approval Inbox — indistinguishable from a week with nothing to approve —
+ * and so did we. That is the exact blindness the Guardian exists to remove,
+ * and the ledger's failure vocabulary (recordFailure, Phase 4 slice 1) is
+ * where it goes: three strikes inside a week reads as `blocked`, and the
+ * Guardian reports the practice to Dream Create.
+ *
+ * A break is recorded ONCE A DAY per capability. The cron runs hourly, so
+ * without that window one stuck generator would write 24 rows a day into a
+ * clinic's own story and trip the three-strike alarm before lunch on day
+ * one. With it, a strike means a DAY of a broken thing.
+ */
+const FAILURE_DEDUPE_MS = DAY_MS
+
+/** Which registered capability owns each step's failures, and how the
+ *  machine says it went wrong — the clinic's side of the glass, plain, and
+ *  never blaming them for our plumbing. `null` marks internal bookkeeping
+ *  whose failure is real but is not a sentence a clinic's story should
+ *  carry; those stay in `errors` for the platform. */
+export const STEP_FAILURE: Record<string, { capability: string; summary: string } | null> = {
+  review_reply: {
+    capability: 'review_reply',
+    summary: 'Couldn’t draft a reply to a new review just now — I’ll keep trying.',
+  },
+  inquiry_response: {
+    capability: 'inquiry_response',
+    summary: 'Couldn’t draft an answer to a website inquiry just now — I’ll keep trying.',
+  },
+  social_post: {
+    capability: 'social_post',
+    summary: 'Couldn’t draft a social post just now — I’ll keep trying.',
+  },
+  outreach_campaign: {
+    capability: 'outreach_campaign',
+    summary: 'Couldn’t line up a recall campaign just now — I’ll keep trying.',
+  },
+  autonomy: {
+    capability: 'proposal_engine',
+    summary: 'Couldn’t finish something you’d handed over to me — I’ll try it again shortly.',
+  },
+  reconcile: null,
+  sweep: null,
+}
+
+/** The whole engine died for this org before any generator ran — the worst
+ *  case, and the one a clinic can least see: no new work arrives, while
+ *  reminders keep firing so nothing looks quiet. */
+export const ENGINE_DOWN = {
+  capability: 'proposal_engine',
+  summary: 'Couldn’t look for new work to bring you just now — I’ll try again shortly.',
 }
 
 /** The cron entrypoint: sweep staleness, then run all four generators for
  *  every real (non-demo) clinic org. */
 export async function runProposalGenerators(now: Date = new Date()): Promise<GeneratorRunResult> {
-  const result: GeneratorRunResult = { orgsScanned: 0, filed: 0, expired: 0, autoExecuted: 0, errors: [] }
+  const result: GeneratorRunResult = {
+    orgsScanned: 0,
+    filed: 0,
+    expired: 0,
+    autoExecuted: 0,
+    errors: [],
+    failuresRecorded: 0,
+  }
+  /** Write a break into the clinic's ledger where the Guardian can see it.
+   *  Best-effort by construction: recordFailure never throws, and a run that
+   *  cannot do its bookkeeping must still finish its work. */
+  const noteFailure = async (organizationId: string, f: { capability: string; summary: string }) => {
+    const recorded = await recordFailure({
+      organizationId,
+      capability: f.capability,
+      summary: f.summary,
+      occurredAt: now,
+      onceWithin: FAILURE_DEDUPE_MS,
+    })
+    if (recorded) result.failuresRecorded++
+  }
   result.expired += await expireStaleProposals()
 
   const orgs = await db
@@ -140,10 +220,13 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
           result.filed += await run()
         } catch (e) {
           result.errors.push({ organizationId: org.id, error: `${name}: ${(e as Error).message}` })
+          const f = STEP_FAILURE[name]
+          if (f) await noteFailure(org.id, f)
         }
       }
     } catch (e) {
       result.errors.push({ organizationId: org.id, error: (e as Error).message })
+      await noteFailure(org.id, ENGINE_DOWN)
     }
   }
   return result

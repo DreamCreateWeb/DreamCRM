@@ -64,8 +64,9 @@ export interface EngineSignals {
   seated30: number
   seatedPrev30: number
   /** Cards genuinely waiting on a human in that clinic. A pile-up is a
-   *  signal about the CLINIC's attention, not the machine's health, so it
-   *  colors the recommendation rather than the state. */
+   *  signal about the CLINIC's attention, not the machine's health, so at
+   *  `PILEUP_COUNT` it appends a clause to the recommendation and leaves the
+   *  state alone. */
   openProposals: number
 }
 
@@ -90,6 +91,17 @@ export const STALL_DROP_RATIO = 0.5
 /** Below this, month-over-month percentages are noise — a practice going
  *  from 2 seated to 1 is not a stall, it is a Tuesday. */
 export const STALL_MIN_BASELINE = 4
+/** Finished work sitting unanswered past this reads as disengagement rather
+ *  than a busy week — a practice that has stopped opening the inbox at all.
+ *  It never changes the STATE (the machine is working fine; the person is
+ *  the one who went quiet), only what Dream Create should say about it. */
+export const PILEUP_COUNT = 8
+
+/** The pile-up clause, appended to whatever the finding already recommends.
+ *  Exported so the copy has one home and the tests read the real string. */
+function pileupClause(openProposals: number): string {
+  return ` Worth knowing: ${openProposals} pieces of finished work are sitting unanswered in their inbox, so they may have stopped opening it.`
+}
 
 /**
  * What is true about this clinic's machine right now. Ordered by severity:
@@ -97,6 +109,19 @@ export const STALL_MIN_BASELINE = 4
  * thing, not a list of everything mildly notable.
  */
 export function assessEngine(s: EngineSignals): EngineVerdict {
+  const verdict = classify(s)
+  // A pile-up is a fact about the PERSON, not the machine, so it never
+  // changes the state — but it changes the conversation, and the owner
+  // walking into a call without it would be missing half the story. Only on
+  // findings that actually reach them: adding it to a healthy verdict would
+  // write a sentence nobody ever reads.
+  if (needsAttention(verdict.state) && s.openProposals >= PILEUP_COUNT && verdict.recommendation) {
+    return { ...verdict, recommendation: verdict.recommendation + pileupClause(s.openProposals) }
+  }
+  return verdict
+}
+
+function classify(s: EngineSignals): EngineVerdict {
   const brandNew = s.ageDays < NEW_CLINIC_GRACE_DAYS
 
   // SILENT — two full weeks with nothing in the ledger. For a live clinic

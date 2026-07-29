@@ -57,6 +57,13 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // is no judgment to hand over, and the audience lock that governs whether
   // it speaks at all lives with the platform owner, not the clinic.
   { key: 'guardian_note', label: 'Tell you when something needs a look', defaultTrust: 'auto' },
+  // THE PROPOSAL ENGINE itself (Phase 4 observability). Not a job the clinic
+  // grants — it is how every ask-first job REACHES them. It earns a key so
+  // that "I couldn't bring you any work at all today" has somewhere honest
+  // to be written; without it, the engine dying is the one failure nobody
+  // can see, because a clinic with an empty inbox looks exactly like a
+  // clinic with nothing to do.
+  { key: 'proposal_engine', label: 'Bring you work that’s ready to approve', defaultTrust: 'auto' },
   // Ask-first today (drafts that wait for a human):
   { key: 'review_reply', label: 'Reply to Google reviews', defaultTrust: 'ask' },
   { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'ask' },

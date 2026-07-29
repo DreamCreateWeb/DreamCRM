@@ -85,9 +85,46 @@ export async function recordFailure(input: {
   patientId?: string | null
   detail?: Record<string, unknown> | null
   occurredAt?: Date
+  /**
+   * Record at most ONE failure for this (org, capability) inside this many
+   * milliseconds. Anything driven by a cron needs this: a generator broken
+   * at 09:00 is still broken at 10:00, and an hourly writer would put 24
+   * identical rows a day into a clinic's own story and trip the Guardian's
+   * three-strike alarm before lunch on day one. With the window set, a
+   * persistent break reads as one strike per window — so `FAILURE_ALARM_COUNT`
+   * measures DAYS of a broken thing rather than hours.
+   *
+   * Returns false when suppressed, exactly as it does when the write fails;
+   * no caller has anything different to do in the two cases.
+   */
+  onceWithin?: number
 }): Promise<boolean> {
+  const { onceWithin, ...rest } = input
+  if (onceWithin && onceWithin > 0) {
+    try {
+      const since = new Date((input.occurredAt ?? new Date()).getTime() - onceWithin)
+      const [existing] = await db
+        .select({ id: schema.actionLedger.id })
+        .from(schema.actionLedger)
+        .where(
+          and(
+            eq(schema.actionLedger.organizationId, input.organizationId),
+            eq(schema.actionLedger.capability, input.capability),
+            gte(schema.actionLedger.occurredAt, since),
+            sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'`,
+          ),
+        )
+        .limit(1)
+      if (existing) return false
+    } catch (e) {
+      // An unreadable ledger must not SWALLOW the failure — the whole point
+      // is not going blind. Fall through and record it; a duplicate row is
+      // far cheaper than a silent break.
+      console.error('[action-ledger] failure de-dup read failed, recording anyway:', e)
+    }
+  }
   return recordAction({
-    ...input,
+    ...rest,
     detail: { ...(input.detail ?? {}), failure: true },
   })
 }

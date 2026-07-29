@@ -662,9 +662,28 @@ sitemap/robots/OG.
    something untrue about their own settings is worse than saying nothing.
    NOT seeded in the demo on purpose: the demo org is excluded from the
    sweep, and the audience lock ships closed, so seeding one would
-   demonstrate a surface no real clinic can currently reach. Remaining: proposal-engine
-   observability, then the shared brain (cross-clinic patterns → per-clinic
-   defaults), then the phase-audit gate. Phase 5+ new limbs proposal-first.
+   demonstrate a surface no real clinic can currently reach. (4) PROPOSAL-ENGINE
+   OBSERVABILITY — slice 1 shipped `recordFailure` and the Guardian's
+   three-strikes-is-`blocked` rule and then NOTHING called it, so that whole
+   branch was dead in production; the generator driver now records a break
+   into the clinic's own ledger under the capability that broke
+   (`STEP_FAILURE`), with the org-level "engine never got started" case under
+   a new registered `proposal_engine` capability (auto-by-default, not
+   grantable — it is how every ask-first job reaches them, not a job to hand
+   over). The load-bearing part is `recordFailure`'s `onceWithin` window: the
+   cron ticks HOURLY, so undeduped one stuck generator writes 24 rows a day
+   into a clinic's story and trips the alarm before lunch on day one — at one
+   strike per day, `FAILURE_ALARM_COUNT` means DAYS of a broken thing. Our own
+   bookkeeping steps (reconcile, sweep) map to `null`: their failure is real
+   and goes in `errors` for the platform, but it is not a sentence a clinic's
+   story should carry. An unreadable ledger records ANYWAY (a duplicate row is
+   cheaper than a swallowed break). Also fixed here: `openProposals` had been
+   collected per clinic since slice 1, cost a query every sweep, and was read
+   by nothing while its own comment claimed it coloured the recommendation —
+   it now appends the `PILEUP_COUNT` clause to findings that actually reach
+   the owner, and still never changes the state (a pile-up is a fact about the
+   person, not the machine). Remaining: the shared brain (cross-clinic
+   patterns → per-clinic defaults), then the phase-audit gate. Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live

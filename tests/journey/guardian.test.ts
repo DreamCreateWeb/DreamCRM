@@ -10,6 +10,7 @@ import {
   ENGINE_STATE_RANK,
   FAILURE_ALARM_COUNT,
   NEW_CLINIC_GRACE_DAYS,
+  PILEUP_COUNT,
   RE_ALERT_DAYS,
   STALL_MIN_BASELINE,
   type EngineSignals,
@@ -324,5 +325,57 @@ describe('clinicNote — the same finding, said TO the practice', () => {
       const s = sig({ remindersOn: false, seated30: 3, seatedPrev30: 12 })
       if (clinicActionable(state, s)) expect(clinicNote(state, s)).toBeTruthy()
     }
+  })
+})
+
+/**
+ * THE PILE-UP (Phase 4 slice 4). `openProposals` was collected per clinic
+ * from slice 1 and read by nothing, while its own comment claimed it
+ * coloured the recommendation — a query paid for on every sweep that bought
+ * nothing. It now does what it always said it did.
+ */
+describe('assessEngine — a pile-up colours the advice, never the verdict', () => {
+  const piled = { openProposals: PILEUP_COUNT }
+
+  it('never changes the state — the machine is fine; the person went quiet', () => {
+    expect(assessEngine(sig({ ...piled })).state).toBe('healthy')
+    expect(assessEngine(sig({ ...piled, actions7: 0, actionsPrev7: 30 })).state).toBe('quiet')
+    expect(assessEngine(sig({ ...piled, seated30: 3, seatedPrev30: 12 })).state).toBe('stalled')
+  })
+
+  it('adds the clause to a finding the owner will actually read', () => {
+    const v = assessEngine(sig({ ...piled, seated30: 3, seatedPrev30: 12 }))
+    expect(v.recommendation).toContain(String(PILEUP_COUNT))
+    expect(v.recommendation).toMatch(/sitting unanswered/i)
+  })
+
+  it('says nothing on a healthy or quiet clinic — that sentence would never be read', () => {
+    expect(assessEngine(sig({ ...piled })).recommendation).toBeNull()
+    expect(assessEngine(sig({ ...piled, actions7: 0, actionsPrev7: 30 })).recommendation).toBeNull()
+  })
+
+  it('a normal handful of open cards is a working inbox, not a warning', () => {
+    const v = assessEngine(sig({ openProposals: PILEUP_COUNT - 1, seated30: 3, seatedPrev30: 12 }))
+    expect(v.recommendation).not.toMatch(/sitting unanswered/i)
+  })
+
+  it('reaches every state that lands on the list', () => {
+    for (const over of [
+      { actions7: 0, actionsPrev7: 0 }, // silent
+      { remindersOn: false, reviewRequestsOn: false }, // blocked
+      { failures7: 9 }, // blocked by failures
+      { seated30: 3, seatedPrev30: 12 }, // stalled
+    ]) {
+      const v = assessEngine(sig({ ...over, ...piled }))
+      expect(needsAttention(v.state)).toBe(true)
+      expect(v.recommendation).toMatch(/sitting unanswered/i)
+    }
+  })
+
+  it('keeps the guardian voice — no exclaiming, no blaming the practice', () => {
+    const v = assessEngine(sig({ ...piled, seated30: 3, seatedPrev30: 12 }))
+    const text = `${v.headline} ${v.why} ${v.recommendation}`
+    expect(text).not.toContain('!')
+    expect(text).not.toMatch(/\bignoring\b|\bneglect|\blazy\b|\bshould have\b/i)
   })
 })
