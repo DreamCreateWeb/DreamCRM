@@ -46,7 +46,7 @@ describe('the send-hour aggregate as Postgres parses it', () => {
     expect(q.sql).toMatch(/at time zone coalesce\(cp\.timezone/i)
     // A clinic with no stored zone must not drop out of the aggregate — the
     // LEFT JOIN plus a coalesce'd fallback keeps it counted.
-    expect(q.sql).toMatch(/left join .*clinic_profile/is)
+    expect(q.sql.replace(/\n/g, ' ')).toMatch(/left join .*clinic_profile/i)
   })
 
   it('separates the two event types — one query cannot read them as one', () => {

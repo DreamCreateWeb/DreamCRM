@@ -12,6 +12,7 @@ import {
   type EngineVerdict,
 } from '@/lib/guardian'
 import { readEngineSwitches } from '@/lib/services/engine-switches'
+import { getGuardianAudience } from '@/lib/services/platform-config'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { countOpenProposals } from '@/lib/services/proposals'
 
@@ -205,8 +206,13 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
  * strip — neither of which shows the sentence. A report that does not reach
  * the reader is not a report.
  *
- * Two properties make it safe to render:
+ * Three properties make it safe to render:
  *
+ *  - It RESPECTS THE LOCK, on the way out as well as on the way in. The
+ *    owner's control says "Keep it to me instead", and without this check
+ *    that button would be a lie for a week: notes written while the lock was
+ *    open would keep appearing on clinic Overviews after it closed. A switch
+ *    that does not stop the thing it names is worse than no switch.
  *  - It EXPIRES on its own. Only notes inside the re-alert window count, so
  *    a problem the guardian stops writing about fades without anything
  *    having to remember to clear it.
@@ -232,6 +238,8 @@ export async function getActiveGuardianNote(
   now: Date = new Date(),
 ): Promise<ActiveGuardianNote | null> {
   try {
+    // The lock governs the READ too, not only the write.
+    if ((await getGuardianAudience()) !== 'clinic') return null
     const since = new Date(now.getTime() - RE_ALERT_DAYS * DAY_MS)
     const [row] = await db
       .select({

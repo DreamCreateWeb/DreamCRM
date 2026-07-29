@@ -236,7 +236,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
  *  inbox on its own — mid-morning through early evening. The same daylight
  *  INTENT as the retention automations, which aim their sends at
  *  SEND_HOUR_LOCAL (10:00 clinic-local); this is a hard WINDOW, not a
- *  target — automationSendAt falls back to "now" when 10:00 has passed, so
+ *  target — automationSendAt falls back to "now" when that hour has passed, so
  *  it bounds nothing on its own (round-3 audit corrected the earlier claim
  *  that this rule already existed there). */
 export const SEND_WINDOW_START_HOUR = 8

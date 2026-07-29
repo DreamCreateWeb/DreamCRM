@@ -16,7 +16,12 @@ const state = vi.hoisted(() => ({
   switches: { remindersOn: true, reviewRequestsOn: true },
   switchReads: 0,
   fail: false,
+  audience: 'clinic' as 'platform' | 'clinic',
   captured: { since: null as Date | null, capability: null as unknown },
+}))
+
+vi.mock('@/lib/services/platform-config', () => ({
+  getGuardianAudience: vi.fn(async () => state.audience),
 }))
 
 vi.mock('@/lib/db', () => {
@@ -86,6 +91,7 @@ beforeEach(() => {
   state.switches = { remindersOn: true, reviewRequestsOn: true }
   state.switchReads = 0
   state.fail = false
+  state.audience = 'clinic'
   state.captured = { since: null, capability: null }
 })
 
@@ -137,6 +143,17 @@ describe('getActiveGuardianNote', () => {
       expect(await getActiveGuardianNote('org_1', NOW)).toBeNull()
     }
     state.rows = [{ summary: 's', detail: null, occurredAt: NOW }]
+    expect(await getActiveGuardianNote('org_1', NOW)).toBeNull()
+  })
+
+  it('the LOCK governs the read too — closing it stops notes appearing, immediately', async () => {
+    // The owner's control says "Keep it to me instead". Without this check
+    // that button would be a lie for a week: notes written while the lock
+    // was open would keep showing on clinic Overviews after it closed.
+    state.rows = [note('stalled')]
+    expect(await getActiveGuardianNote('org_1', NOW)).not.toBeNull()
+
+    state.audience = 'platform'
     expect(await getActiveGuardianNote('org_1', NOW)).toBeNull()
   })
 

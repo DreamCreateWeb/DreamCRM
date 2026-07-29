@@ -660,9 +660,12 @@ sitemap/robots/OG.
    `getActiveGuardianNote` + the amber heads-up card on the clinic Overview
    — without that the sentence would be invisible (the ledger's only clinic
    surfaces are the standup's count chips and the autonomous strip), i.e. a
-   report nobody reads. It self-expires with the re-alert window and is
-   RE-VERIFIED against live switches at render, because telling a practice
-   something untrue about their own settings is worse than saying nothing.
+   report nobody reads. It self-expires with the re-alert window, is
+   RE-VERIFIED against live switches at render (telling a practice something
+   untrue about their own settings is worse than saying nothing), and
+   RE-CHECKS THE LOCK on the read — without that, "Keep it to me instead"
+   would be a lie for a week, since notes written while open would keep
+   rendering after it closed.
    NOT seeded in the demo on purpose: the demo org is excluded from the
    sweep, and the audience lock ships closed, so seeding one would
    demonstrate a surface no real clinic can currently reach. (4) PROPOSAL-ENGINE
