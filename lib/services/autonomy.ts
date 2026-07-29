@@ -152,18 +152,25 @@ export async function setCapabilityTrust(
   // stamp so a later re-grant starts its own clock. The nested map is merged
   // against the row's own current value inside the statement, so a sibling
   // capability's stamp can't be clobbered either.
+  // EVERY bound parameter below carries an explicit ::text / ::jsonb cast.
+  // Drizzle binds interpolated values as untyped parameters, and Postgres
+  // cannot resolve an untyped one inside jsonb_build_object (VARIADIC "any")
+  // or against the overloaded jsonb `-` operator: without the casts this
+  // statement fails with 42P18 and NO clinic can grant or revoke anything
+  // (round-3 audit — the round-2 fix's own regression, invisible to a test
+  // suite that mocks `sql` away).
   const levelPatch = JSON.stringify({ [capability]: level })
   const col = schema.clinicProfile.autonomy
   const grantedAt =
     level === 'auto'
-      ? sql`coalesce(${col} -> ${GRANTED_AT_KEY}, '{}'::jsonb) || ${JSON.stringify({
+      ? sql`coalesce(${col} -> ${GRANTED_AT_KEY}::text, '{}'::jsonb) || ${JSON.stringify({
           [capability]: new Date().toISOString(),
         })}::jsonb`
-      : sql`coalesce(${col} -> ${GRANTED_AT_KEY}, '{}'::jsonb) - ${capability}`
+      : sql`coalesce(${col} -> ${GRANTED_AT_KEY}::text, '{}'::jsonb) - ${capability}::text`
   await db
     .update(schema.clinicProfile)
     .set({
-      autonomy: sql`coalesce(${col}, '{}'::jsonb) || ${levelPatch}::jsonb || jsonb_build_object(${GRANTED_AT_KEY}, ${grantedAt})`,
+      autonomy: sql`coalesce(${col}, '{}'::jsonb) || ${levelPatch}::jsonb || jsonb_build_object(${GRANTED_AT_KEY}::text, ${grantedAt})`,
     })
     .where(eq(schema.clinicProfile.organizationId, organizationId))
 
