@@ -595,7 +595,10 @@ sitemap/robots/OG.
    so the demo shows the granted card, the take-back chip and the "what I
    handled on my own" tell (whose entry anchors to the seeded social post's
    own publish instant — `seedDemoSocialPosts` re-dates those rows on every
-   resync so the demo never ages into staleness); everything else ask-first, so the review card
+   resync (deploy/boot), which normally keeps it ~4 days old; if a demo org
+   goes long enough without a resync to fall outside the tell's 7-day window
+   the entry is skipped by design and the strip honestly reports a quiet
+   week); everything else ask-first, so the review card
    still shows the earned-trust nudge and the never-pre-ticked consent box.
    `countOpenProposals` excludes demo orgs from the granted-subtraction for
    the same reason it excludes billing-walled ones: nothing will ever

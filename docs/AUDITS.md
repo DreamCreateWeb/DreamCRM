@@ -345,6 +345,28 @@ fix, which is a good sign the diagnosis is right:
   sibling comment 88 lines down had been corrected and this one missed),
   plus the two above.
 
+#### Verification round 4 (2026-07-29) — NOT clean, but the LAW lens came back EMPTY
+
+Five findings, ONE code defect and three stale docs — and the first empty
+lens of the audit. The findings have moved fully off the ladder's mechanics
+and onto the demo seeder and comments.
+
+- **The re-date moved four date columns and left two frozen.** Round 3's
+  self-heal re-stamped `scheduledAt`/`publishedAt`/`createdAt` but not
+  `eventStartAt`/`eventEndAt`, so the demo's Google Business Event post ended
+  up scheduled to publish *after* the free event it advertises. Two lenses
+  found it independently (resilience noting the working tree already carried
+  the identical fix). Every seeded date moves together now, and the re-date
+  branch — previously untested — is pinned by a test verified to fail against
+  the unfixed code.
+- **Three stale docs**, all in the round-3 commit: the seeder's own header
+  still said "skip when present" (the behavior that commit deleted), the
+  demo-voice comment still said the post "freezes" (its sibling 90 lines up
+  had been corrected), and CLAUDE.md's "never ages into staleness" overstated
+  a design that deliberately keeps an age-out backstop. The docs now describe
+  the real posture: re-dated on every resync (deploy/boot), with the strip
+  honestly reporting a quiet week if a demo org goes long enough without one.
+
 #### Round-by-round
 
 v2 gate throughout: four Opus lenses (claims · law · resilience · depth) →

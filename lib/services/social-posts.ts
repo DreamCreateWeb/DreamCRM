@@ -781,8 +781,12 @@ const DEMO_SOCIAL_POSTS: DemoPostSeed[] = [
  * Seed (or self-heal) the demo clinic's social posts so the Social Posts page +
  * content calendar showcase populated history (a published cross-post to
  * GBP+IG+FB with an image, a published GBP Offer, a scheduled social cross-post,
- * a scheduled GBP Event). Idempotent (insert-by synthetic id, skip when
- * present). Scoped to the isDemo org by the caller; behind a real-patient guard
+ * a scheduled GBP Event). Idempotent by synthetic id, and SELF-HEALING: an
+ * existing seeded row has its dates re-stamped relative to `now` rather than
+ * being skipped, so a standing demo org does not age into staleness (it used
+ * to — "published 4 days ago" quietly became three weeks, and every surface
+ * reading recency drifted with it). Scoped to the isDemo org by the caller;
+ * behind a real-patient guard
  * (mirrors seedDemoZernio). NEVER networks. The Book CTA URL is the clinic's
  * real /book link.
  */
@@ -831,7 +835,11 @@ export async function seedDemoSocialPosts(organizationId: string): Promise<void>
     if (existing) {
       await db
         .update(schema.socialPost)
-        .set({ scheduledAt, publishedAt, createdAt, updatedAt: createdAt })
+        // EVERY seeded date moves together, or the demo drifts internally:
+        // re-dating the schedule while leaving eventStartAt frozen queued
+        // the demo's Google Business Event announcement to publish a week
+        // AFTER the event it advertises (verification round 4).
+        .set({ scheduledAt, publishedAt, createdAt, updatedAt: createdAt, eventStartAt, eventEndAt })
         .where(eq(schema.socialPost.id, postId))
       await db
         .update(schema.socialPostTarget)

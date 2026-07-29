@@ -534,4 +534,35 @@ describe('seedDemoSocialPosts', () => {
     expect(store.posts).toHaveLength(posts)
     expect(store.targets).toHaveLength(targets)
   })
+
+  it('SELF-HEALS the dates on a later run — a standing demo org must not age into staleness', async () => {
+    await seedDemoSocialPosts('org_demo')
+    // Age every seeded row by three weeks, the way a standing demo org does.
+    const threeWeeks = 21 * 24 * 60 * 60 * 1000
+    for (const p of store.posts) {
+      for (const k of ['publishedAt', 'scheduledAt', 'createdAt', 'eventStartAt', 'eventEndAt']) {
+        if (p[k] instanceof Date) p[k] = new Date((p[k] as Date).getTime() - threeWeeks)
+      }
+    }
+    for (const t of store.targets) {
+      if (t.publishedAt instanceof Date) t.publishedAt = new Date((t.publishedAt as Date).getTime() - threeWeeks)
+    }
+
+    await seedDemoSocialPosts('org_demo')
+
+    const recent = Date.now() - 8 * 24 * 60 * 60 * 1000
+    const published = store.posts.find((p) => p.status === 'published' && p.ctaType === 'BOOK')!
+    expect((published.publishedAt as Date).getTime()).toBeGreaterThan(recent)
+    // The target's copy of the date moves with it — /growth/social reads both.
+    for (const t of store.targets.filter((t) => t.socialPostId === published.id)) {
+      expect((t.publishedAt as Date).getTime()).toBeGreaterThan(recent)
+    }
+    // EVERY date moves together (verification round 4): re-dating the
+    // schedule while leaving the event window frozen queued the demo's GBP
+    // Event announcement to publish after the event it advertises.
+    const event = store.posts.find((p) => p.postType === 'event')!
+    expect((event.eventStartAt as Date).getTime()).toBeGreaterThan(
+      (event.scheduledAt as Date).getTime(),
+    )
+  })
 })

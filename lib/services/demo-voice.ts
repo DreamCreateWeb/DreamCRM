@@ -155,13 +155,15 @@ async function seedLedger(
   // would contradict the reviews page.
   //
   // ANCHORED BY IDENTITY *AND BY DATE* to the post that actually exists —
-  // DEMO_SOCIAL_POSTS' demo_spost_1. Its row is seeded insert-once, so its
-  // publishedAt freezes at the demo org's creation and drifts away from any
-  // date we hard-code (verification round 2: the entry claimed "this week"
-  // for a post /growth/social showed as weeks old). Read the real instant,
-  // narrate at it, and when the post has aged out of the strip's 7-day
-  // window seed nothing — a quiet strip is true; a fresh-sounding lie is
-  // not. The matching grant is seeded by resetAutonomy below.
+  // DEMO_SOCIAL_POSTS' demo_spost_1. Never hard-code the instant: verification
+  // round 2 caught this entry claiming "this week" for a post /growth/social
+  // showed as weeks old. Read the post's REAL publishedAt and narrate at it,
+  // so the two surfaces agree by construction. The social seeder re-dates
+  // that row on every resync (round 3's root-cause fix), so it normally sits
+  // 4 days back; the guard below is the backstop for a demo org that has gone
+  // long enough without a resync to fall outside the strip's 7-day window —
+  // then we seed nothing, because a quiet strip is true and a fresh-sounding
+  // lie is not. The matching grant is seeded by resetAutonomy below.
   const [seededPost] = await db
     .select({ publishedAt: schema.socialPost.publishedAt })
     .from(schema.socialPost)
