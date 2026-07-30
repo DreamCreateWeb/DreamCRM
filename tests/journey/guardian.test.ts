@@ -39,6 +39,7 @@ const HEALTHY: EngineSignals = {
   actions7: 40,
   actionsPrev7: 38,
   failures7: 0,
+  engineFailures7: 0,
   remindersOn: true,
   reviewRequestsOn: true,
   seated30: 9,
@@ -758,5 +759,32 @@ describe('problemKey — what "the same problem" means to the cadence (round-11 
     // so rollout alerts once rather than going quiet.
     expect(baseState('blocked')).toBe('blocked')
     expect(shouldAlert({ state: 'blocked', alertedAt: new Date('2026-07-28T14:00:00Z') }, 'blocked:switches', new Date('2026-07-29T14:00:00Z'))).toBe(true)
+  })
+})
+
+
+describe('the clinic-voiced hedge counts ENGINE breaks only (round-15 audit)', () => {
+  it('promises to fix things only when something of OURS is actually broken', () => {
+    const s1 = sig({ seated30: 3, seatedPrev30: 20, failures7: 2, engineFailures7: 2 })
+    expect(clinicNote('stalled', s1)).toContain('let me get those working')
+  })
+
+  it('a week of pure HAND-BACKS gets no such promise', () => {
+    // A hand-back is the machine deliberately STOPPING after two tries and
+    // putting the card back in front of them — it is in their Approval Inbox
+    // right now. Promising to "get those working" contradicts the machine's
+    // own ledger sentence about that same card. Round 11 made this split in
+    // the standup; the Guardian's own sentence was never swept.
+    const s2 = sig({ seated30: 3, seatedPrev30: 20, failures7: 2, engineFailures7: 0 })
+    const note = clinicNote('stalled', s2)
+    expect(note).not.toContain('let me get those working')
+    expect(note).toContain('Nothing is broken on my side')
+  })
+
+  it('the OWNER’s verdict still counts both — a card handing back daily IS evidence', () => {
+    // The split is about the sentence, not the signal: repeated hand-backs
+    // really do mean something is wired wrong, and that is the owner's call.
+    const v = assessEngine(sig({ failures7: FAILURE_ALARM_COUNT, engineFailures7: 0 }))
+    expect(v.state).toBe('blocked')
   })
 })

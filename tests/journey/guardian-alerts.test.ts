@@ -148,6 +148,7 @@ const SIGNALS = {
   actions7: 10,
   actionsPrev7: 10,
   failures7: 0,
+  engineFailures7: 0,
   remindersOn: true,
   reviewRequestsOn: true,
   seated30: 3,
@@ -208,7 +209,7 @@ function report(
 
 /** The two shapes of 'blocked': one the clinic caused, one we did. */
 const switchedOff = { remindersOn: false, reviewRequestsOn: false }
-const keepsFailing = { failures7: 5 }
+const keepsFailing = { failures7: 5, engineFailures7: 5 }
 
 beforeEach(() => {
   vi.clearAllMocks()

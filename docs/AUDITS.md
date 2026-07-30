@@ -1920,3 +1920,53 @@ depth, not correctness.
   predicate that makes the two arms comparable can. If restricting to that
   population leaves nothing to compare, the honest answer is that the thing
   cannot be learned yet — not a wider sample.
+
+**Attempt 10 (round 15) — INVALID, then salvaged by main-loop verification.**
+The skeptic agent died on its structured-output retry cap, so the script
+refused to tally (correctly: a round with no skeptic is a biased round, and
+per the gate an invalid round does not consume one). It left unverified
+candidates, and the main loop is the decisive vote anyway — two verified
+against the code and were fixed; the rest did not survive.
+
+- **The audience lock's unreadable branch claimed a guarantee it cannot
+  make, and disabled the fail-safe.** Round 13 replaced "Practices are told
+  nothing" with "Nothing goes to practices while I can't tell" — which is
+  WORSE: it upgrades the claim from a setting's value to a statement about
+  SYSTEM BEHAVIOUR, made from ONE page-local read. The two paths that
+  actually speak to practices (the daily cron; each clinic Overview's own
+  note read) read the config themselves and are entirely unaffected, so with
+  the lock stored open the sweep keeps writing notes and clinics keep reading
+  them while the page asserts the opposite. Worse still, the same branch
+  disabled the button — and because `audience` floors to 'platform' there,
+  the label was "Let practices hear it too", so the ONE action that could
+  stop the machine talking to customers was neither shown nor clickable at
+  exactly the moment the page could not tell whether the lock was open.
+  Now: the sentence is about this page's ignorance only, and an unknown state
+  offers the safe direction (closing, idempotent) and nothing else.
+- **The Guardian's clinic-voiced hedge counted autonomy hand-backs** — the
+  exact sibling round 11 fixed in the standup and never carried here. A
+  stalled practice whose only trailing-week failures were hand-backs read the
+  machine promising "let me get those working… I'll keep you posted" about
+  cards it had explicitly returned to them and which sit in their Approval
+  Inbox right now. It fires TODAY, locked, through the panel's dry-run block:
+  the sentence the owner uses to decide whether to open the lock was already
+  the wrong one. Fixed with `engineFailures7` — one more filtered aggregate
+  in the SAME grouped query, no extra read — while the OWNER's verdict keeps
+  counting both, because a card handing back daily really is evidence
+  something is wired wrong.
+
+**And the coverage hole underneath both.** `grep` for the audience control in
+tests returned NOTHING: the phase's single most consequential control, the
+one that decides whether the machine addresses customers, had zero executed
+coverage — which is how two rounds of copy fixes landed on it by inspection
+alone. It has a test file now, pinning that it never states as fact what it
+only inferred from a failed read, and that an unknown state offers only the
+safe direction.
+
+**Standing lesson added:**
+- *A page-local read failure licenses a claim about THAT PAGE, never about
+  the system.* Other readers do their own reads; the machine's behaviour is
+  not downstream of this render.
+- *When the state is unknown, offer the safe action — do not offer none.*
+  Disabling a control at the moment it is most needed is a failure mode of
+  its own, and it hid behind a floored value that made the label wrong too.

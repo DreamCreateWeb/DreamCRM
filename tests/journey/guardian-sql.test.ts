@@ -53,10 +53,25 @@ describe('the guardian sweep as Postgres parses it', () => {
   })
 
   it('binds the window as real parameters — a literal-interpolated date is both wrong and injectable', () => {
-    expect(q.params).toHaveLength(2)
-    for (const p of q.params) expect(p instanceof Date || typeof p === 'string').toBe(true)
+    // Two window bounds plus the failure KIND the engine-only aggregate
+    // narrows on (round-15) — all bound, none interpolated.
+    const window = q.params.filter((p) => p !== 'engine')
+    expect(window).toHaveLength(2)
+    for (const p of q.params) {
+      expect(p instanceof Date || typeof p === 'string').toBe(true)
+    }
+    expect(q.params).toContain('engine')
     expect(q.sql).toMatch(/\$1/)
     expect(q.sql).toMatch(/\$2/)
+  })
+
+  it('carries an ENGINE-ONLY failure aggregate beside the all-failures one', () => {
+    // The owner's verdict counts both producers; the CLINIC-voiced hedge
+    // must not, because promising to "get those working" is false about a
+    // card the machine deliberately handed back. Same grouped query, one
+    // more filtered aggregate — never a second read.
+    expect(q.sql).toContain("'failureKind'")
+    expect((q.sql.match(/count\(distinct/g) ?? []).length).toBeGreaterThanOrEqual(2)
   })
 
   it('JOINS the table its own day expression names — the join has to be here or Postgres says 42P01', () => {

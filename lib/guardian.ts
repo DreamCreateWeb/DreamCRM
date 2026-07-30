@@ -58,6 +58,20 @@ export interface EngineSignals {
    *  Days, not rows: a burst of hand-backs in one instant is one bad day,
    *  and FAILURE_ALARM_COUNT is documented to mean days of a broken thing. */
   failures7: number
+  /**
+   * The same count, ENGINE breaks only — no autonomy hand-backs
+   * (round-15 audit).
+   *
+   * The OWNER's verdict is right to count both: a card handing back day
+   * after day is real evidence something is wired wrong. But the
+   * CLINIC-voiced hedge built from it promises "let me get those working…
+   * I'll keep you posted", and a hand-back is the machine having
+   * deliberately STOPPED and put that card back in front of them — so the
+   * promise contradicts the machine's own ledger sentence about a card
+   * sitting in their inbox right now. Round 11 made this split in the
+   * standup and it was never carried here.
+   */
+  engineFailures7: number
   /** The two engines whose absence explains most silence. */
   remindersOn: boolean
   reviewRequestsOn: boolean
@@ -681,7 +695,10 @@ export function clinicNote(state: EngineState, s: EngineSignals): string | null 
   // practice it is fine while its own failure rows sit in that practice's
   // ledger is the worst version of the thing this phase exists to prevent.
   const opening = `Fewer new patients came in this past month than the month before (${s.seated30} against ${s.seatedPrev30}).`
-  if (s.failures7 > 0) {
+  // ENGINE breaks only — see `engineFailures7`. A hand-back is not something
+  // to promise to "get working": the machine has already given up on it and
+  // handed it back, and it is in their inbox right now.
+  if (s.engineFailures7 > 0) {
     return `${opening} Some of my own jobs also hit trouble this week, so let me get those working before we read too much into the numbers. I’ll keep you posted.`
   }
   return `${opening} Nothing is broken on my side — everything is still running. It’s worth a look at where new patients usually find you, and whether anything changed there.`

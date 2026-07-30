@@ -17,7 +17,12 @@ import { readEngineSwitches } from '@/lib/services/engine-switches'
 import { getGuardianAudience } from '@/lib/services/platform-config'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { countOpenProposals } from '@/lib/services/proposals'
-import { workOnly, failureOnly, countFailuresSince } from '@/lib/services/action-ledger'
+import {
+  workOnly,
+  failureOnly,
+  ownFailureMarker,
+  countFailuresSince,
+} from '@/lib/services/action-ledger'
 import { getCapability } from '@/lib/autonomy'
 import { resolveTrialState } from '@/lib/trial'
 
@@ -238,6 +243,22 @@ export const failureCountExpr = () =>
   sql<number>`count(distinct ${clinicLocalDay()}) filter (where ${failureOnly()})::int`
 
 /**
+ * The same count, ENGINE breaks only (round-15 audit).
+ *
+ * The owner's verdict is right to count both producers — a card handing back
+ * day after day IS evidence something is wired wrong. But the CLINIC-facing
+ * sentence built from it says "some of my own jobs also hit trouble this
+ * week, so let me get those working… I'll keep you posted", and a hand-back
+ * is the machine having deliberately STOPPED and put that card back in front
+ * of them. Promising to get it working contradicts the machine's own ledger
+ * sentence ("it's back with you") about a card sitting in their inbox right
+ * now. Round 11 made exactly this split in the standup and never carried it
+ * here. Same grouped query, one more filtered aggregate — no extra read.
+ */
+export const engineFailureCountExpr = () =>
+  sql<number>`count(distinct ${clinicLocalDay()}) filter (where ${ownFailureMarker('engine')})::int`
+
+/**
  * Ledger counts per org for a window, split into WORK and FAILURES in one
  * pass. Grouped rather than per-clinic so the sweep stays one query as the
  * platform grows. Work excludes settings changes, hand-backs and failures
@@ -271,6 +292,7 @@ export function sweepCountsQuery(
       organizationId: schema.actionLedger.organizationId,
       work: workCountExpr(),
       failures: failureCountExpr(),
+      engineFailures: engineFailureCountExpr(),
     })
     .from(schema.actionLedger)
     // CLINIC-LOCAL DAYS, IN THE RIGHT DIRECTION (round-7 audit fixed round
@@ -304,11 +326,15 @@ export function sweepCountsQuery(
 async function ledgerCountsByOrg(
   since: Date,
   until: Date,
-): Promise<Map<string, { work: number; failures: number }>> {
+): Promise<Map<string, { work: number; failures: number; engineFailures: number }>> {
   const rows = await sweepCountsQuery(db as never, since, until)
-  const out = new Map<string, { work: number; failures: number }>()
+  const out = new Map<string, { work: number; failures: number; engineFailures: number }>()
   for (const r of rows) {
-    out.set(r.organizationId, { work: Number(r.work ?? 0), failures: Number(r.failures ?? 0) })
+    out.set(r.organizationId, {
+      work: Number(r.work ?? 0),
+      failures: Number(r.failures ?? 0),
+      engineFailures: Number(r.engineFailures ?? 0),
+    })
   }
   return out
 }
@@ -325,7 +351,10 @@ async function assessClinic(
     prevMonthStart: Date
     now: Date
   },
-  ledger: { this7: Map<string, { work: number; failures: number }>; prev7: Map<string, { work: number; failures: number }> },
+  ledger: {
+    this7: Map<string, { work: number; failures: number; engineFailures: number }>
+    prev7: Map<string, { work: number; failures: number; engineFailures: number }>
+  },
 ): Promise<ClinicEngineReport> {
   const [switches, seated30, seatedPrev30, openProposals] = await Promise.all([
     readEngineSwitches(org.id),
@@ -341,11 +370,11 @@ async function assessClinic(
     // claim about whether a PERSON has stopped opening their inbox.
     countOpenProposals(org.id, { excludeHandedBack: true }).catch(() => 0),
   ])
-  const here = ledger.this7.get(org.id) ?? { work: 0, failures: 0 }
+  const here = ledger.this7.get(org.id) ?? { work: 0, failures: 0, engineFailures: 0 }
   // Only when there is something to explain — no query on a healthy clinic.
   const failureCauses =
     here.failures > 0 ? await recentFailureSummaries(org.id, windows.weekStart) : []
-  const prev = ledger.prev7.get(org.id) ?? { work: 0, failures: 0 }
+  const prev = ledger.prev7.get(org.id) ?? { work: 0, failures: 0, engineFailures: 0 }
   const signals: EngineSignals = {
     ageDays: org.createdAt
       ? Math.max(0, Math.floor((windows.now.getTime() - org.createdAt.getTime()) / DAY_MS))
@@ -355,6 +384,7 @@ async function assessClinic(
     actions7: here.work,
     actionsPrev7: prev.work,
     failures7: here.failures,
+    engineFailures7: here.engineFailures,
     remindersOn: switches.remindersOn,
     reviewRequestsOn: switches.reviewRequestsOn,
     // A stall needs BOTH months. Unknown either side → present them as
@@ -549,6 +579,7 @@ const EMPTY_SIGNALS: EngineSignals = {
   actions7: 1,
   actionsPrev7: 1,
   failures7: 0,
+  engineFailures7: 0,
   remindersOn: true,
   reviewRequestsOn: true,
   seated30: 0,
@@ -646,17 +677,27 @@ export async function getActiveGuardianNote(
     if (seated30 === null || seatedPrev30 === null) {
       return { summary: row.summary, state, occurredAt: row.occurredAt }
     }
+    // ENGINE breaks only (round-15 audit) — the clinic-voiced hedge promises
+    // to get things working, which is false about a card the machine
+    // deliberately handed back to them. The standup took this same narrowing
+    // in round 11 and the Guardian's own sentence was never swept.
     const failures7 = await countFailuresSince(
       organizationId,
       new Date(now.getTime() - 7 * DAY_MS),
-      { until: now },
+      { until: now, kind: 'engine' },
     ).catch((e) => {
       // Unknown reads as "nothing failed" — which DROPS the hedge rather
       // than asserting one. Never a claim we cannot stand behind.
       console.error('[guardian] live failure count for the stall note failed', e)
       return 0
     })
-    const live = clinicNote('stalled', { ...EMPTY_SIGNALS, failures7, seated30, seatedPrev30 })
+    const live = clinicNote('stalled', {
+      ...EMPTY_SIGNALS,
+      failures7,
+      engineFailures7: failures7,
+      seated30,
+      seatedPrev30,
+    })
     return { summary: live ?? row.summary, state, occurredAt: row.occurredAt }
   } catch (e) {
     // A note the machine can't read is a note it doesn't show. Never a
