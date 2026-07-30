@@ -42,10 +42,11 @@ export default function SharedBrainCard({ brain }: { brain: SharedBrain }) {
             </div>
             <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{brain.sendHourWhy}</p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              The automatic recall, win-back, birthday, benefits and new-patient-welcome
-              campaigns all aim at this hour, in each clinic&rsquo;s own time zone. Reminders and
-              review asks keep their own timing &mdash; they are tied to an appointment, not to a
-              good moment to read email. Patterns only &mdash; no patient data leaves a practice.
+              The four automatic retention campaigns &mdash; win-back, birthday, benefits and
+              new-patient welcome &mdash; aim at this hour, in each clinic&rsquo;s own time zone.
+              Recall campaigns send when they are approved, and reminders and review asks stay
+              tied to the appointment rather than to a good moment for reading email. Patterns
+              only &mdash; no patient data leaves a practice.
             </p>
             {/* WHEN it last looked (round-1 in-phase gap). The weekly cron
                 stamped learnedAt and nothing ever read it, so a learning

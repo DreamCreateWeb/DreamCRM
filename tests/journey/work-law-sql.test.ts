@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { and, eq, gte, sql } from 'drizzle-orm'
 import * as schema from '@/lib/db/schema'
-import { workOnly, failureOnly, isWorkEntry } from '@/lib/services/action-ledger'
+import { workOnly, failureOnly, ownFailureMarker, isWorkEntry } from '@/lib/services/action-ledger'
 import { workCountExpr, failureCountExpr } from '@/lib/services/guardian'
 
 /**
@@ -81,7 +81,11 @@ describe('the failure de-dup predicate as Postgres parses it', () => {
       // The service's OWN expression, imported — round-2 audit: this test
       // used to hand-copy the predicate, so it would have gone on passing
       // after the real one drifted.
-      failureOnly(),
+      // recordFailure builds its de-dup with the NARROWER marker on purpose
+      // (a hand-back from another subsystem must not suppress a generator's
+      // strike). Verification round: this test used to render failureOnly()
+      // — a predicate no caller builds.
+      ownFailureMarker(),
     )}`,
   )
 
@@ -101,5 +105,47 @@ describe('the failure de-dup predicate as Postgres parses it', () => {
   it('reads the jsonb detail with ->>, the text operator the comparison needs', () => {
     // `->` returns jsonb; `jsonb = text` has no operator and Postgres 42883s.
     expect(q.sql).toMatch(/"detail"\s*->>\s*'failure'/)
+  })
+})
+
+/**
+ * COMPOSITION SAFETY (verification round). `failureOnly()` has a top-level
+ * OR. drizzle's `and()` wraps the whole list in one pair of parens and never
+ * parenthesizes the chunks, so an unwrapped fragment escapes its own AND and
+ * the org filter stops applying — a tenant-scoping breach that renders
+ * perfectly valid SQL and returns plausible-looking rows.
+ */
+describe('failureOnly composes safely inside and()', () => {
+  const rendered = dialect.sqlToQuery(
+    sql`select 1 from ${schema.actionLedger} where ${and(
+      eq(schema.actionLedger.organizationId, 'org_1'),
+      gte(schema.actionLedger.occurredAt, new Date('2026-07-22T00:00:00Z')),
+      failureOnly(),
+    )}`,
+  ).sql
+
+  it('parenthesizes its own OR', () => {
+    expect(failureOnly ? dialect.sqlToQuery(failureOnly() as never).sql.trim().startsWith('(') : false).toBe(true)
+  })
+
+  it('the org filter still binds — the whole predicate is one AND chain', () => {
+    // With the OR unwrapped this read `(org AND window AND failure) OR
+    // (autoFailure)`, matching every hand-back row for every organization.
+    const where = rendered.slice(rendered.indexOf('where '))
+    const orIdx = where.indexOf(' or ')
+    expect(orIdx).toBeGreaterThan(-1)
+    // Every ` or ` must sit inside a deeper paren level than the AND chain.
+    let depth = 0
+    for (let i = 0; i < where.length; i++) {
+      if (where[i] === '(') depth++
+      else if (where[i] === ')') depth--
+      else if (where.startsWith(' or ', i) && depth <= 1) {
+        throw new Error(`top-level OR escapes the AND chain:\n${where}`)
+      }
+    }
+  })
+
+  it('ownFailureMarker has no OR at all, so it is safe anywhere', () => {
+    expect(dialect.sqlToQuery(ownFailureMarker() as never).sql).not.toMatch(/ or /i)
   })
 })

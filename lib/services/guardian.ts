@@ -329,7 +329,12 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
  *    that does not stop the thing it names is worse than no switch.
  *  - It EXPIRES on its own. Only notes inside the re-alert window count, so
  *    a problem the guardian stops writing about fades without anything
- *    having to remember to clear it.
+ *    having to remember to clear it. The window is RE_ALERT_DAYS on purpose:
+ *    it is the same constant the alert cadence re-writes on, so a still-live
+ *    problem gets a fresh note exactly as the old one ages out and the card
+ *    never goes dark underneath it. (Verification round: a round-3 change
+ *    that wrote the note only on a state CHANGE broke that pairing — the
+ *    card vanished on day 8 while reminders were still off.)
  *  - It is RE-VERIFIED against live state, never trusted from the ledger.
  *    A switch flipped back on ten minutes after the nightly sweep would
  *    otherwise leave the machine insisting for days that it can't send —

@@ -67,8 +67,10 @@ export async function recordAction(input: RecordActionInput): Promise<boolean> {
  * three sentences naming the real break. Exactly the defect the reader was
  * shipped to end. Counter and reader now share this expression.
  */
-export const failureOnly = () => sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'
-  or (${schema.actionLedger.detail} ->> 'autoFailure') = 'true'`
+export const failureOnly = () => sql`(
+  (${schema.actionLedger.detail} ->> 'failure') = 'true'
+  or (${schema.actionLedger.detail} ->> 'autoFailure') = 'true'
+)`
 
 /** JUST the de-dup's own marker. `recordFailure` writes `failure`, so its
  *  once-a-day guard asks about that one specifically — a hand-back note from

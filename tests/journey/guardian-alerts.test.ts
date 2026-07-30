@@ -441,40 +441,42 @@ describe('the owner’s email names the actual break', () => {
 })
 
 /**
- * ROUND-3 IN-PHASE GAP. The weekly re-alert is for the OWNER, who is chasing
- * a fix. A practice that turned a switch off — quite possibly on purpose —
- * must not be told about it again every seven days forever.
+ * VERIFICATION ROUND. Round 3's "say it once to the practice" rule was
+ * gated on a stamp written regardless of delivery, which opened a hole where
+ * NEITHER audience heard a finding. Both audiences share the one cadence
+ * until a per-audience memory exists.
  */
-describe('the practice hears a finding once, the owner hears it weekly', () => {
-  it('does NOT re-note a switch the practice has left off', async () => {
+describe('the cadence is shared, so no finding falls into a hole', () => {
+  it('a clinic-routed finding still reaches them after the re-alert window', async () => {
     lock.audience = 'clinic'
     store.profiles[0].guardianState = 'blocked'
-    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS + 1)
-    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
-
-    const r = await runGuardianSweep(NOW)
-    expect(r.notified).toBe(0)
-    expect(ledger.recorded).toHaveLength(0)
-    // The state is still recorded, so a real change is still news.
-    expect(store.profiles[0].guardianState).toBe('blocked')
-  })
-
-  it('a CHANGED finding is news to them again', async () => {
-    lock.audience = 'clinic'
-    store.profiles[0].guardianState = 'stalled'
-    store.profiles[0].guardianAlertedAt = daysAgo(1)
+    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS)
     sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
 
     const r = await runGuardianSweep(NOW)
     expect(r.notified).toBe(1)
   })
 
-  it('the OWNER still gets the weekly re-alert — they are chasing a fix', async () => {
-    store.profiles[0].guardianState = 'silent'
-    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS)
-    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+  it('opening the lock does not silence a practice whose state was already stamped', async () => {
+    // The hole: state stamped from earlier platform-audience runs, so
+    // nothing reads as "new" — and the clinic branch also short-circuits
+    // the owner email, so nobody was told at all.
+    lock.audience = 'clinic'
+    store.profiles[0].guardianState = 'blocked'
+    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS + 3)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
 
     const r = await runGuardianSweep(NOW)
-    expect(r.alerted).toBe(1)
+    expect(r.notified + r.alerted).toBeGreaterThan(0)
+  })
+
+  it('a failed ledger write is retried rather than stamped away', async () => {
+    lock.audience = 'clinic'
+    ledger.fail = true
+    sweepState.reports = [report('org_a', 'Ash Dental', 'stalled')]
+
+    await runGuardianSweep(NOW)
+    // The delivery stamp must not move, so tomorrow tries again.
+    expect(store.profiles[0].guardianAlertedAt).toBeNull()
   })
 })
