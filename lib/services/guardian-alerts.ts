@@ -95,7 +95,13 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
   // already knows which it is; it was just never said out loud.
   if (memory.state === report.verdict.state && memory.alertedAt) {
     const days = Math.max(1, Math.round((now.getTime() - memory.alertedAt.getTime()) / 86_400_000))
-    lines.push('', `Still going: I first told you about this ${days} ${days === 1 ? 'day' : 'days'} ago.`)
+    // "LAST told", not "first" (verification round 3). guardianAlertedAt is
+    // overwritten on every delivery and the cadence re-alerts weekly, so
+    // this number is structurally pinned at or under RE_ALERT_DAYS — a
+    // six-week-old break read as a seven-day-old one. Naming a first-seen
+    // instant would need its own column; saying what the stored value
+    // actually means costs nothing and is true.
+    lines.push('', `Still going: I last flagged this ${days} ${days === 1 ? 'day' : 'days'} ago.`)
   }
   // Name the actual breaks instead of leaving the owner with the headline's
   // guess at a cause (round-2 in-phase gap).
@@ -225,7 +231,14 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
             error: 'ledger: guardian note not recorded',
           })
         }
-      } else if (alerting && recipients.length > 0) {
+      } else if (alerting && recipients.length === 0) {
+        // Say it out loud: an alert was due and there was no one to send it
+        // to. Previously this path silently attempted nothing.
+        result.errors.push({
+          organizationId: report.organizationId,
+          error: 'no platform admin to email — the alert had nowhere to go',
+        })
+      } else if (alerting) {
         const sends = await Promise.all(
           recipients.map((to) =>
             sendNotificationEmail({
@@ -269,13 +282,24 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // may only be recorded once the report about it actually landed —
       // or when there was nothing to report in the first place.
       const nothingToDeliver = !alerting
-      await db
-        .update(schema.clinicProfile)
-        .set({
-          ...(delivered || nothingToDeliver ? { guardianState: state } : {}),
-          ...(delivered ? { guardianAlertedAt: now } : {}),
-        })
-        .where(eq(schema.clinicProfile.organizationId, report.organizationId))
+      // SKIP THE WRITE ENTIRELY when there is nothing to record (verification
+      // round 3). The previous shape spread two conditionals into `.set()`,
+      // and on the one path that matters — a report was due and did NOT land
+      // — both spreads were empty. drizzle throws "No values to set" on an
+      // empty set, which the per-clinic catch then swallowed INTO
+      // result.errors, replacing the real diagnosis ("smtp down", "there was
+      // nobody to email") with an ORM string. The behaviour was right and
+      // the watcher went blind about itself, which is the failure this whole
+      // phase exists to remove.
+      if (delivered || nothingToDeliver) {
+        await db
+          .update(schema.clinicProfile)
+          .set({
+            guardianState: state,
+            ...(delivered ? { guardianAlertedAt: now } : {}),
+          })
+          .where(eq(schema.clinicProfile.organizationId, report.organizationId))
+      }
     } catch (e) {
       result.errors.push({ organizationId: report.organizationId, error: (e as Error).message })
     }

@@ -71,7 +71,16 @@ vi.mock('@/lib/db', () => {
         const orgId = String(r.organizationId)
         const acc = byOrg.get(orgId) ?? { organizationId: orgId, work: 0, failures: 0 }
         const isFailure = detail.failure === true || detail.autoFailure === true
-        if (isFailure) acc.failures++
+        // Mirror the real aggregate: count(distinct date_trunc('day', …)).
+        // A mock that counts ROWS is exactly how the burst defect stayed
+        // invisible for three rounds.
+        if (isFailure) {
+          const day = new Date(r.occurredAt as Date).toISOString().slice(0, 10)
+          const seen = (acc as unknown as { _days?: Set<string> })._days ?? new Set<string>()
+          seen.add(day)
+          ;(acc as unknown as { _days: Set<string> })._days = seen
+          acc.failures = seen.size
+        }
         else if (detail.autonomyChange === undefined) acc.work++
         byOrg.set(orgId, acc)
       }
@@ -137,9 +146,12 @@ function seedWork(orgId: string, daysAgo: number, n = 1) {
     store.ledger.push({ organizationId: orgId, occurredAt: old(daysAgo), detail: null })
   }
 }
+/** `n` failures on n CONSECUTIVE DAYS starting at `daysAgo`. The alarm
+ *  counts distinct days, so a fixture that piles n rows onto one timestamp
+ *  no longer means what its callers intend (verification round 3). */
 function seedFailure(orgId: string, daysAgo: number, n = 1) {
   for (let i = 0; i < n; i++) {
-    store.ledger.push({ organizationId: orgId, occurredAt: old(daysAgo), detail: { failure: true } })
+    store.ledger.push({ organizationId: orgId, occurredAt: old(daysAgo + i), detail: { failure: true } })
   }
 }
 
@@ -282,5 +294,47 @@ describe('an unreadable month is never a stall', () => {
 
     const sweep = await sweepEngineHealth(NOW)
     expect(sweep.reports[0].verdict.state).not.toBe('stalled')
+  })
+})
+
+/**
+ * VERIFICATION ROUND 3. `recordFailure`'s once-a-day window only throttles
+ * the `failure` half of the vocabulary; the Phase-3 hand-back writes
+ * `autoFailure` with no throttle, and the granted-card loop hands back every
+ * open card in ONE tick. Counting rows let a two-hour outage pin a practice
+ * to `blocked` for the whole trailing week. The alarm counts DAYS.
+ */
+describe('failures7 counts days of breakage, not rows', () => {
+  it('a burst of hand-backs in one instant is ONE bad day', async () => {
+    const t = new Date('2026-07-28T09:00:00Z')
+    store.orgs = [
+      { id: 'org_a', name: 'Ash Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+        trialEndsAt: null, subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1' },
+    ]
+    // Five cards handed back in the same tick — one outage, not five days.
+    store.ledger = [
+      ...Array.from({ length: 5 }, () => ({
+        organizationId: 'org_a', occurredAt: t, detail: { autoFailure: true },
+      })),
+      { organizationId: 'org_a', occurredAt: t, detail: {} },
+    ]
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.failures7).toBe(1)
+    expect(sweep.reports[0].verdict.state).not.toBe('blocked')
+  })
+
+  it('breakage on three separate days IS the alarm', async () => {
+    store.orgs = [
+      { id: 'org_a', name: 'Ash Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+        trialEndsAt: null, subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1' },
+    ]
+    store.ledger = ['2026-07-26', '2026-07-27', '2026-07-28'].map((d) => ({
+      organizationId: 'org_a', occurredAt: new Date(`${d}T09:00:00Z`), detail: { failure: true },
+    }))
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].signals.failures7).toBe(3)
+    expect(sweep.reports[0].verdict.state).toBe('blocked')
   })
 })

@@ -69,7 +69,7 @@ describe('assessEngine — severity order', () => {
       sig({ failures7: FAILURE_ALARM_COUNT, remindersOn: false, reviewRequestsOn: false }),
     )
     expect(v.state).toBe('blocked')
-    expect(v.headline).toMatch(/tried and couldn’t/i)
+    expect(v.headline).toMatch(/hit trouble on \d+ days?/i)
   })
 
   it('one or two failures in a week is bad luck, not an alarm', () => {
@@ -395,7 +395,8 @@ describe('failures outrank silence', () => {
     // sends Dream Create hunting for a cause already in hand.
     const v = assessEngine(sig({ actions7: 0, actionsPrev7: 0, failures7: FAILURE_ALARM_COUNT }))
     expect(v.state).toBe('blocked')
-    expect(v.headline).toMatch(/tried and couldn’t/i)
+    // DAYS, not rows — a burst of hand-backs in one instant is one bad day.
+    expect(v.headline).toMatch(/hit trouble on \d+ days?/i)
   })
 
   it('silence still wins when nothing is failing', () => {

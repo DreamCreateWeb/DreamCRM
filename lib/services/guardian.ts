@@ -82,6 +82,20 @@ export const workCountExpr = () => sql<number>`count(*) filter (where ${workOnly
  * exist. This is that reader: what actually broke, by capability, so the
  * report names the break instead of speculating about it.
  */
+/**
+ * OWNER-VOICED names for the capabilities whose registry labels are written
+ * in the CLINIC's second person (verification round 3). Round 2 moved the
+ * owner's report off the ledger summaries and onto the labels — but the
+ * labels are clinic-facing copy too: `proposal_engine` reads "Bring you work
+ * that's ready to approve", and it is the likeliest line to appear because
+ * ENGINE_DOWN carries it. The owner is not the one being brought work.
+ * Anything not listed here already reads neutrally.
+ */
+const OWNER_CAPABILITY_NAME: Record<string, string> = {
+  proposal_engine: 'Finding work to put in front of them',
+  guardian_note: 'Flagging things for them to look at',
+}
+
 export async function recentFailureSummaries(
   organizationId: string,
   since: Date,
@@ -114,8 +128,8 @@ export async function recentFailureSummaries(
       .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
       .map(([cap, n]) => {
-        const label = getCapability(cap)?.label ?? cap.replace(/_/g, ' ')
-        return `${label} — ${n} ${n === 1 ? 'attempt' : 'attempts'}`
+        const label = OWNER_CAPABILITY_NAME[cap] ?? getCapability(cap)?.label ?? cap.replace(/_/g, ' ')
+        return `${label} — ${n} ${n === 1 ? 'day' : 'days'}`
       })
   } catch {
     // The count still stands on its own; we just cannot name the causes.
@@ -123,10 +137,24 @@ export async function recentFailureSummaries(
   }
 }
 
-/** Its complement, WRAPPING the shared expression so the counter and the
- *  cause reader can never again disagree about what a failure is
- *  (round-3 audit). */
-export const failureCountExpr = () => sql<number>`count(*) filter (where ${failureOnly()})::int`
+/**
+ * DAYS on which something broke — not rows (verification round 3).
+ *
+ * `recordFailure`'s once-a-day window only throttles the `failure` half of
+ * the vocabulary. The `autoFailure` half is written by the Phase-3 hand-back
+ * with no throttle at all, and the granted-card loop hands back EVERY open
+ * card in one tick — so a single two-hour provider outage wrote N rows in
+ * the same instant, cleared FAILURE_ALARM_COUNT immediately, and pinned the
+ * practice to `blocked` for the whole trailing week after the break had
+ * already healed.
+ *
+ * Counting distinct days makes the alarm mean what its own documentation
+ * always claimed: three strikes is three DAYS of a broken thing, whatever
+ * shape the rows arrive in and whichever subsystem writes them. It also
+ * makes the headline honest — "tried and couldn't on 3 days this week" is
+ * true where "3 times" was counting bursts.
+ */
+export const failureCountExpr = () => sql<number>`count(distinct date_trunc('day', ${schema.actionLedger.occurredAt})) filter (where ${failureOnly()})::int`
 
 /**
  * Ledger counts per org for a window, split into WORK and FAILURES in one

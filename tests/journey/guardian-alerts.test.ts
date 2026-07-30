@@ -440,7 +440,9 @@ describe('the owner’s email names the actual break', () => {
 
     await runGuardianSweep(NOW)
     expect(String(mail.sent[0].title)).toMatch(/^Still: /)
-    expect(String(mail.sent[0].body)).toMatch(/first told you about this 7 days ago/i)
+    // "LAST flagged", because guardianAlertedAt is overwritten on every
+    // delivery — claiming "first" understated a six-week break as one week.
+    expect(String(mail.sent[0].body)).toMatch(/last flagged this 7 days ago/i)
   })
 })
 

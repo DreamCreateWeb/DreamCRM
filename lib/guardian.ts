@@ -54,7 +54,9 @@ export interface EngineSignals {
   /** Ledger WORK entries in the trailing 7 days, and the 7 before that. */
   actions7: number
   actionsPrev7: number
-  /** Ledger FAILURE entries in the trailing 7 days ("tried X, couldn't"). */
+  /** DAYS in the trailing 7 on which something failed ("tried X, couldn't").
+   *  Days, not rows: a burst of hand-backs in one instant is one bad day,
+   *  and FAILURE_ALARM_COUNT is documented to mean days of a broken thing. */
   failures7: number
   /** The two engines whose absence explains most silence. */
   remindersOn: boolean
@@ -82,8 +84,8 @@ export interface EngineVerdict {
 
 /** A clinic younger than this has no meaningful baseline to fall from. */
 export const NEW_CLINIC_GRACE_DAYS = 14
-/** Repeated "tried and couldn't" inside a week means something is wired
- *  wrong (an expired token, a revoked connection), not bad luck. */
+/** Distinct DAYS of "tried and couldn't" inside a week. Something wired
+ *  wrong (an expired token, a revoked connection), not one bad afternoon. */
 export const FAILURE_ALARM_COUNT = 3
 /** A drop past this share of the prior month reads as a real stall rather
  *  than ordinary week-to-week noise. */
@@ -124,7 +126,7 @@ export function assessEngine(s: EngineSignals): EngineVerdict {
 function blockedByFailures(s: EngineSignals): EngineVerdict {
   return {
     state: 'blocked',
-    headline: `The machine tried and couldn’t, ${s.failures7} times this week`,
+    headline: `The machine hit trouble on ${s.failures7} ${s.failures7 === 1 ? 'day' : 'days'} this week`,
     // NO SPECULATION ABOUT THE CAUSE (verification round 2). This used to
     // assert "usually an expired Google token, a disconnected mailbox" —
     // a guess, and one the Guardian cannot currently check, because
@@ -132,7 +134,7 @@ function blockedByFailures(s: EngineSignals): EngineVerdict {
     // send/sync automations do not yet report. The report now says what it
     // actually knows and lets the per-capability list below carry the rest.
     why: 'Repeated failures in one week mean something is wired wrong rather than merely quiet — the machine is trying and being turned away.',
-    recommendation: 'Start with whatever it was trying, listed below; this is ours to fix, not theirs to notice.',
+    recommendation: 'Start with what it was trying; this is ours to fix, not theirs to notice.',
   }
 }
 
@@ -198,7 +200,10 @@ function classify(s: EngineSignals): EngineVerdict {
     return {
       state: 'stalled',
       headline: `New patients are down ${drop}% on their own last month`,
-      why: `${s.seatedPrev30} new patients seated the month before, ${s.seated30} this past month. The machine is running — the growth is not.`,
+      why:
+        s.failures7 > 0
+          ? `${s.seatedPrev30} new patients seated the month before, ${s.seated30} this past month — but something also failed this week, so check the numbers are real before reading this as lost growth.`
+          : `${s.seatedPrev30} new patients seated the month before, ${s.seated30} this past month. The machine is running — the growth is not.`,
       recommendation:
         'This is the guarantee talking. Look at where their new patients came from before, and what changed.',
     }

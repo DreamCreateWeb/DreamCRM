@@ -1407,3 +1407,36 @@ was corrected to stop asserting a cause it cannot check ("usually an expired
 Google token") — it now says what it knows and lets the per-capability list
 carry the rest. Wiring the remaining producers is the next slice of this
 work, not a claim this phase gets to make.
+
+**Attempt 3 — NOT CLEAN.** 2 major + 8 minor, 2 in-phase gaps. The major:
+`recordFailure`'s once-a-day window only ever throttled the `failure` half
+of the vocabulary. The `autoFailure` half — the Phase-3 hand-back — has no
+throttle, and the granted-card loop hands back EVERY open card in one tick,
+so a single two-hour provider outage wrote N rows in the same instant,
+cleared `FAILURE_ALARM_COUNT` immediately, and pinned the practice to
+`blocked` for the whole trailing week after the break had healed. Round 3's
+unification of the two markers is what brought the undeduped half into the
+alarm; the throttle was never extended with it.
+
+The fix moves the alarm from rows to **distinct days**, which is what its own
+documentation always claimed ("three strikes is three DAYS of a broken
+thing") and is robust to whatever shape the rows arrive in or whichever
+subsystem writes them. It also made the headline honest — "hit trouble on 3
+days this week" where "3 times" had been counting bursts.
+
+Also fixed: an empty `.set({})` throwing "No values to set" on exactly the
+path that matters (a report was due and did NOT land), swallowing the real
+diagnosis into an ORM string — introduced by the verification-round-2 fix
+for the stamping bug; "I first told you about this N days ago" reporting the
+LAST alert and structurally pinned at ≤7 days, so a six-week break read as a
+one-week one; the owner's failure list printing clinic-voiced capability
+labels ("Bring you work that's ready to approve") — the residue of round 2's
+move off the ledger summaries onto the labels, which are clinic copy too;
+and the `stalled` verdict asserting lost growth without noting that a week
+with failures may simply have lost data.
+
+**Standing lesson added:** *when two subsystems write the same signal, the
+throttle belongs to the READER, not to one writer.* Unifying what a counter
+matches without unifying what limits it moves the burst problem rather than
+solving it — put the rate limit where the count is taken.
+
