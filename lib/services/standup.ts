@@ -91,7 +91,6 @@ const STANDUP_NOUNS: Record<string, { one: string; many: string }> = {
   domain_autorenew: { one: 'domain renewal', many: 'domain renewals' },
   listing_sync: { one: 'listing update', many: 'listing updates' },
   review_feature: { one: 'review featured on your site', many: 'reviews featured on your site' },
-  guardian_note: { one: 'heads up', many: 'heads ups' },
   review_reply: { one: 'review reply', many: 'review replies' },
   social_post: { one: 'post published', many: 'posts published' },
   inquiry_response: { one: 'inquiry answered', many: 'inquiries answered' },

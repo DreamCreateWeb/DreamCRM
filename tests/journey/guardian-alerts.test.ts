@@ -118,6 +118,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import { runGuardianSweep } from '@/lib/services/guardian-alerts'
+import { RE_ALERT_DAYS } from '@/lib/guardian'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
@@ -152,6 +153,9 @@ function report(
       recommendation: state === 'healthy' ? null : 'do the thing',
     },
     signals: { ...SIGNALS, ...signals },
+    // The distinct "I tried and couldn't" sentences behind failures7 — the
+    // owner's email names the actual breaks instead of guessing.
+    failureCauses: [] as string[],
   }
 }
 
@@ -386,5 +390,52 @@ describe('runGuardianSweep — who hears it', () => {
     await runGuardianSweep(NOW)
     expect(ledger.recorded).toHaveLength(1)
     expect(mail.sent).toHaveLength(0)
+  })
+})
+
+/**
+ * ROUND-2 AUDIT. The memory write is a bare UPDATE, so an org with no
+ * clinic_profile row can never persist state — and `shouldAlert` reads an
+ * unchanged null as news, so that clinic would be emailed about EVERY
+ * morning forever. Reachable in production: provisioning inserts the org,
+ * then makes a Stripe call that can throw, and only then inserts the profile.
+ */
+describe('runGuardianSweep — a half-provisioned clinic', () => {
+  it('is reported to us, not emailed about daily forever', async () => {
+    store.profiles = [] // org exists, profile never got written
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(mail.sent).toHaveLength(0)
+    expect(r.alerted).toBe(0)
+    expect(r.errors.some((e) => /half-provisioned/i.test(e.error))).toBe(true)
+  })
+
+  it('a clinic WITH a profile is unaffected', async () => {
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+    const r = await runGuardianSweep(NOW)
+    expect(r.alerted).toBe(1)
+  })
+})
+
+describe('the owner’s email names the actual break', () => {
+  it('lists the ledger sentences behind a blocked verdict instead of guessing', async () => {
+    const rep = report('org_a', 'Ash Dental', 'blocked', keepsFailing)
+    rep.failureCauses = ['Couldn’t draft a reply to a new review just now — I’ll keep trying.']
+    sweepState.reports = [rep]
+
+    await runGuardianSweep(NOW)
+    expect(String(mail.sent[0].body)).toContain('What it tried')
+    expect(String(mail.sent[0].body)).toContain('draft a reply to a new review')
+  })
+
+  it('a CONTINUING problem reads differently from this morning’s news', async () => {
+    store.profiles[0].guardianState = 'silent'
+    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+
+    await runGuardianSweep(NOW)
+    expect(String(mail.sent[0].title)).toMatch(/^Still: /)
+    expect(String(mail.sent[0].body)).toMatch(/first told you about this 7 days ago/i)
   })
 })

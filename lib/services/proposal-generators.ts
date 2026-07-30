@@ -177,16 +177,30 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
   // strike means a DAY of a broken thing. The per-run guard collapses a
   // one-fault-many-steps tick into a single honest strike; the per-capability
   // day window still separates genuinely different breaks across runs.
-  const struckThisRun = new Set<string>()
+  /** Every step that broke for the org currently being swept — collected,
+   *  then flushed as ONE strike when that org's pass ends. */
+  const broken: Array<{ capability: string; summary: string }> = []
   /** Hand a generator a way to report a soft AI failure into the same
    *  collapse + window a thrown one gets. Deferred, not awaited inline:
    *  the generator is mid-loop and its bookkeeping must not reorder its
    *  work, so the flag is set here and flushed when the step returns. */
   const pendingSoft = new Set<string>()
   const softFailed = (step: string) => () => { pendingSoft.add(step) }
-  const noteFailure = async (organizationId: string, f: { capability: string; summary: string }) => {
-    if (struckThisRun.has(organizationId)) return
-    struckThisRun.add(organizationId)
+  const noteFailure = (f: { capability: string; summary: string }) => {
+    broken.push(f)
+  }
+  /** ONE STRIKE PER ORG PER RUN, written at the END of that org's pass.
+   *  Deferring is what makes the count meaningful: on the first failure we
+   *  cannot yet know whether one thing broke or five. Round-2 audit found
+   *  the eager version wrote whichever capability failed FIRST and dropped
+   *  the rest, so a permanently broken review generator masked every other
+   *  break forever. */
+  const flushFailures = async (organizationId: string) => {
+    if (broken.length === 0) return
+    // Several at once is an ENGINE-level story, not any one capability's —
+    // truer, and it unmasks the ones a single named strike would hide.
+    const f = broken.length === 1 ? broken[0] : ENGINE_DOWN
+    broken.length = 0
     const recorded = await recordFailure({
       organizationId,
       capability: f.capability,
@@ -196,7 +210,16 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     })
     if (recorded) result.failuresRecorded++
   }
-  result.expired += await expireStaleProposals()
+  // TOP-LEVEL FAILURES (round-2 audit). These two statements run BEFORE any
+  // per-org try, so a broken staleness sweep or an unreadable org list threw
+  // straight out of the cron: no proposals filed for anybody, and not one
+  // failure recorded anywhere, for any clinic. The whole platform's engine
+  // could be down and the Guardian would report every practice healthy.
+  try {
+    result.expired += await expireStaleProposals()
+  } catch (e) {
+    result.errors.push({ organizationId: '-', error: `expireStale: ${(e as Error).message}` })
+  }
 
   const orgs = await db
     .select({ id: schema.organization.id, name: schema.organization.name })
@@ -209,6 +232,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     // behind, and a stale flag would charge the next clinic with a break
     // that was never theirs.
     pendingSoft.clear()
+    broken.length = 0
     try {
       const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
       const tz = await getClinicTimeZone(org.id)
@@ -249,7 +273,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
             const f = STEP_FAILURE[name]
             if (f) {
               result.errors.push({ organizationId: org.id, error: `${name}: AI draft failed` })
-              await noteFailure(org.id, f)
+              noteFailure(f)
             }
           }
         } catch (e) {
@@ -258,13 +282,15 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
           // one somebody added without deciding — the latter falls back to
           // the engine-level line rather than disappearing (round-1 audit).
           const f = name in STEP_FAILURE ? STEP_FAILURE[name] : ENGINE_DOWN
-          if (f) await noteFailure(org.id, f)
+          if (f) noteFailure(f)
         }
       }
     } catch (e) {
       result.errors.push({ organizationId: org.id, error: (e as Error).message })
-      await noteFailure(org.id, ENGINE_DOWN)
+      noteFailure(ENGINE_DOWN)
     }
+    // One honest strike for this clinic, whatever broke and however.
+    await flushFailures(org.id)
   }
   return result
 }
@@ -551,7 +577,7 @@ const DraftSchema = z.object({ text: z.string().min(1).max(2000) })
  *  A bare null conflated them and one un-draftable inquiry froze the loop. */
 type DraftTextResult =
   | { ok: true; text: string }
-  | { ok: false; reason: 'not_configured' | 'no_allowance' | 'failed' }
+  | { ok: false; reason: 'not_configured' | 'no_allowance' | 'failed' | 'unusable' }
 
 async function draftText(
   organizationId: string,
@@ -581,7 +607,9 @@ async function draftText(
     return { ok: false, reason: 'failed' }
   }
   const parsed = DraftSchema.safeParse(raw)
-  if (!parsed.success) return { ok: false, reason: 'failed' }
+  // 'unusable', not 'failed': the provider answered, this ONE draft was no
+  // good. Only a provider break is an engine-level signal (round-2 audit).
+  if (!parsed.success) return { ok: false, reason: 'unusable' }
   await bumpAiUsage(organizationId, AI_KIND)
   return { ok: true, text: parsed.data.text.trim() }
 }
@@ -674,8 +702,9 @@ export async function generateReviewReplyProposals(
       // that review — one un-draftable rant must not freeze the whole
       // generator behind the deterministic ordering (round-2 audit).
       if (draft.reason === 'not_configured' || draft.reason === 'no_allowance') break
-      // 'failed' is a real break, not a skip: the provider said no.
-      onSoftFailure?.()
+      // Only a PROVIDER break is an engine failure. 'unusable'/'not_found'
+      // are about this one review and must never reach the Guardian.
+      if (draft.reason === 'failed') onSoftFailure?.()
       continue
     }
 
@@ -757,8 +786,9 @@ Additional rules:
       // otherwise the newest-first ordering lets a single poisoned lead
       // starve every older inquiry behind it for its whole 7-day window.
       if (draft.reason === 'not_configured' || draft.reason === 'no_allowance') break
-      // 'failed' is the provider breaking, not this lead being awkward.
-      onSoftFailure?.()
+      // 'failed' is the provider breaking; 'unusable' is this one lead being
+      // awkward, and a clinic must never be reported broken for that.
+      if (draft.reason === 'failed') onSoftFailure?.()
       continue
     }
 

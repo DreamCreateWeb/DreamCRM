@@ -658,9 +658,9 @@ sitemap/robots/OG.
    ONE alert memory serves both audiences by design (the stamp means "this
    problem was reported", not "reported to X"). The note is READ back by
    `getActiveGuardianNote` + the amber heads-up card on the clinic Overview
-   — without that the sentence would be invisible (the ledger's only clinic
-   surfaces are the standup's count chips and the autonomous strip), i.e. a
-   report nobody reads. It self-expires with the re-alert window, is
+   — without that the sentence would be invisible (the note carries
+   `detail.report`, so it is not work and appears in no standup count or
+   story; the card is its ONLY clinic surface), i.e. a report nobody reads. It self-expires with the re-alert window, is
    RE-VERIFIED against live switches at render (telling a practice something
    untrue about their own settings is worse than saying nothing), and
    RE-CHECKS THE LOCK on the read — without that, "Keep it to me instead"

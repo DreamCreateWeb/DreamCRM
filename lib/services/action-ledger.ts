@@ -54,6 +54,11 @@ export async function recordAction(input: RecordActionInput): Promise<boolean> {
   }
 }
 
+/** Failure rows only — the de-dup's narrowing clause. Exported so the
+ *  boundary test renders THIS expression rather than a hand-copy that can
+ *  drift away from it (round-2 audit). */
+export const failureOnly = () => sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'`
+
 /** Entries the executors stamped as the machine acting alone (Phase 3). */
 const autonomousOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomous') = 'true'`
 
@@ -112,7 +117,7 @@ export async function recordFailure(input: {
             eq(schema.actionLedger.organizationId, input.organizationId),
             eq(schema.actionLedger.capability, input.capability),
             gte(schema.actionLedger.occurredAt, since),
-            sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'`,
+            failureOnly(),
           ),
         )
         .limit(1)

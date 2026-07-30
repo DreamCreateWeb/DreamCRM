@@ -54,7 +54,9 @@ export interface GuardianRunResult {
   errors: Array<{ organizationId: string; error: string }>
 }
 
-async function readMemory(organizationId: string): Promise<AlertMemory> {
+async function readMemory(
+  organizationId: string,
+): Promise<AlertMemory & { missing?: boolean }> {
   try {
     const [row] = await db
       .select({
@@ -64,9 +66,17 @@ async function readMemory(organizationId: string): Promise<AlertMemory> {
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
       .limit(1)
+    // NO PROFILE ROW AT ALL (round-2 audit). The memory write is a bare
+    // UPDATE, so it matches nothing and the state can never persist — and
+    // `shouldAlert` reads an unchanged null state as news, so this clinic
+    // would be alerted about EVERY morning, forever, which is precisely the
+    // muting behaviour the cadence exists to prevent. Reachable in
+    // production: provisioning inserts the org, then makes a Stripe call
+    // that can throw, and only then inserts the profile.
+    if (!row) return { state: null, alertedAt: null, missing: true }
     return {
-      state: (row?.state as EngineState | null) ?? null,
-      alertedAt: row?.alertedAt ?? null,
+      state: (row.state as EngineState | null) ?? null,
+      alertedAt: row.alertedAt ?? null,
     }
   } catch {
     // An unreadable memory must never SILENCE an alarm — the whole point is
@@ -86,6 +96,12 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
   if (memory.state === report.verdict.state && memory.alertedAt) {
     const days = Math.max(1, Math.round((now.getTime() - memory.alertedAt.getTime()) / 86_400_000))
     lines.push('', `Still going: I first told you about this ${days} ${days === 1 ? 'day' : 'days'} ago.`)
+  }
+  // Name the actual breaks instead of leaving the owner with the headline's
+  // guess at a cause (round-2 in-phase gap).
+  if (report.failureCauses.length > 0) {
+    lines.push('', 'What it tried:')
+    for (const c of report.failureCauses) lines.push(`• ${c}`)
   }
   if (report.verdict.recommendation) {
     lines.push('', `What I'd do: ${report.verdict.recommendation}`)
@@ -159,6 +175,15 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
     try {
       const memory = await readMemory(report.organizationId)
       const state = report.verdict.state
+      if (memory.missing) {
+        // Half-provisioned. Report it to ourselves once per run instead of
+        // emailing about a clinic whose engine was never set up.
+        result.errors.push({
+          organizationId: report.organizationId,
+          error: 'no clinic_profile row — half-provisioned; alert memory cannot persist',
+        })
+        continue
+      }
       const alerting = shouldAlert(memory, state, now)
 
       // WHO hears this one. The lock has to be open AND the finding has to

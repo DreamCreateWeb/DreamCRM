@@ -55,10 +55,13 @@ function ReportRow({
   audience: GuardianAudience
 }) {
   const style = STATE_STYLE[report.verdict.state]
-  // Once the lock is open the owner needs to know, per finding, whether the
-  // practice has already heard it — otherwise they call to break news that
-  // was already delivered, or assume a delivery that never happened.
-  const toldThem = audience === 'clinic' && clinicActionable(report.verdict.state, report.signals)
+  // Which WAY this finding is routed. Deliberately phrased as routing, not
+  // delivery (round-2 audit): the panel computes this from the routing rule
+  // and never checks that a note actually landed, so "I told them directly"
+  // was a claim it could not support — the ledger write can fail, and the
+  // cadence may not have fired yet. It can honestly say where a finding
+  // goes; it cannot say it arrived.
+  const goesToThem = audience === 'clinic' && clinicActionable(report.verdict.state, report.signals)
   return (
     <li className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
       <div className="flex items-start gap-3">
@@ -80,6 +83,15 @@ function ReportRow({
           </div>
           <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{report.verdict.headline}</p>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{report.verdict.why}</p>
+          {report.failureCauses.length > 0 && (
+            <ul className="mt-2 space-y-0.5">
+              {report.failureCauses.map((c) => (
+                <li key={c} className="text-xs text-gray-600 dark:text-gray-300">
+                  &bull; {c}
+                </li>
+              ))}
+            </ul>
+          )}
           {report.verdict.recommendation && (
             <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
               <span className="font-medium">What I&rsquo;d do:</span> {report.verdict.recommendation}
@@ -87,8 +99,8 @@ function ReportRow({
           )}
           {audience === 'clinic' && (
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              {toldThem
-                ? 'I told them directly — it is in their own activity.'
+              {goesToThem
+                ? 'This one goes to them directly, in their own activity.'
                 : 'This one is only with you. It is ours to fix, not theirs to notice.'}
             </p>
           )}
@@ -105,9 +117,13 @@ export default function GuardianPanel({
   sweep: GuardianSweep
   audience: GuardianAudience
 }) {
-  // No clinics yet: the guardian has nothing to say, and saying it loudly
-  // would be noise on a brand-new platform.
-  if (sweep.reports.length === 0) return null
+  // No clinics yet: the guardian has nothing to REPORT, and a loud empty
+  // state would be noise on a brand-new platform. But the audience lock's
+  // only control lives in this header, and hiding it means the owner cannot
+  // open or close the lock until at least one clinic exists — a setting
+  // unreachable exactly when they are setting the platform up (round-2
+  // audit). Keep the control, drop the report.
+  const nothingToReport = sweep.reports.length === 0
 
   return (
     <section className="mb-8" aria-label="Engine health">
@@ -121,7 +137,11 @@ export default function GuardianPanel({
         <GuardianAudienceControl audience={audience} />
       </div>
 
-      {sweep.flagged.length === 0 ? (
+      {nothingToReport ? (
+        <p className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4 text-sm text-gray-600 dark:text-gray-300">
+          No practices to watch yet.
+        </p>
+      ) : sweep.flagged.length === 0 ? (
         // ALL CLEAR is news, not emptiness — it is the guarantee holding.
         <p className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4 text-sm text-gray-600 dark:text-gray-300">
           Every practice&rsquo;s machine is running. Nothing needs you today.

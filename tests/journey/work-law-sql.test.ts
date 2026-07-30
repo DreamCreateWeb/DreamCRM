@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { and, eq, gte, sql } from 'drizzle-orm'
 import * as schema from '@/lib/db/schema'
-import { workOnly, isWorkEntry } from '@/lib/services/action-ledger'
+import { workOnly, failureOnly, isWorkEntry } from '@/lib/services/action-ledger'
 import { workCountExpr, failureCountExpr } from '@/lib/services/guardian'
 
 /**
@@ -78,7 +78,10 @@ describe('the failure de-dup predicate as Postgres parses it', () => {
       eq(schema.actionLedger.organizationId, 'org_1'),
       eq(schema.actionLedger.capability, 'review_reply'),
       gte(schema.actionLedger.occurredAt, new Date('2026-07-28T00:00:00Z')),
-      sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'`,
+      // The service's OWN expression, imported — round-2 audit: this test
+      // used to hand-copy the predicate, so it would have gone on passing
+      // after the real one drifted.
+      failureOnly(),
     )}`,
   )
 

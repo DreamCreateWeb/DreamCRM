@@ -17,7 +17,7 @@ import { readEngineSwitches } from '@/lib/services/engine-switches'
 import { getGuardianAudience } from '@/lib/services/platform-config'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { countOpenProposals } from '@/lib/services/proposals'
-import { workOnly } from '@/lib/services/action-ledger'
+import { workOnly, failureOnly } from '@/lib/services/action-ledger'
 import { resolveTrialState } from '@/lib/trial'
 
 /**
@@ -47,6 +47,10 @@ export interface ClinicEngineReport {
   clinicName: string
   verdict: EngineVerdict
   signals: EngineSignals
+  /** The distinct "I tried and couldn't" sentences behind `failures7`, so a
+   *  blocked report can name the break rather than guess at it. Empty when
+   *  nothing failed (or the ledger could not be read). */
+  failureCauses: string[]
 }
 
 export interface GuardianSweep {
@@ -65,6 +69,41 @@ export interface GuardianSweep {
  *  other. It now WRAPS action-ledger's `workOnly()`, so there is genuinely
  *  one home. Exported so the boundary test renders the real expression. */
 export const workCountExpr = () => sql<number>`count(*) filter (where ${workOnly()})::int`
+
+/**
+ * WHAT actually broke, in the machine's own words (round-2 in-phase gap).
+ *
+ * `blocked` told the owner "the machine tried and couldn't, 3 times this
+ * week" and then guessed at a cause — "usually an expired Google token, a
+ * disconnected mailbox" — while the ledger held the actual sentences the
+ * whole time. The failure vocabulary was written for a reader that did not
+ * exist. This is that reader: the distinct summaries behind the count, so
+ * the report names the break instead of speculating about it.
+ */
+export async function recentFailureSummaries(
+  organizationId: string,
+  since: Date,
+  limit = 3,
+): Promise<string[]> {
+  try {
+    const rows = await db
+      .select({ summary: schema.actionLedger.summary })
+      .from(schema.actionLedger)
+      .where(
+        and(
+          eq(schema.actionLedger.organizationId, organizationId),
+          gte(schema.actionLedger.occurredAt, since),
+          failureOnly(),
+        ),
+      )
+      .orderBy(desc(schema.actionLedger.occurredAt))
+      .limit(20)
+    return Array.from(new Set(rows.map((r) => r.summary).filter(Boolean))).slice(0, limit)
+  } catch {
+    // The count still stands on its own; we just cannot name the causes.
+    return []
+  }
+}
 
 /** Its complement: every "I tried and couldn't", of either shape. */
 export const failureCountExpr = () => sql<number>`count(*) filter (
@@ -105,8 +144,10 @@ async function ledgerCountsByOrg(
   return out
 }
 
-/** Assess one clinic. Exported for the per-clinic drill-in and the tests. */
-export async function assessClinic(
+/** Assess one clinic. Not exported: the per-clinic drill-in the old comment
+ *  promised was never built, and an export with no caller is a claim the
+ *  code does not keep (round-2 audit). */
+async function assessClinic(
   org: { id: string; name: string; createdAt: Date | null },
   windows: {
     weekStart: Date
@@ -119,11 +160,19 @@ export async function assessClinic(
 ): Promise<ClinicEngineReport> {
   const [switches, seated30, seatedPrev30, openProposals] = await Promise.all([
     readEngineSwitches(org.id),
-    countSeatedBetween(org.id, windows.monthStart, windows.now).catch(() => 0),
-    countSeatedBetween(org.id, windows.prevMonthStart, windows.monthStart).catch(() => 0),
+    // NULL on failure, never 0 (round-2 audit). `.catch(() => 0)` turned an
+    // unreadable current month into a confident "new patients are down 100%
+    // on their own last month — 12 the month before, 0 this past month",
+    // fabricated numbers and all, and emailed it to the owner. A number we
+    // could not read is not a number we may report.
+    countSeatedBetween(org.id, windows.monthStart, windows.now).catch(() => null),
+    countSeatedBetween(org.id, windows.prevMonthStart, windows.monthStart).catch(() => null),
     countOpenProposals(org.id).catch(() => 0),
   ])
   const here = ledger.this7.get(org.id) ?? { work: 0, failures: 0 }
+  // Only when there is something to explain — no query on a healthy clinic.
+  const failureCauses =
+    here.failures > 0 ? await recentFailureSummaries(org.id, windows.weekStart) : []
   const prev = ledger.prev7.get(org.id) ?? { work: 0, failures: 0 }
   const signals: EngineSignals = {
     ageDays: org.createdAt
@@ -136,11 +185,19 @@ export async function assessClinic(
     failures7: here.failures,
     remindersOn: switches.remindersOn,
     reviewRequestsOn: switches.reviewRequestsOn,
-    seated30,
-    seatedPrev30,
+    // A stall needs BOTH months. Unknown either side → present them as
+    // equal, which is the one shape assessEngine cannot read as a drop.
+    seated30: seated30 ?? 0,
+    seatedPrev30: seated30 === null || seatedPrev30 === null ? 0 : seatedPrev30,
     openProposals,
   }
-  return { organizationId: org.id, clinicName: org.name, verdict: assessEngine(signals), signals }
+  return {
+    organizationId: org.id,
+    clinicName: org.name,
+    verdict: assessEngine(signals),
+    signals,
+    failureCauses,
+  }
 }
 
 /**
@@ -201,10 +258,28 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
 
   if (orgs.length === 0) return { reports: [], flagged: [], summary: summarizeSweep([]) }
 
+  // LEDGER UNAVAILABLE IS NOT SILENCE (round-2 audit). `.catch(() => new
+  // Map())` made one timed-out aggregate report EVERY practice on the
+  // platform as `silent` — the loudest verdict there is — email the owner
+  // about all of them, and write 'silent' into every alert memory, so the
+  // real recovery next day then read as a state CHANGE and alerted again.
+  // A watcher that cannot see must say so, not invent the worst reading.
+  let ledgerReadable = true
   const [this7, prev7] = await Promise.all([
-    ledgerCountsByOrg(weekStart, now).catch(() => new Map()),
-    ledgerCountsByOrg(prevWeekStart, weekStart).catch(() => new Map()),
+    ledgerCountsByOrg(weekStart, now).catch((e) => {
+      console.error('[guardian] ledger read failed', e)
+      ledgerReadable = false
+      return new Map()
+    }),
+    ledgerCountsByOrg(prevWeekStart, weekStart).catch((e) => {
+      console.error('[guardian] prior-week ledger read failed', e)
+      ledgerReadable = false
+      return new Map()
+    }),
   ])
+  if (!ledgerReadable) {
+    return { reports: [], flagged: [], summary: 'I could not read the activity log just now.' }
+  }
 
   const settled = await Promise.all(
     orgs.map((o) =>
@@ -239,11 +314,12 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
 /**
  * The heads-up a practice is currently carrying, for its own Overview.
  *
- * Without this reader the clinic-facing half would be a write nobody reads:
- * a guardian_note lands in the ledger, and the ledger's only clinic surfaces
- * are the weekly standup's COUNT chips ("1 heads up") and the autonomous
- * strip — neither of which shows the sentence. A report that does not reach
- * the reader is not a report.
+ * Without this reader the clinic-facing half would be a write nobody reads.
+ * A guardian_note is deliberately NOT work (it carries `detail.report`, so
+ * `isWorkEntry` and `workOnly()` both exclude it), which keeps the Guardian
+ * from satisfying its own liveness alarm — and also means it appears in no
+ * standup count and no story. THIS CARD IS ITS ONLY CLINIC SURFACE. A report
+ * that does not reach the reader is not a report.
  *
  * Three properties make it safe to render:
  *

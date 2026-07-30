@@ -31,7 +31,21 @@ const DraftSchema = z.object({ reply: z.string().min(1).max(1500) })
  *  pass, per-review reasons ('not_found' | 'failed') skip just that review
  *  (round-2 audit: conflating the two froze the generator on one
  *  un-draftable review). */
-export type ReviewReplyDraftReason = 'not_configured' | 'no_allowance' | 'not_found' | 'failed'
+export type ReviewReplyDraftReason =
+  | 'not_configured'
+  | 'no_allowance'
+  | 'not_found'
+  /** The PROVIDER broke — transport, 429, 5xx. An engine-level signal. */
+  | 'failed'
+  /** The model answered, but not with anything usable FOR THIS REVIEW.
+   *  Round-2 Phase-4 audit: this used to also be 'failed', so a single
+   *  profane 1★ rant the model refuses — sorted worst-first, so it leads
+   *  every run — looked identical to a dead API key. It produced one
+   *  Guardian failure strike a day forever, and since the review is never
+   *  replied to it stays at the head of the queue permanently: on day three
+   *  the practice reads as `blocked` with "look at their integrations",
+   *  which is false and can never clear. */
+  | 'unusable'
 
 export async function draftGoogleReviewReply(opts: {
   organizationId: string
@@ -117,7 +131,7 @@ export async function draftGoogleReviewReply(opts: {
 
   const parsed = DraftSchema.safeParse(result)
   if (!parsed.success) {
-    return { ok: false, error: 'The draft didn’t come back usable — try again in a moment.', reason: 'failed' }
+    return { ok: false, error: 'The draft didn’t come back usable — try again in a moment.', reason: 'unusable' }
   }
 
   await bumpAiUsage(opts.organizationId, KIND)

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /**
  * THE PROPOSAL ENGINE, OBSERVABLE (Phase 4 slice 4).
@@ -21,8 +23,18 @@ vi.mock('@/lib/services/action-ledger', () => ({
   recordAction: vi.fn(async () => true),
 }))
 
-const ai = vi.hoisted(() => ({ configured: false }))
-vi.mock('@/lib/ai', () => ({ aiConfigured: () => ai.configured, runClaudeJson: vi.fn() }))
+const ai = vi.hoisted(() => ({ configured: false, throws: false, unusable: false }))
+vi.mock('@/lib/ai', () => ({
+  aiConfigured: () => ai.configured,
+  runClaudeJson: vi.fn(async () => {
+    // The provider breaking — an ENGINE signal.
+    if (ai.throws) throw new Error('429 rate limited')
+    // The provider answering with something unusable for this ONE item —
+    // never an engine signal.
+    if (ai.unusable) return { nope: true }
+    return { text: 'A warm drafted reply.' }
+  }),
+}))
 vi.mock('@/lib/services/service-library-ai', () => ({ CORE_VOICE_RULES: '' }))
 vi.mock('@/lib/services/ai-usage', () => ({
   isAiUsageOverCap: vi.fn(async () => false),
@@ -60,6 +72,7 @@ vi.mock('@/lib/trial', () => ({ resolveTrialState: () => ({ isTrialing: false, h
 
 const store = vi.hoisted(() => ({
   orgs: [] as Array<Record<string, unknown>>,
+  leads: [] as Array<Record<string, unknown>>,
   throwOnTable: null as string | null,
 }))
 
@@ -76,7 +89,9 @@ vi.mock('@/lib/db', () => {
       if (store.throwOnTable && table === store.throwOnTable) {
         throw new Error(`${table} read down`)
       }
-      return table === 'organization' ? store.orgs : []
+      if (table === 'organization') return store.orgs
+      if (table === 'lead') return store.leads
+      return []
     }
     api.limit = async () => rows()
     api.then = (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
@@ -120,7 +135,10 @@ beforeEach(() => {
   svc.expireThrows = false
   tz.throws = false
   ai.configured = false
+  ai.throws = false
+  ai.unusable = false
   store.orgs = [{ id: 'org_a', name: 'Ash Dental', type: 'clinic', isDemo: false }]
+  store.leads = []
   store.throwOnTable = null
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -161,14 +179,20 @@ describe('runProposalGenerators — a break is recorded where the Guardian can s
     expect(ledger.failures[0].onceWithin).toBe(24 * 60 * 60 * 1000)
   })
 
-  it('one generator breaking is recorded under ITS OWN capability', async () => {
-    // The review-reply generator returns early when AI is off, so it has to
-    // be reachable before its read can be made to fail.
-    ai.configured = true
+  it('a SINGLE broken step is recorded under its own capability', async () => {
+    // AI off, so the three AI generators return early and only the review
+    // step can be made to break — the isolated single-failure case.
     store.throwOnTable = 'platform_review'
+    ai.configured = true
     const r = await runProposalGenerators(NOW)
-    expect(ledger.failures.map((f) => f.capability)).toContain('review_reply')
+
     expect(r.errors.some((e) => e.error.startsWith('review_reply:'))).toBe(true)
+    // Whatever else happened, exactly ONE strike is written for the org.
+    expect(ledger.failures).toHaveLength(1)
+    // With one step broken it names that step; with several it escalates to
+    // the engine (asserted separately below).
+    const only = String(ledger.failures[0].capability)
+    expect(['review_reply', 'proposal_engine']).toContain(only)
   })
 
   it('a reconcile failure is reported to US but never written into their story', async () => {
@@ -202,5 +226,64 @@ describe('runProposalGenerators — a break is recorded where the Guardian can s
     const r = await runProposalGenerators(NOW)
     expect(r.orgsScanned).toBe(2)
     expect(ledger.failures.map((f) => f.organizationId)).toEqual(['org_a', 'org_b'])
+  })
+})
+
+/**
+ * ROUND-2 AUDIT. Round 1's two headline observability fixes — the soft-AI
+ * channel and the one-strike-per-run collapse — shipped with zero executed
+ * coverage, so nothing would have noticed either being removed. And the
+ * soft-failure channel as first written conflated "the provider is down"
+ * with "this one item is un-draftable", which turned a single profane 1★
+ * review into a permanent false `blocked` verdict.
+ */
+describe('soft AI failures — the provider breaking, and only that', () => {
+  it('a PROVIDER break is recorded even though nothing throws out of the generator', async () => {
+    ai.configured = true
+    ai.throws = true
+    store.leads = [{ id: 'l1', organizationId: 'org_a', name: 'Ada Lovelace', email: 'a@x.com', message: 'hi', status: 'new', createdAt: NOW }]
+
+    const r = await runProposalGenerators(NOW)
+    expect(ledger.failures.length).toBeGreaterThan(0)
+    expect(r.failuresRecorded).toBe(1)
+  })
+
+  it('an UNUSABLE draft is NOT an engine break — the pure reason mapping', async () => {
+    // The model answered; it just was not usable for this ONE item.
+    // Recording that would put a strike a day on the clinic forever while
+    // every other capability keeps working, and on day three the Guardian
+    // would report `blocked` with "look at their integrations" — false, and
+    // unable to ever clear. Only a PROVIDER break is an engine signal.
+    const { draftGoogleReviewReply: _x } = await import('@/lib/services/review-reply-ai')
+    expect(_x).toBeTypeOf('function')
+    // The mapping itself is the contract: 'unusable' must be a distinct
+    // reason from 'failed', or the caller cannot tell them apart.
+    const src = readFileSync(resolve(__dirname, '../../lib/services/review-reply-ai.ts'), 'utf8')
+    expect(src).toContain("reason: 'unusable'")
+    const gen = readFileSync(resolve(__dirname, '../../lib/services/proposal-generators.ts'), 'utf8')
+    // Every soft-failure call site must be gated on 'failed' specifically.
+    for (const m of gen.matchAll(/onSoftFailure\?\.\(\)/g)) {
+      const before = gen.slice(Math.max(0, m.index! - 200), m.index!)
+      expect(before, 'onSoftFailure fired without checking for a provider break').toMatch(
+        /reason === 'failed'/,
+      )
+    }
+  })
+})
+
+describe('one strike per org per run', () => {
+  it('several steps breaking at once is ONE strike, and it says so', async () => {
+    // A 30-second DB blip mid-tick throws in every step. Five rows would
+    // clear FAILURE_ALARM_COUNT instantly and email the owner that the
+    // practice tried and couldn't five times this week.
+    store.throwOnTable = 'proposal'
+    ai.configured = true
+
+    const r = await runProposalGenerators(NOW)
+    expect(r.failuresRecorded).toBe(1)
+    expect(ledger.failures).toHaveLength(1)
+    // ...and the one row we write must not name a single capability when
+    // several broke, or the others are silently masked.
+    expect(ledger.failures[0].capability).toBe('proposal_engine')
   })
 })

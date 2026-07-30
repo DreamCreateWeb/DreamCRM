@@ -9,7 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const store: {
   orgs: Array<Record<string, unknown>>
   ledger: Array<Record<string, unknown>>
-} = { orgs: [], ledger: [] }
+  ledgerThrows: boolean
+} = { orgs: [], ledger: [], ledgerThrows: false }
 
 const deps = vi.hoisted(() => ({
   switches: new Map<string, { remindersOn: boolean; reviewRequestsOn: boolean }>(),
@@ -58,6 +59,7 @@ vi.mock('@/lib/db', () => {
     // The grouped ledger read: model the FILTER aggregates the service asks
     // for, so the work/failure split is really exercised rather than stubbed.
     api.groupBy = async () => {
+      if (store.ledgerThrows) throw new Error('aggregate timed out')
       const byOrg = new Map<string, { organizationId: string; work: number; failures: number }>()
       for (const r of rows()) {
         const detail = (r.detail ?? {}) as Record<string, unknown>
@@ -117,6 +119,8 @@ vi.mock('drizzle-orm', () => ({
 import { sweepEngineHealth } from '@/lib/services/guardian'
 
 const NOW = new Date('2026-07-29T12:00:00Z')
+/** Comfortably past NEW_CLINIC_GRACE_DAYS. */
+const OLD = new Date('2025-01-01T00:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
 const old = (days: number) => new Date(NOW.getTime() - days * DAY)
 
@@ -138,6 +142,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   store.orgs = []
   store.ledger = []
+  store.ledgerThrows = false
   deps.switches = new Map()
   deps.seated = new Map()
   deps.seatedCalls = []
@@ -216,5 +221,42 @@ describe('sweepEngineHealth', () => {
     const sweep = await sweepEngineHealth(NOW)
     expect(sweep.reports[0].signals.ageDays).toBeGreaterThan(1000)
     expect(sweep.reports[0].verdict.state).toBe('silent')
+  })
+})
+
+/**
+ * ROUND-2 AUDIT. Three sweep-level guards that shipped with no test: the
+ * lifecycle filter (round-1 fix #13), and two `.catch(() => 0)` paths that
+ * turned an unreadable database into a confident false claim.
+ */
+describe('the sweep does not invent findings out of failures', () => {
+  it('a CHURNED clinic is not watched — nothing can run for them', async () => {
+    store.orgs = [
+      { id: 'org_live', name: 'Live Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+        trialEndsAt: null, subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1' },
+      { id: 'org_gone', name: 'Gone Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+        // Trial ended, never subscribed — behind the billing wall.
+        trialEndsAt: new Date(NOW.getTime() - 60 * 86400000), subscriptionStatus: null,
+        stripeSubscriptionId: null },
+    ]
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports.map((r) => r.clinicName)).toEqual(['Live Dental'])
+  })
+
+  it('an unreadable LEDGER reports nothing rather than calling every practice silent', async () => {
+    // The worst possible failure mode: one timed-out aggregate would
+    // otherwise flag every clinic on the platform as `silent`, email the
+    // owner about all of them, and write 'silent' into every alert memory
+    // so the real recovery reads as a state change and alerts again.
+    store.ledgerThrows = true
+    store.orgs = [
+      { id: 'org_a', name: 'Ash Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+        trialEndsAt: null, subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1' },
+    ]
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports).toHaveLength(0)
+    expect(sweep.flagged).toHaveLength(0)
+    // ...and it says so, rather than reporting a cheerful all-clear.
+    expect(sweep.summary).toMatch(/could not read/i)
   })
 })
