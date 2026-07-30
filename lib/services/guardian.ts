@@ -105,11 +105,10 @@ export async function recentFailureSummaries(
   }
 }
 
-/** Its complement: every "I tried and couldn't", of either shape. */
-export const failureCountExpr = () => sql<number>`count(*) filter (
-  where (${schema.actionLedger.detail} ->> 'failure') = 'true'
-     or (${schema.actionLedger.detail} ->> 'autoFailure') = 'true'
-)::int`
+/** Its complement, WRAPPING the shared expression so the counter and the
+ *  cause reader can never again disagree about what a failure is
+ *  (round-3 audit). */
+export const failureCountExpr = () => sql<number>`count(*) filter (where ${failureOnly()})::int`
 
 /**
  * Ledger counts per org for a window, split into WORK and FAILURES in one

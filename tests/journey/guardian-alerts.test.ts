@@ -439,3 +439,42 @@ describe('the owner’s email names the actual break', () => {
     expect(String(mail.sent[0].body)).toMatch(/first told you about this 7 days ago/i)
   })
 })
+
+/**
+ * ROUND-3 IN-PHASE GAP. The weekly re-alert is for the OWNER, who is chasing
+ * a fix. A practice that turned a switch off — quite possibly on purpose —
+ * must not be told about it again every seven days forever.
+ */
+describe('the practice hears a finding once, the owner hears it weekly', () => {
+  it('does NOT re-note a switch the practice has left off', async () => {
+    lock.audience = 'clinic'
+    store.profiles[0].guardianState = 'blocked'
+    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS + 1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(0)
+    expect(ledger.recorded).toHaveLength(0)
+    // The state is still recorded, so a real change is still news.
+    expect(store.profiles[0].guardianState).toBe('blocked')
+  })
+
+  it('a CHANGED finding is news to them again', async () => {
+    lock.audience = 'clinic'
+    store.profiles[0].guardianState = 'stalled'
+    store.profiles[0].guardianAlertedAt = daysAgo(1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(1)
+  })
+
+  it('the OWNER still gets the weekly re-alert — they are chasing a fix', async () => {
+    store.profiles[0].guardianState = 'silent'
+    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.alerted).toBe(1)
+  })
+})

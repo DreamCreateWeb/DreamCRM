@@ -1278,3 +1278,96 @@ re-running rounds.
     exclusion, cancelled logic, funnel windows), ledger reads (limit clamp,
     count mapping, org scoping), campaign actor gate, reminder-writer
     branches. CLAUDE.md contradictions fixed (0136, open-item 0b).
+
+---
+
+## Phase 4 — the Guardian + the shared brain: ROUND-3 ESCALATION + RETROSPECTIVE (2026-07-30)
+
+**Rounds 1–3 ran at the hard cap and round 3 still found significant items,
+so discovery-by-audit ended and the remaining discovery became the main
+loop's own job.** Totals across the three rounds: **36 confirmed defects
+fixed, 9 in-phase gaps shipped, 7 accepted to backlog, 17 rejections upheld.**
+Suite 5,629 → 5,865.
+
+### Why did this phase ship with this many gaps?
+
+One root cause, three faces. **I shipped observability without ever making
+the thing fail.**
+
+Phase 4's whole subject is *noticing when something is broken*. Every slice
+was written by reasoning forward from a healthy system — "when X breaks, we
+will record it" — and never once by breaking X and watching. That single
+habit produced almost every serious finding:
+
+1. **`recordFailure` had zero callers for a whole slice.** I wrote the
+   failure vocabulary AND the three-strikes rule that consumes it, and the
+   branch was dead in production. Reasoning forward, it looked complete:
+   the writer existed, the reader existed. Nobody connected them because
+   nothing ever failed during development.
+
+2. **The channel I then built could not see the failure most likely to
+   happen.** The AI helpers are hardened never to throw — a fact documented
+   in their own source — and I wired the recorder into `catch` blocks. A
+   revoked API key would have broken all three AI generators silently and
+   forever while the Guardian reported "healthy".
+
+3. **When I fixed that, I conflated two failures into one signal.** "The
+   provider is down" and "this one review is un-draftable" both returned
+   `'failed'`, so a single profane 1★ — sorted worst-first, so it leads
+   every run, and never replied to, so it never leaves the queue — would
+   have produced one strike a day forever and a permanent false `blocked`
+   that no recommended action could clear.
+
+4. **And the reader I shipped to end headline-guessing read only half the
+   vocabulary its own counter counts.** `failureCountExpr` matched
+   `failure` OR `autoFailure`; `recentFailureSummaries` matched `failure`.
+   A clinic that had granted autonomy hit the alarm entirely on hand-backs
+   and got an empty "What it tried" list under a hardcoded guess.
+
+The same forward-only reasoning explains the rest: two `.catch(() => 0)`
+paths that turned an unreadable database into a *confident false claim*
+(a fabricated "down 100%", and every practice on the platform reported
+silent from one timed-out aggregate); a bare `UPDATE` for a memory row that
+may not exist, which would have emailed about a half-provisioned clinic
+every morning forever; a `MIN_LIFT` stability guard anchored to a constant
+so it stopped guarding the moment it was needed; a heads-up card whose only
+call to action was a 404.
+
+**A second, sharper lesson: I verified a route with `ls -d`.** That confirms
+a *directory* exists and says nothing about whether Next.js will serve it.
+The one surface where the machine admits it cannot do its job had a dead
+link, and my pre-audit check "passed". Checking the shape of a thing is not
+checking the thing.
+
+**Third: tests written alongside a fix tend to test the fix's shape, not its
+behaviour.** Round 3 found that round 2's headline fix was "verified" by
+`readFileSync`-ing its own source and asserting on the text — flipping the
+one line that mattered would have kept the suite green while production
+regressed. Round 1's two headline fixes, the churn filter, the seated-null
+guard, and the shared brain's only production effect all had **zero executed
+coverage** at the moment I declared them done.
+
+### Standing lessons added by this phase
+
+- **Observability is not shipped until you have broken the thing.** Any code
+  whose job is to notice a failure must be exercised by inducing that
+  failure — not by reasoning that the recorder is wired up. If the failure
+  cannot be induced in a test, that is itself the finding.
+- **A failure signal must distinguish "the system is down" from "this item
+  is bad."** Collapsing them turns one awkward row of data into a permanent
+  false alarm about infrastructure, and the recommended fix can never clear
+  it.
+- **A counter and its explainer must share one predicate.** If code counts
+  N things and another function explains them, they are one law with two
+  readers; give them one home or they will disagree, silently, in the
+  direction that makes the report wrong.
+- **`.catch(() => 0)` inside a comparison is a lie generator.** A default
+  that is indistinguishable from real data will be reported as real data.
+  Unreadable must be its own value, and a report that cannot be made
+  honestly must not be made.
+- **Verify routes by their handler, not their directory.** `ls -d` proves
+  nothing. Look for the file that actually serves the path.
+- **A test that reads source text is not coverage.** If the assertion would
+  survive the behaviour being reverted, it is documentation with a green
+  tick on it.
+

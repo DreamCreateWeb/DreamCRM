@@ -221,10 +221,19 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     result.errors.push({ organizationId: '-', error: `expireStale: ${(e as Error).message}` })
   }
 
-  const orgs = await db
-    .select({ id: schema.organization.id, name: schema.organization.name })
-    .from(schema.organization)
-    .where(and(eq(schema.organization.type, 'clinic'), eq(schema.organization.isDemo, false)))
+  let orgs: Array<{ id: string; name: string }>
+  try {
+    orgs = await db
+      .select({ id: schema.organization.id, name: schema.organization.name })
+      .from(schema.organization)
+      .where(and(eq(schema.organization.type, 'clinic'), eq(schema.organization.isDemo, false)))
+  } catch (e) {
+    // The org list is the other half of what the comment above promises.
+    // Unreadable means we cannot even name who to record against, so this
+    // is ours alone — but it must not vanish into a thrown cron.
+    result.errors.push({ organizationId: '-', error: `orgs: ${(e as Error).message}` })
+    return result
+  }
 
   for (const org of orgs) {
     result.orgsScanned++

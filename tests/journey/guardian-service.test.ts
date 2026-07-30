@@ -29,6 +29,11 @@ vi.mock('@/lib/services/engine-switches', () => ({
 vi.mock('@/lib/services/patient-journey', () => ({
   countSeatedBetween: vi.fn(async (orgId: string) => {
     deps.seatedCalls.push(orgId)
+    // Fail only the CURRENT-month read, which is the asymmetric case that
+    // used to fabricate a 100% drop.
+    if (deps.throwFor === `${orgId}:this` && deps.seatedCalls.filter((c) => c === orgId).length === 1) {
+      throw new Error('unreadable')
+    }
     const pair = deps.seated.get(orgId) ?? [5, 5]
     // First call in a pass is the current month, second the prior one.
     const n = deps.seatedCalls.filter((c) => c === orgId).length
@@ -258,5 +263,24 @@ describe('the sweep does not invent findings out of failures', () => {
     expect(sweep.flagged).toHaveLength(0)
     // ...and it says so, rather than reporting a cheerful all-clear.
     expect(sweep.summary).toMatch(/could not read/i)
+  })
+})
+
+describe('an unreadable month is never a stall', () => {
+  it('a failed CURRENT-month seated read does not become a 100% drop', async () => {
+    // Round-2 fixed this and round-3 found it untested. `.catch(() => 0)`
+    // turned an unreadable current month into "new patients are down 100%
+    // — 12 the month before, 0 this past month", fabricated numbers emailed
+    // to the owner. A number we could not read is not a number we report.
+    deps.seated.set('org_a', [0, 12])
+    deps.throwFor = 'org_a:this'
+    store.orgs = [
+      { id: 'org_a', name: 'Ash Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+        trialEndsAt: null, subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1' },
+    ]
+    store.ledger = [{ organizationId: 'org_a', occurredAt: NOW, detail: {} }]
+
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].verdict.state).not.toBe('stalled')
   })
 })

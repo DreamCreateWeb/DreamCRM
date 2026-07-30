@@ -54,10 +54,26 @@ export async function recordAction(input: RecordActionInput): Promise<boolean> {
   }
 }
 
-/** Failure rows only — the de-dup's narrowing clause. Exported so the
- *  boundary test renders THIS expression rather than a hand-copy that can
- *  drift away from it (round-2 audit). */
-export const failureOnly = () => sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'`
+/**
+ * EVERY "I tried and couldn't", of either shape — the one home for the
+ * failure half of the vocabulary.
+ *
+ * ROUND-3 AUDIT: the Guardian's COUNTER matched `failure` OR `autoFailure`
+ * while the round-2 cause READER matched only `failure`. `autoFailure` is
+ * the Phase-3 hand-back note, so a clinic that had granted autonomy and
+ * whose connection then died hit the three-strike alarm entirely on
+ * hand-backs — and got the headline's hardcoded guess ("usually an expired
+ * Google token") with an EMPTY "What it tried" list, while the ledger held
+ * three sentences naming the real break. Exactly the defect the reader was
+ * shipped to end. Counter and reader now share this expression.
+ */
+export const failureOnly = () => sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'
+  or (${schema.actionLedger.detail} ->> 'autoFailure') = 'true'`
+
+/** JUST the de-dup's own marker. `recordFailure` writes `failure`, so its
+ *  once-a-day guard asks about that one specifically — a hand-back note from
+ *  a different subsystem must not suppress a generator's strike. */
+export const ownFailureMarker = () => sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'`
 
 /** Entries the executors stamped as the machine acting alone (Phase 3). */
 const autonomousOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomous') = 'true'`
@@ -117,7 +133,7 @@ export async function recordFailure(input: {
             eq(schema.actionLedger.organizationId, input.organizationId),
             eq(schema.actionLedger.capability, input.capability),
             gte(schema.actionLedger.occurredAt, since),
-            failureOnly(),
+            ownFailureMarker(),
           ),
         )
         .limit(1)

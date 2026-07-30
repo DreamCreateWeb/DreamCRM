@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 
 /**
  * THE PROPOSAL ENGINE, OBSERVABLE (Phase 4 slice 4).
@@ -122,7 +120,12 @@ vi.mock('drizzle-orm', () => {
   return { and: p, or: p, eq: p, gte: p, lt: p, lte: p, desc: p, asc: p, isNull: p, isNotNull: p, inArray: p, ne: p, sql: Object.assign(p, { raw: p }) }
 })
 
-import { runProposalGenerators, STEP_FAILURE, ENGINE_DOWN } from '@/lib/services/proposal-generators'
+import {
+  runProposalGenerators,
+  generateInquiryResponseProposals,
+  STEP_FAILURE,
+  ENGINE_DOWN,
+} from '@/lib/services/proposal-generators'
 import { CAPABILITIES } from '@/lib/autonomy'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
@@ -248,26 +251,31 @@ describe('soft AI failures — the provider breaking, and only that', () => {
     expect(r.failuresRecorded).toBe(1)
   })
 
-  it('an UNUSABLE draft is NOT an engine break — the pure reason mapping', async () => {
-    // The model answered; it just was not usable for this ONE item.
-    // Recording that would put a strike a day on the clinic forever while
-    // every other capability keeps working, and on day three the Guardian
-    // would report `blocked` with "look at their integrations" — false, and
-    // unable to ever clear. Only a PROVIDER break is an engine signal.
-    const { draftGoogleReviewReply: _x } = await import('@/lib/services/review-reply-ai')
-    expect(_x).toBeTypeOf('function')
-    // The mapping itself is the contract: 'unusable' must be a distinct
-    // reason from 'failed', or the caller cannot tell them apart.
-    const src = readFileSync(resolve(__dirname, '../../lib/services/review-reply-ai.ts'), 'utf8')
-    expect(src).toContain("reason: 'unusable'")
-    const gen = readFileSync(resolve(__dirname, '../../lib/services/proposal-generators.ts'), 'utf8')
-    // Every soft-failure call site must be gated on 'failed' specifically.
-    for (const m of gen.matchAll(/onSoftFailure\?\.\(\)/g)) {
-      const before = gen.slice(Math.max(0, m.index! - 200), m.index!)
-      expect(before, 'onSoftFailure fired without checking for a provider break').toMatch(
-        /reason === 'failed'/,
-      )
+  it('an UNUSABLE draft fires NO soft failure; a PROVIDER break does', async () => {
+    // Behavioural, not source-reading (round-3 audit: the previous version
+    // of this test readFileSync'd the module and asserted on its text, so
+    // flipping 'unusable' back to 'failed' in the one line that matters
+    // would have kept every test green while production regressed to the
+    // round-2 critical).
+    const lead = {
+      id: 'l1', organizationId: 'org_a', name: 'Ada Lovelace', email: 'a@x.com',
+      message: 'hi', status: 'new', createdAt: NOW,
     }
+    ai.configured = true
+
+    // The model answered, unusably, for this ONE lead.
+    store.leads = [lead]
+    ai.unusable = true
+    const soft: string[] = []
+    await generateInquiryResponseProposals('org_a', 'Ash Dental', NOW, () => soft.push('x'))
+    expect(soft, 'an un-draftable lead must never read as an engine break').toHaveLength(0)
+
+    // The provider itself broke.
+    ai.unusable = false
+    ai.throws = true
+    const soft2: string[] = []
+    await generateInquiryResponseProposals('org_a', 'Ash Dental', NOW, () => soft2.push('x'))
+    expect(soft2.length, 'a provider break must reach the Guardian').toBeGreaterThan(0)
   })
 })
 

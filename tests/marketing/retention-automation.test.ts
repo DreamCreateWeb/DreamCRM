@@ -297,3 +297,45 @@ describe('automationSendAt — the clinic-local send window (phase 4)', () => {
     expect(automationSendAt(now, 'America/Chicago').toISOString()).toBe(now.toISOString())
   })
 })
+
+/**
+ * THE LEARNED SEND HOUR (Phase 4 — the shared brain), round-3 audit: the
+ * brain's ONLY production effect had no test, so dropping the third argument
+ * at the single call site would silently revert every clinic to the
+ * hardcoded 10 with the whole suite still green and the owner's panel still
+ * cheerfully reporting a learned hour.
+ */
+describe('automationSendAt honours the learned hour', () => {
+  it('aims at whatever hour it is given, in clinic-local time', async () => {
+    const { automationSendAt } = await import('@/lib/services/retention-automation')
+    // 08:00 UTC = 03:00 Chicago, so every target hour is still ahead.
+    const now = new Date('2026-06-18T08:00:00.000Z')
+    const at15 = automationSendAt(now, 'America/Chicago', 15)
+    // 15:00 CDT = 20:00 UTC.
+    expect(at15.toISOString()).toBe('2026-06-18T20:00:00.000Z')
+    const at8 = automationSendAt(now, 'America/Chicago', 8)
+    expect(at8.toISOString()).toBe('2026-06-18T13:00:00.000Z')
+  })
+
+  it('falls back to the shipped default when given nothing', async () => {
+    const { automationSendAt } = await import('@/lib/services/retention-automation')
+    const { DEFAULT_SEND_HOUR } = await import('@/lib/shared-brain')
+    const now = new Date('2026-06-18T08:00:00.000Z')
+    expect(automationSendAt(now, 'America/Chicago').toISOString()).toBe(
+      automationSendAt(now, 'America/Chicago', DEFAULT_SEND_HOUR).toISOString(),
+    )
+  })
+
+  it('the only consumer actually passes the brain’s hour through', async () => {
+    // A behavioural test cannot see a dropped argument (the default silently
+    // covers it), so the wiring itself is pinned here.
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const src = readFileSync(
+      resolve(__dirname, '../../lib/services/retention-automation.ts'),
+      'utf8',
+    )
+    expect(src).toMatch(/automationSendAt\(now, timeZone, brain\.sendHour\)/)
+    expect(src).toMatch(/getSharedBrain\(\)/)
+  })
+})

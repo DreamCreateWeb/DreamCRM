@@ -185,6 +185,16 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         continue
       }
       const alerting = shouldAlert(memory, state, now)
+      // SAY IT ONCE TO THE PRACTICE (round-3 in-phase gap). The weekly
+      // re-alert exists for the OWNER, who is chasing a fix and needs
+      // reminding it is still open. A practice does not: they turned the
+      // switch off, quite possibly on purpose, and repeating "reminders are
+      // switched off" every seven days forever is nagging somebody about
+      // their own deliberate choice — the anti-shame law inverted, and a
+      // guardian that gets tuned out. So the clinic hears a NEW or CHANGED
+      // finding and nothing more; if they turn it back on and off again,
+      // that is a change, and they hear it again.
+      const newsForClinic = memory.state !== state
 
       // WHO hears this one. The lock has to be open AND the finding has to
       // be something the practice can actually do something about; anything
@@ -195,7 +205,9 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // stamp — otherwise an outage buys the problem a week of silence,
       // which is the one failure mode a guardian must not have.
       let delivered = false
-      if (alerting && toClinic) {
+      if (toClinic && !newsForClinic) {
+        // Nothing new for them; the state still gets recorded below.
+      } else if (alerting && toClinic) {
         delivered = await tellClinic(report, now)
         if (delivered) {
           result.notified++
