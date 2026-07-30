@@ -173,7 +173,14 @@ function classify(s: EngineSignals): EngineVerdict {
     return {
       state: 'silent',
       headline: 'Nothing has run for two weeks',
-      why: 'No reminders, no review asks, no campaigns — the ledger is empty for 14 days straight.',
+      // Round-7 audit: `actions7` is WORK-only, so this branch is reachable
+      // with one or two failures on record (the alarm pre-empts only at
+      // three). Asserting "the ledger is empty" then contradicted the "What
+      // it tried" list printed directly beneath it in the same email.
+      why:
+        s.failures7 > 0
+          ? 'No reminders, no review asks, no campaigns got through in 14 days — the only entries are the attempts that failed.'
+          : 'No reminders, no review asks, no campaigns — the ledger is empty for 14 days straight.',
       recommendation:
         'Check their integrations and patient data first. A clinic seeing nothing happen is the one most likely to leave.',
     }

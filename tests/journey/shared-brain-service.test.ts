@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   writes: [] as Array<Record<string, unknown>>,
   writeThrows: false,
   bareArray: false,
+  configThrows: false,
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -32,6 +33,13 @@ vi.mock('@/lib/db', () => ({
 vi.mock('drizzle-orm', () => ({ sql: () => ({ op: 'sql' }) }))
 vi.mock('@/lib/services/platform-config', () => ({
   readPlatformConfig: vi.fn(async () => state.stored),
+  // STRICT: this one is allowed to throw, which is the whole point of it
+  // existing (round-7 audit — the loose read swallows everything, so the
+  // learning pass's abort branch was dead code and untestable).
+  readPlatformConfigStrict: vi.fn(async () => {
+    if (state.configThrows) throw new Error('platform_config unreachable')
+    return state.stored
+  }),
   writePlatformConfig: vi.fn(async (patch: Record<string, unknown>) => {
     if (state.writeThrows) throw new Error('write down')
     state.writes.push(patch)
@@ -51,6 +59,7 @@ beforeEach(() => {
   state.writes = []
   state.writeThrows = false
   state.bareArray = false
+  state.configThrows = false
 })
 
 const bucket = (hour: number, sent: number, opened: number, clinics = MIN_CLINICS_PER_HOUR) => ({
@@ -184,5 +193,29 @@ describe('runSharedBrainLearning — stability is measured against what is in fo
 
     const r = await runSharedBrainLearning(NOW)
     expect(r.finding.hour).toBe(15)
+  })
+})
+
+/**
+ * ROUND-7 AUDIT. The "a failed config read aborts the pass" branch was dead
+ * code: readPlatformConfig catches everything and returns {}, so
+ * getSharedBrain could not reject. A transient DB error silently swapped the
+ * incumbent for the shipped default AND the pass carried on and overwrote
+ * what was known — un-learning a real hour on a blip.
+ */
+describe('a config read it cannot trust aborts the pass', () => {
+  it('never writes, and never un-learns, when the incumbent is unknowable', async () => {
+    state.stored = {
+      sharedBrain: { sendHour: 15, sendHourLearned: true, sendHourWhy: 'w', learnedAt: 'x' },
+    }
+    state.configThrows = true
+    state.stats = [bucket(10, 1000, 400)]
+
+    const r = await runSharedBrainLearning(NOW)
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/config/i)
+    // The stored brain is untouched — 15 is still in force.
+    expect(state.writes).toHaveLength(0)
+    expect((state.stored.sharedBrain as Record<string, unknown>).sendHour).toBe(15)
   })
 })

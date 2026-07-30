@@ -1498,3 +1498,32 @@ law.* Asserting that generated SQL mentions a marker says nothing about
 whether it asserts or negates it. Guards must pin the direction, and must
 cover every member of the set they claim to own.
 
+**Post-consolidation verification, attempt 2 — NOT CLEAN.** 2 major + 1
+minor, and both majors were round 6's own fixes being wrong in a way only a
+boundary check could see:
+
+- **`AT TIME ZONE` was applied backwards.** `action_ledger.occurred_at` is
+  `timestamp` WITHOUT zone holding a UTC wall clock. In Postgres, `naive AT
+  TIME ZONE z` ASSUMES the value is already local in `z` and ADDS the offset;
+  the correct conversion is the round trip `(v AT TIME ZONE 'UTC') AT TIME
+  ZONE z`. Round 6 wrote the single-cast form — copied from the shared brain,
+  whose column genuinely IS timestamptz — so the day boundary moved the WRONG
+  way by double the offset (16:00 local for an EDT practice). The bug round 6
+  set out to fix survived its own fix, and no test could tell, because the
+  only assertion was that the string "at time zone" appeared.
+- **The shared brain's abort branch was dead code.** `readPlatformConfig`
+  catches every error and returns `{}`, so `getSharedBrain()` cannot reject
+  and the "a failed config read aborts the pass" branch was unreachable. A
+  transient DB error still substituted the shipped default as the incumbent
+  AND let the pass overwrite what was known. Fixed with a strict read that
+  is allowed to throw, and a test that makes it throw.
+- The `silent` verdict asserted "the ledger is empty for 14 days straight"
+  in the same email that listed what had failed — reachable because the work
+  count excludes failures and the alarm pre-empts only at three.
+
+**Standing lesson added:** *asserting that a conversion is PRESENT is not
+asserting it is CORRECT.* A test that greps for `at time zone` passes on a
+statement that shifts time the wrong way. Boundary tests for conversions must
+pin the DIRECTION — and an idiom copied between two columns is only valid if
+the column TYPES match.
+

@@ -114,7 +114,7 @@ export async function recentFailureSummaries(
         // The counter and its explainer disagreeing is the phase's signature
         // defect; they now ask Postgres the same question.
         day: sql<string>`date_trunc('day',
-          ${schema.actionLedger.occurredAt} at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
+          (${schema.actionLedger.occurredAt} at time zone 'UTC') at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
         )`,
       })
       .from(schema.actionLedger)
@@ -183,7 +183,7 @@ export async function recentFailureSummaries(
  * true where "3 times" was counting bursts.
  */
 export const failureCountExpr = () => sql<number>`count(distinct date_trunc('day',
-  ${schema.actionLedger.occurredAt} at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
+  (${schema.actionLedger.occurredAt} at time zone 'UTC') at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
 )) filter (where ${failureOnly()})::int`
 
 /**
@@ -205,8 +205,17 @@ async function ledgerCountsByOrg(
       failures: failureCountExpr(),
     })
     .from(schema.actionLedger)
-    // CLINIC-LOCAL DAYS (round-6 audit). `occurred_at` is timestamp-without-
-    // zone, so date_trunc buckets on UTC midnight — 8 PM the previous day in
+    // CLINIC-LOCAL DAYS, IN THE RIGHT DIRECTION (round-7 audit fixed round
+    // 6's fix). `occurred_at` is timestamp WITHOUT zone holding a UTC wall
+    // clock. In Postgres, `naive AT TIME ZONE z` ASSUMES the value is
+    // already local in z and converts it TO timestamptz — it ADDS the
+    // offset. Round 6 wrote the single-cast form, copied from the shared
+    // brain where the column genuinely IS timestamptz, and so shifted the
+    // boundary the WRONG WAY BY DOUBLE: 16:00 clinic-local for an EDT
+    // practice. Two rows on one New York afternoon still landed in two
+    // "days". The round trip — naive → UTC → clinic zone — is what actually
+    // buckets a clinic's day. Original defect: date_trunc buckets on UTC
+    // midnight — 8 PM the previous day in
     // EDT, 5 PM in PDT. A Pacific practice whose cards hand back at 4 PM and
     // 6 PM on one afternoon recorded TWO distinct "days", and two such
     // afternoons trip the alarm — precisely the "not one bad afternoon" the

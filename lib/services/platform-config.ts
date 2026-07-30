@@ -17,6 +17,27 @@ import { resolveGuardianAudience, type GuardianAudience } from '@/lib/guardian'
 
 const CONFIG_ID = 'default'
 
+/**
+ * STRICT read — throws on a real failure.
+ *
+ * Round-7 audit: `readPlatformConfig` swallows every error and returns `{}`,
+ * which is right for callers that must never lose a scheduler. But it made
+ * the shared brain's "a failed config read aborts the pass" branch DEAD
+ * CODE: getSharedBrain could not reject, so a transient DB error silently
+ * substituted the shipped default as the learning incumbent and the pass
+ * carried on and overwrote what was known. A caller that needs to tell
+ * "we know it is 10" from "we could not find out" needs a read that can say
+ * so.
+ */
+export async function readPlatformConfigStrict(): Promise<Record<string, unknown>> {
+  const [row] = await db
+    .select({ config: schema.platformConfig.config })
+    .from(schema.platformConfig)
+    .where(eq(schema.platformConfig.id, CONFIG_ID))
+    .limit(1)
+  return (row?.config ?? {}) as Record<string, unknown>
+}
+
 export async function readPlatformConfig(): Promise<Record<string, unknown>> {
   try {
     const [row] = await db

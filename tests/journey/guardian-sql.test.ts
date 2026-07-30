@@ -63,3 +63,46 @@ describe('the guardian sweep as Postgres parses it', () => {
     expect(q.sql).toMatch(/group by\s+"action_ledger"\."organization_id"/i)
   })
 })
+
+/**
+ * THE DAY BOUNDARY, IN THE RIGHT DIRECTION (round-7 audit).
+ *
+ * `action_ledger.occurred_at` is `timestamp` WITHOUT time zone holding a UTC
+ * wall clock. In Postgres, `naive AT TIME ZONE z` ASSUMES the value is
+ * already local in `z` and converts it TO timestamptz — it ADDS the offset.
+ * The correct conversion for a UTC-bearing naive column is the ROUND TRIP:
+ * `(v AT TIME ZONE 'UTC') AT TIME ZONE z`.
+ *
+ * Round 6 wrote the single-cast form — correct for the shared brain, whose
+ * column really is timestamptz, and wrong here by DOUBLE the offset, so an
+ * EDT practice's day rolled at 16:00 local and two rows on one afternoon
+ * still counted as two "days". Presence of "at time zone" proved nothing;
+ * only the direction does.
+ */
+describe('the failure alarm buckets on a real clinic day', () => {
+  const text = dialect.sqlToQuery(failureCountExpr()).sql
+
+  it('round-trips through UTC before the clinic zone', () => {
+    expect(text.replace(/\s+/g, ' ')).toMatch(
+      /at time zone 'UTC'\s*\)\s*at time zone coalesce\(/i,
+    )
+  })
+
+  it('never applies the clinic zone directly to the naive column', () => {
+    // The exact shape that shipped in round 6: the column, then the clinic
+    // zone, with no UTC hop in between.
+    const flat = text.replace(/\s+/g, ' ')
+    expect(
+      /"occurred_at" at time zone coalesce\(/i.test(flat),
+      `single-cast AT TIME ZONE on a naive column shifts the day the WRONG way:\n${flat}`,
+    ).toBe(false)
+  })
+
+  it('truncates to a day AFTER the conversion, not before', () => {
+    const flat = text.replace(/\s+/g, ' ')
+    const trunc = flat.indexOf("date_trunc('day'")
+    const tz = flat.indexOf("at time zone 'UTC'")
+    expect(trunc).toBeGreaterThan(-1)
+    expect(tz).toBeGreaterThan(trunc)
+  })
+})

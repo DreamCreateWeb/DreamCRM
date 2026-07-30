@@ -9,7 +9,11 @@ import {
   type SendHourFinding,
   type SharedBrain,
 } from '@/lib/shared-brain'
-import { readPlatformConfig, writePlatformConfig } from '@/lib/services/platform-config'
+import {
+  readPlatformConfig,
+  readPlatformConfigStrict,
+  writePlatformConfig,
+} from '@/lib/services/platform-config'
 
 /**
  * THE SHARED BRAIN (Transformation Phase 4), service half. Aggregates what
@@ -128,9 +132,13 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
   // should have lost. The same failure the round-1 fix removed, re-entering
   // through the error path. Not knowing what is in force is a reason to skip
   // a weekly pass, never a reason to guess.
+  // STRICT, so the branch below is reachable (round-7 audit: the plain read
+  // swallows every error and returns {}, which made this abort dead code —
+  // the incumbent silently became the shipped default and the pass carried
+  // on and overwrote what was known).
   let current: SharedBrain
   try {
-    current = await getSharedBrain()
+    current = resolveSharedBrain(await readPlatformConfigStrict())
   } catch (e) {
     return {
       ok: false,
