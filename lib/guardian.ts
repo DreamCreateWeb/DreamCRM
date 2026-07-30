@@ -364,5 +364,17 @@ export function clinicNote(state: EngineState, s: EngineSignals): string | null 
   // stalled. No offer of anything that isn't already wired: the recall
   // engine files its own card when there are patients due, so promising one
   // here would be the machine writing a cheque another module may not cash.
-  return `Fewer new patients came in this past month than the month before (${s.seated30} against ${s.seatedPrev30}). Nothing is broken on my side — everything is still running. It’s worth a look at where new patients usually find you, and whether anything changed there.`
+  //
+  // AND IT MUST NOT CLAIM TO BE FINE WHEN IT ISN'T (round-8 audit). Round 7
+  // taught the OWNER's version of this sentence to hedge when the week also
+  // had failures, and left this sibling asserting "Nothing is broken on my
+  // side" unconditionally — reachable whenever failures7 is 1 or 2, since
+  // the alarm only pre-empts a stall at three. The machine telling a
+  // practice it is fine while its own failure rows sit in that practice's
+  // ledger is the worst version of the thing this phase exists to prevent.
+  const opening = `Fewer new patients came in this past month than the month before (${s.seated30} against ${s.seatedPrev30}).`
+  if (s.failures7 > 0) {
+    return `${opening} Some of my own jobs also hit trouble this week, so let me get those working before we read too much into the numbers. I’ll keep you posted.`
+  }
+  return `${opening} Nothing is broken on my side — everything is still running. It’s worth a look at where new patients usually find you, and whether anything changed there.`
 }

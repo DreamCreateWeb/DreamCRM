@@ -117,6 +117,16 @@ export function learnBestSendHour(
    * is precisely the oscillation MIN_LIFT exists to prevent.
    */
   currentHour: number = DEFAULT_SEND_HOUR,
+  /**
+   * Whether the hour in force was WORKED OUT rather than merely defaulted.
+   * Round-8 audit: `learned` was being re-derived as `incumbent !==
+   * DEFAULT_SEND_HOUR`, which is wrong in the likeliest steady state of all
+   * — the platform genuinely learning that 10 AM is best. The same stored
+   * hour then reported "Learned" one week and "Still learning" the next.
+   * Whether we learned something is a fact about the PAST, so it is carried
+   * forward, not re-guessed from the value.
+   */
+  currentLearned = false,
 ): SendHourFinding {
   const sampleSends = stats.reduce((n, s) => n + s.sent, 0)
   const incumbent =
@@ -130,7 +140,7 @@ export function learnBestSendHour(
   if (eligible.length === 0) {
     return {
       hour: incumbent,
-      learned: incumbent !== DEFAULT_SEND_HOUR,
+      learned: currentLearned,
       why: `Not enough to go on yet, so every clinic still sends at ${hourLabel(incumbent)}. An hour needs ${MIN_SENDS_PER_HOUR} sends across at least ${MIN_CLINICS_PER_HOUR} practices before it counts.`,
       sampleSends,
     }
@@ -160,7 +170,7 @@ export function learnBestSendHour(
   if (standing && rate(best) - rate(standing) < MIN_LIFT) {
     return {
       hour: incumbent,
-      learned: incumbent !== DEFAULT_SEND_HOUR,
+      learned: currentLearned,
       why: `${hourLabel(best.hour)} is doing slightly better than ${hourLabel(incumbent)}, but not by enough to be sure. Staying at ${hourLabel(incumbent)} until it is.`,
       sampleSends,
     }

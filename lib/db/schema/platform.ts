@@ -660,7 +660,7 @@ export type StripeWebhookEvent = typeof stripeWebhookEvent.$inferSelect
 /**
  * PLATFORM-GLOBAL CONFIG (Phase 4). One row, id 'default' — the same shape
  * prospecting_config uses. Holds the switches that belong to Dream Create
- * rather than to any clinic; today that is the Guardian's audience lock
+ * rather than to any clinic; today that is the Guardian's audience lock plus the shared brain's learned defaults
  * (`{ guardianAudience: 'platform' | 'clinic' }`, floored at 'platform' by
  * resolveGuardianAudience so an absent or malformed row can never start
  * talking to customers).

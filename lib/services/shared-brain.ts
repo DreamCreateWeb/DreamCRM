@@ -162,7 +162,7 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
     }
   }
 
-  const finding = learnBestSendHour(stats, current.sendHour)
+  const finding = learnBestSendHour(stats, current.sendHour, current.sendHourLearned)
   await writePlatformConfig({
     sharedBrain: {
       sendHour: finding.hour,

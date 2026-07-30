@@ -55,14 +55,29 @@ vi.mock('@/lib/db', () => {
     // fixture carries them on the org row, so the join is a no-op here.
     api.leftJoin = () => api
     api.where = (preds: unknown) => {
-      if (Array.isArray(preds)) for (const p of preds) filters.push(p as never)
-      else if (typeof preds === 'function') filters.push(preds as never)
+      // Only FUNCTION predicates are row filters. Raw `sql` fragments
+      // (failureOnly() and friends) arrive as opaque objects; pushing them
+      // made `filters.every(f => f(r))` throw — which the explainer's own
+      // catch swallowed, so it silently returned [] and looked tested
+      // (round-8 audit).
+      const list = Array.isArray(preds) ? preds : [preds]
+      for (const p of list) if (typeof p === 'function') filters.push(p as never)
       return api
     }
     const rows = () =>
       (table === 'organization' ? store.orgs : store.ledger).filter((r) => filters.every((f) => f(r)))
     // The grouped ledger read: model the FILTER aggregates the service asks
     // for, so the work/failure split is really exercised rather than stubbed.
+    // ROUND-8 AUDIT: this mock had no orderBy/limit, so recentFailureSummaries
+    // threw a TypeError straight into its own catch and returned [] in EVERY
+    // sweep test — the owner's "What it tried" list had zero executed
+    // coverage, and both the round-6 day fix and the round-7 timezone fix
+    // could be reverted at that site with the suite still green.
+    api.orderBy = () => api
+    api.limit = async (n?: number) => {
+      const out = rows()
+      return typeof n === 'number' ? out.slice(0, n) : out
+    }
     api.groupBy = async () => {
       if (store.ledgerThrows) throw new Error('aggregate timed out')
       const byOrg = new Map<string, { organizationId: string; work: number; failures: number }>()
@@ -127,6 +142,7 @@ vi.mock('drizzle-orm', () => ({
     r[c.__col] instanceof Date && (r[c.__col] as Date) >= v,
   lt: (c: { __col: string }, v: Date) => (r: Record<string, unknown>) =>
     r[c.__col] instanceof Date && (r[c.__col] as Date) < v,
+  desc: () => 'desc',
   sql: Object.assign(() => 'sql', { raw: () => 'sql', join: () => 'sql' }),
 }))
 
@@ -336,5 +352,48 @@ describe('failures7 counts days of breakage, not rows', () => {
     const sweep = await sweepEngineHealth(NOW)
     expect(sweep.reports[0].signals.failures7).toBe(3)
     expect(sweep.reports[0].verdict.state).toBe('blocked')
+  })
+})
+
+/**
+ * THE OWNER'S "WHAT IT TRIED" LIST (round-8 audit). It had ZERO executed
+ * coverage: the select mock lacked orderBy/limit, so it threw into its own
+ * catch and returned [] in every sweep. Both the round-6 day-counting fix
+ * and the round-7 timezone fix lived at a SECOND, untested site.
+ */
+describe('the failure explainer actually runs, and counts days', () => {
+  const org = {
+    id: 'org_a', name: 'Ash Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+    trialEndsAt: null, subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1',
+    timezone: 'America/New_York',
+  }
+
+  it('names what broke, and a burst on one day counts as one day', async () => {
+    store.orgs = [org]
+    const t = new Date('2026-07-28T13:00:00Z')
+    store.ledger = [
+      // Three cards handed back in ONE instant — one bad day, not three.
+      ...Array.from({ length: 3 }, () => ({
+        organizationId: 'org_a', capability: 'social_post', occurredAt: t,
+        detail: { failure: true, failureKind: 'hand_back' },
+        day: '2026-07-28',
+      })),
+      { organizationId: 'org_a', capability: 'social_post', occurredAt: new Date('2026-07-27T13:00:00Z'),
+        detail: { failure: true, failureKind: 'engine' }, day: '2026-07-27' },
+    ]
+
+    const sweep = await sweepEngineHealth(NOW)
+    const causes = sweep.reports[0].failureCauses
+    expect(causes.length, 'the explainer returned nothing — is it throwing again?').toBeGreaterThan(0)
+    expect(causes[0]).toMatch(/2 days/)
+    // Owner-voiced label, never the clinic-addressed ledger sentence.
+    expect(causes[0]).not.toMatch(/you|your/i)
+  })
+
+  it('says nothing when nothing failed — no empty section on a healthy report', async () => {
+    store.orgs = [org]
+    store.ledger = [{ organizationId: 'org_a', occurredAt: NOW, detail: {} }]
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].failureCauses).toEqual([])
   })
 })

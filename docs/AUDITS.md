@@ -1527,3 +1527,35 @@ statement that shifts time the wrong way. Boundary tests for conversions must
 pin the DIRECTION — and an idiom copied between two columns is only valid if
 the column TYPES match.
 
+**Attempt 3 — NOT CLEAN.** 2 major + 2 minor. Two of them are the phase's own
+signature class, found hiding inside the fixes for it:
+
+- **The day expression was a hand-written DUPLICATE.** The counter and the
+  explainer each carried their own copy, so the round-6 day-counting fix and
+  the round-7 timezone-direction fix each had TWO sites — and only one was
+  rendered by a test. Reverting the explainer's copy restored either defect
+  with the whole suite green. Now `clinicLocalDay()`: one expression, both
+  readers.
+- **The explainer had ZERO executed coverage.** The service test's select
+  mock lacked `orderBy`/`limit`/`desc`, so `recentFailureSummaries` threw a
+  TypeError straight into its own silent `catch {}` and returned `[]` in
+  every sweep test — for three rounds it looked covered and never ran once.
+  The catch now logs, which surfaced the cause in one run, and the mock
+  executes the real query.
+- **The clinic-facing stall said "Nothing is broken on my side" in a week the
+  machine recorded failures.** Round 7 taught the OWNER's version of that
+  sentence to hedge and left the sibling asserting it unconditionally — the
+  sibling-sweep lesson from Phase 2, written down and not applied.
+- The `learned` flag still flipped when the learned hour EQUALS the shipped
+  default (the likeliest steady state). Whether we learned something is a
+  fact about the past, so it is now carried forward rather than re-derived
+  from the value.
+
+**Standing lessons added:**
+- *A silent `catch {}` around a query makes an untested path look tested.*
+  It converts "this never ran" into "this returned empty", which every
+  assertion downstream happily accepts. Catches that swallow must log.
+- *A test harness that omits a builder method does not fail — it throws into
+  your error path.* Mock completeness is a correctness property of the test,
+  not a convenience.
+

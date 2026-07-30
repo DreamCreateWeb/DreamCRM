@@ -70,6 +70,25 @@ export interface GuardianSweep {
  *  exactly how the `report` marker would have been added to one and not the
  *  other. It now WRAPS action-ledger's `workOnly()`, so there is genuinely
  *  one home. Exported so the boundary test renders the real expression. */
+/**
+ * THE CLINIC'S OWN DAY — one expression, both readers.
+ *
+ * ROUND-8 AUDIT: the counter and the explainer each carried their own copy
+ * of this, so the round-6 day-bucketing fix and the round-7 timezone-
+ * direction fix each had TWO sites and only one of them was rendered by a
+ * test. Reverting the explainer's copy would have restored either defect
+ * with the whole suite green. Exactly the duplicate-law shape this phase
+ * exists to have eliminated, hiding inside the fix for it.
+ *
+ * `occurred_at` is `timestamp` WITHOUT zone holding a UTC wall clock, so the
+ * conversion is a ROUND TRIP: read it as UTC, then render it in the clinic's
+ * zone. `naive AT TIME ZONE z` alone ASSUMES the value is already local in
+ * `z` and shifts it the wrong way by double the offset.
+ */
+export const clinicLocalDay = () => sql<string>`date_trunc('day',
+  (${schema.actionLedger.occurredAt} at time zone 'UTC') at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
+)`
+
 export const workCountExpr = () => sql<number>`count(*) filter (where ${workOnly()})::int`
 
 /**
@@ -113,9 +132,7 @@ export async function recentFailureSummaries(
         // 1 day this week" directly above "Publish social posts — 3 days".
         // The counter and its explainer disagreeing is the phase's signature
         // defect; they now ask Postgres the same question.
-        day: sql<string>`date_trunc('day',
-          (${schema.actionLedger.occurredAt} at time zone 'UTC') at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
-        )`,
+        day: clinicLocalDay(),
       })
       .from(schema.actionLedger)
       .leftJoin(
@@ -159,8 +176,11 @@ export async function recentFailureSummaries(
         const label = OWNER_CAPABILITY_NAME[cap] ?? getCapability(cap)?.label ?? cap.replace(/_/g, ' ')
         return `${label} — ${n} ${n === 1 ? 'day' : 'days'}`
       })
-  } catch {
+  } catch (e) {
     // The count still stands on its own; we just cannot name the causes.
+    // LOUDLY, though: this catch silently hid a TypeError for three rounds
+    // and made the list look tested when it never executed (round-8 audit).
+    console.error('[guardian] failure-cause read failed', e)
     return []
   }
 }
@@ -182,9 +202,8 @@ export async function recentFailureSummaries(
  * makes the headline honest — "tried and couldn't on 3 days this week" is
  * true where "3 times" was counting bursts.
  */
-export const failureCountExpr = () => sql<number>`count(distinct date_trunc('day',
-  (${schema.actionLedger.occurredAt} at time zone 'UTC') at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
-)) filter (where ${failureOnly()})::int`
+export const failureCountExpr = () =>
+  sql<number>`count(distinct ${clinicLocalDay()}) filter (where ${failureOnly()})::int`
 
 /**
  * Ledger counts per org for a window, split into WORK and FAILURES in one
