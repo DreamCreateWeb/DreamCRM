@@ -30,6 +30,19 @@ import {
  * The window is deliberately long (90 days): send-time behaviour is a
  * seasonal, slow-moving thing, and a short window would make the platform
  * chase last week's noise.
+ *
+ * WHY THIS IS INERT, AND HONESTLY SO (round-14 in-phase gap). Restricting
+ * the sample to the population the learned hour actually acts on —
+ * automation campaigns — surfaces the structural fact underneath: every
+ * automated send already aims at the hour in force, so exactly one bucket
+ * fills and `eligible.length < 2` holds forever. The brain therefore cannot
+ * move the hour on its own, and that is the correct behaviour rather than a
+ * bug: the only honest way to learn a better hour is to deliberately send
+ * some of them somewhere else and compare, which is an EXPLORATION ARM (a
+ * small holdout at another hour) this phase does not ship. It is named in
+ * docs/AUDITS.md as the next slice. Pooling incomparable sends to
+ * manufacture a second bucket is the one thing we will not do — that is a
+ * confounded comparison wearing a finding's clothes.
  */
 
 const LOOKBACK_DAYS = 90
@@ -62,6 +75,21 @@ export function sendHourStatsQuery(since: Date) {
       join ${schema.campaigns} c on c.id = ce.campaign_id
       join ${schema.organization} o on o.id = c.organization_id
       where ce.type = 'sent' and ce.occurred_at >= ${since}::timestamptz
+        -- AUTOMATION SENDS ONLY (round-14 in-phase gap). THE LEARNED HOUR IS
+        -- APPLIED TO EXACTLY ONE THING -- automationSendAt in
+        -- retention-automation.ts -- so the sample has to be the same
+        -- population the action lands on. Without this the aggregate pooled
+        -- automated birthday/reactivation/welcome mail with human-made
+        -- marketing blasts, which do not share an open rate at ANY hour and
+        -- systematically go out at DIFFERENT hours (automations at the
+        -- incumbent by construction, blasts whenever staff hit send). The
+        -- buckets differed by CONTENT before they differed by TIME, and
+        -- MIN_LIFT 3-point margin is far smaller than the gap between
+        -- those two kinds of mail — so all three floors could pass on a
+        -- comparison that never controlled for what was being sent. The
+        -- floors bound sample size and margin; they cannot bound
+        -- comparability.
+        and c.automation_key is not null
         -- REAL CLINICS ONLY (round-1 audit). Without this the aggregate
         -- counted the DEMO org — whose seeder writes real campaign_events
         -- rows, re-dated on every deploy — and the platform tenant's own

@@ -212,6 +212,22 @@ function HeartbeatLine({ beat, unreadable }: { beat: GuardianHeartbeat; unreadab
       {beat.blind && ' · that run couldn’t see'}
       {beat.undelivered > 0 &&
         ` · ${beat.undelivered} report${beat.undelivered === 1 ? '' : 's'} couldn’t be delivered`}
+      {/* PRACTICES THE RUN GAVE UP ON (round-14 in-phase gap). A
+          half-provisioned clinic is skipped by the alerting half forever
+          while this panel renders it as a flagged row telling the owner to
+          audit its integrations — the worst-shaped practice on the
+          platform, previously visible in nothing. */}
+      {beat.skipped > 0 &&
+        ` · ${beat.skipped} practice${beat.skipped === 1 ? '' : 's'} skipped (no profile row)`}
+      {/* AND WHY (round-14 in-phase gap). "1 report couldn't be delivered"
+          with no reason left the owner unable to tell a mail outage from
+          having nobody to email; the reasons were written in seven places
+          and handed to EventBridge, which discards them. */}
+      {beat.problems.length > 0 && (
+        <span className="block mt-0.5 text-amber-700 dark:text-amber-400">
+          Trouble on that run: {beat.problems.join('; ')}.
+        </span>
+      )}
     </span>
   )
 }

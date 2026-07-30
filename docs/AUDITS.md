@@ -1872,3 +1872,51 @@ round 12 was too generous by itself.
   definition, not yours.* `openProposals` counts handed-back cards by
   documented design; the Guardian needed a different question and asked the
   same one.
+
+**Attempt 9 (round 14) — NOT CLEAN, and the defect count has collapsed.**
+ONE minor defect + 2 major in-phase gaps, from 10 raw candidates. Defects
+confirmed by round: 9 → 6 → 4 → **1**. The remaining work in this phase is
+depth, not correctness.
+
+- **(defect) `learnBestSendHour`'s winning branch still said "beats every
+  other hour"** — the phrase round 11 ruled a false comparison and reworded
+  in its two siblings, left verbatim in the ONE branch that actually moves
+  every clinic's send hour. `best` is the max over `eligible` only, so any
+  hour under the floors or outside the daylight window was never compared.
+- **(gap) THE BRAIN LEARNED FROM A POPULATION IT DOES NOT ACT ON.** The
+  aggregate counted every campaign send — automated birthday/reactivation
+  mail pooled with human-made marketing blasts — while the learned hour is
+  applied to exactly one thing, `automationSendAt`. Those two populations do
+  not share an open rate at ANY hour and systematically go out at different
+  hours, so the buckets differed by CONTENT before they differed by TIME.
+  MIN_LIFT's 3-point margin is far smaller than the gap between them: all
+  three floors could pass on a comparison that never controlled for what was
+  being sent, because they bound sample size and margin, not comparability.
+  One predicate on an already-joined table.
+
+  **And the fix surfaced the real shape of the primitive.** Restricted to
+  comparable sends, every automated send aims at the hour in force, so
+  exactly one bucket fills and `eligible.length < 2` holds forever — the
+  brain cannot move the hour on its own. That is correct behaviour, not a
+  bug: the only honest way to learn a better hour is to deliberately send
+  some of them somewhere else. **An EXPLORATION ARM is now the named next
+  slice.** Manufacturing a second bucket by pooling incomparable sends is
+  the one thing we will not do.
+- **(gap) The Guardian's own run errors had no reader.** Written in seven
+  places, returned to a cron route, handed to EventBridge, discarded — the
+  same channel this phase built the heartbeat to escape, with the REASONS
+  left inside it. The owner could see "1 report couldn't be delivered" and
+  had no way to learn whether the mail provider was down, whether there was
+  nobody to email, or whether a clinic's memory was unreadable. Sharpest
+  case: a half-provisioned clinic (org row, no clinic_profile — reachable in
+  production) is skipped by the alerting half FOREVER, counted in nothing,
+  while the panel renders it as a flagged `silent` row telling the owner to
+  go audit its integrations. The heartbeat now carries deduplicated reasons
+  and a skip count, and the panel prints both.
+
+**Standing lesson added:**
+- *A learned default must be learned from the population it will be applied
+  to.* Sample-size and margin floors cannot detect a confound; only the
+  predicate that makes the two arms comparable can. If restricting to that
+  population leaves nothing to compare, the honest answer is that the thing
+  cannot be learned yet — not a wider sample.

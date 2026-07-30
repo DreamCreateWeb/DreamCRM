@@ -551,6 +551,23 @@ describe('the note visibility window outlasts the re-write cadence', () => {
 })
 
 describe('resolveGuardianHeartbeat — a dead cron must not look healthy', () => {
+  it('carries the run’s REASONS back, capped and string-only (round-14 gap)', () => {
+    // These were written in seven places and read by nobody: the cron hands
+    // them to EventBridge, which discards them. A count with no reason left
+    // the owner unable to tell a mail outage from having nobody to email.
+    const h = resolveGuardianHeartbeat({
+      guardian: { ranAt: 'x', problems: ['email (3 practices)', 'ledger', 42, ''], skipped: 2 },
+    })
+    expect(h.problems).toEqual(['email (3 practices)', 'ledger'])
+    expect(h.skipped).toBe(2)
+    // A heartbeat is not a log.
+    expect(
+      resolveGuardianHeartbeat({ guardian: { ranAt: 'x', problems: Array(20).fill('a') } }).problems,
+    ).toHaveLength(5)
+    // Junk shapes floor to empty rather than reaching the panel.
+    expect(resolveGuardianHeartbeat({ guardian: { ranAt: 'x', problems: 'nope' } }).problems).toEqual([])
+  })
+
   it('carries the blind flag back, because the writer writes it', () => {
     // Storing a field nobody reads is the exact defect slice 4 was pulled
     // up for; re-introducing it here would be worse than not storing it.
@@ -574,6 +591,8 @@ describe('resolveGuardianHeartbeat — a dead cron must not look healthy', () =>
       flagged: 1,
       undelivered: 2,
       blind: false,
+      problems: [],
+      skipped: 0,
     })
   })
 
@@ -581,7 +600,15 @@ describe('resolveGuardianHeartbeat — a dead cron must not look healthy', () =>
     const h = resolveGuardianHeartbeat({
       guardian: { ranAt: '', scanned: -3, flagged: 'two', undelivered: NaN },
     })
-    expect(h).toEqual({ ranAt: null, scanned: 0, flagged: 0, undelivered: 0, blind: false })
+    expect(h).toEqual({
+      ranAt: null,
+      scanned: 0,
+      flagged: 0,
+      undelivered: 0,
+      blind: false,
+      problems: [],
+      skipped: 0,
+    })
   })
 })
 
@@ -670,6 +697,8 @@ describe('guardianHeartbeatStale — a job that STOPPED, not one that never star
     flagged: 0,
     undelivered: 0,
     blind: false,
+    problems: [],
+    skipped: 0,
   })
 
   it('a run today is not stale', () => {

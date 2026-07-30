@@ -724,8 +724,18 @@ sitemap/robots/OG.
    OVERWRITES what was known — "we lost the database for an hour" must not
    read as "we un-learned the best send hour". `writePlatformConfig` is now
    the shared jsonb-merge writer (top-level keys replace; every writer owns
-   its own key), with `setGuardianAudience` riding it. Remaining: the
-   phase-audit gate. Phase 5+ new limbs proposal-first.
+   its own key), with `setGuardianAudience` riding it. THE SAMPLE IS THE
+   POPULATION THE HOUR ACTS ON (round-14 audit): the aggregate counts
+   AUTOMATION campaigns only (`automation_key is not null`), because the
+   learned hour drives exactly one thing — `automationSendAt` — and pooling
+   human-made blasts compared CONTENT before it compared TIME, a confound
+   the three floors cannot bound (they bound sample size and margin). That
+   restriction surfaces WHY the brain is inert rather than merely
+   under-fed: every automated send already aims at the hour in force, so one
+   bucket fills and nothing is comparable. A genuine "learn when to send"
+   needs an EXPLORATION ARM (a small holdout at another hour) — the next
+   slice, named here rather than faked with a confounded comparison.
+   Remaining: the phase-audit gate. Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live

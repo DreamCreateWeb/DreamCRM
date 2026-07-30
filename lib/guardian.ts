@@ -508,6 +508,30 @@ export interface GuardianHeartbeat {
   flagged: number
   /** Reports that were due and did NOT land, this run. */
   undelivered: number
+  /**
+   * WHY the run could not do its job, in plain English, deduplicated
+   * (round-14 in-phase gap).
+   *
+   * `GuardianRunResult.errors` was written in seven places and read by
+   * NOBODY: the cron route returns it as a JSON body to an EventBridge
+   * destination, which discards it. That is the same discarded-JSON channel
+   * this phase built the heartbeat to escape — and the reasons stayed in
+   * it. The owner could see "1 report couldn't be delivered" and had no way,
+   * anywhere, to learn whether the mail provider was down, whether there was
+   * nobody to email, or whether a clinic's memory was unreadable.
+   *
+   * Capped, because this is a heartbeat and not a log.
+   */
+  problems: string[]
+  /**
+   * Practices the run SKIPPED entirely — today, the half-provisioned ones
+   * (an org row with no clinic_profile, reachable in production). They are
+   * never emailed about and, before this, were counted in nothing: the
+   * panel rendered them as flagged `silent` rows telling the owner to go
+   * audit that practice's integrations, while the alerting half had quietly
+   * given up on them forever.
+   */
+  skipped: number
   /** The LAST run could not read the ledger. Stored because it is written —
    *  a field collected and read by nothing is the defect slice 4 was pulled
    *  up for, and re-introducing it here would be worse than not storing it. */
@@ -547,6 +571,8 @@ export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {
     flagged: 0,
     undelivered: 0,
     blind: false,
+    problems: [],
+    skipped: 0,
   }
   if (!stored || typeof stored !== 'object') return empty
   const h = (stored as Record<string, unknown>).guardian
@@ -561,6 +587,10 @@ export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {
     flagged: num(g.flagged),
     undelivered: num(g.undelivered),
     blind: g.blind === true,
+    problems: Array.isArray(g.problems)
+      ? g.problems.filter((p): p is string => typeof p === 'string' && p.length > 0).slice(0, 5)
+      : [],
+    skipped: num(g.skipped),
   }
 }
 

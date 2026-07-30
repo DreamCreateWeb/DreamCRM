@@ -67,6 +67,10 @@ export interface GuardianRunResult {
    *  heartbeat, because a run that could not deliver is invisible
    *  otherwise. */
   undelivered: number
+  /** Practices skipped entirely — today, the half-provisioned ones. They
+   *  are never emailed about, so without this they were counted in nothing
+   *  (round-14 in-phase gap). */
+  skipped: number
   /** The watcher could not read the ledger — no clinic was assessed, and
    *  nothing about this run may be read as an all-clear. */
   blind: boolean
@@ -264,6 +268,7 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
     stoodDown: 0,
     stoodDownClinics: [],
     undelivered: 0,
+    skipped: 0,
     blind: sweep.blind,
     errors: [],
   }
@@ -309,6 +314,12 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
           organizationId: report.organizationId,
           error: 'no clinic_profile row — half-provisioned; alert memory cannot persist',
         })
+        // COUNTED, not just logged into a channel with no reader (round-14
+        // in-phase gap). This practice is skipped by the alerting half
+        // forever while the panel renders it as a flagged `silent` row
+        // telling the owner to go audit its integrations — the single
+        // worst-shaped practice on the platform, visible to nobody.
+        result.skipped++
         continue
       }
       const alerting = shouldAlert(memory, key, now)
@@ -596,6 +607,27 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
  * Best-effort by contract: failing to record the heartbeat must never fail
  * the sweep that already did its work.
  */
+/**
+ * The run's failures as a few plain sentences the owner can act on —
+ * deduplicated, because one broken mail provider produces one error per
+ * clinic and a heartbeat is not a log. Org ids are dropped: the panel names
+ * practices already, and what the owner needs from this line is the CLASS of
+ * failure ("the mail did not go out") rather than a list of ids.
+ */
+function summariseProblems(errors: GuardianRunResult['errors']): string[] {
+  const seen = new Map<string, number>()
+  for (const { error } of errors) {
+    // Everything before the first colon is the class; the rest is usually a
+    // driver string that means nothing to a reader.
+    const kind = error.split(':')[0].trim()
+    seen.set(kind, (seen.get(kind) ?? 0) + 1)
+  }
+  return Array.from(seen.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([kind, n]) => (n === 1 ? kind : `${kind} (${n} practices)`))
+}
+
 async function recordHeartbeat(result: GuardianRunResult, now: Date): Promise<void> {
   try {
     // Own key, passed whole — writePlatformConfig merges top-level keys, so
@@ -606,7 +638,13 @@ async function recordHeartbeat(result: GuardianRunResult, now: Date): Promise<vo
         scanned: result.scanned,
         flagged: result.flagged,
         undelivered: result.undelivered,
+        skipped: result.skipped,
         blind: result.blind,
+        // WHY, not just how many (round-14 in-phase gap). These reasons
+        // were written in seven places and read by nobody — the cron route
+        // hands them to EventBridge, which discards them. That is the same
+        // discarded-JSON channel the heartbeat exists to escape.
+        problems: summariseProblems(result.errors),
       },
     })
   } catch (e) {

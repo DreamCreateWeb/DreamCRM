@@ -502,6 +502,43 @@ describe('runGuardianSweep', () => {
     expect((config.writes[0].guardian as Record<string, unknown>).blind).toBe(true)
   })
 
+  it('the heartbeat carries WHY the run struggled, deduplicated (round-14 gap)', async () => {
+    // The reasons were written in seven places and handed to EventBridge,
+    // which discards them — the same channel the heartbeat exists to escape.
+    // One broken provider produces one error per clinic, so a heartbeat
+    // that listed them all would be a log.
+    mail.fail = true
+    sweepState.reports = [
+      report('org_a', 'Ash Dental', 'silent'),
+      report('org_b', 'Birch Dental', 'silent'),
+    ]
+    store.profiles.push({
+      organizationId: 'org_b',
+      guardianState: null,
+      guardianAlertedAt: null,
+      guardianFirstSeenAt: null,
+      guardianClearSince: daysAgo(STAND_DOWN_DWELL_DAYS + 1),
+    })
+
+    await runGuardianSweep(NOW)
+    const beat = config.writes.at(-1)!.guardian as Record<string, unknown>
+    expect((beat.problems as string[])[0]).toContain('email')
+    expect((beat.problems as string[])[0]).toContain('2 practices')
+  })
+
+  it('COUNTS a half-provisioned practice instead of dropping it into a channel with no reader', async () => {
+    // It is skipped by the alerting half forever while the panel renders it
+    // as a flagged `silent` row telling the owner to audit its integrations
+    // — the worst-shaped practice on the platform, visible in nothing.
+    store.profiles = []
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.skipped).toBe(1)
+    expect(mail.sent).toHaveLength(0)
+    expect((config.writes.at(-1)!.guardian as Record<string, unknown>).skipped).toBe(1)
+  })
+
   it('records its own heartbeat every run — a dead cron must not look healthy', async () => {
     sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
     await runGuardianSweep(NOW)

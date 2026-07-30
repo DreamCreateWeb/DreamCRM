@@ -210,7 +210,15 @@ export function learnBestSendHour(
   return {
     hour: best.hour,
     learned: true,
-    why: `${hourLabel(best.hour)} beats every other hour — ${Math.round(rate(best) * 100)}% of those sends get opened, across ${best.clinics} practices. Every clinic now aims there.`,
+    // "the other N hours with enough data to judge", never "every other
+    // hour" (round-14 audit). `best` is the max over `eligible` only — hours
+    // that cleared the sample floor, the clinic floor and the daylight
+    // window — so the original phrasing asserted a comparison against hours
+    // the code never looked at. Round 11 ruled exactly this sentence a
+    // defect and reworded its two siblings; the branch that actually MOVES
+    // the platform's send hour kept it verbatim, which is the one place the
+    // owner most needs the claim to be exact.
+    why: `${hourLabel(best.hour)} beat the other ${eligible.length - 1} ${eligible.length === 2 ? 'hour' : 'hours'} with enough data to judge — ${Math.round(rate(best) * 100)}% of those sends get opened, across ${best.clinics} practices. Every clinic now aims there.`,
     sampleSends,
   }
 }

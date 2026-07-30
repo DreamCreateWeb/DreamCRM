@@ -108,3 +108,23 @@ describe('the send-hour aggregate as Postgres parses it', () => {
     expect(q.sql).toMatch(/group by 1\s*$|group by 1\s+order by 1/im)
   })
 })
+
+
+describe('the sample is the population the learned hour acts on (round-14 in-phase gap)', () => {
+  const q = new PgDialect().sqlToQuery(sendHourStatsQuery(new Date('2026-05-01T00:00:00Z')))
+
+  it('counts AUTOMATION campaigns only', () => {
+    // The learned hour is applied to exactly one thing — automationSendAt —
+    // so the sample has to be the same population the action lands on.
+    // Pooling automated birthday/reactivation mail with human-made
+    // marketing blasts compares CONTENT before it compares TIME, and the
+    // three floors bound sample size and margin, not comparability.
+    expect(q.sql).toContain('automation_key is not null')
+  })
+
+  it('still excludes the demo org and the platform tenant', () => {
+    // The new predicate must ADD to the scope law, never replace it.
+    expect(q.sql).toContain("o.type = 'clinic'")
+    expect(q.sql).toContain('o.is_demo = false')
+  })
+})
