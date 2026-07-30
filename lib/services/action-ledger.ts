@@ -122,8 +122,18 @@ export async function recordFailure(input: {
    * no caller has anything different to do in the two cases.
    */
   onceWithin?: number
+  /**
+   * De-dup across the WHOLE ORG rather than per capability. The proposal
+   * driver needs this: its steps span five capabilities, so one underlying
+   * break that surfaces in a different step each hour (a flaky provider
+   * failing review drafting at 09:00 and social drafting at 10:00) bought a
+   * fresh strike every time and cleared the three-strike alarm inside a
+   * morning — the same crying-wolf shape the window exists to prevent,
+   * arriving by a different door (verification round 2).
+   */
+  dedupeAcrossOrg?: boolean
 }): Promise<boolean> {
-  const { onceWithin, ...rest } = input
+  const { onceWithin, dedupeAcrossOrg, ...rest } = input
   if (onceWithin && onceWithin > 0) {
     try {
       const since = new Date((input.occurredAt ?? new Date()).getTime() - onceWithin)
@@ -133,7 +143,7 @@ export async function recordFailure(input: {
         .where(
           and(
             eq(schema.actionLedger.organizationId, input.organizationId),
-            eq(schema.actionLedger.capability, input.capability),
+            ...(dedupeAcrossOrg ? [] : [eq(schema.actionLedger.capability, input.capability)]),
             gte(schema.actionLedger.occurredAt, since),
             ownFailureMarker(),
           ),

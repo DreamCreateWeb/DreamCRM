@@ -18,6 +18,7 @@ import { getGuardianAudience } from '@/lib/services/platform-config'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { countOpenProposals } from '@/lib/services/proposals'
 import { workOnly, failureOnly } from '@/lib/services/action-ledger'
+import { getCapability } from '@/lib/autonomy'
 import { resolveTrialState } from '@/lib/trial'
 
 /**
@@ -47,9 +48,10 @@ export interface ClinicEngineReport {
   clinicName: string
   verdict: EngineVerdict
   signals: EngineSignals
-  /** The distinct "I tried and couldn't" sentences behind `failures7`, so a
-   *  blocked report can name the break rather than guess at it. Empty when
-   *  nothing failed (or the ledger could not be read). */
+  /** What broke behind `failures7`, by capability, in the OWNER's voice —
+   *  "Reply to Google reviews — 3 attempts". Never the clinic-addressed
+   *  ledger sentence. Empty when nothing failed (or the ledger was
+   *  unreadable). */
   failureCauses: string[]
 }
 
@@ -77,8 +79,8 @@ export const workCountExpr = () => sql<number>`count(*) filter (where ${workOnly
  * week" and then guessed at a cause — "usually an expired Google token, a
  * disconnected mailbox" — while the ledger held the actual sentences the
  * whole time. The failure vocabulary was written for a reader that did not
- * exist. This is that reader: the distinct summaries behind the count, so
- * the report names the break instead of speculating about it.
+ * exist. This is that reader: what actually broke, by capability, so the
+ * report names the break instead of speculating about it.
  */
 export async function recentFailureSummaries(
   organizationId: string,
@@ -87,7 +89,7 @@ export async function recentFailureSummaries(
 ): Promise<string[]> {
   try {
     const rows = await db
-      .select({ summary: schema.actionLedger.summary })
+      .select({ capability: schema.actionLedger.capability })
       .from(schema.actionLedger)
       .where(
         and(
@@ -97,8 +99,24 @@ export async function recentFailureSummaries(
         ),
       )
       .orderBy(desc(schema.actionLedger.occurredAt))
-      .limit(20)
-    return Array.from(new Set(rows.map((r) => r.summary).filter(Boolean))).slice(0, limit)
+      .limit(50)
+    // COUNT BY CAPABILITY, never the raw summary (verification round 2).
+    // Those sentences are written for the CLINIC by construction — "you'd
+    // handed this over to me", "it's back with you" — and printing them
+    // verbatim in the platform owner's email addressed them to somebody who
+    // handed nothing over and has nothing back with them. The tenant-voice
+    // convention: any surface serving two tenants branches every
+    // reader-addressed string. The capability LABEL is neutral and still
+    // names the break.
+    const counts = new Map<string, number>()
+    for (const r of rows) counts.set(r.capability, (counts.get(r.capability) ?? 0) + 1)
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([cap, n]) => {
+        const label = getCapability(cap)?.label ?? cap.replace(/_/g, ' ')
+        return `${label} — ${n} ${n === 1 ? 'attempt' : 'attempts'}`
+      })
   } catch {
     // The count still stands on its own; we just cannot name the causes.
     return []

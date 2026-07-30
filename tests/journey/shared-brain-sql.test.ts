@@ -94,6 +94,16 @@ describe('the send-hour aggregate as Postgres parses it', () => {
     )
   })
 
+  it('counts REAL CLINICS only — the floor that makes "cross-clinic" true', () => {
+    // Round-1 fix, unpinned until verification round 2. Without these the
+    // demo org (whose seeder writes real campaign_events, re-dated every
+    // deploy) and the platform's own B2B sends counted toward
+    // MIN_CLINICS_PER_HOUR.
+    expect(q.sql).toMatch(/o\."type" = 'clinic'|o\.type = 'clinic'/)
+    expect(q.sql).toMatch(/o\."is_demo" = false|o\.is_demo = false/)
+    expect(q.sql).toContain('"organization"')
+  })
+
   it('groups to one row per hour — that is the entire shape the brain consumes', () => {
     expect(q.sql).toMatch(/group by 1\s*$|group by 1\s+order by 1/im)
   })

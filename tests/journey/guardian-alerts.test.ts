@@ -223,8 +223,11 @@ describe('runGuardianSweep', () => {
     const r = await runGuardianSweep(NOW)
     expect(r.alerted).toBe(0)
     expect(r.errors.length).toBeGreaterThan(0)
-    // The state IS recorded (it is true), but the alert will be retried.
-    expect(store.profiles[0].guardianState).toBe('blocked')
+    // NEITHER half of the memory moves (verification round 2). Recording
+    // the state while the report never landed lets shouldAlert read it as
+    // "same problem" tomorrow and go quiet for a week on something nobody
+    // was ever told about.
+    expect(store.profiles[0].guardianState).toBeNull()
     expect(store.profiles[0].guardianAlertedAt).toBeNull()
   })
 
@@ -235,7 +238,8 @@ describe('runGuardianSweep', () => {
     const r = await runGuardianSweep(NOW)
     expect(r.alerted).toBe(0)
     expect(mail.sent).toHaveLength(0)
-    expect(store.profiles[0].guardianState).toBe('silent')
+    // Undelivered, so nothing is remembered — tomorrow it is still news.
+    expect(store.profiles[0].guardianState).toBeNull()
     expect(store.profiles[0].guardianAlertedAt).toBeNull()
   })
 
@@ -379,7 +383,7 @@ describe('runGuardianSweep — who hears it', () => {
     const r = await runGuardianSweep(NOW)
     expect(r.notified).toBe(0)
     expect(r.errors.length).toBeGreaterThan(0)
-    expect(store.profiles[0].guardianState).toBe('stalled')
+    expect(store.profiles[0].guardianState).toBeNull()
     expect(store.profiles[0].guardianAlertedAt).toBeNull()
   })
 
@@ -478,5 +482,56 @@ describe('the cadence is shared, so no finding falls into a hole', () => {
     await runGuardianSweep(NOW)
     // The delivery stamp must not move, so tomorrow tries again.
     expect(store.profiles[0].guardianAlertedAt).toBeNull()
+  })
+})
+
+/**
+ * VERIFICATION ROUND 2. The memory is what makes tomorrow's run able to tell
+ * "the same problem" from "a new one", so recording something that was never
+ * said is how a report goes missing for a week.
+ */
+describe('the memory records only what was actually said', () => {
+  it('a CHANGED problem that failed to send is still news tomorrow', async () => {
+    // The hole: state stamped to 'blocked', a recent alertedAt left over
+    // from the PREVIOUS problem, so shouldAlert saw "same state, alerted 2
+    // days ago" and went quiet for the rest of the week.
+    store.profiles[0].guardianState = 'stalled'
+    store.profiles[0].guardianAlertedAt = daysAgo(2)
+    mail.fail = true
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    await runGuardianSweep(NOW)
+    expect(store.profiles[0].guardianState).toBe('stalled')
+
+    // Mail comes back: the new problem is still unreported, so it goes out.
+    mail.fail = false
+    const r2 = await runGuardianSweep(NOW)
+    expect(r2.alerted).toBe(1)
+    expect(store.profiles[0].guardianState).toBe('blocked')
+  })
+
+  it('a RECOVERY is still recorded even though it sends nothing', async () => {
+    store.profiles[0].guardianState = 'silent'
+    store.profiles[0].guardianAlertedAt = daysAgo(2)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    await runGuardianSweep(NOW)
+    // Nothing to deliver, so remembering it is honest — and it is what
+    // makes the next break a NEW problem rather than a repeat.
+    expect(store.profiles[0].guardianState).toBe('healthy')
+  })
+})
+
+describe('the owner reads the owner’s language', () => {
+  it('never replays a sentence written for the clinic', async () => {
+    const rep = report('org_a', 'Ash Dental', 'blocked', keepsFailing)
+    rep.failureCauses = ['Publish social & Google posts — 3 attempts']
+    sweepState.reports = [rep]
+
+    await runGuardianSweep(NOW)
+    const body = String(mail.sent[0].body)
+    expect(body).toContain('Publish social & Google posts')
+    // The clinic-addressed second person must never reach this inbox.
+    expect(body).not.toMatch(/you.d handed|back with you|bring you/i)
   })
 })

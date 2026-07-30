@@ -58,8 +58,10 @@ describe('assessEngine — severity order', () => {
     expect(v.state).toBe('quiet')
     expect(needsAttention(v.state)).toBe(false)
     expect(v.headline).toMatch(/getting started/i)
-    // Still worth a human touch — but as a welcome, not an alarm.
-    expect(v.recommendation).toBeTruthy()
+    // NULL like every other non-flagged verdict: quiet never reaches the
+    // panel or the inbox, so a recommendation here would be copy written
+    // for a reader that does not exist (verification round 2).
+    expect(v.recommendation).toBeNull()
   })
 
   it('repeated failures outrank switched-off engines — a stale connection is ours to fix', () => {

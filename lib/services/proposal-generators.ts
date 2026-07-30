@@ -207,6 +207,10 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
       summary: f.summary,
       occurredAt: now,
       onceWithin: FAILURE_DEDUPE_MS,
+      // Org-wide: the per-run collapse already stops a burst inside one
+      // tick, but without this a break that surfaces in a different step
+      // each hour still bought a strike per capability.
+      dedupeAcrossOrg: true,
     })
     if (recorded) result.failuresRecorded++
   }

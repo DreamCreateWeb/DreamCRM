@@ -255,16 +255,24 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         }
       }
 
-      // ALWAYS record the current state, reported or not: that is what makes
-      // "the same problem" distinguishable from "a new one" tomorrow. The
-      // stamp moves ONLY on a delivery that landed — email or ledger note —
-      // so tomorrow's run retries a report that reached nobody. The order is
-      // deliberate: a crash between the delivery and the stamp repeats the
-      // report tomorrow, which is the survivable side of that trade.
+      // Record what is true once it has been SAID — that is what makes "the
+      // same problem" distinguishable from "a new one" tomorrow. The order
+      // is deliberate: a crash between the delivery and the stamp repeats
+      // the report tomorrow, which is the survivable side of that trade.
+      // WHAT WE MAY REMEMBER (verification round 2). Stamping the state on
+      // every pass looked harmless — `guardianAlertedAt` was the delivery
+      // half — but `shouldAlert` reads BOTH: once the state stamp has moved,
+      // only a null or stale `alertedAt` can still force a retry. So a
+      // clinic that went stalled -> blocked while the mail was down had
+      // 'blocked' recorded, kept a recent `alertedAt` from the PREVIOUS
+      // problem, and went silent for up to a week on the new one. The state
+      // may only be recorded once the report about it actually landed —
+      // or when there was nothing to report in the first place.
+      const nothingToDeliver = !alerting
       await db
         .update(schema.clinicProfile)
         .set({
-          guardianState: state,
+          ...(delivered || nothingToDeliver ? { guardianState: state } : {}),
           ...(delivered ? { guardianAlertedAt: now } : {}),
         })
         .where(eq(schema.clinicProfile.organizationId, report.organizationId))

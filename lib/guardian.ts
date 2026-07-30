@@ -125,8 +125,14 @@ function blockedByFailures(s: EngineSignals): EngineVerdict {
   return {
     state: 'blocked',
     headline: `The machine tried and couldn’t, ${s.failures7} times this week`,
-    why: 'Repeated failures in one week usually mean a connection went stale — an expired Google token, a disconnected mailbox.',
-    recommendation: 'Look at their integrations; this is ours to fix, not theirs to notice.',
+    // NO SPECULATION ABOUT THE CAUSE (verification round 2). This used to
+    // assert "usually an expired Google token, a disconnected mailbox" —
+    // a guess, and one the Guardian cannot currently check, because
+    // `recordFailure` has exactly one writer (the proposal engine) and the
+    // send/sync automations do not yet report. The report now says what it
+    // actually knows and lets the per-capability list below carry the rest.
+    why: 'Repeated failures in one week mean something is wired wrong rather than merely quiet — the machine is trying and being turned away.',
+    recommendation: 'Start with whatever it was trying, listed below; this is ours to fix, not theirs to notice.',
   }
 }
 
@@ -151,8 +157,14 @@ function classify(s: EngineSignals): EngineVerdict {
         state: 'quiet',
         headline: 'Just getting started — nothing has run yet',
         why: `Signed up ${s.ageDays} ${s.ageDays === 1 ? 'day' : 'days'} ago and the machine has nothing to work with yet.`,
-        recommendation:
-          'Worth a welcome check-in: are their patients imported and their hours set? That is what the engines run on.',
+        // NULL, like every other non-flagged verdict (verification round 2).
+        // `quiet` is excluded from needsAttention, the panel renders only
+        // flagged rows and shouldAlert refuses non-attention states — so
+        // this was the module's one recommendation written for a reader that
+        // does not exist. Welcoming a brand-new practice is a real need, but
+        // it belongs to a surface that actually shows starting clinics
+        // (backlog), not to copy computed on every sweep and thrown away.
+        recommendation: null,
       }
     }
     return {

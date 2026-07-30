@@ -66,7 +66,13 @@ export interface HourStat {
 export interface SendHourFinding {
   /** The hour every clinic's automations should aim at. */
   hour: number
-  /** False = the shipped default is still standing. */
+  /** True when the hour in force is something the platform WORKED OUT
+   *  rather than the shipped guess. Verification round 2: this used to mean
+   *  "this pass produced a finding", so a routine week where the challenger
+   *  fell under MIN_LIFT flipped the owner's badge to "Still learning" while
+   *  every clinic was still sending at a learned 3 PM. A badge that denies
+   *  what the scheduler is doing is exactly the magic number the card
+   *  exists to prevent. */
   learned: boolean
   /** Plain English, for the platform owner. Never a bare number. */
   why: string
@@ -124,7 +130,7 @@ export function learnBestSendHour(
   if (eligible.length === 0) {
     return {
       hour: incumbent,
-      learned: false,
+      learned: incumbent !== DEFAULT_SEND_HOUR,
       why: `Not enough to go on yet, so every clinic still sends at ${hourLabel(incumbent)}. An hour needs ${MIN_SENDS_PER_HOUR} sends across at least ${MIN_CLINICS_PER_HOUR} practices before it counts.`,
       sampleSends,
     }
@@ -154,7 +160,7 @@ export function learnBestSendHour(
   if (standing && rate(best) - rate(standing) < MIN_LIFT) {
     return {
       hour: incumbent,
-      learned: false,
+      learned: incumbent !== DEFAULT_SEND_HOUR,
       why: `${hourLabel(best.hour)} is doing slightly better than ${hourLabel(incumbent)}, but not by enough to be sure. Staying at ${hourLabel(incumbent)} until it is.`,
       sampleSends,
     }

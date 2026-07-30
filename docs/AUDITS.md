@@ -1371,3 +1371,39 @@ coverage** at the moment I declared them done.
   survive the behaviour being reverted, it is documentation with a green
   tick on it.
 
+### Verification rounds (2026-07-30)
+
+**Attempt 1 — INVALID.** The skeptic, the judge and one lens all died on API
+529s, so the round produced no verdict. Its surviving lenses did, however,
+find a **critical**: `failureOnly()`'s unwrapped top-level `OR` escaped
+drizzle's `and()` chain, so the failure-cause reader matched every Phase-3
+hand-back row for **every organization** — a tenant-scoping breach, with
+patient names in hand-back summaries able to print under another practice's
+name. Introduced in round 3, in the query written to fix a different bug.
+Fixed; the test walks paren depth and was verified to fail when reverted.
+
+**Attempt 2 — NOT CLEAN.** 2 major + 5 minor defects, 3 in-phase gaps. The
+major ones: `guardian_state` was stamped even when nothing was delivered, so
+a clinic that changed state while the mail was down kept a recent
+`alertedAt` from its *previous* problem and went silent on the new one for a
+week; and the failure de-dup was keyed on capability, so one flaky provider
+surfacing in a different step each hour bought a fresh strike every time.
+Also: the owner's report replayed sentences written for the clinic ("you'd
+handed this over to me", "it's back with you") — a tenant-voice breach on the
+phase's flagship owner surface; the shared-brain badge flipped to "Still
+learning" during routine weeks while a learned hour was scheduling real
+patient mail; and the brand-new-clinic recommendation reached no reader.
+
+**Standing lesson added:** *a raw SQL fragment with a top-level `OR` must
+parenthesize itself* — it cannot know what it will be composed into, and
+`and()` will not do it for you. The failure is silent: valid SQL, plausible
+rows, no error.
+
+**Open gap carried to backlog (named, not hidden):** the failure vocabulary
+still has exactly ONE writer. The proposal engine reports; reminders,
+campaigns, review sync, GBP sync and PMS sync do not. So the Guardian's
+`blocked` state currently sees proposal-engine breaks only. The verdict copy
+was corrected to stop asserting a cause it cannot check ("usually an expired
+Google token") — it now says what it knows and lets the per-capability list
+carry the rest. Wiring the remaining producers is the next slice of this
+work, not a claim this phase gets to make.

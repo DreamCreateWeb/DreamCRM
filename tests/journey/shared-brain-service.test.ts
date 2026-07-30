@@ -161,7 +161,11 @@ describe('runSharedBrainLearning — stability is measured against what is in fo
 
     const r = await runSharedBrainLearning(NOW)
     expect(r.finding.hour).toBe(15)
-    expect(r.finding.learned).toBe(false)
+    // STILL learned: 15 is a worked-out hour, not the shipped guess. The
+    // flag describes what is in force, not what this pass happened to
+    // conclude (verification round 2 — the badge used to flip to "Still
+    // learning" while every clinic sent at a learned 3 PM).
+    expect(r.finding.learned).toBe(true)
     expect(r.finding.why).toMatch(/not by enough/i)
   })
 
