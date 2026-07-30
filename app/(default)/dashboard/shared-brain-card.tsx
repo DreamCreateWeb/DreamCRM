@@ -1,3 +1,4 @@
+import type { BrainRun } from '@/lib/shared-brain'
 import {
   brainStale,
   BRAIN_STALE_DAYS,
@@ -28,9 +29,15 @@ export default function SharedBrainCard({
    *  a positive claim — here "Still learning" and "Has not run yet", both
    *  of which could be flatly untrue while a learned 3 PM was in force. */
   unreadable = false,
+  /** What the LAST pass did, successful or not (round-16 audit). Without it
+   *  a pass that ran every Monday and threw every Monday rendered as "the
+   *  weekly pass has not run", sending the owner to EventBridge to find a
+   *  rule that is firing perfectly. */
+  run,
 }: {
   brain: SharedBrain
   unreadable?: boolean
+  run?: BrainRun
 }) {
   if (unreadable) {
     return (
@@ -101,8 +108,19 @@ export default function SharedBrainCard({
                 but after the first pass "never ran" is no longer reachable
                 and a dead schedule is the only real failure left. This repo
                 has had exactly that (the EventBridge drift in CLAUDE.md). */}
+            {run?.error ? (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                The last pass ran{run.ranAt ? ` ${new Date(run.ranAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}` : ''}{' '}
+                and couldn&rsquo;t finish: {run.error}. The schedule is fine &mdash; this is mine
+                to fix.
+              </p>
+            ) : null}
             {(() => {
               const stale = brainStale(brain, new Date())
+              // A pass that RAN and failed is not a cron that stopped: the
+              // amber "nothing since" line above would send the owner
+              // hunting for a schedule that is firing perfectly.
+              if (run?.error) return null
               return (
                 <p
                   className={`mt-1 text-xs ${

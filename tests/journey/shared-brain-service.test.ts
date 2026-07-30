@@ -77,7 +77,7 @@ describe('runSharedBrainLearning', () => {
     expect(r.ok).toBe(true)
     expect(r.finding.hour).toBe(15)
     expect(r.finding.learned).toBe(true)
-    const written = state.writes[0].sharedBrain as Record<string, unknown>
+    const written = state.writes.find((w) => 'sharedBrain' in w)!.sharedBrain as Record<string, unknown>
     expect(written.sendHour).toBe(15)
     expect(written.sendHourLearned).toBe(true)
     expect(written.learnedAt).toBe(NOW.toISOString())
@@ -86,7 +86,7 @@ describe('runSharedBrainLearning', () => {
   it('writes only its OWN key — a shallow merge must not clobber the audience lock', async () => {
     state.stored = { guardianAudience: 'clinic' }
     await runSharedBrainLearning(NOW)
-    expect(Object.keys(state.writes[0])).toEqual(['sharedBrain'])
+    expect(Object.keys(state.writes.find((w) => 'sharedBrain' in w)!)).toEqual(['sharedBrain'])
     expect(state.stored.guardianAudience).toBe('clinic')
   })
 
@@ -97,7 +97,9 @@ describe('runSharedBrainLearning', () => {
     expect(r.finding.learned).toBe(false)
     expect(r.finding.hour).toBe(DEFAULT_SEND_HOUR)
     // It still stamps: "we looked and there wasn't enough" is a real result.
-    expect(state.writes).toHaveLength(1)
+    // The heartbeat is its OWN top-level key and rides every pass — the
+    // learning write is the one carrying `sharedBrain` (round-16 audit).
+    expect(state.writes.filter((w) => 'sharedBrain' in w)).toHaveLength(1)
   })
 
   it('a FAILED read never un-learns — the stored value survives untouched', async () => {
@@ -110,7 +112,7 @@ describe('runSharedBrainLearning', () => {
     expect(r.ok).toBe(false)
     expect(r.error).toBeTruthy()
     // Nothing written, and the pass reports back what still stands.
-    expect(state.writes).toHaveLength(0)
+    expect(state.writes.filter((w) => 'sharedBrain' in w)).toHaveLength(0)
     expect(r.finding.hour).toBe(15)
     expect(r.finding.learned).toBe(true)
   })
@@ -219,7 +221,31 @@ describe('a config read it cannot trust aborts the pass', () => {
     expect(r.ok).toBe(false)
     expect(r.error).toMatch(/config/i)
     // The stored brain is untouched — 15 is still in force.
-    expect(state.writes).toHaveLength(0)
+    expect(state.writes.filter((w) => 'sharedBrain' in w)).toHaveLength(0)
     expect((state.stored.sharedBrain as Record<string, unknown>).sendHour).toBe(15)
+  })
+})
+
+
+describe('the brain’s own run heartbeat (round-16 audit)', () => {
+  it('a pass that RAN AND COULDN’T records why — "ran and couldn’t" is not "never ran"', async () => {
+    // Both failure exits returned before any write, so `learnedAt` stayed
+    // frozen and the card told the owner the weekly pass had stopped —
+    // sending them to EventBridge to find a rule firing perfectly.
+    state.readThrows = true
+    const r = await runSharedBrainLearning(NOW)
+    expect(r.ok).toBe(false)
+    const beat = state.writes.find((w) => 'brainRun' in w)!.brainRun as Record<string, unknown>
+    expect(beat.ranAt).toBe(NOW.toISOString())
+    expect(String(beat.error)).toBeTruthy()
+    // Its OWN key — a shallow merge must never clobber what was learned.
+    expect(Object.keys(state.writes.find((w) => 'brainRun' in w)!)).toEqual(['brainRun'])
+  })
+
+  it('a successful pass clears the reason', async () => {
+    state.stats = [bucket(15, 1000, 500), bucket(10, 1000, 100)]
+    await runSharedBrainLearning(NOW)
+    const beat = state.writes.find((w) => 'brainRun' in w)!.brainRun as Record<string, unknown>
+    expect(beat.error).toBeNull()
   })
 })

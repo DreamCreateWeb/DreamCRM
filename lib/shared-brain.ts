@@ -250,6 +250,38 @@ export interface SharedBrain {
  *  cron having stopped, which is the failure this repo has actually had. */
 export const BRAIN_STALE_DAYS = 15
 
+/**
+ * THE BRAIN'S OWN HEARTBEAT (round-16 audit) — its own top-level key, so it
+ * can never clobber `sharedBrain` under `writePlatformConfig`'s shallow
+ * merge.
+ *
+ * `learnedAt` is documented as "the last SUCCESSFUL pass", and both failure
+ * exits return BEFORE the write — so a pass that ran every Monday and threw
+ * every Monday left `learnedAt` frozen, and the card told the owner "the
+ * weekly pass has not run in over 15 days", sending them to EventBridge to
+ * find a rule that is firing perfectly. "Ran and couldn't" versus "never
+ * ran" is the pair this entire phase exists to tell apart; the Guardian got
+ * `recordHeartbeat` in round 14 and the brain — the one subsystem neither
+ * sweep reached — did not.
+ */
+export interface BrainRun {
+  ranAt: string | null
+  /** Why the last pass could not finish, or null when it did. */
+  error: string | null
+}
+
+export function resolveBrainRun(stored: unknown): BrainRun {
+  const empty: BrainRun = { ranAt: null, error: null }
+  if (!stored || typeof stored !== 'object') return empty
+  const r = (stored as Record<string, unknown>).brainRun
+  if (!r || typeof r !== 'object') return empty
+  const b = r as Record<string, unknown>
+  return {
+    ranAt: typeof b.ranAt === 'string' && b.ranAt ? b.ranAt : null,
+    error: typeof b.error === 'string' && b.error ? b.error : null,
+  }
+}
+
 export function brainStale(brain: SharedBrain, now: Date): boolean {
   if (!brain.learnedAt) return false
   const at = new Date(brain.learnedAt).getTime()

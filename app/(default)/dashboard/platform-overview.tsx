@@ -6,6 +6,7 @@ import { getPmsDemand } from '@/lib/services/pms-interest'
 import { cachedEngineHealth } from '@/lib/services/guardian'
 import { readPlatformConfigStrict } from '@/lib/services/platform-config'
 import { resolveGuardianAudience, resolveGuardianHeartbeat } from '@/lib/guardian'
+import { resolveBrainRun } from '@/lib/shared-brain'
 import { resolveSharedBrain } from '@/lib/shared-brain'
 import SharedBrainCard from './shared-brain-card'
 import GuardianPanel from './guardian-panel'
@@ -104,6 +105,9 @@ export default async function PlatformOverview() {
   const guardianAudience = resolveGuardianAudience(platformConfig.config)
   const sharedBrain = resolveSharedBrain(platformConfig.config)
   const guardianHeartbeat = resolveGuardianHeartbeat(platformConfig.config)
+  // What the brain's last pass DID — "ran and couldn't" must never render as
+  // "never ran" (round-16 audit). Same row, no extra read.
+  const brainRun = resolveBrainRun(platformConfig.config)
   const pmsWanted = pmsDemand.filter((d) => d.pending > 0)
 
   return (
@@ -132,7 +136,11 @@ export default async function PlatformOverview() {
         heartbeatUnreadable={platformConfig.unreadable}
       />
 
-      <SharedBrainCard brain={sharedBrain} unreadable={platformConfig.unreadable} />
+      <SharedBrainCard
+        brain={sharedBrain}
+        unreadable={platformConfig.unreadable}
+        run={brainRun}
+      />
 
       {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

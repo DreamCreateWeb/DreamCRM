@@ -2,6 +2,7 @@ import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
+  resolveBrainRun,
   DEFAULT_SEND_HOUR,
   learnBestSendHour,
   resolveSharedBrain,
@@ -168,6 +169,10 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
   try {
     current = resolveSharedBrain(await readPlatformConfigStrict())
   } catch (e) {
+    // RAN AND COULDN'T — recorded, because the alternative is a card telling
+    // the owner the cron has stopped while it fires perfectly every Monday
+    // (round-16 audit). Its own key, passed whole.
+    await recordBrainRun(now, `config unreadable: ${(e as Error).message}`)
     return {
       ok: false,
       error: `config unreadable: ${(e as Error).message}`,
@@ -178,6 +183,7 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
   try {
     stats = await collectSendHourStats(now)
   } catch (e) {
+    await recordBrainRun(now, (e as Error).message)
     return {
       ok: false,
       error: (e as Error).message,
@@ -202,7 +208,25 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
       sampleSends: finding.sampleSends,
     },
   })
+  await recordBrainRun(now, null)
   return { ok: true, finding }
+}
+
+/**
+ * Every pass leaves a trace, successful or not (round-16 audit).
+ * Best-effort: failing to record the heartbeat must never fail the pass.
+ */
+async function recordBrainRun(now: Date, error: string | null): Promise<void> {
+  try {
+    await writePlatformConfig({ brainRun: { ranAt: now.toISOString(), error } })
+  } catch (e) {
+    console.error('[shared-brain] run heartbeat not recorded', e)
+  }
+}
+
+/** What the last learning pass did, whether or not it worked. */
+export async function getBrainRun() {
+  return resolveBrainRun(await readPlatformConfig())
 }
 
 /** What the platform currently knows. Floored at the shipped defaults on

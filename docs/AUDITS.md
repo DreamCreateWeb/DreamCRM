@@ -2026,3 +2026,56 @@ test.
   to fix its candidates anyway was right, but the fixes then entered this
   round as fresh material. Expect the count to rise after any round that
   does not complete.
+
+**Attempt 12 (round 16) — NOT CLEAN.** 4 distinct defects + 3 in-phase gaps.
+Notably, four of the seven are COVERAGE and OBSERVABILITY holes rather than
+wrong behaviour — the audit has moved from "this reports the wrong thing" to
+"nothing would catch it if this started reporting the wrong thing".
+
+- **The shared brain had no run heartbeat.** Both failure exits return before
+  `writePlatformConfig`, so a pass that ran every Monday and threw every
+  Monday left `learnedAt` frozen — and the card then told the owner "the
+  weekly pass has not run in over 15 days", sending them to EventBridge to
+  find a rule firing perfectly. "Ran and couldn't" versus "never ran" is the
+  pair this whole phase exists to tell apart; the Guardian got
+  `recordHeartbeat` in round 14 and the brain — the one subsystem neither
+  sweep reached — did not. It has `brainRun` now (its own top-level key), the
+  card distinguishes the two, and `/api/cron/learn-defaults` stops returning
+  200 for a pass that failed.
+- **`blockedByFailures` never mentioned that both engines were also off.** It
+  fires first, and a practice with three failure days AND both switches off
+  got "start with what it was trying; this is ours to fix, not theirs to
+  notice" — affirmatively wrong, with a genuinely clinic-side problem known
+  to the code and reported to nobody. Round 9 made "a report that omits a
+  known fact sends the reader hunting for it" the rule and applied it to
+  `silent` only.
+- **The audience lock's WRITE path had zero executed coverage** — and the
+  round-15 test file that names it `vi.mock`s the entire module, so the real
+  action had never been imported by any test in the repo. It is the only code
+  that can start the machine addressing customers. Now covered: the
+  platform-admin bar, the clinic-tenant refusal, the member refusal, and the
+  wire floor across eight junk values.
+- **Both cron routes this phase added shipped with no test at all**,
+  including the CRON_SECRET bearer gate standing between a public URL and a
+  job that emails the owner about every clinic. Covered, including the case
+  where CRON_SECRET is UNSET (an absent secret is not an open door).
+- **(gap) The proposal engine — slice 4's own subject — had no heartbeat.**
+  The slice is named "proposal-engine observability" and made a BREAK
+  visible, but the way the engine actually dies here is its schedule quietly
+  not firing, which produced no signal at all while the Guardian certified
+  every practice healthy (an idle ledger with no failures reads as calm).
+- **(gap) The audience lock had a dry run and no RECEIPT** — the one action
+  in the product with a preview and no confirmation. The owner who opened it
+  had to read individual clinics' ledgers to learn what their own machine
+  said in their name.
+- **(gap) The round-15 "ours to fix" count vanished on busy mornings**,
+  because that fix landed in the all-clear branch only — so it disappeared on
+  precisely the days the owner reads the panel.
+
+**Standing lesson added:**
+- *A test that mocks the module it is named after does not test it.* Check
+  that the subject of a test file appears in an `import`, not only in a
+  `vi.mock`.
+- *Every new route is a new front door.* A cron route's auth gate is not
+  covered by the service tests behind it, and "the secret is unset" is a
+  distinct case from "the secret is wrong".

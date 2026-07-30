@@ -235,6 +235,17 @@ function HeartbeatLine({ beat, unreadable }: { beat: GuardianHeartbeat; unreadab
           with no reason left the owner unable to tell a mail outage from
           having nobody to email; the reasons were written in seven places
           and handed to EventBridge, which discards them. */}
+      {/* WHO IT ACTUALLY REACHED (round-16 in-phase gap). The lock had a
+          preview and no receipt, so the owner who opened it had to read
+          individual clinics' ledgers to learn what their machine said in
+          their name. */}
+      {(beat.told.length > 0 || beat.emailed.length > 0) && (
+        <span className="block mt-0.5 text-gray-500 dark:text-gray-400">
+          That run{beat.told.length > 0 ? ` told ${beat.told.join(', ')} directly` : ''}
+          {beat.told.length > 0 && beat.emailed.length > 0 ? ', and' : ''}
+          {beat.emailed.length > 0 ? ` emailed you about ${beat.emailed.join(', ')}` : ''}.
+        </span>
+      )}
       {beat.problems.length > 0 && (
         <span className="block mt-0.5 text-amber-700 dark:text-amber-400">
           Trouble on that run: {beat.problems.join('; ')}.

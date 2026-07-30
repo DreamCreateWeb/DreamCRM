@@ -569,6 +569,19 @@ describe('resolveGuardianHeartbeat — a dead cron must not look healthy', () =>
     expect(resolveGuardianHeartbeat({ guardian: { ranAt: 'x', problems: 'nope' } }).problems).toEqual([])
   })
 
+  it('carries the RECEIPT back — who the run actually reached (round-16 gap)', () => {
+    const h = resolveGuardianHeartbeat({
+      guardian: { ranAt: 'x', audience: 'clinic', told: ['Ash', 42, ''], emailed: ['Birch'] },
+    })
+    expect(h.audience).toBe('clinic')
+    expect(h.told).toEqual(['Ash'])
+    expect(h.emailed).toEqual(['Birch'])
+    // Floors to the closed side and to empty lists on junk.
+    const j = resolveGuardianHeartbeat({ guardian: { ranAt: 'x', audience: 'nope', told: 'Ash' } })
+    expect(j.audience).toBe('platform')
+    expect(j.told).toEqual([])
+  })
+
   it('carries the blind flag back, because the writer writes it', () => {
     // Storing a field nobody reads is the exact defect slice 4 was pulled
     // up for; re-introducing it here would be worse than not storing it.
@@ -594,6 +607,9 @@ describe('resolveGuardianHeartbeat — a dead cron must not look healthy', () =>
       blind: false,
       problems: [],
       skipped: 0,
+      audience: 'platform',
+      told: [],
+      emailed: [],
     })
   })
 
@@ -609,6 +625,9 @@ describe('resolveGuardianHeartbeat — a dead cron must not look healthy', () =>
       blind: false,
       problems: [],
       skipped: 0,
+      audience: 'platform',
+      told: [],
+      emailed: [],
     })
   })
 })
@@ -700,6 +719,9 @@ describe('guardianHeartbeatStale — a job that STOPPED, not one that never star
     blind: false,
     problems: [],
     skipped: 0,
+    audience: 'platform' as const,
+    told: [],
+    emailed: [],
   })
 
   it('a run today is not stale', () => {
@@ -806,7 +828,13 @@ describe('the all-clear line admits a calm-but-not-clean week (round-15 audit)',
     expect(summarizeSweep(['healthy', 'quiet'], 0)).toBe('All 2 practices are running normally.')
   })
 
-  it('never appends it when practices are already flagged — that list is the message', () => {
-    expect(summarizeSweep(['silent', 'healthy'], 1)).toBe('1 of 2 practices need you.')
+  it('survives a BUSY morning too (round-16 gap)', () => {
+    // The round-15 fix landed in the all-clear branch only, so these — Dream
+    // Create's OWN breaks — vanished from the summary on precisely the days
+    // the owner is reading the panel.
+    const s = summarizeSweep(['silent', 'healthy'], 1)
+    expect(s).toContain('1 of 2 practices need you.')
+    expect(s).toContain('ours to fix')
+    expect(summarizeSweep(['silent', 'healthy'], 0)).toBe('1 of 2 practices need you.')
   })
 })

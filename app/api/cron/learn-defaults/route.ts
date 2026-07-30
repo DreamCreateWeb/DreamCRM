@@ -25,7 +25,11 @@ async function run(request: Request) {
   }
   try {
     const result = await runSharedBrainLearning()
-    return NextResponse.json(result)
+    // A PASS THAT RAN AND COULDN'T IS NOT A SUCCESS (round-16 audit). This
+    // returned 200 regardless of `ok`, so the only external signal that the
+    // weekly pass is broken looked identical to a healthy one — the same
+    // shape the Guardian's route was fixed for in round 9.
+    return NextResponse.json(result, { status: result.ok ? 200 : 500 })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'unknown' },

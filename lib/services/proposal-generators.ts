@@ -155,6 +155,40 @@ export const ENGINE_DOWN = {
 
 /** The cron entrypoint: sweep staleness, then run all four generators for
  *  every real (non-demo) clinic org. */
+/**
+ * THE ENGINE'S OWN HEARTBEAT (round-16 in-phase gap).
+ *
+ * Slice 4 is NAMED "proposal-engine observability", and its stated purpose is
+ * that the engine dying is the one failure nobody can see, because a clinic
+ * with an empty inbox looks exactly like a clinic with nothing to do. It made
+ * a BREAK visible — but the way this engine actually dies in this deployment
+ * is its schedule quietly not firing, which produced no signal at all, and
+ * the Guardian then certified every practice healthy because an idle ledger
+ * with no failures reads as calm.
+ *
+ * Its own top-level key, passed whole: `writePlatformConfig` merges shallowly
+ * and a read-modify-write here would drop the audience lock or the brain.
+ */
+async function recordEngineRun(result: GeneratorRunResult, now: Date): Promise<void> {
+  try {
+    const { writePlatformConfig } = await import('@/lib/services/platform-config')
+    await writePlatformConfig({
+      proposalEngine: {
+        ranAt: now.toISOString(),
+        orgsScanned: result.orgsScanned,
+        filed: result.filed,
+        // Deduplicated CLASSES, not a log — the same shape the Guardian's
+        // heartbeat settled on in round 14.
+        problems: Array.from(
+          new Set(result.errors.map((e) => String(e.error).split(':')[0].trim())),
+        ).slice(0, 5),
+      },
+    })
+  } catch (e) {
+    console.error('[proposals] engine heartbeat not recorded', e)
+  }
+}
+
 export async function runProposalGenerators(now: Date = new Date()): Promise<GeneratorRunResult> {
   const result: GeneratorRunResult = {
     orgsScanned: 0,
@@ -237,6 +271,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     // Unreadable means we cannot even name who to record against, so this
     // is ours alone — but it must not vanish into a thrown cron.
     result.errors.push({ organizationId: '-', error: `orgs: ${(e as Error).message}` })
+    await recordEngineRun(result, now)
     return result
   }
 
@@ -306,6 +341,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     // One honest strike for this clinic, whatever broke and however.
     await flushFailures(org.id)
   }
+  await recordEngineRun(result, now)
   return result
 }
 

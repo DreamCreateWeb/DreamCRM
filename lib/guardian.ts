@@ -149,6 +149,17 @@ export function assessEngine(s: EngineSignals): EngineVerdict {
   return verdict
 }
 
+/** The OTHER axis, named wherever it is known and not already the headline.
+ *  One home, so a seventh verdict gets it by asking. */
+function switchClause(s: EngineSignals): string {
+  if (!s.remindersOn && !s.reviewRequestsOn) {
+    return ' Both engines are switched off as well, so nothing could send even once this is fixed.'
+  }
+  if (!s.remindersOn) return ' Appointment reminders are switched off as well.'
+  if (!s.reviewRequestsOn) return ' Automatic review requests are switched off as well.'
+  return ''
+}
+
 function blockedByFailures(s: EngineSignals): EngineVerdict {
   return {
     state: 'blocked',
@@ -160,8 +171,24 @@ function blockedByFailures(s: EngineSignals): EngineVerdict {
     // the autonomy hand-back) and the send/sync automations do not yet
     // report. The report now says what it
     // actually knows and lets the per-capability list below carry the rest.
-    why: 'Repeated failures in one week mean something is wired wrong rather than merely quiet — the machine is trying and being turned away.',
-    recommendation: 'Start with what it was trying; this is ours to fix, not theirs to notice.',
+    // AND THE SWITCHES, WHEN THEY ARE ALSO OFF (round-16 audit). This rule
+    // fires FIRST, and it said nothing about `remindersOn`/`reviewRequestsOn`
+    // even though both sit in the same signals — so a practice with three
+    // failure days AND both engines off produced "start with what it was
+    // trying; this is ours to fix, not theirs to notice", which is
+    // affirmatively wrong: a genuinely clinic-side problem exists, the code
+    // knows it, and it reached nobody. Every sibling verdict already carries
+    // the other axis; this one was never swept when round 9 made that the
+    // rule ("a report that omits a known fact sends the reader hunting for
+    // it").
+    why:
+      'Repeated failures in one week mean something is wired wrong rather than merely quiet — the machine is trying and being turned away.' +
+      switchClause(s),
+    recommendation:
+      'Start with what it was trying; this is ours to fix, not theirs to notice.' +
+      (switchClause(s)
+        ? ' The switches are a separate conversation to have with them once it is working.'
+        : ''),
     cause: 'failures',
   }
 }
@@ -352,7 +379,16 @@ export function summarizeSweep(states: EngineState[], withFailures = 0): string 
       ? `${all} ${withFailures} had ${withFailures === 1 ? 'a job' : 'jobs'} of ours hit trouble — ours to fix.`
       : all
   }
-  return `${flagged} of ${states.length} ${states.length === 1 ? 'practice needs' : 'practices need'} you.`
+  // …AND ON A BUSY MORNING TOO (round-16 in-phase gap). The round-15 fix
+  // landed in the all-clear branch only, so these — Dream Create's OWN
+  // breaks, the category this phase repeatedly rules "ours to fix, not
+  // theirs to notice" — vanished from the summary on exactly the days the
+  // owner is reading the panel. The flagged clinics are the message; this
+  // rides alongside rather than competing with it.
+  const need = `${flagged} of ${states.length} ${states.length === 1 ? 'practice needs' : 'practices need'} you.`
+  return withFailures > 0
+    ? `${need} ${withFailures} otherwise-fine ${withFailures === 1 ? 'practice' : 'practices'} had ${withFailures === 1 ? 'a job' : 'jobs'} of ours hit trouble — ours to fix.`
+    : need
 }
 
 /**
@@ -547,6 +583,14 @@ export interface GuardianHeartbeat {
    * Capped, because this is a heartbeat and not a log.
    */
   problems: string[]
+  /** Which half the LAST run took, and who it actually reached — the
+   *  receipt for the audience lock (round-16 in-phase gap). The control had
+   *  a dry run and no confirmation, so the owner who opened it had to read
+   *  individual clinics' ledgers to learn what their own machine had said
+   *  in their name. */
+  audience: GuardianAudience
+  told: string[]
+  emailed: string[]
   /**
    * Practices the run SKIPPED entirely — today, the half-provisioned ones
    * (an org row with no clinic_profile, reachable in production). They are
@@ -597,12 +641,17 @@ export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {
     blind: false,
     problems: [],
     skipped: 0,
+    audience: 'platform',
+    told: [],
+    emailed: [],
   }
   if (!stored || typeof stored !== 'object') return empty
   const h = (stored as Record<string, unknown>).guardian
   if (!h || typeof h !== 'object') return empty
   const g = h as Record<string, unknown>
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0)
+  const names = (v: unknown) =>
+    Array.isArray(v) ? v.filter((n): n is string => typeof n === 'string' && !!n).slice(0, 5) : []
   return {
     // A malformed instant reads as "never ran" — the honest floor, and the
     // one that makes the panel say so out loud rather than print junk.
@@ -611,6 +660,9 @@ export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {
     flagged: num(g.flagged),
     undelivered: num(g.undelivered),
     blind: g.blind === true,
+    audience: g.audience === 'clinic' ? 'clinic' : 'platform',
+    told: names(g.told),
+    emailed: names(g.emailed),
     problems: Array.isArray(g.problems)
       ? g.problems.filter((p): p is string => typeof p === 'string' && p.length > 0).slice(0, 5)
       : [],

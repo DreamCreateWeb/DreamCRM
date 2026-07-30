@@ -660,6 +660,14 @@ async function recordHeartbeat(result: GuardianRunResult, now: Date): Promise<vo
         undelivered: result.undelivered,
         skipped: result.skipped,
         blind: result.blind,
+        // THE RECEIPT (round-16 in-phase gap). The lock had a dry run and no
+        // confirmation: the owner who opened it had to go read individual
+        // clinics' ledgers to learn what their own machine had said in their
+        // name. This is the phase's most consequential control and the one
+        // action in the product with a preview and no receipt.
+        audience: result.audience,
+        told: result.notifiedClinics.slice(0, 5),
+        emailed: result.alertedClinics.slice(0, 5),
         // WHY, not just how many (round-14 in-phase gap). These reasons
         // were written in seven places and read by nobody — the cron route
         // hands them to EventBridge, which discards them. That is the same
