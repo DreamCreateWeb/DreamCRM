@@ -2,6 +2,7 @@ import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
+  DEFAULT_SEND_HOUR,
   learnBestSendHour,
   resolveSharedBrain,
   type HourStat,
@@ -119,7 +120,24 @@ export interface LearnResult {
  */
 export async function runSharedBrainLearning(now: Date = new Date()): Promise<LearnResult> {
   // What is in force today — the incumbent a challenger has to beat.
-  const current = await getSharedBrain().catch(() => resolveSharedBrain(null))
+  //
+  // A FAILED READ ABORTS THE PASS (round-6 audit). Falling back to the
+  // shipped default here would silently swap the incumbent: MIN_LIFT would
+  // measure the week's winner against hour 10 while every clinic was sending
+  // at a learned 3 PM, and a marginal challenger would win a comparison it
+  // should have lost. The same failure the round-1 fix removed, re-entering
+  // through the error path. Not knowing what is in force is a reason to skip
+  // a weekly pass, never a reason to guess.
+  let current: SharedBrain
+  try {
+    current = await getSharedBrain()
+  } catch (e) {
+    return {
+      ok: false,
+      error: `config unreadable: ${(e as Error).message}`,
+      finding: { hour: DEFAULT_SEND_HOUR, learned: false, why: 'Could not read what is in force.', sampleSends: 0 },
+    }
+  }
   let stats: HourStat[]
   try {
     stats = await collectSendHourStats(now)

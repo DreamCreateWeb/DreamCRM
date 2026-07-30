@@ -130,8 +130,9 @@ function blockedByFailures(s: EngineSignals): EngineVerdict {
     // NO SPECULATION ABOUT THE CAUSE (verification round 2). This used to
     // assert "usually an expired Google token, a disconnected mailbox" —
     // a guess, and one the Guardian cannot currently check, because
-    // `recordFailure` has exactly one writer (the proposal engine) and the
-    // send/sync automations do not yet report. The report now says what it
+    // `recordEngineFailure` has two writers today (the proposal engine and
+    // the autonomy hand-back) and the send/sync automations do not yet
+    // report. The report now says what it
     // actually knows and lets the per-capability list below carry the rest.
     why: 'Repeated failures in one week mean something is wired wrong rather than merely quiet — the machine is trying and being turned away.',
     recommendation: 'Start with what it was trying; this is ours to fix, not theirs to notice.',

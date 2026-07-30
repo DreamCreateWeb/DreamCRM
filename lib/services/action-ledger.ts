@@ -94,11 +94,24 @@ export const workOnly = () =>
 /** Its complement: every "I tried and couldn't", of either shape. */
 export const failureOnly = () => sql`(${sql.join(FAILURE_MARKERS.map(markerIsTrue), sql` or `)})`
 
-/** JUST the marker this module WRITES — the write-side throttle's own
- *  question. Derived from the same generator, so it cannot drift; exported
- *  so the boundary test renders the real predicate rather than a copy. A
- *  single term, so it carries no OR and is safe in any composition. */
-export const ownFailureMarker = () => markerIsTrue('failure')
+/**
+ * The write-side throttle's own question: "have I already recorded a failure
+ * OF THIS KIND?"
+ *
+ * ROUND-6 AUDIT. Before the consolidation the hand-back wrote a different
+ * marker, so it could not match the engine's throttle — and the comment at
+ * the call site said exactly that. Routing both producers through one door
+ * made them share a marker, so an unthrottled hand-back row (written by the
+ * LAST generator step, before the flush) started suppressing the engine's
+ * own strike for 24 hours across the whole org. The owner would then read a
+ * cause list naming a social integration while the engine itself was down.
+ *
+ * Unifying the vocabulary is right; unifying it without keying the throttle
+ * by KIND was the same mistake one layer over. Two terms ANDed, no OR, safe
+ * in any composition.
+ */
+export const ownFailureMarker = (kind: FailureKind = 'engine') =>
+  sql`(${markerIsTrue('failure')} and (${schema.actionLedger.detail} ->> ${sql.raw(`'failureKind'`)}) = ${kind})`
 
 /** Entries the executors stamped as the machine acting alone (Phase 3). */
 const autonomousOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomous') = 'true'`
@@ -182,7 +195,7 @@ export async function recordEngineFailure(input: {
             gte(schema.actionLedger.occurredAt, since),
             // The throttle asks about the marker IT writes. Historical
             // `autoFailure` rows must not suppress a live engine strike.
-            ownFailureMarker(),
+            ownFailureMarker(kind ?? 'engine'),
           ),
         )
         .limit(1)

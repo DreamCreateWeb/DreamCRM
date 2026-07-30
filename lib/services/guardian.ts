@@ -49,7 +49,7 @@ export interface ClinicEngineReport {
   verdict: EngineVerdict
   signals: EngineSignals
   /** What broke behind `failures7`, by capability, in the OWNER's voice —
-   *  "Reply to Google reviews — 3 attempts". Never the clinic-addressed
+   *  "Reply to Google reviews — 3 days". Never the clinic-addressed
    *  ledger sentence. Empty when nothing failed (or the ledger was
    *  unreadable). */
   failureCauses: string[]
@@ -103,8 +103,25 @@ export async function recentFailureSummaries(
 ): Promise<string[]> {
   try {
     const rows = await db
-      .select({ capability: schema.actionLedger.capability })
+      .select({
+        capability: schema.actionLedger.capability,
+        // DAYS, like the counter (round-6 audit). Round 3 moved the alarm to
+        // distinct days and changed this list's WORD from "attempts" to
+        // "days" in the same commit — but left the query counting rows. The
+        // hand-back is deliberately unthrottled and writes one row per card,
+        // so three cards handing back in one instant printed "hit trouble on
+        // 1 day this week" directly above "Publish social posts — 3 days".
+        // The counter and its explainer disagreeing is the phase's signature
+        // defect; they now ask Postgres the same question.
+        day: sql<string>`date_trunc('day',
+          ${schema.actionLedger.occurredAt} at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
+        )`,
+      })
       .from(schema.actionLedger)
+      .leftJoin(
+        schema.clinicProfile,
+        eq(schema.clinicProfile.organizationId, schema.actionLedger.organizationId),
+      )
       .where(
         and(
           eq(schema.actionLedger.organizationId, organizationId),
@@ -113,7 +130,10 @@ export async function recentFailureSummaries(
         ),
       )
       .orderBy(desc(schema.actionLedger.occurredAt))
-      .limit(50)
+      // Generous: we collapse to (capability, day) pairs below, so the cap
+      // bounds the read rather than the answer. A burst can no longer push a
+      // genuinely different capability's break out of the list.
+      .limit(500)
     // COUNT BY CAPABILITY, never the raw summary (verification round 2).
     // Those sentences are written for the CLINIC by construction — "you'd
     // handed this over to me", "it's back with you" — and printing them
@@ -122,8 +142,16 @@ export async function recentFailureSummaries(
     // convention: any surface serving two tenants branches every
     // reader-addressed string. The capability LABEL is neutral and still
     // names the break.
-    const counts = new Map<string, number>()
-    for (const r of rows) counts.set(r.capability, (counts.get(r.capability) ?? 0) + 1)
+    // One entry per (capability, day) — a burst on one afternoon is one day.
+    const days = new Map<string, Set<string>>()
+    for (const r of rows) {
+      const set = days.get(r.capability) ?? new Set<string>()
+      set.add(String(r.day))
+      days.set(r.capability, set)
+    }
+    const counts = new Map<string, number>(
+      Array.from(days.entries()).map(([cap, set]) => [cap, set.size]),
+    )
     return Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, limit)
@@ -140,10 +168,10 @@ export async function recentFailureSummaries(
 /**
  * DAYS on which something broke — not rows (verification round 3).
  *
- * `recordFailure`'s once-a-day window only throttles the `failure` half of
- * the vocabulary. The `autoFailure` half is written by the Phase-3 hand-back
- * with no throttle at all, and the granted-card loop hands back EVERY open
- * card in one tick — so a single two-hour provider outage wrote N rows in
+ * The write-side window throttles a WRITER; it cannot throttle the alarm.
+ * The Phase-3 hand-back is deliberately unthrottled — each row names a
+ * different card — and the granted-card loop hands back EVERY open card in
+ * one tick — so a single two-hour provider outage wrote N rows in
  * the same instant, cleared FAILURE_ALARM_COUNT immediately, and pinned the
  * practice to `blocked` for the whole trailing week after the break had
  * already healed.
@@ -154,7 +182,9 @@ export async function recentFailureSummaries(
  * makes the headline honest — "tried and couldn't on 3 days this week" is
  * true where "3 times" was counting bursts.
  */
-export const failureCountExpr = () => sql<number>`count(distinct date_trunc('day', ${schema.actionLedger.occurredAt})) filter (where ${failureOnly()})::int`
+export const failureCountExpr = () => sql<number>`count(distinct date_trunc('day',
+  ${schema.actionLedger.occurredAt} at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
+)) filter (where ${failureOnly()})::int`
 
 /**
  * Ledger counts per org for a window, split into WORK and FAILURES in one
@@ -175,6 +205,16 @@ async function ledgerCountsByOrg(
       failures: failureCountExpr(),
     })
     .from(schema.actionLedger)
+    // CLINIC-LOCAL DAYS (round-6 audit). `occurred_at` is timestamp-without-
+    // zone, so date_trunc buckets on UTC midnight — 8 PM the previous day in
+    // EDT, 5 PM in PDT. A Pacific practice whose cards hand back at 4 PM and
+    // 6 PM on one afternoon recorded TWO distinct "days", and two such
+    // afternoons trip the alarm — precisely the "not one bad afternoon" the
+    // constant's own doc promises. CLAUDE.md's day-bucketing rule is binding.
+    .leftJoin(
+      schema.clinicProfile,
+      eq(schema.clinicProfile.organizationId, schema.actionLedger.organizationId),
+    )
     .where(
       and(
         gte(schema.actionLedger.occurredAt, since),

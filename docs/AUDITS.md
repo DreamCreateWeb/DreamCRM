@@ -1469,3 +1469,32 @@ legitimately write several rows at once (each hand-back names a different
 card), and verification round 3 proved that unifying what a counter matches
 without unifying what limits it just moves the burst.
 
+**Post-consolidation verification — NOT CLEAN, but differently.** 5 distinct
+defects + 3 guard gaps, and the shape of them is the point:
+
+- **The consolidation caught its own consequences.** Routing the hand-back
+  through the one door made it share the engine's marker — so an unthrottled
+  hand-back row started matching the engine's 24h throttle and suppressing
+  its strike. Right idea, incomplete: unifying the vocabulary without keying
+  the throttle by KIND is the same mistake one layer over. Fixed by keying
+  `ownFailureMarker` on `failureKind`.
+- **One old instance surfaced with better resolution.** The cause list had
+  been counting ROWS while labelling them "days" ever since round 3 moved the
+  counter to days and changed only the word. It now buckets by
+  `(capability, day)` in the same query shape the counter uses.
+- **The binding tz convention had been missed entirely.** `date_trunc('day',
+  occurred_at)` buckets on UTC midnight — 5 PM the previous day in PDT — so a
+  Pacific practice's single bad afternoon could read as two "days". Both the
+  counter and the explainer now bucket clinic-local.
+- **The guard gaps were the most valuable finding.** The marker-law test
+  proved both renderings NAMED each marker but never that they agreed on
+  POLARITY (a rendering could name a marker in the wrong direction and pass),
+  covered only the failure markers rather than all four, and pinned
+  composition safety for `failureOnly()` but not `workOnly()` — which goes
+  into the same `and()` calls. All three closed.
+
+**Standing lesson added:** *a guard that checks presence is not checking the
+law.* Asserting that generated SQL mentions a marker says nothing about
+whether it asserts or negates it. Guards must pin the direction, and must
+cover every member of the set they claim to own.
+

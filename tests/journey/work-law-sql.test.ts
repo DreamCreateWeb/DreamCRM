@@ -99,7 +99,14 @@ describe('the failure de-dup predicate as Postgres parses it', () => {
     expect(q.sql).toContain('"organization_id"')
     expect(q.sql).toContain('"capability"')
     expect(q.sql).toContain('"occurred_at"')
-    expect(q.params).toHaveLength(3)
+    // org + capability + window + the failure KIND (round-6 audit: without
+    // the kind, an unthrottled hand-back suppressed the engine's own strike).
+    expect(q.params).toHaveLength(4)
+  })
+
+  it('keys on the failure KIND — a hand-back must not silence the engine', () => {
+    expect(q.sql).toContain("'failureKind'")
+    expect(q.params).toContain('engine')
   })
 
   it('reads the jsonb detail with ->>, the text operator the comparison needs', () => {

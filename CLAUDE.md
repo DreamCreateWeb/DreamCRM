@@ -633,7 +633,7 @@ sitemap/robots/OG.
    is excluded from every cron so it would report permanently silent and
    train the owner to ignore the list; best-effort per clinic) + the
    Overview panel, built as a REPORT not a console. The ledger grew a
-   FAILURE vocabulary (`recordFailure`, `detail.failure`) so "tried and
+   FAILURE vocabulary (`recordEngineFailure`, `detail.failure`) so "tried and
    couldn't" is a real entry and `isWorkEntry` excludes it — a broken clinic
    must not look busy. (2) the ALERT MEMORY — migration 0139
    (`clinic_profile.guardian_state` + `guardian_alerted_at`), pure
@@ -669,14 +669,14 @@ sitemap/robots/OG.
    NOT seeded in the demo on purpose: the demo org is excluded from the
    sweep, and the audience lock ships closed, so seeding one would
    demonstrate a surface no real clinic can currently reach. (4) PROPOSAL-ENGINE
-   OBSERVABILITY — slice 1 shipped `recordFailure` and the Guardian's
+   OBSERVABILITY — slice 1 shipped the failure vocabulary and the Guardian's
    three-strikes-is-`blocked` rule and then NOTHING called it, so that whole
    branch was dead in production; the generator driver now records a break
    into the clinic's own ledger under the capability that broke
    (`STEP_FAILURE`), with the org-level "engine never got started" case under
    a new registered `proposal_engine` capability (auto-by-default, not
    grantable — it is how every ask-first job reaches them, not a job to hand
-   over). The load-bearing part is `recordFailure`'s `onceWithin` window: the
+   over). The load-bearing part is `recordEngineFailure`'s `onceWithin` window: the
    cron ticks HOURLY, so undeduped one stuck generator writes 24 rows a day
    into a clinic's story and trips the alarm before lunch on day one — at one
    strike per day, `FAILURE_ALARM_COUNT` means DAYS of a broken thing. Our own

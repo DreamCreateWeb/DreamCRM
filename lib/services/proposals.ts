@@ -950,9 +950,9 @@ async function reopen(
       updatedAt: now,
     })
     .where(and(eq(schema.proposal.organizationId, claimed.organizationId), eq(schema.proposal.id, claimed.id)))
-  // Say it out loud, ONCE, the tick the machine gives up. Not work — a
-  // note that work did NOT happen, so it carries autoFailure and the
-  // standup's counts skip it.
+  // Say it out loud, ONCE, the tick the machine gives up. Not work — a note
+  // that work did NOT happen, so the failure marker keeps it out of the
+  // standup's counts.
   if (opts.autonomous && handBack && payload.handBack !== true) {
     // THROUGH THE ONE DOOR (Phase-4 consolidation). This used to hand-stamp
     // its own `autoFailure` marker via recordAction, which is exactly how it

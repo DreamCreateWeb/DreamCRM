@@ -77,6 +77,44 @@ describe('the JS law and the SQL law are one list', () => {
     expect(orAtTop, `top-level OR escapes composition:\n${text}`).toBe(false)
   })
 
+  it('the two renderings agree on POLARITY, not merely on naming (round-6 gap)', () => {
+    // Naming a marker is not the same as excluding it. workOnly() must
+    // NEGATE every not-work marker; a rendering that mentioned one in the
+    // wrong direction would pass a name check and invert the law.
+    const text = render(workOnly())
+    for (const m of NOT_WORK_MARKERS) {
+      const i = text.indexOf(`'${m}'`)
+      const after = text.slice(i, i + 120)
+      expect(
+        /is distinct from 'true'|is null/.test(after),
+        `'${m}' is named in workOnly() but not negated:\n${after}`,
+      ).toBe(true)
+    }
+    // ...and failureOnly() must ASSERT its markers, the opposite direction.
+    const fail = render(failureOnly())
+    for (const m of FAILURE_MARKERS) {
+      const i = fail.indexOf(`'${m}'`)
+      expect(/= 'true'/.test(fail.slice(i, i + 60)), `'${m}' is named but not asserted`).toBe(true)
+    }
+  })
+
+  it('workOnly() also composes safely — it is an AND chain with no bare OR', () => {
+    // failureOnly()'s composition safety was pinned after it shipped a
+    // tenant-scoping breach; workOnly() goes into the same `and()` calls and
+    // had no equivalent proof (round-6 gap).
+    const text = render(workOnly())
+    let depth = 0
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i]
+      if (c === '(') depth++
+      else if (c === ')') depth--
+      else if (depth === 0 && text.slice(i, i + 4).toLowerCase() === ' or ') {
+        throw new Error(`workOnly() has a top-level OR:\n${text}`)
+      }
+    }
+    expect(depth).toBe(0)
+  })
+
   it('a marker added to the list reaches BOTH renderings without further edits', () => {
     // The generators map over the exported lists, so this is a property of
     // the construction rather than of any hand-maintained copy. Asserting
@@ -106,16 +144,25 @@ function libFiles(): Array<{ path: string; src: string }> {
 }
 
 describe('nothing outside the owning module writes a failure marker by hand', () => {
-  it('no `failure: true` / `autoFailure: true` object literal escapes the door', () => {
+  /** The Guardian's own note is the one legitimate `report: true` writer. */
+  const ALLOWED_REPORT_WRITERS = ['lib/services/guardian-alerts.ts']
+
+  it('no failure or report marker literal escapes its owner', () => {
     // THE GUARD. `reopen()` used to hand-stamp `autoFailure: true` through
     // recordAction, which is precisely how it ended up outside the throttle
     // the other producer had and unreadable by the explainer the counter
     // relied on. Every producer goes through `recordEngineFailure`.
     const offenders: string[] = []
     for (const { path, src } of libFiles()) {
+      // ALL not-work markers, not just the failure ones (round-6 gap): the
+      // `report` marker is written by the Guardian and `autonomyChange` by
+      // the ladder, and a second hand-writer of either would fork the law
+      // exactly as the hand-back did.
       for (const m of FAILURE_MARKERS) {
-        // An object-literal assignment, e.g. `detail: { autoFailure: true }`.
         if (new RegExp(`\\b${m}\\s*:\\s*true`).test(src)) offenders.push(`${path} (${m})`)
+      }
+      if (/\breport\s*:\s*true/.test(src) && !ALLOWED_REPORT_WRITERS.includes(path)) {
+        offenders.push(`${path} (report)`)
       }
     }
     expect(
