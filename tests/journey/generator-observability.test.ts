@@ -295,3 +295,31 @@ describe('one strike per org per run', () => {
     expect(ledger.failures[0].capability).toBe('proposal_engine')
   })
 })
+
+
+/**
+ * THE TWO TOP-LEVEL CATCHES (round-15 audit). Both guard statements that run
+ * BEFORE any per-org try, and their own comment names the consequence: "the
+ * whole platform's engine could be down and the Guardian would report every
+ * practice healthy." The harness has carried a fail switch for one of them
+ * since slice 4 and NO test ever set it, so deleting either try/catch left
+ * the suite green — the manifest's claim that every state-changing error path
+ * has an executed fail switch was false for the two that matter most.
+ */
+describe('the engine survives its own pre-flight failing', () => {
+  it('a failed staleness sweep is reported, and the run continues', async () => {
+    svc.expireThrows = true
+    const r = await runProposalGenerators(NOW)
+    expect(r.errors.some((e) => e.error.startsWith('expireStale:'))).toBe(true)
+    // The generators still ran: a bookkeeping step failing must not take
+    // the whole engine down with it.
+    expect(r).toHaveProperty('filed')
+  })
+
+  it('an unreadable ORG LIST stops the run and says so, rather than reporting nothing quietly', async () => {
+    store.throwOnTable = 'organization'
+    const r = await runProposalGenerators(NOW)
+    expect(r.errors.some((e) => e.error.startsWith('orgs:'))).toBe(true)
+    expect(r.filed).toBe(0)
+  })
+})

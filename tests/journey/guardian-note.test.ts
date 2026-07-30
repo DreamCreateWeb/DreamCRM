@@ -20,6 +20,8 @@ const state = vi.hoisted(() => ({
   /** What the LIVE failure count says right now — the stall note's second
    *  clause is a claim about the trailing week and has to be re-checked. */
   liveFailures: 0,
+  /** [this month, prior month] as the live spine reports them. */
+  liveSeated: [3, 12] as [number, number],
   captured: { since: null as Date | null, capability: null as unknown },
 }))
 
@@ -77,7 +79,20 @@ vi.mock('@/lib/services/engine-switches', () => ({
     return state.switches
   }),
 }))
-vi.mock('@/lib/services/patient-journey', () => ({ countSeatedBetween: vi.fn(async () => 0) }))
+// The stall is RE-VERIFIED live (round-15 audit): a recovered practice must
+// not keep reading that its growth is down. First call is the current month,
+// second the prior one.
+vi.mock('@/lib/services/patient-journey', () => ({
+  // Keyed on the WINDOW, not on call order — a parity-based stub silently
+  // mis-answers the moment one call is made to reject.
+  countSeatedBetween: vi.fn(async (_org: string, since: Date, until: Date) => {
+    const days = Math.round((until.getTime() - since.getTime()) / 86_400_000)
+    void days
+    return until.getTime() >= new Date('2026-07-29T14:00:00Z').getTime()
+      ? state.liveSeated[0]
+      : state.liveSeated[1]
+  }),
+}))
 vi.mock('@/lib/services/action-ledger', () => ({
   workOnly: () => ({ op: 'sql' }),
   failureOnly: () => ({ op: 'sql' }),
@@ -108,6 +123,7 @@ beforeEach(() => {
   state.fail = false
   state.audience = 'clinic'
   state.liveFailures = 0
+  state.liveSeated = [3, 12]
   state.captured = { since: null, capability: null }
 })
 
@@ -245,6 +261,7 @@ describe('the stall note is re-derived too, for the clause that can go stale (ro
       stallNote('Fewer new patients came in this past month (3 against 12). Some of my own jobs also hit trouble this week, so let me get those working before we read too much into the numbers. I’ll keep you posted.'),
     ]
     state.liveFailures = 0
+  state.liveSeated = [3, 12]
     const r = await getActiveGuardianNote('org_1', NOW)
     expect(r?.summary).not.toContain('hit trouble')
     expect(r?.summary).toContain('Nothing is broken on my side')
@@ -257,6 +274,32 @@ describe('the stall note is re-derived too, for the clause that can go stale (ro
     state.liveFailures = 2
     const r = await getActiveGuardianNote('org_1', NOW)
     expect(r?.summary).toContain('hit trouble')
+  })
+
+  it('a RECOVERED practice stops reading that its growth is down (round-15 audit)', async () => {
+    // Round 13 narrowed the live re-check to the clause it had just caught
+    // going stale and left the sentence's principal claim on the original
+    // rationale — "a closed 30-day window, which cannot become false inside
+    // a week" — which is not true of the code: the sweep recomputes
+    // monthStart = now - 30d every daily run, so both windows roll.
+    state.rows = [stallNote('Fewer new patients came in this past month (3 against 12).')]
+    state.liveSeated = [11, 12]
+    expect(await getActiveGuardianNote('org_1', NOW)).toBeNull()
+  })
+
+  it('a still-stalled practice keeps its note, with the LIVE numbers', async () => {
+    state.rows = [stallNote('Fewer new patients came in this past month (3 against 12).')]
+    state.liveSeated = [4, 14]
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r?.summary).toContain('4')
+    expect(r?.summary).toContain('14')
+  })
+
+  it('an unreadable month replays rather than inventing a recovery', async () => {
+    const mod = await import('@/lib/services/patient-journey')
+    vi.mocked(mod.countSeatedBetween).mockRejectedValueOnce(new Error('down'))
+    state.rows = [stallNote('Fewer new patients came in this past month (3 against 12).')]
+    expect(await getActiveGuardianNote('org_1', NOW)).not.toBeNull()
   })
 
   it('a note written before the numbers were recorded is replayed, not fabricated', async () => {

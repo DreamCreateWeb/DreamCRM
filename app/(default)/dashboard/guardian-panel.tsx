@@ -59,9 +59,18 @@ const STATE_STYLE: Record<EngineState, { glyph: string; chip: string; label: str
 function ReportRow({
   report,
   audience,
+  /** The lock's value could not be READ (round-15 audit, second pass). The
+   *  control one screen-region up was taught to claim nothing about the
+   *  machine on this path; these rows were not, so with the lock stored
+   *  OPEN and the overview's config read failing, every flagged row told
+   *  the owner "If you let practices hear it, they'd read …" — about
+   *  practices who are being told, right now, by a cron that does its own
+   *  read. Routing is unknowable here, so this says nothing about it. */
+  audienceUnknown,
 }: {
   report: ClinicEngineReport
   audience: GuardianAudience
+  audienceUnknown: boolean
 }) {
   const style = STATE_STYLE[report.verdict.state]
   // Which WAY this finding is routed. Deliberately phrased as routing, not
@@ -70,7 +79,8 @@ function ReportRow({
   // was a claim it could not support — the ledger write can fail, and the
   // cadence may not have fired yet. It can honestly say where a finding
   // goes; it cannot say it arrived.
-  const goesToThem = audience === 'clinic' && clinicActionable(report.verdict.state, report.signals)
+  const goesToThem =
+    !audienceUnknown && audience === 'clinic' && clinicActionable(report.verdict.state, report.signals)
   // A DRY RUN, while the lock is closed (round-9 in-phase gap). The one
   // control on this panel decides whether the machine starts addressing
   // customers, and the routing split above only rendered AFTER the decision
@@ -78,7 +88,9 @@ function ReportRow({
   // going to be a practice reading it. `clinicNote` is pure and the row
   // already carries the signals, so showing it costs nothing.
   const wouldSay =
-    audience === 'platform' ? clinicNote(report.verdict.state, report.signals) : null
+    !audienceUnknown && audience === 'platform'
+      ? clinicNote(report.verdict.state, report.signals)
+      : null
   return (
     <li className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
       <div className="flex items-start gap-3">
@@ -140,7 +152,7 @@ function ReportRow({
               <span className="font-medium">What I&rsquo;d do:</span> {report.verdict.recommendation}
             </p>
           )}
-          {audience === 'clinic' && (
+          {!audienceUnknown && audience === 'clinic' && (
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               {goesToThem
                 ? 'This one goes to them directly, in their own activity.'
@@ -307,7 +319,12 @@ export default function GuardianPanel({
       ) : (
         <ul className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {sweep.flagged.map((r) => (
-            <ReportRow key={r.organizationId} report={r} audience={audience} />
+            <ReportRow
+              key={r.organizationId}
+              report={r}
+              audience={audience}
+              audienceUnknown={heartbeatUnreadable}
+            />
           ))}
         </ul>
       )}

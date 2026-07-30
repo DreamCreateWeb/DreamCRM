@@ -1970,3 +1970,59 @@ safe direction.
 - *When the state is unknown, offer the safe action — do not offer none.*
   Disabling a control at the moment it is most needed is a failure mode of
   its own, and it hid behind a floored value that made the label wrong too.
+
+**Attempt 11 (round 15, re-run) — NOT CLEAN, and the count went UP: 7 defects
+(6 distinct), 0 in-phase gaps.** The rise is partly self-inflicted: the
+invalid first attempt meant I shipped fixes that no full round had yet
+audited, and four of the six are defects in corrections. But two are original
+code, and one of those is the most serious finding since the SQL boundary
+test.
+
+- **ORIGINAL: one clinic's bad timezone string can blind the PLATFORM-WIDE
+  sweep.** `clinicLocalDay()` renders `at time zone coalesce(cp.timezone,
+  'America/New_York')` inside one grouped statement over every org's ledger,
+  and `coalesce` guards NULL only — an unrecognised non-empty value raises
+  and fails the WHOLE statement, so `sweepEngineHealth` returns `blind` for
+  every clinic and the daily cron stamps nothing. The settings writer wrote
+  the form value straight through while its own sibling in onboarding
+  round-trips it through `Intl` with the comment "a bogus value must never
+  poison every wall-clock render". Before this phase the blast radius of a
+  bad zone was that one clinic's timestamps; the Guardian made it the
+  watcher itself. Validated at the writer now; the aggregate's residual
+  trust in the column is documented there.
+- **ORIGINAL: the proposal engine's two top-level catches had zero executed
+  coverage** — including the org-list read whose own comment says "the whole
+  platform's engine could be down and the Guardian would report every
+  practice healthy". A fail switch for one of them had existed since slice 4
+  and no test ever set it, so deleting either try/catch left the suite green.
+  Both are exercised now.
+- **The calm-verdict hedge round 9 added reached NO reader.** `quiet` and
+  `healthy` `why` strings are discarded everywhere — the panel renders only
+  flagged rows, `shouldAlert` refuses non-attention states, the stand-down
+  body prints the headline. So the fix for "a calm verdict that has to ignore
+  a failure to stay calm" changed nothing in production, and the one line
+  those clinics DO reach the owner through said everything was running
+  normally. `summarizeSweep` now carries it.
+- **The panel's ROWS still spoke from a floored audience** one screen-region
+  below the control that round 15 had just taught to claim nothing.
+- **The stall note replayed its PRINCIPAL claim unverified.** Round 13
+  narrowed the live re-check to the clause it had just caught going stale
+  and left "fewer new patients came in this past month (X against Y)" on the
+  original rationale — "a closed 30-day window, which cannot become false
+  inside a week" — which is not true of the code: the sweep recomputes
+  `monthStart = now - 30d` every run, so both windows roll. The stall is
+  re-verified against live numbers now, and a recovered practice's note
+  disappears.
+- **A clinic-audience recovery never cleared `guardian_state`**, so months
+  later one closed lock (or one transient config read flooring to
+  'platform') would email an all-clear for a problem that ended in June.
+  **The first draft of that fix reintroduced round 11's oscillation** — my
+  own dwell test caught it before it shipped, for the second time in this
+  audit.
+
+**Standing lesson added:**
+- *A fix shipped without a full audit round is unaudited code, and the next
+  round will find it.* The invalid round was correctly refused; proceeding
+  to fix its candidates anyway was right, but the fixes then entered this
+  round as fresh material. Expect the count to rise after any round that
+  does not complete.

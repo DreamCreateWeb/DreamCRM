@@ -336,11 +336,21 @@ function classify(s: EngineSignals): EngineVerdict {
  * summary of its sweep. Plain counts; no exclamation marks; and silence is
  * reported as good news rather than as an empty state.
  */
-export function summarizeSweep(states: EngineState[]): string {
+export function summarizeSweep(states: EngineState[], withFailures = 0): string {
   const flagged = states.filter(needsAttention).length
   if (states.length === 0) return 'No clinics to watch yet.'
+  // AN ALL-CLEAR THAT IGNORES A FAILURE IS NOT AN ALL-CLEAR (round-15 audit).
+  // Round 9 taught the `quiet` and `healthy` verdicts to admit 1–2 failure
+  // days — and BOTH of those `why` strings are discarded: the panel renders
+  // only flagged rows, `shouldAlert` refuses non-attention states, and the
+  // stand-down body prints the headline. So the clause was generated and
+  // dropped, and the one line those clinics DO reach the owner through said
+  // everything was running normally. This is where it belongs.
   if (flagged === 0) {
-    return `All ${states.length} ${states.length === 1 ? 'practice is' : 'practices are'} running normally.`
+    const all = `All ${states.length} ${states.length === 1 ? 'practice is' : 'practices are'} running normally.`
+    return withFailures > 0
+      ? `${all} ${withFailures} had ${withFailures === 1 ? 'a job' : 'jobs'} of ours hit trouble — ours to fix.`
+      : all
   }
   return `${flagged} of ${states.length} ${states.length === 1 ? 'practice needs' : 'practices need'} you.`
 }

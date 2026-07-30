@@ -9,6 +9,8 @@ import {
   summarizeSweep,
   clinicNote,
   NOTE_VISIBLE_DAYS,
+  STALL_DROP_RATIO,
+  STALL_MIN_BASELINE,
   type EngineSignals,
   type EngineState,
   type EngineVerdict,
@@ -525,7 +527,12 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
   return {
     reports,
     flagged: reports.filter((r) => needsAttention(r.verdict.state)),
-    summary: summarizeSweep(reports.map((r) => r.verdict.state)),
+    summary: summarizeSweep(
+      reports.map((r) => r.verdict.state),
+      // Practices whose week was calm but not clean — the count that makes
+      // the all-clear honest (round-15 audit).
+      reports.filter((r) => !needsAttention(r.verdict.state) && r.signals.failures7 > 0).length,
+    ),
     blind: false,
   }
 }
@@ -691,12 +698,41 @@ export async function getActiveGuardianNote(
       console.error('[guardian] live failure count for the stall note failed', e)
       return 0
     })
+    // AND THE STALL ITSELF, not only its hedge (round-15 audit). Round 13
+    // narrowed the exemption to the clause it had just caught going stale
+    // and left the sentence's PRINCIPAL claim on the original rationale —
+    // "a closed 30-day window, which cannot become false inside a week" —
+    // which is not true of the code: the sweep recomputes
+    // `monthStart = now - 30d` on every daily run, so both windows roll.
+    // A practice that recovers keeps reading "fewer new patients came in
+    // this past month (5 against 12)" on its own Overview for up to
+    // NOTE_VISIBLE_DAYS, quoting a pair of numbers that no longer describe
+    // either window.
+    const [liveSeated30, liveSeatedPrev30] = await Promise.all([
+      countSeatedBetween(organizationId, new Date(now.getTime() - 30 * DAY_MS), now).catch(
+        () => null,
+      ),
+      countSeatedBetween(
+        organizationId,
+        new Date(now.getTime() - 60 * DAY_MS),
+        new Date(now.getTime() - 30 * DAY_MS),
+      ).catch(() => null),
+    ])
+    // An unreadable month replays what was written rather than inventing a
+    // recovery — the same posture the failure hedge takes.
+    const nowSeated = liveSeated30 ?? seated30
+    const prevSeated = liveSeatedPrev30 ?? seatedPrev30
+    // Recovered: the note is spent, whatever the ledger still says. Same
+    // rule the blocked branch applies to a switch turned back on.
+    if (!(prevSeated >= STALL_MIN_BASELINE && nowSeated < prevSeated * STALL_DROP_RATIO)) {
+      return null
+    }
     const live = clinicNote('stalled', {
       ...EMPTY_SIGNALS,
       failures7,
       engineFailures7: failures7,
-      seated30,
-      seatedPrev30,
+      seated30: nowSeated,
+      seatedPrev30: prevSeated,
     })
     return { summary: live ?? row.summary, state, occurredAt: row.occurredAt }
   } catch (e) {

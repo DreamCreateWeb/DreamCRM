@@ -538,7 +538,27 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // alerted, which is exactly the flap the dwell clock exists to stop.
       // The clock only works if the memory keeps holding the problem while
       // the quiet is being served.
-      const mayStampKey = inTrouble ? delivered || nothingToDeliver : delivered
+      // WHEN THE PROBLEM KEY MAY MOVE, part 2 (round-15 audit). A recovered
+      // clinic used to require `delivered` — but with the lock open,
+      // `standDownGoesToOwner` correctly owes NO all-clear for a stalled or
+      // switch-blocked practice, so `standingDown` is false, nothing is
+      // delivered, and the key sat on a dead problem forever while
+      // `nothingChanges` short-circuited every later pass. Then one closed
+      // lock (or one transient config read flooring to 'platform') emailed
+      // an all-clear for a problem that ended months ago. A recovery with
+      // nothing owed to anyone is exactly the "nothing to deliver" case the
+      // in-trouble branch already recognises.
+      // …but ONLY when the quiet has genuinely held. `!standingDown` alone
+      // is true in two very different cases, and conflating them undoes
+      // round 11: a recovery whose DWELL has not elapsed also has no
+      // stand-down, and stamping `healthy` there makes tomorrow's re-break
+      // a state CHANGE — the alternating alert/all-clear flap the dwell
+      // clock exists to stop. `recoveredForGood` is the dwell; this is the
+      // narrow case of "the quiet has held AND nobody was owed the news".
+      const standDownOwedToNobody = recoveredForGood && !standingDown
+      const mayStampKey = inTrouble
+        ? delivered || nothingToDeliver
+        : delivered || standDownOwedToNobody
 
       // SKIP A WRITE THAT WOULD CHANGE NOTHING. The clocks are written on
       // every pass by design, but a healthy clinic's values are stable — and

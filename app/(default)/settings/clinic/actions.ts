@@ -47,7 +47,32 @@ export async function updateClinicProfile(formData: FormData) {
   const country = clean('country', formData, 'US')
   const logoUrl = clean('logoUrl', formData)
   const hours = parseHours(formData)
-  const timezone = clean('timezone', formData)
+  // VALIDATED, like its sibling in onboarding (round-15 audit). This writer
+  // wrote whatever the form said straight through, while
+  // app/(onboarding)/actions.ts round-trips through `Intl` with the comment
+  // "a bogus value must never poison every wall-clock render".
+  //
+  // Phase 4 raised the stakes on that gap: `clinicLocalDay()` renders
+  // `at time zone coalesce(clinic_profile.timezone, …)` inside the
+  // PLATFORM-WIDE sweep aggregate, and `coalesce` guards NULL only — a
+  // non-empty value Postgres does not recognise raises "time zone not
+  // recognized" and fails the whole statement, so ONE bad row would blind
+  // Dream Create's only view of whether every OTHER practice's engine is
+  // running. Before this phase the blast radius was that one clinic's
+  // timestamps; now it is the watcher itself.
+  const timezone = (() => {
+    const tz = clean('timezone', formData)
+    if (!tz) return tz
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: tz })
+      return tz
+    } catch {
+      // Refusing the value keeps whatever was stored before, which is a
+      // real zone; substituting a default would silently move a clinic's
+      // whole schedule.
+      return undefined
+    }
+  })()
 
   // IDENTITY ONLY. This form owns the shared business identity (names,
   // contact, address, hours, timezone, logo) — every website-content column

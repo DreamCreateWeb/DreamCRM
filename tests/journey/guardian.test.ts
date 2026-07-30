@@ -788,3 +788,25 @@ describe('the clinic-voiced hedge counts ENGINE breaks only (round-15 audit)', (
     expect(v.state).toBe('blocked')
   })
 })
+
+
+describe('the all-clear line admits a calm-but-not-clean week (round-15 audit)', () => {
+  // Round 9 taught the `quiet` and `healthy` verdicts to admit 1-2 failure
+  // days — and BOTH of those `why` strings are discarded (the panel renders
+  // only flagged rows; shouldAlert refuses non-attention states; the
+  // stand-down body prints the headline). The clause was generated and
+  // dropped, and the ONE line those clinics reach the owner through said
+  // everything was running normally.
+  it('names how many otherwise-fine practices had something break', () => {
+    expect(summarizeSweep(['healthy', 'healthy', 'quiet'], 2)).toContain('2 had jobs of ours hit trouble')
+    expect(summarizeSweep(['healthy'], 1)).toContain('1 had a job of ours hit trouble')
+  })
+
+  it('stays a plain all-clear when the week really was clean', () => {
+    expect(summarizeSweep(['healthy', 'quiet'], 0)).toBe('All 2 practices are running normally.')
+  })
+
+  it('never appends it when practices are already flagged — that list is the message', () => {
+    expect(summarizeSweep(['silent', 'healthy'], 1)).toBe('1 of 2 practices need you.')
+  })
+})
