@@ -22,26 +22,35 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const ledger = vi.hoisted(() => ({
   counts: {} as Record<string, number>,
   entries: [] as Array<Record<string, unknown>>,
+  failures: 0,
   countCalls: [] as unknown[][],
   listCalls: [] as unknown[][],
+  failureCalls: [] as unknown[][],
 }))
-vi.mock('@/lib/services/action-ledger', () => ({
-  // The real predicate — the standup's story filter is under test, not a
-  // stub of it (round-1 Phase-3 audit: settings changes are not stories).
-  isWorkEntry: (detail: unknown) =>
-    !detail ||
-    typeof detail !== 'object' ||
-    ((detail as Record<string, unknown>).autonomyChange === undefined &&
-      (detail as Record<string, unknown>).autoFailure !== true),
-  countActionsSince: vi.fn(async (...a: unknown[]) => {
-    ledger.countCalls.push(a)
-    return ledger.counts
-  }),
-  listRecentActions: vi.fn(async (...a: unknown[]) => {
-    ledger.listCalls.push(a)
-    return ledger.entries
-  }),
-}))
+vi.mock('@/lib/services/action-ledger', async () => {
+  // THE REAL predicate, from its one home — the standup's story filter is
+  // under test, not a stub of it (round-1 Phase-3 audit: settings changes
+  // are not stories). Round 9: this used to be a hand-copy that had already
+  // drifted (it knew 'autonomyChange'/'autoFailure' but not 'failure' or
+  // 'report'), i.e. a fourth transcription of the very law this phase
+  // consolidated, living in the test that was supposed to police it.
+  const { isWorkDetail } = await import('@/lib/ledger-markers')
+  return {
+    isWorkEntry: isWorkDetail,
+    countActionsSince: vi.fn(async (...a: unknown[]) => {
+      ledger.countCalls.push(a)
+      return ledger.counts
+    }),
+    countFailuresSince: vi.fn(async (...a: unknown[]) => {
+      ledger.failureCalls.push(a)
+      return ledger.failures
+    }),
+    listRecentActions: vi.fn(async (...a: unknown[]) => {
+      ledger.listCalls.push(a)
+      return ledger.entries
+    }),
+  }
+})
 
 const deps = vi.hoisted(() => ({ openProposals: 0, followupsDue: 0, seated: 0, seatedCalls: [] as unknown[][] }))
 vi.mock('@/lib/services/proposals', () => ({
@@ -196,8 +205,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   ledger.counts = {}
   ledger.entries = []
+  ledger.failures = 0
   ledger.countCalls = []
   ledger.listCalls = []
+  ledger.failureCalls = []
   deps.openProposals = 0
   deps.followupsDue = 0
   deps.seated = 0
@@ -300,6 +311,47 @@ describe('buildWeeklyStandup', () => {
     store.reviewConfigs = [{ organizationId: ORG, autoSendEnabled: 0 }]
     const s2 = await buildWeeklyStandup(ORG, MONDAY)
     expect(s2.quietNote).toContain('review requests are switched off')
+  })
+
+  it('a week of nothing but FAILURES never reads as “nothing needed sending” (round-9 audit)', async () => {
+    // The trap: totalActions is WORK-only by law, so a week in which every
+    // job the machine attempted FAILED arrives as zero — arithmetically
+    // identical to a week where nothing needed doing. Round 8 taught the
+    // Guardian's clinic sentence to hedge for exactly this and left the
+    // standup — the flagship honesty surface — asserting an all-clear.
+    ledger.failures = 4
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.totalActions).toBe(0)
+    expect(s.quietNote).not.toContain('nothing needed sending')
+    expect(s.quietNote).not.toContain('I’m watching')
+    expect(s.quietNote).toContain('hit trouble')
+    // Owned, not handed over: the anti-shame law and the same routing rule
+    // that keeps failures away from the Guardian's clinic audience.
+    expect(s.quietNote).toContain('mine to sort out')
+  })
+
+  it('the failure count reads the SAME window as the work count', async () => {
+    ledger.failures = 1
+    await buildWeeklyStandup(ORG, MONDAY)
+    const [, since, opts] = ledger.failureCalls[0] as [string, Date, { until: Date }]
+    expect(since.toISOString()).toBe(PRIOR_WEEK_START.toISOString())
+    expect(opts.until.toISOString()).toBe(THIS_WEEK_START.toISOString())
+  })
+
+  it('a switched-off engine AND failures says both — neither hides the other', async () => {
+    store.profiles = [{ organizationId: ORG, reminders: { enabled: false } }]
+    ledger.failures = 2
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.quietNote).toContain('appointment reminders are switched off')
+    expect(s.quietNote).toContain('hit trouble')
+  })
+
+  it('an unreadable failure count never invents trouble', async () => {
+    const { countFailuresSince } = await import('@/lib/services/action-ledger')
+    ;(countFailuresSince as unknown as { mockRejectedValueOnce: (e: Error) => void })
+      .mockRejectedValueOnce(new Error('pool timeout'))
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.quietNote).toContain('nothing needed sending')
   })
 
   it('quiet = nothing done AND nothing waiting', async () => {

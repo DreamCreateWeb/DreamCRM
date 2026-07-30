@@ -330,3 +330,35 @@ export async function countActionsSince(
   for (const r of rows) out[r.capability] = Number(r.c)
   return out
 }
+
+/**
+ * The OTHER half of the same window: how many times the machine tried and
+ * couldn't (round-9 audit).
+ *
+ * `countActionsSince` is work-only, which is right — a failure is not work.
+ * But that makes a week of nothing-but-failures arithmetically identical to
+ * a week where nothing needed doing, and the standup went on to narrate the
+ * second. Anything that reports on an empty window needs this number too,
+ * or it is reporting on half the ledger and calling it the whole thing.
+ *
+ * Generated from the same FAILURE_MARKERS list as the Guardian's counter —
+ * one vocabulary, one home (lib/ledger-markers.ts).
+ */
+export async function countFailuresSince(
+  organizationId: string,
+  since: Date,
+  opts: { until?: Date } = {},
+): Promise<number> {
+  const [row] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(schema.actionLedger)
+    .where(
+      and(
+        eq(schema.actionLedger.organizationId, organizationId),
+        gte(schema.actionLedger.occurredAt, since),
+        ...(opts.until ? [lt(schema.actionLedger.occurredAt, opts.until)] : []),
+        failureOnly(),
+      ),
+    )
+  return Number(row?.c ?? 0)
+}

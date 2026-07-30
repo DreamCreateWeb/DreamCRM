@@ -3,7 +3,12 @@ import { and, eq, gte, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
-import { listRecentActions, countActionsSince, isWorkEntry } from '@/lib/services/action-ledger'
+import {
+  listRecentActions,
+  countActionsSince,
+  countFailuresSince,
+  isWorkEntry,
+} from '@/lib/services/action-ledger'
 import { readEngineSwitches } from '@/lib/services/engine-switches'
 import { countOpenProposals } from '@/lib/services/proposals'
 import { countFollowupsDue } from '@/lib/services/patient-followups'
@@ -178,16 +183,47 @@ export async function buildWeeklyStandup(
   // same. Only computed when there is nothing else to say.
   let quietNote: string | null = null
   if (totalActions === 0 && !predatesAccount) {
-    const engine = await readEngineSwitches(organizationId)
+    // AND THE FAILURES (round-9 audit). `totalActions` is WORK-only by law,
+    // so a week in which every job the machine attempted FAILED arrives here
+    // as zero — arithmetically identical to a week where nothing needed
+    // doing. With both switches on, the machine then told the practice
+    // "nothing needed sending… I’m watching" while seven days of its own
+    // "I couldn't" rows sat in that same clinic's ledger. Round 8 taught the
+    // Guardian's clinic-facing sentence to hedge for exactly this and left
+    // its sibling here asserting an all-clear — the phase's signature
+    // defect, on the product's flagship honesty surface.
+    //
+    // Best-effort: an unreadable count reads as zero failures, which is the
+    // pre-existing behaviour and never invents trouble that wasn't there.
+    const [engine, failures] = await Promise.all([
+      readEngineSwitches(organizationId),
+      countFailuresSince(organizationId, weekStart, { until: weekEnd }).catch((e) => {
+        console.error('[standup] failure count failed', e)
+        return 0
+      }),
+    ])
+    // Mine to fix, not theirs to chase — the same law that keeps failure
+    // findings away from the Guardian's clinic audience. It is named, it is
+    // owned, and it asks nothing of them.
+    const mine = failures > 0 ? ' Some of my own jobs also hit trouble this week — that one’s mine to sort out, and I’m on it.' : ''
     if (!engine.remindersOn && !engine.reviewRequestsOn) {
       quietNote =
-        'A quiet week — and a heads up: appointment reminders and review requests are both switched off, so I can’t send any. Turn them on in Settings when you’re ready.'
+        'A quiet week — and a heads up: appointment reminders and review requests are both switched off, so I can’t send any. Turn them on in Settings when you’re ready.' +
+        mine
     } else if (!engine.remindersOn) {
       quietNote =
-        'A quiet week — one heads up: appointment reminders are switched off, so I can’t send any. Turn them on in Settings when you’re ready.'
+        'A quiet week — one heads up: appointment reminders are switched off, so I can’t send any. Turn them on in Settings when you’re ready.' +
+        mine
     } else if (!engine.reviewRequestsOn) {
       quietNote =
-        'A quiet week — one heads up: automatic review requests are switched off. Turn them on in Growth → Reviews when you’re ready.'
+        'A quiet week — one heads up: automatic review requests are switched off. Turn them on in Growth → Reviews when you’re ready.' +
+        mine
+    } else if (failures > 0) {
+      // NEVER the all-clear line below. Nothing went out, and the reason is
+      // that my own jobs broke — saying "nothing needed sending" here is the
+      // machine asserting it is fine when it is not.
+      quietNote =
+        'A quiet week for sending — but not a clean one: some of my own jobs hit trouble and didn’t get through. That’s mine to sort out, and I’m on it.'
     } else {
       quietNote =
         'A quiet week — nothing needed sending. Reminders and review requests are on, and I’m watching.'
@@ -220,7 +256,10 @@ async function readOrgCreatedAt(organizationId: string): Promise<Date | null> {
       .where(eq(schema.organization.id, organizationId))
       .limit(1)
     return row?.createdAt ?? null
-  } catch {
+  } catch (e) {
+    // Unknown age reads as "old enough to narrate" (never suppress a real
+    // report over a failed lookup) — but says so.
+    console.error('[standup] org age read failed', e)
     return null
   }
 }

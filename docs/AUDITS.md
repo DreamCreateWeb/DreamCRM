@@ -1559,3 +1559,74 @@ signature class, found hiding inside the fixes for it:
   your error path.* Mock completeness is a correctness property of the test,
   not a convenience.
 
+
+**Attempt 4 (round 9) — NOT CLEAN.** 7 distinct defects (2 major) + 4 in-phase
+gaps. The whole round was, again, the phase's signature class — but this time
+in a form that names the *method* failure rather than the code failure:
+**the round-8 sibling sweep enumerated the files I remembered instead of the
+files the phase touched.**
+
+Every confirmed defect was a sibling of an already-fixed one:
+
+- **The weekly standup told a clinic "nothing needed sending… I'm watching"
+  in a week its own ledger held only failures.** `totalActions` is work-only
+  by law, so a nothing-but-failures week is arithmetically identical to a
+  week where nothing needed doing. Round 8 taught the Guardian's clinic-facing
+  sentence to hedge for exactly this and left the standup — the flagship
+  honesty surface — asserting an all-clear. Fixed with `countFailuresSince`,
+  and the main-loop sweep then found TWO MORE calm verdicts with the same
+  silence (`healthy` and `quiet`), plus the switch-blocked one. There is now
+  a structural test that walks every verdict reachable with 1–2 failures and
+  fails if any of them says nothing.
+- **A blind sweep rendered as a confident all-clear.** "I could not see" and
+  "nobody needed you" both arrived as an empty `reports` array, so the panel
+  printed "No practices to watch yet", the overview's catch discarded even
+  the honest summary, and the cron logged `{ok:true, scanned:0}`. The service
+  had refused to invent a verdict and then handed back a shape in which that
+  honesty was the one field nobody read. `blind` is now a first-class value
+  every consumer must decide about — and the same class turned up in the
+  shared-brain card, where a failed read rendered as "Still learning / Has not
+  run yet", both of which can be flatly untrue.
+- **The heads-up card's visibility window and the re-alert cadence were the
+  same constant,** both measured from the sweep's own `now`. A day-7 run
+  starting a second earlier than a week ago wrote no note, and the card — the
+  note's only clinic surface — went dark for a day under a live problem. A
+  coin flip on cron jitter, in code whose comment promised the opposite.
+- **`classify` reported an unexplained blackout while holding the
+  explanation.** Both engines off plus an empty ledger returned `silent`
+  ("check their integrations and patient data") when the switches sat in the
+  same signals — and `silent` is not clinic-actionable, so the one finding
+  the practice could have fixed in two clicks was withheld at every audience
+  setting.
+- `engine-switches.ts` — created BY this phase — was the one file the round-8
+  catch-logging sweep missed. Re-swept from `git diff --name-only`, which
+  found five more.
+- `dedupeAcrossOrg` had zero executed coverage: deleting the branch left the
+  whole suite green.
+- CLAUDE.md still said `platform_config` "carries only the audience lock"
+  (load-bearing — that is exactly the belief that produces a read-modify-write
+  and drops the learned send hour) and called the phase "slices 1–3" while
+  listing five.
+
+**In-phase gaps shipped:** the alert loop now CLOSES (a recovery stands down
+to whoever was interrupted, and a failed all-clear keeps the old memory so
+tomorrow retries); the watcher records its own HEARTBEAT (a dead cron rule, a
+500ing route, or a platform with no `platformAdmin` row used to present as
+"everything is fine", because the panel renders live either way); a flagged
+row and its alert email now OPEN the practice instead of leaving the owner to
+hand-search the clinics list; and the audience lock shows a DRY RUN while
+closed — the sentence a practice would read, and how many would hear one
+today — so the owner's first sight of that copy is not a customer reading it.
+
+**Standing lessons added:**
+- *A sibling sweep must be driven by the diff, not by memory.* Enumerate
+  `git diff --name-only <range>` and grep that list. Round 8's sweep was
+  correct in kind and incomplete in extent, and the file it missed was one
+  the phase itself had created.
+- *When a fix teaches ONE surface to hedge, find every surface that makes the
+  same claim and write the structural test that enumerates them.* Three
+  rounds in a row fixed one instance of "the machine says it is fine when it
+  is not" and left its siblings standing.
+- *Never store a field nobody reads.* Slice 4 was pulled up for exactly that;
+  the heartbeat's `blind` flag was written and dropped by the resolver in the
+  same hour, and is now read.

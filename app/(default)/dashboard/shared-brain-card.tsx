@@ -14,7 +14,31 @@ import type { SharedBrain } from '@/lib/shared-brain'
  * either has enough evidence or it does not, and saying "still learning" out
  * loud is the honest half of the feature.
  */
-export default function SharedBrainCard({ brain }: { brain: SharedBrain }) {
+export default function SharedBrainCard({
+  brain,
+  /** The read FAILED, and `brain` is the shipped floor rather than what the
+   *  platform knows (round-9 sibling sweep). Same class as the Guardian's
+   *  blind sweep: an error path that substitutes an empty value renders as
+   *  a positive claim — here "Still learning" and "Has not run yet", both
+   *  of which could be flatly untrue while a learned 3 PM was in force. */
+  unreadable = false,
+}: {
+  brain: SharedBrain
+  unreadable?: boolean
+}) {
+  if (unreadable) {
+    return (
+      <section className="mb-8" aria-label="What the platform has learned">
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+          What the platform has learned
+        </h2>
+        <p className="rounded-[var(--r-lg)] border border-amber-300/60 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
+          I couldn&rsquo;t read what I&rsquo;ve learned just now. Clinics keep sending at whatever
+          was already worked out &mdash; this is only the readout being down.
+        </p>
+      </section>
+    )
+  }
   return (
     <section className="mb-8" aria-label="What the platform has learned">
       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">

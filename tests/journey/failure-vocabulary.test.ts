@@ -157,6 +157,35 @@ describe('recordEngineFailure — the once-a-day window', () => {
     expect(store.inserted).toHaveLength(2)
   })
 
+  it('dedupeAcrossOrg drops the capability filter — one break wearing five hats is one break', async () => {
+    // ROUND-9 AUDIT: this branch had zero EXECUTED coverage. Deleting it
+    // left the whole suite green, which meant the fix it encodes (a flaky
+    // provider failing review drafting at 09:00 and social drafting at
+    // 10:00 buying a fresh strike each hour, clearing the three-strike
+    // alarm inside a morning) could silently regress.
+    store.rows = []
+    await recordEngineFailure(failure({ onceWithin: DAY_MS, dedupeAcrossOrg: true }))
+    // No capability predicate was issued at all — the org-wide question.
+    expect(store.captured.capability).toBeNull()
+
+    store.captured.capability = null
+    await recordEngineFailure(failure({ onceWithin: DAY_MS }))
+    expect(store.captured.capability).toBe('review_reply')
+  })
+
+  it('org-wide de-dup SUPPRESSES a different capability that would otherwise strike again', async () => {
+    // The behavioural half: the earlier row is a `social_post` break, and
+    // the new one is `review_reply`. Per-capability that is two strikes;
+    // org-wide it is the same underlying break, and only one row is written.
+    store.rows = [{ id: 'act_social_break' }]
+    expect(
+      await recordEngineFailure(
+        failure({ capability: 'review_reply', onceWithin: DAY_MS, dedupeAcrossOrg: true }),
+      ),
+    ).toBe(false)
+    expect(store.inserted).toHaveLength(0)
+  })
+
   it('an unreadable ledger records ANYWAY — going blind is the failure we refuse', async () => {
     store.selectThrows = true
     expect(await recordEngineFailure(failure({ onceWithin: DAY_MS }))).toBe(true)

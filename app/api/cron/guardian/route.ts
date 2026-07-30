@@ -25,7 +25,11 @@ async function run(request: Request) {
   }
   try {
     const result = await runGuardianSweep()
-    return NextResponse.json({ ok: true, ...result })
+    // A BLIND RUN IS NOT A CLEAN ONE (round-9 audit). `{ok:true, scanned:0,
+    // flagged:0}` was the response for both "the platform has no live
+    // clinics" and "the watcher could not read the ledger at all" — and the
+    // cron log is the only place a blind day was ever visible.
+    return NextResponse.json({ ok: !result.blind, ...result })
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'unknown' },

@@ -5,12 +5,13 @@ import {
   clinicActionable,
   clinicNote,
   shouldAlert,
+  shouldStandDown,
   type AlertMemory,
   type EngineState,
   type GuardianAudience,
 } from '@/lib/guardian'
 import { sweepEngineHealth, type ClinicEngineReport } from '@/lib/services/guardian'
-import { getGuardianAudience } from '@/lib/services/platform-config'
+import { getGuardianAudience, writePlatformConfig } from '@/lib/services/platform-config'
 import { recordAction } from '@/lib/services/action-ledger'
 import { sendNotificationEmail } from '@/lib/email'
 
@@ -51,6 +52,17 @@ export interface GuardianRunResult {
   /** Clinics told directly, in their own ledger. Always empty at 'platform'. */
   notified: number
   notifiedClinics: string[]
+  /** Practices the owner was told had RECOVERED — the other half of an
+   *  interrupt (round-9 in-phase gap). */
+  stoodDown: number
+  stoodDownClinics: string[]
+  /** Reports that were DUE and did not land. Surfaced on the panel via the
+   *  heartbeat, because a run that could not deliver is invisible
+   *  otherwise. */
+  undelivered: number
+  /** The watcher could not read the ledger — no clinic was assessed, and
+   *  nothing about this run may be read as an all-clear. */
+  blind: boolean
   errors: Array<{ organizationId: string; error: string }>
 }
 
@@ -119,6 +131,34 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
 }
 
 /**
+ * THE ALL-CLEAR. Says what it was, that it isn't any more, and how long it
+ * ran — nothing to do, which is the point of sending it. Kept short on
+ * purpose: an email that closes a loop earns its place by being read in two
+ * seconds, and one that reads like a second alarm undoes the good it does.
+ */
+function standDownBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): string {
+  const was = STATE_IN_WORDS[memory.state as EngineState] ?? 'a problem'
+  const lines = [`${report.clinicName} is running normally again.`, '', `It was ${was}.`]
+  if (memory.alertedAt) {
+    const days = Math.max(1, Math.round((now.getTime() - memory.alertedAt.getTime()) / 86_400_000))
+    // Same honesty as the alert's "Still going" line: the stamp records the
+    // LAST time we said something, not the first, so that is what it claims.
+    lines.push(`I last flagged it ${days} ${days === 1 ? 'day' : 'days'} ago.`)
+  }
+  lines.push('', report.verdict.headline)
+  lines.push('', 'Nothing to do — this is just the other half of the alert.')
+  return lines.join('\n')
+}
+
+/** The owner-facing name of a state, for the sentence "It was …". Plain
+ *  words, because the state ids are ours and mean nothing to a reader. */
+const STATE_IN_WORDS: Partial<Record<EngineState, string>> = {
+  silent: 'showing nothing running at all',
+  blocked: 'blocked — the machine could not act for them',
+  stalled: 'showing new patients falling off',
+}
+
+/**
  * Tell the PRACTICE, in its own ledger. Not an email and not a proposal:
  * there is nothing to approve here, only something to know, so it lands in
  * the one place the clinic already reads the machine's own account of
@@ -163,7 +203,21 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
     alertedClinics: [],
     notified: 0,
     notifiedClinics: [],
+    stoodDown: 0,
+    stoodDownClinics: [],
+    undelivered: 0,
+    blind: sweep.blind,
     errors: [],
+  }
+
+  // A BLIND SWEEP DECIDES NOTHING (round-9 audit). With no readable ledger
+  // every clinic is unassessed, so there is no state to alert on, none to
+  // stand down, and above all none to STAMP — writing today's verdict from
+  // a sweep that could not see would corrupt the memory the whole cadence
+  // reads. Record the heartbeat (a run happened, and it was blind) and stop.
+  if (sweep.blind) {
+    await recordHeartbeat(result, now)
+    return result
   }
 
   // Platform admins are the audience — this is Dream Create's own watch,
@@ -194,6 +248,24 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         continue
       }
       const alerting = shouldAlert(memory, state, now)
+      // THE OTHER HALF OF AN INTERRUPT (round-9 in-phase gap). A practice
+      // we raised the alarm about has recovered, and until now the only
+      // way to learn that was to open the dashboard — the exact dependency
+      // the outbound half exists to remove.
+      //
+      // WHOSE loop is being closed: at 'platform' every finding went to the
+      // owner, so every recovery is theirs to hear. With the lock open, the
+      // clinic-actionable ones went to the practice instead — and those
+      // close themselves, because the note is re-derived from live switches
+      // and disappears the moment they flip one back on. `clinicActionable`
+      // is evaluated against TODAY's signals here, which is an
+      // approximation of what was true when the alarm was raised; the exact
+      // answer needs a per-audience memory, which is the same backlog item
+      // the "tell them once" rule is waiting on.
+      const standingDown =
+        !alerting &&
+        shouldStandDown(memory, state) &&
+        (audience === 'platform' || !clinicActionable(memory.state as EngineState, report.signals))
       // REVERTED (verification round). Round 3 added a "say it once to the
       // practice" rule gated on `memory.state !== state`, to stop nagging a
       // clinic weekly about a switch it may have turned off deliberately.
@@ -251,8 +323,12 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
                 memory.state === report.verdict.state && memory.alertedAt ? 'Still: ' : ''
               }${report.clinicName}: ${report.verdict.headline}`,
               body: alertBody(report, memory, now),
-              linkPath: '/dashboard',
-              linkLabel: 'Open the platform overview →',
+              // THE PRACTICE, not the page they are already reading
+              // (round-9 in-phase gap). Every alert is about ONE clinic
+              // and used to land the owner back on the overview, leaving
+              // them to hand-search the clinics list for the name.
+              linkPath: `/ecommerce/customers/${report.organizationId}`,
+              linkLabel: 'Open the practice →',
             })
               .then(() => true)
               .catch((e) => {
@@ -271,6 +347,41 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         }
       }
 
+      if (standingDown) {
+        if (recipients.length === 0) {
+          result.errors.push({
+            organizationId: report.organizationId,
+            error: 'no platform admin to email — the all-clear had nowhere to go',
+          })
+        } else {
+          const sends = await Promise.all(
+            recipients.map((to) =>
+              sendNotificationEmail({
+                to,
+                name: null,
+                title: `${report.clinicName}: back to normal`,
+                body: standDownBody(report, memory, now),
+                linkPath: `/ecommerce/customers/${report.organizationId}`,
+                linkLabel: 'Open the practice →',
+              })
+                .then(() => true)
+                .catch((e) => {
+                  result.errors.push({
+                    organizationId: report.organizationId,
+                    error: `email (all-clear): ${(e as Error).message}`,
+                  })
+                  return false
+                }),
+            ),
+          )
+          delivered = sends.some(Boolean)
+          if (delivered) {
+            result.stoodDown++
+            result.stoodDownClinics.push(report.clinicName)
+          }
+        }
+      }
+
       // Record what is true once it has been SAID — that is what makes "the
       // same problem" distinguishable from "a new one" tomorrow. The order
       // is deliberate: a crash between the delivery and the stamp repeats
@@ -284,7 +395,11 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // problem, and went silent for up to a week on the new one. The state
       // may only be recorded once the report about it actually landed —
       // or when there was nothing to report in the first place.
-      const nothingToDeliver = !alerting
+      // A stand-down is a DELIVERY like any other: if it did not land, the
+      // memory keeps the old problem so tomorrow tries again. Otherwise a
+      // bounced all-clear would silently clear the state and the owner
+      // would simply never learn the practice recovered.
+      const nothingToDeliver = !alerting && !standingDown
       // SKIP THE WRITE ENTIRELY when there is nothing to record (verification
       // round 3). The previous shape spread two conditionals into `.set()`,
       // and on the one path that matters — a report was due and did NOT land
@@ -294,6 +409,7 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // nobody to email") with an ORM string. The behaviour was right and
       // the watcher went blind about itself, which is the failure this whole
       // phase exists to remove.
+      if (!delivered && !nothingToDeliver) result.undelivered++
       if (delivered || nothingToDeliver) {
         await db
           .update(schema.clinicProfile)
@@ -308,5 +424,39 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
     }
   }
 
+  await recordHeartbeat(result, now)
   return result
+}
+
+/**
+ * THE WATCHER'S OWN HEARTBEAT (round-9 in-phase gap).
+ *
+ * Everything this run knows about ITSELF — that it happened, what it saw,
+ * what it could not deliver — used to return to the cron route and get
+ * discarded by EventBridge. Meanwhile the panel renders live from the
+ * cache, so a disabled schedule, a 500ing route, or a platform with no
+ * platformAdmin row all presented as "everything is fine". That is this
+ * phase's own thesis — idle and dead are indistinguishable without a
+ * watcher — aimed at the watcher.
+ *
+ * Best-effort by contract: failing to record the heartbeat must never fail
+ * the sweep that already did its work.
+ */
+async function recordHeartbeat(result: GuardianRunResult, now: Date): Promise<void> {
+  try {
+    // Own key, passed whole — writePlatformConfig merges top-level keys, so
+    // this can never clobber the audience lock or the shared brain.
+    await writePlatformConfig({
+      guardian: {
+        ranAt: now.toISOString(),
+        scanned: result.scanned,
+        flagged: result.flagged,
+        undelivered: result.undelivered,
+        blind: result.blind,
+      },
+    })
+  } catch (e) {
+    console.error('[guardian] heartbeat not recorded', e)
+    result.errors.push({ organizationId: '-', error: `heartbeat: ${(e as Error).message}` })
+  }
 }

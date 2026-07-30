@@ -139,8 +139,33 @@ function blockedByFailures(s: EngineSignals): EngineVerdict {
   }
 }
 
+/** The "and some of ours broke too" clause. `failures7` of 1 or 2 never
+ *  reaches the alarm, so it can ride along with ANY other verdict — and a
+ *  verdict that has to ignore a failure to stay calm is the thing this
+ *  phase exists to stop (round-9 sibling sweep). One home, so a sixth
+ *  verdict added later gets it by asking for it. */
+function alsoFailedClause(s: EngineSignals): string {
+  if (s.failures7 <= 0) return ''
+  return ` ${s.failures7} ${s.failures7 === 1 ? 'job' : 'jobs'} of ours did hit trouble, though — ours to fix.`
+}
+
+/** BOTH ENGINES OFF — the one switch verdict `classify` emits, hoisted so
+ *  the silence branch can reach it too (round-9 audit; see below). */
+function blockedBySwitches(s: EngineSignals): EngineVerdict {
+  return {
+    state: 'blocked',
+    headline: 'Both engines are switched off',
+    why:
+      'Appointment reminders and automatic review requests are both off, so most of the machine cannot act at all.' +
+      alsoFailedClause(s),
+    recommendation:
+      'Ask what made them turn these off — it is usually one bad experience worth understanding.',
+  }
+}
+
 function classify(s: EngineSignals): EngineVerdict {
   const brandNew = s.ageDays < NEW_CLINIC_GRACE_DAYS
+  const bothOff = !s.remindersOn && !s.reviewRequestsOn
 
   // BLOCKED BY FAILURES first, ahead of silence (round-1 audit). A clinic
   // whose every attempt is failing has an EMPTY work ledger — failures are
@@ -170,6 +195,17 @@ function classify(s: EngineSignals): EngineVerdict {
         recommendation: null,
       }
     }
+    // THE CAUSE IS ALREADY IN HAND (round-9 audit). Both engines off
+    // EXPLAINS fourteen empty days exactly, and the switches sit right
+    // there in the same signals — but the silence rule ran first and
+    // reported an unexplained blackout, telling Dream Create to "check
+    // their integrations and patient data" while the machine already knew
+    // the answer. Worse, `silent` is not clinicActionable, so the one
+    // finding the practice could have fixed in two clicks was withheld
+    // from them at every audience setting. A watcher that owns the cause
+    // must name it.
+    if (bothOff) return blockedBySwitches(s)
+
     return {
       state: 'silent',
       headline: 'Nothing has run for two weeks',
@@ -177,10 +213,22 @@ function classify(s: EngineSignals): EngineVerdict {
       // with one or two failures on record (the alarm pre-empts only at
       // three). Asserting "the ledger is empty" then contradicted the "What
       // it tried" list printed directly beneath it in the same email.
-      why:
-        s.failures7 > 0
-          ? 'No reminders, no review asks, no campaigns got through in 14 days — the only entries are the attempts that failed.'
-          : 'No reminders, no review asks, no campaigns — the ledger is empty for 14 days straight.',
+      //
+      // ONE switch off does NOT explain fourteen empty days — the other
+      // engine should still have produced something — so this stays
+      // `silent` (and stays with Dream Create, since flipping that switch
+      // would not fix it). But the fact is known, and a report that omits
+      // a known fact sends the reader hunting for it (round-9 audit).
+      why: (() => {
+        const head =
+          s.failures7 > 0
+            ? 'No reminders, no review asks, no campaigns got through in 14 days — the only entries are the attempts that failed.'
+            : 'No reminders, no review asks, no campaigns — the ledger is empty for 14 days straight.'
+        if (!s.remindersOn) return `${head} Appointment reminders are also switched off, though that alone would not explain this.`
+        if (!s.reviewRequestsOn)
+          return `${head} Automatic review requests are also switched off, though that alone would not explain this.`
+        return head
+      })(),
       recommendation:
         'Check their integrations and patient data first. A clinic seeing nothing happen is the one most likely to leave.',
     }
@@ -189,15 +237,7 @@ function classify(s: EngineSignals): EngineVerdict {
   // BLOCKED — the machine is trying and failing, or has been switched off.
   // Failures outrank switches: a wired-wrong connection is our problem to
   // fix, a switched-off engine is a conversation.
-  if (!s.remindersOn && !s.reviewRequestsOn) {
-    return {
-      state: 'blocked',
-      headline: 'Both engines are switched off',
-      why: 'Appointment reminders and automatic review requests are both off, so most of the machine cannot act at all.',
-      recommendation:
-        'Ask what made them turn these off — it is usually one bad experience worth understanding.',
-    }
-  }
+  if (bothOff) return blockedBySwitches(s)
 
   // STALLED — alive, but the practice's own new-patient number has fallen.
   // Measured against ITSELF, never against other clinics: a two-chair rural
@@ -219,11 +259,23 @@ function classify(s: EngineSignals): EngineVerdict {
 
   // QUIET vs HEALTHY — both fine; the difference is only whether there is
   // anything to celebrate. Neither goes on the owner's list.
+  // BOTH OF THE CALM VERDICTS HEDGE ON FAILURES (round-9 sibling sweep).
+  // `failures7` of 1 or 2 never reaches the alarm, so both of these are
+  // reachable with the machine's own "I couldn't" rows in the same week —
+  // and both asserted, flatly, that everything is running. Round 7 taught
+  // the stall to hedge, round 8 taught the clinic-facing note, and these
+  // two were the remaining siblings of the same sentence. A calm verdict
+  // that has to ignore a failure to stay calm is the thing this phase
+  // exists to stop.
+  const alsoFailed = alsoFailedClause(s)
+
   if (s.actions7 === 0) {
     return {
       state: 'quiet',
       headline: 'A quiet week, engines on',
-      why: 'Nothing ran this week, but the engines are on and last week was normal — a calm week, not a broken one.',
+      why:
+        'Nothing ran this week, but the engines are on and last week was normal — a calm week, not a broken one.' +
+        alsoFailed,
       recommendation: null,
     }
   }
@@ -232,9 +284,9 @@ function classify(s: EngineSignals): EngineVerdict {
     state: 'healthy',
     headline: `${s.actions7} ${s.actions7 === 1 ? 'thing' : 'things'} handled this week`,
     why:
-      s.seated30 > 0
+      (s.seated30 > 0
         ? `${s.seated30} new ${s.seated30 === 1 ? 'patient' : 'patients'} seated in the last 30 days.`
-        : 'The machine is running normally.',
+        : 'The machine is running normally.') + alsoFailed,
     recommendation: null,
   }
 }
@@ -260,6 +312,25 @@ export function summarizeSweep(states: EngineState[]): string {
  */
 export const RE_ALERT_DAYS = 7
 
+/**
+ * How long a clinic-facing note stays on screen. STRICTLY LONGER than the
+ * re-alert cadence, and that is the whole point (round-9 audit).
+ *
+ * Both bounds used to be RE_ALERT_DAYS, and both are measured from the
+ * sweep's own `now` — so the read window closed at the exact instant the
+ * re-write became due. EventBridge does not fire at the same millisecond
+ * every day: a day-7 run starting a second earlier than day 0's failed
+ * `shouldAlert` by a second, wrote no note, and the amber card — the note's
+ * ONLY clinic surface — went dark for a day underneath a live problem. A
+ * coin flip every cycle, in code whose comment promised the opposite.
+ *
+ * One extra day of overlap costs a stale-by-a-day sentence in the worst
+ * case (and the blocked note is re-derived from live switches at render
+ * anyway, so it cannot say anything untrue); the alternative costs the
+ * practice a day of not being told at all.
+ */
+export const NOTE_VISIBLE_DAYS = RE_ALERT_DAYS + 1
+
 export interface AlertMemory {
   /** The state Dream Create last reported for this clinic. */
   state: EngineState | null
@@ -284,6 +355,76 @@ export function shouldAlert(memory: AlertMemory, next: EngineState, now: Date): 
   if (memory.state !== next) return true
   if (!memory.alertedAt) return true
   return now.getTime() - memory.alertedAt.getTime() >= RE_ALERT_DAYS * 24 * 60 * 60 * 1000
+}
+
+/**
+ * THE OTHER HALF OF AN INTERRUPT (round-9 in-phase gap): is this practice
+ * back to normal after we told somebody it wasn't?
+ *
+ * The Guardian could only ever say bad news. `shouldAlert` refuses every
+ * non-attention state, so a clinic that recovered simply stopped being
+ * mentioned — and the owner, who was interrupted on Tuesday, had no way to
+ * learn on Thursday that it was fixed except by opening the dashboard. The
+ * whole reason the outbound half exists is that it reaches you WITHOUT a
+ * dashboard; an alert with no matching stand-down hands that dependency
+ * straight back, and trains the reader to hold every alert open forever.
+ *
+ * Only a remembered problem can be stood down: no memory means nothing was
+ * ever raised, and an all-clear for a problem nobody heard about is noise.
+ */
+export function shouldStandDown(memory: AlertMemory, next: EngineState): boolean {
+  if (memory.state === null) return false
+  if (!needsAttention(memory.state)) return false
+  return !needsAttention(next)
+}
+
+/**
+ * THE WATCHER'S OWN HEARTBEAT (round-9 in-phase gap).
+ *
+ * The panel renders live from `cachedEngineHealth`, so it looks alive
+ * whether or not the daily cron has fired this month — a disabled
+ * EventBridge rule, a 500ing route, or a platform with no platformAdmin row
+ * all present as "everything is fine". That is this phase's own thesis
+ * (idle and dead are indistinguishable without a watcher) aimed at the
+ * watcher itself, and the shared brain's card already solved it for the
+ * shared brain. `undelivered` is the count that matters most: a sweep that
+ * ran and could not deliver is the one failure the panel could otherwise
+ * never show.
+ */
+export interface GuardianHeartbeat {
+  ranAt: string | null
+  scanned: number
+  flagged: number
+  /** Reports that were due and did NOT land, this run. */
+  undelivered: number
+  /** The LAST run could not read the ledger. Stored because it is written —
+   *  a field collected and read by nothing is the defect slice 4 was pulled
+   *  up for, and re-introducing it here would be worse than not storing it. */
+  blind: boolean
+}
+
+export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {
+  const empty: GuardianHeartbeat = {
+    ranAt: null,
+    scanned: 0,
+    flagged: 0,
+    undelivered: 0,
+    blind: false,
+  }
+  if (!stored || typeof stored !== 'object') return empty
+  const h = (stored as Record<string, unknown>).guardian
+  if (!h || typeof h !== 'object') return empty
+  const g = h as Record<string, unknown>
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0)
+  return {
+    // A malformed instant reads as "never ran" — the honest floor, and the
+    // one that makes the panel say so out loud rather than print junk.
+    ranAt: typeof g.ranAt === 'string' && g.ranAt ? g.ranAt : null,
+    scanned: num(g.scanned),
+    flagged: num(g.flagged),
+    undelivered: num(g.undelivered),
+    blind: g.blind === true,
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

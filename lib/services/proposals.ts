@@ -269,8 +269,12 @@ export async function countOpenProposals(
         profile && !profile.isDemo && !resolveTrialState(profile, now).expired
           ? resolveGrantedCapabilities(profile.autonomy)
           : []
-    } catch {
-      granted = [] // unreadable trust → count everything (never hide real work)
+    } catch (e) {
+      // Unreadable trust → count everything (never hide real work). Logged
+      // per the round-8 lesson, extended in round 9 to every file the phase
+      // touched rather than the ones remembered.
+      console.error('[proposals] trust read failed while counting open cards', e)
+      granted = []
     }
   }
   const mine = machineHandlesCard(granted)
@@ -867,7 +871,11 @@ async function decideAndExecute(
   try {
     const { hasEntryForProposal } = await import('@/lib/services/action-ledger')
     alreadyNarrated = await hasEntryForProposal(organizationId, claimed.id)
-  } catch {
+  } catch (e) {
+    // Unreadable ledger → assume nothing was narrated, so an approval is
+    // never silently swallowed. A duplicate line is cheaper than a missing
+    // one; either way it must not be invisible.
+    console.error('[proposals] narration check failed', e)
     alreadyNarrated = false
   }
   if (!alreadyNarrated) {
@@ -1217,7 +1225,8 @@ async function executeSocialPost(
         )
       publishedCount = targets.filter((t) => t.status === 'published' || t.status === 'scheduled').length
     }
-  } catch {
+  } catch (e) {
+    console.error('[proposals] channel count failed for the recovery line', e)
     publishedCount = null
   }
   const snippet = p.body.length > 60 ? `${p.body.slice(0, 57)}…` : p.body
@@ -1446,8 +1455,9 @@ async function executeOutreachCampaign(
         expired: true,
       }
     }
-  } catch {
-    // fall through — the frequency cap still guards the send itself
+  } catch (e) {
+    // Fall through — the frequency cap still guards the send itself.
+    console.error('[proposals] recent-campaign check failed', e)
   }
 
   if (campaignId == null) {

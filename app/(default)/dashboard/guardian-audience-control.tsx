@@ -12,7 +12,17 @@ import { setGuardianAudienceAction } from './admin-actions'
  * changes if you flip it. No toggle switch — a switch invites a stray click,
  * and a stray click here starts the machine talking to customers.
  */
-export default function GuardianAudienceControl({ audience }: { audience: GuardianAudience }) {
+export default function GuardianAudienceControl({
+  audience,
+  /** How many practices would hear something TODAY if the lock opened, or
+   *  null when the sweep couldn't look — a decision this consequential
+   *  should never be taken against a number the machine had to guess
+   *  (round-9 in-phase gap). */
+  wouldHear = null,
+}: {
+  audience: GuardianAudience
+  wouldHear?: number | null
+}) {
   const [current, setCurrent] = useState<GuardianAudience>(audience)
   const [pending, start] = useTransition()
   const [note, setNote] = useState<string | null>(null)
@@ -46,7 +56,13 @@ export default function GuardianAudienceControl({ audience }: { audience: Guardi
       {confirming ? (
         <div className="mt-1 flex items-center justify-end gap-2">
           <span className="text-gray-600 dark:text-gray-300">
-            Let practices hear the things they can fix?
+            {wouldHear === null
+              ? 'Let practices hear the things they can fix?'
+              : wouldHear === 0
+                ? 'Let practices hear the things they can fix? Nothing would go out today.'
+                : `Let practices hear the things they can fix? ${wouldHear} ${
+                    wouldHear === 1 ? 'practice would' : 'practices would'
+                  } hear something today.`}
           </span>
           <button
             type="button"

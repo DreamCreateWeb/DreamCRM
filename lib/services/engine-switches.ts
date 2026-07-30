@@ -43,7 +43,15 @@ export async function readEngineSwitches(organizationId: string): Promise<Engine
       // No config row yet = the DB default (1, on).
       reviewRequestsOn: (reviewCfg?.autoSendEnabled ?? 1) === 1,
     }
-  } catch {
+  } catch (e) {
+    // Reads as "on" by contract (above) — but SAYS SO (round-9 audit; the
+    // round-8 catch-logging sweep enumerated the files it remembered rather
+    // than the files this phase touched, and this one was created by the
+    // phase itself). Three readers depend on this answer: the standup's
+    // quiet-week narration, the Guardian's verdict, and the clinic-facing
+    // note's live re-verify. All three silently read "both on" here, so an
+    // unreadable switch is indistinguishable from a switch that is on.
+    console.error('[engine-switches] read failed, reading as on', e)
     return { remindersOn: true, reviewRequestsOn: true }
   }
 }

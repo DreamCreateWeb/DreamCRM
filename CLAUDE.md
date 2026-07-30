@@ -521,8 +521,12 @@ sitemap/robots/OG.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
   migration: **0140** (`platform_config` — Dream Create's own platform-global
-  switches, one row id 'default'; today it carries only the Guardian's
-  audience lock. 0139 was `clinic_profile.guardian_state` +
+  switches, one row id 'default'. It carries THREE top-level keys today —
+  `guardianAudience` (the audience lock), `sharedBrain` (the learned send
+  hour) and `guardian` (the watcher's own heartbeat) — and every writer goes
+  through `writePlatformConfig`, which merges shallowly and passes its own
+  key WHOLE. A read-modify-write or a full-row replace here silently drops
+  another subsystem's key. 0139 was `clinic_profile.guardian_state` +
   `guardian_alerted_at`, the Guardian's alert memory; 0138 was
   `proposal.original_body`, the autonomy ladder). Workflow:
   `pnpm db:generate`, commit, merge.
@@ -622,8 +626,8 @@ sitemap/robots/OG.
    `countOpenProposals` excludes demo orgs from the granted-subtraction for
    the same reason it excludes billing-walled ones: nothing will ever
    execute those cards. Plus three identity-anchored unedited approvals),
-   Phase 4 the guardian + the shared brain — **IN PROGRESS**. Slices 1–3
-   shipped: (1) the VERDICT — pure `lib/guardian.ts` (`assessEngine` over
+   Phase 4 the guardian + the shared brain — **IN PROGRESS** (all five
+   slices below shipped; the phase-audit gate is what remains). Slices: (1) the VERDICT — pure `lib/guardian.ts` (`assessEngine` over
    `EngineSignals`, five states ranked worst-first: silent > blocked >
    stalled > quiet > healthy; `needsAttention` keeps `quiet` off the list
    because crying wolf is how a guardian gets ignored; the stall is measured

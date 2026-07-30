@@ -14,9 +14,11 @@ const store: {
 
 const sweepState = vi.hoisted(() => ({
   reports: [] as Array<Record<string, unknown>>,
+  blind: false,
 }))
 const mail = vi.hoisted(() => ({ sent: [] as Array<Record<string, unknown>>, fail: false }))
 const lock = vi.hoisted(() => ({ audience: 'platform' as 'platform' | 'clinic', fail: false }))
+const config = vi.hoisted(() => ({ writes: [] as Array<Record<string, unknown>> }))
 const ledger = vi.hoisted(() => ({
   recorded: [] as Array<Record<string, unknown>>,
   fail: false,
@@ -31,6 +33,7 @@ vi.mock('@/lib/services/guardian', () => ({
       ),
     ),
     summary: '',
+    blind: sweepState.blind,
   })),
 }))
 vi.mock('@/lib/email', () => ({
@@ -43,6 +46,9 @@ vi.mock('@/lib/services/platform-config', () => ({
   getGuardianAudience: vi.fn(async () => {
     if (lock.fail) throw new Error('config unreadable')
     return lock.audience
+  }),
+  writePlatformConfig: vi.fn(async (patch: Record<string, unknown>) => {
+    config.writes.push(patch)
   }),
 }))
 vi.mock('@/lib/services/action-ledger', () => ({
@@ -168,6 +174,8 @@ beforeEach(() => {
   store.profiles = [{ organizationId: 'org_a', guardianState: null, guardianAlertedAt: null }]
   store.admins = [{ email: 'owner@dreamcreateweb.com', platformAdmin: true }]
   sweepState.reports = []
+  sweepState.blind = false
+  config.writes = []
   mail.sent = []
   mail.fail = false
   lock.audience = 'platform'
@@ -205,15 +213,96 @@ describe('runGuardianSweep', () => {
     expect(store.profiles[0].guardianAlertedAt).toEqual(daysAgo(1))
   })
 
-  it('records a RECOVERY even though it sends nothing — that is what makes the next break a new problem', async () => {
+  it('STANDS DOWN a recovery — the other half of an interrupt (round-9 gap)', async () => {
+    // Before this, the Guardian could only ever say bad news: a practice
+    // that recovered simply stopped being mentioned, and the owner who was
+    // interrupted on Tuesday had to open the dashboard to learn on Thursday
+    // that it was fixed — the exact dependency the outbound half removes.
     store.profiles[0].guardianState = 'silent'
     store.profiles[0].guardianAlertedAt = daysAgo(2)
     sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
 
     const r = await runGuardianSweep(NOW)
     expect(r.alerted).toBe(0)
-    expect(mail.sent).toHaveLength(0)
+    expect(r.stoodDown).toBe(1)
+    expect(r.stoodDownClinics).toEqual(['Ash Dental'])
+    expect(mail.sent).toHaveLength(1)
+    expect(mail.sent[0].title).toContain('back to normal')
+    expect(mail.sent[0].body).toContain('Nothing to do')
+    // And it still records the recovery — that is what makes the NEXT break
+    // read as a new problem rather than a repeat.
     expect(store.profiles[0].guardianState).toBe('healthy')
+  })
+
+  it('never stands down a problem nobody was ever told about', async () => {
+    // No memory = nothing was raised. An all-clear for an alarm that never
+    // sounded is noise, and noise is how a guardian gets muted.
+    store.profiles[0].guardianState = null
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.stoodDown).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+  })
+
+  it('a FAILED all-clear keeps the old state, so tomorrow tries again', async () => {
+    // Same law as a failed alert: only a delivery that landed may move the
+    // memory. Otherwise a bounced all-clear silently clears the state and
+    // the owner never learns the practice recovered.
+    mail.fail = true
+    store.profiles[0].guardianState = 'blocked'
+    store.profiles[0].guardianAlertedAt = daysAgo(2)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.stoodDown).toBe(0)
+    expect(r.undelivered).toBe(1)
+    expect(store.profiles[0].guardianState).toBe('blocked')
+  })
+
+  it('a BLIND sweep decides nothing and stamps nothing (round-9 audit)', async () => {
+    // With no readable ledger every clinic is unassessed. Writing today's
+    // verdict from a sweep that could not see would corrupt the very memory
+    // the whole cadence reads — and `{ok:true, scanned:0}` would report the
+    // blind day as a clean one.
+    sweepState.blind = true
+    sweepState.reports = []
+    store.profiles[0].guardianState = 'blocked'
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.blind).toBe(true)
+    expect(mail.sent).toHaveLength(0)
+    expect(store.profiles[0].guardianState).toBe('blocked')
+    // It still leaves a heartbeat: a blind run HAPPENED, and that is
+    // precisely the thing the panel could otherwise never show.
+    expect(config.writes).toHaveLength(1)
+    expect((config.writes[0].guardian as Record<string, unknown>).blind).toBe(true)
+  })
+
+  it('records its own heartbeat every run — a dead cron must not look healthy', async () => {
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+    await runGuardianSweep(NOW)
+    const beat = config.writes.at(-1)?.guardian as Record<string, unknown>
+    expect(beat.ranAt).toBe(NOW.toISOString())
+    expect(beat.scanned).toBe(1)
+    expect(beat.flagged).toBe(1)
+    // Own key, passed whole — the shallow merge means anything else in the
+    // patch would clobber a sibling subsystem's key.
+    expect(Object.keys(config.writes.at(-1) as object)).toEqual(['guardian'])
+  })
+
+  it('counts UNDELIVERED reports so a run that could not deliver is visible', async () => {
+    mail.fail = true
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+    const r = await runGuardianSweep(NOW)
+    expect(r.undelivered).toBe(1)
+    expect((config.writes.at(-1)?.guardian as Record<string, unknown>).undelivered).toBe(1)
+  })
+
+  it('the alert links to the PRACTICE, not to the page the owner is reading', async () => {
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+    await runGuardianSweep(NOW)
+    expect(mail.sent[0].linkPath).toBe('/ecommerce/customers/org_a')
   })
 
   it('a FAILED send never moves the stamp — a mail outage must not buy a week of silence', async () => {

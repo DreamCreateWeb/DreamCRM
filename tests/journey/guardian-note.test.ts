@@ -78,7 +78,7 @@ vi.mock('@/lib/services/patient-journey', () => ({ countSeatedBetween: vi.fn(asy
 vi.mock('@/lib/services/proposals', () => ({ countOpenProposals: vi.fn(async () => 0) }))
 
 import { getActiveGuardianNote } from '@/lib/services/guardian'
-import { RE_ALERT_DAYS } from '@/lib/guardian'
+import { NOTE_VISIBLE_DAYS, RE_ALERT_DAYS } from '@/lib/guardian'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
 
@@ -100,14 +100,24 @@ describe('getActiveGuardianNote', () => {
     expect(await getActiveGuardianNote('org_1', NOW)).toBeNull()
   })
 
-  it('reads only guardian notes, and only inside the re-alert window', async () => {
+  it('reads only guardian notes, and only inside the visibility window', async () => {
     state.rows = [note('stalled')]
     await getActiveGuardianNote('org_1', NOW)
     expect(state.captured.capability).toBe('guardian_note')
     // Self-expiring: nothing has to remember to clear a note, because the
     // window drops it once the guardian stops re-writing it.
-    const expected = new Date(NOW.getTime() - RE_ALERT_DAYS * 24 * 60 * 60 * 1000)
+    const expected = new Date(NOW.getTime() - NOTE_VISIBLE_DAYS * 24 * 60 * 60 * 1000)
     expect(state.captured.since).toEqual(expected)
+  })
+
+  it('the visibility window OUTLASTS the re-write cadence, so the card cannot go dark under a live problem', async () => {
+    // Round-9 audit. Both bounds used to be RE_ALERT_DAYS and both are
+    // measured from the sweep's own `now`, so the read window closed at the
+    // exact instant the re-write became due — and EventBridge does not fire
+    // at the same millisecond every day. A day-7 run starting a second
+    // earlier than a week ago wrote nothing, and the amber card (the note's
+    // ONLY clinic surface) vanished for a day. A coin flip on cron jitter.
+    expect(NOTE_VISIBLE_DAYS).toBeGreaterThan(RE_ALERT_DAYS)
   })
 
   it('a stall note is shown as written — a closed 30-day window cannot go stale in a week', async () => {

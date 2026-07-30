@@ -8,7 +8,7 @@ import {
   ENGINE_STATE_RANK,
   summarizeSweep,
   clinicNote,
-  RE_ALERT_DAYS,
+  NOTE_VISIBLE_DAYS,
   type EngineSignals,
   type EngineState,
   type EngineVerdict,
@@ -62,6 +62,20 @@ export interface GuardianSweep {
   flagged: ClinicEngineReport[]
   /** The one line above the names. */
   summary: string
+  /**
+   * THE WATCHER COULD NOT LOOK (round-9 audit). "No practices needed you"
+   * and "I could not see" are opposite readings and both arrive as an empty
+   * `reports` array, so every consumer that inferred the first from the
+   * second printed a confident all-clear on a blind day: the panel said "No
+   * practices to watch yet", the cron logged `{ok:true, scanned:0,
+   * flagged:0}`. The service already refused to invent a verdict here — it
+   * returned the honest summary — and then handed back a shape in which
+   * that honesty was the one field nobody read.
+   *
+   * Unreadable must be its OWN value, not the absence of a value. Every
+   * consumer now has to decide what to do with it.
+   */
+  blind: boolean
 }
 
 /** The WORK aggregate. Round-1 audit: this used to be a hand-copied second
@@ -369,7 +383,9 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
   // access law countOpenProposals uses, so the two agree about who is live.
   const orgs = allOrgs.filter((o) => !resolveTrialState(o, now).expired)
 
-  if (orgs.length === 0) return { reports: [], flagged: [], summary: summarizeSweep([]) }
+  if (orgs.length === 0) {
+    return { reports: [], flagged: [], summary: summarizeSweep([]), blind: false }
+  }
 
   // LEDGER UNAVAILABLE IS NOT SILENCE (round-2 audit). `.catch(() => new
   // Map())` made one timed-out aggregate report EVERY practice on the
@@ -391,7 +407,14 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
     }),
   ])
   if (!ledgerReadable) {
-    return { reports: [], flagged: [], summary: 'I could not read the activity log just now.' }
+    return {
+      reports: [],
+      flagged: [],
+      summary: 'I could not read the activity log just now.',
+      // The field that makes the sentence above load-bearing rather than
+      // decorative (round-9 audit).
+      blind: true,
+    }
   }
 
   const settled = await Promise.all(
@@ -417,6 +440,7 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
     reports,
     flagged: reports.filter((r) => needsAttention(r.verdict.state)),
     summary: summarizeSweep(reports.map((r) => r.verdict.state)),
+    blind: false,
   }
 }
 
@@ -441,14 +465,18 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
  *    that button would be a lie for a week: notes written while the lock was
  *    open would keep appearing on clinic Overviews after it closed. A switch
  *    that does not stop the thing it names is worse than no switch.
- *  - It EXPIRES on its own. Only notes inside the re-alert window count, so
- *    a problem the guardian stops writing about fades without anything
- *    having to remember to clear it. The window is RE_ALERT_DAYS on purpose:
- *    it is the same constant the alert cadence re-writes on, so a still-live
- *    problem gets a fresh note exactly as the old one ages out and the card
- *    never goes dark underneath it. (Verification round: a round-3 change
- *    that wrote the note only on a state CHANGE broke that pairing — the
- *    card vanished on day 8 while reminders were still off.)
+ *  - It EXPIRES on its own. Only notes inside NOTE_VISIBLE_DAYS count, so a
+ *    problem the guardian stops writing about fades without anything having
+ *    to remember to clear it. That window is deliberately ONE DAY LONGER
+ *    than the cadence that re-writes the note (round-9 audit): with both set
+ *    to RE_ALERT_DAYS the read window closed at the exact instant the
+ *    re-write became due, and since both are measured from the sweep's own
+ *    `now`, a daily run that started a second earlier than a week ago wrote
+ *    nothing and the card went dark for a day under a live problem — a coin
+ *    flip on cron jitter. The overlap makes the pairing real rather than
+ *    exact. (Verification round: a round-3 change that wrote the note only
+ *    on a state CHANGE broke the same pairing from the other side — the card
+ *    vanished on day 8 while reminders were still off.)
  *  - It is RE-VERIFIED against live state, never trusted from the ledger.
  *    A switch flipped back on ten minutes after the nightly sweep would
  *    otherwise leave the machine insisting for days that it can't send —
@@ -492,7 +520,7 @@ export async function getActiveGuardianNote(
   try {
     // The lock governs the READ too, not only the write.
     if ((await getGuardianAudience()) !== 'clinic') return null
-    const since = new Date(now.getTime() - RE_ALERT_DAYS * DAY_MS)
+    const since = new Date(now.getTime() - NOTE_VISIBLE_DAYS * DAY_MS)
     const [row] = await db
       .select({
         summary: schema.actionLedger.summary,

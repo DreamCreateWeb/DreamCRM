@@ -291,6 +291,24 @@ describe('the sweep does not invent findings out of failures', () => {
     expect(sweep.flagged).toHaveLength(0)
     // ...and it says so, rather than reporting a cheerful all-clear.
     expect(sweep.summary).toMatch(/could not read/i)
+    // AND the sentence is load-bearing (round-9 audit). "I could not see"
+    // and "nobody needed you" both arrive as zero reports, so every
+    // consumer that inferred the second from the first printed a confident
+    // all-clear on precisely the blind day: the panel said "No practices to
+    // watch yet" and the cron logged {ok:true, scanned:0}. Unreadable is
+    // its own value now.
+    expect(sweep.blind).toBe(true)
+  })
+
+  it('a readable sweep is never blind — including a platform with no live clinics', async () => {
+    store.orgs = []
+    expect((await sweepEngineHealth(NOW)).blind).toBe(false)
+
+    store.orgs = [
+      { id: 'org_a', name: 'Ash Dental', type: 'clinic', isDemo: false, createdAt: OLD,
+        trialEndsAt: null, subscriptionStatus: 'active', stripeSubscriptionId: 'sub_1' },
+    ]
+    expect((await sweepEngineHealth(NOW)).blind).toBe(false)
   })
 })
 

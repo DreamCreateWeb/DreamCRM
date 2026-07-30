@@ -4,7 +4,8 @@ import { getClinicGrowth } from '@/lib/services/platform-metrics'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { getPmsDemand } from '@/lib/services/pms-interest'
 import { cachedEngineHealth } from '@/lib/services/guardian'
-import { getGuardianAudience } from '@/lib/services/platform-config'
+import { getGuardianAudience, readPlatformConfig } from '@/lib/services/platform-config'
+import { resolveGuardianHeartbeat } from '@/lib/guardian'
 import { getSharedBrain } from '@/lib/services/shared-brain'
 import { resolveSharedBrain } from '@/lib/shared-brain'
 import SharedBrainCard from './shared-brain-card'
@@ -45,7 +46,17 @@ function moneyFull(cents: number): string {
 }
 
 export default async function PlatformOverview() {
-  const [subs, clinicGrowth, attention, activity, pmsDemand, engineHealth, guardianAudience, sharedBrain] = await Promise.all([
+  const [
+    subs,
+    clinicGrowth,
+    attention,
+    activity,
+    pmsDemand,
+    engineHealth,
+    guardianAudience,
+    sharedBrain,
+    guardianHeartbeat,
+  ] = await Promise.all([
     getSubscriptionStats(),
     // New clinic signups per week, last 12 weeks — the Active Clinics tile's
     // heartbeat (law 7). Same series the Platform Metrics dashboard plots;
@@ -56,14 +67,37 @@ export default async function PlatformOverview() {
     getPmsDemand(),
     // THE GUARDIAN (Phase 4): whose machine is actually running. Best-effort
     // — the owner's overview must never fail because the watcher hiccupped.
-    cachedEngineHealth().catch(() => ({ reports: [], flagged: [], summary: '' })),
+    // BLIND, NOT EMPTY (round-9 audit). This used to substitute an empty
+    // sweep with a blank summary, and the panel renders zero reports as "No
+    // practices to watch yet" — so a pool timeout on the owner's home page
+    // became a confident all-clear. The service refuses that substitution
+    // one layer down; so does this.
+    cachedEngineHealth().catch((e) => {
+      console.error('[guardian] sweep unavailable for the overview', e)
+      return {
+        reports: [],
+        flagged: [],
+        summary: 'I could not look just now.',
+        blind: true,
+      }
+    }),
     // Floored at 'platform' by the service; floored again here so a failed
     // read can never render the panel as though practices are being told.
     getGuardianAudience().catch(() => 'platform' as const),
     // THE SHARED BRAIN (Phase 4): floored at the shipped defaults inside the
     // resolver, and floored again here — the panel must never claim the
     // platform learned something because a read failed.
-    getSharedBrain().catch(() => resolveSharedBrain(null)),
+    getSharedBrain()
+      .then((b) => ({ brain: b, unreadable: false }))
+      .catch((e) => {
+        console.error('[shared-brain] read failed for the overview', e)
+        return { brain: resolveSharedBrain(null), unreadable: true }
+      }),
+    // The watcher's own last run. Floored at "never" so a dead cron rule
+    // says so instead of hiding behind a live-rendered panel.
+    readPlatformConfig()
+      .then(resolveGuardianHeartbeat)
+      .catch(() => resolveGuardianHeartbeat(null)),
   ])
   const pmsWanted = pmsDemand.filter((d) => d.pending > 0)
 
@@ -86,9 +120,13 @@ export default async function PlatformOverview() {
       />
 
       {/* ── The Guardian — whose engine needs a human (Phase 4) ────────── */}
-      <GuardianPanel sweep={engineHealth} audience={guardianAudience} />
+      <GuardianPanel
+        sweep={engineHealth}
+        audience={guardianAudience}
+        heartbeat={guardianHeartbeat}
+      />
 
-      <SharedBrainCard brain={sharedBrain} />
+      <SharedBrainCard brain={sharedBrain.brain} unreadable={sharedBrain.unreadable} />
 
       {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

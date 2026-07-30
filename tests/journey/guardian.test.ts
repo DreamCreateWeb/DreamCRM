@@ -7,7 +7,10 @@ import {
   resolveGuardianAudience,
   summarizeSweep,
   shouldAlert,
+  shouldStandDown,
+  resolveGuardianHeartbeat,
   ENGINE_STATE_RANK,
+  NOTE_VISIBLE_DAYS,
   FAILURE_ALARM_COUNT,
   NEW_CLINIC_GRACE_DAYS,
   PILEUP_COUNT,
@@ -84,6 +87,41 @@ describe('assessEngine — severity order', () => {
 
   it('one engine off is not blocked — the machine can still act', () => {
     expect(assessEngine(sig({ remindersOn: false })).state).toBe('healthy')
+  })
+})
+
+describe('a silence the machine can already explain (round-9 audit)', () => {
+  it('both engines off + an empty ledger is BLOCKED, not an unexplained blackout', () => {
+    // The switches sit in the very same signals, and the silence rule ran
+    // first: the owner was told "nothing has run, check their integrations
+    // and patient data" while the cause was in hand. Worse, `silent` is not
+    // clinicActionable, so the one finding the practice could have fixed in
+    // two clicks was withheld from them at every audience setting.
+    const v = assessEngine(
+      sig({ actions7: 0, actionsPrev7: 0, remindersOn: false, reviewRequestsOn: false }),
+    )
+    expect(v.state).toBe('blocked')
+    expect(v.headline).toContain('switched off')
+    expect(clinicActionable(v.state, sig({ remindersOn: false, reviewRequestsOn: false }))).toBe(true)
+  })
+
+  it('ONE switch off does not explain two empty weeks — still silent, but it says what it knows', () => {
+    const v = assessEngine(sig({ actions7: 0, actionsPrev7: 0, remindersOn: false }))
+    expect(v.state).toBe('silent')
+    expect(v.why).toContain('reminders are also switched off')
+    // …and honest about the limits of that fact: flipping it back on would
+    // not fix this, so it stays with Dream Create.
+    expect(v.why).toContain('would not explain this')
+    expect(clinicActionable(v.state, sig({ actions7: 0, actionsPrev7: 0, remindersOn: false }))).toBe(
+      false,
+    )
+  })
+
+  it('a brand-new practice still gets the gentler reading, switches or not', () => {
+    const v = assessEngine(
+      sig({ ageDays: 2, actions7: 0, actionsPrev7: 0, remindersOn: false, reviewRequestsOn: false }),
+    )
+    expect(v.state).toBe('quiet')
   })
 })
 
@@ -438,5 +476,119 @@ describe('clinicActionable — a failure never reaches the practice as a switch 
   it('one failure short of the alarm is still a conversation they can have', () => {
     const s = sig({ remindersOn: false, reviewRequestsOn: false, failures7: FAILURE_ALARM_COUNT - 1 })
     expect(clinicActionable('blocked', s)).toBe(true)
+  })
+})
+
+
+describe('shouldStandDown — the other half of an interrupt (round-9 gap)', () => {
+  it('closes a problem the owner was told about', () => {
+    expect(shouldStandDown({ state: 'blocked', alertedAt: new Date() }, 'healthy')).toBe(true)
+    expect(shouldStandDown({ state: 'silent', alertedAt: new Date() }, 'quiet')).toBe(true)
+  })
+
+  it('never announces an all-clear for an alarm that never sounded', () => {
+    expect(shouldStandDown({ state: null, alertedAt: null }, 'healthy')).toBe(false)
+    expect(shouldStandDown({ state: 'healthy', alertedAt: new Date() }, 'healthy')).toBe(false)
+    expect(shouldStandDown({ state: 'quiet', alertedAt: new Date() }, 'healthy')).toBe(false)
+  })
+
+  it('one problem becoming another is not a recovery — that is shouldAlert’s job', () => {
+    expect(shouldStandDown({ state: 'silent', alertedAt: new Date() }, 'blocked')).toBe(false)
+  })
+
+  it('the two are mutually exclusive — no state both alerts and stands down', () => {
+    const states: EngineState[] = ['silent', 'blocked', 'stalled', 'quiet', 'healthy']
+    for (const was of states) {
+      for (const now of states) {
+        const memory = { state: was, alertedAt: new Date('2026-01-01T00:00:00Z') }
+        const both = shouldAlert(memory, now, new Date('2026-06-01T00:00:00Z')) &&
+          shouldStandDown(memory, now)
+        expect(both).toBe(false)
+      }
+    }
+  })
+})
+
+describe('the note visibility window outlasts the re-write cadence', () => {
+  it('overlaps by design, so cron jitter cannot black out a live warning', () => {
+    expect(NOTE_VISIBLE_DAYS).toBeGreaterThan(RE_ALERT_DAYS)
+  })
+})
+
+describe('resolveGuardianHeartbeat — a dead cron must not look healthy', () => {
+  it('carries the blind flag back, because the writer writes it', () => {
+    // Storing a field nobody reads is the exact defect slice 4 was pulled
+    // up for; re-introducing it here would be worse than not storing it.
+    expect(resolveGuardianHeartbeat({ guardian: { ranAt: 'x', blind: true } }).blind).toBe(true)
+    expect(resolveGuardianHeartbeat({ guardian: { ranAt: 'x', blind: 'yes' } }).blind).toBe(false)
+  })
+
+  it('nothing stored reads as never run', () => {
+    for (const bad of [null, undefined, {}, 'x', 42, { guardian: null }, { guardian: 'x' }]) {
+      expect(resolveGuardianHeartbeat(bad).ranAt).toBeNull()
+    }
+  })
+
+  it('reads back a real run', () => {
+    const h = resolveGuardianHeartbeat({
+      guardian: { ranAt: '2026-07-29T14:00:00.000Z', scanned: 4, flagged: 1, undelivered: 2 },
+    })
+    expect(h).toEqual({
+      ranAt: '2026-07-29T14:00:00.000Z',
+      scanned: 4,
+      flagged: 1,
+      undelivered: 2,
+      blind: false,
+    })
+  })
+
+  it('floors junk counts at zero rather than rendering them', () => {
+    const h = resolveGuardianHeartbeat({
+      guardian: { ranAt: '', scanned: -3, flagged: 'two', undelivered: NaN },
+    })
+    expect(h).toEqual({ ranAt: null, scanned: 0, flagged: 0, undelivered: 0, blind: false })
+  })
+})
+
+
+describe('no calm verdict ignores a failure to stay calm (round-9 sibling sweep)', () => {
+  // One or two failures never reach FAILURE_ALARM_COUNT, so every "calm"
+  // verdict is reachable with the machine's own "I couldn't" rows in the
+  // same week. Round 7 taught the stall to hedge and round 8 the clinic
+  // note; these were the siblings nobody swept.
+  it('healthy says so out loud', () => {
+    const v = assessEngine(sig({ failures7: 2 }))
+    expect(v.state).toBe('healthy')
+    expect(v.why).toContain('hit trouble')
+  })
+
+  it('quiet says so out loud', () => {
+    const v = assessEngine(sig({ actions7: 0, failures7: 1 }))
+    expect(v.state).toBe('quiet')
+    expect(v.why).toContain('hit trouble')
+  })
+
+  it('and stays silent about it when nothing failed', () => {
+    expect(assessEngine(sig()).why).not.toContain('hit trouble')
+    expect(assessEngine(sig({ actions7: 0 })).why).not.toContain('hit trouble')
+  })
+
+  it('EVERY verdict reachable with 1–2 failures acknowledges them', () => {
+    // The structural version, so a sixth state added later cannot quietly
+    // reintroduce the same silence.
+    const cases: Array<Partial<EngineSignals>> = [
+      {},                                             // healthy
+      { actions7: 0 },                                // quiet
+      { seated30: 1, seatedPrev30: 20 },              // stalled
+      { actions7: 0, actionsPrev7: 0 },               // silent
+      { remindersOn: false, reviewRequestsOn: false },// blocked (switches)
+    ]
+    for (const over of cases) {
+      const v = assessEngine(sig({ ...over, failures7: 2 }))
+      expect(
+        /trouble|failed|couldn/i.test(v.why),
+        `${v.state} said nothing about 2 failures: ${v.why}`,
+      ).toBe(true)
+    }
   })
 })
