@@ -521,8 +521,11 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       if (stats.recentSends.length > 0 || stats.upcomingSends.length > 0) {
         toExpire.push(...campaignProposals)
       }
-    } catch {
+    } catch (e) {
       // Best-effort: an unreadable stats snapshot never expires real work.
+      // Logged (round-8 lesson, swept): silence here is indistinguishable
+      // from "the engine ran and found nothing to expire".
+      console.error('[proposals] recall-stats read failed during sweep', e)
     }
   }
 
@@ -553,9 +556,12 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
             },
             'open',
           )
-        } catch {
+        } catch (e) {
           // A failed close must never turn into a silent expire — leave the
-          // row for the next hourly pass (verification round 4).
+          // row for the next hourly pass (verification round 4). Logged
+          // (round-8 lesson, swept): a row that keeps deferring forever is
+          // only diagnosable if the reason left a trace.
+          console.error('[proposals] recovery-close failed, deferring', p.id, e)
           outcome = 'skip'
         }
       }

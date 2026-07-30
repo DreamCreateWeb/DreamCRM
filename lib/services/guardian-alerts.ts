@@ -78,9 +78,12 @@ async function readMemory(
       state: (row.state as EngineState | null) ?? null,
       alertedAt: row.alertedAt ?? null,
     }
-  } catch {
+  } catch (e) {
     // An unreadable memory must never SILENCE an alarm — the whole point is
-    // not going blind. No memory reads as "never alerted".
+    // not going blind. No memory reads as "never alerted". Logged, per the
+    // round-8 lesson: a swallowed query error is indistinguishable from a
+    // path that never ran.
+    console.error('[guardian] alert-memory read failed', e)
     return { state: null, alertedAt: null }
   }
 }

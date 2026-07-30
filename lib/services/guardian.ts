@@ -541,9 +541,14 @@ export async function getActiveGuardianNote(
       }
     }
     return { summary: row.summary, state, occurredAt: row.occurredAt }
-  } catch {
+  } catch (e) {
     // A note the machine can't read is a note it doesn't show. Never a
-    // half-rendered warning.
+    // half-rendered warning. LOG IT (round-8 lesson, swept): a silent catch
+    // around a query turns "this never ran" into "this returned nothing",
+    // and every assertion downstream accepts that happily — which is how
+    // the failure explainer looked tested for three rounds without ever
+    // executing.
+    console.error('[guardian] active-note read failed', e)
     return null
   }
 }

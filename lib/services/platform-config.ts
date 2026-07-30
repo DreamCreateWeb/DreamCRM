@@ -50,7 +50,11 @@ export async function readPlatformConfig(): Promise<Record<string, unknown>> {
       .where(eq(schema.platformConfig.id, CONFIG_ID))
       .limit(1)
     return (row?.config ?? {}) as Record<string, unknown>
-  } catch {
+  } catch (e) {
+    // Floors at {} so no caller loses its scheduler — but says so, per the
+    // round-8 lesson. `readPlatformConfigStrict` is the variant for callers
+    // that must tell "we know" from "we could not find out".
+    console.error('[platform-config] read failed, flooring to defaults', e)
     return {}
   }
 }
