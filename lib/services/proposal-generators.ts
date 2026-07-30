@@ -14,7 +14,7 @@ import {
   machineHandlesCard,
   resolveGrantedCapabilities,
 } from '@/lib/services/proposals'
-import { recordFailure } from '@/lib/services/action-ledger'
+import { recordEngineFailure } from '@/lib/services/action-ledger'
 import { clinicLocalHour } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 
@@ -201,7 +201,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     // truer, and it unmasks the ones a single named strike would hide.
     const f = broken.length === 1 ? broken[0] : ENGINE_DOWN
     broken.length = 0
-    const recorded = await recordFailure({
+    const recorded = await recordEngineFailure({
       organizationId,
       capability: f.capability,
       summary: f.summary,
@@ -211,6 +211,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
       // tick, but without this a break that surfaces in a different step
       // each hour still bought a strike per capability.
       dedupeAcrossOrg: true,
+      kind: 'engine',
     })
     if (recorded) result.failuresRecorded++
   }

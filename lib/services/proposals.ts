@@ -7,7 +7,7 @@ import {
   resolveGrantedAt,
   resolveTrust,
 } from '@/lib/autonomy'
-import { recordAction } from '@/lib/services/action-ledger'
+import { recordAction, recordEngineFailure } from '@/lib/services/action-ledger'
 import { resolveTrialState } from '@/lib/trial'
 
 /**
@@ -954,12 +954,20 @@ async function reopen(
   // note that work did NOT happen, so it carries autoFailure and the
   // standup's counts skip it.
   if (opts.autonomous && handBack && payload.handBack !== true) {
-    await recordAction({
+    // THROUGH THE ONE DOOR (Phase-4 consolidation). This used to hand-stamp
+    // its own `autoFailure` marker via recordAction, which is exactly how it
+    // ended up outside the throttle the other producer had, counted by an
+    // alarm whose explainer could not read it. Deliberately NOT throttled:
+    // each hand-back names a different card, so the rows are real
+    // information for the clinic's timeline — the ALARM is protected at the
+    // reader instead, by counting distinct days rather than rows.
+    await recordEngineFailure({
       organizationId: claimed.organizationId,
       capability: claimed.capability,
       patientId: claimed.patientId,
       summary: `I tried ${AUTO_FAILURE_LIMIT} times to handle “${claimed.title}” on my own and couldn’t — it’s back with you`,
-      detail: { proposalId: claimed.id, autoFailure: true, attempts: autoFailures },
+      detail: { proposalId: claimed.id, attempts: autoFailures },
+      kind: 'hand_back',
     })
   }
 }

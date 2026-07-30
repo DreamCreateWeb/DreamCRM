@@ -127,7 +127,7 @@ vi.mock('drizzle-orm', () => ({
     r[c.__col] instanceof Date && (r[c.__col] as Date) >= v,
   lt: (c: { __col: string }, v: Date) => (r: Record<string, unknown>) =>
     r[c.__col] instanceof Date && (r[c.__col] as Date) < v,
-  sql: () => 'sql',
+  sql: Object.assign(() => 'sql', { raw: () => 'sql', join: () => 'sql' }),
 }))
 
 import { sweepEngineHealth } from '@/lib/services/guardian'

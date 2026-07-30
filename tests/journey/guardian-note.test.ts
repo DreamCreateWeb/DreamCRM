@@ -65,7 +65,7 @@ vi.mock('drizzle-orm', () => ({
   },
   lt: () => ({ op: 'lt' }),
   desc: () => ({ op: 'desc' }),
-  sql: Object.assign(() => ({ op: 'sql' }), { raw: () => ({ op: 'sql' }) }),
+  sql: Object.assign(() => ({ op: 'sql' }), { raw: () => ({ op: 'sql' }), join: () => ({ op: 'sql' }) }),
 }))
 
 vi.mock('@/lib/services/engine-switches', () => ({

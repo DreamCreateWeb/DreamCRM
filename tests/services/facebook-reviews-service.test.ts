@@ -140,7 +140,7 @@ vi.mock('drizzle-orm', () => ({
   eq: (col: { __col: string }, val: unknown) => (r: Record<string, unknown>) => r[col.__col] === val,
   and: (...preds: unknown[]) => preds.flat(),
   desc: () => 'desc',
-  sql: () => 'sql',
+  sql: Object.assign(() => 'sql', { raw: () => 'sql', join: () => 'sql' }),
 }))
 
 import {

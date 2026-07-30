@@ -3,6 +3,12 @@ import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema'
 import { getCapability } from '@/lib/autonomy'
+import {
+  FAILURE_MARKERS,
+  NOT_WORK_MARKERS,
+  isWorkDetail,
+  type FailureKind,
+} from '@/lib/ledger-markers'
 
 /**
  * THE ACTION LEDGER service (Transformation Phase 1 — DESIGN.md "The North
@@ -55,38 +61,47 @@ export async function recordAction(input: RecordActionInput): Promise<boolean> {
 }
 
 /**
- * EVERY "I tried and couldn't", of either shape — the one home for the
- * failure half of the vocabulary.
+ * THE PREDICATES, GENERATED. Both of these are built by mapping over the
+ * marker lists in lib/ledger-markers.ts — never hand-written — so the SQL
+ * and the JavaScript cannot drift apart, which is the single defect class
+ * the Phase-4 audit found over and over.
  *
- * ROUND-3 AUDIT: the Guardian's COUNTER matched `failure` OR `autoFailure`
- * while the round-2 cause READER matched only `failure`. `autoFailure` is
- * the Phase-3 hand-back note, so a clinic that had granted autonomy and
- * whose connection then died hit the three-strike alarm entirely on
- * hand-backs — and got the headline's hardcoded guess ("usually an expired
- * Google token") with an EMPTY "What it tried" list, while the ledger held
- * three sentences naming the real break. Exactly the defect the reader was
- * shipped to end. Counter and reader now share this expression.
+ * Built per call, not at module scope: a module-level template would touch
+ * the schema at import time and every test that mocks a slim schema would
+ * explode on it.
+ *
+ * Note the self-parenthesisation on the OR. drizzle's `and()` wraps the
+ * whole list in ONE pair of parens and never parenthesizes the chunks, so a
+ * fragment with a bare top-level OR escapes its AND chain — which shipped
+ * once as a tenant-scoping breach (every org's rows matched). A fragment
+ * cannot know what it will be composed into; it parenthesizes itself.
  */
-export const failureOnly = () => sql`(
-  (${schema.actionLedger.detail} ->> 'failure') = 'true'
-  or (${schema.actionLedger.detail} ->> 'autoFailure') = 'true'
-)`
+// `sql.raw` for the KEY, deliberately: these are our own compile-time
+// constants from lib/ledger-markers.ts, never user input, and binding them
+// as parameters would make the rendered statement unreadable to the boundary
+// tests that have to check which markers it names.
+const markerIsTrue = (m: string) =>
+  sql`(${schema.actionLedger.detail} ->> ${sql.raw(`'${m}'`)}) = 'true'`
+const markerIsNotTrue = (m: string) =>
+  m === 'autonomyChange'
+    ? sql`(${schema.actionLedger.detail} ->> ${sql.raw(`'${m}'`)}) is null`
+    : sql`(${schema.actionLedger.detail} ->> ${sql.raw(`'${m}'`)}) is distinct from 'true'`
 
-/** JUST the de-dup's own marker. `recordFailure` writes `failure`, so its
- *  once-a-day guard asks about that one specifically — a hand-back note from
- *  a different subsystem must not suppress a generator's strike. */
-export const ownFailureMarker = () => sql`(${schema.actionLedger.detail} ->> 'failure') = 'true'`
+/** WORK only — the isWorkDetail law, in SQL, from the same list. */
+export const workOnly = () =>
+  sql.join(NOT_WORK_MARKERS.map(markerIsNotTrue), sql` and `)
+
+/** Its complement: every "I tried and couldn't", of either shape. */
+export const failureOnly = () => sql`(${sql.join(FAILURE_MARKERS.map(markerIsTrue), sql` or `)})`
+
+/** JUST the marker this module WRITES — the write-side throttle's own
+ *  question. Derived from the same generator, so it cannot drift; exported
+ *  so the boundary test renders the real predicate rather than a copy. A
+ *  single term, so it carries no OR and is safe in any composition. */
+export const ownFailureMarker = () => markerIsTrue('failure')
 
 /** Entries the executors stamped as the machine acting alone (Phase 3). */
 const autonomousOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomous') = 'true'`
-
-/** The same rule in SQL, for the grouped count. Built per call, not at
- *  module scope: a module-level template would touch the schema at import
- *  time, which every test that mocks a slim schema would explode on. */
-export const workOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomyChange') is null
-  and (${schema.actionLedger.detail} ->> 'autoFailure') is distinct from 'true'
-  and (${schema.actionLedger.detail} ->> 'failure') is distinct from 'true'
-  and (${schema.actionLedger.detail} ->> 'report') is distinct from 'true'`
 
 /**
  * THE FAILURE VOCABULARY (Phase 4 — the Guardian). Until now the ledger
@@ -95,12 +110,29 @@ export const workOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomyCh
  * a clinic with nothing to do. The Guardian's whole job is telling those
  * two apart, which means "I tried X and couldn't" has to be a real entry.
  *
+ * THE ONLY DOOR. Every producer records a failure here — the proposal
+ * engine, the autonomy hand-back, and every automation added later. Nothing
+ * else writes a failure marker by hand (there is a CI guard that fails the
+ * build if it tries). That is the structural answer to the Phase-4 audit's
+ * dominant defect class: when two subsystems write the same signal by
+ * convention, one of them eventually gets a throttle, a marker or a
+ * predicate the other doesn't.
+ *
  * It is NOT work: `isWorkEntry` excludes it, so the standup's counts and
- * stories never present a failure as something that got done. (Phase 3's
- * hand-back note was the first instance of this shape; this generalizes it
- * so every automation can speak the same way.)
+ * stories never present a failure as something that got done.
+ *
+ * WHERE THE RATE LIMIT LIVES. Two different jobs, deliberately split:
+ *  - `onceWithin` here stops a WRITER spamming a clinic's story (an hourly
+ *    cron would otherwise put 24 identical rows a day into their timeline).
+ *    It is about the reader of the STORY.
+ *  - The ALARM is throttled at the READER instead — the Guardian counts
+ *    distinct DAYS, not rows. That is what makes it robust to a producer
+ *    that legitimately writes several rows at once (the hand-back names a
+ *    different card each time, so those rows are real information), and it
+ *    is the lesson of verification round 3: unifying what a counter matches
+ *    without unifying what limits it just moves the burst.
  */
-export async function recordFailure(input: {
+export async function recordEngineFailure(input: {
   organizationId: string
   capability: string
   /** Plain English, narrator-voiced, from the clinic's side of the glass:
@@ -132,8 +164,11 @@ export async function recordFailure(input: {
    * arriving by a different door (verification round 2).
    */
   dedupeAcrossOrg?: boolean
+  /** Provenance. One marker, one door — the kind rides alongside rather
+   *  than minting a second marker for every producer. */
+  kind?: FailureKind
 }): Promise<boolean> {
-  const { onceWithin, dedupeAcrossOrg, ...rest } = input
+  const { onceWithin, dedupeAcrossOrg, kind, ...rest } = input
   if (onceWithin && onceWithin > 0) {
     try {
       const since = new Date((input.occurredAt ?? new Date()).getTime() - onceWithin)
@@ -145,6 +180,8 @@ export async function recordFailure(input: {
             eq(schema.actionLedger.organizationId, input.organizationId),
             ...(dedupeAcrossOrg ? [] : [eq(schema.actionLedger.capability, input.capability)]),
             gte(schema.actionLedger.occurredAt, since),
+            // The throttle asks about the marker IT writes. Historical
+            // `autoFailure` rows must not suppress a live engine strike.
             ownFailureMarker(),
           ),
         )
@@ -159,7 +196,7 @@ export async function recordFailure(input: {
   }
   return recordAction({
     ...rest,
-    detail: { ...(input.detail ?? {}), failure: true },
+    detail: { ...(input.detail ?? {}), failure: true, failureKind: kind ?? 'engine' },
   })
 }
 
@@ -252,18 +289,9 @@ export async function hasEntryForProposal(
  * when zero replies went out, in the product's flagship honesty surface.
  */
 export function isWorkEntry(detail: unknown): boolean {
-  if (!detail || typeof detail !== 'object') return true
-  const d = detail as Record<string, unknown>
-  return (
-    d.autonomyChange === undefined &&
-    d.autoFailure !== true &&
-    d.failure !== true &&
-    // A REPORT (Phase 4): the Guardian's own heads-up. Round-1 audit — it
-    // counted as work, so the machine noticing a clinic was silent made
-    // that clinic look less silent in the very liveness test that produced
-    // the note. A watcher must not be able to satisfy its own alarm.
-    d.report !== true
-  )
+  // Delegated, not re-implemented — see lib/ledger-markers.ts. This function
+  // and `workOnly()` are now two renderings of ONE list.
+  return isWorkDetail(detail)
 }
 /** Per-capability counts in a window — the standup's "41 reminders,
  *  4 posts, 6 answers" line in one query. `until` exclusive, as above.

@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const ledger = vi.hoisted(() => ({ failures: [] as Array<Record<string, unknown>>, suppress: false }))
 vi.mock('@/lib/services/action-ledger', () => ({
-  recordFailure: vi.fn(async (input: Record<string, unknown>) => {
+  recordEngineFailure: vi.fn(async (input: Record<string, unknown>) => {
     if (ledger.suppress) return false
     ledger.failures.push(input)
     return true

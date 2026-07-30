@@ -70,13 +70,17 @@ vi.mock('drizzle-orm', () => ({
     return { op: 'gte' }
   },
   lt: () => ({ op: 'lt' }),
-  sql: (strings: TemplateStringsArray) => {
-    if (strings.join('').includes("'failure'")) store.captured.failureFilter = true
-    return { op: 'sql' }
-  },
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...vals: unknown[]) => {
+      const text = strings.join('') + vals.map((v) => String((v as { __raw?: string })?.__raw ?? '')).join('')
+      if (text.includes("'failure'")) store.captured.failureFilter = true
+      return { op: 'sql' }
+    },
+    { raw: (t: string) => ({ __raw: t }), join: () => ({ op: 'sql' }) },
+  ),
 }))
 
-import { recordFailure, isWorkEntry } from '@/lib/services/action-ledger'
+import { recordEngineFailure, isWorkEntry } from '@/lib/services/action-ledger'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -99,9 +103,9 @@ const failure = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-describe('recordFailure', () => {
+describe('recordEngineFailure', () => {
   it('marks the entry as a failure so it is never counted as work', async () => {
-    await recordFailure(failure())
+    await recordEngineFailure(failure())
     expect(store.inserted).toHaveLength(1)
     const detail = store.inserted[0].detail as Record<string, unknown>
     expect(detail.failure).toBe(true)
@@ -110,7 +114,7 @@ describe('recordFailure', () => {
   })
 
   it('preserves the caller’s own detail alongside the marker', async () => {
-    await recordFailure(failure({ detail: { reason: 'token expired' } }))
+    await recordEngineFailure(failure({ detail: { reason: 'token expired' } }))
     const detail = store.inserted[0].detail as Record<string, unknown>
     expect(detail.reason).toBe('token expired')
     expect(detail.failure).toBe(true)
@@ -118,27 +122,27 @@ describe('recordFailure', () => {
 
   it('with NO window it records every time — the primitive stays a primitive', async () => {
     store.rows = [{ id: 'act_1' }]
-    await recordFailure(failure())
-    await recordFailure(failure())
+    await recordEngineFailure(failure())
+    await recordEngineFailure(failure())
     expect(store.inserted).toHaveLength(2)
   })
 })
 
-describe('recordFailure — the once-a-day window', () => {
+describe('recordEngineFailure — the once-a-day window', () => {
   it('records the first break of the day', async () => {
     store.rows = []
-    expect(await recordFailure(failure({ onceWithin: DAY_MS }))).toBe(true)
+    expect(await recordEngineFailure(failure({ onceWithin: DAY_MS }))).toBe(true)
     expect(store.inserted).toHaveLength(1)
   })
 
   it('SUPPRESSES the same break an hour later — 24 rows a day is not a story', async () => {
     store.rows = [{ id: 'act_earlier' }]
-    expect(await recordFailure(failure({ onceWithin: DAY_MS }))).toBe(false)
+    expect(await recordEngineFailure(failure({ onceWithin: DAY_MS }))).toBe(false)
     expect(store.inserted).toHaveLength(0)
   })
 
   it('looks back exactly one window, for this capability, at failures only', async () => {
-    await recordFailure(failure({ onceWithin: DAY_MS }))
+    await recordEngineFailure(failure({ onceWithin: DAY_MS }))
     expect(store.captured.since).toEqual(new Date(NOW.getTime() - DAY_MS))
     expect(store.captured.capability).toBe('review_reply')
     // Without the failure filter a normal work entry would suppress the
@@ -148,38 +152,38 @@ describe('recordFailure — the once-a-day window', () => {
 
   it('a DIFFERENT capability breaking is its own strike', async () => {
     store.rows = []
-    await recordFailure(failure({ onceWithin: DAY_MS }))
-    await recordFailure(failure({ capability: 'social_post', onceWithin: DAY_MS }))
+    await recordEngineFailure(failure({ onceWithin: DAY_MS }))
+    await recordEngineFailure(failure({ capability: 'social_post', onceWithin: DAY_MS }))
     expect(store.inserted).toHaveLength(2)
   })
 
   it('an unreadable ledger records ANYWAY — going blind is the failure we refuse', async () => {
     store.selectThrows = true
-    expect(await recordFailure(failure({ onceWithin: DAY_MS }))).toBe(true)
+    expect(await recordEngineFailure(failure({ onceWithin: DAY_MS }))).toBe(true)
     // A duplicate row costs nothing; a swallowed break costs the clinic.
     expect(store.inserted).toHaveLength(1)
   })
 
   it('a failed write reports false and never throws at the caller', async () => {
     store.insertThrows = true
-    expect(await recordFailure(failure({ onceWithin: DAY_MS }))).toBe(false)
+    expect(await recordEngineFailure(failure({ onceWithin: DAY_MS }))).toBe(false)
   })
 
   it('a zero or negative window is treated as no window, not as “always suppress”', async () => {
     store.rows = [{ id: 'act_earlier' }]
-    expect(await recordFailure(failure({ onceWithin: 0 }))).toBe(true)
-    expect(await recordFailure(failure({ onceWithin: -1 }))).toBe(true)
+    expect(await recordEngineFailure(failure({ onceWithin: 0 }))).toBe(true)
+    expect(await recordEngineFailure(failure({ onceWithin: -1 }))).toBe(true)
     expect(store.inserted).toHaveLength(2)
   })
 
   it('the window rides the entry’s OWN timestamp, not wall-clock now', async () => {
     const backdated = new Date('2026-07-01T00:00:00Z')
-    await recordFailure(failure({ occurredAt: backdated, onceWithin: DAY_MS }))
+    await recordEngineFailure(failure({ occurredAt: backdated, onceWithin: DAY_MS }))
     expect(store.captured.since).toEqual(new Date(backdated.getTime() - DAY_MS))
   })
 
   it('never leaks the window into the stored row', async () => {
-    await recordFailure(failure({ onceWithin: DAY_MS }))
+    await recordEngineFailure(failure({ onceWithin: DAY_MS }))
     expect(store.inserted[0]).not.toHaveProperty('onceWithin')
     expect(store.inserted[0].detail).not.toHaveProperty('onceWithin')
   })

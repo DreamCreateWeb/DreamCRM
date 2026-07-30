@@ -56,7 +56,7 @@ vi.mock('drizzle-orm', () => ({
   eq: () => () => true,
   and: (...p: unknown[]) => p,
   desc: () => 'desc',
-  sql: () => 'sql',
+  sql: Object.assign(() => 'sql', { raw: () => 'sql', join: () => 'sql' }),
 }))
 // The service also imports the connection resolver + client; neither is used by
 // seedDemoGoogleReviews, but the module evaluates the imports.

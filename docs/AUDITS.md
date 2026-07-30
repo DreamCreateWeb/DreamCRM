@@ -1440,3 +1440,32 @@ throttle belongs to the READER, not to one writer.* Unifying what a counter
 matches without unifying what limits it moves the burst problem rather than
 solving it — put the rate limit where the count is taken.
 
+### The consolidation slice (2026-07-30)
+
+Three verification attempts each found real defects of the SAME class, so
+the method changed. Rather than a fourth round, the failure signal was
+rebuilt as **one owned primitive**:
+
+- **`lib/ledger-markers.ts`** declares the vocabulary ONCE — `NOT_WORK_MARKERS`
+  and `FAILURE_MARKERS` — plus the JS predicates derived from those lists.
+- **`workOnly()` and `failureOnly()` are GENERATED** by mapping over the same
+  lists. There is no hand-written SQL copy of the law left to drift, and a
+  marker added to a list reaches every rendering with no further edits.
+- **`recordEngineFailure` is the ONLY door.** The Phase-3 hand-back, which
+  used to stamp its own `autoFailure` marker through `recordAction` — and so
+  ended up outside the throttle the other producer had, counted by an alarm
+  whose explainer could not read it — now goes through it, carrying one
+  marker plus a `failureKind` for provenance.
+- **`tests/journey/ledger-marker-law.test.ts` is the structural guard.** It
+  asserts the JS and SQL laws agree marker-by-marker, walks paren depth to
+  prove the OR self-parenthesizes, and FAILS THE BUILD if any file outside
+  the owning module hand-writes a failure marker or re-types a marker
+  predicate (allowlist with reasons, per repo convention).
+
+**Where the rate limit lives, stated once:** the write-side `onceWithin`
+stops a WRITER spamming a clinic's story; the ALARM is throttled at the
+READER by counting distinct DAYS. That split is deliberate — a producer may
+legitimately write several rows at once (each hand-back names a different
+card), and verification round 3 proved that unifying what a counter matches
+without unifying what limits it just moves the burst.
+

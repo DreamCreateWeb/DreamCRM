@@ -62,13 +62,24 @@ const { recordActionMock, hasEntryForProposalMock } = vi.hoisted(() => ({
       return (
         detail.proposalId === proposalId &&
         detail.autonomyChange === undefined &&
-        detail.autoFailure !== true
+        detail.failure !== true && detail.autoFailure !== true
       )
     })
   }),
 }))
 vi.mock('@/lib/services/action-ledger', () => ({
   recordAction: recordActionMock,
+  // Mirrors the real contract: recordEngineFailure is a thin door onto
+  // recordAction that stamps the failure marker. Forwarding here keeps the
+  // hand-back assertions below meaningful — they check the sentence the
+  // clinic reads, and it must still arrive through the ledger.
+  recordEngineFailure: vi.fn(async (input: Record<string, unknown>) => {
+    const { kind, onceWithin, dedupeAcrossOrg, detail, ...rest } = input as Record<string, unknown>
+    return recordActionMock({
+      ...rest,
+      detail: { ...((detail as object) ?? {}), failure: true, failureKind: kind ?? 'engine' },
+    })
+  }),
   hasEntryForProposal: hasEntryForProposalMock,
 }))
 
@@ -1396,7 +1407,11 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteProposal', () => {
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
     expect(String(entry.summary)).toContain('couldn’t')
-    expect((entry.detail as Record<string, unknown>).autoFailure).toBe(true)
+    // THROUGH THE ONE DOOR (Phase-4 consolidation): the hand-back no longer
+    // hand-stamps its own marker — it goes through recordEngineFailure, so
+    // it carries the single `failure` marker plus its provenance.
+    expect((entry.detail as Record<string, unknown>).failure).toBe(true)
+    expect((entry.detail as Record<string, unknown>).failureKind).toBe('hand_back')
 
     // Giving up stops the life support: an unbounded +3d on every hourly
     // retry meant a permanently-failing card could never expire.
@@ -1424,7 +1439,7 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteProposal', () => {
     expect(recordActionMock).toHaveBeenCalledTimes(2)
     const entry = recordActionMock.mock.calls[1][0] as Record<string, unknown>
     expect((entry.detail as Record<string, unknown>).approvedByUserId).toBe('user_1')
-    expect((entry.detail as Record<string, unknown>).autoFailure).toBeUndefined()
+    expect((entry.detail as Record<string, unknown>).failure).toBeUndefined()
   })
 
   it('a CRASH-stranded autonomous approve counts toward the hand-back too — the reconcile shares the one reopen (round-3 audit)', async () => {

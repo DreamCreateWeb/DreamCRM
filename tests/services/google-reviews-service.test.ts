@@ -226,7 +226,7 @@ vi.mock('drizzle-orm', () => ({
     r[col.__col] != null && (r[col.__col] as number) >= (val as number),
   isNotNull: (col: { __col: string }) => (r: Record<string, unknown>) => r[col.__col] != null,
   desc: () => 'desc',
-  sql: () => 'sql',
+  sql: Object.assign(() => 'sql', { raw: () => 'sql', join: () => 'sql' }),
 }))
 
 import {
