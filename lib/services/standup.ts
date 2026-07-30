@@ -213,9 +213,18 @@ export async function buildWeeklyStandup(
         console.error('[standup] failure count failed', e)
         return 0
       })
+  // NO NUMBER (round-12 audit). The count is rows, and the only producer
+  // writes at most one row per org per DAY and collapses several broken
+  // steps in a tick into one — so it is neither a count of jobs nor a count
+  // of days, and both readings are wrong in the common cases (one job broken
+  // for five days reads as "5 jobs"; five jobs broken in one day reads as
+  // "1"). The same counter-vs-explainer disagreement round 11 fixed one file
+  // over, re-introduced BY that round's fix. There is no honest number to
+  // quote here yet, so the sentence quotes none — it says the true thing and
+  // owns it, which is all the clinic needed from it anyway.
   const failureNote =
     failures > 0
-      ? `${failures === 1 ? '1 job of mine' : `${failures} jobs of mine`} hit trouble and didn’t get through. That’s mine to sort out, and I’m on it.`
+      ? 'Some of my own jobs hit trouble this week and didn’t get through. That’s mine to sort out, and I’m on it.'
       : null
 
   let quietNote: string | null = null

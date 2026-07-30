@@ -124,6 +124,11 @@ vi.mock('@/lib/db', () => {
         trialEndsAt: col('trialEndsAt'),
         subscriptionStatus: col('subscriptionStatus'),
         stripeSubscriptionId: col('stripeSubscriptionId'),
+        // Round-12 audit: absent here, so the sweep's chronicity read
+        // resolved to `undefined` and `troubleForDays` could not be tested
+        // at all — the sibling harness had already documented this exact
+        // hazard and fixed it, and this one never got the same treatment.
+        guardianFirstSeenAt: col('guardianFirstSeenAt'),
       },
       actionLedger: {
         __name: 'action_ledger',
@@ -413,5 +418,33 @@ describe('the failure explainer actually runs, and counts days', () => {
     store.ledger = [{ organizationId: 'org_a', occurredAt: NOW, detail: {} }]
     const sweep = await sweepEngineHealth(NOW)
     expect(sweep.reports[0].failureCauses).toEqual([])
+  })
+})
+
+
+describe('troubleForDays — how long this practice has needed attention', () => {
+  it('is derived from the stored first-seen instant for a flagged clinic', async () => {
+    seedOrg('org_a', 'Ash Dental', { guardianFirstSeenAt: old(41) })
+    // Nothing in the ledger for two weeks → silent, which needs attention.
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.flagged).toHaveLength(1)
+    expect(sweep.flagged[0].troubleForDays).toBe(41)
+  })
+
+  it('is null for a clinic that is fine, whatever the column still holds', async () => {
+    // A healthy practice must never render "· 41 days now"; the guard is
+    // the state, not the column.
+    seedOrg('org_b', 'Birch Dental', { guardianFirstSeenAt: old(41) })
+    seedWork('org_b', 2, 5)
+    seedWork('org_b', 9, 5)
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports[0].verdict.state).not.toBe('silent')
+    expect(sweep.reports[0].troubleForDays).toBeNull()
+  })
+
+  it('is null when the Guardian has never recorded a start', async () => {
+    seedOrg('org_c', 'Cedar Dental')
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.flagged[0].troubleForDays).toBeNull()
   })
 })

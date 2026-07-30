@@ -340,7 +340,13 @@ describe('buildWeeklyStandup', () => {
     const s = await buildWeeklyStandup(ORG, MONDAY)
     expect(s.totalActions).toBe(47)
     expect(s.quietNote).toBeNull()
-    expect(s.failureNote).toContain('4 jobs of mine')
+    // NO NUMBER (round-12 audit): the count is rows, and the only producer
+    // writes at most one per org per DAY while collapsing several broken
+    // steps into one — so it means neither jobs nor days, and both readings
+    // are wrong in the common cases. The sentence says the true thing and
+    // quotes nothing it cannot stand behind.
+    expect(s.failureNote).not.toMatch(/\d/)
+    expect(s.failureNote).toContain('hit trouble')
     expect(s.failureNote).toContain('mine to sort out')
   })
 

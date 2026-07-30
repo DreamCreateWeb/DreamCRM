@@ -8,6 +8,7 @@ import {
   needsAttention,
   problemKey,
   shouldAlert,
+  STAND_DOWN_DWELL_DAYS,
   shouldStandDown,
   standDownGoesToOwner,
   type AlertMemory,
@@ -18,6 +19,8 @@ import { sweepEngineHealth, type ClinicEngineReport } from '@/lib/services/guard
 import { getGuardianAudience, writePlatformConfig } from '@/lib/services/platform-config'
 import { recordAction } from '@/lib/services/action-ledger'
 import { sendNotificationEmail } from '@/lib/email'
+
+const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * THE GUARDIAN's outbound half (Transformation Phase 4). The sweep decides
@@ -112,11 +115,17 @@ async function readMemory(
  *  says what I'd do — a guardian that only reports problems makes work. */
 function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): string {
   const lines = [report.verdict.headline, '', report.verdict.why]
+  // KEY vs KEY (round-12 audit). Round 11 made the stored memory a problem
+  // KEY, and these two readers were left comparing it to the bare state
+  // word — so for `blocked`, the one state that always carries a cause,
+  // 'blocked:switches' === 'blocked' is never true and the whole
+  // continuity block below (the "Still going" line AND round 11's
+  // chronicity sentence nested inside it) was dead.
   // NEW vs STILL (round-1 in-phase gap). Every alert read identically, so
   // the owner could not tell this morning's break from the same one they
   // were told about a week ago and have been chasing since. The cadence
   // already knows which it is; it was just never said out loud.
-  if (memory.state === report.verdict.state && memory.alertedAt) {
+  if (memory.state === problemKey(report.verdict) && memory.alertedAt) {
     const days = Math.max(1, Math.round((now.getTime() - memory.alertedAt.getTime()) / 86_400_000))
     // "LAST told", not "first" (verification round 3). guardianAlertedAt is
     // overwritten on every delivery and the cadence re-alerts weekly, so
@@ -135,8 +144,12 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
         1,
         Math.round((now.getTime() - memory.firstSeenAt.getTime()) / 86_400_000),
       )
+      // "Needed attention", not "been like this": the clock measures the
+      // practice's run of trouble, which may have changed shape inside it
+      // (switch-blocked becoming failure-blocked). Saying more than that
+      // would be the precision this phase keeps having to take back.
       if (age > days) {
-        lines.push(`It has been like this for ${age} days.`)
+        lines.push(`This practice has needed attention for ${age} days straight.`)
       }
     }
   }
@@ -169,7 +182,7 @@ function standDownBody(report: ClinicEngineReport, memory: AlertMemory, now: Dat
   }
   if (memory.firstSeenAt) {
     const age = Math.max(1, Math.round((now.getTime() - memory.firstSeenAt.getTime()) / 86_400_000))
-    lines.push(`It ran for ${age} ${age === 1 ? 'day' : 'days'}.`)
+    lines.push(`It needed attention for ${age} ${age === 1 ? 'day' : 'days'}.`)
   }
   lines.push('', report.verdict.headline)
   lines.push('', 'Nothing to do — this is just the other half of the alert.')
@@ -357,7 +370,7 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
               to,
               name: null,
               title: `${
-                memory.state === report.verdict.state && memory.alertedAt ? 'Still: ' : ''
+                memory.state === problemKey(report.verdict) && memory.alertedAt ? 'Still: ' : ''
               }${report.clinicName}: ${report.verdict.headline}`,
               body: alertBody(report, memory, now),
               // THE PRACTICE, not the page they are already reading
@@ -454,18 +467,35 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // and it must reset the moment trouble comes back. Written every
       // pass, because a clock that only ticks when we speak is not a clock.
       const clearSince = inTrouble ? null : (memory.clearSince ?? now)
-      // CHRONICITY. First-seen moves only when the problem itself changes,
-      // so it survives a week of flapping and can honestly say "since
-      // June 2". Cleared only when a recovery is actually ANNOUNCED —
-      // otherwise a two-day quiet spell would erase the age of a problem
-      // that came straight back.
+      // CHRONICITY — HOW LONG THIS PRACTICE HAS NEEDED ATTENTION.
+      //
+      // Round-12 audit: this used to be keyed to `memory.state`, the last
+      // REPORTED problem, and the two diverge by design (the key is
+      // deliberately not stamped until a report lands). Two failures
+      // followed. (a) While the key was unstamped — a mail outage, or the
+      // lock open on a stalled clinic that can never stand down to the
+      // owner — `memory.state !== key` held on EVERY pass, so the age was
+      // reset to today daily and a week-old break read as one day. (b) The
+      // mirror: because it cleared only on a DELIVERED stand-down, a
+      // practice that recovered without one kept its instant forever, and a
+      // relapse in September rendered "· 100 days now" for a problem that
+      // started yesterday.
+      //
+      // It is derived from the trouble itself now, never from what was
+      // said about it: it starts when a clear practice goes into trouble,
+      // and it ends when the quiet has genuinely held. Both facts are
+      // observations, so neither can be corrupted by an undelivered report.
+      // The concept it measures is "something has been wrong here since X",
+      // which is exactly what the owner is being told.
+      const recoveredForGood =
+        !inTrouble &&
+        memory.clearSince != null &&
+        now.getTime() - memory.clearSince.getTime() >= STAND_DOWN_DWELL_DAYS * DAY_MS
       const firstSeenAt = inTrouble
-        ? memory.state === key && memory.firstSeenAt
-          ? memory.firstSeenAt
-          : now
-        : standingDown && delivered
+        ? (memory.firstSeenAt ?? now)
+        : recoveredForGood
           ? null
-          : memory.firstSeenAt ?? null
+          : (memory.firstSeenAt ?? null)
 
       // WHEN THE PROBLEM KEY MAY MOVE. In trouble: as before, once the
       // report landed or there was nothing to report. Recovered: ONLY once

@@ -130,7 +130,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import { runGuardianSweep } from '@/lib/services/guardian-alerts'
-import { RE_ALERT_DAYS, STAND_DOWN_DWELL_DAYS } from '@/lib/guardian'
+import { assessEngine, RE_ALERT_DAYS, STAND_DOWN_DWELL_DAYS } from '@/lib/guardian'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
@@ -149,22 +149,51 @@ const SIGNALS = {
   openProposals: 0,
 }
 
+/**
+ * THE FIXTURE CARRIES WHATEVER A REAL VERDICT CARRIES (round-12 audit).
+ *
+ * This used to hand-write `verdict: { state, headline, why, recommendation }`
+ * — so when round 11 added `cause` and made the stored memory a problem KEY,
+ * every fixture kept producing bare state words and all 38 tests passed
+ * while two readers in the service still compared a key to a bare state. A
+ * literal fixture is a second, silent model of the type it stands in for,
+ * which is this phase's signature defect wearing test clothing.
+ *
+ * `cause` is therefore taken from the ONE place that decides it — the pure
+ * classifier — by asking it for a verdict of the requested shape. A field
+ * added to EngineVerdict tomorrow reaches these tests without anyone
+ * remembering to bring it.
+ */
+const CAUSE_BY_STATE: Partial<Record<string, Partial<typeof SIGNALS>>> = {
+  silent: { actions7: 0, actionsPrev7: 0 },
+  blocked: { remindersOn: false, reviewRequestsOn: false },
+  quiet: { actions7: 0 },
+  healthy: {},
+}
+
 function report(
   orgId: string,
   name: string,
   state: string,
   signals: Partial<typeof SIGNALS> = {},
 ) {
+  const merged = { ...SIGNALS, ...CAUSE_BY_STATE[state], ...signals }
+  const real = assessEngine(merged)
   return {
     organizationId: orgId,
     clinicName: name,
     verdict: {
+      ...real,
+      // The STATE the test asked for still wins — these fixtures drive the
+      // cadence, not the classifier — but everything else about the verdict
+      // comes from the real thing.
       state,
       headline: `${name} headline`,
       why: 'because',
       recommendation: state === 'healthy' ? null : 'do the thing',
+      cause: real.state === state ? real.cause : (CAUSE_BY_STATE[state] ? real.cause : null),
     },
-    signals: { ...SIGNALS, ...signals },
+    signals: merged,
     // The distinct "I tried and couldn't" sentences behind failures7 — the
     // owner's email names the actual breaks instead of guessing.
     failureCauses: [] as string[],
@@ -323,7 +352,58 @@ describe('runGuardianSweep', () => {
     await runGuardianSweep(NOW)
     const body = String(mail.sent[0].body)
     expect(body).toContain('I last flagged this 7 days ago')
-    expect(body).toContain('It has been like this for 41 days.')
+    expect(body).toContain('This practice has needed attention for 41 days straight.')
+  })
+
+  it('a re-alert about a BLOCKED practice says "Still" — the key is compared to a key (round-12 audit)', async () => {
+    // Round 11 made the memory a problem key and left the email comparing
+    // it to the bare state word, so for `blocked` — the one state that
+    // always carries a cause — the continuity block never rendered: no
+    // "Still:", no "I last flagged this", and round 11's own chronicity
+    // sentence (nested inside it) was dead for the exact state it was
+    // written for.
+    store.profiles[0].guardianState = 'blocked:switches'
+    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS)
+    store.profiles[0].guardianFirstSeenAt = daysAgo(44)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    await runGuardianSweep(NOW)
+    expect(String(mail.sent[0].title)).toContain('Still: ')
+    const body = String(mail.sent[0].body)
+    expect(body).toContain('I last flagged this 7 days ago')
+    expect(body).toContain('needed attention for 44 days straight')
+  })
+
+  it('chronicity starts when the trouble starts and survives an UNDELIVERED pass', async () => {
+    // The clock is keyed to the trouble, never to what was said about it
+    // (round-12 audit): keyed to the last REPORTED problem, it reset to
+    // today on every pass where the key could not be stamped — a mail
+    // outage, or the lock open on a clinic that can never stand down to the
+    // owner — so a week-old break read as one day.
+    mail.fail = true
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+    await runGuardianSweep(NOW)
+    expect(store.profiles[0].guardianFirstSeenAt).toEqual(NOW)
+
+    const tomorrow = new Date(NOW.getTime() + 24 * 60 * 60 * 1000)
+    await runGuardianSweep(tomorrow)
+    expect(store.profiles[0].guardianFirstSeenAt).toEqual(NOW)
+  })
+
+  it('chronicity CLEARS when the quiet has really held, even with no all-clear sent', async () => {
+    // The mirror failure: clearing only on a delivered stand-down meant a
+    // practice that recovered without one (every non-silent problem while
+    // the lock is open) kept its instant forever, and a relapse months
+    // later rendered "· 100 days now" for a problem that started yesterday.
+    lock.audience = 'clinic'
+    store.profiles[0].guardianState = 'stalled'
+    store.profiles[0].guardianFirstSeenAt = daysAgo(100)
+    store.profiles[0].guardianClearSince = daysAgo(STAND_DOWN_DWELL_DAYS + 1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.stoodDown).toBe(0) // that finding was the clinic's, not the owner's
+    expect(store.profiles[0].guardianFirstSeenAt).toBeNull()
   })
 
   it('never stands down a problem nobody was ever told about', async () => {
@@ -690,7 +770,9 @@ describe('the memory records only what was actually said', () => {
     mail.fail = false
     const r2 = await runGuardianSweep(NOW)
     expect(r2.alerted).toBe(1)
-    expect(store.profiles[0].guardianState).toBe('blocked')
+    // The PROBLEM KEY, not the bare state — `blocked` is two problems and
+    // the memory has to be able to tell them apart (round 11).
+    expect(store.profiles[0].guardianState).toBe('blocked:switches')
   })
 
   it('a RECOVERY is still recorded even though it sends nothing', async () => {

@@ -326,16 +326,38 @@ describe('automationSendAt honours the learned hour', () => {
     )
   })
 
-  it('the only consumer actually passes the brain’s hour through', async () => {
-    // A behavioural test cannot see a dropped argument (the default silently
-    // covers it), so the wiring itself is pinned here.
-    const { readFileSync } = await import('node:fs')
-    const { resolve } = await import('node:path')
-    const src = readFileSync(
-      resolve(__dirname, '../../lib/services/retention-automation.ts'),
-      'utf8',
-    )
-    expect(src).toMatch(/automationSendAt\(now, timeZone, brain\.sendHour\)/)
-    expect(src).toMatch(/getSharedBrain\(\)/)
+  it('a LEARNED hour actually reaches the campaign row (round-12 audit)', async () => {
+    // This used to be a source-text regex, justified by "a behavioural test
+    // cannot see a dropped argument". That was false in this file: the
+    // harness already drives the real path and inspects the produced
+    // `scheduledAt`, so moving the brain's hour moves an observable value.
+    // As written, the string test broke on a harmless rename and passed on
+    // regressions it could not see — and `getSharedBrain` was never mocked,
+    // so no test had ever observed a learned hour reaching a campaign row.
+    const brain = await import('@/lib/services/shared-brain')
+    const spy = vi.spyOn(brain, 'getSharedBrain').mockResolvedValue({
+      sendHour: 15,
+      sendHourLearned: true,
+      sendHourWhy: 'learned',
+      learnedAt: null,
+      sampleSends: 1000,
+    })
+    h.clinics = [{ organizationId: 'org_1', birthday: 1, reactivation: 0, isDemo: false }]
+    await runRetentionAutomations({ now: NOW })
+    const scheduled = h.inserts.find((i) => i.table === 'campaigns')!.values.scheduledAt as Date
+    // 15:00 in the clinic's zone, not the shipped 10:00 — and not NOW.
+    // The harness does not mock getClinicTimeZone, so the service falls back
+    // to the platform default zone — which is exactly why this asserts a
+    // DIFFERENCE from the shipped hour rather than an absolute instant.
+    const { automationSendAt } = await import('@/lib/services/retention-automation')
+    const { DEFAULT_SEND_HOUR } = await import('@/lib/shared-brain')
+    for (const tz of ['America/New_York', 'America/Chicago']) {
+      if (scheduled.getTime() === automationSendAt(NOW, tz, 15).getTime()) {
+        expect(scheduled.getTime()).not.toBe(automationSendAt(NOW, tz, DEFAULT_SEND_HOUR).getTime())
+        spy.mockRestore()
+        return
+      }
+    }
+    throw new Error(`learned hour never reached the campaign row: ${scheduled.toISOString()}`)
   })
 })

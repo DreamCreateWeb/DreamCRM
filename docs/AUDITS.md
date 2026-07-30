@@ -1763,3 +1763,57 @@ long it has actually been wrong.
 - *A single-arm comparison is not a comparison.* Any code that says one thing
   "beats" another must assert that it had something to compare against —
   and its tests must supply two arms, or they pin the defect.
+
+**Attempt 7 (round 12) — NOT CLEAN, and the shape of it is the finding.**
+6 distinct defects, **zero in-phase gaps** (the depth chamber said the phase
+is complete for the first time, sending 8 items to the backlog) — and **every
+single defect was in a ROUND-11 FIX.** The original phase code produced
+nothing this round.
+
+- **The alert email compared a problem KEY to a bare state.** Round 11 made
+  the stored memory `state:cause`; two readers in the same file were left
+  comparing it to `verdict.state`, and for `blocked` — the one state that
+  always carries a cause — that is never equal. So no "Still:" prefix, no "I
+  last flagged this N days ago", and round 11's own chronicity sentence
+  (nested inside the same broken comparison) was dead for the exact state it
+  was written for. The third reader in that file HAD been updated.
+- **The chronicity clock was keyed to the last REPORTED problem, and the
+  reported key deliberately lags the observed one.** Two opposite failures
+  fell out: while the key could not be stamped (a mail outage, or the lock
+  open on a clinic that can never stand down to the owner) the age reset to
+  today on every pass; and because it cleared only on a DELIVERED stand-down,
+  a practice that recovered without one kept its instant forever and a
+  relapse rendered "· 100 days now" for a problem that started yesterday. It
+  is derived from the trouble itself now, never from what was said about it.
+- **The standup quoted a number that meant neither jobs nor days.** Round 11
+  narrowed the count to engine failures and called them "jobs" — but the only
+  producer writes at most one row per org per DAY and collapses several
+  broken steps into one, so one job broken for five days read as "5 jobs".
+  Exactly the counter-vs-explainer disagreement round 11 fixed one file over,
+  re-introduced by that round's fix. There is no honest number available yet,
+  so the sentence quotes none.
+- A source-text regex was standing in for the shared brain's only production
+  effect, in a file whose harness already drives the real path — it broke on
+  renames and passed on regressions, and no test had ever watched a learned
+  hour reach a campaign row. `troubleForDays` had zero executed coverage and
+  the sweep harness omitted the column it reads. CLAUDE.md's two migration
+  lines contradicted each other.
+
+**THE STRUCTURAL FIX, and the real lesson.** Three of the six were invisible
+because the alerts harness hand-wrote `verdict: { state, headline, why,
+recommendation }` — a literal fixture is a SECOND, SILENT MODEL of the type it
+stands in for, so when round 11 added `cause`, 38 tests kept passing while
+production compared a key to a state. The fixture now builds from the real
+`assessEngine`, and reconciling it immediately surfaced three more genuine
+mismatches. **A hand-written fixture for a type the code owns is the
+duplicate-law defect wearing test clothing.**
+
+**Standing lessons added:**
+- *Test fixtures must be built from the code's own constructors, not
+  hand-written literals.* A field added tomorrow has to reach the tests
+  without anyone remembering to bring it.
+- *When you change what a stored value MEANS, grep every reader of that
+  column in the same commit* — not the ones you remember touching. Round 11
+  updated three of five readers of `guardianState`.
+- *Do not quote a number you cannot define.* If the count means neither of
+  the two things a reader might assume, the honest sentence has no number.
