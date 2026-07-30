@@ -55,7 +55,17 @@ export function sendHourStatsQuery(since: Date) {
              min(ce.occurred_at)      as sent_at
       from ${schema.campaignEvents} ce
       join ${schema.campaigns} c on c.id = ce.campaign_id
+      join ${schema.organization} o on o.id = c.organization_id
       where ce.type = 'sent' and ce.occurred_at >= ${since}::timestamptz
+        -- REAL CLINICS ONLY (round-1 audit). Without this the aggregate
+        -- counted the DEMO org — whose seeder writes real campaign_events
+        -- rows, re-dated on every deploy — and the platform tenant's own
+        -- B2B marketing sends. Both have their own organization_id, so
+        -- count(distinct …) happily cleared MIN_CLINICS_PER_HOUR on two
+        -- real practices plus fabricated seed data, and the platform could
+        -- announce a "cross-clinic" finding that was nothing of the kind.
+        -- The same predicate guardian.ts and proposal-generators.ts use.
+        and o.type = 'clinic' and o.is_demo = false
       group by 1, 2, 3
     ),
     opens as (
@@ -108,11 +118,12 @@ export interface LearnResult {
  * not read as "we un-learned the best send hour".
  */
 export async function runSharedBrainLearning(now: Date = new Date()): Promise<LearnResult> {
+  // What is in force today — the incumbent a challenger has to beat.
+  const current = await getSharedBrain().catch(() => resolveSharedBrain(null))
   let stats: HourStat[]
   try {
     stats = await collectSendHourStats(now)
   } catch (e) {
-    const current = await getSharedBrain()
     return {
       ok: false,
       error: (e as Error).message,
@@ -125,7 +136,7 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
     }
   }
 
-  const finding = learnBestSendHour(stats)
+  const finding = learnBestSendHour(stats, current.sendHour)
   await writePlatformConfig({
     sharedBrain: {
       sendHour: finding.hour,

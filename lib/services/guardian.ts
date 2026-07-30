@@ -1,4 +1,5 @@
 import 'server-only'
+import { unstable_cache } from 'next/cache'
 import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
@@ -6,6 +7,7 @@ import {
   needsAttention,
   ENGINE_STATE_RANK,
   summarizeSweep,
+  clinicNote,
   RE_ALERT_DAYS,
   type EngineSignals,
   type EngineState,
@@ -15,6 +17,8 @@ import { readEngineSwitches } from '@/lib/services/engine-switches'
 import { getGuardianAudience } from '@/lib/services/platform-config'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { countOpenProposals } from '@/lib/services/proposals'
+import { workOnly } from '@/lib/services/action-ledger'
+import { resolveTrialState } from '@/lib/trial'
 
 /**
  * THE GUARDIAN (Transformation Phase 4 — DESIGN.md primitive #5), service
@@ -54,15 +58,13 @@ export interface GuardianSweep {
   summary: string
 }
 
-/** The WORK aggregate — the isWorkEntry law expressed as a FILTER. Exported
- *  so the boundary test renders THESE expressions through the real dialect
- *  rather than a copy that can drift (the Phase-3 standing lesson: a
- *  database modelled in JavaScript is not a database). */
-export const workCountExpr = () => sql<number>`count(*) filter (
-  where (${schema.actionLedger.detail} ->> 'autonomyChange') is null
-    and (${schema.actionLedger.detail} ->> 'autoFailure') is distinct from 'true'
-    and (${schema.actionLedger.detail} ->> 'failure') is distinct from 'true'
-)::int`
+/** The WORK aggregate. Round-1 audit: this used to be a hand-copied second
+ *  transcription of the isWorkEntry law, with a comment claiming there was
+ *  one home — two copies that had to be edited in lockstep forever, which is
+ *  exactly how the `report` marker would have been added to one and not the
+ *  other. It now WRAPS action-ledger's `workOnly()`, so there is genuinely
+ *  one home. Exported so the boundary test renders the real expression. */
+export const workCountExpr = () => sql<number>`count(*) filter (where ${workOnly()})::int`
 
 /** Its complement: every "I tried and couldn't", of either shape. */
 export const failureCountExpr = () => sql<number>`count(*) filter (
@@ -142,6 +144,27 @@ export async function assessClinic(
 }
 
 /**
+ * The Overview's read of the sweep, CACHED (round-1 audit).
+ *
+ * `sweepEngineHealth` is a full ledger scan plus a per-clinic fan-out —
+ * switches, two seated-patient counts, an open-proposal count, each their
+ * own query. The platform Overview is `force-dynamic`, so every render of
+ * the owner's home page paid all of it, N times over, into a 10-connection
+ * pool. At one clinic that is invisible; at fifty it is the owner's home
+ * page timing out because they refreshed it.
+ *
+ * The data is a DAILY judgement — the cron that acts on it runs once a day —
+ * so a few minutes of staleness costs nothing and the page gets cheap.
+ * The cron calls `sweepEngineHealth` directly and is never served a cached
+ * verdict, because it decides whether to interrupt a human.
+ */
+export const cachedEngineHealth = unstable_cache(
+  async () => sweepEngineHealth(),
+  ['guardian-sweep'],
+  { revalidate: 300, tags: ['guardian-sweep'] },
+)
+
+/**
  * Every live clinic's engine health, worst first. The platform Overview's
  * Guardian section and the daily guardian cron both read this.
  */
@@ -151,14 +174,30 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
   const monthStart = new Date(now.getTime() - 30 * DAY_MS)
   const prevMonthStart = new Date(now.getTime() - 60 * DAY_MS)
 
-  const orgs = await db
+  const allOrgs = await db
     .select({
       id: schema.organization.id,
       name: schema.organization.name,
       createdAt: schema.organization.createdAt,
+      trialEndsAt: schema.clinicProfile.trialEndsAt,
+      subscriptionStatus: schema.clinicProfile.subscriptionStatus,
+      stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
     })
     .from(schema.organization)
+    .leftJoin(
+      schema.clinicProfile,
+      eq(schema.clinicProfile.organizationId, schema.organization.id),
+    )
     .where(and(eq(schema.organization.type, 'clinic'), eq(schema.organization.isDemo, false)))
+
+  // LIFECYCLE (round-1 audit). A churned practice, or a trial that lapsed
+  // without ever activating, has no engine to watch: nothing can run for
+  // them because they are behind the billing wall. Without this filter they
+  // reported `silent` forever and re-alerted the owner every week — the
+  // crying-wolf failure this primitive is supposed to prevent, aimed at the
+  // one group where the answer is never "go fix their integrations". Same
+  // access law countOpenProposals uses, so the two agree about who is live.
+  const orgs = allOrgs.filter((o) => !resolveTrialState(o, now).expired)
 
   if (orgs.length === 0) return { reports: [], flagged: [], summary: summarizeSweep([]) }
 
@@ -224,8 +263,27 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
  *    design: it describes a closed 30-day window, which cannot become false
  *    inside a week.
  */
+/** Signal defaults for the live re-derive: only the switches matter to the
+ *  blocked branch, and giving the rest healthy values keeps
+ *  `clinicActionable`'s failure guard from vetoing a genuine switch note. */
+const EMPTY_SIGNALS: EngineSignals = {
+  ageDays: 9999,
+  actions7: 1,
+  actionsPrev7: 1,
+  failures7: 0,
+  remindersOn: true,
+  reviewRequestsOn: true,
+  seated30: 0,
+  seatedPrev30: 0,
+  openProposals: 0,
+}
+
 export interface ActiveGuardianNote {
   summary: string
+  /** Which switches are off RIGHT NOW, so the card can link to the one that
+   *  actually needs turning back on. Absent for non-switch notes. */
+  remindersOn?: boolean
+  reviewRequestsOn?: boolean
   /** What the note is about, so the surface can offer the right next step:
    *  a switch note points at the automation settings, a stall note points at
    *  where new patients come from. */
@@ -268,6 +326,25 @@ export async function getActiveGuardianNote(
       const switches = await readEngineSwitches(organizationId)
       // Both back on — the note is spent, whatever the ledger still says.
       if (switches.remindersOn && switches.reviewRequestsOn) return null
+      // RE-DERIVE, don't replay (round-1 audit). The stored sentence was
+      // true when it was written; if the practice has since turned ONE of
+      // the two back on, replaying it keeps insisting both are off — the
+      // machine telling somebody something untrue about their own settings,
+      // which is the exact failure the live check exists to prevent. The
+      // note is regenerated from the switches as they stand right now.
+      const live = clinicNote('blocked', {
+        ...EMPTY_SIGNALS,
+        remindersOn: switches.remindersOn,
+        reviewRequestsOn: switches.reviewRequestsOn,
+      })
+      if (!live) return null
+      return {
+        summary: live,
+        state,
+        occurredAt: row.occurredAt,
+        remindersOn: switches.remindersOn,
+        reviewRequestsOn: switches.reviewRequestsOn,
+      }
     }
     return { summary: row.summary, state, occurredAt: row.occurredAt }
   } catch {

@@ -167,7 +167,26 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
   /** Write a break into the clinic's ledger where the Guardian can see it.
    *  Best-effort by construction: recordFailure never throws, and a run that
    *  cannot do its bookkeeping must still finish its work. */
+  // ONE STRIKE PER ORG PER RUN (round-1 audit). `onceWithin` de-dups on
+  // (org, capability), and the driver spreads its steps across five
+  // different capabilities — so a single 30-second database blip mid-tick
+  // threw in every step and wrote FIVE rows at once, instantly clearing
+  // FAILURE_ALARM_COUNT and emailing the owner that the practice "tried and
+  // couldn't 5 times this week". That is the crying-wolf failure this module
+  // says it exists to avoid, and it broke the documented invariant that a
+  // strike means a DAY of a broken thing. The per-run guard collapses a
+  // one-fault-many-steps tick into a single honest strike; the per-capability
+  // day window still separates genuinely different breaks across runs.
+  const struckThisRun = new Set<string>()
+  /** Hand a generator a way to report a soft AI failure into the same
+   *  collapse + window a thrown one gets. Deferred, not awaited inline:
+   *  the generator is mid-loop and its bookkeeping must not reorder its
+   *  work, so the flag is set here and flushed when the step returns. */
+  const pendingSoft = new Set<string>()
+  const softFailed = (step: string) => () => { pendingSoft.add(step) }
   const noteFailure = async (organizationId: string, f: { capability: string; summary: string }) => {
+    if (struckThisRun.has(organizationId)) return
+    struckThisRun.add(organizationId)
     const recorded = await recordFailure({
       organizationId,
       capability: f.capability,
@@ -186,6 +205,10 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
 
   for (const org of orgs) {
     result.orgsScanned++
+    // Per-org, always: a step that set the flag and THEN threw leaves it
+    // behind, and a stale flag would charge the next clinic with a break
+    // that was never theirs.
+    pendingSoft.clear()
     try {
       const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
       const tz = await getClinicTimeZone(org.id)
@@ -202,9 +225,12 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
         // evidence), turning narrate-once into narrate-zero on a timer.
         ['reconcile', async () => (await reconcileStrandedApprovals(org.id, now), 0)],
         ['sweep', async () => ((result.expired += await sweepInvalidatedProposals(org.id)), 0)],
-        ['review_reply', () => generateReviewReplyProposals(org.id, now)],
-        ['inquiry_response', () => generateInquiryResponseProposals(org.id, org.name, now)],
-        ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz)],
+        ['review_reply', () => generateReviewReplyProposals(org.id, now, softFailed('review_reply'))],
+        [
+          'inquiry_response',
+          () => generateInquiryResponseProposals(org.id, org.name, now, softFailed('inquiry_response')),
+        ],
+        ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz, softFailed('social_post'))],
         ['outreach_campaign', () => generateOutreachCampaignProposals(org.id, now, tz)],
         // THE LADDER LIVE (Phase 3): LAST, after the generators file — a
         // capability the clinic switched to automatic gets its open cards
@@ -218,9 +244,20 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
       for (const [name, run] of generators) {
         try {
           result.filed += await run()
+          // A step that returned normally may still have failed softly.
+          if (pendingSoft.delete(name)) {
+            const f = STEP_FAILURE[name]
+            if (f) {
+              result.errors.push({ organizationId: org.id, error: `${name}: AI draft failed` })
+              await noteFailure(org.id, f)
+            }
+          }
         } catch (e) {
           result.errors.push({ organizationId: org.id, error: `${name}: ${(e as Error).message}` })
-          const f = STEP_FAILURE[name]
+          // A step not in the map is either bookkeeping (explicit null) or
+          // one somebody added without deciding — the latter falls back to
+          // the engine-level line rather than disappearing (round-1 audit).
+          const f = name in STEP_FAILURE ? STEP_FAILURE[name] : ENGINE_DOWN
           if (f) await noteFailure(org.id, f)
         }
       }
@@ -235,7 +272,7 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
 /** Clinic-local hours inside which the machine may send to a patient's
  *  inbox on its own — mid-morning through early evening. The same daylight
  *  INTENT as the retention automations, which aim their sends at
- *  SEND_HOUR_LOCAL (10:00 clinic-local); this is a hard WINDOW, not a
+ *  the LEARNED send hour (the shared brain's, clinic-local); this is a hard WINDOW, not a
  *  target — automationSendAt falls back to "now" when that hour has passed, so
  *  it bounds nothing on its own (round-3 audit corrected the earlier claim
  *  that this rule already existed there). */
@@ -562,9 +599,29 @@ async function sourceKeyTaken(organizationId: string, sourceKey: string): Promis
 
 // ── 1. Review replies ────────────────────────────────────────────────────────
 
+/**
+ * A soft AI failure — the provider refused, timed out, or 429'd.
+ *
+ * ROUND-1 AUDIT, the deepest finding of the phase. Slice 4 wired
+ * `recordFailure` into the driver's CATCH blocks, but the AI helpers are
+ * deliberately hardened never to throw (review-reply-ai.ts: "Caught, never
+ * thrown"), so they return `{ ok:false, reason:'failed' }` and every caller
+ * quietly `continue`s. A revoked or rate-limited ANTHROPIC_API_KEY therefore
+ * broke all three AI generators SILENTLY and forever: the Approval Inbox went
+ * permanently empty, `failures7` stayed 0, reminders kept firing so the
+ * Guardian reported `healthy`, and neither the clinic nor Dream Create ever
+ * learned. The observability slice could not see the failure mode most
+ * likely to actually happen.
+ *
+ * So soft failures get an explicit channel to the driver, where they meet the
+ * same per-run collapse and daily window as a thrown one.
+ */
+export type OnSoftFailure = () => void
+
 export async function generateReviewReplyProposals(
   organizationId: string,
   now: Date = new Date(),
+  onSoftFailure?: OnSoftFailure,
 ): Promise<number> {
   if (!aiConfigured()) return 0
   // Unreplied Google reviews, worst-first (a 1–2★ deserves the fastest
@@ -617,6 +674,8 @@ export async function generateReviewReplyProposals(
       // that review — one un-draftable rant must not freeze the whole
       // generator behind the deterministic ordering (round-2 audit).
       if (draft.reason === 'not_configured' || draft.reason === 'no_allowance') break
+      // 'failed' is a real break, not a skip: the provider said no.
+      onSoftFailure?.()
       continue
     }
 
@@ -652,6 +711,7 @@ export async function generateInquiryResponseProposals(
   organizationId: string,
   clinicName: string,
   now: Date = new Date(),
+  onSoftFailure?: OnSoftFailure,
 ): Promise<number> {
   if (!aiConfigured()) return 0
   const weekAgo = new Date(now.getTime() - 7 * DAY_MS)
@@ -697,6 +757,8 @@ Additional rules:
       // otherwise the newest-first ordering lets a single poisoned lead
       // starve every older inquiry behind it for its whole 7-day window.
       if (draft.reason === 'not_configured' || draft.reason === 'no_allowance') break
+      // 'failed' is the provider breaking, not this lead being awkward.
+      onSoftFailure?.()
       continue
     }
 
@@ -733,6 +795,7 @@ export async function generateSocialPostProposals(
   clinicName: string,
   now: Date,
   timeZone: string,
+  onSoftFailure?: OnSoftFailure,
 ): Promise<number> {
   if (!aiConfigured()) return 0
   const sourceKey = `social_post:${monthKey(now, timeZone)}`
@@ -782,7 +845,10 @@ Additional rules:
 - NEVER invent events, offers, staff names, or anything clinic-specific you weren't told.`,
     user: `Draft one post the clinic could publish this week.`,
   })
-  if (!draft.ok) return 0
+  if (!draft.ok) {
+    if (draft.reason === 'failed') onSoftFailure?.()
+    return 0
+  }
 
   const { filed } = await fileProposal({
     organizationId,

@@ -379,3 +379,61 @@ describe('assessEngine — a pile-up colours the advice, never the verdict', () 
     expect(text).not.toMatch(/\bignoring\b|\bneglect|\blazy\b|\bshould have\b/i)
   })
 })
+
+/**
+ * ROUND-1 AUDIT FIXES. Each of these pins a routing or severity rule that
+ * shipped wrong, where the wrongness was invisible because the two halves
+ * of the rule lived in different functions and agreed in the common case.
+ */
+describe('failures outrank silence', () => {
+  it('a clinic failing at everything is BLOCKED, not silent', () => {
+    // Failures are not work, so a clinic whose every attempt fails has an
+    // empty WORK ledger. The silence rule would fire and report "nothing has
+    // run" — less true and less useful than "it tried and couldn't", and it
+    // sends Dream Create hunting for a cause already in hand.
+    const v = assessEngine(sig({ actions7: 0, actionsPrev7: 0, failures7: FAILURE_ALARM_COUNT }))
+    expect(v.state).toBe('blocked')
+    expect(v.headline).toMatch(/tried and couldn’t/i)
+  })
+
+  it('silence still wins when nothing is failing', () => {
+    expect(assessEngine(sig({ actions7: 0, actionsPrev7: 0, failures7: 0 })).state).toBe('silent')
+  })
+
+  it('a brand-new clinic that is failing is still told the truth about it', () => {
+    const v = assessEngine(sig({ ageDays: 2, actions7: 0, actionsPrev7: 0, failures7: 5 }))
+    expect(v.state).toBe('blocked')
+  })
+})
+
+describe('clinicActionable — a failure never reaches the practice as a switch note', () => {
+  it('blocked BY FAILURES is ours even when a switch also happens to be off', () => {
+    // THE BUG: classify() only emits switch-blocked when BOTH are off, but
+    // clinicActionable ORed them. The only case the OR added was
+    // blocked-by-failures with one switch off — common, since a practice
+    // that turned reminders off can also have a stale token. It routed to
+    // the clinic as "reminders are switched off" (hiding the real break)
+    // and the owner was never emailed at all.
+    for (const switches of [
+      { remindersOn: false, reviewRequestsOn: true },
+      { remindersOn: true, reviewRequestsOn: false },
+      { remindersOn: false, reviewRequestsOn: false },
+    ]) {
+      const s = sig({ ...switches, failures7: FAILURE_ALARM_COUNT })
+      expect(assessEngine(s).state).toBe('blocked')
+      expect(clinicActionable('blocked', s)).toBe(false)
+      expect(clinicNote('blocked', s)).toBeNull()
+    }
+  })
+
+  it('a genuine switch-off with no failures is still theirs', () => {
+    const s = sig({ remindersOn: false, reviewRequestsOn: false, failures7: 0 })
+    expect(clinicActionable('blocked', s)).toBe(true)
+    expect(clinicNote('blocked', s)).toBeTruthy()
+  })
+
+  it('one failure short of the alarm is still a conversation they can have', () => {
+    const s = sig({ remindersOn: false, reviewRequestsOn: false, failures7: FAILURE_ALARM_COUNT - 1 })
+    expect(clinicActionable('blocked', s)).toBe(true)
+  })
+})

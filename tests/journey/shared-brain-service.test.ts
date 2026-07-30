@@ -13,13 +13,14 @@ const state = vi.hoisted(() => ({
   stored: {} as Record<string, unknown>,
   writes: [] as Array<Record<string, unknown>>,
   writeThrows: false,
+  bareArray: false,
 }))
 
 vi.mock('@/lib/db', () => ({
   db: {
     execute: async () => {
       if (state.readThrows) throw new Error('aggregate down')
-      return { rows: state.stats }
+      return state.bareArray ? state.stats : { rows: state.stats }
     },
   },
   schema: {
@@ -49,6 +50,7 @@ beforeEach(() => {
   state.stored = {}
   state.writes = []
   state.writeThrows = false
+  state.bareArray = false
 })
 
 const bucket = (hour: number, sent: number, opened: number, clinics = MIN_CLINICS_PER_HOUR) => ({
@@ -122,9 +124,14 @@ describe('runSharedBrainLearning', () => {
   })
 
   it('tolerates a driver that returns a bare array instead of {rows}', async () => {
+    // Round-1 audit: this test claimed to cover the bare-array shape and
+    // never produced one — the mock always wrapped in {rows}. It now
+    // returns the array itself, which is what some pg driver versions do.
+    state.bareArray = true
     state.stats = [bucket(15, 1000, 500)]
     const r = await runSharedBrainLearning(NOW)
     expect(r.ok).toBe(true)
+    expect(r.finding.hour).toBe(15)
   })
 })
 
@@ -136,5 +143,42 @@ describe('getSharedBrain', () => {
 
   it('floors an empty platform at the shipped default', async () => {
     expect((await getSharedBrain()).sendHour).toBe(DEFAULT_SEND_HOUR)
+  })
+})
+
+/**
+ * THE INCUMBENT (round-1 audit). MIN_LIFT used to be measured against the
+ * CONSTANT 10, so the moment the brain learned any other hour the stability
+ * guard stopped guarding: each week's winner was compared to an hour nobody
+ * was sending at.
+ */
+describe('runSharedBrainLearning — stability is measured against what is in force', () => {
+  it('an already-learned hour is the incumbent a challenger must beat', async () => {
+    state.stored = { sharedBrain: { sendHour: 15, sendHourLearned: true, sendHourWhy: 'w', learnedAt: 'x' } }
+    // 16 beats the shipped default 10 easily, but barely beats the standing
+    // 15 — so the platform must NOT hop.
+    state.stats = [bucket(10, 1000, 100), bucket(15, 1000, 500), bucket(16, 1000, 515)]
+
+    const r = await runSharedBrainLearning(NOW)
+    expect(r.finding.hour).toBe(15)
+    expect(r.finding.learned).toBe(false)
+    expect(r.finding.why).toMatch(/not by enough/i)
+  })
+
+  it('a decisive challenger still wins against the incumbent', async () => {
+    state.stored = { sharedBrain: { sendHour: 15, sendHourLearned: true, sendHourWhy: 'w', learnedAt: 'x' } }
+    state.stats = [bucket(15, 1000, 400), bucket(16, 1000, 700)]
+
+    const r = await runSharedBrainLearning(NOW)
+    expect(r.finding.hour).toBe(16)
+    expect(r.finding.learned).toBe(true)
+  })
+
+  it('with nothing eligible the INCUMBENT stands — never a snap back to the shipped guess', async () => {
+    state.stored = { sharedBrain: { sendHour: 15, sendHourLearned: true, sendHourWhy: 'w', learnedAt: 'x' } }
+    state.stats = [bucket(16, 4, 4, 1)]
+
+    const r = await runSharedBrainLearning(NOW)
+    expect(r.finding.hour).toBe(15)
   })
 })

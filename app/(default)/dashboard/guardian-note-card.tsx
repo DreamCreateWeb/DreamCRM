@@ -14,17 +14,39 @@
 import Link from 'next/link'
 import type { ActiveGuardianNote } from '@/lib/services/guardian'
 
-/** The next step belongs to the finding, not to the card: a switch note
- *  points at the switches, a slow month points at where patients come
- *  from. A single generic link would send half of them to the wrong page. */
-const NEXT_STEP: Record<'blocked' | 'stalled', { href: string; label: string }> = {
-  blocked: { href: '/settings/automations', label: 'Check your automatic messages' },
-  stalled: { href: '/growth', label: 'See where new patients come from' },
+/**
+ * Where the next step actually goes.
+ *
+ * ROUND-1 AUDIT: this shipped pointing `blocked` at `/settings/automations`,
+ * which is a 404 — that directory holds only an `emails/` child, no page of
+ * its own. The card's single call to action, on the one surface where the
+ * machine admits it cannot do its job, was a dead link. (My pre-audit check
+ * confirmed the DIRECTORY existed, which proves nothing about a route.)
+ *
+ * And one destination was never enough: the two switches live in different
+ * places entirely — reminders in the Emails hub, review requests on the
+ * Growth reviews page — so half of these notes would have sent the front
+ * desk to a page that cannot turn the thing back on.
+ */
+const REMINDERS_STEP = {
+  href: '/settings/automations/emails?email=appointment_reminder',
+  label: 'Turn appointment reminders back on',
+}
+const REVIEWS_STEP = { href: '/growth/reviews', label: 'Turn review requests back on' }
+const STALL_STEP = { href: '/growth', label: 'See where new patients come from' }
+
+function nextStep(note: ActiveGuardianNote): { href: string; label: string } {
+  if (note.state === 'stalled') return STALL_STEP
+  // Reminders first when both are off: it is the one that touches a patient
+  // who has an appointment tomorrow.
+  if (note.remindersOn === false) return REMINDERS_STEP
+  if (note.reviewRequestsOn === false) return REVIEWS_STEP
+  return REMINDERS_STEP
 }
 
 export default function GuardianNoteCard({ note }: { note: ActiveGuardianNote | null }) {
   if (!note) return null
-  const step = NEXT_STEP[note.state as 'blocked' | 'stalled'] ?? NEXT_STEP.blocked
+  const step = nextStep(note)
 
   return (
     <section className="mb-6" aria-label="Heads up">

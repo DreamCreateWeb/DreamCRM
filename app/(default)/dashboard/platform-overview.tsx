@@ -3,7 +3,7 @@ import { getSubscriptionStats } from '@/lib/services/projects'
 import { getClinicGrowth } from '@/lib/services/platform-metrics'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { getPmsDemand } from '@/lib/services/pms-interest'
-import { sweepEngineHealth } from '@/lib/services/guardian'
+import { cachedEngineHealth } from '@/lib/services/guardian'
 import { getGuardianAudience } from '@/lib/services/platform-config'
 import { getSharedBrain } from '@/lib/services/shared-brain'
 import { resolveSharedBrain } from '@/lib/shared-brain'
@@ -56,7 +56,7 @@ export default async function PlatformOverview() {
     getPmsDemand(),
     // THE GUARDIAN (Phase 4): whose machine is actually running. Best-effort
     // — the owner's overview must never fail because the watcher hiccupped.
-    sweepEngineHealth().catch(() => ({ reports: [], flagged: [], summary: '' })),
+    cachedEngineHealth().catch(() => ({ reports: [], flagged: [], summary: '' })),
     // Floored at 'platform' by the service; floored again here so a failed
     // read can never render the panel as though practices are being told.
     getGuardianAudience().catch(() => 'platform' as const),

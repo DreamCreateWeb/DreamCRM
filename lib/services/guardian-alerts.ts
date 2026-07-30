@@ -77,12 +77,16 @@ async function readMemory(organizationId: string): Promise<AlertMemory> {
 
 /** The owner-facing email for one clinic. Plain, specific, and it always
  *  says what I'd do — a guardian that only reports problems makes work. */
-function alertBody(report: ClinicEngineReport): string {
-  const lines = [
-    report.verdict.headline,
-    '',
-    report.verdict.why,
-  ]
+function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): string {
+  const lines = [report.verdict.headline, '', report.verdict.why]
+  // NEW vs STILL (round-1 in-phase gap). Every alert read identically, so
+  // the owner could not tell this morning's break from the same one they
+  // were told about a week ago and have been chasing since. The cadence
+  // already knows which it is; it was just never said out loud.
+  if (memory.state === report.verdict.state && memory.alertedAt) {
+    const days = Math.max(1, Math.round((now.getTime() - memory.alertedAt.getTime()) / 86_400_000))
+    lines.push('', `Still going: I first told you about this ${days} ${days === 1 ? 'day' : 'days'} ago.`)
+  }
   if (report.verdict.recommendation) {
     lines.push('', `What I'd do: ${report.verdict.recommendation}`)
   }
@@ -110,7 +114,8 @@ async function tellClinic(report: ClinicEngineReport, now: Date): Promise<boolea
     organizationId: report.organizationId,
     capability: 'guardian_note',
     summary: note,
-    detail: { guardianState: report.verdict.state },
+    // `report: true` keeps this out of the WORK counts — see isWorkEntry.
+    detail: { guardianState: report.verdict.state, report: true },
     occurredAt: now,
   })
 }
@@ -182,8 +187,10 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
             sendNotificationEmail({
               to,
               name: null,
-              title: `${report.clinicName}: ${report.verdict.headline}`,
-              body: alertBody(report),
+              title: `${
+                memory.state === report.verdict.state && memory.alertedAt ? 'Still: ' : ''
+              }${report.clinicName}: ${report.verdict.headline}`,
+              body: alertBody(report, memory, now),
               linkPath: '/dashboard',
               linkLabel: 'Open the platform overview →',
             })

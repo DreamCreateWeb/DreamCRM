@@ -121,8 +121,25 @@ export function assessEngine(s: EngineSignals): EngineVerdict {
   return verdict
 }
 
+function blockedByFailures(s: EngineSignals): EngineVerdict {
+  return {
+    state: 'blocked',
+    headline: `The machine tried and couldn’t, ${s.failures7} times this week`,
+    why: 'Repeated failures in one week usually mean a connection went stale — an expired Google token, a disconnected mailbox.',
+    recommendation: 'Look at their integrations; this is ours to fix, not theirs to notice.',
+  }
+}
+
 function classify(s: EngineSignals): EngineVerdict {
   const brandNew = s.ageDays < NEW_CLINIC_GRACE_DAYS
+
+  // BLOCKED BY FAILURES first, ahead of silence (round-1 audit). A clinic
+  // whose every attempt is failing has an EMPTY work ledger — failures are
+  // not work — so the silence rule would fire and report "nothing has run",
+  // which is both less true and less useful than "it tried and couldn't".
+  // The evidence for the real problem is already in hand; leading with
+  // silence would send Dream Create hunting for a cause it already knows.
+  if (s.failures7 >= FAILURE_ALARM_COUNT) return blockedByFailures(s)
 
   // SILENT — two full weeks with nothing in the ledger. For a live clinic
   // this is the machine not running, and it is invisible from inside the
@@ -150,14 +167,6 @@ function classify(s: EngineSignals): EngineVerdict {
   // BLOCKED — the machine is trying and failing, or has been switched off.
   // Failures outrank switches: a wired-wrong connection is our problem to
   // fix, a switched-off engine is a conversation.
-  if (s.failures7 >= FAILURE_ALARM_COUNT) {
-    return {
-      state: 'blocked',
-      headline: `The machine tried and couldn’t, ${s.failures7} times this week`,
-      why: 'Repeated failures in one week usually mean a connection went stale — an expired Google token, a disconnected mailbox.',
-      recommendation: 'Look at their integrations; this is ours to fix, not theirs to notice.',
-    }
-  }
   if (!s.remindersOn && !s.reviewRequestsOn) {
     return {
       state: 'blocked',
@@ -290,10 +299,17 @@ export function resolveGuardianAudience(stored: unknown): GuardianAudience {
  */
 export function clinicActionable(state: EngineState, s: EngineSignals): boolean {
   if (state === 'stalled') return true
-  // Blocked by their own switches — actionable. Blocked by repeated
-  // failures — ours.
-  if (state === 'blocked') return !s.remindersOn || !s.reviewRequestsOn
-  return false
+  if (state !== 'blocked') return false
+  // WHY the failure check comes first (round-1 audit). `classify` only ever
+  // emits switch-blocked when BOTH switches are off, so an OR here was true
+  // for a case it was never meant to cover: blocked-BY-FAILURES where one
+  // switch happens to also be off. That combination is common — a practice
+  // that turned reminders off AND has a stale Google token — and it routed
+  // the finding to the clinic as "reminders are switched off", a half-truth
+  // that hid the real break, while the owner (the only party who can fix a
+  // stale token) was never emailed at all. Misrouted AND lost.
+  if (s.failures7 >= FAILURE_ALARM_COUNT) return false
+  return !s.remindersOn || !s.reviewRequestsOn
 }
 
 /**
@@ -307,6 +323,11 @@ export function clinicActionable(state: EngineState, s: EngineSignals): boolean 
 export function clinicNote(state: EngineState, s: EngineSignals): string | null {
   if (!clinicActionable(state, s)) return null
   if (state === 'blocked') {
+    // All three shapes are live. `classify` only reaches this state with
+    // BOTH off, but the clinic-facing READER re-derives the sentence from
+    // the switches as they stand right now (getActiveGuardianNote), so a
+    // practice that has since turned one back on gets the accurate
+    // single-switch line instead of a note still insisting on both.
     if (!s.remindersOn && !s.reviewRequestsOn) {
       return 'Appointment reminders and automatic review requests are both switched off right now, so I can’t send either. Turn them back on whenever you’re ready and I’ll pick them straight back up.'
     }

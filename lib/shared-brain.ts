@@ -98,15 +98,34 @@ function hourLabel(hour: number): string {
  * platform has seen? Pure: hand it the anonymous buckets, get back the
  * decision and the sentence explaining it.
  */
-export function learnBestSendHour(stats: readonly HourStat[]): SendHourFinding {
+export function learnBestSendHour(
+  stats: readonly HourStat[],
+  /**
+   * The hour currently in force — what a change would actually change.
+   *
+   * Round-1 audit: this used to be hardwired to DEFAULT_SEND_HOUR, so once
+   * the brain moved to 3 PM the stability guard silently stopped guarding
+   * anything. Each week's winner was measured against hour 10 — an hour
+   * nobody was sending at — so the platform could hop 3 PM → 4 PM → 2 PM
+   * week after week, every hop clearing MIN_LIFT against a bystander. That
+   * is precisely the oscillation MIN_LIFT exists to prevent.
+   */
+  currentHour: number = DEFAULT_SEND_HOUR,
+): SendHourFinding {
   const sampleSends = stats.reduce((n, s) => n + s.sent, 0)
+  const incumbent =
+    Number.isInteger(currentHour) &&
+    currentHour >= LEARNABLE_HOUR_MIN &&
+    currentHour <= LEARNABLE_HOUR_MAX
+      ? currentHour
+      : DEFAULT_SEND_HOUR
   const eligible = stats.filter(qualifies)
 
   if (eligible.length === 0) {
     return {
-      hour: DEFAULT_SEND_HOUR,
+      hour: incumbent,
       learned: false,
-      why: `Not enough to go on yet, so every clinic still sends at ${hourLabel(DEFAULT_SEND_HOUR)}. An hour needs ${MIN_SENDS_PER_HOUR} sends across at least ${MIN_CLINICS_PER_HOUR} practices before it counts.`,
+      why: `Not enough to go on yet, so every clinic still sends at ${hourLabel(incumbent)}. An hour needs ${MIN_SENDS_PER_HOUR} sends across at least ${MIN_CLINICS_PER_HOUR} practices before it counts.`,
       sampleSends,
     }
   }
@@ -119,12 +138,12 @@ export function learnBestSendHour(stats: readonly HourStat[]): SendHourFinding {
     return d > 0 || (d === 0 && b.hour < a.hour) ? b : a
   })
 
-  const standing = eligible.find((s) => s.hour === DEFAULT_SEND_HOUR)
-  if (best.hour === DEFAULT_SEND_HOUR) {
+  const standing = eligible.find((s) => s.hour === incumbent)
+  if (best.hour === incumbent) {
     return {
-      hour: DEFAULT_SEND_HOUR,
+      hour: incumbent,
       learned: true,
-      why: `${hourLabel(DEFAULT_SEND_HOUR)} really is the best hour to send — ${Math.round(rate(best) * 100)}% of those get opened, across ${best.clinics} practices.`,
+      why: `${hourLabel(incumbent)} really is the best hour to send — ${Math.round(rate(best) * 100)}% of those get opened, across ${best.clinics} practices.`,
       sampleSends,
     }
   }
@@ -134,9 +153,9 @@ export function learnBestSendHour(stats: readonly HourStat[]): SendHourFinding {
   // beat, and the winner stands on its own.
   if (standing && rate(best) - rate(standing) < MIN_LIFT) {
     return {
-      hour: DEFAULT_SEND_HOUR,
+      hour: incumbent,
       learned: false,
-      why: `${hourLabel(best.hour)} is doing slightly better than ${hourLabel(DEFAULT_SEND_HOUR)}, but not by enough to be sure. Staying at ${hourLabel(DEFAULT_SEND_HOUR)} until it is.`,
+      why: `${hourLabel(best.hour)} is doing slightly better than ${hourLabel(incumbent)}, but not by enough to be sure. Staying at ${hourLabel(incumbent)} until it is.`,
       sampleSends,
     }
   }

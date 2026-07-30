@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import type { ClinicEngineReport, GuardianSweep } from '@/lib/services/guardian'
 import { clinicActionable, type EngineState, type GuardianAudience } from '@/lib/guardian'
 import GuardianAudienceControl from './guardian-audience-control'
@@ -68,12 +67,13 @@ function ReportRow({
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/ecommerce/customers?q=${encodeURIComponent(report.clinicName)}`}
-              className="text-sm font-semibold text-gray-800 dark:text-gray-100 hover:underline"
-            >
+            {/* Plain text, not a link (round-1 audit): this used to carry a
+                ?q= the clinics list never reads, so it looked like a
+                drill-in and was really just "go to the clinics page". A
+                dead-end link is a worse promise than no link. */}
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
               {report.clinicName}
-            </Link>
+            </span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.chip}`}>
               {style.label}
             </span>

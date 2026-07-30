@@ -45,6 +45,19 @@ export default function SharedBrainCard({ brain }: { brain: SharedBrain }) {
               Every clinic&rsquo;s automatic campaigns aim at this hour, in their own time zone.
               Patterns only &mdash; no patient data leaves a practice.
             </p>
+            {/* WHEN it last looked (round-1 in-phase gap). The weekly cron
+                stamped learnedAt and nothing ever read it, so a learning
+                pass that silently stopped firing would look exactly like a
+                platform that had not learned anything yet — the same
+                confusion the Guardian exists to remove, aimed at ourselves. */}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {brain.learnedAt
+                ? `Last looked ${new Date(brain.learnedAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })}.`
+                : 'Has not run yet.'}
+            </p>
           </div>
         </div>
       </div>

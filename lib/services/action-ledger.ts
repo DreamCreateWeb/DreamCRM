@@ -60,9 +60,10 @@ const autonomousOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomous'
 /** The same rule in SQL, for the grouped count. Built per call, not at
  *  module scope: a module-level template would touch the schema at import
  *  time, which every test that mocks a slim schema would explode on. */
-const workOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomyChange') is null
+export const workOnly = () => sql`(${schema.actionLedger.detail} ->> 'autonomyChange') is null
   and (${schema.actionLedger.detail} ->> 'autoFailure') is distinct from 'true'
-  and (${schema.actionLedger.detail} ->> 'failure') is distinct from 'true'`
+  and (${schema.actionLedger.detail} ->> 'failure') is distinct from 'true'
+  and (${schema.actionLedger.detail} ->> 'report') is distinct from 'true'`
 
 /**
  * THE FAILURE VOCABULARY (Phase 4 — the Guardian). Until now the ledger
@@ -220,7 +221,16 @@ export async function hasEntryForProposal(
 export function isWorkEntry(detail: unknown): boolean {
   if (!detail || typeof detail !== 'object') return true
   const d = detail as Record<string, unknown>
-  return d.autonomyChange === undefined && d.autoFailure !== true && d.failure !== true
+  return (
+    d.autonomyChange === undefined &&
+    d.autoFailure !== true &&
+    d.failure !== true &&
+    // A REPORT (Phase 4): the Guardian's own heads-up. Round-1 audit — it
+    // counted as work, so the machine noticing a clinic was silent made
+    // that clinic look less silent in the very liveness test that produced
+    // the note. A watcher must not be able to satisfy its own alarm.
+    d.report !== true
+  )
 }
 /** Per-capability counts in a window — the standup's "41 reminders,
  *  4 posts, 6 answers" line in one query. `until` exclusive, as above.

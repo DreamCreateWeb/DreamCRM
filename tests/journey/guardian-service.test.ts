@@ -45,6 +45,9 @@ vi.mock('@/lib/db', () => {
     const filters: Array<(r: Record<string, unknown>) => boolean> = []
     const api: Record<string, unknown> = {}
     api.from = (t: { __name: string }) => { table = t.__name; return api }
+    // The org read LEFT JOINs clinic_profile for the lifecycle columns; the
+    // fixture carries them on the org row, so the join is a no-op here.
+    api.leftJoin = () => api
     api.where = (preds: unknown) => {
       if (Array.isArray(preds)) for (const p of preds) filters.push(p as never)
       else if (typeof preds === 'function') filters.push(preds as never)
@@ -83,6 +86,13 @@ vi.mock('@/lib/db', () => {
         type: col('type'),
         isDemo: col('isDemo'),
         createdAt: col('createdAt'),
+      },
+      clinicProfile: {
+        __name: 'clinic_profile',
+        organizationId: col('organizationId'),
+        trialEndsAt: col('trialEndsAt'),
+        subscriptionStatus: col('subscriptionStatus'),
+        stripeSubscriptionId: col('stripeSubscriptionId'),
       },
       actionLedger: {
         __name: 'action_ledger',

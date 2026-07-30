@@ -169,3 +169,38 @@ describe('getActiveGuardianNote', () => {
     expect(await getActiveGuardianNote('org_1', NOW)).toBeNull()
   })
 })
+
+/**
+ * THE LIVE RE-DERIVE (round-1 audit). The re-verification used to be
+ * all-or-nothing: it cleared the note only when BOTH switches were back on,
+ * so a practice that turned one back on kept reading a note insisting both
+ * were off — the machine telling somebody something untrue about their own
+ * settings, which is the exact failure the live check exists to prevent.
+ */
+describe('getActiveGuardianNote — the sentence is re-derived, not replayed', () => {
+  it('a "both off" note becomes a single-switch note when one comes back on', async () => {
+    state.rows = [note('blocked', 'Appointment reminders and automatic review requests are both switched off right now, so I can’t send either.')]
+    state.switches = { remindersOn: true, reviewRequestsOn: false }
+
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r).not.toBeNull()
+    expect(r!.summary).toMatch(/review requests/i)
+    // It must no longer claim reminders are off — they are not.
+    expect(r!.summary).not.toMatch(/appointment reminders/i)
+  })
+
+  it('reports WHICH switches are off, so the card can link to the right page', async () => {
+    state.rows = [note('blocked')]
+    state.switches = { remindersOn: false, reviewRequestsOn: true }
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r!.remindersOn).toBe(false)
+    expect(r!.reviewRequestsOn).toBe(true)
+  })
+
+  it('a stall note is replayed as written — its window is closed and cannot go stale', async () => {
+    state.rows = [note('stalled', 'Fewer new patients came in this past month')]
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r!.summary).toBe('Fewer new patients came in this past month')
+    expect(r!.remindersOn).toBeUndefined()
+  })
+})
