@@ -110,6 +110,16 @@ export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
           )}
         </div>
 
+        {/* A BUSY WEEK HIDES FAILURES JUST AS WELL AS A QUIET ONE
+            (round-10 in-phase gap). The chips below are work-only by law,
+            so "41 reminders, 6 answers" is a clean report in a week four
+            jobs broke. Round 9 taught the quiet branch to say so and left
+            this one — the branch a working practice reads fifty weeks a
+            year — asserting an all-clear by omission. */}
+        {standup.failureNote && (
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{standup.failureNote}</p>
+        )}
+
         <ul className="mt-3 flex flex-wrap gap-2">
           {standup.lines.slice(0, 8).map((l) => (
             <li

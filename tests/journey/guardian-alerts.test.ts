@@ -234,6 +234,35 @@ describe('runGuardianSweep', () => {
     expect(store.profiles[0].guardianState).toBe('healthy')
   })
 
+  it('with the lock OPEN, a switch recovery does NOT email the owner (round-10 audit)', async () => {
+    // The clinic heard that alarm, not the owner — and it closes itself,
+    // because the note is re-derived from live switches and disappears the
+    // moment they flip one back on. Round 9's guard asked clinicActionable
+    // against TODAY's signals, which are healthy on a recovery by
+    // definition, so it fired in exactly the case it was meant to exclude.
+    lock.audience = 'clinic'
+    store.profiles[0].guardianState = 'blocked'
+    store.profiles[0].guardianAlertedAt = daysAgo(2)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.stoodDown).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+  })
+
+  it('with the lock OPEN, a SILENT recovery still emails the owner', async () => {
+    // Silence never reaches a practice at any setting, so that alarm was
+    // always the owner's — and so is its all-clear.
+    lock.audience = 'clinic'
+    store.profiles[0].guardianState = 'silent'
+    store.profiles[0].guardianAlertedAt = daysAgo(2)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.stoodDown).toBe(1)
+    expect(mail.sent).toHaveLength(1)
+  })
+
   it('never stands down a problem nobody was ever told about', async () => {
     // No memory = nothing was raised. An all-clear for an alarm that never
     // sounded is noise, and noise is how a guardian gets muted.

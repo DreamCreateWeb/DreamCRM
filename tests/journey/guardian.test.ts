@@ -8,7 +8,10 @@ import {
   summarizeSweep,
   shouldAlert,
   shouldStandDown,
+  standDownGoesToOwner,
   resolveGuardianHeartbeat,
+  guardianHeartbeatStale,
+  GUARDIAN_STALE_DAYS,
   ENGINE_STATE_RANK,
   NOTE_VISIBLE_DAYS,
   FAILURE_ALARM_COUNT,
@@ -590,5 +593,68 @@ describe('no calm verdict ignores a failure to stay calm (round-9 sibling sweep)
         `${v.state} said nothing about 2 failures: ${v.why}`,
       ).toBe(true)
     }
+  })
+})
+
+
+describe('standDownGoesToOwner — may the OWNER hear this all-clear? (round-10 audit)', () => {
+  it('at platform, every recovery is theirs — every finding went to them', () => {
+    for (const was of ['silent', 'blocked', 'stalled'] as EngineState[]) {
+      expect(standDownGoesToOwner('platform', was)).toBe(true)
+    }
+  })
+
+  it('at clinic, a switch recovery is NOT theirs to hear', () => {
+    // The round-9 guard asked `clinicActionable` against TODAY's signals,
+    // and that is inverted in the principal case: the only clinic-actionable
+    // `blocked` shape is both-switches-off, and it recovers BY the switches
+    // going back on — so today's signals always said "not theirs" and the
+    // owner was emailed an all-clear for an alarm only the practice got.
+    expect(standDownGoesToOwner('clinic', 'blocked')).toBe(false)
+    expect(standDownGoesToOwner('clinic', 'stalled')).toBe(false)
+  })
+
+  it('at clinic, a SILENT recovery is still theirs — silence never reaches a practice', () => {
+    expect(standDownGoesToOwner('clinic', 'silent')).toBe(true)
+  })
+
+  it('never contradicts clinicActionable for the states where it is signal-free', () => {
+    // `stalled` is unconditionally the practice's and `silent` never is;
+    // only `blocked` is ambiguous, and that is the one we withhold.
+    const anySignals = sig()
+    expect(clinicActionable('stalled', anySignals)).toBe(true)
+    expect(standDownGoesToOwner('clinic', 'stalled')).toBe(false)
+    expect(clinicActionable('silent', anySignals)).toBe(false)
+    expect(standDownGoesToOwner('clinic', 'silent')).toBe(true)
+  })
+})
+
+describe('guardianHeartbeatStale — a job that STOPPED, not one that never started', () => {
+  const NOW_T = new Date('2026-07-29T14:00:00Z')
+  const ago = (d: number) => new Date(NOW_T.getTime() - d * 24 * 60 * 60 * 1000).toISOString()
+  const beat = (ranAt: string | null) => ({
+    ranAt,
+    scanned: 1,
+    flagged: 0,
+    undelivered: 0,
+    blind: false,
+  })
+
+  it('a run today is not stale', () => {
+    expect(guardianHeartbeatStale(beat(ago(0)), NOW_T)).toBe(false)
+    expect(guardianHeartbeatStale(beat(ago(1)), NOW_T)).toBe(false)
+  })
+
+  it('past the window it is stale — the failure this repo has actually had', () => {
+    // A daily cron that silently stops looks EXACTLY like a healthy one on
+    // a live-rendered panel, which is the drift CLAUDE.md records (five jobs
+    // dead until the deploy started re-running the schedule script).
+    expect(guardianHeartbeatStale(beat(ago(GUARDIAN_STALE_DAYS + 1)), NOW_T)).toBe(true)
+    expect(guardianHeartbeatStale(beat(ago(60)), NOW_T)).toBe(true)
+  })
+
+  it('never-ran and unparseable are NOT stale — they are their own, louder states', () => {
+    expect(guardianHeartbeatStale(beat(null), NOW_T)).toBe(false)
+    expect(guardianHeartbeatStale(beat('not a date'), NOW_T)).toBe(false)
   })
 })

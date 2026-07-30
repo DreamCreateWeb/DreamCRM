@@ -192,6 +192,30 @@ export interface SharedBrain {
   sendHourWhy: string
   /** ISO instant of the last successful learning pass, or null. */
   learnedAt: string | null
+  /**
+   * Sends the last pass actually looked at (round-10 in-phase gap).
+   *
+   * `SendHourFinding.sampleSends` was computed on every path and documented
+   * "for the owner's own sense of the sample", and then never stored and
+   * never rendered. That matters more here than it would elsewhere: the
+   * brain SHIPS INERT, so for months the owner's only output from slice 5 is
+   * a card saying "Still learning" and quoting the floors — with no reading
+   * against them. "200 sends across 3 practices" next to "we have seen 46"
+   * is the difference between an honest wait and a magic number, which is
+   * the whole reason this card exists.
+   */
+  sampleSends: number
+}
+
+/** The weekly pass is stale after this. A missed week is a blip; two is the
+ *  cron having stopped, which is the failure this repo has actually had. */
+export const BRAIN_STALE_DAYS = 15
+
+export function brainStale(brain: SharedBrain, now: Date): boolean {
+  if (!brain.learnedAt) return false
+  const at = new Date(brain.learnedAt).getTime()
+  if (Number.isNaN(at)) return false
+  return now.getTime() - at > BRAIN_STALE_DAYS * 24 * 60 * 60 * 1000
 }
 
 /**
@@ -207,6 +231,7 @@ export function resolveSharedBrain(stored: unknown): SharedBrain {
     sendHourLearned: false,
     sendHourWhy: 'Still learning.',
     learnedAt: null,
+    sampleSends: 0,
   }
   if (!stored || typeof stored !== 'object') return fallback
   const brain = (stored as Record<string, unknown>).sharedBrain
@@ -232,5 +257,9 @@ export function resolveSharedBrain(stored: unknown): SharedBrain {
     sendHourLearned: hour === raw && b.sendHourLearned === true,
     sendHourWhy: typeof b.sendHourWhy === 'string' && b.sendHourWhy ? b.sendHourWhy : fallback.sendHourWhy,
     learnedAt: typeof b.learnedAt === 'string' ? b.learnedAt : null,
+    sampleSends:
+      typeof b.sampleSends === 'number' && Number.isFinite(b.sampleSends) && b.sampleSends >= 0
+        ? Math.floor(b.sampleSends)
+        : 0,
   }
 }

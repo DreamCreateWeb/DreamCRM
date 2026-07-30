@@ -65,6 +65,19 @@ export interface WeeklyStandup {
    *  healthy idle clinic and a switched-off engine never look the same).
    *  Set ONLY when totalActions === 0; the card renders it. */
   quietNote: string | null
+  /**
+   * "Some of my own jobs hit trouble" — on EVERY week, not only quiet ones
+   * (round-10 in-phase gap).
+   *
+   * Round 9 taught the quiet branch to stop claiming an all-clear when the
+   * ledger held failures, and left the busy branch — the one a working
+   * practice actually reads, fifty weeks a year — reporting "41 reminders,
+   * 6 answers" with no mention that four jobs broke. Work counts EXCLUDE
+   * failures by law, so a busy week is exactly as capable of hiding them as
+   * a quiet one; the sibling was simply never swept. Null when nothing
+   * failed.
+   */
+  failureNote: string | null
   /** True when the whole window predates the clinic's account (round-3
    *  audit): a three-day-old clinic must never read a confident report —
    *  even "a quiet week" — about a week it wasn't a customer. The card
@@ -181,6 +194,20 @@ export async function buildWeeklyStandup(
   // quiet week is narrated from automation-CONFIG cross-checks, so "nothing
   // needed doing" and "nothing ran because a switch is off" never look the
   // same. Only computed when there is nothing else to say.
+  // EVERY week reads the failures, not only the quiet ones (round-10 gap).
+  // Best-effort: an unreadable count reads as zero, which never invents
+  // trouble that wasn't there.
+  const failures = predatesAccount
+    ? 0
+    : await countFailuresSince(organizationId, weekStart, { until: weekEnd }).catch((e) => {
+        console.error('[standup] failure count failed', e)
+        return 0
+      })
+  const failureNote =
+    failures > 0
+      ? `${failures === 1 ? '1 job of mine' : `${failures} jobs of mine`} hit trouble and didn’t get through. That’s mine to sort out, and I’m on it.`
+      : null
+
   let quietNote: string | null = null
   if (totalActions === 0 && !predatesAccount) {
     // AND THE FAILURES (round-9 audit). `totalActions` is WORK-only by law,
@@ -193,15 +220,7 @@ export async function buildWeeklyStandup(
     // its sibling here asserting an all-clear — the phase's signature
     // defect, on the product's flagship honesty surface.
     //
-    // Best-effort: an unreadable count reads as zero failures, which is the
-    // pre-existing behaviour and never invents trouble that wasn't there.
-    const [engine, failures] = await Promise.all([
-      readEngineSwitches(organizationId),
-      countFailuresSince(organizationId, weekStart, { until: weekEnd }).catch((e) => {
-        console.error('[standup] failure count failed', e)
-        return 0
-      }),
-    ])
+    const engine = await readEngineSwitches(organizationId)
     // Mine to fix, not theirs to chase — the same law that keeps failure
     // findings away from the Guardian's clinic audience. It is named, it is
     // owned, and it asks nothing of them.
@@ -242,6 +261,7 @@ export async function buildWeeklyStandup(
     humanTasks: { openProposals, followupsDue },
     quiet: totalActions === 0 && openProposals === 0 && followupsDue === 0,
     quietNote,
+    failureNote,
     predatesAccount,
   }
 }
@@ -295,6 +315,13 @@ export function renderStandupEmailBody(s: WeeklyStandup, clinicName: string): st
   } else {
     // The config-cross-checked quiet narration — never a bare zero.
     parts.push(`• ${s.quietNote ?? 'A quiet week on my side — nothing needed sending.'}`)
+  }
+  // A busy week hides failures exactly as well as a quiet one, because the
+  // counts above are work-only by law (round-10 gap). The quiet branch
+  // already carries this inside `quietNote`.
+  if (s.failureNote && s.lines.length > 0) {
+    parts.push('')
+    parts.push(s.failureNote)
   }
   if (s.newPatientsSeated > 0 || s.reviewsReceived > 0) {
     parts.push('')

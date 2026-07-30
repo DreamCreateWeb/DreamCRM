@@ -330,6 +330,36 @@ describe('buildWeeklyStandup', () => {
     expect(s.quietNote).toContain('mine to sort out')
   })
 
+  it('a BUSY week says so too — work counts hide failures just as well (round-10 gap)', async () => {
+    // Round 9 taught the QUIET branch and left this one: the counts are
+    // work-only by law, so "41 reminders, 6 answers" is a clean report in a
+    // week four jobs broke — and this is the branch a working practice
+    // reads fifty weeks a year.
+    ledger.counts = { appointment_reminder: 41, inquiry_response: 6 }
+    ledger.failures = 4
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.totalActions).toBe(47)
+    expect(s.quietNote).toBeNull()
+    expect(s.failureNote).toContain('4 jobs of mine')
+    expect(s.failureNote).toContain('mine to sort out')
+  })
+
+  it('a clean busy week says nothing about failures', async () => {
+    ledger.counts = { appointment_reminder: 41 }
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.failureNote).toBeNull()
+  })
+
+  it('a week that predates the account never counts failures either', async () => {
+    // Nothing about a period the clinic was not a customer, including ours.
+    store.orgs = [{ id: ORG, createdAt: new Date('2026-07-27T00:00:00Z') }]
+    ledger.failures = 3
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.predatesAccount).toBe(true)
+    expect(s.failureNote).toBeNull()
+    expect(ledger.failureCalls).toHaveLength(0)
+  })
+
   it('the failure count reads the SAME window as the work count', async () => {
     ledger.failures = 1
     await buildWeeklyStandup(ORG, MONDAY)

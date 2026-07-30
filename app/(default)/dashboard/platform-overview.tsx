@@ -4,9 +4,8 @@ import { getClinicGrowth } from '@/lib/services/platform-metrics'
 import { getAttentionItems, getRecentPlatformActivity } from '@/lib/services/operations'
 import { getPmsDemand } from '@/lib/services/pms-interest'
 import { cachedEngineHealth } from '@/lib/services/guardian'
-import { getGuardianAudience, readPlatformConfig } from '@/lib/services/platform-config'
-import { resolveGuardianHeartbeat } from '@/lib/guardian'
-import { getSharedBrain } from '@/lib/services/shared-brain'
+import { readPlatformConfigStrict } from '@/lib/services/platform-config'
+import { resolveGuardianAudience, resolveGuardianHeartbeat } from '@/lib/guardian'
 import { resolveSharedBrain } from '@/lib/shared-brain'
 import SharedBrainCard from './shared-brain-card'
 import GuardianPanel from './guardian-panel'
@@ -53,9 +52,7 @@ export default async function PlatformOverview() {
     activity,
     pmsDemand,
     engineHealth,
-    guardianAudience,
-    sharedBrain,
-    guardianHeartbeat,
+    platformConfig,
   ] = await Promise.all([
     getSubscriptionStats(),
     // New clinic signups per week, last 12 weeks — the Active Clinics tile's
@@ -81,24 +78,32 @@ export default async function PlatformOverview() {
         blind: true,
       }
     }),
-    // Floored at 'platform' by the service; floored again here so a failed
-    // read can never render the panel as though practices are being told.
-    getGuardianAudience().catch(() => 'platform' as const),
-    // THE SHARED BRAIN (Phase 4): floored at the shipped defaults inside the
-    // resolver, and floored again here — the panel must never claim the
-    // platform learned something because a read failed.
-    getSharedBrain()
-      .then((b) => ({ brain: b, unreadable: false }))
+    // ONE STRICT READ for all three platform_config surfaces — the audience
+    // lock, the shared brain and the Guardian's heartbeat (round-10 audit).
+    //
+    // Round 9 gave the brain card and the heartbeat an "I couldn't read it"
+    // state and then wired both to `readPlatformConfig`, which SWALLOWS
+    // every error and returns `{}` — so neither `.catch` could ever fire and
+    // both honesty branches were dead code. Exactly the trapdoor round 7
+    // built `readPlatformConfigStrict` to close ("a caller that needs to
+    // tell 'we know it is 10' from 'we could not find out' needs a read that
+    // can say so"), walked into again on the read side.
+    //
+    // Strict, so a real failure is a real failure — and one query instead of
+    // three, since all three keys live in the same row.
+    readPlatformConfigStrict()
+      .then((config) => ({ config, unreadable: false }))
       .catch((e) => {
-        console.error('[shared-brain] read failed for the overview', e)
-        return { brain: resolveSharedBrain(null), unreadable: true }
+        console.error('[platform-config] overview read failed', e)
+        return { config: {} as Record<string, unknown>, unreadable: true }
       }),
-    // The watcher's own last run. Floored at "never" so a dead cron rule
-    // says so instead of hiding behind a live-rendered panel.
-    readPlatformConfig()
-      .then(resolveGuardianHeartbeat)
-      .catch(() => resolveGuardianHeartbeat(null)),
   ])
+  // The audience still FLOORS at 'platform' on the failure path — the one
+  // thing that must never be undefined is who the machine is allowed to talk
+  // to, and an unreadable config means "closed", not "unknown".
+  const guardianAudience = resolveGuardianAudience(platformConfig.config)
+  const sharedBrain = resolveSharedBrain(platformConfig.config)
+  const guardianHeartbeat = resolveGuardianHeartbeat(platformConfig.config)
   const pmsWanted = pmsDemand.filter((d) => d.pending > 0)
 
   return (
@@ -124,9 +129,10 @@ export default async function PlatformOverview() {
         sweep={engineHealth}
         audience={guardianAudience}
         heartbeat={guardianHeartbeat}
+        heartbeatUnreadable={platformConfig.unreadable}
       />
 
-      <SharedBrainCard brain={sharedBrain.brain} unreadable={sharedBrain.unreadable} />
+      <SharedBrainCard brain={sharedBrain} unreadable={platformConfig.unreadable} />
 
       {/* ── Today's pulse — 4 status numbers, no trends ────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

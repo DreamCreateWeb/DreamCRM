@@ -660,10 +660,15 @@ export type StripeWebhookEvent = typeof stripeWebhookEvent.$inferSelect
 /**
  * PLATFORM-GLOBAL CONFIG (Phase 4). One row, id 'default' — the same shape
  * prospecting_config uses. Holds the switches that belong to Dream Create
- * rather than to any clinic; today that is the Guardian's audience lock plus the shared brain's learned defaults
- * (`{ guardianAudience: 'platform' | 'clinic' }`, floored at 'platform' by
- * resolveGuardianAudience so an absent or malformed row can never start
- * talking to customers).
+ * rather than to any clinic. Today: `guardianAudience` (floored at
+ * 'platform' by resolveGuardianAudience, so an absent or malformed row can
+ * never start the machine talking to customers), `sharedBrain` (the learned
+ * send hour), and `guardian` (the daily watch's own heartbeat).
+ *
+ * EVERY WRITER OWNS ITS OWN TOP-LEVEL KEY and passes it whole, because
+ * `writePlatformConfig` merges shallowly — a read-modify-write here drops
+ * another subsystem's key silently. Keep this list current: it is the
+ * sentence a writer reads before deciding it is safe to replace the row.
  */
 export const platformConfig = pgTable('platform_config', {
   id: text('id').primaryKey(), // 'default'

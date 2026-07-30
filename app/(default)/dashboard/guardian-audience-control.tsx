@@ -14,10 +14,12 @@ import { setGuardianAudienceAction } from './admin-actions'
  */
 export default function GuardianAudienceControl({
   audience,
-  /** How many practices would hear something TODAY if the lock opened, or
-   *  null when the sweep couldn't look — a decision this consequential
+  /** How many practices have a finding they'd be told if the lock opened,
+   *  or null when the sweep couldn't look — a decision this consequential
    *  should never be taken against a number the machine had to guess
-   *  (round-9 in-phase gap). */
+   *  (round-9 in-phase gap). Deliberately NOT "today": delivery also waits
+   *  on the weekly alert cadence, which this component cannot see, and
+   *  round 10 caught the copy claiming otherwise. */
   wouldHear = null,
 }: {
   audience: GuardianAudience
@@ -59,10 +61,10 @@ export default function GuardianAudienceControl({
             {wouldHear === null
               ? 'Let practices hear the things they can fix?'
               : wouldHear === 0
-                ? 'Let practices hear the things they can fix? Nothing would go out today.'
+                ? 'Let practices hear the things they can fix? Nothing is waiting to go out.'
                 : `Let practices hear the things they can fix? ${wouldHear} ${
-                    wouldHear === 1 ? 'practice would' : 'practices would'
-                  } hear something today.`}
+                    wouldHear === 1 ? 'practice has' : 'practices have'
+                  } something they'd be told, as each one's weekly cadence comes round.`}
           </span>
           <button
             type="button"

@@ -1,4 +1,10 @@
-import type { SharedBrain } from '@/lib/shared-brain'
+import {
+  brainStale,
+  BRAIN_STALE_DAYS,
+  MIN_CLINICS_PER_HOUR,
+  MIN_SENDS_PER_HOUR,
+  type SharedBrain,
+} from '@/lib/shared-brain'
 
 /**
  * WHAT THE PLATFORM HAS LEARNED (Transformation Phase 4 — the shared brain).
@@ -77,14 +83,48 @@ export default function SharedBrainCard({
                 pass that silently stopped firing would look exactly like a
                 platform that had not learned anything yet — the same
                 confusion the Guardian exists to remove, aimed at ourselves. */}
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {brain.learnedAt
-                ? `Last looked ${new Date(brain.learnedAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  })}.`
-                : 'Has not run yet.'}
-            </p>
+            {/* THE SAMPLE, against the floors it has to clear (round-10
+                in-phase gap). The brain ships inert on purpose, so for
+                months this card's only content is "Still learning" plus two
+                thresholds — and a threshold with no reading against it is
+                the magic number the card exists to replace. */}
+            {!brain.sendHourLearned && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {brain.sampleSends > 0
+                  ? `${brain.sampleSends.toLocaleString('en-US')} sends looked at so far. An hour needs ${MIN_SENDS_PER_HOUR} of them, across ${MIN_CLINICS_PER_HOUR} different practices, before it counts.`
+                  : `Nothing to weigh yet. An hour needs ${MIN_SENDS_PER_HOUR} sends across ${MIN_CLINICS_PER_HOUR} different practices before it counts.`}
+              </p>
+            )}
+            {/* WHEN it last looked (round-1 in-phase gap), and whether it
+                has STOPPED looking (round-10). A stored instant used to
+                render as quiet grey text forever, never compared to now —
+                but after the first pass "never ran" is no longer reachable
+                and a dead schedule is the only real failure left. This repo
+                has had exactly that (the EventBridge drift in CLAUDE.md). */}
+            {(() => {
+              const stale = brainStale(brain, new Date())
+              return (
+                <p
+                  className={`mt-1 text-xs ${
+                    stale
+                      ? 'text-amber-700 dark:text-amber-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  {brain.learnedAt
+                    ? `Last looked ${new Date(brain.learnedAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        timeZone: 'UTC',
+                      })}.${
+                        stale
+                          ? ` Nothing since — the weekly pass has not run in over ${BRAIN_STALE_DAYS} days.`
+                          : ''
+                      }`
+                    : 'Has not run yet.'}
+                </p>
+              )
+            })()}
           </div>
         </div>
       </div>

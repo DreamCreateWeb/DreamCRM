@@ -157,7 +157,7 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
         hour: current.sendHour,
         learned: current.sendHourLearned,
         why: current.sendHourWhy,
-        sampleSends: 0,
+        sampleSends: current.sampleSends,
       },
     }
   }
@@ -169,6 +169,9 @@ export async function runSharedBrainLearning(now: Date = new Date()): Promise<Le
       sendHourLearned: finding.learned,
       sendHourWhy: finding.why,
       learnedAt: now.toISOString(),
+      // Stored so the card can show the sample against the floors — the
+      // difference between an honest wait and a magic number (round-10 gap).
+      sampleSends: finding.sampleSends,
     },
   })
   return { ok: true, finding }

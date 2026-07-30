@@ -1630,3 +1630,60 @@ today — so the owner's first sight of that copy is not a customer reading it.
 - *Never store a field nobody reads.* Slice 4 was pulled up for exactly that;
   the heartbeat's `blind` flag was written and dropped by the resolver in the
   same hour, and is now read.
+
+**Attempt 5 (round 10) — NOT CLEAN.** 4 distinct defects (8 confirmed, with
+duplicates) + 3 in-phase gaps. **Three of the four were defects IN THE
+ROUND-9 FIXES**, which is the sharpest signal yet: at this depth the phase's
+remaining risk is not the original code, it is the corrections.
+
+- **Both "I couldn't read it" states round 9 added were DEAD CODE.** The
+  shared-brain card's `unreadable` branch and the Guardian heartbeat's
+  fallback were wired to `readPlatformConfig`, which swallows every error and
+  returns `{}` — so neither `.catch` could ever fire, and a transient DB blip
+  still rendered "Still learning" and "I haven't completed a daily check yet",
+  the two claims the fixes existed to prevent. Round 7 had already built
+  `readPlatformConfigStrict` for exactly this and left it with one consumer.
+  Fixed with ONE strict read serving all three platform_config surfaces, and
+  a source-scanning guard (the defect is a branch that never executes, which
+  no behavioural test can observe by construction) with a negative control.
+- **The stand-down guard was inverted in its principal case.** Round 9 asked
+  `clinicActionable` against TODAY's signals to decide whether the owner
+  should hear an all-clear — but the only clinic-actionable `blocked` shape
+  is both-switches-off, and it recovers BY the switches going back on, so
+  today's signals always answered "not theirs" and the owner was emailed an
+  all-clear for an alarm only the practice ever received. Replaced with a
+  signals-free `standDownGoesToOwner`, which errs toward silence on the one
+  genuinely ambiguous case.
+- **The dry run claimed practices "would hear something today"** when the
+  cadence guarantees they will not: delivery needs the routing rule AND
+  `shouldAlert`, and at the moment the lock opens every flagged clinic
+  already carries its state from earlier owner-audience runs. The count was
+  right; "today" was the false part, on the phase's single most consequential
+  control.
+- `platform-config.ts`'s and the schema's own docstrings still said "two
+  top-level keys" after the heartbeat added a third — CLAUDE.md was swept in
+  round 9 and the two files nearest the code were not. That sentence is
+  load-bearing: it is what a writer reads before deciding a read-modify-write
+  is safe.
+
+**In-phase gaps shipped:** the standup's BUSY-week branch now admits failures
+too (round 9 taught the quiet branch and left the one a working practice
+reads fifty weeks a year); both heartbeats detect **stopped**, not just
+**never started** (a stored instant rendered as quiet grey text forever,
+never compared to now — and a silently dying cron is the failure this repo
+has actually had); and `sampleSends` finally reaches the owner, so "Still
+learning" can say how close, instead of quoting floors with no reading
+against them.
+
+**Standing lessons added:**
+- *An error branch attached to a read that swallows its own errors is dead
+  code.* Every new "I couldn't" state must be traced to a call that can
+  actually reject — and if the only available reader floors internally, the
+  fix is a strict variant, not a `.catch`.
+- *A fix is a change, and changes need the same sweep the original code got.*
+  Three of round 10's four defects were in round 9's corrections. Re-run the
+  class sweep over the DIFF OF THE FIX, not only over the code it fixed.
+- *Never store a field nothing renders* (third occurrence — `openProposals`
+  in slice 4, the heartbeat's `blind` in round 9, `sampleSends` and the
+  heartbeat's `scanned`/`flagged` here). Storing and rendering must land in
+  the same commit.

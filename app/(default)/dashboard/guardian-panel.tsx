@@ -3,6 +3,8 @@ import type { ClinicEngineReport, GuardianSweep } from '@/lib/services/guardian'
 import {
   clinicActionable,
   clinicNote,
+  guardianHeartbeatStale,
+  GUARDIAN_STALE_DAYS,
   type EngineState,
   type GuardianAudience,
   type GuardianHeartbeat,
@@ -143,7 +145,18 @@ function ReportRow({
 /** The watcher's own last run. "Has not run yet" is a real answer and the
  *  one that matters — a dead cron rule otherwise looks exactly like a
  *  healthy platform, because the panel renders live either way. */
-function HeartbeatLine({ beat }: { beat: GuardianHeartbeat }) {
+function HeartbeatLine({ beat, unreadable }: { beat: GuardianHeartbeat; unreadable: boolean }) {
+  // "I could not read it" is not "it never ran" (round-10 audit). Round 9
+  // wired this to a read that swallows its own errors, so the amber "never
+  // ran" line was what a DB blip rendered — a false claim about the cron on
+  // the one surface that exists to tell the truth about the cron.
+  if (unreadable) {
+    return (
+      <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+        (I couldn&rsquo;t read my own run log just now.)
+      </span>
+    )
+  }
   if (!beat.ranAt) {
     return (
       <span className="text-xs font-normal text-amber-700 dark:text-amber-400">
@@ -151,6 +164,10 @@ function HeartbeatLine({ beat }: { beat: GuardianHeartbeat }) {
       </span>
     )
   }
+  // STOPPED, not merely never-started (round-10 in-phase gap). After the
+  // first run this is the only real failure mode, and it is the one this
+  // repo has actually had.
+  const stale = guardianHeartbeatStale(beat, new Date())
   const when = new Date(beat.ranAt)
   const label = Number.isNaN(when.getTime())
     ? null
@@ -160,12 +177,19 @@ function HeartbeatLine({ beat }: { beat: GuardianHeartbeat }) {
   return (
     <span
       className={`text-xs font-normal ${
-        beat.blind || beat.undelivered > 0
+        stale || beat.blind || beat.undelivered > 0
           ? 'text-amber-700 dark:text-amber-400'
           : 'text-gray-500 dark:text-gray-400'
       }`}
     >
       {label ? `Last checked ${label}` : 'Last check recorded'}
+      {/* What that RUN saw, not what this page sees — they diverge exactly
+          when it matters (a blind or partial sweep under a healthy page),
+          and storing a number nothing renders is the defect slice 4 was
+          pulled up for. */}
+      {` · ${beat.scanned} ${beat.scanned === 1 ? 'practice' : 'practices'}`}
+      {beat.flagged > 0 && `, ${beat.flagged} flagged`}
+      {stale && ` · nothing since — the daily check has not run in over ${GUARDIAN_STALE_DAYS} days`}
       {beat.blind && ' · that run couldn’t see'}
       {beat.undelivered > 0 &&
         ` · ${beat.undelivered} report${beat.undelivered === 1 ? '' : 's'} couldn’t be delivered`}
@@ -177,10 +201,12 @@ export default function GuardianPanel({
   sweep,
   audience,
   heartbeat,
+  heartbeatUnreadable = false,
 }: {
   sweep: GuardianSweep
   audience: GuardianAudience
   heartbeat: GuardianHeartbeat
+  heartbeatUnreadable?: boolean
 }) {
   // No clinics yet: the guardian has nothing to REPORT, and a loud empty
   // state would be noise on a brand-new platform. But the audience lock's
@@ -194,8 +220,18 @@ export default function GuardianPanel({
   // all-clear on precisely the day the watcher could not see. The service
   // says which it is; this asks.
   const nothingToReport = !sweep.blind && sweep.reports.length === 0
-  // How many practices would hear something today if the lock opened — the
-  // number the confirm step needs to stop being a blind decision.
+  // How many practices have something they'd be told if the lock opened —
+  // the number the confirm step needs to stop being a blind decision.
+  //
+  // NOT "today" (round-10 audit). Delivery needs the ROUTING rule (this) AND
+  // the CADENCE rule (`shouldAlert`), and the panel has no access to the
+  // second: at the moment the lock opens, every flagged clinic already
+  // carries its current state from earlier owner-audience runs, so nothing
+  // is "new" for any of them and the first notes land as each one's weekly
+  // cadence comes round — by design, so an already-reported problem finishes
+  // its week before the new audience hears it. The count is right; the word
+  // "today" was the false part, on the phase's single most consequential
+  // control.
   const wouldHear = sweep.flagged.filter((r) =>
     clinicActionable(r.verdict.state, r.signals),
   ).length
@@ -209,7 +245,7 @@ export default function GuardianPanel({
             {sweep.summary}
           </span>
           <span className="ml-2">
-            <HeartbeatLine beat={heartbeat} />
+            <HeartbeatLine beat={heartbeat} unreadable={heartbeatUnreadable} />
           </span>
         </h2>
         <GuardianAudienceControl

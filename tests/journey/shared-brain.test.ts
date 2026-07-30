@@ -8,6 +8,8 @@ import {
   MIN_SENDS_PER_HOUR,
   MIN_CLINICS_PER_HOUR,
   MIN_LIFT,
+  brainStale,
+  BRAIN_STALE_DAYS,
   type HourStat,
 } from '@/lib/shared-brain'
 
@@ -197,5 +199,44 @@ describe('resolveSharedBrain — floored on every failure path', () => {
   it('ignores other platform-config keys entirely', () => {
     const b = resolveSharedBrain({ guardianAudience: 'clinic', sharedBrain: { sendHour: 16, sendHourLearned: true } })
     expect(b.sendHour).toBe(16)
+  })
+})
+
+
+describe('the sample the owner is shown (round-10 in-phase gap)', () => {
+  it('resolves sampleSends back out of storage, floored at zero', () => {
+    expect(resolveSharedBrain({ sharedBrain: { sampleSends: 4210 } }).sampleSends).toBe(4210)
+    for (const bad of [undefined, null, -5, 'lots', NaN, Infinity]) {
+      expect(resolveSharedBrain({ sharedBrain: { sampleSends: bad } }).sampleSends).toBe(0)
+    }
+  })
+
+  it('a learning pass records what it looked at, so "Still learning" can say how close', () => {
+    // The brain ships INERT on purpose, so for months this is slice 5's
+    // only owner-visible output — and a floor with no reading against it is
+    // the magic number the card exists to replace.
+    const finding = learnBestSendHour(
+      [{ hour: 10, sent: 46, opened: 20, clinics: 1 }],
+      DEFAULT_SEND_HOUR,
+      false,
+    )
+    expect(finding.learned).toBe(false)
+    expect(finding.sampleSends).toBe(46)
+  })
+})
+
+describe('brainStale — a weekly pass that STOPPED', () => {
+  const NOW_B = new Date('2026-07-29T14:00:00Z')
+  const ago = (d: number) => new Date(NOW_B.getTime() - d * 86_400_000).toISOString()
+  const brain = (learnedAt: string | null) => resolveSharedBrain({ sharedBrain: { learnedAt } })
+
+  it('a recent pass is fine, an old one is not', () => {
+    expect(brainStale(brain(ago(3)), NOW_B)).toBe(false)
+    expect(brainStale(brain(ago(BRAIN_STALE_DAYS + 1)), NOW_B)).toBe(true)
+  })
+
+  it('never-run and unparseable are their own states, not stale', () => {
+    expect(brainStale(brain(null), NOW_B)).toBe(false)
+    expect(brainStale(brain('nope'), NOW_B)).toBe(false)
   })
 })

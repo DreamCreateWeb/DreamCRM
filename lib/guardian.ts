@@ -379,6 +379,36 @@ export function shouldStandDown(memory: AlertMemory, next: EngineState): boolean
 }
 
 /**
+ * WHOSE LOOP IS BEING CLOSED — may the OWNER hear the all-clear for this?
+ *
+ * Round-10 audit: round 9 answered this by asking `clinicActionable` against
+ * TODAY's signals, and that guard is INVERTED in its principal case. The
+ * only clinic-actionable `blocked` shape `classify` emits is both-switches-
+ * off; recovery means both switches are back ON, so today's signals say "not
+ * clinic-actionable" and the owner was emailed an all-clear for an alarm
+ * only the practice ever received.
+ *
+ * Asked without signals instead, because the memory records the STATE and
+ * not the audience:
+ *  - At 'platform' every finding went to the owner, so every recovery is
+ *    theirs to hear.
+ *  - At 'clinic', `stalled` is ALWAYS the practice's, and `blocked` may be
+ *    either shape with nothing recorded to say which — so both are withheld.
+ *    `silent` can never be clinic-actionable, so it is always ours.
+ *
+ * The cost is a missed all-clear for a failure-blocked clinic while the lock
+ * is open; the alternative is telling the owner an alarm they never heard is
+ * over. Erring toward silence is the right side of that trade for a
+ * primitive whose whole design is "crying wolf is how a guardian gets
+ * ignored". The exact answer needs a per-audience memory — the same backlog
+ * item the "tell them once" rule is waiting on.
+ */
+export function standDownGoesToOwner(audience: GuardianAudience, was: EngineState): boolean {
+  if (audience === 'platform') return true
+  return was === 'silent'
+}
+
+/**
  * THE WATCHER'S OWN HEARTBEAT (round-9 in-phase gap).
  *
  * The panel renders live from `cachedEngineHealth`, so it looks alive
@@ -401,6 +431,32 @@ export interface GuardianHeartbeat {
    *  a field collected and read by nothing is the defect slice 4 was pulled
    *  up for, and re-introducing it here would be worse than not storing it. */
   blind: boolean
+}
+
+/**
+ * How long after its last completed run the daily watch counts as STOPPED.
+ *
+ * Round-10 in-phase gap: the heartbeat detected "never ran" and nothing
+ * else — a stored instant rendered as quiet grey text forever, never
+ * compared to now. But after the first run, "never ran" is no longer a
+ * reachable failure; STOPPED is the only real one, and it is the failure
+ * this repo has actually suffered (CLAUDE.md records the EventBridge drift
+ * that left prospecting and four other jobs silently dead, which is why the
+ * deploy re-runs the schedule script). A heartbeat that cannot notice its
+ * own job dying is the magic number it exists to replace.
+ *
+ * Two days, not one: a single missed daily run is a blip (a deploy, a
+ * throttle), two is a pattern.
+ */
+export const GUARDIAN_STALE_DAYS = 2
+
+/** Has the daily watch stopped running? Unknown (`ranAt` null) is NOT
+ *  stale — that is its own, louder state. */
+export function guardianHeartbeatStale(beat: GuardianHeartbeat, now: Date): boolean {
+  if (!beat.ranAt) return false
+  const ran = new Date(beat.ranAt).getTime()
+  if (Number.isNaN(ran)) return false
+  return now.getTime() - ran > GUARDIAN_STALE_DAYS * 24 * 60 * 60 * 1000
 }
 
 export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {

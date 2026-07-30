@@ -6,6 +6,7 @@ import {
   clinicNote,
   shouldAlert,
   shouldStandDown,
+  standDownGoesToOwner,
   type AlertMemory,
   type EngineState,
   type GuardianAudience,
@@ -191,9 +192,15 @@ async function tellClinic(report: ClinicEngineReport, now: Date): Promise<boolea
  */
 export async function runGuardianSweep(now: Date = new Date()): Promise<GuardianRunResult> {
   const sweep = await sweepEngineHealth(now)
-  // Floored at 'platform' on every failure path (see platform-config): the
-  // failure we refuse is the machine starting to talk to customers because
-  // a read went wrong.
+  // Floored at 'platform' on every failure path — the failure we refuse is
+  // the machine starting to talk to customers because a read went wrong.
+  //
+  // The floor that does the work lives INSIDE `getGuardianAudience` (its
+  // read swallows and `resolveGuardianAudience` floors a `{}`), so this
+  // catch is belt to that brace rather than the guard itself. Said out loud
+  // because round 10 found two places where a catch on this same read was
+  // mistaken for a live guard and the honesty branch behind it was dead
+  // code; here the two paths agree, so it is harmless either way.
   const audience = await getGuardianAudience().catch<GuardianAudience>(() => 'platform')
   const result: GuardianRunResult = {
     scanned: sweep.reports.length,
@@ -253,19 +260,18 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // way to learn that was to open the dashboard — the exact dependency
       // the outbound half exists to remove.
       //
-      // WHOSE loop is being closed: at 'platform' every finding went to the
-      // owner, so every recovery is theirs to hear. With the lock open, the
-      // clinic-actionable ones went to the practice instead — and those
-      // close themselves, because the note is re-derived from live switches
-      // and disappears the moment they flip one back on. `clinicActionable`
-      // is evaluated against TODAY's signals here, which is an
-      // approximation of what was true when the alarm was raised; the exact
-      // answer needs a per-audience memory, which is the same backlog item
-      // the "tell them once" rule is waiting on.
+      // WHOSE loop is being closed — see `standDownGoesToOwner`. Round 9
+      // asked `clinicActionable` against TODAY's signals, which is inverted
+      // in the principal case (a switch problem recovers BY the switches
+      // going back on, so today's signals always say "not theirs"), and the
+      // owner was emailed an all-clear for an alarm only the practice got.
+      // With the lock open, a practice's own note closes itself: it is
+      // re-derived from live switches and disappears the moment they flip
+      // one back on.
       const standingDown =
         !alerting &&
         shouldStandDown(memory, state) &&
-        (audience === 'platform' || !clinicActionable(memory.state as EngineState, report.signals))
+        standDownGoesToOwner(audience, memory.state as EngineState)
       // REVERTED (verification round). Round 3 added a "say it once to the
       // practice" rule gated on `memory.state !== state`, to stop nagging a
       // clinic weekly about a switch it may have turned off deliberately.
