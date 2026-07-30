@@ -113,6 +113,12 @@ vi.mock('@/lib/db', () => {
         organizationId: col('organizationId'),
         guardianState: col('guardianState'),
         guardianAlertedAt: col('guardianAlertedAt'),
+        // Round-11: the dwell clock and the first-seen instant. A mock that
+        // omits a selected column does not fail — it throws into the
+        // reader's own catch and reads as "no memory", which alerts about
+        // every clinic every morning. (The round-8 lesson, in the harness.)
+        guardianFirstSeenAt: col('guardianFirstSeenAt'),
+        guardianClearSince: col('guardianClearSince'),
       },
       user: { __name: 'user', email: col('email'), platformAdmin: col('platformAdmin') },
     },
@@ -124,7 +130,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 import { runGuardianSweep } from '@/lib/services/guardian-alerts'
-import { RE_ALERT_DAYS } from '@/lib/guardian'
+import { RE_ALERT_DAYS, STAND_DOWN_DWELL_DAYS } from '@/lib/guardian'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
@@ -171,7 +177,17 @@ const keepsFailing = { failures7: 5 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  store.profiles = [{ organizationId: 'org_a', guardianState: null, guardianAlertedAt: null }]
+  store.profiles = [
+    {
+      organizationId: 'org_a',
+      guardianState: null,
+      guardianAlertedAt: null,
+      guardianFirstSeenAt: null,
+      // Held long enough that a recovery is announceable unless a test says
+      // otherwise — the dwell clock has its own cases below.
+      guardianClearSince: daysAgo(STAND_DOWN_DWELL_DAYS + 1),
+    },
+  ]
   store.admins = [{ email: 'owner@dreamcreateweb.com', platformAdmin: true }]
   sweepState.reports = []
   sweepState.blind = false
@@ -261,6 +277,53 @@ describe('runGuardianSweep', () => {
     const r = await runGuardianSweep(NOW)
     expect(r.stoodDown).toBe(1)
     expect(mail.sent).toHaveLength(1)
+  })
+
+  it('a recovery that has not HELD yet says nothing (round-11 audit)', async () => {
+    // Without the dwell clock, a practice sitting on the stall threshold
+    // alerts one morning and stands down the next, forever — the exact
+    // crying-wolf failure the stand-down was added inside of.
+    store.profiles[0].guardianState = 'stalled'
+    store.profiles[0].guardianAlertedAt = daysAgo(1)
+    store.profiles[0].guardianClearSince = null
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.stoodDown).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+    // The clock STARTS, so two quiet days from now it can be announced…
+    expect(store.profiles[0].guardianClearSince).toEqual(NOW)
+    // …and the problem is NOT stamped over, so a re-break tomorrow is still
+    // "the same problem" and stays quiet too. One clock, both halves.
+    expect(store.profiles[0].guardianState).toBe('stalled')
+  })
+
+  it('records WHEN a problem was first seen, and keeps it across a re-alert', async () => {
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+    await runGuardianSweep(NOW)
+    expect(store.profiles[0].guardianFirstSeenAt).toEqual(NOW)
+
+    // The same problem a week later re-alerts, and its AGE is preserved.
+    const later = new Date(NOW.getTime() + RE_ALERT_DAYS * 24 * 60 * 60 * 1000)
+    await runGuardianSweep(later)
+    expect(store.profiles[0].guardianFirstSeenAt).toEqual(NOW)
+  })
+
+  it('the alert says how long it has ACTUALLY been wrong, not just when I last said so', async () => {
+    // `guardianAlertedAt` is overwritten on every delivery and the cadence
+    // re-alerts weekly, so "I last flagged this N days ago" is pinned at or
+    // under RE_ALERT_DAYS by construction: a six-week break read as a
+    // seven-day one, and the owner could not tell a churn conversation from
+    // a shrug.
+    store.profiles[0].guardianState = 'silent'
+    store.profiles[0].guardianAlertedAt = daysAgo(RE_ALERT_DAYS)
+    store.profiles[0].guardianFirstSeenAt = daysAgo(41)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+
+    await runGuardianSweep(NOW)
+    const body = String(mail.sent[0].body)
+    expect(body).toContain('I last flagged this 7 days ago')
+    expect(body).toContain('It has been like this for 41 days.')
   })
 
   it('never stands down a problem nobody was ever told about', async () => {

@@ -60,11 +60,27 @@ describe('learnBestSendHour — it refuses to learn from too little', () => {
     expect(f.learned).toBe(false)
   })
 
-  it('clears both floors and it learns', () => {
-    const f = learnBestSendHour([at(14, 0.5)])
+  it('clears both floors and it learns — given something to compare against', () => {
+    // TWO arms, deliberately (round-11 audit). One qualifying bucket is not
+    // a comparison, and the version of this test with a single arm was
+    // pinning the defect: "2 PM really is the best hour" asserted a
+    // contest that never happened.
+    const f = learnBestSendHour([at(14, 0.5), at(DEFAULT_SEND_HOUR, 0.2)])
     expect(f.hour).toBe(14)
     expect(f.learned).toBe(true)
     expect(f.why).toContain('2 PM')
+  })
+
+  it('ONE qualifying hour is not a comparison, so nothing is learned from it', () => {
+    // Every automated send aims at the hour in force, so that bucket fills
+    // and no other one does — `[incumbent]` alone is the LIKELIEST shape
+    // for a long time, and calling it a finding is the shipped guess
+    // re-badged. `learned` is then carried forward forever, so the badge
+    // could never honestly return to "still learning".
+    const f = learnBestSendHour([at(14, 0.9)])
+    expect(f.hour).toBe(DEFAULT_SEND_HOUR)
+    expect(f.learned).toBe(false)
+    expect(f.why).toMatch(/nothing to compare/i)
   })
 })
 
@@ -77,8 +93,9 @@ describe('learnBestSendHour — it never learns a bad hour', () => {
   })
 
   it('the window edges are inclusive and usable', () => {
-    expect(learnBestSendHour([at(LEARNABLE_HOUR_MIN, 0.6)]).hour).toBe(LEARNABLE_HOUR_MIN)
-    expect(learnBestSendHour([at(LEARNABLE_HOUR_MAX, 0.6)]).hour).toBe(LEARNABLE_HOUR_MAX)
+    const beaten = at(DEFAULT_SEND_HOUR, 0.2)
+    expect(learnBestSendHour([at(LEARNABLE_HOUR_MIN, 0.6), beaten]).hour).toBe(LEARNABLE_HOUR_MIN)
+    expect(learnBestSendHour([at(LEARNABLE_HOUR_MAX, 0.6), beaten]).hour).toBe(LEARNABLE_HOUR_MAX)
   })
 
   it('an hour just outside the window is not learnable', () => {
@@ -106,12 +123,20 @@ describe('learnBestSendHour — stability beats chasing noise', () => {
     expect(f.learned).toBe(true)
   })
 
-  it('when the default hour has no qualifying data the winner stands on its own', () => {
-    // Nothing to beat: the margin rule protects an incumbent, it does not
-    // veto a finding when there is no incumbent.
-    const f = learnBestSendHour([at(15, 0.35), stat({ hour: DEFAULT_SEND_HOUR, sent: 3, clinics: 1 })])
-    expect(f.hour).toBe(15)
-    expect(f.learned).toBe(true)
+  it('when the hour IN FORCE has no qualifying data, nothing moves (round-11 audit)', () => {
+    // This used to say "the winner stands on its own", and skipping MIN_LIFT
+    // was the defect: the platform-wide send hour could swap on the strength
+    // of ONE arm while the copy claimed it "beats every other hour" — a
+    // comparison that had not happened. The stability floor exists precisely
+    // so this value cannot wobble; a missing incumbent is a reason to wait.
+    const f = learnBestSendHour([
+      at(15, 0.35),
+      at(16, 0.3),
+      stat({ hour: DEFAULT_SEND_HOUR, sent: 3, clinics: 1 }),
+    ])
+    expect(f.hour).toBe(DEFAULT_SEND_HOUR)
+    expect(f.learned).toBe(false)
+    expect(f.why).toMatch(/something to compare/i)
   })
 
   it('confirming the default IS a finding, and is reported as one', () => {
@@ -122,8 +147,9 @@ describe('learnBestSendHour — stability beats chasing noise', () => {
   })
 
   it('ties resolve the same way every run — a coin flip must not oscillate weekly', () => {
-    const a = learnBestSendHour([at(11, 0.5), at(16, 0.5)])
-    const b = learnBestSendHour([at(16, 0.5), at(11, 0.5)])
+    const inForce = at(DEFAULT_SEND_HOUR, 0.2)
+    const a = learnBestSendHour([at(11, 0.5), at(16, 0.5), inForce])
+    const b = learnBestSendHour([at(16, 0.5), at(11, 0.5), inForce])
     expect(a.hour).toBe(b.hour)
     expect(a.hour).toBe(11)
   })

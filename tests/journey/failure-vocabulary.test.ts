@@ -16,7 +16,12 @@ const store = vi.hoisted(() => ({
   inserted: [] as Array<Record<string, unknown>>,
   selectThrows: false,
   insertThrows: false,
-  captured: { since: null as Date | null, capability: null as unknown, failureFilter: false },
+  captured: {
+    since: null as Date | null,
+    capability: null as unknown,
+    failureFilter: false,
+    failureKind: null as unknown,
+  },
 }))
 
 vi.mock('@/lib/db', () => {
@@ -30,6 +35,13 @@ vi.mock('@/lib/db', () => {
         api.limit = async () => {
           if (store.selectThrows) throw new Error('db down')
           return store.rows
+        }
+        // A count query has no `.limit()` — it is awaited directly. A mock
+        // that omits the terminal a caller uses does not fail the test, it
+        // throws INTO that caller (the round-8 lesson, in a harness).
+        api.then = (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
+          if (store.selectThrows) return reject(new Error('db down'))
+          return resolve([{ c: store.rows.length }])
         }
         return api
       },
@@ -74,6 +86,12 @@ vi.mock('drizzle-orm', () => ({
     (strings: TemplateStringsArray, ...vals: unknown[]) => {
       const text = strings.join('') + vals.map((v) => String((v as { __raw?: string })?.__raw ?? '')).join('')
       if (text.includes("'failure'")) store.captured.failureFilter = true
+      // `ownFailureMarker` binds the KIND as a real parameter — the only
+      // plain string among the interpolations — so this is how the harness
+      // sees which producer the read narrowed to.
+      if (text.includes("'failureKind'")) {
+        store.captured.failureKind = vals.find((v) => typeof v === 'string') ?? null
+      }
       return { op: 'sql' }
     },
     { raw: (t: string) => ({ __raw: t }), join: () => ({ op: 'sql' }) },
@@ -90,7 +108,7 @@ beforeEach(() => {
   store.inserted = []
   store.selectThrows = false
   store.insertThrows = false
-  store.captured = { since: null, capability: null, failureFilter: false }
+  store.captured = { since: null, capability: null, failureFilter: false, failureKind: null }
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
@@ -215,5 +233,35 @@ describe('recordEngineFailure — the once-a-day window', () => {
     await recordEngineFailure(failure({ onceWithin: DAY_MS }))
     expect(store.inserted[0]).not.toHaveProperty('onceWithin')
     expect(store.inserted[0].detail).not.toHaveProperty('onceWithin')
+  })
+})
+
+
+/**
+ * COUNTING failures back out, by producer (round-11 audit). The write side
+ * has always keyed its throttle by `failureKind`; the READ side summed both
+ * producers into one number, and the standup then narrated a hand-back —
+ * the machine deliberately stopping and handing a card back — as "that's
+ * mine to sort out, and I'm on it".
+ */
+describe('countFailuresSince — the two producers are not one number', () => {
+  it('narrows to a single kind when asked', async () => {
+    const { countFailuresSince } = await import('@/lib/services/action-ledger')
+    store.captured.failureKind = null
+    await countFailuresSince('org_1', new Date(NOW.getTime() - DAY_MS), { kind: 'engine' })
+    expect(store.captured.failureKind).toBe('engine')
+
+    store.captured.failureKind = null
+    await countFailuresSince('org_1', new Date(NOW.getTime() - DAY_MS), { kind: 'hand_back' })
+    expect(store.captured.failureKind).toBe('hand_back')
+  })
+
+  it('counts BOTH when no kind is given — the Guardian still wants every "I couldn\'t"', async () => {
+    const { countFailuresSince } = await import('@/lib/services/action-ledger')
+    store.captured.failureKind = null
+    store.captured.failureFilter = false
+    await countFailuresSince('org_1', new Date(NOW.getTime() - DAY_MS))
+    expect(store.captured.failureKind).toBeNull()
+    expect(store.captured.failureFilter).toBe(true)
   })
 })

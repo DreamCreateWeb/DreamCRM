@@ -21,9 +21,20 @@ export default function GuardianAudienceControl({
    *  on the weekly alert cadence, which this component cannot see, and
    *  round 10 caught the copy claiming otherwise. */
   wouldHear = null,
+  /**
+   * The setting could not be READ (round-11 audit). Round 10 floored the
+   * unreadable config at 'platform' — correct for the DECISION, because a
+   * failure must never start the machine talking to customers — and then
+   * let this control print that floor as a statement of fact: "Only you
+   * hear this. Practices are told nothing." A floor is what we DO when we
+   * cannot find out; it is not what we KNOW. The same class round 10
+   * caught, one consumer further along.
+   */
+  unreadable = false,
 }: {
   audience: GuardianAudience
   wouldHear?: number | null
+  unreadable?: boolean
 }) {
   const [current, setCurrent] = useState<GuardianAudience>(audience)
   const [pending, start] = useTransition()
@@ -50,9 +61,11 @@ export default function GuardianAudienceControl({
   return (
     <div className="text-xs text-right">
       <p className="text-gray-500 dark:text-gray-400">
-        {open
-          ? 'Practices hear what they can fix themselves.'
-          : 'Only you hear this. Practices are told nothing.'}
+        {unreadable
+          ? 'I couldn’t read this setting just now. Nothing goes to practices while I can’t tell.'
+          : open
+            ? 'Practices hear what they can fix themselves.'
+            : 'Only you hear this. Practices are told nothing.'}
       </p>
 
       {confirming ? (
@@ -87,7 +100,7 @@ export default function GuardianAudienceControl({
         <button
           type="button"
           onClick={() => (open ? apply('platform') : setConfirming(true))}
-          disabled={pending}
+          disabled={pending || unreadable}
           className="mt-0.5 text-gray-600 dark:text-gray-300 hover:underline disabled:opacity-60"
         >
           {pending ? 'Saving…' : open ? 'Keep it to me instead' : 'Let practices hear it too'}

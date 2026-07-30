@@ -48,6 +48,11 @@ export interface ClinicEngineReport {
   clinicName: string
   verdict: EngineVerdict
   signals: EngineSignals
+  /** How long this practice has been in its CURRENT state, in days, or
+   *  null when it is fine or the Guardian has not seen it break yet
+   *  (round-11 in-phase gap). A practice silent for two months and one
+   *  silent since Tuesday used to render identically. */
+  troubleForDays: number | null
   /** What broke behind `failures7`, by capability, in the OWNER's voice —
    *  "Reply to Google reviews — 3 days". Never the clinic-addressed
    *  ledger sentence. Empty when nothing failed (or the ledger was
@@ -227,11 +232,28 @@ export const failureCountExpr = () =>
  * broken clinic look busy, which is precisely the confusion the Guardian
  * exists to remove.
  */
-async function ledgerCountsByOrg(
+/**
+ * THE SWEEP AGGREGATE, as ONE definition (round-11 audit).
+ *
+ * The boundary test used to hand-write its own `select … from action_ledger`
+ * around the imported expressions — and `clinicLocalDay()` inside
+ * `failureCountExpr` names `clinic_profile.timezone`, so what the test
+ * rendered was a statement Postgres would reject with 42P01. It looked like
+ * the strictest kind of test and the JOIN this query cannot run without had
+ * ZERO coverage anywhere (the service harness stubs `leftJoin` to a no-op).
+ * That is the Phase-3 lesson — a database modelled in JavaScript is not a
+ * database — recurring inside the test written to honour it.
+ *
+ * So the query is built ONCE, here, against any drizzle select-builder: the
+ * service passes the live `db`, the boundary test passes an offline
+ * `QueryBuilder` and renders exactly this.
+ */
+export function sweepCountsQuery(
+  builder: { select: (cols: Record<string, unknown>) => never },
   since: Date,
   until: Date,
-): Promise<Map<string, { work: number; failures: number }>> {
-  const rows = await db
+) {
+  return (builder as unknown as typeof db)
     .select({
       organizationId: schema.actionLedger.organizationId,
       work: workCountExpr(),
@@ -264,6 +286,13 @@ async function ledgerCountsByOrg(
       ),
     )
     .groupBy(schema.actionLedger.organizationId)
+}
+
+async function ledgerCountsByOrg(
+  since: Date,
+  until: Date,
+): Promise<Map<string, { work: number; failures: number }>> {
+  const rows = await sweepCountsQuery(db as never, since, until)
   const out = new Map<string, { work: number; failures: number }>()
   for (const r of rows) {
     out.set(r.organizationId, { work: Number(r.work ?? 0), failures: Number(r.failures ?? 0) })
@@ -275,7 +304,7 @@ async function ledgerCountsByOrg(
  *  promised was never built, and an export with no caller is a claim the
  *  code does not keep (round-2 audit). */
 async function assessClinic(
-  org: { id: string; name: string; createdAt: Date | null },
+  org: { id: string; name: string; createdAt: Date | null; guardianFirstSeenAt?: Date | null },
   windows: {
     weekStart: Date
     prevWeekStart: Date
@@ -318,11 +347,19 @@ async function assessClinic(
     seatedPrev30: seated30 === null || seatedPrev30 === null ? 0 : seatedPrev30,
     openProposals,
   }
+  const verdict = assessEngine(signals)
   return {
     organizationId: org.id,
     clinicName: org.name,
-    verdict: assessEngine(signals),
+    verdict,
     signals,
+    troubleForDays:
+      needsAttention(verdict.state) && org.guardianFirstSeenAt
+        ? Math.max(
+            1,
+            Math.round((windows.now.getTime() - org.guardianFirstSeenAt.getTime()) / DAY_MS),
+          )
+        : null,
     failureCauses,
   }
 }
@@ -366,6 +403,9 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
       trialEndsAt: schema.clinicProfile.trialEndsAt,
       subscriptionStatus: schema.clinicProfile.subscriptionStatus,
       stripeSubscriptionId: schema.clinicProfile.stripeSubscriptionId,
+      // Chronicity, read alongside everything else the org row already
+      // carries — no extra query for the fact that matters most.
+      guardianFirstSeenAt: schema.clinicProfile.guardianFirstSeenAt,
     })
     .from(schema.organization)
     .leftJoin(

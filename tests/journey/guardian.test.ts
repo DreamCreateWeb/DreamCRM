@@ -9,6 +9,9 @@ import {
   shouldAlert,
   shouldStandDown,
   standDownGoesToOwner,
+  STAND_DOWN_DWELL_DAYS,
+  problemKey,
+  baseState,
   resolveGuardianHeartbeat,
   guardianHeartbeatStale,
   GUARDIAN_STALE_DAYS,
@@ -19,6 +22,7 @@ import {
   PILEUP_COUNT,
   RE_ALERT_DAYS,
   STALL_MIN_BASELINE,
+  type AlertMemory,
   type EngineSignals,
   type EngineState,
 } from '@/lib/guardian'
@@ -484,28 +488,56 @@ describe('clinicActionable — a failure never reaches the practice as a switch 
 
 
 describe('shouldStandDown — the other half of an interrupt (round-9 gap)', () => {
-  it('closes a problem the owner was told about', () => {
-    expect(shouldStandDown({ state: 'blocked', alertedAt: new Date() }, 'healthy')).toBe(true)
-    expect(shouldStandDown({ state: 'silent', alertedAt: new Date() }, 'quiet')).toBe(true)
+  // The dwell clock is round-11's: a recovery must HOLD before it is
+  // announced, or a practice on the stall threshold alerts and stands down
+  // on alternating days forever.
+  const NOW_S = new Date('2026-07-29T14:00:00Z')
+  const back = (n: number) => new Date(NOW_S.getTime() - n * 24 * 60 * 60 * 1000)
+  const held = (over: Partial<AlertMemory> = {}): AlertMemory => ({
+    state: 'blocked',
+    alertedAt: back(3),
+    clearSince: back(STAND_DOWN_DWELL_DAYS + 1),
+    ...over,
+  })
+
+  it('closes a problem the owner was told about, once the quiet has held', () => {
+    expect(shouldStandDown(held(), 'healthy', NOW_S)).toBe(true)
+    expect(shouldStandDown(held({ state: 'silent' }), 'quiet', NOW_S)).toBe(true)
+  })
+
+  it('a recovery that has NOT held yet says nothing (round-11 audit)', () => {
+    // The oscillation the stand-down introduced: the stall is a strict
+    // inequality over two daily-sliding windows, so one seated patient
+    // moving across a boundary flipped a practice attention → fine →
+    // attention on alternating days, and every flip was a state CHANGE —
+    // an alert one morning and an all-clear the next, forever. That is the
+    // crying-wolf failure this whole primitive is built to avoid.
+    expect(shouldStandDown(held({ clearSince: back(0) }), 'healthy', NOW_S)).toBe(false)
+    expect(shouldStandDown(held({ clearSince: null }), 'healthy', NOW_S)).toBe(false)
   })
 
   it('never announces an all-clear for an alarm that never sounded', () => {
-    expect(shouldStandDown({ state: null, alertedAt: null }, 'healthy')).toBe(false)
-    expect(shouldStandDown({ state: 'healthy', alertedAt: new Date() }, 'healthy')).toBe(false)
-    expect(shouldStandDown({ state: 'quiet', alertedAt: new Date() }, 'healthy')).toBe(false)
+    expect(shouldStandDown(held({ state: null }), 'healthy', NOW_S)).toBe(false)
+    expect(shouldStandDown(held({ state: 'healthy' }), 'healthy', NOW_S)).toBe(false)
+    expect(shouldStandDown(held({ state: 'quiet' }), 'healthy', NOW_S)).toBe(false)
   })
 
   it('one problem becoming another is not a recovery — that is shouldAlert’s job', () => {
-    expect(shouldStandDown({ state: 'silent', alertedAt: new Date() }, 'blocked')).toBe(false)
+    expect(shouldStandDown(held({ state: 'silent' }), 'blocked', NOW_S)).toBe(false)
   })
 
   it('the two are mutually exclusive — no state both alerts and stands down', () => {
     const states: EngineState[] = ['silent', 'blocked', 'stalled', 'quiet', 'healthy']
     for (const was of states) {
       for (const now of states) {
-        const memory = { state: was, alertedAt: new Date('2026-01-01T00:00:00Z') }
-        const both = shouldAlert(memory, now, new Date('2026-06-01T00:00:00Z')) &&
-          shouldStandDown(memory, now)
+        const memory: AlertMemory = {
+          state: was,
+          alertedAt: new Date('2026-01-01T00:00:00Z'),
+          clearSince: new Date('2026-01-01T00:00:00Z'),
+        }
+        const both =
+          shouldAlert(memory, now, new Date('2026-06-01T00:00:00Z')) &&
+          shouldStandDown(memory, now, new Date('2026-06-01T00:00:00Z'))
         expect(both).toBe(false)
       }
     }
@@ -656,5 +688,46 @@ describe('guardianHeartbeatStale — a job that STOPPED, not one that never star
   it('never-ran and unparseable are NOT stale — they are their own, louder states', () => {
     expect(guardianHeartbeatStale(beat(null), NOW_T)).toBe(false)
     expect(guardianHeartbeatStale(beat('not a date'), NOW_T)).toBe(false)
+  })
+})
+
+
+describe('problemKey — what "the same problem" means to the cadence (round-11 audit)', () => {
+  it('separates the two BLOCKED shapes, which have different owners', () => {
+    // `classify` emits blocked from two rules: failures (ours to fix, never
+    // clinic-actionable) and switches (theirs, and it IS clinic-actionable).
+    // The memory stored the bare word, so moving between them was "the same
+    // problem" and nobody was told for up to RE_ALERT_DAYS — while the last
+    // thing said about that practice was the wrong half of the truth.
+    const byFailures = assessEngine(sig({ failures7: FAILURE_ALARM_COUNT }))
+    const bySwitches = assessEngine(sig({ remindersOn: false, reviewRequestsOn: false }))
+    expect(byFailures.state).toBe('blocked')
+    expect(bySwitches.state).toBe('blocked')
+    expect(problemKey(byFailures)).not.toBe(problemKey(bySwitches))
+  })
+
+  it('the cadence treats that move as NEWS', () => {
+    const memory = { state: 'blocked:switches', alertedAt: new Date('2026-07-28T14:00:00Z') }
+    expect(shouldAlert(memory, 'blocked:failures', new Date('2026-07-29T14:00:00Z'))).toBe(true)
+    // …and the same one still waits out its week.
+    expect(shouldAlert(memory, 'blocked:switches', new Date('2026-07-29T14:00:00Z'))).toBe(false)
+  })
+
+  it('states with one whole answer keep their bare key, so nothing else changed', () => {
+    for (const over of [{ actions7: 0, actionsPrev7: 0 }, { seated30: 1, seatedPrev30: 20 }, {}]) {
+      const v = assessEngine(sig(over))
+      if (v.state !== 'blocked') expect(problemKey(v)).toBe(v.state)
+    }
+  })
+
+  it('baseState reads a key back, and refuses one it does not understand', () => {
+    expect(baseState('blocked:switches')).toBe('blocked')
+    expect(baseState('silent')).toBe('silent')
+    expect(baseState(null)).toBeNull()
+    expect(baseState('nonsense')).toBeNull()
+    // A legacy bare 'blocked' still parses — and differs from every new key,
+    // so rollout alerts once rather than going quiet.
+    expect(baseState('blocked')).toBe('blocked')
+    expect(shouldAlert({ state: 'blocked', alertedAt: new Date('2026-07-28T14:00:00Z') }, 'blocked:switches', new Date('2026-07-29T14:00:00Z'))).toBe(true)
   })
 })

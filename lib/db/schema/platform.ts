@@ -131,6 +131,31 @@ export const clinicProfile = pgTable('clinic_profile', {
   // guardian gets muted (which is how a guardian stops working).
   guardianState: text('guardian_state'),
   guardianAlertedAt: timestamp('guardian_alerted_at'),
+  /**
+   * When the CURRENT problem was first seen (round-11 in-phase gap).
+   *
+   * `guardianAlertedAt` is overwritten on every delivery and the cadence
+   * re-alerts weekly, so it is structurally pinned at or under
+   * RE_ALERT_DAYS — a six-week-old break read as a seven-day-old one, which
+   * the alert body's own comment admitted it could not fix without this
+   * column. Chronicity is the most decision-relevant fact the Guardian can
+   * produce: "blocked since June 2" is a churn conversation, "blocked, I
+   * flagged it 7 days ago" is a shrug. Cleared when the practice recovers.
+   */
+  guardianFirstSeenAt: timestamp('guardian_first_seen_at'),
+  /**
+   * When the current RUN OF GOOD DAYS started (round-11 audit).
+   *
+   * Adding the stand-down gave the Guardian a way to oscillate: a practice
+   * sitting exactly on the stall threshold flips attention → fine → attention
+   * on alternating days, and each flip is a state CHANGE, so it earned an
+   * alert one morning and an all-clear the next, forever. This is the dwell
+   * clock that makes a recovery have to HOLD before it is announced — and
+   * because the problem state is not stamped over until the stand-down
+   * actually lands, the re-break is still "the same problem" and stays quiet
+   * too. One column closes both halves of the flap.
+   */
+  guardianClearSince: timestamp('guardian_clear_since'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

@@ -344,6 +344,31 @@ describe('buildWeeklyStandup', () => {
     expect(s.failureNote).toContain('mine to sort out')
   })
 
+  it('counts ENGINE failures only — a hand-back is not "mine to sort out" (round-11 audit)', async () => {
+    // The other producer is the autonomy hand-back: the machine
+    // deliberately STOPPING after two tries and putting the card back in
+    // front of a human. Counting them together made this say "that's mine
+    // to sort out, and I'm on it" about a card the same report lists two
+    // lines down as waiting on THEM — contradicting the machine's own
+    // ledger sentence, "it's back with you".
+    ledger.failures = 2
+    await buildWeeklyStandup(ORG, MONDAY)
+    const [, , opts] = ledger.failureCalls[0] as [string, Date, { kind?: string }]
+    expect(opts.kind).toBe('engine')
+  })
+
+  it('a failures-only week is NOT quiet, so the Monday email actually goes (round-11 audit)', async () => {
+    // `quiet` suppresses the email entirely and was computed from work-only
+    // counts — so the one week rounds 9 and 10 taught this thing to admit
+    // its own breakage was exactly the week the email carrying that
+    // admission never sent.
+    ledger.failures = 3
+    const s = await buildWeeklyStandup(ORG, MONDAY)
+    expect(s.totalActions).toBe(0)
+    expect(s.quiet).toBe(false)
+    expect(s.quietNote).toContain('hit trouble')
+  })
+
   it('a clean busy week says nothing about failures', async () => {
     ledger.counts = { appointment_reminder: 41 }
     const s = await buildWeeklyStandup(ORG, MONDAY)

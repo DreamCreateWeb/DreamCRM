@@ -105,7 +105,18 @@ function ReportRow({
               {style.label}
             </span>
           </div>
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{report.verdict.headline}</p>
+          <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+            {report.verdict.headline}
+            {/* HOW LONG (round-11 in-phase gap). A practice silent for two
+                months and one silent since Tuesday rendered identically,
+                and chronicity is the difference between a churn
+                conversation and a shrug. */}
+            {report.troubleForDays !== null && (
+              <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+                · {report.troubleForDays} {report.troubleForDays === 1 ? 'day' : 'days'} now
+              </span>
+            )}
+          </p>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{report.verdict.why}</p>
           {report.failureCauses.length > 0 && (
             <ul className="mt-2 space-y-0.5">
@@ -251,6 +262,7 @@ export default function GuardianPanel({
         <GuardianAudienceControl
           audience={audience}
           wouldHear={sweep.blind ? null : wouldHear}
+          unreadable={heartbeatUnreadable}
         />
       </div>
 

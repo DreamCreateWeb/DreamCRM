@@ -347,7 +347,17 @@ export async function countActionsSince(
 export async function countFailuresSince(
   organizationId: string,
   since: Date,
-  opts: { until?: Date } = {},
+  /**
+   * `kind` narrows to ONE producer (round-11 audit). The two are not the
+   * same event and must not be summed into one sentence: an `engine`
+   * failure is the machine broken and still trying, while a `hand_back` is
+   * the machine having deliberately STOPPED after AUTO_FAILURE_LIMIT
+   * attempts and put the card back in front of a human. Counting them
+   * together made the standup say "that's mine to sort out, and I'm on it"
+   * about a card its own ledger sentence had just handed over — and the
+   * same card was listed two lines below as waiting on them.
+   */
+  opts: { until?: Date; kind?: FailureKind } = {},
 ): Promise<number> {
   const [row] = await db
     .select({ c: sql<number>`count(*)::int` })
@@ -357,7 +367,7 @@ export async function countFailuresSince(
         eq(schema.actionLedger.organizationId, organizationId),
         gte(schema.actionLedger.occurredAt, since),
         ...(opts.until ? [lt(schema.actionLedger.occurredAt, opts.until)] : []),
-        failureOnly(),
+        opts.kind ? ownFailureMarker(opts.kind) : failureOnly(),
       ),
     )
   return Number(row?.c ?? 0)

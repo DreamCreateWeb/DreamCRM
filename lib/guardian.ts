@@ -80,6 +80,18 @@ export interface EngineVerdict {
   why: string
   /** What Dream Create should actually do. null when nothing is needed. */
   recommendation: string | null
+  /**
+   * WHICH problem, when one state has structurally different ones
+   * (round-11 audit). `blocked` is emitted by two rules that have different
+   * owners, different fixes and different AUDIENCES — a wired-wrong
+   * connection is Dream Create's, two switches off is the practice's — and
+   * the alert memory stored only the word "blocked". So a clinic moving
+   * from switch-blocked to failure-blocked was "the same problem" and
+   * nobody was told for up to a week, while the last thing said about them
+   * was the wrong half of the truth. Null when the state is its own whole
+   * answer.
+   */
+  cause: 'failures' | 'switches' | null
 }
 
 /** A clinic younger than this has no meaningful baseline to fall from. */
@@ -136,6 +148,7 @@ function blockedByFailures(s: EngineSignals): EngineVerdict {
     // actually knows and lets the per-capability list below carry the rest.
     why: 'Repeated failures in one week mean something is wired wrong rather than merely quiet — the machine is trying and being turned away.',
     recommendation: 'Start with what it was trying; this is ours to fix, not theirs to notice.',
+    cause: 'failures',
   }
 }
 
@@ -146,7 +159,14 @@ function blockedByFailures(s: EngineSignals): EngineVerdict {
  *  verdict added later gets it by asking for it. */
 function alsoFailedClause(s: EngineSignals): string {
   if (s.failures7 <= 0) return ''
-  return ` ${s.failures7} ${s.failures7 === 1 ? 'job' : 'jobs'} of ours did hit trouble, though — ours to fix.`
+  // DAYS, not jobs (round-11 audit). `failures7` is
+  // `count(distinct clinic-local day)`, as its own field doc and
+  // `blockedByFailures` both say — this clause was the third rendering and
+  // the only one that changed the noun, so a day carrying six breaks read as
+  // "1 job of ours did hit trouble". A counter disagreeing with its
+  // explainer is this phase's signature defect, and it got in through a
+  // fix for that same defect.
+  return ` Something of ours also hit trouble on ${s.failures7} ${s.failures7 === 1 ? 'day' : 'days'} this week, though — ours to fix.`
 }
 
 /** BOTH ENGINES OFF — the one switch verdict `classify` emits, hoisted so
@@ -160,6 +180,7 @@ function blockedBySwitches(s: EngineSignals): EngineVerdict {
       alsoFailedClause(s),
     recommendation:
       'Ask what made them turn these off — it is usually one bad experience worth understanding.',
+    cause: 'switches',
   }
 }
 
@@ -193,6 +214,7 @@ function classify(s: EngineSignals): EngineVerdict {
         // it belongs to a surface that actually shows starting clinics
         // (backlog), not to copy computed on every sweep and thrown away.
         recommendation: null,
+        cause: null,
       }
     }
     // THE CAUSE IS ALREADY IN HAND (round-9 audit). Both engines off
@@ -231,6 +253,7 @@ function classify(s: EngineSignals): EngineVerdict {
       })(),
       recommendation:
         'Check their integrations and patient data first. A clinic seeing nothing happen is the one most likely to leave.',
+      cause: null,
     }
   }
 
@@ -254,6 +277,7 @@ function classify(s: EngineSignals): EngineVerdict {
           : `${s.seatedPrev30} new patients seated the month before, ${s.seated30} this past month. The machine is running — the growth is not.`,
       recommendation:
         'This is the guarantee talking. Look at where their new patients came from before, and what changed.',
+      cause: null,
     }
   }
 
@@ -277,6 +301,7 @@ function classify(s: EngineSignals): EngineVerdict {
         'Nothing ran this week, but the engines are on and last week was normal — a calm week, not a broken one.' +
         alsoFailed,
       recommendation: null,
+      cause: null,
     }
   }
 
@@ -288,6 +313,7 @@ function classify(s: EngineSignals): EngineVerdict {
         ? `${s.seated30} new ${s.seated30 === 1 ? 'patient' : 'patients'} seated in the last 30 days.`
         : 'The machine is running normally.') + alsoFailed,
     recommendation: null,
+    cause: null,
   }
 }
 
@@ -331,11 +357,60 @@ export const RE_ALERT_DAYS = 7
  */
 export const NOTE_VISIBLE_DAYS = RE_ALERT_DAYS + 1
 
+/**
+ * THE IDENTITY OF A PROBLEM — what "the same one" means to the cadence.
+ *
+ * Round-11 audit: this used to be the bare state word, and `blocked` covers
+ * two different problems with different owners. The key is the state plus
+ * its cause, so switch-blocked → failure-blocked reads as news (it is), and
+ * a clinic never sits for a week under the wrong half of the truth.
+ *
+ * Legacy rows hold a bare 'blocked'; that simply differs from every new key
+ * and alerts once on rollout, which is the safe direction.
+ */
+export function problemKey(verdict: Pick<EngineVerdict, 'state' | 'cause'>): string {
+  return verdict.cause ? `${verdict.state}:${verdict.cause}` : verdict.state
+}
+
+const ENGINE_STATES = ['silent', 'blocked', 'stalled', 'quiet', 'healthy'] as const
+
+/** The state half of a problem key. Unrecognised reads as null — a memory
+ *  we cannot parse is a memory we do not act on. */
+export function baseState(key: string | null): EngineState | null {
+  if (!key) return null
+  const head = key.split(':')[0] as EngineState
+  return ENGINE_STATES.includes(head) ? head : null
+}
+
+/**
+ * How long a recovery must HOLD before the owner is told it happened.
+ *
+ * Round-11 audit: the stand-down gave the Guardian a way to oscillate. The
+ * stall is a strict inequality over two daily-sliding windows, so a practice
+ * sitting on the threshold flips attention → fine → attention on alternating
+ * days — and every flip was a state CHANGE, so it earned an alert one
+ * morning and an all-clear the next, forever. That is the crying-wolf
+ * failure this primitive is built to avoid, introduced by the fix that
+ * closed the loop.
+ *
+ * Two days of quiet before we say it is over. And because the problem is not
+ * stamped over until that stand-down actually lands, a re-break inside the
+ * window is still "the same problem" and stays quiet too — one clock, both
+ * halves of the flap.
+ */
+export const STAND_DOWN_DWELL_DAYS = 2
+
 export interface AlertMemory {
-  /** The state Dream Create last reported for this clinic. */
-  state: EngineState | null
-  /** When it last emailed about it. */
+  /** The PROBLEM KEY Dream Create last reported for this clinic. */
+  state: string | null
+  /** When it last reported it. */
   alertedAt: Date | null
+  /** When the current problem was FIRST seen — chronicity, which is what
+   *  makes "blocked since June 2" possible. Null when nothing is wrong. */
+  firstSeenAt?: Date | null
+  /** When this practice's current run of good days began. Null while
+   *  something is wrong. */
+  clearSince?: Date | null
 }
 
 /**
@@ -350,8 +425,9 @@ export interface AlertMemory {
  *    must never silence a real alarm — the same posture the sweep takes
  *    with a missing createdAt).
  */
-export function shouldAlert(memory: AlertMemory, next: EngineState, now: Date): boolean {
-  if (!needsAttention(next)) return false
+export function shouldAlert(memory: AlertMemory, next: string, now: Date): boolean {
+  const state = baseState(next)
+  if (!state || !needsAttention(state)) return false
   if (memory.state !== next) return true
   if (!memory.alertedAt) return true
   return now.getTime() - memory.alertedAt.getTime() >= RE_ALERT_DAYS * 24 * 60 * 60 * 1000
@@ -372,10 +448,15 @@ export function shouldAlert(memory: AlertMemory, next: EngineState, now: Date): 
  * Only a remembered problem can be stood down: no memory means nothing was
  * ever raised, and an all-clear for a problem nobody heard about is noise.
  */
-export function shouldStandDown(memory: AlertMemory, next: EngineState): boolean {
-  if (memory.state === null) return false
-  if (!needsAttention(memory.state)) return false
-  return !needsAttention(next)
+export function shouldStandDown(memory: AlertMemory, next: string, now: Date): boolean {
+  const was = baseState(memory.state)
+  const state = baseState(next)
+  if (!was || !needsAttention(was)) return false
+  if (!state || needsAttention(state)) return false
+  // IT HAS TO HOLD (round-11 audit). Without the dwell clock a practice on
+  // the stall threshold alerts and stands down on alternating days forever.
+  if (!memory.clearSince) return false
+  return now.getTime() - memory.clearSince.getTime() >= STAND_DOWN_DWELL_DAYS * 24 * 60 * 60 * 1000
 }
 
 /**
@@ -403,9 +484,9 @@ export function shouldStandDown(memory: AlertMemory, next: EngineState): boolean
  * ignored". The exact answer needs a per-audience memory — the same backlog
  * item the "tell them once" rule is waiting on.
  */
-export function standDownGoesToOwner(audience: GuardianAudience, was: EngineState): boolean {
+export function standDownGoesToOwner(audience: GuardianAudience, was: string): boolean {
   if (audience === 'platform') return true
-  return was === 'silent'
+  return baseState(was) === 'silent'
 }
 
 /**

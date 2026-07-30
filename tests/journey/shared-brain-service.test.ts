@@ -126,7 +126,11 @@ describe('runSharedBrainLearning', () => {
   it('coerces whatever the driver hands back — string counts are still counts', async () => {
     // node-postgres returns bigint aggregates as strings often enough that
     // a raw compare would silently disqualify every bucket.
-    state.stats = [{ hour: '15', sent: '1000', opened: '500', clinics: '4' }]
+    // Two eligible arms: one bucket is not a comparison (round-11 audit).
+    state.stats = [
+      { hour: '15', sent: '1000', opened: '500', clinics: '4' },
+      { hour: '10', sent: '1000', opened: '100', clinics: '4' },
+    ]
     const r = await runSharedBrainLearning(NOW)
     expect(r.finding.hour).toBe(15)
     expect(r.finding.learned).toBe(true)
@@ -137,7 +141,7 @@ describe('runSharedBrainLearning', () => {
     // never produced one — the mock always wrapped in {rows}. It now
     // returns the array itself, which is what some pg driver versions do.
     state.bareArray = true
-    state.stats = [bucket(15, 1000, 500)]
+    state.stats = [bucket(15, 1000, 500), bucket(10, 1000, 100)]
     const r = await runSharedBrainLearning(NOW)
     expect(r.ok).toBe(true)
     expect(r.finding.hour).toBe(15)

@@ -2,8 +2,11 @@ import 'server-only'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import {
+  baseState,
   clinicActionable,
   clinicNote,
+  needsAttention,
+  problemKey,
   shouldAlert,
   shouldStandDown,
   standDownGoesToOwner,
@@ -75,6 +78,8 @@ async function readMemory(
       .select({
         state: schema.clinicProfile.guardianState,
         alertedAt: schema.clinicProfile.guardianAlertedAt,
+        firstSeenAt: schema.clinicProfile.guardianFirstSeenAt,
+        clearSince: schema.clinicProfile.guardianClearSince,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -88,8 +93,10 @@ async function readMemory(
     // that can throw, and only then inserts the profile.
     if (!row) return { state: null, alertedAt: null, missing: true }
     return {
-      state: (row.state as EngineState | null) ?? null,
+      state: row.state ?? null,
       alertedAt: row.alertedAt ?? null,
+      firstSeenAt: row.firstSeenAt ?? null,
+      clearSince: row.clearSince ?? null,
     }
   } catch (e) {
     // An unreadable memory must never SILENCE an alarm — the whole point is
@@ -118,6 +125,20 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
     // instant would need its own column; saying what the stored value
     // actually means costs nothing and is true.
     lines.push('', `Still going: I last flagged this ${days} ${days === 1 ? 'day' : 'days'} ago.`)
+    // HOW LONG IT HAS ACTUALLY BEEN WRONG (round-11 in-phase gap). The line
+    // above is pinned at or under RE_ALERT_DAYS by construction — the stamp
+    // is overwritten on every delivery — so a six-week break read as a
+    // seven-day one, and the owner could not tell a churn conversation from
+    // a shrug. `guardianFirstSeenAt` is the age of the problem itself.
+    if (memory.firstSeenAt) {
+      const age = Math.max(
+        1,
+        Math.round((now.getTime() - memory.firstSeenAt.getTime()) / 86_400_000),
+      )
+      if (age > days) {
+        lines.push(`It has been like this for ${age} days.`)
+      }
+    }
   }
   // Name the actual breaks instead of leaving the owner with the headline's
   // guess at a cause (round-2 in-phase gap).
@@ -138,13 +159,17 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
  * seconds, and one that reads like a second alarm undoes the good it does.
  */
 function standDownBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): string {
-  const was = STATE_IN_WORDS[memory.state as EngineState] ?? 'a problem'
+  const was = STATE_IN_WORDS[baseState(memory.state) as EngineState] ?? 'a problem'
   const lines = [`${report.clinicName} is running normally again.`, '', `It was ${was}.`]
   if (memory.alertedAt) {
     const days = Math.max(1, Math.round((now.getTime() - memory.alertedAt.getTime()) / 86_400_000))
     // Same honesty as the alert's "Still going" line: the stamp records the
     // LAST time we said something, not the first, so that is what it claims.
     lines.push(`I last flagged it ${days} ${days === 1 ? 'day' : 'days'} ago.`)
+  }
+  if (memory.firstSeenAt) {
+    const age = Math.max(1, Math.round((now.getTime() - memory.firstSeenAt.getTime()) / 86_400_000))
+    lines.push(`It ran for ${age} ${age === 1 ? 'day' : 'days'}.`)
   }
   lines.push('', report.verdict.headline)
   lines.push('', 'Nothing to do — this is just the other half of the alert.')
@@ -245,6 +270,12 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
     try {
       const memory = await readMemory(report.organizationId)
       const state = report.verdict.state
+      // The problem's IDENTITY, not just its state word (round-11 audit):
+      // `blocked` covers two problems with different owners and different
+      // audiences, and storing only the word meant moving between them was
+      // "the same problem" and nobody was told for up to a week.
+      const key = problemKey(report.verdict)
+      const inTrouble = needsAttention(state)
       if (memory.missing) {
         // Half-provisioned. Report it to ourselves once per run instead of
         // emailing about a clinic whose engine was never set up.
@@ -254,7 +285,7 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         })
         continue
       }
-      const alerting = shouldAlert(memory, state, now)
+      const alerting = shouldAlert(memory, key, now)
       // THE OTHER HALF OF AN INTERRUPT (round-9 in-phase gap). A practice
       // we raised the alarm about has recovered, and until now the only
       // way to learn that was to open the dashboard — the exact dependency
@@ -270,8 +301,8 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // one back on.
       const standingDown =
         !alerting &&
-        shouldStandDown(memory, state) &&
-        standDownGoesToOwner(audience, memory.state as EngineState)
+        shouldStandDown(memory, key, now) &&
+        standDownGoesToOwner(audience, memory.state as string)
       // REVERTED (verification round). Round 3 added a "say it once to the
       // practice" rule gated on `memory.state !== state`, to stop nagging a
       // clinic weekly about a switch it may have turned off deliberately.
@@ -416,13 +447,68 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // the watcher went blind about itself, which is the failure this whole
       // phase exists to remove.
       if (!delivered && !nothingToDeliver) result.undelivered++
-      if (delivered || nothingToDeliver) {
+
+      // THE DWELL CLOCK, kept whether or not anything was said (round-11
+      // audit). It is bookkeeping about the practice, not a report: a run
+      // of good days has to accumulate before a recovery may be announced,
+      // and it must reset the moment trouble comes back. Written every
+      // pass, because a clock that only ticks when we speak is not a clock.
+      const clearSince = inTrouble ? null : (memory.clearSince ?? now)
+      // CHRONICITY. First-seen moves only when the problem itself changes,
+      // so it survives a week of flapping and can honestly say "since
+      // June 2". Cleared only when a recovery is actually ANNOUNCED —
+      // otherwise a two-day quiet spell would erase the age of a problem
+      // that came straight back.
+      const firstSeenAt = inTrouble
+        ? memory.state === key && memory.firstSeenAt
+          ? memory.firstSeenAt
+          : now
+        : standingDown && delivered
+          ? null
+          : memory.firstSeenAt ?? null
+
+      // WHEN THE PROBLEM KEY MAY MOVE. In trouble: as before, once the
+      // report landed or there was nothing to report. Recovered: ONLY once
+      // the all-clear actually went out.
+      //
+      // That second half is load-bearing and was wrong in the first draft
+      // of this fix — a recovery whose dwell had not elapsed still stamped
+      // `healthy`, so the next day's re-break was a state CHANGE and
+      // alerted, which is exactly the flap the dwell clock exists to stop.
+      // The clock only works if the memory keeps holding the problem while
+      // the quiet is being served.
+      const mayStampKey = inTrouble ? delivered || nothingToDeliver : delivered
+
+      // SKIP A WRITE THAT WOULD CHANGE NOTHING. The clocks are written on
+      // every pass by design, but a healthy clinic's values are stable — and
+      // this cron touches every clinic row every day, so an unconditional
+      // UPDATE is a daily dead tuple per practice for no information.
+      const same = (a: Date | null | undefined, b: Date | null | undefined) =>
+        (a?.getTime() ?? null) === (b?.getTime() ?? null)
+      const nothingChanges =
+        !delivered &&
+        (!mayStampKey || memory.state === key) &&
+        same(firstSeenAt, memory.firstSeenAt) &&
+        same(clearSince, memory.clearSince)
+      if (nothingChanges) continue
+
+      if (mayStampKey || delivered || nothingToDeliver) {
         await db
           .update(schema.clinicProfile)
           .set({
-            guardianState: state,
+            ...(mayStampKey ? { guardianState: key } : {}),
+            guardianFirstSeenAt: firstSeenAt,
+            guardianClearSince: clearSince,
             ...(delivered ? { guardianAlertedAt: now } : {}),
           })
+          .where(eq(schema.clinicProfile.organizationId, report.organizationId))
+      } else {
+        // The report did NOT land, so the problem key must not move — but
+        // the clocks still have to, or a mail outage would also freeze the
+        // dwell window and the problem's age.
+        await db
+          .update(schema.clinicProfile)
+          .set({ guardianFirstSeenAt: firstSeenAt, guardianClearSince: clearSince })
           .where(eq(schema.clinicProfile.organizationId, report.organizationId))
       }
     } catch (e) {

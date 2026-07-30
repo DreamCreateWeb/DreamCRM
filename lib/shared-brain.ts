@@ -154,20 +154,51 @@ export function learnBestSendHour(
     return d > 0 || (d === 0 && b.hour < a.hour) ? b : a
   })
 
+  // A COMPARISON NEEDS TWO ARMS (round-11 audit). Every automated send in
+  // the platform aims at the hour in force, so that bucket fills and no
+  // other one does — `eligible` is realistically `[incumbent]` alone for a
+  // long time. With one arm, "really is the best hour to send" is the
+  // shipped guess re-badged as a finding, and `learned: true` is carried
+  // forward forever, so the badge could never honestly return to "still
+  // learning". That is precisely the magic number this card exists to make
+  // impossible.
+  if (eligible.length < 2) {
+    return {
+      hour: incumbent,
+      learned: currentLearned,
+      why: `Only ${hourLabel(eligible[0].hour)} has enough behind it to read so far, so there is nothing to compare it against yet. Every clinic still sends at ${hourLabel(incumbent)}.`,
+      sampleSends,
+    }
+  }
+
   const standing = eligible.find((s) => s.hour === incumbent)
   if (best.hour === incumbent) {
     return {
       hour: incumbent,
       learned: true,
-      why: `${hourLabel(incumbent)} really is the best hour to send — ${Math.round(rate(best) * 100)}% of those get opened, across ${best.clinics} practices.`,
+      why: `${hourLabel(incumbent)} really is the best hour to send — ${Math.round(rate(best) * 100)}% of those get opened, across ${best.clinics} practices, and it beat the other ${eligible.length - 1} ${eligible.length === 2 ? 'hour' : 'hours'} with enough data to judge.`,
+      sampleSends,
+    }
+  }
+
+  // NEVER MOVE WITHOUT MEASURING AGAINST WHAT IS IN FORCE (round-11 audit).
+  // When the incumbent has no qualifying bucket of its own, the old code
+  // skipped MIN_LIFT entirely and swapped the platform's send hour on the
+  // strength of one arm — while telling the owner it "beats every other
+  // hour", a comparison that had not happened. The stability floor exists
+  // exactly so this value cannot wobble; a missing incumbent is a reason to
+  // wait, not a reason to skip the check.
+  if (!standing) {
+    return {
+      hour: incumbent,
+      learned: currentLearned,
+      why: `${hourLabel(best.hour)} looks good, but not enough goes out at ${hourLabel(incumbent)} yet to know whether it is actually better. Staying at ${hourLabel(incumbent)} until there is something to compare.`,
       sampleSends,
     }
   }
 
   // STABILITY: beat the standing default by a real margin or leave it be.
-  // When the default hour itself has no qualifying data there is nothing to
-  // beat, and the winner stands on its own.
-  if (standing && rate(best) - rate(standing) < MIN_LIFT) {
+  if (rate(best) - rate(standing) < MIN_LIFT) {
     return {
       hour: incumbent,
       learned: currentLearned,

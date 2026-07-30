@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { PgDialect } from 'drizzle-orm/pg-core'
-import { and, gte, lt, sql } from 'drizzle-orm'
+import { PgDialect, QueryBuilder } from 'drizzle-orm/pg-core'
 import * as schema from '@/lib/db/schema'
-import { workCountExpr, failureCountExpr } from '@/lib/services/guardian'
+import { sweepCountsQuery, failureCountExpr } from '@/lib/services/guardian'
 
 /**
  * THE GUARDIAN's grouped ledger read, RENDERED FOR REAL (Phase 4).
@@ -21,15 +20,23 @@ import { workCountExpr, failureCountExpr } from '@/lib/services/guardian'
 
 const dialect = new PgDialect()
 
-/** The service's real expressions, assembled the way the sweep assembles
- *  them. Only the surrounding select is written here. */
+/**
+ * THE SERVICE'S OWN QUERY, not a reconstruction of it (round-11 audit).
+ *
+ * This file used to hand-write the surrounding `select … from action_ledger`
+ * around the imported aggregate expressions — and `failureCountExpr` buckets
+ * by `clinic_profile.timezone`, so the statement it rendered referenced a
+ * table it never joined: Postgres 42P01, every time. The strictest-looking
+ * test in the phase was validating a statement the database would reject,
+ * and the LEFT JOIN the real query cannot run without had no coverage
+ * anywhere (the service harness stubs `leftJoin` to a no-op).
+ *
+ * `sweepCountsQuery` is now the single definition. The service hands it the
+ * live `db`; this hands it drizzle's offline `QueryBuilder`, which needs no
+ * connection — so what is rendered below IS what production executes.
+ */
 function buildSweepQuery(since: Date, until: Date) {
-  return sql`select ${schema.actionLedger.organizationId},
-      ${workCountExpr()} as work,
-      ${failureCountExpr()} as failures
-    from ${schema.actionLedger}
-    where ${and(gte(schema.actionLedger.occurredAt, since), lt(schema.actionLedger.occurredAt, until))}
-    group by ${schema.actionLedger.organizationId}`
+  return sweepCountsQuery(new QueryBuilder() as never, since, until).getSQL()
 }
 
 describe('the guardian sweep as Postgres parses it', () => {
@@ -50,6 +57,21 @@ describe('the guardian sweep as Postgres parses it', () => {
     for (const p of q.params) expect(p instanceof Date || typeof p === 'string').toBe(true)
     expect(q.sql).toMatch(/\$1/)
     expect(q.sql).toMatch(/\$2/)
+  })
+
+  it('JOINS the table its own day expression names — the join has to be here or Postgres says 42P01', () => {
+    // Round-11 audit: the version of this file that hand-built the select
+    // rendered `clinic_profile.timezone` with no `clinic_profile` in scope,
+    // so the strictest test in the phase was validating a statement the
+    // database would reject. Both halves are asserted, because either one
+    // alone is a statement that cannot run.
+    expect(q.sql).toContain('"clinic_profile"')
+    expect(q.sql).toMatch(/left join "clinic_profile"/)
+    expect(q.sql).toContain('"timezone"')
+  })
+
+  it('groups by the org, so one row comes back per clinic', () => {
+    expect(q.sql).toMatch(/group by "action_ledger"\."organization_id"/)
   })
 
   it('quotes the real table and column names from the schema', () => {

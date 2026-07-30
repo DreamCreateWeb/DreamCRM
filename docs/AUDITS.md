@@ -1687,3 +1687,79 @@ against them.
   in slice 4, the heartbeat's `blind` in round 9, `sampleSends` and the
   heartbeat's `scanned`/`flagged` here). Storing and rendering must land in
   the same commit.
+
+**Attempt 6 (round 11) — NOT CLEAN.** 9 distinct defects (11 confirmed with
+duplicates) + 1 in-phase gap. Unlike round 10, most of these were in the
+ORIGINAL code and had survived every prior round — the lenses reached a layer
+they had not reached before (the meaning of the stored memory, the shape of
+the comparison the brain makes, what the boundary test actually renders).
+
+- **The standup called an autonomy hand-back "mine to sort out, and I'm on
+  it."** `countFailuresSince` matched both failure producers, and the second
+  one is the machine *deliberately stopping* after two tries and handing the
+  card back — so the same report said the machine was still on it AND listed
+  that card two lines below as waiting on the human, contradicting the
+  machine's own ledger sentence. `failureKind` existed precisely to tell
+  them apart, and the read side ignored it.
+- **The alert memory stored only the STATE word, and `blocked` is two
+  problems.** Failure-blocked is ours to fix and never reaches a practice;
+  switch-blocked is theirs and does. Moving between them was "the same
+  problem", so nobody was told for up to a week while the last thing said
+  about that clinic was the wrong half of the truth. Fixed with a problem
+  KEY (state + cause) — the memory's granularity now matches what the code
+  means by "the same problem".
+- **The stand-down (round 9) gave the Guardian a way to OSCILLATE.** The
+  stall is a strict inequality over two daily-sliding windows, so one seated
+  patient crossing a boundary flips a practice attention → fine → attention
+  on alternating days — and every flip was a state change, so it earned an
+  alert one morning and an all-clear the next, forever. Fixed with a dwell
+  clock: a recovery must hold `STAND_DOWN_DWELL_DAYS` before it is
+  announced, and because the problem key is not stamped over while that
+  quiet is being served, the re-break is still "the same problem" and stays
+  silent too. One clock, both halves of the flap. **My own new test caught a
+  bug in that fix** — the first draft still stamped `healthy` on the
+  not-yet-held pass, which defeated the entire mechanism.
+- **The SQL boundary test rendered a statement Postgres would reject.** It
+  hand-wrote `select … from action_ledger` around the imported aggregates,
+  and the day expression inside them names `clinic_profile.timezone` — 42P01,
+  every run. The strictest-looking test in the phase was validating a
+  statement the database cannot execute, and the LEFT JOIN the real query
+  depends on had zero coverage anywhere (the service harness stubs `leftJoin`
+  to a no-op). The query is now ONE definition: the service passes the live
+  `db`, the test passes drizzle's offline `QueryBuilder`.
+- **The shared brain declared findings from a comparison with one arm** — and
+  skipped MIN_LIFT entirely when the hour in force had no qualifying bucket,
+  so the platform-wide send hour could move on a single arm while the copy
+  claimed it "beats every other hour". Every automated send aims at the hour
+  in force, so `[incumbent]` alone is the LIKELIEST shape for a long time.
+  Both closed; several existing tests had been pinning the defect by
+  supplying one bucket and expecting a finding.
+- **A week of nothing but failures was still `quiet`, so the Monday email was
+  suppressed** — the exact week rounds 9 and 10 taught this thing to admit
+  its own breakage was the week the email carrying that admission never sent.
+- The audience control printed "Practices are told nothing" from an
+  unreadable config: round 10 floored the DECISION correctly and let the
+  floor be rendered as a statement of fact. Same class, one consumer further.
+- `alsoFailedClause` rendered a count of DAYS as a count of "jobs".
+
+**In-phase gap shipped:** chronicity. `guardianAlertedAt` is overwritten on
+every delivery, so "I last flagged this N days ago" is pinned at or under
+RE_ALERT_DAYS by construction — a six-week break read as a seven-day one, and
+the owner could not tell a churn conversation from a shrug. Migration 0141
+adds `guardian_first_seen_at`; both email bodies and the panel row now say how
+long it has actually been wrong.
+
+**Standing lessons added:**
+- *A test that builds its own version of a query is testing its own version
+  of the query.* If the production statement is assembled by a builder, the
+  boundary test must render THAT builder — drizzle's `QueryBuilder` needs no
+  connection, so there is no excuse.
+- *When a stored value stands for a concept, check that its GRANULARITY
+  matches the concept.* One word for two problems is the duplicate-law defect
+  wearing a different hat: not two copies disagreeing, but one copy that
+  cannot express the distinction the rest of the code makes.
+- *Adding a state transition adds an oscillation.* Any new "announce the
+  opposite" path needs a dwell clock, or the threshold it watches will flap.
+- *A single-arm comparison is not a comparison.* Any code that says one thing
+  "beats" another must assert that it had something to compare against —
+  and its tests must supply two arms, or they pin the defect.

@@ -197,9 +197,19 @@ export async function buildWeeklyStandup(
   // EVERY week reads the failures, not only the quiet ones (round-10 gap).
   // Best-effort: an unreadable count reads as zero, which never invents
   // trouble that wasn't there.
+  // ENGINE failures only (round-11 audit). The other producer is the autonomy
+  // hand-back — the machine deliberately STOPPING after two tries and putting
+  // the card back in front of a human — and it is already narrated as its own
+  // ledger line and counted in `openProposals` below. Summing the two made
+  // this say "that's mine to sort out, and I'm on it" about a card the same
+  // report listed two lines down as waiting on THEM, contradicting the
+  // machine's own sentence ("it's back with you").
   const failures = predatesAccount
     ? 0
-    : await countFailuresSince(organizationId, weekStart, { until: weekEnd }).catch((e) => {
+    : await countFailuresSince(organizationId, weekStart, {
+        until: weekEnd,
+        kind: 'engine',
+      }).catch((e) => {
         console.error('[standup] failure count failed', e)
         return 0
       })
@@ -259,7 +269,13 @@ export async function buildWeeklyStandup(
     newPatientsSeated,
     reviewsReceived,
     humanTasks: { openProposals, followupsDue },
-    quiet: totalActions === 0 && openProposals === 0 && followupsDue === 0,
+    // A WEEK OF FAILURES IS NOT A QUIET WEEK (round-11 audit). `quiet`
+    // suppresses the Monday email entirely, and it was computed from
+    // work-only counts — so the one week rounds 9 and 10 taught this thing
+    // to admit its own breakage was exactly the week the email carrying
+    // that admission never sent. "Nothing happened" and "everything I tried
+    // broke" are opposite facts arriving as the same zero.
+    quiet: totalActions === 0 && failures === 0 && openProposals === 0 && followupsDue === 0,
     quietNote,
     failureNote,
     predatesAccount,
@@ -317,8 +333,9 @@ export function renderStandupEmailBody(s: WeeklyStandup, clinicName: string): st
     parts.push(`• ${s.quietNote ?? 'A quiet week on my side — nothing needed sending.'}`)
   }
   // A busy week hides failures exactly as well as a quiet one, because the
-  // counts above are work-only by law (round-10 gap). The quiet branch
-  // already carries this inside `quietNote`.
+  // counts above are work-only by law (round-10 gap). Gated on `lines` so it
+  // is not said twice: in a work-empty week the sentence is already inside
+  // `quietNote`, which the branch above prints.
   if (s.failureNote && s.lines.length > 0) {
     parts.push('')
     parts.push(s.failureNote)

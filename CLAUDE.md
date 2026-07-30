@@ -520,13 +520,18 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0140** (`platform_config` — Dream Create's own platform-global
+  migration: **0141** (`clinic_profile.guardian_first_seen_at` +
+  `guardian_clear_since` — the Guardian's chronicity and its stand-down DWELL
+  clock: "blocked since June 2" instead of "I flagged it 7 days ago", and a
+  recovery that has to HOLD for `STAND_DOWN_DWELL_DAYS` before it is
+  announced, so a practice sitting on the stall threshold can't alert and
+  stand down on alternating days. 0140 was `platform_config` — Dream Create's own platform-global
   switches, one row id 'default'. It carries THREE top-level keys today —
   `guardianAudience` (the audience lock), `sharedBrain` (the learned send
   hour) and `guardian` (the watcher's own heartbeat) — and every writer goes
   through `writePlatformConfig`, which merges shallowly and passes its own
   key WHOLE. A read-modify-write or a full-row replace here silently drops
-  another subsystem's key. 0139 was `clinic_profile.guardian_state` +
+  another subsystem's key). 0139 was `clinic_profile.guardian_state` +
   `guardian_alerted_at`, the Guardian's alert memory; 0138 was
   `proposal.original_body`, the autonomy ladder). Workflow:
   `pnpm db:generate`, commit, merge.
