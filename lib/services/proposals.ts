@@ -239,7 +239,23 @@ export async function listOpenProposals(organizationId: string, limit = 12): Pro
  */
 export async function countOpenProposals(
   organizationId: string,
-  opts: { includeGranted?: boolean } = {},
+  opts: {
+    includeGranted?: boolean
+    /**
+     * Leave out cards the MACHINE put back (round-13 in-phase gap).
+     *
+     * The Guardian's pile-up clause reads "N pieces of finished work are
+     * sitting unanswered in their inbox, so they may have stopped opening
+     * it" — a statement about a PERSON's engagement. A handed-back card is
+     * evidence of the opposite: the machine tried twice, gave up, and put
+     * it there itself, possibly this morning. One revoked posting token
+     * hands a card back day after day, which inflates `failures7` (flagging
+     * the practice `blocked`) and this count from a single cause — so the
+     * email that starts a customer conversation would carry a false
+     * sentence about that customer's staff, against the anti-shame law.
+     */
+    excludeHandedBack?: boolean
+  } = {},
 ): Promise<number> {
   const now = new Date()
   let granted: GrantedCapability[] = []
@@ -287,6 +303,7 @@ export async function countOpenProposals(
         eq(schema.proposal.status, 'open'),
         or(isNull(schema.proposal.expiresAt), gt(schema.proposal.expiresAt, now)),
         ...(mine ? [not(mine)] : []),
+        ...(opts.excludeHandedBack ? [notHandedBack()] : []),
       ),
     )
   return Number(row?.c ?? 0)

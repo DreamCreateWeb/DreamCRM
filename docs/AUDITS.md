@@ -1817,3 +1817,58 @@ duplicate-law defect wearing test clothing.**
   updated three of five readers of `guardianState`.
 - *Do not quote a number you cannot define.* If the count means neither of
   the two things a reader might assume, the honest sentence has no number.
+
+**Attempt 8 (round 13) — NOT CLEAN, but converging.** 4 defects + 1 minor
+in-phase gap, from 10 raw candidates (round 12 raised 22). Volume is down
+across every stage, and — unlike round 12 — TWO of the five were in the
+ORIGINAL code, so the "only the correction layer is churning" reading from
+round 12 was too generous by itself.
+
+- **An unreadable alert memory FABRICATED the chronicity clocks and wrote
+  them back.** `readMemory`'s catch returned an empty object with no flag,
+  and the clocks are derived with `?? now` — so one transient SELECT failure
+  permanently reset a six-week break's age to today and restarted the dwell
+  window. The comment on those clocks claimed they could not be corrupted
+  ("both facts are observations"): true of an undelivered report, false of an
+  unreadable memory. The catch had ZERO executed coverage because the
+  harness's db mock could not fail; replacing its body with one that muted
+  every alarm would have left all 38 tests green. There is a fail switch now.
+- **The panel glued the trouble-RUN length onto the CURRENT state's
+  headline.** Round 12 redefined the clock to survive a change of shape and
+  re-worded both emails to match; the panel and the field's own doc were left
+  on the old meaning, so a practice stalled 40 days that switched its engines
+  off yesterday read "Both engines are switched off · 41 days now" while the
+  email that same morning said the careful, correct thing.
+- **A failed all-clear lost its age before the retry.** The clock cleared on
+  the pass where the email failed, so the report the owner actually received
+  the next morning was the quieter one — missing "It needed attention for 41
+  days", the sentence round 11 shipped as a gap.
+- **ORIGINAL: the stall note replayed a stale "this week" claim for 8 days.**
+  The live re-verification was exempted for `stalled` on the grounds that it
+  "describes a closed 30-day window, which cannot become false inside a
+  week" — true of the opening clause, and round 8 then added a second clause
+  about the trailing SEVEN days to the same string. A practice whose
+  generator broke on Monday and was fixed Tuesday kept being told to discount
+  its own numbers for a reason that had stopped existing. The writer now
+  records the numbers the sentence was built from, so the reader re-derives
+  instead of replaying.
+- **ORIGINAL (gap): the pile-up clause blamed the practice for cards the
+  machine handed back.** "N pieces of finished work are sitting unanswered in
+  their inbox, so they may have stopped opening it" is a claim about a
+  PERSON; a handed-back card is evidence of the opposite. One revoked token
+  inflates `failures7` AND that count from a single cause, so the email that
+  starts a customer conversation carried a false sentence about that
+  customer's staff. `notHandedBack()` already existed as the predicate.
+
+**Standing lessons added:**
+- *A catch that cannot be reached by any test is not a guard, it is a
+  comment.* Every error path that CHANGES STORED STATE needs a fail switch in
+  the harness — the round-8 lesson (swallowed errors) applied to the harness
+  rather than the code.
+- *When a value's MEANING changes, re-read every sentence that renders it.*
+  Round 12 changed what the chronicity clock measures and re-worded two of
+  three surfaces.
+- *A count borrowed from another subsystem inherits that subsystem's
+  definition, not yours.* `openProposals` counts handed-back cards by
+  documented design; the Guardian needed a different question and asked the
+  same one.

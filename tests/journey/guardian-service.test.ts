@@ -16,6 +16,7 @@ const deps = vi.hoisted(() => ({
   switches: new Map<string, { remindersOn: boolean; reviewRequestsOn: boolean }>(),
   seated: new Map<string, number[]>(), // orgId → [thisMonth, prevMonth]
   openProposals: 0,
+  openProposalOpts: [] as Array<Record<string, unknown>>,
   seatedCalls: [] as string[],
   throwFor: null as string | null,
 }))
@@ -41,7 +42,10 @@ vi.mock('@/lib/services/patient-journey', () => ({
   }),
 }))
 vi.mock('@/lib/services/proposals', () => ({
-  countOpenProposals: vi.fn(async () => deps.openProposals),
+  countOpenProposals: vi.fn(async (_org: string, opts?: Record<string, unknown>) => {
+    deps.openProposalOpts.push(opts ?? {})
+    return deps.openProposals
+  }),
 }))
 
 vi.mock('@/lib/db', () => {
@@ -185,6 +189,7 @@ beforeEach(() => {
   deps.seated = new Map()
   deps.seatedCalls = []
   deps.openProposals = 0
+  deps.openProposalOpts = []
   deps.throwFor = null
 })
 
@@ -446,5 +451,22 @@ describe('troubleForDays — how long this practice has needed attention', () =>
     seedOrg('org_c', 'Cedar Dental')
     const sweep = await sweepEngineHealth(NOW)
     expect(sweep.flagged[0].troubleForDays).toBeNull()
+  })
+})
+
+
+describe('the pile-up clause never blames a practice for cards the machine handed back', () => {
+  it('asks for a count that excludes hand-backs (round-13 in-phase gap)', async () => {
+    // "N pieces of finished work are sitting unanswered in their inbox, so
+    // they may have stopped opening it" is a claim about a PERSON. A
+    // handed-back card is evidence of the opposite — the machine tried
+    // twice, gave up and put it there itself, possibly this morning. One
+    // revoked token inflates failures7 (flagging the practice `blocked`)
+    // and this count from a single cause, so the email that starts a
+    // customer conversation would carry a false sentence about that
+    // customer's staff.
+    seedOrg('org_a', 'Ash Dental')
+    await sweepEngineHealth(NOW)
+    expect(deps.openProposalOpts[0]).toMatchObject({ excludeHandedBack: true })
   })
 })

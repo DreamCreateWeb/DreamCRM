@@ -17,7 +17,7 @@ import { readEngineSwitches } from '@/lib/services/engine-switches'
 import { getGuardianAudience } from '@/lib/services/platform-config'
 import { countSeatedBetween } from '@/lib/services/patient-journey'
 import { countOpenProposals } from '@/lib/services/proposals'
-import { workOnly, failureOnly } from '@/lib/services/action-ledger'
+import { workOnly, failureOnly, countFailuresSince } from '@/lib/services/action-ledger'
 import { getCapability } from '@/lib/autonomy'
 import { resolveTrialState } from '@/lib/trial'
 
@@ -48,10 +48,23 @@ export interface ClinicEngineReport {
   clinicName: string
   verdict: EngineVerdict
   signals: EngineSignals
-  /** How long this practice has been in its CURRENT state, in days, or
-   *  null when it is fine or the Guardian has not seen it break yet
-   *  (round-11 in-phase gap). A practice silent for two months and one
-   *  silent since Tuesday used to render identically. */
+  /**
+   * How long this practice has needed attention WITHOUT A BREAK, in days —
+   * not how long its current state has held (round-13 audit).
+   *
+   * Round 12 redefined the underlying clock to survive a change of shape
+   * (switch-blocked becoming failure-blocked is one unbroken run of
+   * trouble) and re-worded the emails to match; this field's doc and the
+   * panel that renders it were left on the old meaning, so a practice
+   * stalled for 40 days that switched its engines off yesterday showed
+   * "Both engines are switched off · 41 days now" — while the email about
+   * the same clinic that morning said the careful, correct thing. A counter
+   * and its explainer disagreeing across two surfaces is this phase's
+   * signature defect.
+   *
+   * Null when the practice is fine, or when the Guardian has not yet seen
+   * it break.
+   */
   troubleForDays: number | null
   /** What broke behind `failures7`, by capability, in the OWNER's voice —
    *  "Reply to Google reviews — 3 days". Never the clinic-addressed
@@ -323,7 +336,10 @@ async function assessClinic(
     // could not read is not a number we may report.
     countSeatedBetween(org.id, windows.monthStart, windows.now).catch(() => null),
     countSeatedBetween(org.id, windows.prevMonthStart, windows.monthStart).catch(() => null),
-    countOpenProposals(org.id).catch(() => 0),
+    // WITHOUT the cards the machine itself handed back (round-13 gap): the
+    // only thing this number is used for is the pile-up clause, which is a
+    // claim about whether a PERSON has stopped opening their inbox.
+    countOpenProposals(org.id, { excludeHandedBack: true }).catch(() => 0),
   ])
   const here = ledger.this7.get(org.id) ?? { work: 0, failures: 0 }
   // Only when there is something to explain — no query on a healthy clinic.
@@ -608,7 +624,40 @@ export async function getActiveGuardianNote(
         reviewRequestsOn: switches.reviewRequestsOn,
       }
     }
-    return { summary: row.summary, state, occurredAt: row.occurredAt }
+    // STALLED — RE-DERIVED TOO, for the one clause that can go stale
+    // (round-13 audit). The exemption was written for a sentence about a
+    // CLOSED 30-day window ("which cannot become false inside a week"), and
+    // round 8 then added a second clause to the same string that is a claim
+    // about the trailing SEVEN days: "Some of my own jobs also hit trouble
+    // this week". The note is re-written only every RE_ALERT_DAYS and stays
+    // readable for NOTE_VISIBLE_DAYS, so a practice whose generator broke on
+    // Monday and was fixed Tuesday kept reading, for the next eight days,
+    // that it should discount its own numbers for a reason that had stopped
+    // existing — and a live promise about work that was no longer broken.
+    // The blocked branch was hardened against exactly this; the rationale
+    // for exempting this one no longer covered the whole sentence it
+    // justified.
+    const detail = (row.detail ?? {}) as { seated30?: unknown; seatedPrev30?: unknown }
+    const seated30 = typeof detail.seated30 === 'number' ? detail.seated30 : null
+    const seatedPrev30 = typeof detail.seatedPrev30 === 'number' ? detail.seatedPrev30 : null
+    // A note written before the numbers were recorded cannot be re-derived,
+    // so it is replayed as written — bounded by NOTE_VISIBLE_DAYS, which is
+    // days, not forever.
+    if (seated30 === null || seatedPrev30 === null) {
+      return { summary: row.summary, state, occurredAt: row.occurredAt }
+    }
+    const failures7 = await countFailuresSince(
+      organizationId,
+      new Date(now.getTime() - 7 * DAY_MS),
+      { until: now },
+    ).catch((e) => {
+      // Unknown reads as "nothing failed" — which DROPS the hedge rather
+      // than asserting one. Never a claim we cannot stand behind.
+      console.error('[guardian] live failure count for the stall note failed', e)
+      return 0
+    })
+    const live = clinicNote('stalled', { ...EMPTY_SIGNALS, failures7, seated30, seatedPrev30 })
+    return { summary: live ?? row.summary, state, occurredAt: row.occurredAt }
   } catch (e) {
     // A note the machine can't read is a note it doesn't show. Never a
     // half-rendered warning. LOG IT (round-8 lesson, swept): a silent catch

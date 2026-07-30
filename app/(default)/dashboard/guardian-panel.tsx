@@ -107,16 +107,24 @@ function ReportRow({
           </div>
           <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
             {report.verdict.headline}
-            {/* HOW LONG (round-11 in-phase gap). A practice silent for two
-                months and one silent since Tuesday rendered identically,
-                and chronicity is the difference between a churn
-                conversation and a shrug. */}
-            {report.troubleForDays !== null && (
-              <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
-                · {report.troubleForDays} {report.troubleForDays === 1 ? 'day' : 'days'} now
-              </span>
-            )}
           </p>
+          {/* HOW LONG (round-11 in-phase gap). A practice silent for two
+              months and one silent since Tuesday rendered identically, and
+              chronicity is the difference between a churn conversation and
+              a shrug.
+              ITS OWN LINE, AND ITS OWN WORDS (round-13 audit). Round 12
+              redefined the clock to measure the practice's unbroken RUN of
+              trouble, which may change shape inside it — so glued to the
+              headline as "· 41 days now" it read as "these switches have
+              been off for 41 days" when they were flipped yesterday. The
+              emails were re-worded in that commit; this was not. */}
+          {report.troubleForDays !== null && (
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Needing attention {report.troubleForDays}{' '}
+              {report.troubleForDays === 1 ? 'day' : 'days'} straight now &mdash; not always for
+              this reason.
+            </p>
+          )}
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{report.verdict.why}</p>
           {report.failureCauses.length > 0 && (
             <ul className="mt-2 space-y-0.5">

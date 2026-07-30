@@ -75,7 +75,7 @@ export interface GuardianRunResult {
 
 async function readMemory(
   organizationId: string,
-): Promise<AlertMemory & { missing?: boolean }> {
+): Promise<AlertMemory & { missing?: boolean; unreadable?: boolean }> {
   try {
     const [row] = await db
       .select({
@@ -107,7 +107,12 @@ async function readMemory(
     // round-8 lesson: a swallowed query error is indistinguishable from a
     // path that never ran.
     console.error('[guardian] alert-memory read failed', e)
-    return { state: null, alertedAt: null }
+    // …but it must not INVENT one either (round-13 audit). The clocks are
+    // derived with `?? now`, so an empty object read as fact restarts a
+    // six-week break's age at today and resets the dwell window — the very
+    // fact rounds 11 and 12 spent two rounds making honest. `unreadable`
+    // lets the caller alert (the alarm still sounds) while writing nothing.
+    return { state: null, alertedAt: null, unreadable: true }
   }
 }
 
@@ -219,7 +224,15 @@ async function tellClinic(report: ClinicEngineReport, now: Date): Promise<boolea
     capability: 'guardian_note',
     summary: note,
     // `report: true` keeps this out of the WORK counts — see isWorkEntry.
-    detail: { guardianState: report.verdict.state, report: true },
+    // The numbers the sentence was built from, so the READER can re-derive
+    // it rather than replaying a claim that may have gone stale
+    // (round-13 audit).
+    detail: {
+      guardianState: report.verdict.state,
+      report: true,
+      seated30: report.signals.seated30,
+      seatedPrev30: report.signals.seatedPrev30,
+    },
     occurredAt: now,
   })
 }
@@ -491,9 +504,16 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         !inTrouble &&
         memory.clearSince != null &&
         now.getTime() - memory.clearSince.getTime() >= STAND_DOWN_DWELL_DAYS * DAY_MS
+      // …AND THE ALL-CLEAR ABOUT IT ACTUALLY WENT OUT (round-13 audit). The
+      // age is what makes the stand-down worth reading — "it needed
+      // attention for 41 days" — and clearing it on the pass where the
+      // email FAILED stripped that sentence from the retry the next
+      // morning. A report that is due and did not land keeps everything it
+      // will need to be made again.
+      const standDownPending = standingDown && !delivered
       const firstSeenAt = inTrouble
         ? (memory.firstSeenAt ?? now)
-        : recoveredForGood
+        : recoveredForGood && !standDownPending
           ? null
           : (memory.firstSeenAt ?? null)
 
@@ -515,6 +535,18 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // UPDATE is a daily dead tuple per practice for no information.
       const same = (a: Date | null | undefined, b: Date | null | undefined) =>
         (a?.getTime() ?? null) === (b?.getTime() ?? null)
+      // NOTHING IS WRITTEN OFF A MEMORY WE COULD NOT READ (round-13 audit).
+      // The alarm still sounds — `shouldAlert` sees a null state and treats
+      // it as news, which is the posture we want — but persisting clocks
+      // derived from `?? now` would corrupt the practice's real history on
+      // one transient SELECT failure.
+      if (memory.unreadable) {
+        result.errors.push({
+          organizationId: report.organizationId,
+          error: 'alert memory unreadable — reported anyway, remembered nothing',
+        })
+        continue
+      }
       const nothingChanges =
         !delivered &&
         (!mayStampKey || memory.state === key) &&

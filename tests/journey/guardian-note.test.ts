@@ -17,6 +17,9 @@ const state = vi.hoisted(() => ({
   switchReads: 0,
   fail: false,
   audience: 'clinic' as 'platform' | 'clinic',
+  /** What the LIVE failure count says right now — the stall note's second
+   *  clause is a claim about the trailing week and has to be re-checked. */
+  liveFailures: 0,
   captured: { since: null as Date | null, capability: null as unknown },
 }))
 
@@ -75,6 +78,11 @@ vi.mock('@/lib/services/engine-switches', () => ({
   }),
 }))
 vi.mock('@/lib/services/patient-journey', () => ({ countSeatedBetween: vi.fn(async () => 0) }))
+vi.mock('@/lib/services/action-ledger', () => ({
+  workOnly: () => ({ op: 'sql' }),
+  failureOnly: () => ({ op: 'sql' }),
+  countFailuresSince: vi.fn(async () => state.liveFailures),
+}))
 vi.mock('@/lib/services/proposals', () => ({ countOpenProposals: vi.fn(async () => 0) }))
 
 import { getActiveGuardianNote } from '@/lib/services/guardian'
@@ -82,9 +90,16 @@ import { NOTE_VISIBLE_DAYS, RE_ALERT_DAYS } from '@/lib/guardian'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
 
-function note(guardianState: string, summary = 'a heads up') {
-  return { summary, detail: { guardianState }, occurredAt: new Date('2026-07-28T14:00:00Z') }
+function note(guardianState: string, summary = 'a heads up', detail: Record<string, unknown> = {}) {
+  return {
+    summary,
+    detail: { guardianState, ...detail },
+    occurredAt: new Date('2026-07-28T14:00:00Z'),
+  }
 }
+/** A stall note as the writer records it — with the numbers the sentence was
+ *  built from, so the reader can re-derive rather than replay. */
+const stallNote = (summary: string) => note('stalled', summary, { seated30: 3, seatedPrev30: 12 })
 
 beforeEach(() => {
   state.rows = []
@@ -92,6 +107,7 @@ beforeEach(() => {
   state.switchReads = 0
   state.fail = false
   state.audience = 'clinic'
+  state.liveFailures = 0
   state.captured = { since: null, capability: null }
 })
 
@@ -212,5 +228,50 @@ describe('getActiveGuardianNote — the sentence is re-derived, not replayed', (
     const r = await getActiveGuardianNote('org_1', NOW)
     expect(r!.summary).toBe('Fewer new patients came in this past month')
     expect(r!.remindersOn).toBeUndefined()
+  })
+})
+
+
+describe('the stall note is re-derived too, for the clause that can go stale (round-13 audit)', () => {
+  it('drops the "my jobs hit trouble this week" hedge once the week is clean', async () => {
+    // The exemption was written for a sentence about a CLOSED 30-day window
+    // ("which cannot become false inside a week"). Round 8 then added a
+    // second clause that is a claim about the trailing SEVEN days — and the
+    // note is only re-written every RE_ALERT_DAYS while staying readable for
+    // NOTE_VISIBLE_DAYS, so a practice whose generator broke on Monday and
+    // was fixed Tuesday kept being told to discount its own numbers for a
+    // reason that had stopped existing.
+    state.rows = [
+      stallNote('Fewer new patients came in this past month (3 against 12). Some of my own jobs also hit trouble this week, so let me get those working before we read too much into the numbers. I’ll keep you posted.'),
+    ]
+    state.liveFailures = 0
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r?.summary).not.toContain('hit trouble')
+    expect(r?.summary).toContain('Nothing is broken on my side')
+    expect(r?.summary).toContain('3')
+    expect(r?.summary).toContain('12')
+  })
+
+  it('KEEPS the hedge while something really is still failing', async () => {
+    state.rows = [stallNote('Fewer new patients came in this past month (3 against 12). Nothing is broken on my side — everything is still running.')]
+    state.liveFailures = 2
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r?.summary).toContain('hit trouble')
+  })
+
+  it('a note written before the numbers were recorded is replayed, not fabricated', async () => {
+    // Legacy rows cannot be re-derived; replaying them is bounded by
+    // NOTE_VISIBLE_DAYS, and inventing "0 against 0" would be worse.
+    state.rows = [note('stalled', 'Fewer new patients came in this past month (3 against 12).')]
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r?.summary).toBe('Fewer new patients came in this past month (3 against 12).')
+  })
+
+  it('an unreadable live count DROPS the hedge rather than asserting one', async () => {
+    const { countFailuresSince } = await import('@/lib/services/action-ledger')
+    vi.mocked(countFailuresSince).mockRejectedValueOnce(new Error('pool timeout'))
+    state.rows = [stallNote('anything')]
+    const r = await getActiveGuardianNote('org_1', NOW)
+    expect(r?.summary).not.toContain('hit trouble')
   })
 })

@@ -23,6 +23,11 @@ const ledger = vi.hoisted(() => ({
   recorded: [] as Array<Record<string, unknown>>,
   fail: false,
 }))
+/** Makes the MEMORY read throw. Round-13 audit: readMemory's catch — and the
+ *  law it encodes — had zero executed coverage, because the db mock could
+ *  not fail. Replacing that catch's body with one that muted every alarm
+ *  would have left all 38 tests green. */
+const memoryRead = vi.hoisted(() => ({ fail: false }))
 
 vi.mock('@/lib/services/guardian', () => ({
   sweepEngineHealth: vi.fn(async () => ({
@@ -75,6 +80,7 @@ vi.mock('@/lib/db', () => {
     const rows = () =>
       (table === 'user' ? store.admins : store.profiles).filter((r) => filters.every((f) => f(r)))
     api.limit = async () => {
+      if (memoryRead.fail && table !== 'user') throw new Error('statement timeout')
       const out = rows()
       // Real drizzle maps the ALIAS to the underlying COLUMN's value; a mock
       // that reads r[alias] silently returns undefined for every renamed
@@ -227,6 +233,7 @@ beforeEach(() => {
   lock.fail = false
   ledger.recorded = []
   ledger.fail = false
+  memoryRead.fail = false
 })
 
 describe('runGuardianSweep', () => {
@@ -403,6 +410,50 @@ describe('runGuardianSweep', () => {
 
     const r = await runGuardianSweep(NOW)
     expect(r.stoodDown).toBe(0) // that finding was the clinic's, not the owner's
+    expect(store.profiles[0].guardianFirstSeenAt).toBeNull()
+  })
+
+  it('an UNREADABLE memory still alerts, and remembers NOTHING (round-13 audit)', async () => {
+    // Both halves matter. The alarm must sound — going blind is the failure
+    // this whole primitive exists to remove — but the clocks are derived
+    // with `?? now`, so treating an empty read as fact would restart a
+    // six-week break's age at today and reset the dwell window on one
+    // transient SELECT failure. The comment on those clocks claims they
+    // cannot be corrupted because "both facts are observations"; that is
+    // true of an undelivered report and was false of an unreadable memory.
+    store.profiles[0].guardianState = 'silent'
+    store.profiles[0].guardianAlertedAt = daysAgo(2)
+    store.profiles[0].guardianFirstSeenAt = daysAgo(44)
+    memoryRead.fail = true
+    sweepState.reports = [report('org_a', 'Ash Dental', 'silent')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(mail.sent).toHaveLength(1)
+    expect(r.errors.some((e) => /unreadable/i.test(e.error))).toBe(true)
+    // Untouched: the age, the cadence stamp, the state.
+    expect(store.profiles[0].guardianFirstSeenAt).toEqual(daysAgo(44))
+    expect(store.profiles[0].guardianAlertedAt).toEqual(daysAgo(2))
+    expect(store.profiles[0].guardianState).toBe('silent')
+  })
+
+  it('a FAILED all-clear keeps the AGE too, so the retry is not the quieter report', async () => {
+    // Clearing the clock on the pass where the email failed stripped "It
+    // needed attention for 41 days" from the all-clear the owner actually
+    // receives the next morning — the most decision-relevant fact in it.
+    mail.fail = true
+    store.profiles[0].guardianState = 'silent'
+    store.profiles[0].guardianAlertedAt = daysAgo(3)
+    store.profiles[0].guardianFirstSeenAt = daysAgo(41)
+    store.profiles[0].guardianClearSince = daysAgo(STAND_DOWN_DWELL_DAYS + 1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    await runGuardianSweep(NOW)
+    expect(store.profiles[0].guardianFirstSeenAt).toEqual(daysAgo(41))
+
+    mail.fail = false
+    await runGuardianSweep(NOW)
+    expect(String(mail.sent[0].body)).toContain('It needed attention for 41 days.')
+    // …and only NOW does the clock clear.
     expect(store.profiles[0].guardianFirstSeenAt).toBeNull()
   })
 
