@@ -2153,3 +2153,46 @@ with the state below stated plainly rather than dressed up.
 
 Items 1–3 were named as backlog during the audit and are not regressions.
 Items 4–6 are round-16 backlog findings, recorded here rather than fixed.
+
+
+### ALL SIX OPEN ITEMS CLOSED — 2026-07-31, same day
+
+The owner asked for the certificate's open items finished before Phase 5.
+All six are done; migration 0142 was the only new schema.
+
+1. **Failure producers.** `lib/services/engine-failures.ts` is the registry —
+   one table, one helper, one throttle, deliberately not six hand-written
+   call sites. All six producers report: reminders, scheduled campaigns,
+   retention automations, review sync, GBP sync, PMS sync (new registered
+   `pms_sync` capability). One failure per producer per clinic per DAY,
+   because these tick every 15 minutes; NOT `dedupeAcrossOrg`, because
+   unlike the proposal engine's five steps these are independent subsystems.
+   PMS reports only on a real failure — a budget-capped resume is healthy
+   progress.
+2. **Exploration arm.** `explorationHourFor` sends ~20% of automation
+   campaigns at an alternative daylight hour, so a second bucket finally
+   exists. Deterministic; keyed per CAMPAIGN so one practice lands in both
+   arms (assigning by clinic would compare practices, not hours). Residual
+   day-of-week confound documented rather than hidden. The hash needed a
+   MurmurHash3 finalizer — raw FNV-1a's high bits barely move across keys
+   differing in a trailing date, and the first draft put all 90 of one
+   practice's campaigns in one arm.
+3. **Per-audience memory** (migration 0142). Each audience keeps its own
+   stamp; `ownerWasTold`/`clinicWasTold` are lookups rather than the
+   inference from today's signals that round 12 caught inverted. The
+   load-bearing half: the owner's key moves only when the OWNER was reached,
+   so a note to the practice can no longer write the problem into the
+   owner's memory and later owe them an all-clear they never earned.
+4. **The clinic half can say good news.** `clinicRecoveryNote` closes the two
+   findings a practice can be told about, keyed off their own memory. A
+   receipt, not a report — no number, no next step, no request — carrying
+   `report: true` so an all-clear is never counted as work.
+5. **The census reconciles.** `GuardianSweep.census` is
+   `{eligible, assessed, unreadable}` and adds up by construction; the panel
+   shows it only when it does not.
+6. **The timezone cannot blind the platform.** Both platform-wide aggregates
+   resolve the zone through `pg_timezone_names` rather than a bare
+   `coalesce`, which guards NULL only — so a legacy row falls through to the
+   default instead of raising and taking the whole statement down.
+
+Suite 6,007 → **6,036**. Phase 4 has no open items.
