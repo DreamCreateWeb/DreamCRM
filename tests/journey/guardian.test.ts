@@ -9,6 +9,9 @@ import {
   shouldAlert,
   shouldStandDown,
   standDownGoesToOwner,
+  clinicRecoveryNote,
+  ownerWasTold,
+  clinicWasTold,
   STAND_DOWN_DWELL_DAYS,
   problemKey,
   baseState,
@@ -723,6 +726,8 @@ describe('guardianHeartbeatStale — a job that STOPPED, not one that never star
     blind: false,
     problems: [],
     skipped: 0,
+    eligible: 0,
+    unreadable: 0,
     audience: 'platform' as const,
     told: [],
     emailed: [],
@@ -840,5 +845,48 @@ describe('the all-clear line admits a calm-but-not-clean week (round-15 audit)',
     expect(s).toContain('1 of 2 practices need you.')
     expect(s).toContain('ours to fix')
     expect(summarizeSweep(['silent', 'healthy'], 0)).toBe('1 of 2 practices need you.')
+  })
+})
+
+
+describe('who was told — a lookup, not an inference (Phase 4 open item #3)', () => {
+  it('reads each audience from its OWN stamp', () => {
+    expect(ownerWasTold({ state: 'blocked:switches', alertedAt: new Date() })).toBe(true)
+    expect(ownerWasTold({ state: null, alertedAt: null })).toBe(false)
+    expect(ownerWasTold({ state: 'healthy', alertedAt: new Date() })).toBe(false)
+
+    expect(clinicWasTold({ state: null, alertedAt: null, clinicState: 'stalled' })).toBe(true)
+    expect(clinicWasTold({ state: 'silent', alertedAt: new Date() })).toBe(false)
+  })
+
+  it('the two are independent — a note to one says nothing about the other', () => {
+    // Round 12 found the signals-based guess inverted in its principal case
+    // precisely because there was only one stamp to read.
+    const m = { state: null, alertedAt: null, clinicState: 'blocked:switches', clinicAlertedAt: new Date() }
+    expect(ownerWasTold(m)).toBe(false)
+    expect(clinicWasTold(m)).toBe(true)
+  })
+})
+
+describe('clinicRecoveryNote — the practice hears the close too (open item #4)', () => {
+  it('closes the two findings a practice can be told about', () => {
+    expect(clinicRecoveryNote('blocked:switches')).toContain('back on')
+    expect(clinicRecoveryNote('stalled')).toContain('back where they were')
+  })
+
+  it('has nothing to close for a finding that never reached them', () => {
+    // `silent` and repeated failures stay with Dream Create at every
+    // setting, so there is no all-clear owed to a practice for them.
+    expect(clinicRecoveryNote('silent')).toBeNull()
+    expect(clinicRecoveryNote('healthy')).toBeNull()
+    expect(clinicRecoveryNote('nonsense')).toBeNull()
+  })
+
+  it('is a receipt, not a report: no number, no next step, no request', () => {
+    for (const was of ['blocked:switches', 'stalled']) {
+      const note = clinicRecoveryNote(was)!
+      expect(note).not.toMatch(/\d/)
+      expect(note).not.toMatch(/\b(should|need to|please|make sure)\b/i)
+    }
   })
 })

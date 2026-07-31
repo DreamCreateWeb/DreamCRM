@@ -10,7 +10,9 @@ import {
   shouldAlert,
   STAND_DOWN_DWELL_DAYS,
   shouldStandDown,
-  standDownGoesToOwner,
+  clinicRecoveryNote,
+  ownerWasTold,
+  clinicWasTold,
   type AlertMemory,
   type EngineState,
   type GuardianAudience,
@@ -92,6 +94,8 @@ async function readMemory(
         alertedAt: schema.clinicProfile.guardianAlertedAt,
         firstSeenAt: schema.clinicProfile.guardianFirstSeenAt,
         clearSince: schema.clinicProfile.guardianClearSince,
+        clinicState: schema.clinicProfile.guardianClinicState,
+        clinicAlertedAt: schema.clinicProfile.guardianClinicAlertedAt,
       })
       .from(schema.clinicProfile)
       .where(eq(schema.clinicProfile.organizationId, organizationId))
@@ -109,6 +113,8 @@ async function readMemory(
       alertedAt: row.alertedAt ?? null,
       firstSeenAt: row.firstSeenAt ?? null,
       clearSince: row.clearSince ?? null,
+      clinicState: row.clinicState ?? null,
+      clinicAlertedAt: row.clinicAlertedAt ?? null,
     }
   } catch (e) {
     // An unreadable memory must never SILENCE an alarm — the whole point is
@@ -333,7 +339,17 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         result.skipped++
         continue
       }
-      const alerting = shouldAlert(memory, key, now)
+      // TWO CADENCES, ONE PER AUDIENCE (Phase 4 open item #3). One stamp
+      // used to serve both, which meant a problem raised to the practice
+      // also silenced the owner's clock and vice versa — and
+      // `standDownGoesToOwner` had to GUESS from today's signals which of
+      // them had heard a given alarm. Each now answers from its own memory.
+      const ownerCadence = shouldAlert(memory, key, now)
+      const clinicCadence = shouldAlert(
+        { state: memory.clinicState ?? null, alertedAt: memory.clinicAlertedAt ?? null },
+        key,
+        now,
+      )
       // THE OTHER HALF OF AN INTERRUPT (round-9 in-phase gap). A practice
       // we raised the alarm about has recovered, and until now the only
       // way to learn that was to open the dashboard — the exact dependency
@@ -347,10 +363,6 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // With the lock open, a practice's own note closes itself: it is
       // re-derived from live switches and disappears the moment they flip
       // one back on.
-      const standingDown =
-        !alerting &&
-        shouldStandDown(memory, key, now) &&
-        standDownGoesToOwner(audience, memory.state as string)
       // REVERTED (verification round). Round 3 added a "say it once to the
       // practice" rule gated on `memory.state !== state`, to stop nagging a
       // clinic weekly about a switch it may have turned off deliberately.
@@ -375,6 +387,36 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // be something the practice can actually do something about; anything
       // else is ours, and goes to the owner at every setting.
       const toClinic = audience === 'clinic' && clinicActionable(state, report.signals)
+      // Whichever half is about to speak decides whether this pass alerts.
+      const alerting = toClinic ? clinicCadence : ownerCadence
+      // WHO IS OWED THE ALL-CLEAR — a lookup now, not an inference (Phase 4
+      // open item #3). Round 12 found the signals-based guess inverted in
+      // its principal case; round 13 replaced it with a signals-free rule
+      // that still had to approximate. Each audience's own stamp answers it.
+      const standingDown = !alerting && shouldStandDown(memory, key, now) && ownerWasTold(memory)
+      // …AND THE SAME CLOSE FOR THE PRACTICE (Phase 4 open item #4). The
+      // clinic half could only ever say bad news, so a practice that fixed
+      // the thing it was asked about simply stopped hearing — which teaches
+      // them the machine only complains and never notices. Its own memory
+      // says whether they were ever told, so this needs no inference.
+      const clinicStandingDown =
+        audience === 'clinic' &&
+        !alerting &&
+        clinicWasTold(memory) &&
+        // The PRACTICE's own memory on the "was" side — `shouldStandDown`
+        // reads `state`, which is the owner's — while the dwell clock stays
+        // shared, because it measures the practice's run of good days and
+        // there is only one of those.
+        shouldStandDown(
+          {
+            state: memory.clinicState ?? null,
+            alertedAt: memory.clinicAlertedAt ?? null,
+            clearSince: memory.clearSince,
+          },
+          key,
+          now,
+        )
+
 
       // Did the report actually LAND? Only a real delivery may move the
       // stamp — otherwise an outage buys the problem a week of silence,
@@ -432,6 +474,30 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         }
       }
 
+      if (clinicStandingDown) {
+        const note = clinicRecoveryNote(memory.clinicState as string)
+        if (note) {
+          const landed = await recordAction({
+            organizationId: report.organizationId,
+            capability: 'guardian_note',
+            summary: note,
+            // `report: true` keeps it out of the WORK counts, exactly like
+            // the problem note it closes — an all-clear is not a job done.
+            detail: { guardianState: 'recovered', report: true },
+            occurredAt: now,
+          })
+          if (landed) {
+            delivered = true
+            result.notified++
+            result.notifiedClinics.push(report.clinicName)
+          } else {
+            result.errors.push({
+              organizationId: report.organizationId,
+              error: 'ledger: guardian all-clear not recorded',
+            })
+          }
+        }
+      }
       if (standingDown) {
         if (recipients.length === 0) {
           result.errors.push({
@@ -567,9 +633,33 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       // clock exists to stop. `recoveredForGood` is the dwell; this is the
       // narrow case of "the quiet has held AND nobody was owed the news".
       const standDownOwedToNobody = recoveredForGood && !standingDown
+      // The OWNER's key moves only when the OWNER was reached (Phase 4 open
+      // item #3). Before the split this stamped on ANY delivery, so a note
+      // that went to the practice also wrote the problem into the owner's
+      // memory — and `ownerWasTold` would then owe them an all-clear for an
+      // alarm they never received. Exactly the misattribution the split
+      // exists to end, one layer down from where round 12 found it.
       const mayStampKey = inTrouble
-        ? delivered || nothingToDeliver
+        ? (delivered && !toClinic) || nothingToDeliver
         : delivered || standDownOwedToNobody
+
+      // THE PRACTICE'S OWN STAMP (Phase 4 open item #3). Same law as the
+      // owner's, keyed to the practice's own delivery: only a note that
+      // LANDED may move it, so a failed ledger write retries tomorrow. In
+      // trouble but the note went elsewhere (the finding is ours, or the
+      // lock is closed) — nothing about the practice's memory changed, so
+      // nothing is written. Cleared on a real recovery so a relapse reads
+      // as news to them too.
+      const clinicKey = toClinic && delivered ? key : null
+      // Cleared once the practice's all-clear actually landed — or, when
+      // there was no note to send them, once the quiet has held.
+      const clinicCleared = !inTrouble && recoveredForGood && (!clinicStandingDown || delivered)
+      const clinicPatch =
+        clinicKey !== null
+          ? { guardianClinicState: clinicKey, guardianClinicAlertedAt: now }
+          : clinicCleared && memory.clinicState
+            ? { guardianClinicState: null, guardianClinicAlertedAt: null }
+            : {}
 
       // SKIP A WRITE THAT WOULD CHANGE NOTHING. The clocks are written on
       // every pass by design, but a healthy clinic's values are stable — and
@@ -592,6 +682,7 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
       const nothingChanges =
         !delivered &&
         (!mayStampKey || memory.state === key) &&
+        Object.keys(clinicPatch).length === 0 &&
         same(firstSeenAt, memory.firstSeenAt) &&
         same(clearSince, memory.clearSince)
       if (nothingChanges) continue
@@ -603,7 +694,11 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
             ...(mayStampKey ? { guardianState: key } : {}),
             guardianFirstSeenAt: firstSeenAt,
             guardianClearSince: clearSince,
-            ...(delivered ? { guardianAlertedAt: now } : {}),
+            // The OWNER's delivery stamp — only when the owner is who was
+            // reached. A note to the practice must not silence the owner's
+            // clock, which is exactly what one shared stamp did.
+            ...(delivered && !toClinic ? { guardianAlertedAt: now } : {}),
+            ...clinicPatch,
           })
           .where(eq(schema.clinicProfile.organizationId, report.organizationId))
       } else {
@@ -612,7 +707,7 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
         // dwell window and the problem's age.
         await db
           .update(schema.clinicProfile)
-          .set({ guardianFirstSeenAt: firstSeenAt, guardianClearSince: clearSince })
+          .set({ guardianFirstSeenAt: firstSeenAt, guardianClearSince: clearSince, ...clinicPatch })
           .where(eq(schema.clinicProfile.organizationId, report.organizationId))
       }
     } catch (e) {

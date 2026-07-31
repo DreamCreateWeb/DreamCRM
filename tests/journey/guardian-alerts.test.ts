@@ -132,6 +132,9 @@ vi.mock('@/lib/db', () => {
         // every clinic every morning. (The round-8 lesson, in the harness.)
         guardianFirstSeenAt: col('guardianFirstSeenAt'),
         guardianClearSince: col('guardianClearSince'),
+        // The practice's OWN memory (Phase 4 open item #3).
+        guardianClinicState: col('guardianClinicState'),
+        guardianClinicAlertedAt: col('guardianClinicAlertedAt'),
       },
       user: { __name: 'user', email: col('email'), platformAdmin: col('platformAdmin') },
     },
@@ -229,6 +232,8 @@ beforeEach(() => {
       // Held long enough that a recovery is announceable unless a test says
       // otherwise — the dwell clock has its own cases below.
       guardianClearSince: daysAgo(STAND_DOWN_DWELL_DAYS + 1),
+      guardianClinicState: null,
+      guardianClinicAlertedAt: null,
     },
   ]
   store.admins = [{ email: 'owner@dreamcreateweb.com', platformAdmin: true }]
@@ -301,8 +306,10 @@ describe('runGuardianSweep', () => {
     // against TODAY's signals, which are healthy on a recovery by
     // definition, so it fired in exactly the case it was meant to exclude.
     lock.audience = 'clinic'
-    store.profiles[0].guardianState = 'blocked'
-    store.profiles[0].guardianAlertedAt = daysAgo(2)
+    // The PRACTICE was told, so only the practice's memory holds it — which
+    // is now a lookup rather than an inference from today's signals.
+    store.profiles[0].guardianClinicState = 'blocked:switches'
+    store.profiles[0].guardianClinicAlertedAt = daysAgo(2)
     sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
 
     const r = await runGuardianSweep(NOW)
@@ -411,7 +418,7 @@ describe('runGuardianSweep', () => {
     // the lock is open) kept its instant forever, and a relapse months
     // later rendered "· 100 days now" for a problem that started yesterday.
     lock.audience = 'clinic'
-    store.profiles[0].guardianState = 'stalled'
+    store.profiles[0].guardianClinicState = 'stalled'
     store.profiles[0].guardianFirstSeenAt = daysAgo(100)
     store.profiles[0].guardianClearSince = daysAgo(STAND_DOWN_DWELL_DAYS + 1)
     sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
@@ -463,6 +470,55 @@ describe('runGuardianSweep', () => {
     expect(String(mail.sent[0].body)).toContain('It needed attention for 41 days.')
     // …and only NOW does the clock clear.
     expect(store.profiles[0].guardianFirstSeenAt).toBeNull()
+  })
+
+  it('THE PRACTICE hears its own all-clear (Phase 4 open item #4)', async () => {
+    // The clinic half could only ever say bad news — the owner's half got a
+    // stand-down in round 9 and the practice's did not, so a clinic that did
+    // the thing it was asked to do simply stopped hearing. That teaches them
+    // the machine only complains and never notices.
+    lock.audience = 'clinic'
+    store.profiles[0].guardianClinicState = 'blocked:switches'
+    store.profiles[0].guardianClinicAlertedAt = daysAgo(3)
+    store.profiles[0].guardianClearSince = daysAgo(STAND_DOWN_DWELL_DAYS + 1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(1)
+    const note = String(ledger.recorded[0].summary)
+    expect(note).toContain('back on')
+    // A receipt, not a report: nothing to do, no number, no next step.
+    expect(note).toContain('Nothing for you to do')
+    expect(note).not.toMatch(/\d/)
+    // And it is not WORK — an all-clear is not a job done.
+    expect((ledger.recorded[0].detail as Record<string, unknown>).report).toBe(true)
+    // Their memory clears, so a relapse reads as news to them too.
+    expect(store.profiles[0].guardianClinicState).toBeNull()
+  })
+
+  it('a FAILED all-clear to the practice keeps their memory, so tomorrow retries', async () => {
+    lock.audience = 'clinic'
+    ledger.fail = true
+    store.profiles[0].guardianClinicState = 'stalled'
+    store.profiles[0].guardianClinicAlertedAt = daysAgo(3)
+    store.profiles[0].guardianClearSince = daysAgo(STAND_DOWN_DWELL_DAYS + 1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(0)
+    expect(r.errors.some((e) => /all-clear/i.test(e.error))).toBe(true)
+    expect(store.profiles[0].guardianClinicState).toBe('stalled')
+  })
+
+  it('a practice never told about it hears no all-clear — that would be noise', async () => {
+    lock.audience = 'clinic'
+    store.profiles[0].guardianClinicState = null
+    store.profiles[0].guardianClearSince = daysAgo(STAND_DOWN_DWELL_DAYS + 1)
+    sweepState.reports = [report('org_a', 'Ash Dental', 'healthy')]
+
+    const r = await runGuardianSweep(NOW)
+    expect(r.notified).toBe(0)
+    expect(ledger.recorded).toHaveLength(0)
   })
 
   it('never stands down a problem nobody was ever told about', async () => {
@@ -721,15 +777,32 @@ describe('runGuardianSweep — who hears it', () => {
     expect(r.notifiedClinics).toEqual(['Birch Dental'])
   })
 
-  it('the same cadence governs both halves — a clinic is not told the same thing daily', async () => {
+  it('the PRACTICE’s own cadence governs its notes — it is not told the same thing daily', async () => {
+    // Phase 4 open item #3: each audience keeps its own stamp now, so this
+    // reads the CLINIC's memory rather than the shared one.
     lock.audience = 'clinic'
-    store.profiles[0].guardianState = 'stalled'
-    store.profiles[0].guardianAlertedAt = daysAgo(1)
+    store.profiles[0].guardianClinicState = 'stalled'
+    store.profiles[0].guardianClinicAlertedAt = daysAgo(1)
     sweepState.reports = [report('org_a', 'Ash Dental', 'stalled')]
 
     const r = await runGuardianSweep(NOW)
     expect(r.notified).toBe(0)
     expect(ledger.recorded).toHaveLength(0)
+  })
+
+  it('the two cadences are INDEPENDENT — telling the practice never silences the owner', async () => {
+    // One shared stamp meant a note to the practice also moved the owner's
+    // clock, so `ownerWasTold` would later owe them an all-clear for an
+    // alarm they never received. That misattribution is what the split
+    // ends (Phase 4 open item #3).
+    lock.audience = 'clinic'
+    sweepState.reports = [report('org_a', 'Ash Dental', 'blocked', switchedOff)]
+
+    await runGuardianSweep(NOW)
+    // The practice heard it, and only the practice's memory moved.
+    expect(store.profiles[0].guardianClinicState).toBe('blocked:switches')
+    expect(store.profiles[0].guardianAlertedAt).toBeNull()
+    expect(store.profiles[0].guardianState).toBeNull()
   })
 
   it('a FAILED ledger write never moves the stamp either — the note is retried tomorrow', async () => {

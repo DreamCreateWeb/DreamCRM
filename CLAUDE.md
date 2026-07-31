@@ -533,7 +533,11 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0141** (`clinic_profile.guardian_first_seen_at` +
+  migration: **0142** (`clinic_profile.guardian_clinic_state` +
+  `guardian_clinic_alerted_at` — the CLINIC audience's own alert memory, so
+  "who heard this alarm" is a lookup rather than an inference from today's
+  signals; the two cadences are independent and a note to the practice no
+  longer moves the owner's clock. 0141 was `clinic_profile.guardian_first_seen_at` +
   `guardian_clear_since` — the Guardian's chronicity and its stand-down DWELL
   clock: "blocked since June 2" instead of "I flagged it 7 days ago", and a
   recovery that has to HOLD for `STAND_DOWN_DWELL_DAYS` before it is
@@ -804,10 +808,17 @@ sitemap/robots/OG.
    the proposal engine's five steps these are independent subsystems, so
    reminders and Google sync breaking on one morning are two facts; (2) the shared brain needs an EXPLORATION ARM (a small
    holdout at another hour) or it can never learn, because every automated
-   send already aims at the hour in force; (3) a per-audience alert memory,
-   so "who heard this alarm" is known rather than approximated; (4) the
-   clinic half of the Guardian can only say bad news — no closure, no
-   recovery, no celebration (the owner's half got a stand-down in round 9);
+   send already aims at the hour in force; (3) ~~a per-audience alert memory~~ **CLOSED
+   2026-07-31** (migration 0142 `guardian_clinic_state` +
+   `guardian_clinic_alerted_at`): each audience keeps its own stamp, so the
+   two cadences are independent and `ownerWasTold`/`clinicWasTold` are
+   LOOKUPS rather than the inference from today's signals that round 12
+   caught inverted in its principal case. Telling the practice no longer
+   moves the owner's clock; (4) ~~the clinic half can only say bad news~~
+   **CLOSED 2026-07-31**: `clinicRecoveryNote` closes the two findings a
+   practice can be told about, keyed off their own memory. A receipt, not a
+   report — no number, no next step, no request — because a machine that
+   names the problem owes the person the moment it clears;
    (5) ~~the sweep's census does not reconcile~~ **CLOSED 2026-07-31**:
    `GuardianSweep.census` is `{eligible, assessed, unreadable}` and adds up
    by construction — every eligible org either produced a report or was

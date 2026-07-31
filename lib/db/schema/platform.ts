@@ -156,6 +156,24 @@ export const clinicProfile = pgTable('clinic_profile', {
    * too. One column closes both halves of the flap.
    */
   guardianClearSince: timestamp('guardian_clear_since'),
+  /**
+   * THE CLINIC AUDIENCE's OWN MEMORY (Phase 4 open item #3, 2026-07-31).
+   *
+   * One stamp used to serve both audiences, on the reading that it meant
+   * "this problem was reported" rather than "reported to X". That was
+   * defensible while the lock shipped closed, and it cost real precision:
+   * `standDownGoesToOwner` had to GUESS from today's signals whether the
+   * owner or the practice heard a given alarm, and got the principal case
+   * backwards once (round 12). With the lock open, the two audiences also
+   * genuinely want different cadences — the owner is chasing a fix, the
+   * practice is being told about their own switch.
+   *
+   * Two stamps, one law each: a problem raised to the practice is
+   * remembered here, and the owner's stamp above stops meaning "somebody
+   * was told" and starts meaning what it says.
+   */
+  guardianClinicState: text('guardian_clinic_state'),
+  guardianClinicAlertedAt: timestamp('guardian_clinic_alerted_at'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

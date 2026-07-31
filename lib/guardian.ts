@@ -471,6 +471,11 @@ export interface AlertMemory {
   /** When this practice's current run of good days began. Null while
    *  something is wrong. */
   clearSince?: Date | null
+  /** The problem key the PRACTICE was last told about, and when — its own
+   *  memory, so "who heard this alarm" is a lookup rather than an inference
+   *  from today's signals (Phase 4 open item #3). */
+  clinicState?: string | null
+  clinicAlertedAt?: Date | null
 }
 
 /**
@@ -491,6 +496,30 @@ export function shouldAlert(memory: AlertMemory, next: string, now: Date): boole
   if (memory.state !== next) return true
   if (!memory.alertedAt) return true
   return now.getTime() - memory.alertedAt.getTime() >= RE_ALERT_DAYS * 24 * 60 * 60 * 1000
+}
+
+/**
+ * THE PRACTICE'S ALL-CLEAR (Phase 4 open item #4, 2026-07-31).
+ *
+ * The clinic-facing half could only ever say bad news. The owner's half got
+ * a stand-down in round 9; the practice's did not — so a clinic that did the
+ * thing it was asked to do simply stopped hearing, which teaches them the
+ * machine only ever complains and never notices. Anti-shame cuts both ways:
+ * a machine that names the problem owes the person the moment it clears.
+ *
+ * Written to be read once and forgotten: no number, no next step, no
+ * request. It is a receipt, not a report.
+ */
+export function clinicRecoveryNote(was: string): string | null {
+  const state = baseState(was)
+  if (state === 'blocked') {
+    return 'Both of those are back on — I’ve picked the reminders and review asks straight back up. Nothing for you to do.'
+  }
+  if (state === 'stalled') {
+    return 'New patients are back where they were. Whatever you changed, it worked — I’ll keep an eye on it from here.'
+  }
+  // `silent` never reaches a practice, so it has no all-clear to send them.
+  return null
 }
 
 /**
@@ -547,6 +576,30 @@ export function shouldStandDown(memory: AlertMemory, next: string, now: Date): b
 export function standDownGoesToOwner(audience: GuardianAudience, was: string): boolean {
   if (audience === 'platform') return true
   return baseState(was) === 'silent'
+}
+
+/**
+ * WHO ACTUALLY HEARD IT — answered from memory, not guessed from signals
+ * (Phase 4 open item #3, 2026-07-31).
+ *
+ * `standDownGoesToOwner` above is the approximation this replaces. It had to
+ * infer the audience of a PAST alarm from TODAY's signals, and got the
+ * principal case backwards (round 12: a switch problem recovers BY the
+ * switches going back on, so today's signals always answered "not theirs").
+ * Now each audience has its own stamp, so the question is a lookup.
+ *
+ * The owner is owed an all-clear when the owner's own memory holds the
+ * problem — full stop. No signals, no audience, no inference.
+ */
+export function ownerWasTold(memory: AlertMemory): boolean {
+  const was = baseState(memory.state)
+  return was !== null && needsAttention(was)
+}
+
+/** …and the practice, from its own. */
+export function clinicWasTold(memory: AlertMemory): boolean {
+  const was = baseState(memory.clinicState ?? null)
+  return was !== null && needsAttention(was)
 }
 
 /**
