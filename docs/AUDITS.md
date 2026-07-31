@@ -2079,3 +2079,77 @@ wrong behaviour — the audit has moved from "this reports the wrong thing" to
 - *Every new route is a new front door.* A cron route's auth gate is not
   covered by the service tests behind it, and "the secret is unset" is a
   distinct case from "the secret is wrong".
+
+---
+
+## CERTIFICATE — Transformation Phase 4: the Guardian + the shared brain
+
+**CLOSED 2026-07-31, by owner decision, on a stated criterion — NOT on a
+zero-finding round.** That distinction is the first thing this certificate
+should say, because every other phase in this document closed clean and this
+one did not.
+
+**Range:** `3ad0fe5..9ec9166` · 26 commits · migrations 0139, 0140, 0141.
+**Suite:** 5,629 → **6,007** tests (620 files), green; `pnpm build` clean.
+
+### What was audited, and what it cost
+
+Three discovery rounds (31/4, 16/3, 7/2 — the hard cap), then the escalation
+path: root-cause retrospective, main-loop self-sweep, a consolidation slice,
+and **thirteen verification rounds** (7/3, 10/2, 5/3, 4/0, 7/4, 4/3, 9/1,
+6/0, 4/1, 1/2, [invalid], 7/0, 4/3). Roughly **120 confirmed defects and 30
+in-phase gaps** fixed. One round was refused as invalid when its skeptic
+died — correctly, and its candidates were verified by the main loop instead.
+
+### Why it closed without a clean round
+
+The defect counts went 9 → 6 → 4 → 1 → 7 → 4. They did not converge to zero,
+and the reason is structural rather than a sign of a sick phase: **each round
+fixes things, and fixes are new code that the next round audits for the first
+time.** Round 12 was the clearest evidence — all six of its defects were in
+round 11's corrections, and its depth chamber returned zero gaps. Round 16
+was the second kind of evidence: four of its seven findings were coverage and
+observability HOLES rather than wrong behaviour, i.e. the audit had run out
+of things that were wrong and moved on to things that were unwatched.
+
+Twice, a test written for an earlier round caught a regression in a later
+round's fix before it shipped (round 11's dwell clock, round 15's stamp
+guard). The machinery works. It also guarantees fresh material every pass.
+
+The owner's call: close it and start Phase 5. Recorded as their decision,
+with the state below stated plainly rather than dressed up.
+
+### What is TRUE of the phase at close
+
+- Every claim in the round-16 manifest has executed coverage behind it.
+- Every error path that changes stored state has a fail switch its harness
+  actually throws.
+- The two platform-wide aggregates are rendered by boundary tests through
+  drizzle's own dialect, not reconstructed by hand.
+- The audience lock ships CLOSED, floors at 'platform' on every failure path,
+  and both its read and write paths are covered.
+- No surface asserts a system-wide fact from a page-local read; no counter
+  disagrees with its explainer; no calm verdict ignores a failure.
+
+### What is OPEN, by name
+
+1. **`recordEngineFailure` has two producers.** Reminders, campaigns, review
+   sync, GBP sync and PMS sync do not report, so `blocked` sees the proposal
+   engine and the autonomy hand-back only. **The next slice.**
+2. **The shared brain needs an EXPLORATION ARM.** Restricted to the
+   population it acts on, every automated send aims at the hour in force, so
+   one bucket fills and nothing is comparable — it cannot learn without a
+   deliberate holdout at another hour. It ships inert, honestly.
+3. **A per-audience alert memory.** One stamp serves both audiences, so "who
+   heard this particular alarm" is approximated, not known.
+4. **The clinic half can only say bad news** — no closure, no recovery, no
+   celebration. The owner's half got a stand-down in round 9; the practice's
+   did not.
+5. **The sweep's census does not reconcile**: scanned + skipped + errored
+   need not equal the orgs it started with.
+6. **The sweep aggregate still trusts a stored timezone.** Both writers now
+   validate through `Intl`; a legacy or imported bad row would still fail the
+   platform-wide statement.
+
+Items 1–3 were named as backlog during the audit and are not regressions.
+Items 4–6 are round-16 backlog findings, recorded here rather than fixed.

@@ -477,7 +477,20 @@ sitemap/robots/OG.
   cron parity, token single-homes) only run in the full pass, and deploys
   don't run tests.
 - **The phase-audit gate is a convention (2026-07-27; v2 re-shape same
-  day).** No transformation phase (or major feature slice) is DONE until the
+  day; STOPPING RULE amended 2026-07-31 after Phase 4).**
+  **READ THIS BEFORE STARTING PHASE 5's AUDIT.** Phase 4 ran 16 rounds and
+  never returned zero, and the certificate in docs/AUDITS.md explains why:
+  each round's FIXES are new code the next round audits for the first time,
+  so "a phase closes CLEAN or it is not closed" is not a terminating
+  condition for a phase large enough to need many rounds. Round 12's
+  defects were ALL in round 11's corrections; round 16's were mostly
+  coverage holes rather than wrong behaviour. **Judge the CHARACTER of a
+  round's findings, not only the count.** A phase is done when the depth
+  chamber stops returning in-phase gaps AND the remaining defects are
+  confined to the correction layer or to unwatched-but-correct code — at
+  that point one more round buys churn, not safety. Write the certificate,
+  name the open items, and move on. The original rule follows.
+  No transformation phase (or major feature slice) is DONE until the
   `phase-audit` workflow (`.claude/workflows/phase-audit.js`) returns a CLEAN
   round: zero confirmed defects AND zero in-phase depth gaps ("perfection
   plus depth" — the depth chamber asks "would it make sense to add more?").
@@ -631,8 +644,19 @@ sitemap/robots/OG.
    `countOpenProposals` excludes demo orgs from the granted-subtraction for
    the same reason it excludes billing-walled ones: nothing will ever
    execute those cards. Plus three identity-anchored unedited approvals),
-   Phase 4 the guardian + the shared brain — **IN PROGRESS** (all five
-   slices below shipped; the phase-audit gate is what remains). Slices: (1) the VERDICT — pure `lib/guardian.ts` (`assessEngine` over
+   Phase 4 the guardian + the shared brain — **SHIPPED 2026-07-31; audit
+   CLOSED BY OWNER DECISION on a stated criterion, NOT on a zero-finding
+   round** (3 discovery rounds at the hard cap + retrospective + self-sweep +
+   a consolidation slice + 13 verification rounds; ~120 defects and 30
+   in-phase gaps fixed; suite 5,629 → 6,007; migrations 0139/0140/0141).
+   The counts went 9 → 6 → 4 → 1 → 7 → 4 and never reached zero, because
+   each round's FIXES are new code the next round audits for the first time
+   — round 12's defects were ALL in round 11's corrections, and round 16's
+   were mostly coverage holes rather than wrong behaviour. Certificate, the
+   full round-by-round history and the SIX NAMED OPEN ITEMS are in
+   docs/AUDITS.md; the first of them (giving `recordEngineFailure` its other
+   producers — reminders, campaigns, review sync, GBP sync, PMS sync) is the
+   next slice. Slices: (1) the VERDICT — pure `lib/guardian.ts` (`assessEngine` over
    `EngineSignals`, five states ranked worst-first: silent > blocked >
    stalled > quiet > healthy; `needsAttention` keeps `quiet` off the list
    because crying wolf is how a guardian gets ignored; the stall is measured
@@ -735,7 +759,7 @@ sitemap/robots/OG.
    bucket fills and nothing is comparable. A genuine "learn when to send"
    needs an EXPLORATION ARM (a small holdout at another hour) — the next
    slice, named here rather than faked with a confounded comparison.
-   Remaining: the phase-audit gate. Phase 5+ new limbs proposal-first.
+   Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live
@@ -769,7 +793,20 @@ sitemap/robots/OG.
    `twilio_*`-named columns kept, channel enum in place).
 6. **Platform webhook idempotency** shipped; review auto-send is anchored to
    `completedAt` with a 7-day ask-while-fresh floor (2026-07-14) — CLOSED.
-7. Misc deferred: Zernio review webhooks (hourly cron covers today), FB reply
+7. **Phase 4's six named open items** (docs/AUDITS.md certificate, 2026-07-31):
+   (1) `recordEngineFailure` has only two producers, so `blocked` sees the
+   proposal engine + autonomy hand-back and not the send/sync automations —
+   THE NEXT SLICE; (2) the shared brain needs an EXPLORATION ARM (a small
+   holdout at another hour) or it can never learn, because every automated
+   send already aims at the hour in force; (3) a per-audience alert memory,
+   so "who heard this alarm" is known rather than approximated; (4) the
+   clinic half of the Guardian can only say bad news — no closure, no
+   recovery, no celebration (the owner's half got a stand-down in round 9);
+   (5) the sweep's census does not reconcile (scanned + skipped + errored
+   need not equal the orgs it started with); (6) the sweep aggregate still
+   trusts a stored timezone — both writers validate through `Intl` now, but
+   a legacy/imported bad row would still fail the platform-wide statement.
+8. Misc deferred: Zernio review webhooks (hourly cron covers today), FB reply
    (no Zernio endpoint), per-staff booking widgets, patient-view audit log, 2FA,
    per-location booking. (`push_everything` was already dropped in 0114.)
 
