@@ -108,7 +108,15 @@ export function sendHourStatsQuery(since: Date) {
       where ce.type = 'open' and ce.occurred_at >= ${since}::timestamptz
     )
     select
-      extract(hour from s.sent_at at time zone coalesce(cp.timezone, ${fallbackTz}::text))::int as hour,
+      -- A ZONE POSTGRES WILL ACCEPT (Phase 4 open item #6). coalesce
+      -- guards NULL only; an unrecognised non-empty value raises and fails
+      -- this whole platform-wide statement, so one bad row would stop the
+      -- brain learning for everybody. pg_timezone_names is the authority
+      -- Postgres itself uses.
+      extract(hour from s.sent_at at time zone coalesce(
+        (select n.name from pg_timezone_names n where n.name = cp.timezone),
+        ${fallbackTz}::text
+      ))::int as hour,
       count(*)::int                                as sent,
       count(o.campaign_id)::int                    as opened,
       count(distinct s.organization_id)::int       as clinics

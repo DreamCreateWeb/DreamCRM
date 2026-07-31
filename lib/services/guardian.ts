@@ -101,6 +101,25 @@ export interface GuardianSweep {
    * consumer now has to decide what to do with it.
    */
   blind: boolean
+  /**
+   * THE CENSUS — every practice the sweep started with, accounted for
+   * (Phase 4 open item #5, 2026-07-31).
+   *
+   * `reports.length` is what came back, and nothing anywhere compared it to
+   * what went in: a clinic whose assessment threw was logged and then
+   * silently absent, so `scanned + skipped + errored` need not equal the
+   * orgs the run began with and a practice could fall out of the watch
+   * unaccounted for. A watcher that cannot say how many practices it looked
+   * at is exactly the shape this phase exists to remove, aimed at itself.
+   */
+  census: {
+    /** Live clinic orgs the sweep set out to assess. */
+    eligible: number
+    /** Assessed successfully — `reports.length`. */
+    assessed: number
+    /** Dropped because their own read threw. */
+    unreadable: number
+  }
 }
 
 /** The WORK aggregate. Round-1 audit: this used to be a hand-copied second
@@ -124,8 +143,28 @@ export interface GuardianSweep {
  * zone. `naive AT TIME ZONE z` alone ASSUMES the value is already local in
  * `z` and shifts it the wrong way by double the offset.
  */
+/**
+ * A zone Postgres will actually accept (Phase 4 open item #6, 2026-07-31).
+ *
+ * `coalesce` guards NULL only. A non-empty value Postgres does not recognise
+ * raises `time zone "…" not recognized` and fails the WHOLE statement — and
+ * this expression lives inside one grouped aggregate over every org's
+ * ledger, so a single bad row blinds the watcher for every OTHER clinic and
+ * the daily cron stamps nothing. Both writers validate through `Intl` now,
+ * but a legacy or imported row predates that, and the blast radius here is
+ * the whole platform rather than one practice's timestamps.
+ *
+ * `pg_timezone_names` is the authority Postgres itself uses, so an
+ * unrecognised value simply falls through to the default instead of taking
+ * the statement down. Cheap: a hash semi-join against ~1,200 rows, once.
+ */
+const safeZone = () => sql`coalesce(
+  (select n.name from pg_timezone_names n where n.name = ${schema.clinicProfile.timezone}),
+  'America/New_York'
+)`
+
 export const clinicLocalDay = () => sql<string>`date_trunc('day',
-  (${schema.actionLedger.occurredAt} at time zone 'UTC') at time zone coalesce(${schema.clinicProfile.timezone}, 'America/New_York')
+  (${schema.actionLedger.occurredAt} at time zone 'UTC') at time zone ${safeZone()}
 )`
 
 export const workCountExpr = () => sql<number>`count(*) filter (where ${workOnly()})::int`
@@ -472,7 +511,13 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
   const orgs = allOrgs.filter((o) => !resolveTrialState(o, now).expired)
 
   if (orgs.length === 0) {
-    return { reports: [], flagged: [], summary: summarizeSweep([]), blind: false }
+    return {
+      reports: [],
+      flagged: [],
+      summary: summarizeSweep([]),
+      blind: false,
+      census: { eligible: 0, assessed: 0, unreadable: 0 },
+    }
   }
 
   // LEDGER UNAVAILABLE IS NOT SILENCE (round-2 audit). `.catch(() => new
@@ -502,6 +547,9 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
       // The field that makes the sentence above load-bearing rather than
       // decorative (round-9 audit).
       blind: true,
+      // Nothing was assessed, and the census says so rather than implying
+      // an empty platform.
+      census: { eligible: orgs.length, assessed: 0, unreadable: orgs.length },
     }
   }
 
@@ -534,6 +582,13 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
       reports.filter((r) => !needsAttention(r.verdict.state) && r.signals.failures7 > 0).length,
     ),
     blind: false,
+    // ADDS UP BY CONSTRUCTION: every eligible org either produced a report
+    // or was dropped by its own failed read, and there is no third door.
+    census: {
+      eligible: orgs.length,
+      assessed: reports.length,
+      unreadable: orgs.length - reports.length,
+    },
   }
 }
 

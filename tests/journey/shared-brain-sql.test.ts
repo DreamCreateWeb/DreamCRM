@@ -43,7 +43,13 @@ describe('the send-hour aggregate as Postgres parses it', () => {
   })
 
   it('reads the hour in the SENDING clinic’s own wall clock', () => {
-    expect(q.sql).toMatch(/at time zone coalesce\(cp\.timezone/i)
+    // Resolved through pg_timezone_names rather than a bare coalesce
+    // (Phase 4 open item #6): coalesce guards NULL only, so one unrecognised
+    // stored value would raise and take this whole platform-wide statement
+    // down, stopping the brain learning for everybody.
+    expect(q.sql).toMatch(/at time zone coalesce\(/i)
+    expect(q.sql).toContain('pg_timezone_names')
+    expect(q.sql).toContain('cp.timezone')
     // A clinic with no stored zone must not drop out of the aggregate — the
     // LEFT JOIN plus a coalesce'd fallback keeps it counted.
     expect(q.sql.replace(/\n/g, ' ')).toMatch(/left join .*clinic_profile/i)

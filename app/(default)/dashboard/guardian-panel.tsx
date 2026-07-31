@@ -231,6 +231,13 @@ function HeartbeatLine({ beat, unreadable }: { beat: GuardianHeartbeat; unreadab
           platform, previously visible in nothing. */}
       {beat.skipped > 0 &&
         ` · ${beat.skipped} practice${beat.skipped === 1 ? '' : 's'} skipped (no profile row)`}
+      {/* THE CENSUS (Phase 4 open item #5). `scanned` counted what came
+          BACK, and nothing compared it to what went in — so a clinic whose
+          own read threw was logged and then silently absent from every
+          total. Only shown when it does NOT add up, because a reconciled
+          census is not news. */}
+      {beat.unreadable > 0 &&
+        ` · ${beat.unreadable} of ${beat.eligible} couldn’t be read at all`}
       {/* AND WHY (round-14 in-phase gap). "1 report couldn't be delivered"
           with no reason left the owner unable to tell a mail outage from
           having nobody to email; the reasons were written in seven places

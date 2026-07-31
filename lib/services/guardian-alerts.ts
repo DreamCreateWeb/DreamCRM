@@ -71,6 +71,11 @@ export interface GuardianRunResult {
    *  are never emailed about, so without this they were counted in nothing
    *  (round-14 in-phase gap). */
   skipped: number
+  /** Live clinic orgs the sweep set out to assess, and the ones it could
+   *  not read. `eligible === scanned + unreadable` by construction, so the
+   *  run can prove no practice fell out of it (Phase 4 open item #5). */
+  eligible: number
+  unreadable: number
   /** The watcher could not read the ledger — no clinic was assessed, and
    *  nothing about this run may be read as an all-clear. */
   blind: boolean
@@ -258,7 +263,13 @@ export async function runGuardianSweep(now: Date = new Date()): Promise<Guardian
   // code; here the two paths agree, so it is harmless either way.
   const audience = await getGuardianAudience().catch<GuardianAudience>(() => 'platform')
   const result: GuardianRunResult = {
+    // ASSESSED, and the census beside it (Phase 4 open item #5). `scanned`
+    // used to be the only number, and it counted what came BACK — so a
+    // clinic whose own read threw was logged and then silently absent from
+    // every total.
     scanned: sweep.reports.length,
+    eligible: sweep.census.eligible,
+    unreadable: sweep.census.unreadable,
     flagged: sweep.flagged.length,
     audience,
     alerted: 0,
@@ -659,6 +670,8 @@ async function recordHeartbeat(result: GuardianRunResult, now: Date): Promise<vo
         flagged: result.flagged,
         undelivered: result.undelivered,
         skipped: result.skipped,
+        eligible: result.eligible,
+        unreadable: result.unreadable,
         blind: result.blind,
         // THE RECEIPT (round-16 in-phase gap). The lock had a dry run and no
         // confirmation: the owner who opened it had to go read individual

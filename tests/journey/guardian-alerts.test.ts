@@ -39,6 +39,13 @@ vi.mock('@/lib/services/guardian', () => ({
     ),
     summary: '',
     blind: sweepState.blind,
+    // The census (Phase 4 open item #5) — a mock that omits a field the
+    // caller reads does not fail, it throws INTO that caller.
+    census: {
+      eligible: sweepState.reports.length,
+      assessed: sweepState.reports.length,
+      unreadable: 0,
+    },
   })),
 }))
 vi.mock('@/lib/email', () => ({

@@ -470,3 +470,36 @@ describe('the pile-up clause never blames a practice for cards the machine hande
     expect(deps.openProposalOpts[0]).toMatchObject({ excludeHandedBack: true })
   })
 })
+
+
+describe('the census accounts for every practice the sweep started with', () => {
+  it('adds up when everything is readable (Phase 4 open item #5)', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    seedOrg('org_b', 'Birch Dental')
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.census).toEqual({ eligible: 2, assessed: 2, unreadable: 0 })
+    expect(sweep.census.assessed + sweep.census.unreadable).toBe(sweep.census.eligible)
+  })
+
+  it('names the practice it could NOT read, instead of silently dropping it', async () => {
+    // `scanned` counted what came BACK, and nothing compared it to what went
+    // in — so a clinic whose own read threw was logged and then absent from
+    // every total, and no number anywhere revealed that a practice had
+    // fallen out of the watch.
+    seedOrg('org_a', 'Ash Dental')
+    seedOrg('org_b', 'Birch Dental')
+    deps.throwFor = 'org_b'
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.reports).toHaveLength(1)
+    expect(sweep.census).toEqual({ eligible: 2, assessed: 1, unreadable: 1 })
+    expect(sweep.census.assessed + sweep.census.unreadable).toBe(sweep.census.eligible)
+  })
+
+  it('a BLIND sweep says every eligible practice went unread, not that none existed', async () => {
+    seedOrg('org_a', 'Ash Dental')
+    store.ledgerThrows = true
+    const sweep = await sweepEngineHealth(NOW)
+    expect(sweep.blind).toBe(true)
+    expect(sweep.census).toEqual({ eligible: 1, assessed: 0, unreadable: 1 })
+  })
+})

@@ -604,6 +604,12 @@ export interface GuardianHeartbeat {
    *  a field collected and read by nothing is the defect slice 4 was pulled
    *  up for, and re-introducing it here would be worse than not storing it. */
   blind: boolean
+  /** The census: practices the run set out to assess, and the ones it could
+   *  not read. `eligible === scanned + unreadable` by construction (Phase 4
+   *  open item #5) — a watcher that cannot say how many practices it looked
+   *  at is the blindness this phase removes, aimed at itself. */
+  eligible: number
+  unreadable: number
 }
 
 /**
@@ -641,6 +647,8 @@ export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {
     blind: false,
     problems: [],
     skipped: 0,
+    eligible: 0,
+    unreadable: 0,
     audience: 'platform',
     told: [],
     emailed: [],
@@ -667,6 +675,8 @@ export function resolveGuardianHeartbeat(stored: unknown): GuardianHeartbeat {
       ? g.problems.filter((p): p is string => typeof p === 'string' && p.length > 0).slice(0, 5)
       : [],
     skipped: num(g.skipped),
+    eligible: num(g.eligible),
+    unreadable: num(g.unreadable),
   }
 }
 

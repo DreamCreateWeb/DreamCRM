@@ -77,6 +77,7 @@ export default async function PlatformOverview() {
         flagged: [],
         summary: 'I could not look just now.',
         blind: true,
+        census: { eligible: 0, assessed: 0, unreadable: 0 },
       }
     }),
     // ONE STRICT READ for all three platform_config surfaces — the audience

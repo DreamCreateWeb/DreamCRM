@@ -808,10 +808,18 @@ sitemap/robots/OG.
    so "who heard this alarm" is known rather than approximated; (4) the
    clinic half of the Guardian can only say bad news — no closure, no
    recovery, no celebration (the owner's half got a stand-down in round 9);
-   (5) the sweep's census does not reconcile (scanned + skipped + errored
-   need not equal the orgs it started with); (6) the sweep aggregate still
-   trusts a stored timezone — both writers validate through `Intl` now, but
-   a legacy/imported bad row would still fail the platform-wide statement.
+   (5) ~~the sweep's census does not reconcile~~ **CLOSED 2026-07-31**:
+   `GuardianSweep.census` is `{eligible, assessed, unreadable}` and adds up
+   by construction — every eligible org either produced a report or was
+   dropped by its own failed read, there is no third door — surfaced on the
+   run result, the heartbeat and the panel (only when it does NOT
+   reconcile, because a balanced census is not news); (6) ~~the sweep
+   aggregate still trusts a stored timezone~~ **CLOSED 2026-07-31**: both
+   platform-wide aggregates resolve the zone through `pg_timezone_names`
+   (the authority Postgres itself uses) instead of a bare `coalesce`, which
+   guards NULL only — so an unrecognised legacy row falls through to the
+   default rather than raising and blinding the watcher for every OTHER
+   clinic.
 8. Misc deferred: Zernio review webhooks (hourly cron covers today), FB reply
    (no Zernio endpoint), per-staff booking widgets, patient-view audit log, 2FA,
    per-location booking. (`push_everything` was already dropped in 0114.)

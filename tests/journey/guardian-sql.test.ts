@@ -143,3 +143,25 @@ describe('the failure alarm buckets on a real clinic day', () => {
     expect(tz).toBeGreaterThan(trunc)
   })
 })
+
+
+describe('the day expression cannot be taken down by one bad stored zone', () => {
+  const q = dialect.sqlToQuery(
+    buildSweepQuery(new Date('2026-07-22T00:00:00Z'), new Date('2026-07-29T00:00:00Z')),
+  )
+
+  it('resolves the zone through pg_timezone_names, not a bare coalesce', () => {
+    // `coalesce` guards NULL only, and this expression lives inside ONE
+    // grouped aggregate over every org's ledger — so an unrecognised
+    // non-empty value raises and fails the whole statement, blinding the
+    // watcher for every OTHER clinic. Both writers validate now; a legacy
+    // or imported row predates that (Phase 4 open item #6).
+    expect(q.sql).toContain('pg_timezone_names')
+    expect(q.sql).toContain('America/New_York')
+  })
+
+  it('still buckets on the CLINIC’s zone, not the server’s', () => {
+    expect(q.sql).toContain('"timezone"')
+    expect(q.sql).toMatch(/at time zone 'UTC'/)
+  })
+})
