@@ -758,11 +758,12 @@ sitemap/robots/OG.
    learned hour drives exactly one thing — `automationSendAt` — and pooling
    human-made blasts compared CONTENT before it compared TIME, a confound
    the three floors cannot bound (they bound sample size and margin). That
-   restriction surfaces WHY the brain is inert rather than merely
-   under-fed: every automated send already aims at the hour in force, so one
-   bucket fills and nothing is comparable. A genuine "learn when to send"
-   needs an EXPLORATION ARM (a small holdout at another hour) — the next
-   slice, named here rather than faked with a confounded comparison.
+   restriction surfaced WHY the brain was inert rather than merely
+   under-fed: every automated send aimed at the hour in force, so one bucket
+   filled and nothing was comparable. The EXPLORATION ARM (2026-07-31,
+   `explorationHourFor`) is the answer — ~20% of automation campaigns go at
+   an alternative daylight hour, deterministically, keyed per campaign so
+   one practice lands in both arms.
    Phase 5+ new limbs proposal-first.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
@@ -806,9 +807,19 @@ sitemap/robots/OG.
    `pms_sync` registered. One failure per producer per clinic per DAY (the
    crons tick every 15 min), and deliberately NOT `dedupeAcrossOrg` — unlike
    the proposal engine's five steps these are independent subsystems, so
-   reminders and Google sync breaking on one morning are two facts; (2) the shared brain needs an EXPLORATION ARM (a small
-   holdout at another hour) or it can never learn, because every automated
-   send already aims at the hour in force; (3) ~~a per-audience alert memory~~ **CLOSED
+   reminders and Google sync breaking on one morning are two facts; (2) ~~the shared brain needs an EXPLORATION ARM~~ **CLOSED
+   2026-07-31**: `explorationHourFor` sends ~20% of automation campaigns at
+   an alternative daylight hour, so there is finally a second qualifying
+   bucket. DETERMINISTIC (a retry schedules identically to the original) and
+   keyed per CAMPAIGN — the key carries the org AND the date, so one
+   practice lands in BOTH arms across days; assigning by clinic would have
+   compared hours that were also different practices, the confound round 14
+   refused to ship. Residual confound is DAY OF WEEK, bounded by the 90-day
+   window and documented rather than hidden. The hash needed a MurmurHash3
+   avalanche finalizer: raw FNV-1a's high bits barely move across keys that
+   differ only in a trailing date, and the first draft put all 90 of one
+   practice's daily campaigns in the same arm. The owner's card says the
+   exploration is running; (3) ~~a per-audience alert memory~~ **CLOSED
    2026-07-31** (migration 0142 `guardian_clinic_state` +
    `guardian_clinic_alerted_at`): each audience keeps its own stamp, so the
    two cadences are independent and `ownerWasTold`/`clinicWasTold` are

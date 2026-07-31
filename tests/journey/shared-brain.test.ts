@@ -10,6 +10,11 @@ import {
   MIN_LIFT,
   brainStale,
   BRAIN_STALE_DAYS,
+  explorationHourFor,
+  EXPLORATION_SHARE,
+  EXPLORATION_HOURS,
+  LEARNABLE_HOUR_MIN as HMIN,
+  LEARNABLE_HOUR_MAX as HMAX,
   type HourStat,
 } from '@/lib/shared-brain'
 
@@ -264,5 +269,66 @@ describe('brainStale — a weekly pass that STOPPED', () => {
   it('never-run and unparseable are their own states, not stale', () => {
     expect(brainStale(brain(null), NOW_B)).toBe(false)
     expect(brainStale(brain('nope'), NOW_B)).toBe(false)
+  })
+})
+
+
+describe('the exploration arm — the only way the brain can ever learn (open item #2)', () => {
+  const keys = Array.from({ length: 4000 }, (_, i) => `birthday:org_${i % 40}:2026-06-${(i % 28) + 1}`)
+
+  it('sends roughly EXPLORATION_SHARE of campaigns somewhere else', () => {
+    const explored = keys.filter((k) => explorationHourFor(k, DEFAULT_SEND_HOUR) !== null).length
+    const share = explored / keys.length
+    expect(share).toBeGreaterThan(EXPLORATION_SHARE * 0.7)
+    expect(share).toBeLessThan(EXPLORATION_SHARE * 1.3)
+  })
+
+  it('is DETERMINISTIC — a retry schedules identically to the original', () => {
+    // Random assignment would jitter a clinic's mail between hours on every
+    // re-run, and a retried campaign would land at a different time than the
+    // one it is retrying.
+    for (const k of keys.slice(0, 50)) {
+      expect(explorationHourFor(k, DEFAULT_SEND_HOUR)).toBe(explorationHourFor(k, DEFAULT_SEND_HOUR))
+    }
+  })
+
+  it('never explores AT the hour already in force — that compares nothing', () => {
+    for (const inForce of EXPLORATION_HOURS) {
+      for (const k of keys.slice(0, 200)) {
+        expect(explorationHourFor(k, inForce)).not.toBe(inForce)
+      }
+    }
+  })
+
+  it('never leaves the daylight window — nobody gets mailed at 3 AM to satisfy a test', () => {
+    for (const k of keys) {
+      const h = explorationHourFor(k, DEFAULT_SEND_HOUR)
+      if (h === null) continue
+      expect(h).toBeGreaterThanOrEqual(HMIN)
+      expect(h).toBeLessThanOrEqual(HMAX)
+    }
+  })
+
+  it('spreads ONE practice across both arms, so an hour is never just a clinic', () => {
+    // Assigning by clinic would have compared hours that were also different
+    // practices with different patient bases — the confound round 14 refused
+    // to ship. The key carries the DATE, so one org lands in both arms.
+    const oneOrg = Array.from({ length: 90 }, (_, d) => `birthday:org_7:2026-06-${d + 1}`)
+    const arms = new Set(oneOrg.map((k) => explorationHourFor(k, DEFAULT_SEND_HOUR) === null))
+    expect(arms.size).toBe(2)
+  })
+
+  it('an empty key never explores — no automation, no experiment', () => {
+    expect(explorationHourFor('', DEFAULT_SEND_HOUR)).toBeNull()
+  })
+
+  it('produces a SECOND qualifying bucket, which is the whole point', () => {
+    // Before this, `eligible.length < 2` held forever and the brain refused
+    // every finding — correctly, and permanently.
+    const control = at(DEFAULT_SEND_HOUR, 0.3)
+    const explored = at(16, 0.45)
+    const f = learnBestSendHour([control, explored], DEFAULT_SEND_HOUR, false)
+    expect(f.hour).toBe(16)
+    expect(f.learned).toBe(true)
   })
 })

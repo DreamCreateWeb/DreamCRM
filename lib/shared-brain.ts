@@ -223,6 +223,91 @@ export function learnBestSendHour(
   }
 }
 
+/* ── THE EXPLORATION ARM ───────────────────────────────────────────────── */
+
+/**
+ * WHY THIS EXISTS (Phase 4 open item #2, 2026-07-31).
+ *
+ * The brain could never learn anything. Every automated send aims at the
+ * hour in force, so exactly one bucket ever fills — `eligible.length < 2`
+ * holds forever, and `learnBestSendHour` correctly refuses to call one arm a
+ * comparison. Round 14 surfaced that by restricting the sample to the
+ * population the hour acts on, and named this as the only honest fix:
+ * deliberately send some of them somewhere else and compare.
+ *
+ * THE SHAPE, and what it costs.
+ *
+ *  - DETERMINISTIC, never random. The arm is a hash of the automation's own
+ *    key, so the same campaign always lands in the same arm — a clinic's
+ *    mail cannot jitter between hours on re-runs, and a retry schedules
+ *    identically to the original.
+ *  - Keyed per CAMPAIGN, not per clinic. `automationKey` carries the org AND
+ *    the date ("birthday:org_1:2026-06-18"), so one practice contributes to
+ *    BOTH arms across days. Assigning by clinic would have compared hours
+ *    that were also different practices with different patient bases — a
+ *    confound of exactly the kind round 14 refused to ship.
+ *  - The residual confound is DAY OF WEEK, and it is real: a given day's
+ *    campaign lands in one arm or the other. Over the 90-day window each arm
+ *    accumulates a mix of weekdays, which bounds it rather than removing it.
+ *    Said out loud here because the alternative is a comparison whose
+ *    weakness is undocumented.
+ *  - SMALL, and inside the daylight window. A fifth of automation sends, at
+ *    an hour the machine was already allowed to send at, so the worst case
+ *    is that one in five recall nudges goes at a slightly worse time — not
+ *    that anyone is mailed at 3 AM.
+ */
+export const EXPLORATION_SHARE = 0.2
+
+/** The alternatives, all inside LEARNABLE_HOUR_MIN..MAX. Deliberately a
+ *  short list at plausible hours rather than the whole window: exploring
+ *  eleven hours at a fifth of volume each would take years to clear
+ *  MIN_SENDS_PER_HOUR, which is a comparison that never arrives. */
+export const EXPLORATION_HOURS = [8, 13, 16] as const
+
+/**
+ * FNV-1a with a MurmurHash3 avalanche finalizer.
+ *
+ * The finalizer is not decoration. These keys differ only in a trailing
+ * date, and raw FNV-1a's HIGH bits barely move across such a family — the
+ * first draft of this put all 90 of one practice's daily campaigns in the
+ * same arm, which is exactly the by-clinic assignment (and the confound)
+ * this design exists to avoid. `fmix32` spreads a one-character difference
+ * across all 32 bits, so the arm and the alternative can both be sliced off
+ * one hash.
+ */
+function hashKey(key: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  h ^= h >>> 16
+  h = Math.imul(h, 0x85ebca6b) >>> 0
+  h ^= h >>> 13
+  h = Math.imul(h, 0xc2b2ae35) >>> 0
+  h ^= h >>> 16
+  return h >>> 0
+}
+
+/**
+ * Which hour should THIS automation aim at — the hour in force, or an
+ * exploration hour?
+ *
+ * Returns null for the control arm (the overwhelming majority). Never
+ * returns the incumbent itself, because an "exploration" that lands on the
+ * hour already in force adds nothing to compare.
+ */
+export function explorationHourFor(automationKey: string, inForce: number): number | null {
+  if (!automationKey) return null
+  const h = hashKey(automationKey)
+  // Top bits for the arm, low bits for which alternative — one hash, two
+  // independent-enough decisions.
+  if ((h >>> 16) / 0x10000 >= EXPLORATION_SHARE) return null
+  const candidates = EXPLORATION_HOURS.filter((c) => c !== inForce)
+  if (candidates.length === 0) return null
+  return candidates[h % candidates.length]
+}
+
 /* ── What gets stored, and how it is read back ─────────────────────────── */
 
 export interface SharedBrain {

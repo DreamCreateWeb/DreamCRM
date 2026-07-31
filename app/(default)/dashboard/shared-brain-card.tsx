@@ -2,6 +2,7 @@ import type { BrainRun } from '@/lib/shared-brain'
 import {
   brainStale,
   BRAIN_STALE_DAYS,
+  EXPLORATION_SHARE,
   MIN_CLINICS_PER_HOUR,
   MIN_SENDS_PER_HOUR,
   type SharedBrain,
@@ -95,6 +96,17 @@ export default function SharedBrainCard({
                 months this card's only content is "Still learning" plus two
                 thresholds — and a threshold with no reading against it is
                 the magic number the card exists to replace. */}
+            {/* THE EXPLORATION ARM (Phase 4 open item #2). The brain could
+                never learn because every automated send aimed at the hour in
+                force, so one bucket filled and nothing was comparable. A
+                fifth of campaigns go elsewhere on purpose — and the owner
+                should know that is happening rather than discover it in a
+                send log. */}
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              About {Math.round(EXPLORATION_SHARE * 100)}% of automated sends go at a different
+              hour on purpose, so there is something to compare. Without that the platform can
+              only ever confirm the hour it already uses.
+            </p>
             {!brain.sendHourLearned && (
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {brain.sampleSends > 0

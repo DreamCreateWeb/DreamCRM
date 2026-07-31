@@ -10,6 +10,7 @@ import { getSharedBrain } from './shared-brain'
 import { DEFAULT_SEND_HOUR } from '@/lib/shared-brain'
 import type { RetentionKind } from '@/lib/types/retention'
 import { reportAutomationFailure } from '@/lib/services/engine-failures'
+import { explorationHourFor } from '@/lib/shared-brain'
 
 export type { RetentionKind }
 
@@ -271,7 +272,14 @@ async function runOne(
       getClinicTimeZone(organizationId).catch(() => null),
       getSharedBrain().catch(() => ({ sendHour: DEFAULT_SEND_HOUR })),
     ])
-    const scheduledAt = automationSendAt(now, timeZone, brain.sendHour)
+    // THE EXPLORATION ARM (Phase 4 open item #2). Without a deliberate
+    // holdout the brain can never learn: every automated send aims at the
+    // hour in force, so one bucket fills and `learnBestSendHour` correctly
+    // refuses to call a single arm a comparison. A fifth of campaigns go at
+    // an alternative hour, chosen deterministically from the automation's
+    // own key so a retry schedules identically to the original.
+    const exploring = explorationHourFor(automationKey, brain.sendHour)
+    const scheduledAt = automationSendAt(now, timeZone, exploring ?? brain.sendHour)
 
     let campaignId: number
     try {
