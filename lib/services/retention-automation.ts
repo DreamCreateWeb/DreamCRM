@@ -9,6 +9,7 @@ import { clinicDayStart } from '@/lib/clinic-timezone'
 import { getSharedBrain } from './shared-brain'
 import { DEFAULT_SEND_HOUR } from '@/lib/shared-brain'
 import type { RetentionKind } from '@/lib/types/retention'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
 
 export type { RetentionKind }
 
@@ -319,6 +320,10 @@ async function runOne(
       kind,
       error: err instanceof Error ? err.message : 'unknown',
     })
+    // TELL THE GUARDIAN (Phase 4 open item #1). A recall or win-back engine
+    // that has been failing for days leaves the clinic with no outreach and
+    // no sign of why — the exact blindness the `blocked` verdict removes.
+    await reportAutomationFailure(organizationId, 'retention')
   }
 }
 

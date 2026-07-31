@@ -794,9 +794,15 @@ sitemap/robots/OG.
 6. **Platform webhook idempotency** shipped; review auto-send is anchored to
    `completedAt` with a 7-day ask-while-fresh floor (2026-07-14) — CLOSED.
 7. **Phase 4's six named open items** (docs/AUDITS.md certificate, 2026-07-31):
-   (1) `recordEngineFailure` has only two producers, so `blocked` sees the
-   proposal engine + autonomy hand-back and not the send/sync automations —
-   THE NEXT SLICE; (2) the shared brain needs an EXPLORATION ARM (a small
+   (1) ~~`recordEngineFailure` has only two producers~~ **CLOSED
+   2026-07-31**: `lib/services/engine-failures.ts` is the registry (one
+   table, one helper, one throttle — not six hand-written call sites) and
+   all six producers report: reminders, scheduled campaigns, retention
+   automations, review sync, GBP sync and PMS sync. New capability
+   `pms_sync` registered. One failure per producer per clinic per DAY (the
+   crons tick every 15 min), and deliberately NOT `dedupeAcrossOrg` — unlike
+   the proposal engine's five steps these are independent subsystems, so
+   reminders and Google sync breaking on one morning are two facts; (2) the shared brain needs an EXPLORATION ARM (a small
    holdout at another hour) or it can never learn, because every automated
    send already aims at the hour in force; (3) a per-audience alert memory,
    so "who heard this alarm" is known rather than approximated; (4) the

@@ -17,6 +17,7 @@ import {
 import { visitTypePrepInstructions } from '@/lib/types/visit-types'
 import { clinicDayKey } from '@/lib/format-datetime'
 import type { ClinicSender } from '@/lib/email-identity'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
 
 // ── Settings CRUD (Settings → Reminders) ─────────────────────────────────────
 
@@ -550,6 +551,12 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
         } else {
           result.failed++
           result.errors.push({ organizationId: profile.organizationId, appointmentId: item.detail.id, error: r.error })
+          // TELL THE GUARDIAN (Phase 4 open item #1). Reminders are the
+          // automation a clinic feels most, and a week of them failing left
+          // that practice reading `healthy` — an idle ledger with no
+          // failures is indistinguishable from a calm one. Throttled to one
+          // a day per clinic inside the helper, so a strike means a DAY.
+          await reportAutomationFailure(profile.organizationId, 'reminders')
         }
       } else {
         const r = await sendFamilyReminderEmail(
@@ -563,6 +570,7 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
         } else {
           result.failed += bucket.length
           result.errors.push({ organizationId: profile.organizationId, appointmentId: bucket[0].detail.id, error: r.error })
+          await reportAutomationFailure(profile.organizationId, 'reminders')
         }
       }
     }

@@ -51,6 +51,10 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'domain_autorenew', label: 'Renew your web address each year', defaultTrust: 'auto' },
   { key: 'listing_sync', label: 'Keep your site matching your Google listing', defaultTrust: 'auto' },
   { key: 'review_feature', label: 'Feature new reviews on your website', defaultTrust: 'auto' },
+  // The PMS bridge. Registered so a sync that keeps failing has somewhere
+  // honest to be written — the Guardian's `blocked` verdict is only as wide
+  // as the set of things that can report a break to it.
+  { key: 'pms_sync', label: 'Keep your practice software in step', defaultTrust: 'auto' },
   // THE GUARDIAN's clinic-facing note (Phase 4). Auto-by-default because it
   // only ever REPORTS — it writes a ledger line in the clinic's own voice
   // and sends nothing to a patient. It is deliberately NOT grantable: there

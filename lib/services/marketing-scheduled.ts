@@ -2,6 +2,7 @@ import 'server-only'
 import { and, eq, isNotNull, lte } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { sendCampaign } from './marketing-send'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
 
 /**
  * Scheduled campaign sender.
@@ -104,6 +105,12 @@ export async function sendDueScheduledCampaigns(opts?: { now?: Date }): Promise<
     } catch (err) {
       result.failed++
       result.errors.push({ campaignId: c.id, error: err instanceof Error ? err.message : 'unknown' })
+      // TELL THE GUARDIAN (Phase 4 open item #1). A scheduled campaign that
+      // keeps failing to go out is invisible from inside the product — the
+      // clinic sees an empty outbox, which looks exactly like a quiet week.
+      if (c.organizationId) {
+        await reportAutomationFailure(c.organizationId, 'campaigns')
+      }
     }
   }
 

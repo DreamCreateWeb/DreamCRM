@@ -9,6 +9,7 @@ import {
   type GoogleLocation,
   type GooglePhoto,
 } from '@/lib/zernio'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
 import type {
   FieldSource,
   GbpSyncResult,
@@ -716,10 +717,15 @@ export async function syncAllGoogleBusinessProfiles(): Promise<{
       else {
         result.failed++
         result.errors.push({ organizationId: conn.organizationId, error: r.error ?? 'unknown' })
+        // TELL THE GUARDIAN (Phase 4 open item #1) — a listing sync that has
+        // been failing for a week is exactly the "wired wrong rather than
+        // merely quiet" the `blocked` verdict is for.
+        await reportAutomationFailure(conn.organizationId, 'gbp_sync')
       }
     } catch (e) {
       result.failed++
       result.errors.push({ organizationId: conn.organizationId, error: (e as Error).message })
+      await reportAutomationFailure(conn.organizationId, 'gbp_sync')
     }
   }
   return result

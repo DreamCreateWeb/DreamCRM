@@ -10,6 +10,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Sequenced select results: connections query first, then any streak queries.
 const selectQueue: unknown[][] = []
+// The Guardian's failure door (Phase 4 open item #1) — a collaborator here,
+// with its own tests in tests/journey/engine-failures.ts. Mocked so these
+// harnesses' slim db stubs don't have to model the ledger write.
+vi.mock('@/lib/services/engine-failures', () => ({
+  reportAutomationFailure: vi.fn(async () => true),
+}))
+
 vi.mock('@/lib/db', () => ({
   db: {
     select: () => {

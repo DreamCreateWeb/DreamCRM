@@ -4,6 +4,7 @@ import { db, schema } from '@/lib/db'
 import { runImport } from '@/lib/services/pms/sync'
 import { sendNotificationEmail } from '@/lib/email'
 import { notifyOrgMembers } from '@/lib/services/notifications'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -70,6 +71,13 @@ async function run(request: Request) {
         // error / data-skip partial alerts.
         const isRealFailure = r.status === 'error' || (r.status === 'partial' && !r.resumeAvailable)
         const alerted = isRealFailure ? await maybeAlertFailure(conn.organizationId) : false
+        // TELL THE GUARDIAN (Phase 4 open item #1). `maybeAlertFailure` is
+        // the PMS module's own streak email; this is the ledger entry the
+        // Guardian counts, so a practice whose bridge has been down for days
+        // stops reporting `healthy`. Only on a REAL failure — a
+        // budget-capped resume is healthy progress, and calling it a break
+        // would be the crying-wolf shape this phase keeps refusing.
+        if (isRealFailure) await reportAutomationFailure(conn.organizationId, 'pms_sync')
         if (r.resumeAvailable) resuming++
         else if (r.status === 'success') succeeded++
         else failed++

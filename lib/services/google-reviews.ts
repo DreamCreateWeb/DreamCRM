@@ -12,6 +12,7 @@ import {
   deleteGoogleReviewReply as zernioDeleteGoogleReviewReply,
   type GoogleReview,
 } from '@/lib/zernio'
+import { reportAutomationFailure } from '@/lib/services/engine-failures'
 
 /**
  * Google Business reviews service. The Reviews module's SECOND source — REAL
@@ -585,10 +586,16 @@ export async function syncAllGoogleReviews(): Promise<{
       else {
         result.failed++
         result.errors.push({ organizationId: conn.organizationId, error: r.error ?? 'unknown' })
+        // TELL THE GUARDIAN (Phase 4 open item #1). Until this, a review
+        // sync could fail every hour of every day and the practice still
+        // reported `healthy`, because an idle ledger with no failures reads
+        // as calm. Throttled to one a day inside the helper.
+        await reportAutomationFailure(conn.organizationId, 'review_sync')
       }
     } catch (e) {
       result.failed++
       result.errors.push({ organizationId: conn.organizationId, error: (e as Error).message })
+      await reportAutomationFailure(conn.organizationId, 'review_sync')
     }
   }
   return result
