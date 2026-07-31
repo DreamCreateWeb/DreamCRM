@@ -73,6 +73,12 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'ask' },
   { key: 'inquiry_response', label: 'Answer website inquiries', defaultTrust: 'ask' },
   { key: 'outreach_campaign', label: 'Launch outreach campaigns', defaultTrust: 'ask' },
+  // THE CONTENT CALENDAR (Phase 5, limb 1). A month of public writing in one
+  // card. Ask-first like its siblings, and deliberately NOT grantable below:
+  // handing over one post is a bounded yes, handing over four weeks of a
+  // practice's public voice, unseen, is a different order of thing. It can
+  // earn that later, on evidence — the ladder is a ladder.
+  { key: 'content_plan', label: 'Plan a month of posts & articles', defaultTrust: 'ask' },
 ] as const
 
 const BY_KEY: ReadonlyMap<string, CapabilityDef> = new Map(CAPABILITIES.map((c) => [c.key, c]))

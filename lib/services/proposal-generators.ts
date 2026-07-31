@@ -133,6 +133,10 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
     capability: 'social_post',
     summary: 'Couldn’t draft a social post just now — I’ll keep trying.',
   },
+  content_plan: {
+    capability: 'content_plan',
+    summary: 'Couldn’t put together this month’s content plan just now — I’ll keep trying.',
+  },
   outreach_campaign: {
     capability: 'outreach_campaign',
     summary: 'Couldn’t line up a recall campaign just now — I’ll keep trying.',
@@ -302,6 +306,14 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
         [
           'inquiry_response',
           () => generateInquiryResponseProposals(org.id, org.name, now, softFailed('inquiry_response')),
+        ],
+        // The MONTH plan runs before the one-off post: they answer the same
+        // silence, and the bigger answer gets first refusal. Each also
+        // stands down while the other's card is open, so the order is a
+        // preference, not the guard.
+        [
+          'content_plan',
+          () => generateContentPlanProposals(org.id, org.name, now, tz, softFailed('content_plan')),
         ],
         ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz, softFailed('social_post'))],
         ['outreach_campaign', () => generateOutreachCampaignProposals(org.id, now, tz)],
@@ -670,6 +682,34 @@ async function draftText(
   return { ok: true, text: parsed.data.text.trim() }
 }
 
+/**
+ * Is a card of this capability sitting OPEN in the inbox right now?
+ *
+ * The content calendar and the one-off social post are two answers to the
+ * same question ("your channels are quiet"), so each stands down while the
+ * other's card is unanswered. Without it a quiet practice gets both in the
+ * same tick: "post this?" directly above "here's a month of posts?", which
+ * reads as a machine that does not know what it already asked.
+ *
+ * Deliberately OPEN-only, not "ever filed": a declined or executed card is a
+ * closed conversation, and the cadence keys plus recentlyDeclined already
+ * govern how soon the machine may raise the subject again.
+ */
+async function hasOpenProposal(organizationId: string, capability: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.proposal.id })
+    .from(schema.proposal)
+    .where(
+      and(
+        eq(schema.proposal.organizationId, organizationId),
+        eq(schema.proposal.capability, capability),
+        eq(schema.proposal.status, 'open'),
+      ),
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
 /** Cheap existence check so we never spend an AI draft on an already-claimed
  *  sourceKey (fileProposal would just no-op after the money was spent). */
 async function sourceKeyTaken(organizationId: string, sourceKey: string): Promise<boolean> {
@@ -887,6 +927,9 @@ export async function generateSocialPostProposals(
   const sourceKey = `social_post:${monthKey(now, timeZone)}`
   if (await sourceKeyTaken(organizationId, sourceKey)) return 0
   if (await recentlyDeclined(organizationId, 'social_post', now)) return 0
+  // Stand down while the month-plan card is unanswered — same question, and
+  // the plan is the bigger answer to it.
+  if (await hasOpenProposal(organizationId, 'content_plan')) return 0
 
   const { getComposerChannels } = await import('@/lib/services/social-posts')
   const channels = await getComposerChannels(organizationId)
@@ -951,6 +994,154 @@ Additional rules:
       channels: channels.map((c) => ({ accountId: c.accountId, label: c.label })),
     },
     expiresAt: new Date(now.getTime() + 21 * DAY_MS),
+  })
+  return filed ? 1 : 0
+}
+
+// ── 3b. The content calendar (Phase 5, limb 1) ───────────────────────────────
+
+/**
+ * A MONTH OF PRESENCE, IN ONE CARD.
+ *
+ * The social generator above answers "your channels have been quiet" with one
+ * post. This answers the same silence with the whole month: four pieces,
+ * dated, written out in full, one yes. DESIGN.md's test — "does this ask the
+ * clinic to operate something, or does it do the job and report?" — is why
+ * there is no calendar grid anywhere in this feature.
+ *
+ * It is the STRICTER of the two: the plan only makes sense for a practice
+ * publishing nothing at all, so a thin horizon is required on top of the
+ * quiet-channels test the social generator already applies.
+ */
+const CONTENT_PLAN_ITEM_SCHEMA = z.object({
+  items: z
+    .array(
+      z.object({
+        title: z.string().max(160).optional().nullable(),
+        body: z.string().min(1).max(4000),
+      }),
+    )
+    .min(1)
+    .max(8),
+})
+
+export async function generateContentPlanProposals(
+  organizationId: string,
+  clinicName: string,
+  now: Date,
+  timeZone: string,
+  onSoftFailure?: OnSoftFailure,
+): Promise<number> {
+  if (!aiConfigured()) return 0
+  const sourceKey = `content_plan:${monthKey(now, timeZone)}`
+  if (await sourceKeyTaken(organizationId, sourceKey)) return 0
+  if (await recentlyDeclined(organizationId, 'content_plan', now)) return 0
+  // The other half of the mutual stand-down (see generateSocialPostProposals).
+  if (await hasOpenProposal(organizationId, 'social_post')) return 0
+
+  // A plan needs somewhere to publish. With no connected channel the whole
+  // thing collapses to a single blog piece, which is not a month of presence
+  // and should not be dressed up as one.
+  const { getComposerChannels } = await import('@/lib/services/social-posts')
+  const channels = await getComposerChannels(organizationId)
+  if (channels.length === 0) return 0
+
+  // NOTHING ALREADY COMING. Counted across BOTH rails, because from the
+  // practice's side a queued blog post and a queued social post are the same
+  // fact. An unreadable horizon (null) reads as full and the machine stays
+  // quiet — a failed query must never be the reason four weeks of public
+  // writing gets proposed over the top of a month they already filled.
+  const { countHorizon } = await import('@/lib/services/content-calendar')
+  const { horizonIsThin, PLAN_SIZE, describePlan, validatePlanItems } = await import('@/lib/content-calendar')
+  const ahead = await countHorizon(organizationId, now)
+  if (ahead == null || !horizonIsThin(ahead)) return 0
+
+  if (await isAiUsageOverCap(organizationId, AI_KIND, PROPOSAL_DRAFT_MONTHLY_CAP)) return 0
+  let raw: unknown
+  try {
+    raw = await runClaudeJson({
+      model: 'sonnet',
+      maxTokens: 2500,
+      system: `You are planning a month of content for ${clinicName}, a dental practice. A staff member reads the whole plan and approves or declines it before anything publishes. ${CORE_VOICE_RULES}
+Return exactly ${PLAN_SIZE} pieces, in this order:
+1. A short social post (2–4 sentences, at most one natural hashtag).
+2. A BLOG ARTICLE: a real headline in "title", and 4–6 paragraphs in "body" separated by blank lines.
+3. A short social post.
+4. A short social post.
+Rules:
+- Evergreen and useful: dental-health tips, what a first visit is like, how to help an anxious patient, why a cleaning matters. Nothing seasonal or dated.
+- NEVER invent events, offers, prices, staff names, awards, or anything clinic-specific you were not told.
+- No medical claims beyond ordinary preventive-dentistry advice.
+- The four pieces should cover four different topics — this is a plan, not one idea four times.`,
+      messages: [{ role: 'user', content: `Plan the next four weeks.` }],
+      toolName: 'content_plan',
+      toolDescription: 'Return the planned pieces, in publish order, for a staff member to review.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            description: 'The planned pieces, in publish order.',
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'Headline. Blog pieces only.' },
+                body: { type: 'string', description: 'The text that gets published.' },
+              },
+              required: ['body'],
+            },
+          },
+        },
+        required: ['items'],
+      },
+    })
+  } catch (err) {
+    console.warn('[proposal-generators] content plan draft failed', err)
+    onSoftFailure?.()
+    return 0
+  }
+  const parsed = CONTENT_PLAN_ITEM_SCHEMA.safeParse(raw)
+  // 'unusable', not a failure signal: the provider answered, this one draft
+  // was no good. Only a provider break is an engine-level story.
+  if (!parsed.success) return 0
+  await bumpAiUsage(organizationId, AI_KIND)
+
+  // The model chose the words; the CODE chooses which piece is the article
+  // and which day each lands on. validatePlanItems drops anything unpublish-
+  // able (a bodyless piece, an untitled article) so a partly-bad draft
+  // becomes a smaller honest plan rather than a card with holes in it.
+  const { shapePlan } = await import('@/lib/services/content-calendar')
+  const cleaned = validatePlanItems(
+    parsed.data.items.map((it, i) => ({
+      // Position 2 is the article — the same rule planKinds encodes, applied
+      // before validation so a missing headline is caught here rather than
+      // publishing an untitled post.
+      kind: i === 1 ? 'blog' : 'social',
+      title: it.title ?? undefined,
+      body: it.body,
+    })),
+  )
+  // A plan is a MONTH. If validation left one or two pieces standing, the
+  // honest move is to say nothing this month rather than call two posts a
+  // plan — the social generator covers a single post, and it will get its
+  // turn next tick now that this one stood down.
+  if (cleaned.length < PLAN_SIZE) return 0
+
+  const shaped = shapePlan(cleaned, now, timeZone)
+  const { filed } = await fileProposal({
+    organizationId,
+    capability: 'content_plan',
+    sourceKey,
+    title: `Nothing’s going out this month — here’s a plan for it`,
+    body: describePlan(shaped.items, shaped.labels),
+    payload: {
+      items: shaped.items,
+      accountIds: channels.map((c) => c.accountId),
+      channels: channels.map((c) => ({ accountId: c.accountId, label: c.label })),
+    },
+    // Shorter than the social card's 21 days: a month plan that has sat
+    // unanswered for three weeks is planning a month that is nearly over.
+    expiresAt: new Date(now.getTime() + 14 * DAY_MS),
   })
   return filed ? 1 : 0
 }

@@ -179,6 +179,16 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         const n = (payload.accountIds as unknown[]).length
         meta = `posts to ${n} ${n === 1 ? 'channel' : 'channels'}`
       }
+    } else if (p.capability === 'content_plan') {
+      // WHAT IT COMMITS TO, in one line: how much writing, and where it
+      // lands. A month plan is the biggest single yes in the inbox, so the
+      // meta must not undersell it as "4 items".
+      const n = Array.isArray(payload.items) ? (payload.items as unknown[]).length : 0
+      const channels = Array.isArray(payload.accountIds) ? (payload.accountIds as unknown[]).length : 0
+      meta =
+        n > 0
+          ? `${n} ${n === 1 ? 'piece' : 'pieces'} over four weeks${channels > 0 ? ` · ${channels} ${channels === 1 ? 'channel' : 'channels'} + your blog` : ''}`
+          : null
     } else if (p.capability === 'inquiry_response') {
       meta = 'replies by email'
     } else if (p.capability === 'review_reply') {

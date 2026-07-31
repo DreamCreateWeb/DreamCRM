@@ -764,7 +764,50 @@ sitemap/robots/OG.
    `explorationHourFor`) is the answer — ~20% of automation campaigns go at
    an alternative daylight hour, deterministically, keyed per campaign so
    one practice lands in both arms.
-   Phase 5+ new limbs proposal-first.
+   Phase 5+ new limbs proposal-first. **Limb 1 — THE CONTENT CALENDAR,
+   SHIPPED 2026-07-31** (audit not yet run). The design test ruled out the
+   obvious build: a month grid with drag-and-drop slots and an empty state
+   reading "plan your content" is a queue of raw work wearing a calendar's
+   clothes, and a practice with nobody to staff it ends the month with an
+   empty grid and a small feeling of failure. Instead the machine notices
+   the weeks ahead are empty, WRITES THE WHOLE PLAN, and asks one question.
+   NOTHING NEW IS STORED — a plan is a proposal, and approving it creates
+   rows the existing rails already understand (a `social_post` scheduled
+   through the same composer the clinic uses by hand; a `blog_post` with
+   `status='scheduled'` that the existing publish-scheduled-posts cron flips
+   live), so a `content_plan` table would have been a second home for facts
+   the schema already holds. Pure `lib/content-calendar.ts` (the plan's
+   shape: PLAN_SIZE=4 across PLAN_HORIZON_DAYS=28, WEEKDAYS ONLY —
+   deterministic so a re-draft doesn't shuffle under a practice that already
+   read it — the article at position TWO so the card opens with something
+   quick, `validatePlanItems` treating model output as untrusted input,
+   `paragraphsToHtml` escaping on the one path that ends on a public page) ·
+   service `lib/services/content-calendar.ts` (the horizon read across BOTH
+   rails; `countHorizon` returns null on a failed read and every caller
+   treats null as FULL — erring toward silence) · generator
+   `generateContentPlanProposals` (AI-drafted, skips when AI is off, monthly
+   sourceKey, `recentlyDeclined`, thin-horizon test) · executor
+   `executeContentPlan`. Two load-bearing decisions: (1) the SCHEDULE IS
+   RESOLVED AT APPROVE TIME, not at draft time — a card approved a week
+   later would carry dates already past, which both rails correctly refuse,
+   so the whole month would fail for the crime of being thought about; the
+   card says so out loud (`PLAN_DATE_CAVEAT`) because shifting a promise
+   silently is worse than not making it. (2) This is the first executor
+   whose work is NOT ATOMIC, so it carries a `payload.done` map (index → row
+   id) stamped the moment each row is durable: a retry RESUMES rather than
+   republishes, and an article orphaned between "blank draft created" and
+   "scheduled" gets FINISHED rather than skipped or duplicated. The
+   staleness check runs only on a FIRST attempt — on a resume the horizon is
+   full of the plan's own half-finished work, and reading that as "the
+   clinic filled the month themselves" would strand every row already
+   scheduled. `content_plan` is registered ask-first and deliberately NOT in
+   `GRANTABLE_CAPABILITIES`: handing over one post is a bounded yes, handing
+   over four weeks of a practice's public voice unseen is a different order
+   of thing. A MUTUAL STAND-DOWN keeps it and the one-off social generator
+   from both answering the same silence in one tick. The forward report
+   ("What's going out", Growth hub) renders ONLY when something is coming —
+   an empty grid captioned "plan your content" is the surface-to-operate the
+   doctrine rules out.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live

@@ -113,6 +113,7 @@ const STANDUP_NOUNS: Record<string, { one: string; many: string }> = {
   social_post: { one: 'post published', many: 'posts published' },
   inquiry_response: { one: 'inquiry answered', many: 'inquiries answered' },
   outreach_campaign: { one: 'campaign sent', many: 'campaigns sent' },
+  content_plan: { one: 'content plan scheduled', many: 'content plans scheduled' },
 }
 
 export function standupNoun(capability: string, count = 2): string {

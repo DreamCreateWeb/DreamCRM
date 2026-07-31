@@ -206,6 +206,48 @@ async function seedLedger(
 
 // ── The open proposals in the Approval Inbox ─────────────────────────────────
 
+/**
+ * The demo month plan. Code-owned copy (never an AI call on a resync — the
+ * seeder runs on every deploy and must be deterministic and free), written to
+ * the same rules the real generator gives the model: evergreen, four
+ * different topics, nothing invented about the practice, and the article at
+ * position two. shapePlan stamps the kinds and dates, so the demo card is
+ * built by exactly the code path a real card is.
+ */
+const DEMO_PLAN_ITEMS: Array<{ kind: 'social' | 'blog'; dayOffset: number; title?: string; body: string }> = [
+  {
+    kind: 'social',
+    dayOffset: 0,
+    body: 'Brushing gets the credit, but flossing does the quiet work — it reaches the third of each tooth a brush never touches. Two minutes tonight is enough to make a difference by your next cleaning.',
+  },
+  {
+    kind: 'blog',
+    dayOffset: 0,
+    title: 'What actually happens at your first visit',
+    body: `Most people put off a first dental visit because they don't know what they're walking into. Here's the whole thing, start to finish.
+
+You'll fill out a short health history — medications, allergies, anything that's been bothering you. It takes a few minutes and it genuinely matters: a lot of what we look for shows up in your general health first.
+
+Then a cleaning. A hygienist removes the hardened plaque a toothbrush can't, polishes, and talks you through anything they noticed. If something is tender, say so. Nothing here is a test you can fail.
+
+X-rays, usually. They catch what's between and beneath teeth — the problems that are cheap and easy today and expensive later.
+
+Finally, a conversation. What we saw, what can wait, what shouldn't. You'll leave knowing exactly where you stand, with a plan you agreed to rather than one handed to you.
+
+That's it. About an hour, and no lectures.`,
+  },
+  {
+    kind: 'social',
+    dayOffset: 0,
+    body: 'If dental visits make you anxious, tell us before you sit down — not after. We can go slower, explain each step, and stop whenever you raise a hand. It changes the whole appointment.',
+  },
+  {
+    kind: 'social',
+    dayOffset: 0,
+    body: 'A cleaning every six months isn’t about a perfect smile — it’s about catching the small stuff while it’s still small. Most of what we treat early would have been a much bigger day a year later.',
+  },
+]
+
 async function seedProposals(organizationId: string, now: Date): Promise<void> {
   // Delete-and-reseed: a resync always refills the demo inbox (approved /
   // declined seeds from a demo session don't leave it empty).
@@ -368,6 +410,42 @@ async function seedProposals(organizationId: string, now: Date): Promise<void> {
         expiresAt: new Date(now.getTime() + 21 * DAY),
         isDemo: 1,
         createdAt: new Date(now.getTime() - 26 * HOUR),
+      })
+      .onConflictDoNothing()
+  }
+
+  // 3b. THE CONTENT CALENDAR (Phase 5, limb 1) — a month of presence in one
+  // card, anchored to the same seeded channels. TITLE LAW, same as the
+  // social card above: the demo org seeds SCHEDULED posts, so the real
+  // generator's "nothing's going out this month" premise is false here and
+  // the Growth hub's own "What's going out" report proves it one click
+  // away. The demo card demonstrates the capability with a premise-free
+  // title instead.
+  if (demoAccounts.length > 0) {
+    const { shapePlan } = await import('@/lib/services/content-calendar')
+    const { describePlan } = await import('@/lib/content-calendar')
+    // The dates are the CLINIC's, same as the real card's — the demo must
+    // read exactly like the product, not like a mock of it.
+    const tz = await getClinicTimeZone(organizationId)
+    const shaped = shapePlan(DEMO_PLAN_ITEMS.map((i) => ({ ...i })), now, tz)
+    await db
+      .insert(schema.proposal)
+      .values({
+        id: `prop_demo_content_${organizationId.slice(0, 8)}`,
+        organizationId,
+        capability: 'content_plan',
+        sourceKey: `content_plan:demo`,
+        title: 'Four weeks of posts and an article, ready to schedule',
+        body: describePlan(shaped.items, shaped.labels),
+        payload: {
+          items: shaped.items,
+          accountIds: demoAccounts.map((a) => a.id),
+          channels: demoAccounts.map((a) => ({ accountId: a.id, label: platformLabel(a.platform) })),
+        },
+        status: 'open',
+        expiresAt: new Date(now.getTime() + 14 * DAY),
+        isDemo: 1,
+        createdAt: new Date(now.getTime() - 28 * HOUR),
       })
       .onConflictDoNothing()
   }

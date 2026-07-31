@@ -8,6 +8,7 @@ import { getRecallStats } from '@/lib/services/recall-stats'
 import { getSitePerformance } from '@/lib/services/site-analytics'
 import { getGbpLocalMetrics } from '@/lib/services/gbp-metrics'
 import { getPublishedPostCounts } from '@/lib/services/social-posts'
+import { getUpcomingContent } from '@/lib/services/content-calendar'
 import { getLeadCounts } from '@/lib/services/leads'
 import { listAudiences } from '@/lib/services/marketing'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -83,6 +84,11 @@ export default async function GrowthHubPage() {
     listAudiences(ctx.organizationId).catch(() => []),
     getClinicTimeZone(ctx.organizationId),
   ])
+
+  // The forward REPORT (Phase 5, the content calendar). Needs the resolved
+  // timezone, so it runs after the fan-out rather than inside it — the dates
+  // a practice reads must be their own wall clock, not the server's.
+  const upcomingContent = await getUpcomingContent(ctx.organizationId, tz)
 
   const hasSocialChannel = bundles.has('social') || bundles.has('google')
   const postsPublished30d = Object.values(postCounts).reduce((a, b) => a + b, 0)
@@ -346,6 +352,47 @@ export default async function GrowthHubPage() {
           )}
         </div>
       </section>
+
+      {/* ── What's going out — the content calendar's REPORT (Phase 5).
+          A read of reality, not of a plan document: everything scheduled in
+          the next four weeks, whether the machine lined it up or a human
+          did. It renders only when something IS coming — an empty grid
+          captioned "plan your content" is the surface-to-operate the
+          doctrine rules out, and its only effect would be to hand a busy
+          practice a chore. When nothing is scheduled, the machine's answer
+          is a card in the Approval Inbox, not a blank calendar here.
+          ──────────────────────────────────────────────────────────────── */}
+      {upcomingContent.length > 0 && (
+        <section className="mb-7">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-[color:var(--color-ink-500)] dark:text-gray-400 mb-3">
+            What’s going out
+          </h2>
+          <div className="rounded-2xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 divide-y divide-[color:var(--color-hairline)]">
+            {upcomingContent.slice(0, 6).map((piece, i) => (
+              <div key={`${piece.at.toISOString()}-${i}`} className="flex items-baseline gap-3 px-4 py-3">
+                <span aria-hidden="true" className="text-base leading-none">
+                  {piece.kind === 'blog' ? '📄' : '📣'}
+                </span>
+                <span className="text-xs font-semibold tabular-nums text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  {piece.when}
+                </span>
+                <span className="text-sm text-gray-700 dark:text-gray-200 truncate">{piece.title}</span>
+                <Link
+                  href={piece.kind === 'blog' ? '/website/blog' : '/growth/social'}
+                  className="ml-auto text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline whitespace-nowrap"
+                >
+                  {piece.kind === 'blog' ? 'Article' : 'Post'}
+                </Link>
+              </div>
+            ))}
+          </div>
+          {upcomingContent.length > 6 && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              …and {upcomingContent.length - 6} more in the next four weeks.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* ── The quiet utilities — the setup/reference layers, present but
           silent. ─────────────────────────────────────────────────────────── */}

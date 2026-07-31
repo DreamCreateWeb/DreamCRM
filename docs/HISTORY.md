@@ -4897,3 +4897,91 @@ unregistered automations became capabilities WITH ledger writers
 re-points ledger rows; typecheck repaired; executed db-mock coverage for
 the journey service, ledger reads, actor gate, and reminder branches.
 8 depth proposals harvested to the AUDITS.md backlog. Round 2 next.
+
+## 2026-07-31 (later) — Phase 5 limb 1: THE CONTENT CALENDAR
+
+The first new limb after the Guardian, born proposal-first. DESIGN.md's design
+test — "does this ask the clinic to operate something, or does it do the job
+and report?" — ruled out the obvious build (a month grid with drag-and-drop
+slots and an empty state reading "plan your content"). That is a queue of raw
+work wearing a calendar's clothes; a practice with nobody to staff it ends the
+month with an empty grid and a small feeling of failure. So the machine looks
+at the weeks ahead, notices nothing is going out, writes the whole plan, and
+asks one question: "here is what I'd publish over the next four weeks — yes or
+no?" One approve, everything scheduled.
+
+**Nothing new is stored.** A plan is a proposal, and approving it creates the
+rows the publishing rails already understand: a `social_post` scheduled through
+the same composer service the clinic uses by hand, and a `blog_post` with
+`status='scheduled'` that the existing publish-scheduled-posts cron flips live.
+A `content_plan` table would have been a second home for facts the schema
+already holds — the defect class the Phase-4 audit spent sixteen rounds
+removing. No migration in this slice.
+
+Shipped:
+
+- **`lib/content-calendar.ts`** (pure) — the plan's shape. `PLAN_SIZE = 4`
+  spread across `PLAN_HORIZON_DAYS = 28`, **weekdays only** (a plan that lands
+  two of four pieces at the weekend has quietly halved itself) and
+  deterministic, so a re-draft does not shuffle under a practice that has
+  already read it. `planKinds` puts the one article at position **two**, not
+  first, because a blog post takes longer to judge than a caption and the card
+  should open with something quick. `describePlan` writes every body out in
+  full — a plan summarised as "4 pieces of content" is an approve button on
+  writing nobody has seen. `validatePlanItems` treats model output as untrusted
+  input (bodyless piece or headline-less article is dropped);
+  `paragraphsToHtml` escapes, on the one path that ends on a public page.
+- **`lib/services/content-calendar.ts`** — the horizon read across BOTH rails
+  (from the practice's side a queued blog post and a queued social post are the
+  same fact). `countHorizon` returns **null** when the read fails and every
+  caller treats null as FULL: a failed query must never be the reason four
+  weeks of public writing gets proposed over the top of a month they already
+  filled.
+- **`generateContentPlanProposals`** — AI-drafted, skips entirely when AI is
+  unconfigured, monthly `sourceKey`, `recentlyDeclined` backstop, requires a
+  connected channel (one blog piece is not a month of presence) and a thin
+  horizon. A partly-bad draft that validates down to two pieces files
+  **nothing** rather than calling two posts a plan.
+- **`executeContentPlan`** — the first executor whose work is not atomic.
+
+Two load-bearing decisions:
+
+1. **The schedule is resolved at APPROVE time, not at draft time.** A card
+   approved a week after it was written would carry dates already in the past,
+   and both rails (`scheduleBlogPost`, `validateSocialPostInput`) correctly
+   refuse those — the whole month would fail for the crime of being thought
+   about. The card says so in its own body (`PLAN_DATE_CAVEAT`): shifting a
+   promise silently is worse than not making it.
+2. **Crash consistency via `payload.done`** (index → created row id), stamped
+   the moment each row is durable and before anything else happens. A retry
+   RESUMES rather than republishes; an article orphaned between "blank draft
+   created" and "scheduled" is FINISHED rather than skipped (orphan) or
+   recreated (duplicate). The staleness check runs only on a FIRST attempt —
+   on a resume the horizon is full of the plan's own half-finished work, and
+   reading that as "the clinic filled the month themselves" would retire the
+   card and strand every row already scheduled. Own-work first, the lesson the
+   social executor learned in Phase 2's verification round 2.
+
+`content_plan` is registered in `lib/autonomy.ts` **ask-first and deliberately
+NOT grantable**: handing over one post is a bounded yes; handing over four
+weeks of a practice's public voice, unseen, is a different order of thing. It
+can earn that later, on evidence — the ladder is a ladder.
+
+A **mutual stand-down** keeps the month plan and the one-off social post from
+both answering the same silence in one tick (each skips while the other's card
+is open; the plan runs first, so the bigger answer gets first refusal).
+
+The forward view is a **report**: "What's going out" on the Growth hub, a read
+of reality (whatever is scheduled, whoever lined it up), rendered only when
+something IS coming. An empty grid captioned "plan your content" is exactly the
+surface-to-operate the doctrine rules out, and its only effect would be to hand
+a busy practice a chore.
+
+Demo: a fifth Approval Inbox card, code-owned copy (the seeder runs on every
+deploy and must be deterministic and free), built through the real `shapePlan`
+so the demo card is made by the same code a live one is. Premise-free title,
+same law as the demo social card — the demo org seeds scheduled posts, so
+"nothing's going out this month" would be a lie the Growth hub disproves one
+click away.
+
+Suite 6,036 → 6,091. Phase-5 audit not yet run.

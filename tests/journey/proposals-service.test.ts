@@ -123,6 +123,47 @@ vi.mock('@/lib/services/marketing-send', () => ({
 }))
 vi.mock('@/lib/services/recall-stats', () => ({ getRecallStats: executors.getRecallStats }))
 
+// THE CONTENT CALENDAR (Phase 5). getClinicTimeZone + the horizon read are
+// stubbed; planSchedule stays REAL so the executor's dates are built by the
+// same code production uses. The blog rails are modelled as a tiny store so
+// the crash-consistency assertions below can actually see rows appear.
+vi.mock('@/lib/services/clinic-timezone', () => ({
+  getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
+}))
+const calendar = vi.hoisted(() => ({ ahead: 0 as number | null }))
+vi.mock('@/lib/services/content-calendar', async (importOriginal) => ({
+  ...(await (importOriginal as () => Promise<Record<string, unknown>>)()),
+  countHorizon: vi.fn(async () => calendar.ahead),
+}))
+const blogErr = vi.hoisted(() => ({ Cls: class BlogPublishError extends Error {} }))
+const blog = vi.hoisted(() => ({
+  posts: [] as Array<Record<string, unknown>>,
+  seq: 0,
+  staff: [{ id: 'staff_1', name: 'Dr. Ada Reyes' }] as Array<Record<string, unknown>>,
+  scheduleThrows: false,
+}))
+vi.mock('@/lib/services/blog', () => ({
+  BlogPublishError: blogErr.Cls,
+  listAuthorOptions: vi.fn(async () => blog.staff),
+  createBlankBlogPost: vi.fn(async () => {
+    const row = { id: `post_${++blog.seq}`, status: 'draft', title: 'Untitled post', bodyHtml: '' }
+    blog.posts.push(row)
+    return row
+  }),
+  getBlogPost: vi.fn(async (_org: string, id: string) => blog.posts.find((p) => p.id === id) ?? null),
+  updateBlogPost: vi.fn(async (_org: string, id: string, patch: Record<string, unknown>) => {
+    const row = blog.posts.find((p) => p.id === id)
+    if (row) Object.assign(row, patch)
+    return row ?? null
+  }),
+  scheduleBlogPost: vi.fn(async (_org: string, id: string, at: Date) => {
+    if (blog.scheduleThrows) throw new blogErr.Cls('Add a byline first — every post needs a real author name.')
+    const row = blog.posts.find((p) => p.id === id)
+    if (row) Object.assign(row, { status: 'scheduled', scheduledFor: at })
+    return row
+  }),
+}))
+
 vi.mock('@/lib/db', () => {
   const T_PROPOSAL = 'proposal'
   const T_REVIEW = 'platform_review'
@@ -329,7 +370,7 @@ vi.mock('@/lib/db', () => {
       subscriptionStatus: col('subscriptionStatus'),
       stripeSubscriptionId: col('stripeSubscriptionId'),
     },
-    organization: { __name: 'organization', id: col('id'), isDemo: col('isDemo') },
+    organization: { __name: 'organization', id: col('id'), name: col('name'), isDemo: col('isDemo') },
     campaigns: {
       __name: 'campaigns',
       id: col('id'),
@@ -453,8 +494,13 @@ beforeEach(() => {
   store.profiles = [{ organizationId: ORG, autonomy: null }]
   // Production always has the org row the count's gate joins — a real
   // clinic, not a demo (fixture realism).
-  store.orgs = [{ id: ORG, isDemo: false }]
+  store.orgs = [{ id: ORG, name: 'Acme Dental', isDemo: false }]
   store.failExecutedAtStamp = false
+  calendar.ahead = 0
+  blog.posts = []
+  blog.seq = 0
+  blog.staff = [{ id: 'staff_1', name: 'Dr. Ada Reyes' }]
+  blog.scheduleThrows = false
   executors.markLeadContacted.mockResolvedValue(undefined)
   executors.createSocialPost.mockImplementation(
     (async (_org: unknown, _input: unknown, opts?: { onPersisted?: (id: string) => Promise<void> }) => {
@@ -539,7 +585,7 @@ describe('listOpenProposals / countOpenProposals', () => {
   })
 
   it('a DEMO org’s granted cards count as waiting on a human — demo orgs never enter the generator loop, so nothing will execute them (verification round 1)', async () => {
-    store.orgs = [{ id: ORG, isDemo: true }]
+    store.orgs = [{ id: ORG, name: 'Acme Dental', isDemo: true }]
     store.profiles = [{ organizationId: ORG, autonomy: { social_post: 'auto' } }]
     seedProposal({ id: 'p_demo', capability: 'social_post', sourceKey: 'kd1' })
     expect(await countOpenProposals(ORG)).toBe(1)
@@ -1343,6 +1389,163 @@ describe('approveProposal — the other executors', () => {
       'demo — nothing actually went out',
     )
     if (r.ok) expect(r.message).toContain('demo — nothing actually went out')
+  })
+})
+
+describe('approveProposal — content_plan (Phase 5, limb 1)', () => {
+  const PLAN_ITEMS = [
+    { kind: 'social', dayOffset: 2, body: 'Post one.' },
+    { kind: 'blog', dayOffset: 9, title: 'Your first visit', body: 'Para one.\n\nPara two.' },
+    { kind: 'social', dayOffset: 16, body: 'Post three.' },
+    { kind: 'social', dayOffset: 23, body: 'Post four.' },
+  ]
+  const seedPlan = (over: Record<string, unknown> = {}) =>
+    seedProposal({
+      capability: 'content_plan',
+      sourceKey: 'content_plan:2026-07',
+      title: 'Nothing’s going out this month — here’s a plan for it',
+      body: 'the whole plan, written out',
+      payload: { items: PLAN_ITEMS, accountIds: ['acc_gbp', 'acc_ig'], ...over },
+    })
+
+  it('schedules every piece — posts through the composer, the article through the blog rails — and narrates ONCE', async () => {
+    const p = seedPlan()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(executors.createSocialPost).toHaveBeenCalledTimes(3)
+    expect(blog.posts).toHaveLength(1)
+    expect(blog.posts[0].status).toBe('scheduled')
+    expect(blog.posts[0].title).toBe('Your first visit')
+    // Escaped paragraphs, not raw model text — this ends on a public page.
+    expect(String(blog.posts[0].bodyHtml)).toBe('<p>Para one.</p>\n<p>Para two.</p>')
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('content_plan')
+    expect(String(entry.summary)).toBe(
+      'Lined up 3 posts and 1 blog piece for the next four weeks — you approved it',
+    )
+  })
+
+  it('schedules each post into the FUTURE, in the clinic’s own wall clock — never the server’s', async () => {
+    const p = seedPlan()
+    await approveProposal(ORG, p.id, 'user_1')
+    const whens = executors.createSocialPost.mock.calls.map(
+      (c) => new Date(String((c[1] as Record<string, unknown>).scheduledAt)),
+    )
+    for (const w of whens) expect(w.getTime()).toBeGreaterThan(Date.now())
+    // 10 AM in Chicago is 15:00 or 16:00 UTC depending on the season — never
+    // 10:00 UTC, which is the bug the clinic-tz law exists to prevent.
+    for (const w of whens) expect([15, 16]).toContain(w.getUTCHours())
+    // Ascending and spread — a plan, not four posts on one afternoon.
+    for (let i = 1; i < whens.length; i++) {
+      expect(whens[i].getTime()).toBeGreaterThan(whens[i - 1].getTime())
+    }
+  })
+
+  it('records each created row on the payload the MOMENT it is durable, so a retry resumes instead of republishing', async () => {
+    const p = seedPlan()
+    await approveProposal(ORG, p.id, 'user_1')
+    const done = ((p.payload ?? {}) as Record<string, unknown>).done as Record<string, string>
+    expect(Object.keys(done).sort()).toEqual(['0', '1', '2', '3'])
+    expect(done['1']).toBe('post_1')
+  })
+
+  it('RESUMES a half-finished plan: rows already created are not created twice', async () => {
+    // Everything but the last post already landed on an earlier attempt.
+    blog.posts = [{ id: 'post_1', status: 'scheduled', title: 'Your first visit' }]
+    store.socialPosts = [{ id: 'sp_a', organizationId: ORG }]
+    const p = seedPlan({ done: { '0': 'sp_a', '1': 'post_1' } })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    // Only the two that were missing.
+    expect(executors.createSocialPost).toHaveBeenCalledTimes(2)
+    expect(blog.posts).toHaveLength(1)
+  })
+
+  it('FINISHES an orphaned draft rather than skipping it (died between creating the article and scheduling it)', async () => {
+    blog.posts = [{ id: 'post_1', status: 'draft', title: 'Untitled post', bodyHtml: '' }]
+    const p = seedPlan({ done: { '1': 'post_1' } })
+    await approveProposal(ORG, p.id, 'user_1')
+    expect(blog.posts).toHaveLength(1)
+    expect(blog.posts[0].status).toBe('scheduled')
+    expect(blog.posts[0].title).toBe('Your first visit')
+  })
+
+  it('retires the card when the practice filled the month themselves since it was drafted', async () => {
+    calendar.ahead = 6
+    const p = seedPlan()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(r.expired).toBe(true)
+    expect(p.status).toBe('expired')
+    expect(executors.createSocialPost).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('does NOT read its own half-finished work as the clinic’s — own-work check first', async () => {
+    // A resume sees a horizon full of the plan's OWN scheduled rows.
+    calendar.ahead = 6
+    store.socialPosts = [{ id: 'sp_a', organizationId: ORG }]
+    const p = seedPlan({ done: { '0': 'sp_a' } })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(p.status).toBe('approved')
+  })
+
+  it('an UNREADABLE horizon does not veto an explicit human yes', async () => {
+    calendar.ahead = null
+    const p = seedPlan()
+    expect((await approveProposal(ORG, p.id, 'user_1')).ok).toBe(true)
+  })
+
+  it('a failing article answers in the voice and REOPENS the card — the posts already scheduled stay scheduled', async () => {
+    blog.scheduleThrows = true
+    const p = seedPlan()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(String(r.error)).toContain('Add a byline first')
+    expect(p.status).toBe('open')
+    // The first post landed before the article failed, and its id is on the
+    // payload — the retry will not publish it a second time.
+    const done = ((p.payload ?? {}) as Record<string, unknown>).done as Record<string, string>
+    expect(done['0']).toBeTruthy()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a plan with no channels rather than half-publishing it', async () => {
+    const p = seedProposal({
+      capability: 'content_plan',
+      sourceKey: 'content_plan:x',
+      payload: { items: PLAN_ITEMS, accountIds: [] },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open')
+    expect(executors.createSocialPost).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the practice’s own name for the byline when there is no staff directory yet', async () => {
+    blog.staff = []
+    const p = seedPlan()
+    expect((await approveProposal(ORG, p.id, 'user_1')).ok).toBe(true)
+    expect(blog.posts[0].authorName).toBe('Acme Dental')
+  })
+
+  it('the DEMO simulates — no rows, no network, and the toast says so', async () => {
+    store.orgs = [{ id: ORG, name: 'Acme Dental', isDemo: true }]
+    const p = seedProposal({
+      capability: 'content_plan',
+      sourceKey: 'content_plan:demo',
+      payload: { items: PLAN_ITEMS, accountIds: ['acc_gbp'] },
+      isDemo: 1,
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(executors.createSocialPost).not.toHaveBeenCalled()
+    expect(blog.posts).toHaveLength(0)
+    const summary = String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)
+    expect(summary).toContain('Lined up a month of posts and articles')
+    expect(summary).toContain('demo — nothing actually went out')
   })
 })
 

@@ -85,6 +85,15 @@ vi.mock('@/lib/services/social-posts', () => ({
   getComposerChannels: vi.fn(async () => channels.list),
 }))
 
+// THE CONTENT CALENDAR's horizon read (Phase 5). Only countHorizon is
+// replaced — shapePlan stays REAL, so the dates the card promises are built
+// by the same code a live card's are.
+const horizon = vi.hoisted(() => ({ count: 0 as number | null }))
+vi.mock('@/lib/services/content-calendar', async (importOriginal) => ({
+  ...(await (importOriginal as () => Promise<Record<string, unknown>>)()),
+  countHorizon: vi.fn(async () => horizon.count),
+}))
+
 const recall = vi.hoisted(() => ({
   stats: {
     recallDueReachableCount: 41,
@@ -237,6 +246,7 @@ import {
   generateReviewReplyProposals,
   generateInquiryResponseProposals,
   generateSocialPostProposals,
+  generateContentPlanProposals,
   generateOutreachCampaignProposals,
   sweepInvalidatedProposals,
   monthKey,
@@ -263,6 +273,7 @@ beforeEach(() => {
   store.postTargets = []
   store.proposals = []
   store.profiles = [{ organizationId: ORG, autonomy: null }]
+  horizon.count = 0
   proposalsSvc.fileProposal.mockResolvedValue({ filed: true, id: 'prop_x' })
   proposalsSvc.autoExecuteProposal.mockResolvedValue({ ok: true, status: 'approved' } as never)
 })
@@ -444,6 +455,126 @@ describe('social posts (quiet channels)', () => {
     const boundary = new Date('2026-08-01T02:00:00Z')
     expect(monthKey(boundary, 'America/Chicago')).toBe('2026-07')
     expect(monthKey(boundary, 'UTC')).toBe('2026-08')
+  })
+})
+
+describe('the content calendar (Phase 5, limb 1)', () => {
+  const PLAN = {
+    items: [
+      { body: 'A short post about flossing.' },
+      { title: 'What happens at your first visit', body: 'Para one.\n\nPara two.' },
+      { body: 'A short post about dental anxiety.' },
+      { body: 'A short post about six-month cleanings.' },
+    ],
+  }
+  const draftsAPlan = () => ai.runClaudeJson.mockResolvedValue(PLAN as never)
+
+  it('files ONE per clinic-local month with the whole plan written out, the article at position two', async () => {
+    draftsAPlan()
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(1)
+    const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
+    expect(call.capability).toBe('content_plan')
+    expect(call.sourceKey).toBe(`content_plan:${monthKey(NOW, TZ)}`)
+    // Every body readable end to end — a yes is never a yes to unseen writing.
+    for (const item of PLAN.items) expect(String(call.body)).toContain(item.body)
+    const payload = call.payload as Record<string, unknown>
+    const items = payload.items as Array<Record<string, unknown>>
+    expect(items).toHaveLength(4)
+    expect(items.map((i) => i.kind)).toEqual(['social', 'blog', 'social', 'social'])
+    expect(items[1].title).toBe('What happens at your first visit')
+    expect(payload.accountIds).toEqual(['acc_gbp', 'acc_ig'])
+  })
+
+  it('SKIPS entirely when AI is unconfigured — a code-owned month of posts aimed at a real practice is worse than none', async () => {
+    ai.configured = false
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+    expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet when the practice already has content coming — it does not offer to fill a month they filled', async () => {
+    draftsAPlan()
+    horizon.count = 4
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('treats an UNREADABLE horizon as full — a failed query must never be the reason four weeks of public writing gets proposed', async () => {
+    draftsAPlan()
+    horizon.count = null
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet with no connected channels — one blog piece is not a month of presence', async () => {
+    draftsAPlan()
+    channels.list = []
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('checks the sourceKey BEFORE spending an AI draft', async () => {
+    draftsAPlan()
+    store.proposals = [
+      { organizationId: ORG, sourceKey: `content_plan:${monthKey(NOW, TZ)}`, status: 'declined' },
+    ]
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('respects a fresh no across the month boundary', async () => {
+    draftsAPlan()
+    const AUG = new Date('2026-08-02T15:00:00Z')
+    store.proposals = [
+      { organizationId: ORG, capability: 'content_plan', sourceKey: 'content_plan:2026-07', status: 'declined', decidedAt: new Date('2026-07-25T15:00:00Z') },
+    ]
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', AUG, TZ)).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('says nothing this month rather than calling two posts a plan (a partly-bad draft)', async () => {
+    // The article has no headline and one post has no body — validation drops
+    // both, leaving two pieces. A plan is a MONTH; two posts is not one.
+    ai.runClaudeJson.mockResolvedValue({
+      items: [{ body: 'One.' }, { body: 'No headline, so it dies.' }, { body: '  ' }, { body: 'Four.' }],
+    } as never)
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+    expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
+  })
+
+  it('an unusable answer is NOT an engine signal — the provider replied, this one draft was no good', async () => {
+    ai.runClaudeJson.mockResolvedValue({ nope: true } as never)
+    const soft = vi.fn()
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ, soft)).toBe(0)
+    expect(soft).not.toHaveBeenCalled()
+  })
+
+  it('a PROVIDER break IS an engine signal — the Guardian has to be able to see the drafting die', async () => {
+    ai.runClaudeJson.mockRejectedValue(new Error('429 rate limited') as never)
+    const soft = vi.fn()
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ, soft)).toBe(0)
+    expect(soft).toHaveBeenCalledTimes(1)
+  })
+
+  it('MUTUAL STAND-DOWN: neither asks while the other’s card is open — they answer the same silence', async () => {
+    draftsAPlan()
+    store.proposals = [
+      { organizationId: ORG, capability: 'social_post', sourceKey: 'social_post:x', status: 'open' },
+    ]
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+
+    store.proposals = [
+      { organizationId: ORG, capability: 'content_plan', sourceKey: 'content_plan:x', status: 'open' },
+    ]
+    expect(await generateSocialPostProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(0)
+  })
+
+  it('a DECIDED card of the sibling type does not block — a closed conversation is not an unanswered question', async () => {
+    draftsAPlan()
+    store.proposals = [
+      { organizationId: ORG, capability: 'social_post', sourceKey: 'social_post:x', status: 'executed' },
+    ]
+    expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(1)
   })
 })
 

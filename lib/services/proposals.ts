@@ -1047,6 +1047,8 @@ async function executeProposal(
       return executeInquiryResponse(p, payload, saidYes)
     case 'outreach_campaign':
       return executeOutreachCampaign(p, payload, saidYes)
+    case 'content_plan':
+      return executeContentPlan(p, payload, saidYes)
     default:
       return { ok: false, error: 'I don’t know how to carry this one out yet.' }
   }
@@ -1058,6 +1060,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'social_post': return `Published a post ${saidYes}`
     case 'inquiry_response': return `Answered a website inquiry ${saidYes}`
     case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
+    case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     default: return `Did the work ${saidYes}`
   }
 }
@@ -1259,6 +1262,195 @@ async function executeSocialPost(
     ok: true,
     ledgerSummary: `Published “${snippet}” to ${where}${partial} ${saidYes}`,
     ledgerDetail: { accountIds, publishedCount, postId: r.postId ?? null },
+  }
+}
+
+/**
+ * THE CONTENT CALENDAR's yes (Phase 5, limb 1).
+ *
+ * One approve creates a MONTH of rows, which makes this the first executor
+ * whose work is not atomic — and therefore the first that has to survive
+ * dying halfway through. It does that with a `done` map on the proposal's own
+ * payload: index → the id of the row that index created. Every entry is
+ * stamped the MOMENT its row is durable and BEFORE anything else happens, so
+ * a retry resumes rather than republishes. The Phase-3 audit's two criticals
+ * were both crash-consistency in claim-then-act code; this is the same shape,
+ * four times over.
+ *
+ * The schedule is resolved HERE, not when the card was drafted. A plan
+ * approved a week after it was written would otherwise carry dates already
+ * in the past — which both publishing rails correctly refuse — and the whole
+ * month would fail for the crime of being thought about. The card says so in
+ * its own body (PLAN_DATE_CAVEAT), because shifting a promise silently is
+ * worse than not making it.
+ */
+async function executeContentPlan(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  const { validatePlanItems, planLedgerSummary, paragraphsToHtml, blogExcerpt } = await import(
+    '@/lib/content-calendar'
+  )
+  const items = validatePlanItems(payload.items)
+  if (items.length === 0) return { ok: false, error: 'This plan has nothing left in it to publish.' }
+
+  const accountIds = Array.isArray(payload.accountIds)
+    ? (payload.accountIds as unknown[]).filter((v): v is string => typeof v === 'string' && !!v.trim())
+    : []
+  if (accountIds.length === 0) return { ok: false, error: 'This plan is missing its channels.' }
+
+  const done: Record<string, string> = {}
+  if (payload.done && typeof payload.done === 'object') {
+    for (const [k, v] of Object.entries(payload.done as Record<string, unknown>)) {
+      if (typeof v === 'string' && v.trim()) done[k] = v.trim()
+    }
+  }
+  const resuming = Object.keys(done).length > 0
+
+  // STALENESS AT THE TAP — but only on a FIRST attempt. On a resume the
+  // horizon is full of our OWN half-finished plan, and reading that as "the
+  // clinic filled the month themselves" would retire the card and strand
+  // every row already scheduled. Own-work first, exactly as the social
+  // executor learned to (Phase-2 verification round 2).
+  if (!resuming) {
+    const { countHorizon } = await import('@/lib/services/content-calendar')
+    const { horizonIsThin } = await import('@/lib/content-calendar')
+    const ahead = await countHorizon(p.organizationId)
+    // null = unreadable. Unlike the generator, an unreadable horizon does NOT
+    // stop us here: the human said yes to this specific plan, and refusing
+    // their explicit instruction because a count failed is the machine
+    // second-guessing a decision that was never its own.
+    if (ahead != null && !horizonIsThin(ahead)) {
+      return {
+        ok: false,
+        error:
+          'You’ve queued your own posts since I drafted this — I retired the plan so the month doesn’t double up.',
+        expired: true,
+      }
+    }
+  }
+
+  const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
+  const timeZone = await getClinicTimeZone(p.organizationId)
+  const { planSchedule } = await import('@/lib/services/content-calendar')
+  const { dates } = planSchedule(new Date(), timeZone, items.length)
+
+  /** Durable progress, written before anything else can go wrong. */
+  const stampDone = async (index: number, rowId: string) => {
+    done[String(index)] = rowId
+    await db
+      .update(schema.proposal)
+      .set({ payload: { ...payload, done: { ...done } }, updatedAt: new Date() })
+      .where(and(eq(schema.proposal.organizationId, p.organizationId), eq(schema.proposal.id, p.id)))
+  }
+
+  // The byline, resolved once. A blog post cannot be scheduled without one
+  // (blog.ts assertPublishable, the E-E-A-T gate) — falling back to the
+  // practice's own name is the honest attribution when no staff directory
+  // exists yet, and it is the same name the public site already shows.
+  const { listAuthorOptions } = await import('@/lib/services/blog')
+  const staff = await listAuthorOptions(p.organizationId).catch(() => [])
+  const [org] = await db
+    .select({ name: schema.organization.name })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, p.organizationId))
+    .limit(1)
+  const authorStaffId = staff[0]?.id ?? null
+  const authorName = staff[0]?.name ?? org?.name ?? null
+  if (!authorStaffId && !authorName) {
+    return { ok: false, error: 'I need a name to publish the article under — add a team member first.' }
+  }
+
+  const { createSocialPost } = await import('@/lib/services/social-posts')
+  const { createBlankBlogPost, updateBlogPost, scheduleBlogPost, getBlogPost, BlogPublishError } =
+    await import('@/lib/services/blog')
+
+  let scheduled = 0
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    const at = dates[i]
+    if (!at) continue
+    const priorId = done[String(i)]
+
+    if (item.kind === 'blog') {
+      let postId: string | null = priorId ?? null
+      if (postId) {
+        // RESUME. The row exists, but we may have died between creating the
+        // blank draft and scheduling it — an untitled empty draft nobody
+        // asked for. Finish it rather than skipping (which would leave the
+        // orphan) or recreating (which would leave two).
+        const existing = await getBlogPost(p.organizationId, postId).catch(() => null)
+        if (!existing) postId = null
+        else if (existing.status === 'scheduled' || existing.status === 'published') {
+          scheduled++
+          continue
+        }
+      }
+      if (!postId) {
+        const blank = await createBlankBlogPost(p.organizationId, { source: 'ai_draft' })
+        postId = blank.id
+        await stampDone(i, postId)
+      }
+      try {
+        await updateBlogPost(p.organizationId, postId, {
+          title: item.title ?? 'Untitled post',
+          bodyHtml: paragraphsToHtml(item.body),
+          excerpt: blogExcerpt(item.body),
+          source: 'ai_draft',
+          ...(authorStaffId ? { authorStaffId } : { authorName }),
+        })
+        await scheduleBlogPost(p.organizationId, postId, at)
+      } catch (e) {
+        // BlogPublishError's messages are already written for a human ("Add a
+        // byline first"), so they pass through; anything else gets the
+        // executor's own plain sentence rather than developer-speak on the
+        // most trust-critical card in the product.
+        console.error('[proposals] content plan article failed', e)
+        const msg = e instanceof BlogPublishError ? e.message : null
+        return {
+          ok: false,
+          error: msg
+            ? `${msg} The rest of the plan is still scheduled — approve again once that's sorted.`
+            : 'The article wouldn’t schedule — the posts before it are still lined up. Try again in a minute.',
+        }
+      }
+      scheduled++
+      continue
+    }
+
+    if (priorId) {
+      const [existing] = await db
+        .select({ id: schema.socialPost.id })
+        .from(schema.socialPost)
+        .where(and(eq(schema.socialPost.organizationId, p.organizationId), eq(schema.socialPost.id, priorId)))
+        .limit(1)
+      if (existing) {
+        scheduled++
+        continue
+      }
+    }
+    const r = await createSocialPost(
+      p.organizationId,
+      { postType: 'standard', summary: item.body, accountIds, scheduledAt: at.toISOString() },
+      { onPersisted: async (postId) => stampDone(i, postId) },
+    )
+    if (!r.ok) {
+      return {
+        ok: false,
+        error: r.error ?? 'One of the posts wouldn’t schedule — I stopped there rather than half-do it.',
+      }
+    }
+    scheduled++
+  }
+
+  if (scheduled === 0) return { ok: false, error: 'Nothing in the plan could be scheduled.' }
+  // Narrate what LANDED, never what was asked for — the same law the social
+  // executor's channel count follows.
+  return {
+    ok: true,
+    ledgerSummary: `${planLedgerSummary(items.slice(0, scheduled))} ${saidYes}`,
+    ledgerDetail: { scheduled, planned: items.length, rowIds: Object.values(done) },
   }
 }
 
