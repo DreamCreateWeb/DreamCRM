@@ -15,7 +15,7 @@ import {
   resolveGrantedCapabilities,
 } from '@/lib/services/proposals'
 import { recordEngineFailure } from '@/lib/services/action-ledger'
-import { clinicLocalHour } from '@/lib/clinic-timezone'
+import { clinicLocalHour, clinicWeekStart } from '@/lib/clinic-timezone'
 import { resolveTrialState } from '@/lib/trial'
 
 /**
@@ -58,6 +58,23 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export function monthKey(now: Date, timeZone: string): string {
   // en-CA formats YYYY-MM-DD; take the year-month.
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit' }).format(now)
+}
+
+/**
+ * The clinic-local ISO-ish week key — the Monday of the week `now` falls in,
+ * as YYYY-MM-DD. The cadence key for WEEKLY types.
+ *
+ * Clinic-local for the same reason monthKey is (the CLAUDE.md bucketing
+ * law): a UTC key rolls the week over up to 8 hours early for US clinics, so
+ * a Sunday-evening decline could be re-asked the same night.
+ */
+export function weekKey(now: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(clinicWeekStart(now, timeZone))
 }
 
 /** Respect-the-no backstop for the cadence types: even across a month
@@ -140,6 +157,10 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
   outreach_campaign: {
     capability: 'outreach_campaign',
     summary: 'Couldn’t line up a recall campaign just now — I’ll keep trying.',
+  },
+  schedule_gap: {
+    capability: 'schedule_gap',
+    summary: 'Couldn’t check the week ahead for open chair time just now — I’ll keep trying.',
   },
   autonomy: {
     capability: 'proposal_engine',
@@ -316,6 +337,11 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
           () => generateContentPlanProposals(org.id, org.name, now, tz, softFailed('content_plan')),
         ],
         ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz, softFailed('social_post'))],
+        // THE WEEK AHEAD before the general recall: both reach for the same
+        // audience, and the more specific, time-critical answer gets first
+        // refusal. Each also stands down while the other's card is open, so
+        // the order is a preference, not the guard.
+        ['schedule_gap', () => generateScheduleGapProposals(org.id, now, tz)],
         ['outreach_campaign', () => generateOutreachCampaignProposals(org.id, now, tz)],
         // THE LADDER LIVE (Phase 3): LAST, after the generators file — a
         // capability the clinic switched to automatic gets its open cards
@@ -367,7 +393,15 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
 export const SEND_WINDOW_START_HOUR = 8
 export const SEND_WINDOW_END_HOUR = 19
 /** The granted capabilities whose execution puts mail in a patient's inbox. */
-export const PATIENT_INBOX_CAPABILITIES: string[] = ['outreach_campaign', 'inquiry_response']
+export const PATIENT_INBOX_CAPABILITIES: string[] = [
+  'outreach_campaign',
+  'inquiry_response',
+  // THE EMPTY CHAIR (Phase 5, limb 2) sends to the same recall audience
+  // through the same rails — it is a patient-inbox capability by every test
+  // that matters, and leaving it out would have let an autonomous send go at
+  // 3 AM the day the ladder ever learns to grant it.
+  'schedule_gap',
+]
 
 /** Whether the machine may send to patient inboxes right now, in the
  *  clinic's own wall clock. Exported so the card's copy and the driver
@@ -1146,6 +1180,92 @@ Rules:
   return filed ? 1 : 0
 }
 
+// ── 3c. The empty chair (Phase 5, limb 2) ────────────────────────────────────
+
+/** Below this, an invitation cannot fill anything: a handful of reachable
+ *  patients is a phone call the front desk should make, not a campaign. */
+const FILL_MIN_REACHABLE = 8
+
+/**
+ * THE MOST EXPENSIVE THING IN THE PRACTICE.
+ *
+ * Reads the clinic's own hours, chairs and booked visits for the near
+ * window, and when two or more days are going to sit half empty, writes the
+ * invitation naming those days and asks once.
+ *
+ * WEEKLY cadence, not monthly: an empty chair is a weekly fact, and a card
+ * that could only be raised once a month would be silent for the three weeks
+ * that mattered. The recall card's month key is right for "your engine is
+ * quiet"; this one is about a specific week that is nearly here.
+ *
+ * NO AI. Like the recall campaign, the copy is code-owned — there is nothing
+ * a model writes better here than a careful sentence, and a type that needs
+ * no AI keeps working for a practice whose key expired.
+ */
+export async function generateScheduleGapProposals(
+  organizationId: string,
+  now: Date,
+  timeZone: string,
+): Promise<number> {
+  const sourceKey = `schedule_gap:${weekKey(now, timeZone)}`
+  if (await sourceKeyTaken(organizationId, sourceKey)) return 0
+  if (await recentlyDeclined(organizationId, 'schedule_gap', now)) return 0
+  // The other half of the stand-down (see generateOutreachCampaignProposals).
+  if (await hasOpenProposal(organizationId, 'outreach_campaign')) return 0
+
+  // Somebody to invite, and no send already in flight. Same three checks the
+  // recall card makes, for the same reason: this reaches the SAME audience
+  // through the SAME rails, so it inherits the same "don't stack sends" law.
+  const { getRecallStats } = await import('@/lib/services/recall-stats')
+  const stats = await getRecallStats(organizationId)
+  if (stats.recallDueReachableCount < FILL_MIN_REACHABLE) return 0
+  if (stats.recentSends.length > 0) return 0
+  if (stats.upcomingSends.length > 0) return 0
+
+  // The week itself. An unreadable window says NOTHING — a schedule the
+  // machine could not see must never be reported as an empty one.
+  const { safeWindowLoad } = await import('@/lib/services/empty-chair')
+  const { worthFilling, softDays, fillSubject, fillBody, fillCardTitle } = await import(
+    '@/lib/empty-chair'
+  )
+  const window = await safeWindowLoad(organizationId, timeZone, now)
+  if (!window || !worthFilling(window)) return 0
+
+  const quiet = softDays(window)
+  const labels = quiet.map((d) => d.label)
+
+  const { ensureOutreachTierAudiences } = await import('@/lib/services/outreach-tiers')
+  const audienceIds = await ensureOutreachTierAudiences(organizationId)
+  const audienceId = audienceIds.get('recall_due')
+  if (!audienceId) return 0
+
+  const n = stats.recallDueReachableCount
+  const { filed } = await fileProposal({
+    organizationId,
+    capability: 'schedule_gap',
+    sourceKey,
+    title: fillCardTitle(window, n),
+    body: fillBody(labels),
+    payload: {
+      audienceId,
+      subject: fillSubject(labels),
+      name: `Open times — ${weekKey(now, timeZone)}`,
+      recipientCount: n,
+      // The DAYS the card promised, by their stable clinic-local identity.
+      // The executor re-reads the window and refuses to send if any of them
+      // has since filled or arrived — an invitation to last Thursday is not
+      // a late invitation, it is a wrong one.
+      dayKeys: quiet.map((d) => d.dateKey),
+      dayLabels: labels,
+    },
+    // SHORT, because the card is perishable by construction: the days it
+    // names are inside the next nine. A fortnight's expiry would leave a
+    // card sitting in the inbox describing a week that has already happened.
+    expiresAt: new Date(now.getTime() + 7 * DAY_MS),
+  })
+  return filed ? 1 : 0
+}
+
 // ── 4. Quiet-engine recall campaign ──────────────────────────────────────────
 
 const RECALL_MIN_REACHABLE = 10
@@ -1168,6 +1288,12 @@ export async function generateOutreachCampaignProposals(
   const sourceKey = `outreach_campaign:recall:${monthKey(now, timeZone)}`
   if (await sourceKeyTaken(organizationId, sourceKey)) return 0
   if (await recentlyDeclined(organizationId, 'outreach_campaign', now)) return 0
+  // Stand down while the empty-chair card is unanswered: both reach for the
+  // SAME recall audience, so two open cards is one accidental double-send
+  // away from the thing the frequency cap exists to prevent — and a practice
+  // that approved both would have emailed the same people twice in a week
+  // having been told nothing about it.
+  if (await hasOpenProposal(organizationId, 'schedule_gap')) return 0
 
   const { getRecallStats } = await import('@/lib/services/recall-stats')
   const stats = await getRecallStats(organizationId)

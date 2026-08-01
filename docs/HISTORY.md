@@ -4985,3 +4985,95 @@ same law as the demo social card — the demo org seeds scheduled posts, so
 click away.
 
 Suite 6,036 → 6,091. Phase-5 audit not yet run.
+
+## 2026-08-01 — Phase 5 limb 2: THE EMPTY CHAIR
+
+The most expensive thing in a dental practice is a chair nobody is sitting in:
+the rent, the staff and the equipment are paid for either way. Every practice
+knows this and almost none of them act on it, because acting on it means
+somebody noticing on Monday that Thursday looks thin and then finding the time
+to do something about it.
+
+The design test ruled out the obvious build. "Your week is 43% booked", with a
+gauge and a trend arrow, passes on the wrong side: it asks the clinic to
+operate something, and hands a busy practice a number and a feeling and no work
+done. A gauge has never filled a chair. So the machine reads the clinic's own
+hours, chairs and booked visits, sees which days in the near window will sit
+half empty, writes the invitation naming those days, and asks once: "22 open
+times Thursday and Friday — invite 41 patients who are due?"
+
+**Nothing new is stored, and no new read surface ships.** The week's shape is
+already fully determined by `clinic_profile.hours`, `chair_count` and the
+appointments on the books; a utilization column would be a cached derivation
+that goes stale the moment somebody books. No migration.
+
+Shipped:
+
+- **`lib/empty-chair.ts`** (pure) — the judgement. `FILL_WINDOW` runs 3–9 days
+  out: far enough that an invitation can still be acted on (nobody rearranges
+  their week for a cleaning on eighteen hours' notice), and exactly **seven**
+  days, because the card names days by weekday and an eight-day window would
+  put the same weekday at both ends. `SOFT_DAY_RATIO = 0.5`,
+  `MIN_SOFT_DAYS = 2` (one quiet day is a Tuesday), `MIN_DAY_OPENINGS = 6` (half
+  of a four-slot day is not worth emailing a hundred people about). The
+  code-owned copy is hospitality, never a confession — "we've got room" rather
+  than "please come in, we're empty" — and the anti-shame law is pinned in a
+  test that greps the body for the words it must never contain.
+- **`lib/services/empty-chair.ts`** — reads the window **a day at a time through
+  `getSlotsForDay`**, deliberately, rather than running its own faster
+  aggregate. The rules for what counts as an opening are genuinely intricate
+  (multi-chair overlap, a visit starting before opening and running into it,
+  cancelled/no-show visits not blocking, the whole visit having to fit before
+  close, DST-aware wall-clock hours). A second implementation would be a second
+  home for all of it, and the two would disagree the first time either was
+  touched — the practice would be told its Thursday is quiet by one and busy by
+  the other. Seven reads on an hourly cron is a cheap price for one answer.
+  Days the clinic is **closed are left out**, not reported as 100% open: a
+  Sunday with no hours is a day off, and counting it would make every practice
+  in the country look like it was failing every week. `safeWindowLoad` returns
+  **null** on a failed read, and null is never an empty week.
+- **`generateScheduleGapProposals`** — **weekly** cadence (`weekKey`, new,
+  clinic-local): an empty chair is a weekly fact, and a card that could only be
+  raised monthly would be silent for the three weeks that mattered. **No AI** —
+  like the recall campaign, so it keeps working for a practice whose key
+  expired. Needs ≥8 reachable due patients and nothing already sent or
+  scheduled.
+- **`executeScheduleGap`** — the card is **perishable by construction** because
+  it names specific days. The executor re-reads the window at the tap and
+  RETIRES rather than sends if any named day has filled up or already arrived.
+  `planStillTrue` demands **every** named day still be soft, not some: the email
+  says "Thursday and Friday", and sending it once Friday has filled makes a
+  practice look like it does not know its own schedule — the one thing this
+  feature exists to disprove. An unreadable window does **not** veto an explicit
+  human yes (the mirror of the generator's silence: there, saying nothing costs
+  nothing; here, refusing costs the human their own decision).
+
+Rather than fork the audited campaign send path, `executeOutreachCampaign`
+became **one home for two capabilities** (`CampaignExecOpts`: `extraStaleness`,
+`sentSummary`, `recoveredSummary`). Every behaviour in that function — one
+campaign row per proposal, copy sync on a reused row, the stale-claim repair,
+the completion-evidence recovery branch, narrate-once — was bought with an audit
+finding, and a second copy of them for the newer capability would be exactly the
+pair-that-drifts the Phase-4 retrospective named.
+
+The two capabilities **stand down mutually** while the other's card is open:
+both reach for the same recall audience, so two open cards is one accidental
+double-approve away from the thing the frequency cap exists to prevent.
+
+`schedule_gap` is registered **ask-first and not grantable** — it puts mail in a
+patient's inbox on the strength of the machine reading a schedule, and the
+practice may know something about next Thursday that the schedule does not. It
+joins `PATIENT_INBOX_CAPABILITIES` so the send window applies.
+
+Also single-homed here: **`BOOKING_BUTTON_CAPABILITIES`**. `textToCampaignHtml`
+appends a "Book a time that works" button to any campaign body that didn't place
+the link itself, and the Approval Inbox card has to disclose it or "what the card
+shows is what sends" stops being literally true. That set was a hand-written
+inline comparison in the client; it now lives once in `lib/autonomy.ts` with
+`tests/journey/booking-button-disclosure.test.ts` pinning the two together.
+
+Not seeded in the demo, on purpose: the demo inbox already carries the recall
+card, and seeding both would demonstrate a state the mutual stand-down means no
+real clinic can reach.
+
+Suite 6,091 → 6,140. Phase-5 audit runs at the END of the phase, not per slice.

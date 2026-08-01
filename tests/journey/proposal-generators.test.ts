@@ -94,6 +94,16 @@ vi.mock('@/lib/services/content-calendar', async (importOriginal) => ({
   countHorizon: vi.fn(async () => horizon.count),
 }))
 
+// THE EMPTY CHAIR's window read (Phase 5, limb 2). Only safeWindowLoad is
+// replaced — the pure judgement (softDays / worthFilling / the copy) stays
+// real, so the card the test sees is the card a practice would.
+const chair = vi.hoisted(() => ({
+  window: null as Array<Record<string, unknown>> | null,
+}))
+vi.mock('@/lib/services/empty-chair', () => ({
+  safeWindowLoad: vi.fn(async () => chair.window),
+}))
+
 const recall = vi.hoisted(() => ({
   stats: {
     recallDueReachableCount: 41,
@@ -248,8 +258,10 @@ import {
   generateSocialPostProposals,
   generateContentPlanProposals,
   generateOutreachCampaignProposals,
+  generateScheduleGapProposals,
   sweepInvalidatedProposals,
   monthKey,
+  weekKey,
 } from '@/lib/services/proposal-generators'
 
 const ORG = 'org_1'
@@ -274,6 +286,12 @@ beforeEach(() => {
   store.proposals = []
   store.profiles = [{ organizationId: ORG, autonomy: null }]
   horizon.count = 0
+  // Two quiet days by default — the shape that earns a card.
+  chair.window = [
+    { dateKey: '2026-07-30', label: 'Thursday', open: 10, total: 16 },
+    { dateKey: '2026-07-31', label: 'Friday', open: 12, total: 16 },
+    { dateKey: '2026-08-03', label: 'Monday', open: 2, total: 16 },
+  ]
   proposalsSvc.fileProposal.mockResolvedValue({ filed: true, id: 'prop_x' })
   proposalsSvc.autoExecuteProposal.mockResolvedValue({ ok: true, status: 'approved' } as never)
 })
@@ -575,6 +593,95 @@ describe('the content calendar (Phase 5, limb 1)', () => {
       { organizationId: ORG, capability: 'social_post', sourceKey: 'social_post:x', status: 'executed' },
     ]
     expect(await generateContentPlanProposals(ORG, 'Acme Dental', NOW, TZ)).toBe(1)
+  })
+})
+
+describe('the empty chair (Phase 5, limb 2)', () => {
+  it('files ONE per clinic-local week, naming the quiet days and leading with the count', async () => {
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(1)
+    const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
+    expect(call.capability).toBe('schedule_gap')
+    expect(call.sourceKey).toBe(`schedule_gap:${weekKey(NOW, TZ)}`)
+    // 10 + 12 open on the two soft days; Monday (2/16) is busy and excluded.
+    expect(call.title).toBe('22 open times Thursday and Friday — invite 41 patients who are due?')
+    expect(String(call.body)).toContain('on Thursday and Friday')
+    expect(call.payload).toMatchObject({
+      audienceId: 5,
+      subject: 'We’ve got room Thursday and Friday',
+      recipientCount: 41,
+      dayKeys: ['2026-07-30', '2026-07-31'],
+      dayLabels: ['Thursday', 'Friday'],
+    })
+  })
+
+  it('needs NO AI — a practice whose key expired still gets its chairs filled', async () => {
+    ai.configured = false
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(1)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet when only one day is soft — one quiet day is a Tuesday', async () => {
+    chair.window = [
+      { dateKey: '2026-07-30', label: 'Thursday', open: 10, total: 16 },
+      { dateKey: '2026-07-31', label: 'Friday', open: 2, total: 16 },
+    ]
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('treats an UNREADABLE week as no signal — a schedule it couldn’t see is never reported as empty', async () => {
+    chair.window = null
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+    expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet with nobody to invite — a handful of patients is a phone call, not a campaign', async () => {
+    recall.stats = { recallDueReachableCount: 3, recentSends: [], upcomingSends: [] }
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('stays quiet when a send already went out or is scheduled', async () => {
+    recall.stats = { recallDueReachableCount: 41, recentSends: [{ id: 1 }], upcomingSends: [] }
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+    recall.stats = { recallDueReachableCount: 41, recentSends: [], upcomingSends: [{ id: 2 }] }
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('asks at most once a week, and the key is the CLINIC’s week', async () => {
+    store.proposals = [
+      { organizationId: ORG, sourceKey: `schedule_gap:${weekKey(NOW, TZ)}`, status: 'declined' },
+    ]
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+    // 2026-08-02T02:00Z is Sunday in UTC — a NEW week — but still Saturday
+    // evening in Chicago, so the key must not have rolled yet.
+    const lateSaturday = new Date('2026-08-02T02:00:00Z')
+    expect(weekKey(lateSaturday, TZ)).toBe(weekKey(NOW, TZ))
+    expect(weekKey(lateSaturday, 'UTC')).not.toBe(weekKey(NOW, 'UTC'))
+  })
+
+  it('respects a fresh no', async () => {
+    store.proposals = [
+      { organizationId: ORG, capability: 'schedule_gap', sourceKey: 'schedule_gap:old', status: 'declined', decidedAt: new Date(NOW.getTime() - 3 * DAY) },
+    ]
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('MUTUAL STAND-DOWN with the recall card — they reach for the same audience', async () => {
+    store.proposals = [
+      { organizationId: ORG, capability: 'outreach_campaign', sourceKey: 'outreach_campaign:recall:x', status: 'open' },
+    ]
+    expect(await generateScheduleGapProposals(ORG, NOW, TZ)).toBe(0)
+
+    store.proposals = [
+      { organizationId: ORG, capability: 'schedule_gap', sourceKey: 'schedule_gap:x', status: 'open' },
+    ]
+    expect(await generateOutreachCampaignProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('expires inside the window it describes — a card about a week that has happened is noise', async () => {
+    await generateScheduleGapProposals(ORG, NOW, TZ)
+    const call = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
+    const days = ((call.expiresAt as Date).getTime() - NOW.getTime()) / DAY
+    expect(days).toBeLessThanOrEqual(9)
   })
 })
 

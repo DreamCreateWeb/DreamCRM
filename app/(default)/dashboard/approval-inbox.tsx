@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FlashToast } from '@/components/ui/flash-toast'
-import { isGrantable } from '@/lib/autonomy'
+import { isGrantable, BOOKING_BUTTON_CAPABILITIES } from '@/lib/autonomy'
 import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
 
 /**
@@ -390,8 +390,7 @@ function ProposalCard({
   // card shows is what sends" must be literally true (verification round:
   // staff could rewrite the invitation and still ship a button unseen).
   const appendsBookingButton =
-    (proposal.capability === 'outreach_campaign' || proposal.capability === 'inquiry_response') &&
-    !body.includes('{{bookingUrl}}')
+    BOOKING_BUTTON_CAPABILITIES.includes(proposal.capability) && !body.includes('{{bookingUrl}}')
 
   const decide = (decision: 'approve' | 'decline') => {
     setError(null)

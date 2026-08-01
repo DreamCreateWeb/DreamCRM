@@ -13,6 +13,7 @@ import {
 } from '@/lib/services/proposal-generators'
 import { listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 import { isGrantable } from '@/lib/autonomy'
+import { describeDays } from '@/lib/empty-chair'
 import { buildWeeklyStandup } from '@/lib/services/standup'
 import { getActiveGuardianNote } from '@/lib/services/guardian'
 import ApprovalInbox, { type ProposalCardData } from './approval-inbox'
@@ -179,6 +180,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         const n = (payload.accountIds as unknown[]).length
         meta = `posts to ${n} ${n === 1 ? 'channel' : 'channels'}`
       }
+    } else if (p.capability === 'schedule_gap') {
+      // WHO it reaches and WHICH days it names — the two facts a person needs
+      // before saying yes to mail going out about their own schedule.
+      const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
+      const days = Array.isArray(payload.dayLabels)
+        ? (payload.dayLabels as unknown[]).filter((d): d is string => typeof d === 'string' && !!d.trim())
+        : []
+      const who = n != null ? `goes to ~${n} patients` : 'goes to your recall list'
+      meta = days.length > 0 ? `${who} · about ${describeDays(days)}` : who
     } else if (p.capability === 'content_plan') {
       // WHAT IT COMMITS TO, in one line: how much writing, and where it
       // lands. A month plan is the biggest single yes in the inbox, so the

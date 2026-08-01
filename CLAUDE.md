@@ -808,6 +808,50 @@ sitemap/robots/OG.
    ("What's going out", Growth hub) renders ONLY when something is coming —
    an empty grid captioned "plan your content" is the surface-to-operate the
    doctrine rules out.
+   **Limb 2 — THE EMPTY CHAIR, SHIPPED 2026-08-01** (audit runs at the END of
+   the phase, not per slice — owner ruling). The design test ruled out the
+   utilization dashboard: "your week is 43% booked", with a gauge and a trend
+   arrow, hands a busy practice a number and a feeling and no work done. A
+   gauge has never filled a chair. So the machine reads the clinic's OWN
+   hours, chairs and booked visits, sees which days in the near window will
+   sit half empty, writes the invitation naming those days, and asks once.
+   NOTHING NEW IS STORED and NO new read surface ships — the week's shape is
+   already fully determined by hours + chairCount + appointments, and a
+   utilization column would be a cached derivation that goes stale the moment
+   somebody books. Pure `lib/empty-chair.ts` (FILL_WINDOW 3..9 days out —
+   far enough that an invitation can be acted on, and exactly SEVEN days so a
+   weekday never appears twice in a card that names days by weekday;
+   SOFT_DAY_RATIO 0.5, MIN_SOFT_DAYS 2 because one quiet day is a Tuesday,
+   MIN_DAY_OPENINGS 6 so half of a four-slot day isn't a campaign; the
+   code-owned anti-shame copy; `planStillTrue`) · service
+   `lib/services/empty-chair.ts` (reads the window a DAY AT A TIME through
+   `getSlotsForDay` — the single home for what counts as an opening, whose
+   rules are intricate enough (multi-chair overlap, visits running into the
+   open window, cancelled/no-show not blocking, whole-visit-fits-before-close,
+   DST-aware hours) that a faster bespoke aggregate would be a second home
+   that disagrees the first time either is touched; days the clinic is CLOSED
+   are left OUT, not reported as 100% open; `safeWindowLoad` returns null on a
+   failed read and null is never an empty week) · generator
+   `generateScheduleGapProposals` (WEEKLY `weekKey` cadence — an empty chair
+   is a weekly fact; NO AI, so it keeps working for a practice whose key
+   expired; needs ≥8 reachable due patients and nothing already sent or
+   scheduled) · executor `executeScheduleGap`. The card is PERISHABLE by
+   construction — it names specific days — so the executor re-reads the window
+   at the tap and RETIRES rather than sends if any named day has filled or
+   arrived (`planStillTrue` demands EVERY named day, not some: the email names
+   them all). An unreadable window does NOT veto an explicit human yes, the
+   mirror of the generator's silence. `schedule_gap` is registered ask-first
+   and NOT grantable — the practice may know something about next Thursday
+   that the schedule does not. It shares the AUDITED campaign send protocol
+   with `outreach_campaign` rather than forking it (`CampaignExecOpts`:
+   `extraStaleness` + `sentSummary`/`recoveredSummary`), and stands down
+   mutually with it since both reach the same recall audience.
+   `BOOKING_BUTTON_CAPABILITIES` (lib/autonomy.ts) now single-homes the "this
+   send appends a Book a time button" disclosure the Approval Inbox card
+   makes, guarded by `tests/journey/booking-button-disclosure.test.ts`;
+   `schedule_gap` also joins `PATIENT_INBOX_CAPABILITIES`. Not seeded in the
+   demo on purpose: the demo already carries the recall card, and seeding both
+   would show a state the mutual stand-down means no real clinic can reach.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live

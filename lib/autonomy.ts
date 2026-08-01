@@ -79,7 +79,33 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // practice's public voice, unseen, is a different order of thing. It can
   // earn that later, on evidence — the ladder is a ladder.
   { key: 'content_plan', label: 'Plan a month of posts & articles', defaultTrust: 'ask' },
+  // THE EMPTY CHAIR (Phase 5, limb 2). Ask-first, and NOT grantable below
+  // for the same reason its sibling recall campaign isn't: it puts mail in a
+  // patient's inbox on the strength of the machine reading a schedule, and
+  // the practice may know something about next Thursday that the schedule
+  // does not.
+  { key: 'schedule_gap', label: 'Invite patients in when the week is quiet', defaultTrust: 'ask' },
 ] as const
+
+/**
+ * Capabilities whose SEND appends a "Book a time" button when the draft
+ * didn't place the {{bookingUrl}} link itself (textToCampaignHtml, and the
+ * inquiry reply's own email shell).
+ *
+ * Lives here, in the client-safe registry, because two very different places
+ * need the same answer: the executor that appends the button, and the
+ * Approval Inbox card that has to DISCLOSE it. "What the card shows is what
+ * sends" is only literally true if the card knows — staff could otherwise
+ * rewrite an invitation and still ship a button they never saw. Adding a new
+ * campaign-shaped capability without adding it here is exactly the
+ * pair-that-drifts the audits keep finding, so
+ * tests/journey/booking-button-disclosure.test.ts pins the two together.
+ */
+export const BOOKING_BUTTON_CAPABILITIES: readonly string[] = [
+  'outreach_campaign',
+  'inquiry_response',
+  'schedule_gap',
+]
 
 const BY_KEY: ReadonlyMap<string, CapabilityDef> = new Map(CAPABILITIES.map((c) => [c.key, c]))
 

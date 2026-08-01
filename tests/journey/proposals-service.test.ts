@@ -135,6 +135,13 @@ vi.mock('@/lib/services/content-calendar', async (importOriginal) => ({
   ...(await (importOriginal as () => Promise<Record<string, unknown>>)()),
   countHorizon: vi.fn(async () => calendar.ahead),
 }))
+// THE EMPTY CHAIR (Phase 5, limb 2). Only the window read is stubbed —
+// planStillTrue and the sentences stay real.
+const chair = vi.hoisted(() => ({ window: null as Array<Record<string, unknown>> | null }))
+vi.mock('@/lib/services/empty-chair', () => ({
+  safeWindowLoad: vi.fn(async () => chair.window),
+}))
+
 const blogErr = vi.hoisted(() => ({ Cls: class BlogPublishError extends Error {} }))
 const blog = vi.hoisted(() => ({
   posts: [] as Array<Record<string, unknown>>,
@@ -501,6 +508,10 @@ beforeEach(() => {
   blog.seq = 0
   blog.staff = [{ id: 'staff_1', name: 'Dr. Ada Reyes' }]
   blog.scheduleThrows = false
+  chair.window = [
+    { dateKey: '2026-07-30', label: 'Thursday', open: 10, total: 16 },
+    { dateKey: '2026-07-31', label: 'Friday', open: 12, total: 16 },
+  ]
   executors.markLeadContacted.mockResolvedValue(undefined)
   executors.createSocialPost.mockImplementation(
     (async (_org: unknown, _input: unknown, opts?: { onPersisted?: (id: string) => Promise<void> }) => {
@@ -1476,7 +1487,7 @@ describe('approveProposal — content_plan (Phase 5, limb 1)', () => {
     const p = seedPlan()
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(false)
-    expect(r.expired).toBe(true)
+    if (!r.ok) expect(r.expired).toBe(true)
     expect(p.status).toBe('expired')
     expect(executors.createSocialPost).not.toHaveBeenCalled()
     expect(recordActionMock).not.toHaveBeenCalled()
@@ -1503,7 +1514,7 @@ describe('approveProposal — content_plan (Phase 5, limb 1)', () => {
     const p = seedPlan()
     const r = await approveProposal(ORG, p.id, 'user_1')
     expect(r.ok).toBe(false)
-    expect(String(r.error)).toContain('Add a byline first')
+    if (!r.ok) expect(String(r.error)).toContain('Add a byline first')
     expect(p.status).toBe('open')
     // The first post landed before the article failed, and its id is on the
     // payload — the retry will not publish it a second time.
@@ -1545,6 +1556,115 @@ describe('approveProposal — content_plan (Phase 5, limb 1)', () => {
     expect(blog.posts).toHaveLength(0)
     const summary = String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)
     expect(summary).toContain('Lined up a month of posts and articles')
+    expect(summary).toContain('demo — nothing actually went out')
+  })
+})
+
+describe('approveProposal — schedule_gap (Phase 5, limb 2)', () => {
+  const seedGap = (over: Record<string, unknown> = {}) =>
+    seedProposal({
+      capability: 'schedule_gap',
+      sourceKey: 'schedule_gap:2026-07-27',
+      title: '22 open times Thursday and Friday — invite 41 patients who are due?',
+      body: 'Hi {{firstName}},\n\nWe’ve got some openings on Thursday and Friday.',
+      payload: {
+        audienceId: 5,
+        subject: 'We’ve got room Thursday and Friday',
+        name: 'Open times — 2026-07-27',
+        recipientCount: 41,
+        dayKeys: ['2026-07-30', '2026-07-31'],
+        dayLabels: ['Thursday', 'Friday'],
+        ...over,
+      },
+    })
+
+  it('sends through the SAME campaign protocol as the recall card, and narrates the days', async () => {
+    const p = seedGap()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    expect(executors.createMarketingCampaign).toHaveBeenCalledTimes(1)
+    expect(executors.sendCampaign).toHaveBeenCalledTimes(1)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('schedule_gap')
+    expect(String(entry.summary)).toBe(
+      'Invited 41 patients in for Thursday and Friday — you approved it',
+    )
+  })
+
+  it('RETIRES the card when one of the days it named has filled up', async () => {
+    chair.window = [
+      { dateKey: '2026-07-30', label: 'Thursday', open: 10, total: 16 },
+      { dateKey: '2026-07-31', label: 'Friday', open: 1, total: 16 },
+    ]
+    const p = seedGap()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.expired).toBe(true)
+      expect(String(r.error)).toContain('filled up')
+    }
+    expect(p.status).toBe('expired')
+    expect(executors.sendCampaign).not.toHaveBeenCalled()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('RETIRES the card when a named day has come and gone — a wrong invitation, not a late one', async () => {
+    chair.window = [{ dateKey: '2026-07-31', label: 'Friday', open: 12, total: 16 }]
+    const p = seedGap()
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('expired')
+    expect(executors.sendCampaign).not.toHaveBeenCalled()
+  })
+
+  it('an UNREADABLE week does NOT veto an explicit human yes', async () => {
+    chair.window = null
+    const p = seedGap()
+    expect((await approveProposal(ORG, p.id, 'user_1')).ok).toBe(true)
+    expect(executors.sendCampaign).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a card that lost the days it was about, rather than sending a promise it can’t check', async () => {
+    const p = seedGap({ dayKeys: [] })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open')
+    expect(executors.createMarketingCampaign).not.toHaveBeenCalled()
+  })
+
+  it('RECOVERS a stranded approve without re-sending — the shared protocol’s own-row check runs first', async () => {
+    // A prior attempt minted the row and it completed; the days are stale now
+    // too, which must NOT shadow the recovery narration.
+    store.campaigns = [{ id: 77, organizationId: ORG, status: 'completed', sentAt: new Date() }]
+    chair.window = []
+    const p = seedGap({ campaignId: 77 })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.expired).toBe(true)
+    expect(executors.sendCampaign).not.toHaveBeenCalled()
+    // Real work reached patients — it narrates exactly once, never zero.
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    if (!r.ok) expect(String(r.error)).toContain('already went out')
+    // ...and the LEDGER reads the same sentence a normal send would, naming
+    // the days — one capability, one story about one event.
+    expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toBe(
+      'Invited your recall list in for Thursday and Friday',
+    )
+  })
+
+  it('the DEMO simulates — nothing sends, and the toast says so', async () => {
+    store.orgs = [{ id: ORG, name: 'Acme Dental', isDemo: true }]
+    const p = seedProposal({
+      capability: 'schedule_gap',
+      sourceKey: 'schedule_gap:demo',
+      payload: { audienceId: 5, subject: 'S', dayKeys: ['2026-07-30'], dayLabels: ['Thursday'] },
+      isDemo: 1,
+    })
+    expect((await approveProposal(ORG, p.id, 'user_1')).ok).toBe(true)
+    expect(executors.sendCampaign).not.toHaveBeenCalled()
+    const summary = String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)
+    expect(summary).toContain('Invited patients in for the week’s open times')
     expect(summary).toContain('demo — nothing actually went out')
   })
 })

@@ -114,6 +114,7 @@ const STANDUP_NOUNS: Record<string, { one: string; many: string }> = {
   inquiry_response: { one: 'inquiry answered', many: 'inquiries answered' },
   outreach_campaign: { one: 'campaign sent', many: 'campaigns sent' },
   content_plan: { one: 'content plan scheduled', many: 'content plans scheduled' },
+  schedule_gap: { one: 'invitation out for an open day', many: 'invitations out for open days' },
 }
 
 export function standupNoun(capability: string, count = 2): string {
@@ -125,6 +126,7 @@ export function standupNoun(capability: string, count = 2): string {
 /** Capabilities whose entries make the best stories (a person + an outcome). */
 const STORY_PRIORITY = [
   'review_feature',
+  'schedule_gap',
   'outreach_campaign',
   'noshow_rebook',
   'payment_autocharge',

@@ -1049,6 +1049,8 @@ async function executeProposal(
       return executeOutreachCampaign(p, payload, saidYes)
     case 'content_plan':
       return executeContentPlan(p, payload, saidYes)
+    case 'schedule_gap':
+      return executeScheduleGap(p, payload, saidYes)
     default:
       return { ok: false, error: 'I don’t know how to carry this one out yet.' }
   }
@@ -1061,6 +1063,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'inquiry_response': return `Answered a website inquiry ${saidYes}`
     case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
+    case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
     default: return `Did the work ${saidYes}`
   }
 }
@@ -1543,10 +1546,98 @@ async function executeInquiryResponse(
   }
 }
 
+/**
+ * THE EMPTY CHAIR's yes (Phase 5, limb 2).
+ *
+ * Rides the campaign protocol below, with one extra premise of its own: the
+ * days the card NAMED must still be quiet.
+ *
+ * That check is what makes this type honest rather than merely useful. The
+ * card says "Thursday and Friday" — a promise about a specific week, which
+ * is the whole reason it works better than a generic recall blast, and also
+ * the whole reason it rots. Two ways: the days arrive (an invitation to last
+ * Thursday is not a late invitation, it is a wrong one), or they fill up on
+ * their own, which is the outcome the practice wanted and still means
+ * nobody should be emailed about the room that no longer exists. Either way
+ * the card retires rather than sending something the practice would have to
+ * apologise for.
+ *
+ * planStillTrue demands EVERY named day still be soft, not some: the email
+ * names them all, and sending it once Friday has filled makes a practice
+ * look like it does not know its own schedule — the one thing this feature
+ * exists to disprove.
+ */
+async function executeScheduleGap(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  const dayKeys = Array.isArray(payload.dayKeys)
+    ? (payload.dayKeys as unknown[]).filter((v): v is string => typeof v === 'string' && !!v.trim())
+    : []
+  const dayLabels = Array.isArray(payload.dayLabels)
+    ? (payload.dayLabels as unknown[]).filter((v): v is string => typeof v === 'string' && !!v.trim())
+    : []
+  if (dayKeys.length === 0) return { ok: false, error: 'This proposal is missing the days it was about.' }
+
+  // ONE home for the day-list phrasing: the card title, the email subject
+  // and the ledger sentence all render it through describeDays.
+  const { fillLedgerSummary, fillRecoveredSummary } = await import('@/lib/empty-chair')
+
+  return executeOutreachCampaign(p, payload, saidYes, {
+    extraStaleness: async () => {
+      const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
+      const { safeWindowLoad } = await import('@/lib/services/empty-chair')
+      const { planStillTrue } = await import('@/lib/empty-chair')
+      const timeZone = await getClinicTimeZone(p.organizationId)
+      const window = await safeWindowLoad(p.organizationId, timeZone)
+      // UNREADABLE is not a veto. The human read the card and said yes; a
+      // failed read is our problem, and refusing their explicit instruction
+      // over it is the machine second-guessing a decision that was never
+      // its own. (The generator errs the other way for the same reason —
+      // there, silence costs nothing.)
+      if (!window) return null
+      if (planStillTrue(dayKeys, window)) return null
+      return 'Those days have filled up (or come and gone) since I drafted this — I retired the card rather than invite people to a week that’s already booked.'
+    },
+    sentSummary: (sent) => fillLedgerSummary(sent, dayLabels),
+    recoveredSummary: () => fillRecoveredSummary(dayLabels),
+  })
+}
+
+/**
+ * THE CAMPAIGN SEND PROTOCOL — ONE HOME, two capabilities.
+ *
+ * The quiet-engine recall card (Phase 2) and the empty-chair card (Phase 5,
+ * limb 2) are different questions with the same answer: create one campaign
+ * row, sync edited copy onto a reused one, refuse to double-send, recover a
+ * stranded approve, and narrate once. Every one of those behaviours was
+ * bought with an audit finding, and a second copy of them for the newer
+ * capability would be the exact pair-that-drifts the Phase-4 retrospective
+ * named. So the newer type passes its own extra staleness test and its own
+ * sentences IN, and the protocol stays singular.
+ */
+interface CampaignExecOpts {
+  /** An extra at-the-tap premise check, run AFTER the own-row check (so it
+   *  can never see our own prior attempt's work as the clinic's). Returns
+   *  the retire sentence, or null to proceed. */
+  extraStaleness?: () => Promise<string | null>
+  /** How the ledger names a send that landed. */
+  sentSummary?: (sent: number, subject: string) => string
+  /** How the ledger names a send RECOVERED from a stranded approve. Kept
+   *  parameterised alongside sentSummary so one capability's ledger reads
+   *  the same sentence either way — a recovered send that narrates in a
+   *  different voice from a normal one is the standup telling two stories
+   *  about one event. The recovered count is unknown (the send completed
+   *  outside this call), so it takes no number. */
+  recoveredSummary?: (subject: string) => string
+}
+
 async function executeOutreachCampaign(
   p: typeof schema.proposal.$inferSelect,
   payload: Record<string, unknown>,
   saidYes: string,
+  opts: CampaignExecOpts = {},
 ): Promise<ExecResult> {
   const audienceId = typeof payload.audienceId === 'number' ? payload.audienceId : null
   const subject = str(payload.subject)
@@ -1602,7 +1693,7 @@ async function executeOutreachCampaign(
         error: 'It turns out this campaign already went out on the earlier approve — I recorded it. Nobody was emailed twice.',
         expired: true,
         recovered: {
-          ledgerSummary: `Sent “${subject}” to your recall list`,
+          ledgerSummary: opts.recoveredSummary?.(subject) ?? `Sent “${subject}” to your recall list`,
           ledgerDetail: { campaignId },
         },
       }
@@ -1669,6 +1760,15 @@ async function executeOutreachCampaign(
     console.error('[proposals] recent-campaign check failed', e)
   }
 
+  // The capability's OWN premise, re-tested at the tap. Runs after the
+  // own-row check for the same reason the shared one does: a card that
+  // already minted a campaign row on a failed attempt must reach the
+  // recovery branch above, not be retired by a premise its own work broke.
+  if (opts.extraStaleness) {
+    const retire = await opts.extraStaleness()
+    if (retire) return { ok: false, error: retire, expired: true }
+  }
+
   if (campaignId == null) {
     const campaign = await createMarketingCampaign(
       p.organizationId,
@@ -1730,9 +1830,12 @@ async function executeOutreachCampaign(
           : 'The send didn’t go through — nothing reached anyone, so I’ll hold onto it and you can try again.',
     }
   }
+  const landed =
+    opts.sentSummary?.(r.sent, subject) ??
+    `Sent “${subject}” to ${r.sent} ${r.sent === 1 ? 'patient' : 'patients'}`
   return {
     ok: true,
-    ledgerSummary: `Sent “${subject}” to ${r.sent} ${r.sent === 1 ? 'patient' : 'patients'} ${saidYes}`,
+    ledgerSummary: `${landed} ${saidYes}`,
     ledgerDetail: { campaignId, sent: r.sent, suppressed: r.suppressed ?? 0 },
   }
 }
