@@ -1,9 +1,12 @@
 # SMS provider evaluation — AWS End User Messaging vs Twilio
 
 **Status:** decision document for Phase 5 limb 3 (SMS). Written 2026-08-02.
-**Recommendation: Twilio**, with one named risk to close first (the BAA edition).
+**Recommendation: ~~Twilio~~ AWS End User Messaging — REVERSED same day; see
+"Revision" at the bottom.** The original recommendation and its reasoning are
+kept intact below because the correction is part of the record: the two
+questions that overturned it are exactly the two risks the original named.
 **Gate:** no provider-specific code ships until the owner accepts or overrides
-this.
+this. *(Owner accepted the revised recommendation 2026-08-02.)*
 
 ---
 
@@ -236,3 +239,100 @@ cron drives it.
 - [AWS — SMS onboarding for SaaS, ISV and multi-tenant applications](https://aws.amazon.com/blogs/messaging-and-targeting/sms-onboarding-for-saas-isv-and-multi-tenant-applications-with-aws-end-user-messaging/)
 - [AWS End User Messaging pricing](https://aws.amazon.com/end-user-messaging/pricing/)
 - [US carrier penalties for non-compliant messaging](https://support.callhub.io/hc/en-us/articles/4552724225817-US-Carrier-Penalties-for-non-compliance-of-10DLC-messaging)
+
+---
+
+## Revision — 2026-08-02, same day: the recommendation REVERSES to AWS
+
+The owner asked the two questions the original document should have answered
+harder, and both answers overturn it. Recorded here rather than rewritten
+above, because the correction is part of the record — and because the two
+questions land exactly on the two risks the original itself named.
+
+### 1. The Twilio BAA is priced for a different company than us
+
+The original flagged "confirm the Twilio BAA path and its cost" as the one
+finding that could overturn the recommendation. Following it: Twilio does not
+publish Security Edition pricing at all. What is knowable — it is sales-only,
+sold as an annual package (minimum 1-year contract, up to 3), features cannot
+be bought individually, and Twilio's own positioning for Editions is
+"packages for companies at scale." Older third-party references put
+enterprise minimums near $15,000/month. Even if that figure is stale or the
+Security tier is a fraction of it, this is thousands of dollars a year of
+fixed platform cost before the first text is sent, for a platform with one
+beta clinic.
+
+The BAA is not optional — "this person is a dental patient" is PHI, so an
+appointment reminder is PHI whatever its wording. **The AWS BAA we already
+operate under costs $0** (accepted in AWS Artifact) and End User Messaging is
+covered by it.
+
+### 2. "AWS leans console" was WRONG — the correction that matters most
+
+The original claimed AWS "names no concrete API actions for brand or campaign
+registration" and works "through the console." That claim came from the ISV
+blog post's framing, not from the API surface, and checking the API surface
+disproves it. The SMS V2 API has a complete generic registration workflow:
+
+```
+DescribeRegistrationTypeDefinitions   → the field schemas per registration type
+CreateRegistration                    → with a ClientToken (idempotent)
+PutRegistrationFieldValue             → populate each field
+SubmitRegistrationVersion             → submit for review
+DescribeRegistrations                 → poll status
+```
+
+with a status enum — `CREATED → SUBMITTED → REVIEWING → COMPLETE`, plus
+`REQUIRES_UPDATES` and `REQUIRES_AUTHENTICATION` — that maps one-to-one onto
+the custom-domain-style polling state machine this plan already intended to
+build, and onto the Guardian's clinic-actionable vs platform-actionable
+split (`REQUIRES_UPDATES` = the clinic must fix its details;
+`REVIEWING` overlong = ours to chase). AWS's own 10DLC best-practices
+guidance explicitly covers programmatic registration through this API.
+
+### The revised scoresheet
+
+Twilio's advantages were (a) a documented registration API and (b) speed.
+Finding the AWS API neutralises (a). What remains on each side:
+
+| | AWS | Twilio |
+|---|---|---|
+| BAA | **$0, already held** | sales-gated annual contract, priced for scale |
+| Recurring per clinic | **≈ $3/mo** | ≈ $16/mo (Starter Brand waiver unconfirmed) |
+| Registration API | ✅ (verified this pass) | ✅ |
+| Approval speed | up to ~4 weeks (campaign), published worst case | days |
+| Vendor count | **one — the existing AWS account** | two |
+| Isolation | account-level; less granular | subaccount per clinic |
+
+The one Twilio edge left standing is speed, and that is a product-honesty
+problem, not an architecture problem: the clinic's status card says
+"carriers are reviewing your registration — this typically takes a few
+weeks," which is the truth whoever the provider is (Twilio's healthcare
+campaign vetting is also measured in days-to-weeks, not minutes).
+
+### Decision
+
+**AWS End User Messaging.** CLAUDE.md's original naming was right all along;
+the schema's `twilio_*` column names are now the naming debt and get renamed
+to provider-neutral names in the provisioning slice's migration, while
+nothing has ever read them. `smsDriver(): 'aws' | 'twilio'` ships with AWS
+live and Twilio inert — the door stays open at the cost of one `if`.
+
+Two AWS-specific facts the provisioning slice must design around:
+
+1. **The brand contact email must be on the clinic's own domain** (the AWS
+   ISV rule) — a data-collection requirement at onboarding, and brand
+   registration includes an email-verification click by that contact
+   (`REQUIRES_AUTHENTICATION`): an async human step on the clinic's side
+   that the state machine models honestly rather than hiding.
+2. **Throughput increases need a support case** — brand vetting alone does
+   not raise the 1 MPS default. Irrelevant at dental volume; recorded so
+   nobody rediscovers it at 3 AM.
+
+### Revision sources
+
+- [AWS SMS V2 API — CreateRegistration](https://docs.aws.amazon.com/pinpoint/latest/apireference_smsvoicev2/API_CreateRegistration.html)
+- [AWS SMS V2 API — SubmitRegistrationVersion](https://docs.aws.amazon.com/pinpoint/latest/apireference_smsvoicev2/API_SubmitRegistrationVersion.html)
+- [AWS — 10DLC registration best practices (programmatic registration)](https://aws.amazon.com/blogs/messaging-and-targeting/10dlc-registration-best-practices-to-send-sms-with-aws-end-user-messaging/)
+- [Twilio Editions (BAA requires Security/Enterprise Edition)](https://www.twilio.com/docs/iam/twilio-editions)
+- [Twilio — Editions introduction ("companies at scale", annual contracts)](https://help.twilio.com/articles/17071957479195)
