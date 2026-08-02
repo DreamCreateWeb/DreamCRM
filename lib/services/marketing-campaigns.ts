@@ -356,6 +356,12 @@ export async function getRecipientBreakdown(organizationId: string, campaignId: 
   const rows = await db
     .select({
       email: schema.campaignEvents.recipientEmail,
+      // NULLABLE since migration 0143 — a text to a phone-only patient has no
+      // address. The rollup below keys on the PATIENT where there is one and
+      // shows whichever contact the message actually went to, so an SMS row
+      // appears as itself rather than collapsing under a null key.
+      phone: schema.campaignEvents.recipientPhone,
+      patientId: schema.campaignEvents.patientId,
       type: schema.campaignEvents.type,
       occurredAt: schema.campaignEvents.occurredAt,
       customerId: schema.campaignEvents.customerId,
@@ -370,10 +376,11 @@ export async function getRecipientBreakdown(organizationId: string, campaignId: 
     )
     .orderBy(desc(schema.campaignEvents.occurredAt))
 
-  const byEmail = new Map<
+  const byRecipient = new Map<
     string,
     {
-      email: string
+      /** Where it actually went — an address for email, a number for a text. */
+      to: string
       customerId: number | null
       sentAt: Date | null
       openedAt: Date | null
@@ -384,8 +391,13 @@ export async function getRecipientBreakdown(organizationId: string, campaignId: 
     }
   >()
   for (const r of rows) {
-    const cur = byEmail.get(r.email) ?? {
-      email: r.email,
+    // One person is one row, however we reached them (the same identity rule
+    // the frequency cap uses). Rows with neither a patient nor a contact are
+    // skipped rather than piled under a null key.
+    const key = r.patientId ?? r.email ?? r.phone
+    if (!key) continue
+    const cur = byRecipient.get(key) ?? {
+      to: r.email ?? r.phone ?? '—',
       customerId: r.customerId,
       sentAt: null,
       openedAt: null,
@@ -415,9 +427,9 @@ export async function getRecipientBreakdown(organizationId: string, campaignId: 
         if (!cur.failedAt) cur.failedAt = r.occurredAt
         break
     }
-    byEmail.set(r.email, cur)
+    byRecipient.set(key, cur)
   }
-  return Array.from(byEmail.values()).sort((a, b) =>
+  return Array.from(byRecipient.values()).sort((a, b) =>
     (b.openedAt?.getTime() ?? 0) - (a.openedAt?.getTime() ?? 0),
   )
 }

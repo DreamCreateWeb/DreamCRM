@@ -7,7 +7,11 @@ import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
 
 export interface RecipientRow {
-  email: string
+  /** Where the message went — an address for email, a number for a text.
+   *  Named `to` rather than `email` since migration 0143 made an SMS send
+   *  possible: a column called email holding a phone number is the kind of
+   *  small lie that survives for years. */
+  to: string
   sentAt: string | null
   openedAt: string | null
   clickedAt: string | null
@@ -48,7 +52,7 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase()
     return rows.filter((r) => {
-      if (term && !r.email.toLowerCase().includes(term)) return false
+      if (term && !r.to.toLowerCase().includes(term)) return false
       switch (filter) {
         case 'opened': return !!r.openedAt
         case 'clicked': return !!r.clickedAt
@@ -78,7 +82,7 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search email…"
+            placeholder="Search recipients…"
             className="form-input w-40"
           />
         </div>
@@ -106,11 +110,11 @@ export default function RecipientsTable({ rows }: { rows: RecipientRow[] }) {
                 const status = recipientStatus(r)
                 return (
                   <tr
-                    key={r.email}
+                    key={r.to}
                     className="border-b border-[color:var(--color-hairline)] last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors"
                   >
                     <td className="px-3 py-2 text-gray-700 dark:text-gray-200 font-medium truncate max-w-[18rem]">
-                      {r.email}
+                      {r.to}
                     </td>
                     <td className="px-3 py-2">
                       <StatusPill tone={status.tone} label={status.label} title={status.title} />

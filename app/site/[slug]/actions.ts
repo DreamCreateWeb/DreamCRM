@@ -389,6 +389,9 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   const lastName = formData.get('lastName')?.toString().trim()
   const email = formData.get('email')?.toString().trim() || null
   const phone = formData.get('phone')?.toString().trim() || null
+  // Never-pre-ticked marketing consent (Phase 5 limb 3). Absent means no,
+  // which is not the same act as replying STOP and is recorded as nothing.
+  const smsConsent = formData.get('smsConsent')?.toString() === 'yes'
   const appointmentType = formData.get('type')?.toString() || 'checkup'
   const startTimeRaw = formData.get('startTime')?.toString()
   const notesRaw = formData.get('notes')?.toString().trim() || ''
@@ -502,6 +505,13 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
     lifecycle: 'new',
   })
   const patientId = resolution.patientId
+  // Record the marketing-text consent against the patient this booking
+  // resolved to. Best-effort by contract: a consent write must never fail
+  // the booking that captured it (lib/services/sms-consent.ts).
+  if (smsConsent) {
+    const { recordSmsOptIn } = await import('@/lib/services/sms-consent')
+    await recordSmsOptIn(orgId, patientId, { agreed: true, source: 'booking', phone })
+  }
   if (resolution.created) {
     // Refer-a-friend: stamp attribution from the ?ref= share-link token, only
     // on newly created patients, never blocking the booking (best-effort).

@@ -8,6 +8,7 @@ import { buildIcs, icsDataUrl } from '@/lib/ics'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { clinicDayStart, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
+import { SMS_CONSENT_LABEL, smsConsentDisclosure } from '@/lib/sms-consent'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 
@@ -676,6 +677,25 @@ export default function BookForm({
             className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
             style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
           />
+          {/* SMS CONSENT (Phase 5 limb 3). Marketing texts need prior express
+              WRITTEN consent, so: never pre-ticked, the disclosure rendered
+              right here rather than buried in a terms link, and the whole
+              thing genuinely optional — the copy says so, and nothing about
+              booking depends on it. Transactional reminders about THIS visit
+              do not ride on this box; only the marketing sends do. */}
+          <label className="flex items-start gap-3 text-[13px] leading-relaxed cursor-pointer" style={{ color: INK }}>
+            <input
+              name="smsConsent"
+              type="checkbox"
+              value="yes"
+              className="mt-1 h-4 w-4 shrink-0 rounded"
+              style={{ accentColor: brand }}
+            />
+            <span>
+              <span className="font-semibold">{SMS_CONSENT_LABEL}</span>
+              <span className="block mt-1 opacity-70">{smsConsentDisclosure(clinicName)}</span>
+            </span>
+          </label>
           <select
             name="type"
             value={selectedType}

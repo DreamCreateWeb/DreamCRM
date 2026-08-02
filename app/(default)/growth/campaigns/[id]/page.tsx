@@ -143,7 +143,7 @@ export default async function CampaignEditorPage({
         <div className="mt-4">
           <RecipientsTable
             rows={recipients.map((r) => ({
-              email: r.email,
+              to: r.to,
               sentAt: r.sentAt?.toISOString() ?? null,
               openedAt: r.openedAt?.toISOString() ?? null,
               clickedAt: r.clickedAt?.toISOString() ?? null,
