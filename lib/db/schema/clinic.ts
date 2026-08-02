@@ -592,28 +592,57 @@ export const lead = pgTable('lead', {
   index('lead_org_created_idx').on(t.organizationId, t.createdAt),
 ])
 
-// Per-org Twilio config for SMS sends. One row per organization, keyed on
-// org id. Phase A creates the table but leaves it empty — Phase B writes
-// the Twilio account info + A2P 10DLC registration state into it once the
-// clinic provisions a number. The a2pStatus stays at 'none' until the
-// clinic completes brand + campaign registration in Twilio's console;
-// 'pending' while carriers review (5-14 business days); 'approved' unlocks
-// the SMS send button in the UI.
+// Per-org SMS provisioning + config. One row per organization. Written by
+// lib/services/sms-registration.ts (Phase 5 limb 3, slice 2) — the
+// custom-domain-style state machine that registers the CLINIC's OWN A2P
+// 10DLC brand + campaign with the carriers through AWS End User Messaging
+// and buys the clinic its own local number. One brand per clinic because
+// each clinic is a separate legal business; one number per clinic because
+// a shared platform number is shared-originator traffic the carriers
+// prohibit (docs/sms-provider-evaluation.md).
+//
+// Columns were renamed provider-neutral in 0144 (they were twilio_*-named
+// stubs that nothing had ever read; the provider decision reversed to AWS
+// after the owner's second research pass — the evaluation doc's revision
+// section is the record).
 export const clinicSmsConfig = pgTable('clinic_sms_config', {
   organizationId: text('organization_id').primaryKey().references(() => organization.id, { onDelete: 'cascade' }),
-  twilioPhoneNumber: text('twilio_phone_number'),
-  twilioPhoneNumberSid: text('twilio_phone_number_sid'),
-  a2pBrandSid: text('a2p_brand_sid'),
-  a2pCampaignSid: text('a2p_campaign_sid'),
-  // 'none' | 'pending' | 'approved' | 'rejected'
+  // The clinic's own number, E.164, once purchased. The FROM of every text.
+  smsPhoneNumber: text('sms_phone_number'),
+  // Provider-side ids: the purchased number, and the brand + campaign
+  // REGISTRATIONS (AWS RegistrationIds — poll handles, not approvals).
+  providerPhoneNumberId: text('provider_phone_number_id'),
+  brandRegistrationId: text('brand_registration_id'),
+  campaignRegistrationId: text('campaign_registration_id'),
+  // The state machine's single source of truth (SmsRegistrationState,
+  // lib/sms-registration.ts): 'none' | 'collecting' | 'brand_pending' |
+  // 'brand_action_needed' | 'campaign_pending' | 'number_pending' |
+  // 'approved' | 'rejected' | 'suspended'. Text on purpose — states have
+  // changed once already (0144 widened the original four) and an enum
+  // would cost a migration every time the machine learns a new posture.
   a2pStatus: text('a2p_status').notNull().default('none'),
   a2pStatusUpdatedAt: timestamp('a2p_status_updated_at'),
+  // ── The brand's identity, supplied by the clinic ONCE (the doctrine:
+  // one question, then the machine does the rest). clinic_profile already
+  // holds legalName + the address block; these are the fields it doesn't.
+  // EIN: digits only, normalized on write. The carriers verify it against
+  // the legal name, so a typo here is the #1 cause of brand rejection.
+  ein: text('ein'),
+  // 'llc' | 'corporation' | 'sole_proprietorship' | 'partnership' |
+  // 'non_profit' — the Campaign Registry's entity vocabulary.
+  entityType: text('entity_type'),
+  // The AWS ISV rule: this contact must be at the CLINIC's own domain, not
+  // ours, and brand registration emails THEM a verification link
+  // (REQUIRES_AUTHENTICATION) — an async human step on the clinic's side
+  // the state machine models honestly rather than hiding.
+  brandContactName: text('brand_contact_name'),
+  brandContactEmail: text('brand_contact_email'),
   // Rolling 30-day window counters. Reset by a cron once a month.
   monthlySendCount: integer('monthly_send_count').notNull().default(0),
   monthlySendCountResetAt: timestamp('monthly_send_count_reset_at'),
   // Soft cap in dollars; UI shows a banner at 80% utilization.
   monthlySendBudgetCents: integer('monthly_send_budget_cents'),
-  // Last Twilio API error stored for diagnostics ({ code, message, sid }).
+  // Last provider API error stored for diagnostics ({ code, message, id }).
   lastErrorMeta: jsonb('last_error_meta'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
