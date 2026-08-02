@@ -387,7 +387,20 @@ export const campaignEvents = pgTable(
   {
     id: serial('id').primaryKey(),
     campaignId: integer('campaign_id').notNull().references(() => campaigns.id, { onDelete: 'cascade' }),
-    recipientEmail: text('recipient_email').notNull(),
+    // NULLABLE since 2026-08-02 (ahead of SMS). A text to a patient who has
+    // a phone and no email — the public booking form makes phone required and
+    // email optional, so they exist — has no address to record here, and a
+    // synthetic placeholder would be a lie that the frequency cap and the
+    // campaign stats would both go on to believe. The two unique indexes
+    // below survive it: Postgres treats NULLs as distinct, so those rows
+    // simply stop deduplicating on address and dedupe on patientId instead.
+    recipientEmail: text('recipient_email'),
+    // The number a text actually went to, E.164. Null for every email send.
+    // Recorded for the same reason recipientEmail is — so a send can be
+    // traced back to where it landed — NOT as a cap key: the cap keys on the
+    // PATIENT (see lib/services/marketing-frequency.ts), because one person
+    // reachable two ways is still one person.
+    recipientPhone: text('recipient_phone'),
     customerId: integer('customer_id').references(() => customers.id, { onDelete: 'set null' }),
     // Patient-source attribution. Set when the recipient came from the
     // `patient` table (clinic Recall & Outreach) instead of `customers`.
