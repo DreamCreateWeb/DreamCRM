@@ -5077,3 +5077,106 @@ card, and seeding both would demonstrate a state the mutual stand-down means no
 real clinic can reach.
 
 Suite 6,091 → 6,140. Phase-5 audit runs at the END of the phase, not per slice.
+
+## 2026-08-02 — Phase 5 limb 3, slices 0–2: SMS, born on AWS
+
+The owner asked whether A2P 10DLC needs a form per purchased number, and
+whether one shared platform number would be simpler. The answers set the
+architecture: registration is per BRAND (the business, an EIN) and per
+CAMPAIGN (the use case) — numbers merely attach — so each clinic, being a
+separate legal business, gets its OWN brand, campaign, and number. A shared
+platform number is carrier-prohibited shared-originator traffic, and one bad
+clinic on shared infrastructure can silence every clinic.
+
+**Slice 0 — the provider decision, reversed once, honestly.** The evaluation
+(docs/sms-provider-evaluation.md) first recommended Twilio on two grounds:
+a documented ISV registration API and speed. The owner's two follow-up
+questions overturned both weightings, landing exactly on the risks the
+original had flagged. (1) Twilio's BAA needs Security/Enterprise Edition —
+sales-only, annual contract, priced "for companies at scale" — while the
+AWS BAA we already hold costs nothing, and a reminder is PHI so a BAA is
+non-negotiable. (2) "AWS leans console" was WRONG: the claim came from a
+blog post's framing, and the SMS V2 API has the complete programmatic flow
+(CreateRegistration w/ ClientToken → PutRegistrationFieldValue →
+SubmitRegistrationVersion → DescribeRegistrations) with a status enum that
+maps one-to-one onto the custom-domain-style polling machine. The original
+recommendation stands intact in the doc with the reversal recorded beneath
+it — the correction is part of the record. Owner then committed fully: AWS.
+
+**Slice 1 — the consent spine + two live bugs (provider-independent).**
+- The frequency cap keyed on EMAIL, which was correct while email was the
+  only sender and becomes two holes the day SMS sends: a phone-only patient
+  (the booking form makes phone REQUIRED, email optional — they exist in
+  prod) had no key at all and slipped the cap entirely; a both-channels
+  patient could take the cap twice. Now keyed `patientId ?? email` (0143
+  made recipient_email nullable + added recipient_phone), with a
+  drizzle-dialect boundary test because the WHERE grew a disjunction and
+  drizzle's and() never parenthesises chunks — a bare top-level OR would
+  have escaped the org scope and counted every clinic's sends.
+- lib/phone.ts: US-only E.164, honest null (a non-NANP number is never
+  coerced into a plausible fake), placeholder rejection, deliberately no
+  isMobile() — portability killed that distinction and a guess would decide
+  whether a real person gets their reminder.
+- lib/sms-consent.ts + lib/services/sms-consent.ts: the TCPA capture path
+  that the schema comment had promised and nothing had built (the demo
+  seeder was the only writer of marketing_sms_opt_in in the repo). The
+  disclosure names the sender, says consent is NOT a condition of booking,
+  and rides the booking form as a never-pre-ticked checkbox. Laws: an
+  opt-out is louder than an opt-in (booking again never overturns a
+  standing STOP; only START or staff-on-the-record does); a STOP from a
+  NUMBER stops every patient sharing it (the carrier sees the number, not
+  our chart); consent bookkeeping never fails the booking that captured it.
+  classifyInboundKeyword is strict — "stop please" means stop, "I need to
+  stop by after work" does not.
+
+**Slice 2 — the registration machine, dark behind SMS_DRIVER.**
+- 0144 renamed the twilio_* stub columns provider-neutral while nothing had
+  ever read them, and added ein / entity_type / brand_contact_name/_email —
+  the contact must be at the CLINIC's own domain (the ISV rule; freemail
+  warns, never blocks, because being stricter than the carrier strands the
+  solo dentist on gmail).
+- lib/sms-registration.ts (pure): nine states, none → collecting →
+  brand_pending → campaign_pending → number_pending → approved, with
+  brand_action_needed / rejected / suspended off-ramps. The load-bearing
+  judgements: the send path unlocks on exactly 'approved';
+  REQUIRES_UPDATES splits by WHO AUTHORED THE INPUTS (brand details are the
+  clinic's; the campaign use case is ours — they never saw it, so it can
+  never become their problem); COMPLETE maps to null so the CALLER advances
+  the machine; an unknown provider status never invents progress; stall
+  thresholds sit beyond each step's PUBLISHED worst case so a finding means
+  "slower than the carriers themselves said".
+- lib/services/sms-registration.ts: the custom-domain idiom throughout
+  (lazy client, null when dark, ambient IAM, commands imported per call).
+  startSmsRegistration saves details FIRST (a provider failure keeps them
+  at 'collecting' — nobody retypes anything), registers + submits the brand
+  with a DETERMINISTIC ClientToken (dcrm-brand-{orgId}) so a retry resumes
+  the same brand instead of minting a second. The 6-hourly poll advances
+  each step on COMPLETE — brand → OUR authored campaign (one home,
+  CAMPAIGN_USE_CASE) → RequestPhoneNumber (TEN_DLC, associated to the
+  campaign at purchase, DeletionProtectionEnabled — a clinic's number is
+  its identity with patients) → approved on ACTIVE. The state clock stamps
+  only on real change, so the stall clock measures time-IN-state; stalls go
+  to the PLATFORM heartbeat (own smsRegistration key via
+  writePlatformConfig), never a clinic ledger — a slow carrier review is
+  not a broken engine of theirs.
+- The one-form UI at /integrations/sms (detailHref on the catalog card):
+  EIN + entity type + contact, once; every other state is a STATUS REPORT
+  in the pure half's honest copy ("this is the slow part, and can take a
+  few weeks — nothing is needed from you"). The provider's words reach the
+  clinic ONLY on states that are theirs to act on; a suspended clinic gets
+  "we're on it", never a vendor error code. /integrations grows a
+  connections.sms fact, so an approved clinic reads Connected per-clinic
+  before the global honesty flip (which stays slice 4, per the marketing
+  site's own promise not to sell it before it works).
+- Recorded honestly: RequestPhoneNumber offers NO area-code choice, so the
+  clinic gets its OWN number but not necessarily a local-area-code one —
+  the copy says "your practice's own number" and no more. AWS handles
+  STOP/HELP itself until slice 3 flips SelfManagedOptOuts to wire our
+  keyword module; until then the two opt-out lists can only fail safe.
+- The AWS field paths for the 10DLC forms are served at runtime by AWS and
+  cannot be integration-tested from CI; a wrong path degrades to
+  REQUIRES_UPDATES → brand_action_needed — a visible state, never a silent
+  one — and gets verified on the first live registration.
+
+Suite 6,036 → 6,239 across the limb so far. Ops before enabling: inline
+policy for sms-voice on DreamCRMAppRunnerInstanceRole, then SMS_DRIVER=aws.

@@ -310,3 +310,38 @@ export async function setPreferredGbpAccountAction(
   }
   return r
 }
+
+// ── SMS registration (Phase 5 limb 3, slice 2b) ──────────────────────────────
+
+export interface StartSmsRegistrationResult {
+  ok: boolean
+  error?: string
+  /** Per-field validation issues, for the form to render inline. */
+  issues?: Array<{ field: string; message: string }>
+}
+
+/**
+ * The clinic's ONE texting form: EIN, entity type, brand contact. Everything
+ * after this submit is the machine's job (the 6-hourly registration poll) —
+ * per the doctrine, there is no wizard and no console, just this question
+ * and then a status report.
+ */
+export async function startSmsRegistrationAction(
+  formData: FormData,
+): Promise<StartSmsRegistrationResult> {
+  const ctx = await requireTenant()
+  ensureClinicAdmin(ctx)
+  const { startSmsRegistration } = await import('@/lib/services/sms-registration')
+  const result = await startSmsRegistration(ctx.organizationId, {
+    ein: formData.get('ein')?.toString() ?? '',
+    entityType: formData.get('entityType')?.toString() ?? '',
+    brandContactName: formData.get('brandContactName')?.toString() ?? '',
+    brandContactEmail: formData.get('brandContactEmail')?.toString() ?? '',
+  })
+  if (result.ok) {
+    revalidatePath('/integrations/sms')
+    revalidatePath('/integrations')
+    return { ok: true }
+  }
+  return { ok: false, error: result.error, issues: result.issues }
+}

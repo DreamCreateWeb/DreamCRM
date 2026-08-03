@@ -392,10 +392,16 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     tagline: 'Reminders, recall, and review requests by text.',
     description:
       'Two-way SMS for appointment reminders, recall nudges, review requests, and patient replies — through AWS End User Messaging with A2P 10DLC registration. Genuinely on the roadmap.',
-    keywords: ['communication', 'sms', 'text', 'messaging', 'reminders', 'a2p', 'twilio'],
+    keywords: ['communication', 'sms', 'text', 'messaging', 'reminders', 'a2p', '10dlc'],
     availability: 'coming_soon',
     connectKind: 'none',
     note: 'In the works — carrier registration (A2P 10DLC) takes a few weeks once it kicks off.',
+    // The registration surface (Phase 5 limb 3). Renders the coming-soon
+    // posture until SMS_DRIVER is live, so linking it early is honest; the
+    // resolver puts a connected FACT above `availability`, so a clinic whose
+    // registration reaches 'approved' reads connected before the global
+    // honesty flip.
+    detailHref: '/integrations/sms',
   },
 
   // ── Payments ────────────────────────────────────────────────────────────────

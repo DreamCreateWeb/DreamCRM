@@ -49,8 +49,20 @@ system, don't replace it.
   `lib/ai-bedrock.ts`, `AI_DRIVER=bedrock` for a future single-BAA move)
 - **Zernio** — Google Business + social (IG/FB/TikTok/YouTube/LinkedIn) hosted
   OAuth, reviews, GBP listing sync, posting, metrics (`lib/zernio.ts`)
-- **SMS: not wired** (future: AWS End User Messaging + A2P 10DLC). Gmail OAuth
-  for the staff inbox.
+- **SMS: AWS End User Messaging + A2P 10DLC (Phase 5 limb 3, in flight;
+  owner committed to AWS 2026-08-02 — docs/sms-provider-evaluation.md, incl.
+  the same-day Twilio→AWS reversal record).** Shipped so far, DARK behind
+  `SMS_DRIVER=aws`: the consent spine (lib/sms-consent.ts +
+  lib/services/sms-consent.ts — the ONLY writers of marketing_sms_opt_in;
+  an opt-out is louder than an opt-in), lib/phone.ts E.164 (US-only,
+  honest-null), the patient-keyed frequency cap (0143), and the full
+  per-clinic A2P registration machine (0144; lib/sms-registration.ts pure
+  state machine + lib/services/sms-registration.ts + the 6-hourly
+  `sms-registration` cron + the one-form UI at /integrations/sms). Each
+  clinic gets its OWN brand + campaign + 10DLC number — a shared platform
+  number is carrier-prohibited shared-originator traffic. Send path +
+  inbound webhook are the next slice; the marketing-site honesty flip is
+  LAST. Gmail OAuth for the staff inbox.
 - **Deployed on AWS App Runner** (`us-east-1`). Canonical
   **https://www.dreamcreatestudio.com**; clinic public sites at
   `{slug}.dreamcreatestudio.com` (wildcard DNS + cert live) + optional custom
@@ -533,7 +545,14 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0142** (`clinic_profile.guardian_clinic_state` +
+  migration: **0144** (`clinic_sms_config` renamed provider-neutral —
+  sms_phone_number / provider_phone_number_id / brand_registration_id /
+  campaign_registration_id, nothing had ever read the twilio_* names — plus
+  the brand-identity fields: ein, entity_type, brand_contact_name/_email.
+  0143 made `campaign_events.recipient_email` NULLABLE + added
+  recipient_phone: a text to a phone-only patient has no address to record,
+  and the frequency cap now keys on the PATIENT, `patientId ?? email` —
+  one person reachable two ways counts once. 0142 (`clinic_profile.guardian_clinic_state` +
   `guardian_clinic_alerted_at` — the CLINIC audience's own alert memory, so
   "who heard this alarm" is a lookup rather than an inference from today's
   signals; the two cadences are independent and a note to the practice no
@@ -880,9 +899,16 @@ sitemap/robots/OG.
    availability (`/schedules`) + real-office Customer Keys. On approval: swap
    `PMS_OPEN_DENTAL_DEVELOPER_KEY`, generate per-office Customer Keys, office
    installs eConnector.
-5. **Phase B — SMS** (AWS End User Messaging + A2P 10DLC): unlocks Recall,
-   Messages, and Reviews SMS. Schema stubs exist (`clinic_sms_config`,
-   `twilio_*`-named columns kept, channel enum in place).
+5. **Phase B — SMS (IN FLIGHT as Phase 5 limb 3; see the stack entry).**
+   Remaining: slice 3 (lib/sms.ts deliverSms + the twilio_sms channel branch
+   in marketing-send + reminders channel choice + the inbound/DLR webhook →
+   /messages with STOP/HELP via lib/sms-consent.ts, flipping
+   SelfManagedOptOuts) and slice 4 (the honesty flip: marketing pages,
+   catalog availability, the disabled composer options). Ops before enabling
+   SMS_DRIVER=aws: grant sms-voice registration/number/describe actions on
+   DreamCRMAppRunnerInstanceRole; first live registration verifies the AWS
+   field paths (they cannot be integration-tested from CI — a wrong path
+   degrades to REQUIRES_UPDATES/brand_action_needed, visible, never silent).
 6. **Platform webhook idempotency** shipped; review auto-send is anchored to
    `completedAt` with a 7-day ask-while-fresh floor (2026-07-14) — CLOSED.
 7. **Phase 4's six named open items** (docs/AUDITS.md certificate, 2026-07-31):

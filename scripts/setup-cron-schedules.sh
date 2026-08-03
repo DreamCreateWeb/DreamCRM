@@ -85,6 +85,12 @@ JOBS=(
   # The shared brain: one learning pass over the whole platform. Weekly —
   # send-time behaviour moves on the scale of seasons, not days.
   "learn-defaults|learn-defaults|cron(0 15 ? * MON *)"
+  # SMS A2P registration poll (Phase 5 limb 3): advances each clinic's
+  # brand → campaign → number reviews. 6-hourly — carrier reviews move on
+  # the scale of days-to-weeks, and every advance is idempotent (state
+  # transitions only fire on a provider-status CHANGE; creates carry
+  # deterministic ClientTokens). Dark no-op until SMS_DRIVER=aws.
+  "sms-registration|sms-registration|rate(6 hours)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

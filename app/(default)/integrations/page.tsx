@@ -4,6 +4,8 @@ import { requireTenant } from '@/lib/auth/context'
 import { db, schema } from '@/lib/db'
 import { getIntegrationsDashboard } from '@/lib/services/pms'
 import { getRequestedPms } from '@/lib/services/pms-interest'
+import { getSmsRegistration } from '@/lib/services/sms-registration'
+import { formatPhone } from '@/lib/phone'
 import { getZernioConnection } from '@/lib/services/zernio'
 import { getShopConfig } from '@/lib/services/shop'
 import { canConnectSocialPlatform } from '@/lib/services/social-billing'
@@ -64,7 +66,7 @@ export default async function IntegrationsPage({
   // Load the live state for the integrations we actually wire. GBP + social +
   // Gmail + Stripe load for everyone; the PMS dashboard only for Premium (the
   // full PMS dashboard lives on the detail route).
-  const [dashboard, zernio, cap, profileRow, shopConfig, gmailRows, requestedPmsSet] = await Promise.all([
+  const [dashboard, zernio, cap, profileRow, shopConfig, gmailRows, requestedPmsSet, smsReg] = await Promise.all([
     getIntegrationsDashboard(ctx.organizationId),
     getZernioConnection(ctx.organizationId),
     canConnectSocialPlatform(ctx.organizationId),
@@ -87,6 +89,9 @@ export default async function IntegrationsPage({
     // Roadmap PMSs this clinic has already requested early access to (Premium
     // only — the catalog + request flow are Premium-gated).
     getRequestedPms(ctx.organizationId),
+    // SMS registration state (Phase 5 limb 3) — dark ('none') until
+    // SMS_DRIVER is set; best-effort so a hiccup never breaks the grid.
+    getSmsRegistration(ctx.organizationId).catch(() => null),
   ])
 
   const connection = dashboard?.connection ?? null
@@ -137,6 +142,18 @@ export default async function IntegrationsPage({
       errored: gmail.syncStatus === 'error',
       title: gmailRows.length > 1 ? `${gmailRows.length} mailboxes connected` : gmail.emailAddress,
       handle: gmailRows.length > 1 ? gmail.emailAddress : null,
+    }
+  }
+
+  // SMS (Phase 5 limb 3). Connected = the carriers said yes and the number
+  // is live. Errored = a state whose next move is visible on the detail
+  // page (their fix, or our honest "we're on it") — the badge is the door,
+  // the page is the sentence.
+  if (smsReg && smsReg.state !== 'none') {
+    connections.sms = {
+      connected: smsReg.state === 'approved',
+      errored: ['brand_action_needed', 'rejected', 'suspended'].includes(smsReg.state),
+      title: smsReg.phoneNumber ? formatPhone(smsReg.phoneNumber) : 'Registration in progress',
     }
   }
 

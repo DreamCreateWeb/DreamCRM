@@ -7,11 +7,13 @@ import { resolveGuardianAudience, type GuardianAudience } from '@/lib/guardian'
  * PLATFORM-GLOBAL CONFIG (Phase 4). One row, id 'default' — Dream Create's
  * own switches, none of which belong to a clinic.
  *
- * Today it holds THREE top-level keys: the Guardian's audience lock
+ * Today it holds SIX top-level keys: the Guardian's audience lock
  * (`guardianAudience`), the shared brain's learned defaults (`sharedBrain`)
- * and the Guardian's own run heartbeat (`guardian`). Each writer owns its
- * own key and passes it WHOLE — `writePlatformConfig` merges shallowly, so
- * a full-row replace or a naive read-modify-write silently drops the
+ * + its run record (`brainRun`), the Guardian's own run heartbeat
+ * (`guardian`), the proposal engine's heartbeat (`proposalEngine`), and the
+ * SMS registration poll's heartbeat (`smsRegistration`). Each writer owns
+ * its own key and passes it WHOLE — `writePlatformConfig` merges shallowly,
+ * so a full-row replace or a naive read-modify-write silently drops the
  * others. Keep this count current: round 10 caught it still saying "two"
  * after the heartbeat landed, in the file a writer would be editing. It ships 'platform'
  * (the owner hears everything, clinics hear nothing) and only a human can
