@@ -5222,3 +5222,36 @@ lib/sms-consent flipping SelfManagedOptOuts), and the reminders channel
 choice that finally reaches phone-only patients. Honesty flip stays last.
 
 Suite 6,239 → 6,268.
+
+## 2026-08-02 (later still) — SMS slice 3b: two-way inbound
+
+lib/services/inbound-sms.ts + /api/webhooks/sms. AWS's two-way channel
+publishes to an SNS topic subscribed to the webhook
+(?token=$SMS_WEBHOOK_SECRET — the CRON_SECRET posture; the worst forgery is
+a fake patient text, which the threading already treats as untrusted). The
+route always 200s on handled paths because SNS retries any non-2xx and a
+poison message must not redeliver forever; the ONE deliberate non-200 is a
+failed SubscriptionConfirmation, where the retry is wanted.
+
+The ops contract, written into .env.example: pointing the SNS topic at the
+webhook happens TOGETHER with flipping the number to
+SelfManagedOptOutsEnabled — from that moment the STOP/HELP replies are OURS
+(this module sends them) and the consent columns are the single truth.
+
+- STOP stops EVERY patient on the number (the carrier's view is the number,
+  not our chart) and sends the confirmation; a failed confirmation never
+  fails the consent write that already happened.
+- START is the deliberate re-subscribe — the only path that clears a
+  standing opt-out — applied to every matched patient, mirroring the STOP.
+- HELP answers with the practice's name and the way out, and doesn't thread.
+- Ordinary replies thread into /messages through recordInboundMessage —
+  SMS is just another channel there — deduped on inboundMessageId.
+- A number NO patient carries is logged-and-dropped: an SMS has no name to
+  family-match against (the Maria/John law needs a name), so minting a
+  chart from a bare number would create exactly the misattribution that law
+  exists to prevent. A SHARED family number threads to the liveliest
+  existing conversation; the front desk re-attaches the way they already do
+  for shared-email families.
+
+Suite 6,268 → 6,280. Remaining in the limb: reminders channel choice
+(finally reaching phone-only patients), delivery receipts, the honesty flip.

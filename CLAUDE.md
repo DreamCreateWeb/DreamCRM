@@ -69,8 +69,18 @@ system, don't replace it.
   live twilio_sms branch in marketing-send (clinic-name prefix, STOP line
   when the composer didn't write one, 1.1s 10DLC pacing, org-level refusal
   short-circuits the loop, campaign_events rows carry recipient_phone).
-  Remaining: slice 3b (inbound/DLR webhook → /messages with STOP/HELP,
-  reminders channel choice) and the honesty flip LAST. Gmail OAuth for the staff inbox.
+  Slice 3b (inbound) SHIPPED: lib/services/inbound-sms.ts +
+  /api/webhooks/sms (SNS envelope, ?token=$SMS_WEBHOOK_SECRET auth,
+  always-200 on handled paths — SNS retries any non-2xx). STOP stops EVERY
+  patient on the number + our confirmation (ops contract: pointing the SNS
+  topic here happens TOGETHER with flipping SelfManagedOptOutsEnabled);
+  START is the only path that clears a standing opt-out; ordinary replies
+  thread into /messages via recordInboundMessage (channel 'sms', deduped on
+  inboundMessageId). A bare number can't pass the family-safe name match,
+  so an unknown sender is logged-and-dropped, never a minted chart; a
+  shared family number threads to the liveliest existing conversation.
+  Remaining: reminders channel choice (phone-only patients), DLR receipts,
+  and the honesty flip LAST. Gmail OAuth for the staff inbox.
 - **Deployed on AWS App Runner** (`us-east-1`). Canonical
   **https://www.dreamcreatestudio.com**; clinic public sites at
   `{slug}.dreamcreatestudio.com` (wildcard DNS + cert live) + optional custom

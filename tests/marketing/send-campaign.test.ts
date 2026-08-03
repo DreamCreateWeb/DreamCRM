@@ -126,7 +126,9 @@ vi.mock('@/lib/services/gmail', () => ({
 // suite, but the branch must feed it real campaign HTML).
 const sms = vi.hoisted(() => ({
   identity: { ok: true, fromNumber: '+14155550100' } as Record<string, unknown>,
-  deliver: vi.fn(async (..._a: unknown[]) => ({ ok: true, messageId: 'sms_1', segments: 1 })),
+  deliver: vi.fn(
+    async (..._a: unknown[]): Promise<Record<string, unknown>> => ({ ok: true, messageId: 'sms_1', segments: 1 }),
+  ),
 }))
 vi.mock('@/lib/sms', () => ({
   getClinicSmsIdentity: vi.fn(async () => sms.identity),
