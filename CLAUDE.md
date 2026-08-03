@@ -60,9 +60,17 @@ system, don't replace it.
   state machine + lib/services/sms-registration.ts + the 6-hourly
   `sms-registration` cron + the one-form UI at /integrations/sms). Each
   clinic gets its OWN brand + campaign + 10DLC number — a shared platform
-  number is carrier-prohibited shared-originator traffic. Send path +
-  inbound webhook are the next slice; the marketing-site honesty flip is
-  LAST. Gmail OAuth for the staff inbox.
+  number is carrier-prohibited shared-originator traffic. Slice 3a SHIPPED:
+  lib/sms-segments.ts (pure GSM-7/UCS-2 segment math — the alphabet cliff —
+  + htmlToSmsText) · lib/sms.ts deliverSms()/getClinicSmsIdentity (sibling
+  of deliver(), NO platform fallback BY LAW — an unapproved clinic cannot
+  send, typed refusal, unlocks on a2p_status='approved' exactly; segments
+  counted into monthly_send_count, marketing labelled PROMOTIONAL) · the
+  live twilio_sms branch in marketing-send (clinic-name prefix, STOP line
+  when the composer didn't write one, 1.1s 10DLC pacing, org-level refusal
+  short-circuits the loop, campaign_events rows carry recipient_phone).
+  Remaining: slice 3b (inbound/DLR webhook → /messages with STOP/HELP,
+  reminders channel choice) and the honesty flip LAST. Gmail OAuth for the staff inbox.
 - **Deployed on AWS App Runner** (`us-east-1`). Canonical
   **https://www.dreamcreatestudio.com**; clinic public sites at
   `{slug}.dreamcreatestudio.com` (wildcard DNS + cert live) + optional custom

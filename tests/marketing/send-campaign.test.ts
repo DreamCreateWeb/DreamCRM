@@ -121,6 +121,18 @@ vi.mock('@/lib/services/gmail', () => ({
   sendMessage: vi.fn(),
 }))
 
+// THE SMS TRANSPORT (Phase 5 limb 3). Identity + delivery are stubbed; the
+// text conversion + segment math stay REAL (lib/sms-segments has its own
+// suite, but the branch must feed it real campaign HTML).
+const sms = vi.hoisted(() => ({
+  identity: { ok: true, fromNumber: '+14155550100' } as Record<string, unknown>,
+  deliver: vi.fn(async (..._a: unknown[]) => ({ ok: true, messageId: 'sms_1', segments: 1 })),
+}))
+vi.mock('@/lib/sms', () => ({
+  getClinicSmsIdentity: vi.fn(async () => sms.identity),
+  deliverSms: (...a: unknown[]) => sms.deliver(...a),
+}))
+
 vi.mock('@/lib/services/marketing-frequency', () => ({
   // Default pass-through (set in beforeEach) — the cap's own logic has its own
   // suite (marketing-frequency.test.ts); these hooks let plumbing tests below
@@ -198,6 +210,8 @@ beforeEach(() => {
   h.resendSendMock.mockReset().mockResolvedValue({ data: { id: 'm_1' }, error: null })
   // Default: the atomic claim succeeds (returns one row).
   h.claimReturningMock.mockReset().mockResolvedValue([{ id: 99 }])
+  sms.identity = { ok: true, fromNumber: '+14155550100' }
+  sms.deliver.mockReset().mockResolvedValue({ ok: true, messageId: 'sms_1', segments: 1 })
   h.profileRowsMock.mockReset().mockResolvedValue([{ ...CLINIC_ADDRESS }])
 })
 
@@ -420,6 +434,94 @@ describe('sendCampaign — welcome one-shot guard', () => {
     h.getCampaignMock.mockResolvedValue(clinicCampaign({ automationKey: 'birthday:2026-07-22' }))
     await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
     expect(h.priorAutoMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendCampaign — the SMS channel (Phase 5 limb 3)', () => {
+  const smsRecipient = (over: Record<string, unknown> = {}) =>
+    recipient({ phone: '(415) 555-0142', smsOptIn: true, email: null, emailOptIn: false, ...over })
+
+  it('sends the campaign as TEXT: clinic name up front, STOP line appended, merge fields applied', async () => {
+    h.getCampaignMock.mockResolvedValue(
+      clinicCampaign({ sendChannel: 'twilio_sms', bodyHtml: '<p>Hi {{firstName}}, we have room Thursday.</p>' }),
+    )
+    h.resolveRecipientsMock.mockResolvedValue([smsRecipient()])
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.channel).toBe('twilio_sms')
+    expect(r.sent).toBe(1)
+    const [org, input] = sms.deliver.mock.calls[0] as [string, Record<string, unknown>]
+    expect(org).toBe('org_1')
+    expect(input.to).toBe('+14155550142')
+    expect(input.kind).toBe('marketing')
+    const body = String(input.body)
+    expect(body.startsWith('Acme Dental: ')).toBe(true)
+    expect(body).toContain('Hi Mia, we have room Thursday.')
+    expect(body).toContain('Reply STOP to opt out.')
+    // No email involved anywhere.
+    expect(h.resendSendMock).not.toHaveBeenCalled()
+  })
+
+  it('does not stack a second STOP line when the composer already wrote one', async () => {
+    h.getCampaignMock.mockResolvedValue(
+      clinicCampaign({ sendChannel: 'twilio_sms', bodyHtml: '<p>Room Thursday. Reply STOP to opt out.</p>' }),
+    )
+    h.resolveRecipientsMock.mockResolvedValue([smsRecipient()])
+    await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    const body = String((sms.deliver.mock.calls[0] as [string, Record<string, unknown>])[1].body)
+    expect(body.match(/STOP/g)).toHaveLength(1)
+  })
+
+  it('an UNAPPROVED clinic fails every recipient with ONE honest org-level reason — no carrier calls', async () => {
+    sms.identity = { ok: false, reason: 'not_approved' }
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ sendChannel: 'twilio_sms' }))
+    h.resolveRecipientsMock.mockResolvedValue([smsRecipient()])
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.sent).toBe(0)
+    expect(r.failed).toBe(1)
+    expect(r.errors[0].error).toContain('registration is still with the carriers')
+    expect(sms.deliver).not.toHaveBeenCalled()
+  })
+
+  it('a recipient whose number is unparseable fails alone — the rest still send', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ sendChannel: 'twilio_sms' }))
+    h.resolveRecipientsMock.mockResolvedValue([
+      smsRecipient({ id: 'p1', patientId: 'p1', phone: '0000000000' }),
+      smsRecipient({ id: 'p2', patientId: 'p2' }),
+    ])
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.sent).toBe(1)
+    expect(r.failed).toBe(1)
+    expect(sms.deliver).toHaveBeenCalledTimes(1)
+  })
+
+  it('an approval revoked MID-RUN stops the loop instead of burning the rest of the list', async () => {
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ sendChannel: 'twilio_sms' }))
+    h.resolveRecipientsMock.mockResolvedValue([
+      smsRecipient({ id: 'p1', patientId: 'p1' }),
+      smsRecipient({ id: 'p2', patientId: 'p2', phone: '(415) 555-0143' }),
+      smsRecipient({ id: 'p3', patientId: 'p3', phone: '(415) 555-0144' }),
+    ])
+    sms.deliver.mockResolvedValueOnce({
+      ok: false,
+      reason: 'not_approved',
+      error: 'This practice’s texting isn’t live yet — registration is still with the carriers.',
+    })
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.sent).toBe(0)
+    expect(r.failed).toBe(3)
+    // One real attempt; the remaining two were failed WITHOUT carrier calls.
+    expect(sms.deliver).toHaveBeenCalledTimes(1)
+  })
+
+  it('nothing sent leaves the campaign a DRAFT for a clean retry, same as the email path', async () => {
+    sms.identity = { ok: false, reason: 'driver_off' }
+    h.getCampaignMock.mockResolvedValue(clinicCampaign({ sendChannel: 'twilio_sms' }))
+    h.resolveRecipientsMock.mockResolvedValue([smsRecipient()])
+    const r = await sendCampaign({ organizationId: 'org_1', campaignId: 99 })
+    expect(r.sent).toBe(0)
+    // The nothing-sent → draft reset is pinned for email in the duplicate-send
+    // suite; here we assert the SMS result shape that drives it.
+    expect(r.attempted).toBe(1)
   })
 })
 

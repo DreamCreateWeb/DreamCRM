@@ -312,21 +312,13 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
     ? await resolveClinicBookingUrl(opts.organizationId)
     : null
 
-  // Phase A: only email channels actually send. The 'twilio_sms' enum exists
-  // so Phase B can layer the Twilio code path in without a migration, but
-  // attempting an SMS send today no-ops with a clear error.
+  // Channel dispatch. The 'twilio_sms' enum VALUE predates the provider
+  // decision (the actual transport is AWS End User Messaging — lib/sms.ts);
+  // renaming a pg enum value nothing displays would be a migration for
+  // cosmetics, so the name stays and this comment is the record.
   let result: SendResult
   if (campaign.sendChannel === 'twilio_sms') {
-    result = {
-      channel: 'twilio_sms',
-      attempted: recipients.length,
-      sent: 0,
-      failed: recipients.length,
-      errors: recipients.map((r) => ({
-        email: r.phone ?? r.email ?? '(unknown)',
-        error: 'SMS channel is not enabled in this build (Phase B). Switch to email.',
-      })),
-    }
+    result = await sendViaSms({ ...opts, campaign, recipients, sender, bookingUrl })
   } else if (campaign.sendChannel === 'gmail') {
     result = await sendViaGmail({ ...opts, campaign, recipients, sender, bookingUrl })
   } else {
@@ -637,6 +629,129 @@ async function sendViaResend(opts: InternalSendOpts): Promise<SendResult> {
   }
 
   return { channel: 'resend', attempted: cap, sent, failed: errors.length, errors }
+}
+
+/**
+ * SMS campaign send (Phase 5 limb 3, slice 3). The recipients reaching here
+ * already passed eligibleForChannel (phone + smsOptIn — prior express
+ * written consent, this being marketing traffic) and the patient-keyed
+ * frequency cap.
+ *
+ * Compliance shape per message: the CLINIC's name up front (a text from an
+ * unlabeled number is spam even when it isn't), the composer's words, and
+ * an opt-out line when the body doesn't already carry one — the SMS
+ * analogue of the email path's List-Unsubscribe header.
+ *
+ * PACING: a 10DLC number defaults to 1 message part per second, and a
+ * burst-send would trade half the list for ThrottlingExceptions. One send
+ * per ~1.1s keeps a recall list of typical dental size (tens) comfortably
+ * inside a single invocation; campaign_events rows make any partial run
+ * visible per-recipient, never silently.
+ */
+async function sendViaSms(opts: InternalSendOpts): Promise<SendResult> {
+  const errors: { email: string; error: string }[] = []
+  let sent = 0
+
+  const { getClinicSmsIdentity, deliverSms } = await import('@/lib/sms')
+  const { htmlToSmsText, smsSegments } = await import('@/lib/sms-segments')
+  const { toE164 } = await import('@/lib/phone')
+
+  // No identity, no sends — and ONE honest reason on every row rather than
+  // a per-recipient carrier error for a condition that is org-level.
+  const identity = await getClinicSmsIdentity(opts.organizationId)
+  if (!identity.ok) {
+    const why =
+      identity.reason === 'driver_off'
+        ? 'Texting isn\u2019t switched on for this platform yet.'
+        : 'This practice\u2019s texting isn\u2019t live yet \u2014 registration is still with the carriers.'
+    return {
+      channel: 'twilio_sms',
+      attempted: opts.recipients.length,
+      sent: 0,
+      failed: opts.recipients.length,
+      errors: opts.recipients.map((r) => ({ email: r.phone ?? r.email ?? '(unknown)', error: why })),
+    }
+  }
+
+  // The campaign's words, once: HTML \u2192 the plain text a phone shows.
+  const baseText = htmlToSmsText(opts.campaign.bodyHtml ?? '')
+  const clinicName = opts.sender.name?.trim() || ''
+  const cap = Math.min(opts.recipients.length, 1000)
+
+  for (let i = 0; i < cap; i++) {
+    const r = opts.recipients[i]
+    const label = r.phone ?? r.email ?? '(unknown)'
+    const e164 = toE164(r.phone)
+    if (!e164) {
+      errors.push({ email: label, error: 'Phone number isn\u2019t textable' })
+      if (!opts.test) await recordSmsEvent(opts, r, null, 'failed', { error: 'bad_number' })
+      continue
+    }
+    const mergeFields = recipientMergeFields(r, opts.bookingUrl)
+    let body = applyMergeFields(baseText, mergeFields).trim()
+    // Sender identification + the way out. Skipped only when the composer
+    // already wrote them \u2014 never duplicated, never omitted.
+    if (clinicName && !body.toLowerCase().startsWith(clinicName.toLowerCase())) {
+      body = `${clinicName}: ${body}`
+    }
+    if (!/\bSTOP\b/i.test(body)) {
+      body = `${body}\nReply STOP to opt out.`
+    }
+    if (opts.test) {
+      sent++
+      continue
+    }
+    const res = await deliverSms(opts.organizationId, { to: e164, body, kind: 'marketing' })
+    if (res.ok) {
+      sent++
+      await recordSmsEvent(opts, r, e164, 'sent', { segments: res.segments ?? smsSegments(body) })
+    } else {
+      errors.push({ email: label, error: res.error })
+      await recordSmsEvent(opts, r, e164, 'failed', { error: res.error })
+      // An org-level refusal mid-run (approval revoked between sends) fails
+      // the same way for everyone left \u2014 stop burning the loop.
+      if (res.reason === 'not_approved' || res.reason === 'driver_off') {
+        for (let j = i + 1; j < cap; j++) {
+          const rest = opts.recipients[j]
+          errors.push({ email: rest.phone ?? rest.email ?? '(unknown)', error: res.error })
+          await recordSmsEvent(opts, rest, toE164(rest.phone), 'failed', { error: res.error })
+        }
+        break
+      }
+    }
+    // 10DLC throughput pacing (see the docblock). Not in tests \u2014 the mock
+    // transport has no rate limit and the suite has a four-minute budget.
+    if (i < cap - 1 && process.env.NODE_ENV !== 'test') {
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+    }
+  }
+
+  return { channel: 'twilio_sms', attempted: cap, sent, failed: errors.length, errors }
+}
+
+/** One campaign_events row per SMS attempt \u2014 the same ledger the email path
+ *  writes, with the phone recorded where the address would be meaningless
+ *  (recipient_email went nullable in 0143 for exactly this row). */
+async function recordSmsEvent(
+  opts: InternalSendOpts,
+  r: ResolvedRecipient,
+  phone: string | null,
+  type: 'sent' | 'failed',
+  meta: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await db.insert(schema.campaignEvents).values({
+      campaignId: opts.campaign.id,
+      recipientEmail: r.email ? r.email.toLowerCase() : null,
+      recipientPhone: phone,
+      customerId: r.customerId,
+      patientId: r.patientId,
+      type,
+      meta: { channel: 'twilio_sms', ...meta },
+    })
+  } catch (e) {
+    console.error('[marketing-send] sms event not recorded', e)
+  }
 }
 
 async function sendViaGmail(opts: InternalSendOpts): Promise<SendResult> {

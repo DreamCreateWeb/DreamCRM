@@ -5180,3 +5180,45 @@ it — the correction is part of the record. Owner then committed fully: AWS.
 
 Suite 6,036 → 6,239 across the limb so far. Ops before enabling: inline
 policy for sms-voice on DreamCRMAppRunnerInstanceRole, then SMS_DRIVER=aws.
+
+## 2026-08-02 (later) — SMS slice 3a: the send path
+
+- **lib/sms-segments.ts** (pure): the segment math carriers actually bill —
+  GSM-7 160/153 vs UCS-2 70/67, extension chars costing two septets, and
+  the cliff every "character counter" hides (one smart quote reprices the
+  whole message). Plus htmlToSmsText: the campaign composer's HTML becomes
+  the words a phone shows — links keep their href (a phone can't hover),
+  blank lines dropped entirely (on a phone a newline IS the paragraph
+  break, and every blank line is paid for in segments).
+- **lib/sms.ts**: deliverSms(), the SIBLING of deliver() — not a branch
+  inside it, because SMS has its own identity law: NO platform fallback.
+  Email has Tier 1 (any clinic sends from the platform domain on day one);
+  SMS has no such tier by LAW, not omission — anything but the clinic's own
+  registered number is the shared-originator traffic carriers prohibit. An
+  unapproved clinic gets a typed refusal ({ reason: 'not_approved' }), a
+  normal state every caller must handle, and the identity unlocks on
+  a2p_status === 'approved' EXACTLY (number_pending has a number in the row
+  and still cannot send — that's unregistered traffic). Marketing traffic
+  is labelled PROMOTIONAL — miscategorising it as transactional is the
+  small lie carriers punish with filtering. Segments (not messages) count
+  into the rolling 30-day monthly_send_count; the counter is SQL-side
+  incremented and its failure never fails a send that already happened.
+- **The twilio_sms branch in marketing-send goes LIVE** (the enum value
+  predates the provider decision; renaming a pg enum value nothing displays
+  is churn — the comment at the dispatch is the record). Recipients arrive
+  already gated by eligibleForChannel (phone + written consent) and the
+  patient-keyed cap. Per message: the CLINIC's name up front, the
+  composer's words, a "Reply STOP to opt out." line when the body doesn't
+  already carry one (the SMS analogue of List-Unsubscribe) — never
+  duplicated, never omitted. 1.1s pacing between sends (a 10DLC number
+  defaults to 1 MPS; a burst-send trades half the list for
+  ThrottlingExceptions). An org-level refusal mid-run (approval revoked
+  between sends) fails everyone remaining with the one honest reason and
+  stops the loop. Every attempt writes a campaign_events row with
+  recipient_phone — the column 0143 added for exactly this.
+
+Still slice 3b: the inbound/DLR webhook → /messages (STOP/HELP via
+lib/sms-consent flipping SelfManagedOptOuts), and the reminders channel
+choice that finally reaches phone-only patients. Honesty flip stays last.
+
+Suite 6,239 → 6,268.
