@@ -68,6 +68,52 @@ export function reminderTouchTemplate(offsetHours: number): string {
   return `auto_reminder_${offsetHours}h`
 }
 
+// ── SMS reminder copy (Phase 5 limb 3: the reminders channel choice) ────────
+//
+// Code-owned, not clinic-editable: the Emails hub's token templates are
+// paragraphs, and a paragraph is the wrong shape for a text. Deliberately
+// GSM-7-safe — straight apostrophes, hyphens, no em-dashes or curly quotes —
+// because ONE smart quote flips the whole message to UCS-2 and cuts the
+// per-segment budget from 160 characters to 70 (lib/sms-segments.ts, "the
+// alphabet cliff"). Reminders are transactional, so no STOP line (marketing
+// sends carry it; lib/services/marketing-send.ts) — the inbound handler
+// honors STOP regardless.
+
+/** One visit's reminder text. Unconfirmed visits carry the one-click confirm
+ *  link (the same /c/[token] the email journey uses); confirmed get the
+ *  gentler no-ask variant, mirroring the email copy split. */
+export function reminderSmsBody(input: {
+  firstName: string
+  clinicName: string
+  /** Visit type with underscores already replaced ("deep cleaning"). */
+  typeLabel: string
+  /** Clinic-local, e.g. "Wed, Jun 11". */
+  dayLabel: string
+  /** Clinic-local, e.g. "9:00 AM". */
+  timeLabel: string
+  confirmUrl?: string | null
+  /** Per-visit-type prep instructions, when the clinic wrote any. */
+  prep?: string | null
+}): string {
+  const base = input.confirmUrl
+    ? `Hi ${input.firstName}, it's ${input.clinicName}. Your ${input.typeLabel} visit is ${input.dayLabel} at ${input.timeLabel}. Confirm here: ${input.confirmUrl}`
+    : `Hi ${input.firstName}, it's ${input.clinicName}. See you ${input.dayLabel} at ${input.timeLabel} for your ${input.typeLabel} visit.`
+  return input.prep ? `${base} Before your visit: ${input.prep}` : base
+}
+
+/** One text for a family's same-day visits on a shared phone — the SMS twin
+ *  of the household email consolidation. No per-visit confirm links (three
+ *  URLs is three extra segments and a wall of blue); a reply threads to
+ *  /messages and the front desk confirms the old way. */
+export function familyReminderSmsBody(input: {
+  clinicName: string
+  dayLabel: string
+  visits: Array<{ firstName: string; timeLabel: string }>
+}): string {
+  const list = input.visits.map((v) => `${v.firstName} ${v.timeLabel}`).join(', ')
+  return `Hi, it's ${input.clinicName}. Your family's visits on ${input.dayLabel}: ${list}. Questions? Just reply.`
+}
+
 function clampOffset(v: number): number {
   return Math.min(REMINDER_OFFSET_MAX_HOURS, Math.max(REMINDER_OFFSET_MIN_HOURS, Math.round(v)))
 }

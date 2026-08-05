@@ -24,7 +24,7 @@ import { sendNotificationEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
-import { sendReminderEmail } from '@/lib/services/reminder-automation'
+import { sendReminderEmail, sendReminderSms } from '@/lib/services/reminder-automation'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
@@ -226,11 +226,6 @@ async function sendReminderForOrg(
   appointmentId: string,
   channel: 'sms' | 'email',
 ): Promise<ReminderResult> {
-  if (channel === 'sms') {
-    // Twilio isn't live yet — log the intent so the audit trail is complete,
-    // and let the UI surface the "not yet" message.
-    return { ok: false, error: "Text reminders aren't available yet — we're working on it." }
-  }
   const detail = await getAppointmentDetail(ctx.organizationId, appointmentId)
   if (!detail) return { ok: false, error: 'Appointment not found' }
   if (detail.status === 'cancelled' || detail.status === 'no_show') {
@@ -243,11 +238,18 @@ async function sendReminderForOrg(
   if (detail.status === 'confirmed' || detail.status === 'completed') {
     return { ok: false, error: `Cannot send a reminder — this appointment is already ${detail.status}` }
   }
-  if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
 
-  // Shared compose + send + commlog + audit-log path, reused by the automated
+  // Shared compose + send + commlog + audit-log paths, reused by the automated
   // reminder engine (lib/services/reminder-automation.ts) so the two can't drift.
   const sender = await getClinicSenderIdentity(ctx.organizationId)
+  if (channel === 'sms') {
+    // Works only for a clinic whose own texting is live (deliverSms enforces
+    // the approved-only law, no platform fallback) — the honest refusal
+    // comes back as the error message otherwise.
+    const r = await sendReminderSms(ctx.organizationId, detail, sender, ctx.userId)
+    return r.ok ? r : { ok: false, error: r.error }
+  }
+  if (!detail.patient.email) return { ok: false, error: 'Patient has no email on file' }
   return sendReminderEmail(ctx.organizationId, detail, sender, ctx.userId)
 }
 

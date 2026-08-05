@@ -10,10 +10,13 @@ import { getAppointmentDetail, logReminderSent, type AppointmentDetail } from '@
 import {
   resolveReminderSettings,
   reminderTouchTemplate,
+  reminderSmsBody,
+  familyReminderSmsBody,
   FORMS_REMINDER_WINDOW_HOURS,
   REMINDER_MIN_GAP_HOURS,
   type ReminderSettings,
 } from '@/lib/types/reminders'
+import { toE164 } from '@/lib/phone'
 import { visitTypePrepInstructions } from '@/lib/types/visit-types'
 import { clinicDayKey } from '@/lib/format-datetime'
 import type { ClinicSender } from '@/lib/email-identity'
@@ -203,14 +206,214 @@ export async function sendReminderEmail(
   }
 }
 
+// ── The SMS channel (Phase 5 limb 3: the reminders channel choice) ──────────
+
+/**
+ * Does anyone in this org who carries this number hold a standing opt-out?
+ * A STOP is recorded against every patient on the number (the carrier's view
+ * is the number, not our chart — lib/services/sms-consent.ts), so the honest
+ * check before ANY automated text mirrors that: scan the org's patients and
+ * refuse if the number's people said stop. Reminders are transactional, but
+ * a person who texted STOP expects silence, not a taxonomy lesson — an
+ * explicit revocation outranks the marketing/transactional split, and only
+ * a START clears it. Normalised in application code, same as the consent
+ * service (the column stores whatever the front desk typed).
+ */
+async function numberHasStandingOptOut(organizationId: string, e164: string): Promise<boolean> {
+  const rows = await db
+    .select({
+      phone: schema.patient.phone,
+      optOutAt: schema.patient.marketingSmsOptOutAt,
+    })
+    .from(schema.patient)
+    .where(eq(schema.patient.organizationId, organizationId))
+  return rows.some((r) => r.optOutAt != null && toE164(r.phone) === e164)
+}
+
+/**
+ * Text one visit reminder — the SMS twin of sendReminderEmail, for patients
+ * the email path cannot reach (no inbox of their own or a guardian's). Same
+ * contract: pure send mechanics, the CALLER owns eligibility; never throws.
+ * `expected: true` on a refusal means "a normal state, count it skipped" —
+ * an unapproved clinic or a number that said STOP is not a broken engine.
+ * deliverSms itself enforces the identity law (approved clinics only, no
+ * platform fallback) and counts segments into the monthly ledger.
+ */
+export async function sendReminderSms(
+  organizationId: string,
+  detail: AppointmentDetail,
+  sender: ClinicSender,
+  sentByUserId: string | null,
+  opts?: {
+    template?: string
+    /** E.164 recipient override — a dependent without a phone gets the text
+     *  at their guardian's number. */
+    to?: string
+  },
+): Promise<{ ok: true } | { ok: false; error: string; expected?: boolean }> {
+  const to = opts?.to ?? toE164(detail.patient.phone)
+  if (!to) return { ok: false, error: 'Patient has no textable phone on file', expected: true }
+  try {
+    if (await numberHasStandingOptOut(organizationId, to)) {
+      return {
+        ok: false,
+        error: 'This number has texted STOP — texts stay off until they text START.',
+        expected: true,
+      }
+    }
+
+    const typeLabel = detail.type.replace(/_/g, ' ')
+    const firstName = detail.patient.fullName.split(' ')[0]
+    const dayLabel = detail.startTime.toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', timeZone: sender.timeZone,
+    })
+    const timeLabel = detail.startTime.toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
+    })
+
+    // Unconfirmed → the same one-click confirm token the email journey uses.
+    const confirmed = detail.status === 'confirmed'
+    let confirmUrl: string | null = null
+    if (!confirmed) {
+      try {
+        const token = await getOrCreateConfirmToken(organizationId, detail.id)
+        if (token) confirmUrl = `${APP_BASE}/c/${token}`
+      } catch {
+        /* the plain reminder still goes */
+      }
+    }
+
+    // Prep instructions ride along like they do in the email — a phone-only
+    // patient must not be the one who eats before a sedation visit.
+    let prep = ''
+    try {
+      const [profileRow] = await db
+        .select({ visitTypeSettings: schema.clinicProfile.visitTypeSettings })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, organizationId))
+        .limit(1)
+      prep = visitTypePrepInstructions(profileRow?.visitTypeSettings ?? null, detail.type)
+    } catch {
+      /* prep is a nice-to-have — never blocks the reminder */
+    }
+
+    const body = reminderSmsBody({
+      firstName,
+      clinicName: sender.name,
+      typeLabel,
+      dayLabel,
+      timeLabel,
+      confirmUrl,
+      prep: prep || null,
+    })
+
+    const { deliverSms } = await import('@/lib/sms')
+    const r = await deliverSms(organizationId, { to, body, kind: 'transactional' })
+    if (!r.ok) {
+      // driver_off / not_approved / bad_number are states, not breaks — the
+      // engine counts them skipped. Only a real send failure is a failure.
+      return { ok: false, error: r.error, expected: r.reason !== 'failed' }
+    }
+
+    const startStr = detail.startTime.toLocaleString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
+    })
+    await queueCommLogWriteBack(organizationId, detail.patient.id, {
+      note: `Appointment reminder texted for ${startStr}.`,
+      mode: 'Text',
+    })
+    await logReminderSent({
+      organizationId,
+      appointmentId: detail.id,
+      channel: 'sms',
+      template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
+      sentByUserId,
+    })
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
+/**
+ * One text for a family's same-day visits on a shared phone — the SMS twin
+ * of sendFamilyReminderEmail. Same shape: one send, then a CommLog note and
+ * a reminder-log row PER appointment so per-touch idempotency is unchanged.
+ * The caller already resolved the recipient, so the STOP check runs here
+ * once for the household number.
+ */
+async function sendFamilyReminderSms(
+  organizationId: string,
+  items: DueReminderItem[],
+  sender: ClinicSender,
+  to: string,
+): Promise<{ ok: true } | { ok: false; error: string; expected?: boolean }> {
+  try {
+    if (await numberHasStandingOptOut(organizationId, to)) {
+      return {
+        ok: false,
+        error: 'This number has texted STOP — texts stay off until they text START.',
+        expected: true,
+      }
+    }
+    const sorted = [...items].sort(
+      (a, b) => a.detail.startTime.getTime() - b.detail.startTime.getTime(),
+    )
+    const dayLabel = sorted[0].detail.startTime.toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', timeZone: sender.timeZone,
+    })
+    const body = familyReminderSmsBody({
+      clinicName: sender.name,
+      dayLabel,
+      visits: sorted.map((item) => ({
+        firstName: item.detail.patient.fullName.split(' ')[0],
+        timeLabel: item.detail.startTime.toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
+        }),
+      })),
+    })
+
+    const { deliverSms } = await import('@/lib/sms')
+    const r = await deliverSms(organizationId, { to, body, kind: 'transactional' })
+    if (!r.ok) {
+      return { ok: false, error: r.error, expected: r.reason !== 'failed' }
+    }
+
+    for (const item of sorted) {
+      const d = item.detail
+      const startStr = d.startTime.toLocaleString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: sender.timeZone,
+      })
+      await queueCommLogWriteBack(organizationId, d.patient.id, {
+        note: `Family visit reminder texted for ${startStr} (one text covering ${sorted.length} same-day family visits).`,
+        mode: 'Text',
+      })
+      await logReminderSent({
+        organizationId,
+        appointmentId: d.id,
+        channel: 'sms',
+        template: item.template,
+        sentByUserId: null,
+      })
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
+
 // ── Family consolidation ─────────────────────────────────────────────────────
 
 /** One due reminder touch, resolved and ready to send. */
 interface DueReminderItem {
   detail: AppointmentDetail
   template: string
-  /** Resolved recipient (the patient's own email, or their guardian's). */
+  /** Resolved recipient: an email address, or an E.164 number for the SMS
+   *  fallback (the patient's own, or their guardian's). */
   recipient: string
+  /** Email stays the primary channel; 'sms' means the patient had no
+   *  reachable inbox anywhere and a textable phone. */
+  channel: 'email' | 'sms'
 }
 
 /**
@@ -327,8 +530,11 @@ export interface ReminderRunResult {
   orgsScanned: number
   /** Appointments that fell in the window and were eligible to consider. */
   candidates: number
-  /** Reminders actually emailed. */
+  /** Reminders actually sent (email or text). */
   sent: number
+  /** The subset of `sent` that went by text — the phone-only patients the
+   *  engine used to skip entirely. */
+  sentSms: number
   /** Skipped because a reminder already went out within the window (idempotency). */
   alreadyReminded: number
   /** Skipped for an expected reason (no email, etc.). */
@@ -347,14 +553,18 @@ export interface ReminderRunResult {
  *     variant with its own on/off); cancelled / no_show / completed never,
  *   - startTime ∈ [now, now + max(touchOffsets)],
  *   - patient is active with an email on file — or a guardian link whose
- *     guardian has one (dependents get reminded via the guardian's inbox),
+ *     guardian has one (dependents get reminded via the guardian's inbox) —
+ *     or, when the clinic's own texting is live, a textable phone (the SMS
+ *     fallback: email is always preferred, a text goes only where no inbox
+ *     can be reached),
  *   - the due touch (smallest opened offset) hasn't sent for this visit, and
  *     no other visit reminder went out within REMINDER_MIN_GAP_HOURS.
  *
  * Family consolidation: due reminders resolving to the same inbox for the
  * same clinic-local day collapse into ONE household email (see
  * sendFamilyReminderEmail); every appointment still gets its own log row, so
- * per-touch idempotency is unchanged.
+ * per-touch idempotency is unchanged. The same collapse applies per shared
+ * phone number for the SMS fallback.
  */
 export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
   const now = opts?.now ?? new Date()
@@ -362,6 +572,7 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     orgsScanned: 0,
     candidates: 0,
     sent: 0,
+    sentSms: 0,
     alreadyReminded: 0,
     skipped: 0,
     failed: 0,
@@ -389,14 +600,31 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     const windowEnd = new Date(now.getTime() + offsets[0] * 60 * 60 * 1000)
     const gapCutoff = new Date(now.getTime() - REMINDER_MIN_GAP_HOURS * 60 * 60 * 1000)
 
-    // Candidate appointments in the window with a reachable inbox: the
+    // Can this clinic text? Decides whether phone-only patients are even
+    // CANDIDATES. One read per org; deliverSms re-enforces the law at send
+    // time, so this is a scan optimisation, not the gate itself.
+    let smsLive = false
+    try {
+      const { getClinicSmsIdentity } = await import('@/lib/sms')
+      smsLive = (await getClinicSmsIdentity(profile.organizationId)).ok
+    } catch {
+      /* texting unavailable → the engine behaves exactly as before */
+    }
+
+    // Candidate appointments in the window with a reachable patient: the
     // patient's own email, OR a guardian link (a dependent without an email
-    // gets reminders at the guardian's address). Both scheduled AND confirmed
-    // qualify — confirmed patients get the gentler "see you soon" variant
-    // (its own on/off in the Emails hub); unconfirmed get the confirm-cta
-    // copy. The per-touch idempotency check is a per-appointment query below
-    // rather than a join, to keep this dependency-light + easy to unit test
-    // in isolation.
+    // gets reminders at the guardian's address), OR — only when the clinic's
+    // texting is live — a textable phone (the SMS fallback for the
+    // phone-only patients the public booking form has always allowed). Both
+    // scheduled AND confirmed qualify — confirmed patients get the gentler
+    // "see you soon" variant (its own on/off in the Emails hub); unconfirmed
+    // get the confirm-cta copy. The per-touch idempotency check is a
+    // per-appointment query below rather than a join, to keep this
+    // dependency-light + easy to unit test in isolation.
+    const reachableByEmail = or(
+      and(isNotNull(schema.patient.email), ne(schema.patient.email, '')),
+      isNotNull(schema.patient.guardianPatientId),
+    )
     const candidates = await db
       .select({
         appointmentId: schema.appointment.id,
@@ -413,10 +641,12 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           gte(schema.appointment.startTime, now),
           lte(schema.appointment.startTime, windowEnd),
           eq(schema.patient.isActive, 1),
-          or(
-            and(isNotNull(schema.patient.email), ne(schema.patient.email, '')),
-            isNotNull(schema.patient.guardianPatientId),
-          ),
+          smsLive
+            ? or(
+                reachableByEmail,
+                and(isNotNull(schema.patient.phone), ne(schema.patient.phone, '')),
+              )
+            : reachableByEmail,
         ),
       )
       .limit(500)
@@ -481,12 +711,19 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           result.skipped++
           continue
         }
-        // Resolve the inbox: the patient's own email, else the guardian's
-        // (family-linked dependents often have no address of their own).
-        let recipient = detail.patient.email
+        // Resolve the recipient, email first: the patient's own address,
+        // else the guardian's (family-linked dependents often have no
+        // address of their own). Only when NO inbox exists anywhere does the
+        // SMS fallback look at phones — the patient's own, else the
+        // guardian's. A standing STOP is enforced at send time
+        // (numberHasStandingOptOut inside the send helpers), where the final
+        // number is known.
+        let recipient: string | null = detail.patient.email
+        let channel: 'email' | 'sms' = 'email'
+        let guardian: { email: string | null; phone: string | null } | null = null
         if (!recipient && c.guardianPatientId) {
-          const [guardian] = await db
-            .select({ email: schema.patient.email })
+          const [g] = await db
+            .select({ email: schema.patient.email, phone: schema.patient.phone })
             .from(schema.patient)
             .where(
               and(
@@ -495,13 +732,21 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
               ),
             )
             .limit(1)
+          guardian = g ?? null
           recipient = guardian?.email?.trim() || null
+        }
+        if (!recipient && smsLive) {
+          const phone = toE164(detail.patient.phone) ?? toE164(guardian?.phone ?? null)
+          if (phone) {
+            recipient = phone
+            channel = 'sms'
+          }
         }
         if (!recipient) {
           result.skipped++
           continue
         }
-        dueItems.push({ detail, template, recipient })
+        dueItems.push({ detail, template, recipient, channel })
       } catch (err) {
         result.failed++
         result.errors.push({
@@ -526,27 +771,39 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       continue
     }
 
-    // Family consolidation: bucket by (inbox, clinic-local day). One visit in
-    // a bucket → the normal single-visit reminder (unchanged behavior); more
-    // → one consolidated household email covering them all.
+    // Family consolidation: bucket by (channel, recipient, clinic-local
+    // day). One visit in a bucket → the normal single-visit reminder
+    // (unchanged behavior); more → one consolidated household email — or,
+    // for a shared family phone, one household text.
     const buckets = new Map<string, DueReminderItem[]>()
     for (const item of dueItems) {
-      const key = `${item.recipient.toLowerCase()}|${clinicDayKey(item.detail.startTime, sender.timeZone)}`
+      const key = `${item.channel}|${item.recipient.toLowerCase()}|${clinicDayKey(item.detail.startTime, sender.timeZone)}`
       const list = buckets.get(key)
       if (list) list.push(item)
       else buckets.set(key, [item])
     }
 
     for (const bucket of Array.from(buckets.values())) {
+      const isSms = bucket[0].channel === 'sms'
       if (bucket.length === 1) {
         const item = bucket[0]
-        const r = await sendReminderEmail(profile.organizationId, item.detail, sender, null, {
-          template: item.template,
-          to: item.recipient,
-        })
+        const r = isSms
+          ? await sendReminderSms(profile.organizationId, item.detail, sender, null, {
+              template: item.template,
+              to: item.recipient,
+            })
+          : await sendReminderEmail(profile.organizationId, item.detail, sender, null, {
+              template: item.template,
+              to: item.recipient,
+            })
         if (r.ok) {
           result.sent++
-        } else if (r.error.includes('no email') || r.error.includes('disabled')) {
+          if (isSms) result.sentSms++
+        } else if (
+          ('expected' in r && r.expected) ||
+          r.error.includes('no email') ||
+          r.error.includes('disabled')
+        ) {
           result.skipped++
         } else {
           result.failed++
@@ -559,14 +816,14 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           await reportAutomationFailure(profile.organizationId, 'reminders')
         }
       } else {
-        const r = await sendFamilyReminderEmail(
-          profile.organizationId,
-          bucket,
-          sender,
-          bucket[0].recipient,
-        )
+        const r = isSms
+          ? await sendFamilyReminderSms(profile.organizationId, bucket, sender, bucket[0].recipient)
+          : await sendFamilyReminderEmail(profile.organizationId, bucket, sender, bucket[0].recipient)
         if (r.ok) {
           result.sent += bucket.length
+          if (isSms) result.sentSms += bucket.length
+        } else if ('expected' in r && r.expected) {
+          result.skipped += bucket.length
         } else {
           result.failed += bucket.length
           result.errors.push({ organizationId: profile.organizationId, appointmentId: bucket[0].detail.id, error: r.error })
@@ -590,7 +847,7 @@ const FORMS_REMINDER_TEMPLATE = 'forms_intake'
  */
 export async function runDueFormReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
   const now = opts?.now ?? new Date()
-  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, alreadyReminded: 0, skipped: 0, failed: 0, errors: [] }
+  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, sentSms: 0, alreadyReminded: 0, skipped: 0, failed: 0, errors: [] }
 
   const profiles = await db
     .select({ organizationId: schema.clinicProfile.organizationId, reminderSettings: schema.clinicProfile.reminderSettings })

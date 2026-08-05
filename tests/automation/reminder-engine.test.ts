@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 interface ApptDetail {
   id: string
   patientEmail: string | null
+  patientPhone?: string | null
   startTime: Date
   status?: string
 }
@@ -34,8 +35,10 @@ const state = {
     guardianPatientId?: string | null
   }>,
   details: new Map<string, ApptDetail>(),
-  // Guardian-email lookups (from(patient)), shifted per email-less candidate.
-  guardianQueue: [] as Array<Array<{ email: string | null }>>,
+  // from(patient) queries, shifted in call order. Two callers share it:
+  // guardian lookups (per email-less linked candidate) and the SMS path's
+  // standing-STOP scan (once per text actually attempted).
+  guardianQueue: [] as Array<Array<Record<string, unknown>>>,
 }
 
 // Per-candidate prior-log rows, shifted in candidate order.
@@ -128,9 +131,27 @@ vi.mock('@/lib/services/appointments', () => ({
       type: 'cleaning',
       status: d.status ?? 'scheduled',
       startTime: d.startTime,
-      patient: { id: `pat_${id}`, fullName: 'Sam Jones', email: d.patientEmail },
+      patient: { id: `pat_${id}`, fullName: 'Sam Jones', email: d.patientEmail, phone: d.patientPhone ?? null },
     }
   }),
+}))
+
+// The SMS transport (Phase 5 limb 3). Default posture: driver off — every
+// pre-existing test runs exactly as before the channel choice existed.
+const { getClinicSmsIdentityMock, deliverSmsMock } = vi.hoisted(() => ({
+  getClinicSmsIdentityMock: vi.fn(async (): Promise<Record<string, unknown>> => ({
+    ok: false,
+    reason: 'driver_off',
+  })),
+  deliverSmsMock: vi.fn(async (): Promise<Record<string, unknown>> => ({
+    ok: true,
+    messageId: 'sms_1',
+    segments: 1,
+  })),
+}))
+vi.mock('@/lib/sms', () => ({
+  getClinicSmsIdentity: getClinicSmsIdentityMock,
+  deliverSms: deliverSmsMock,
 }))
 
 import { runDueReminders } from '@/lib/services/reminder-automation'
@@ -138,7 +159,7 @@ import { runDueReminders } from '@/lib/services/reminder-automation'
 function seedCandidate(
   id: string,
   startInHours: number,
-  opts: { email?: string | null; status?: string; guardianPatientId?: string } = {},
+  opts: { email?: string | null; phone?: string | null; status?: string; guardianPatientId?: string } = {},
 ) {
   const startTime = inHours(startInHours)
   state.candidates.push({
@@ -150,6 +171,7 @@ function seedCandidate(
   state.details.set(id, {
     id,
     patientEmail: opts.email === undefined ? 'sam@example.com' : opts.email,
+    patientPhone: opts.phone ?? null,
     startTime,
     status: opts.status,
   })
@@ -162,6 +184,10 @@ beforeEach(() => {
   state.guardianQueue = []
   logQueue = []
   vi.clearAllMocks()
+  // Re-pin the SMS defaults — clearAllMocks clears calls, not implementations,
+  // so a test that flipped texting on must not leak it into the next.
+  getClinicSmsIdentityMock.mockImplementation(async () => ({ ok: false, reason: 'driver_off' }))
+  deliverSmsMock.mockImplementation(async () => ({ ok: true, messageId: 'sms_1', segments: 1 }))
 })
 
 describe('runDueReminders — journeys', () => {
@@ -358,5 +384,167 @@ describe('runDueReminders — family consolidation', () => {
     const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(0)
     expect(r.skipped).toBe(1)
+  })
+})
+
+describe('runDueReminders — the SMS fallback (Phase 5 limb 3: the channel choice)', () => {
+  const smsOn = () =>
+    getClinicSmsIdentityMock.mockImplementation(async () => ({ ok: true, fromNumber: '+14155550100' }))
+
+  it('texts a phone-only patient when the clinic’s texting is live', async () => {
+    smsOn()
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: null, phone: '(415) 555-0142' })
+    logQueue = [[]]
+    state.guardianQueue = [[]] // the standing-STOP scan — nobody opted out
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(1)
+    expect(r.sentSms).toBe(1)
+    expect(r.skipped).toBe(0)
+    expect(deliverSmsMock).toHaveBeenCalledTimes(1)
+    const [org, input] = deliverSmsMock.mock.calls[0] as unknown as [string, Record<string, unknown>]
+    expect(org).toBe('org_1')
+    expect(input.to).toBe('+14155550142')
+    expect(input.kind).toBe('transactional')
+    // Unconfirmed → the same one-click confirm token the email journey uses.
+    expect(String(input.body)).toContain('/c/ct_test_token')
+    expect(logReminderSentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'sms', template: 'auto_reminder_24h', sentByUserId: null }),
+    )
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
+  })
+
+  it('phone-only patients stay skipped when the clinic cannot text (the pre-SMS behavior)', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: null, phone: '(415) 555-0142' })
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(0)
+    expect(r.skipped).toBe(1)
+    expect(deliverSmsMock).not.toHaveBeenCalled()
+  })
+
+  it('email stays the primary channel — a patient with both gets the email, never a text', async () => {
+    smsOn()
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { phone: '(415) 555-0142' }) // email defaults to sam@example.com
+    logQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(1)
+    expect(r.sentSms).toBe(0)
+    expect(deliverMock).toHaveBeenCalledTimes(1)
+    expect(deliverSmsMock).not.toHaveBeenCalled()
+  })
+
+  it('a CONFIRMED visit’s text is the gentler variant — no confirm link', async () => {
+    smsOn()
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: null, phone: '(415) 555-0142', status: 'confirmed' })
+    logQueue = [[]]
+    state.guardianQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(1)
+    const body = String((deliverSmsMock.mock.calls[0] as unknown as [string, Record<string, unknown>])[1].body)
+    expect(body).not.toContain('/c/')
+    expect(body).toContain('See you')
+  })
+
+  it('a standing STOP silences even transactional reminders — skipped, not failed', async () => {
+    smsOn()
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: null, phone: '(415) 555-0142' })
+    logQueue = [[]]
+    // The STOP scan finds the number opted out (however the desk spelled it).
+    state.guardianQueue = [[{ phone: '415-555-0142', optOutAt: new Date('2026-06-01') }]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(0)
+    expect(r.skipped).toBe(1)
+    expect(r.failed).toBe(0)
+    expect(deliverSmsMock).not.toHaveBeenCalled()
+  })
+
+  it('a shared family phone gets ONE household text with a log row per visit', async () => {
+    smsOn()
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('kid1', 20, { email: null, phone: '415-555-0142' })
+    seedCandidate('kid2', 22, { email: null, phone: '(415) 555-0142' }) // same number, spelled differently
+    logQueue = [[], []]
+    state.guardianQueue = [[]] // one STOP scan for the household send
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(2)
+    expect(r.sentSms).toBe(2)
+    expect(deliverSmsMock).toHaveBeenCalledTimes(1)
+    const body = String((deliverSmsMock.mock.calls[0] as unknown as [string, Record<string, unknown>])[1].body)
+    expect(body).toContain('family')
+    expect(logReminderSentMock).toHaveBeenCalledTimes(2)
+    expect(logReminderSentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'kid1', channel: 'sms' }),
+    )
+    expect(logReminderSentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'kid2', channel: 'sms' }),
+    )
+  })
+
+  it('a dependent with no email anywhere is texted at the guardian’s number', async () => {
+    smsOn()
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('dep1', 20, { email: null, guardianPatientId: 'g_mom' })
+    logQueue = [[]]
+    state.guardianQueue = [
+      [{ email: null, phone: '415-555-0199' }], // the guardian fetch — no inbox, but a phone
+      [], // the STOP scan
+    ]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(1)
+    expect(r.sentSms).toBe(1)
+    const [, input] = deliverSmsMock.mock.calls[0] as unknown as [string, Record<string, unknown>]
+    expect(input.to).toBe('+14155550199')
+  })
+
+  it('a hard carrier failure counts as failed and tells the Guardian', async () => {
+    smsOn()
+    deliverSmsMock.mockResolvedValueOnce({
+      ok: false,
+      reason: 'failed',
+      error: 'The text didn’t go out — nothing was sent.',
+    })
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: null, phone: '(415) 555-0142' })
+    logQueue = [[]]
+    state.guardianQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.failed).toBe(1)
+    expect(r.sent).toBe(0)
+    const { reportAutomationFailure } = await import('@/lib/services/engine-failures')
+    expect(vi.mocked(reportAutomationFailure)).toHaveBeenCalledWith('org_1', 'reminders')
+    expect(logReminderSentMock).not.toHaveBeenCalled()
+  })
+
+  it('an unapproved-mid-run refusal is a state, not a break — skipped, Guardian untouched', async () => {
+    smsOn()
+    deliverSmsMock.mockResolvedValueOnce({
+      ok: false,
+      reason: 'not_approved',
+      error: 'This practice’s texting isn’t live yet — registration is still with the carriers.',
+    })
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: null, phone: '(415) 555-0142' })
+    logQueue = [[]]
+    state.guardianQueue = [[]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.skipped).toBe(1)
+    expect(r.failed).toBe(0)
+    const { reportAutomationFailure } = await import('@/lib/services/engine-failures')
+    expect(vi.mocked(reportAutomationFailure)).not.toHaveBeenCalled()
   })
 })

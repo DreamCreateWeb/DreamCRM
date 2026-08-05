@@ -79,8 +79,23 @@ system, don't replace it.
   inboundMessageId). A bare number can't pass the family-safe name match,
   so an unknown sender is logged-and-dropped, never a minted chart; a
   shared family number threads to the liveliest existing conversation.
-  Remaining: reminders channel choice (phone-only patients), DLR receipts,
-  and the honesty flip LAST. Gmail OAuth for the staff inbox.
+  The reminders CHANNEL CHOICE SHIPPED (2026-08-05): email stays the primary
+  channel; the SMS fallback texts only where NO inbox exists (own email →
+  guardian email → own textable phone → guardian's phone), only when the
+  clinic's texting is live (getClinicSmsIdentity gates the scan, deliverSms
+  re-enforces at send). A standing STOP silences even transactional texts —
+  checked at the NUMBER level (numberHasStandingOptOut) to mirror how STOP
+  is recorded; only START clears it. Copy is code-owned + GSM-7-safe BY
+  CONTRACT (reminderSmsBody/familyReminderSmsBody in lib/types/reminders.ts
+  — one smart quote flips a 160-char segment to 70); unconfirmed visits
+  carry the same /c/[token] one-click confirm; a shared family phone gets
+  ONE household text (the SMS twin of the email consolidation, no per-visit
+  links); the manual drawer action's sms branch is live behind the same
+  laws. AWS-side setup DONE (2026-08-05, scripts/setup-sms-aws.sh executed:
+  IAM policy, SMS_WEBHOOK_SECRET, SMS_DRIVER=aws live on App Runner).
+  Remaining: DLR receipts, the post-approval SNS two-way wiring (printed by
+  the setup script; needs a provisioned number), and the honesty flip LAST.
+  Gmail OAuth for the staff inbox.
 - **Deployed on AWS App Runner** (`us-east-1`). Canonical
   **https://www.dreamcreatestudio.com**; clinic public sites at
   `{slug}.dreamcreatestudio.com` (wildcard DNS + cert live) + optional custom
