@@ -91,12 +91,17 @@ export async function deliverSms(
       '@aws-sdk/client-pinpoint-sms-voice-v2'
     )
     const client = new PinpointSMSVoiceV2Client({ region: process.env.AWS_REGION || 'us-east-1' })
+    // The configuration set routes message events (delivery receipts) to
+    // the SNS topic → /api/webhooks/sms → lib/services/sms-dlr.ts. Optional
+    // by design: without it sends still work, there are just no receipts.
+    const configurationSet = process.env.SMS_CONFIGURATION_SET?.trim() || undefined
     const res = await client.send(
       new SendTextMessageCommand({
         DestinationPhoneNumber: to,
         OriginationIdentity: identity.fromNumber,
         MessageBody: body,
         MessageType: input.kind === 'marketing' ? 'PROMOTIONAL' : 'TRANSACTIONAL',
+        ...(configurationSet ? { ConfigurationSetName: configurationSet } : {}),
       }),
     )
     const segments = smsSegments(body)

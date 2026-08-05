@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { parseInboundSms, handleInboundSms } from '@/lib/services/inbound-sms'
+import { parseSmsDlr } from '@/lib/sms-dlr'
+import { recordSmsDlr } from '@/lib/services/sms-dlr'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -63,13 +65,22 @@ async function post(request: Request) {
   }
 
   const payload = parseInboundSms(message)
-  if (!payload) {
-    // A DLR or an unrecognised shape — acknowledged, not retried.
-    return NextResponse.json({ ok: true, ignored: 'not_inbound_sms' })
+  if (payload) {
+    const result = await handleInboundSms(payload)
+    return NextResponse.json({ ok: true, outcome: result.outcome })
   }
 
-  const result = await handleInboundSms(payload)
-  return NextResponse.json({ ok: true, outcome: result.outcome })
+  // Not an inbound text — a delivery receipt? Both arrive here: the two-way
+  // channel's topic carries inbound, the configuration set's event
+  // destination carries TEXT_* message events (lib/sms-dlr.ts).
+  const dlr = parseSmsDlr(message)
+  if (dlr) {
+    const result = await recordSmsDlr(dlr)
+    return NextResponse.json({ ok: true, outcome: result.outcome })
+  }
+
+  // An unrecognised shape — acknowledged, not retried.
+  return NextResponse.json({ ok: true, ignored: 'not_inbound_sms' })
 }
 
 export { post as POST }

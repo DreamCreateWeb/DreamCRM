@@ -704,7 +704,11 @@ async function sendViaSms(opts: InternalSendOpts): Promise<SendResult> {
     const res = await deliverSms(opts.organizationId, { to: e164, body, kind: 'marketing' })
     if (res.ok) {
       sent++
-      await recordSmsEvent(opts, r, e164, 'sent', { segments: res.segments ?? smsSegments(body) })
+      await recordSmsEvent(
+        opts, r, e164, 'sent',
+        { segments: res.segments ?? smsSegments(body) },
+        res.messageId,
+      )
     } else {
       errors.push({ email: label, error: res.error })
       await recordSmsEvent(opts, r, e164, 'failed', { error: res.error })
@@ -738,6 +742,9 @@ async function recordSmsEvent(
   phone: string | null,
   type: 'sent' | 'failed',
   meta: Record<string, unknown>,
+  /** The provider's MessageId on a successful send — the correlation key
+   *  its delivery receipt arrives with (lib/services/sms-dlr.ts). */
+  providerMessageId?: string | null,
 ): Promise<void> {
   try {
     await db.insert(schema.campaignEvents).values({
@@ -747,6 +754,7 @@ async function recordSmsEvent(
       customerId: r.customerId,
       patientId: r.patientId,
       type,
+      providerMessageId: providerMessageId ?? null,
       meta: { channel: 'twilio_sms', ...meta },
     })
   } catch (e) {

@@ -328,6 +328,7 @@ export async function sendReminderSms(
       channel: 'sms',
       template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
       sentByUserId,
+      providerMessageId: r.messageId,
     })
     return { ok: true }
   } catch (err) {
@@ -394,6 +395,7 @@ async function sendFamilyReminderSms(
         channel: 'sms',
         template: item.template,
         sentByUserId: null,
+        providerMessageId: r.messageId,
       })
     }
     return { ok: true }

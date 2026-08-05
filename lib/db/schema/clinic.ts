@@ -395,7 +395,16 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   deliveredAt: timestamp('delivered_at'),
   repliedAt: timestamp('replied_at'),
   replyBody: text('reply_body'),
-}, (t) => [index('appt_reminder_appt_sent_idx').on(t.appointmentId, t.sentAt)])
+  // The provider's message id for an SMS send (SendTextMessage's MessageId) —
+  // the correlation key a delivery receipt arrives with. Null for email
+  // (email receipts ride tagged Resend webhooks instead) and for legacy rows.
+  providerMessageId: text('provider_message_id'),
+}, (t) => [
+  index('appt_reminder_appt_sent_idx').on(t.appointmentId, t.sentAt),
+  // Every DLR is a lookup by provider message id — without this it's a
+  // sequential scan of the busiest log table on every receipt.
+  index('appt_reminder_provider_msg_idx').on(t.providerMessageId),
+])
 
 // ── Fast-pass waitlist (ASAP list) ─────────────────────────────────────────
 // Patients who want an EARLIER opening. When a cancellation frees a slot,

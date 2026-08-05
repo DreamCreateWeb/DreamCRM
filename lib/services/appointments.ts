@@ -1437,6 +1437,9 @@ export interface LogReminderInput {
   channel: AppointmentChannel
   template?: string
   sentByUserId: string | null
+  /** SMS sends only: the provider's MessageId, so the delivery receipt can
+   *  find this row and stamp deliveredAt (lib/services/sms-dlr.ts). */
+  providerMessageId?: string | null
 }
 
 export async function logReminderSent(input: LogReminderInput): Promise<string> {
@@ -1448,6 +1451,7 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
     channel: input.channel,
     template: input.template ?? null,
     sentByUserId: input.sentByUserId,
+    providerMessageId: input.providerMessageId ?? null,
   })
   // THE ACTION LEDGER — machine actions only (a staff member clicking send is
   // their work, not the employee's). Best-effort by design: the reminder is

@@ -410,7 +410,14 @@ describe('runDueReminders — the SMS fallback (Phase 5 limb 3: the channel choi
     // Unconfirmed → the same one-click confirm token the email journey uses.
     expect(String(input.body)).toContain('/c/ct_test_token')
     expect(logReminderSentMock).toHaveBeenCalledWith(
-      expect.objectContaining({ channel: 'sms', template: 'auto_reminder_24h', sentByUserId: null }),
+      // providerMessageId is the DLR correlation key — a delivery receipt
+      // finds this row by it (lib/services/sms-dlr.ts).
+      expect.objectContaining({
+        channel: 'sms',
+        template: 'auto_reminder_24h',
+        sentByUserId: null,
+        providerMessageId: 'sms_1',
+      }),
     )
     expect(deliverMock).not.toHaveBeenCalled()
     expect(sendNotificationEmailMock).not.toHaveBeenCalled()

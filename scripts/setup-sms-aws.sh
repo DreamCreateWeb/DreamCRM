@@ -16,15 +16,25 @@ set -euo pipefail
 #                 deliberately absent — nothing in the app releases numbers).
 #   3. Secrets  — adds SMS_WEBHOOK_SECRET to dreamcrm/app-secrets if absent
 #                 (generated here, never printed).
-#   4. Service  — adds SMS_DRIVER=aws (plain env var) and SMS_WEBHOOK_SECRET
-#                 (runtime secret ref) to the App Runner service, MERGED into
-#                 the existing maps — App Runner replaces the whole map on
-#                 update, so a naive write would drop every other variable.
-#                 This triggers a rolling deployment of the same image.
+#   4. DLR pipe — the delivery-receipt pipeline, number-independent: SNS
+#                 topic dreamcrm-sms-events (policy lets sms-voice publish),
+#                 configuration set dreamcrm-sms with a TEXT_ALL event
+#                 destination pointing at it, and an HTTPS subscription to
+#                 the webhook. NOTE: the subscription only CONFIRMS once the
+#                 webhook route is deployed (merged to main) — until then it
+#                 sits pending (pending subscriptions expire after ~3 days;
+#                 re-running this script re-subscribes, it is idempotent).
+#   5. Service  — adds SMS_DRIVER=aws + SMS_CONFIGURATION_SET (plain env
+#                 vars) and SMS_WEBHOOK_SECRET (runtime secret ref) to the
+#                 App Runner service, MERGED into the existing maps — App
+#                 Runner replaces the whole map on update, so a naive write
+#                 would drop every other variable. This triggers a rolling
+#                 deployment of the same image.
 #
-# What it deliberately does NOT do: the two-way SNS wiring. That needs a
-# provisioned phone number, which only exists after the first clinic's
-# registration is approved. When it is, run the block printed at the end.
+# What it deliberately does NOT do: the two-way (inbound) SNS wiring. That
+# needs a provisioned phone number, which only exists after the first
+# clinic's registration is approved. When it is, run the block printed at
+# the end.
 # ─────────────────────────────────────────────────────────────────────────────
 
 REGION="${AWS_REGION:-us-east-1}"
@@ -90,7 +100,67 @@ print(json.dumps(d))
 fi
 SECRET_ARN=$(aws secretsmanager describe-secret --secret-id "$SECRET_ID" --query ARN --output text)
 
-echo "==> App Runner: SMS_DRIVER + SMS_WEBHOOK_SECRET on service $SERVICE_NAME"
+# ── DLR pipeline (delivery receipts) — number-independent ───────────────────
+CONFIG_SET="dreamcrm-sms"
+EVENTS_TOPIC="dreamcrm-sms-events"
+
+echo "==> SNS: events topic $EVENTS_TOPIC"
+TOPIC_ARN=$(aws sns create-topic --name "$EVENTS_TOPIC" --query TopicArn --output text)
+aws sns set-topic-attributes --topic-arn "$TOPIC_ARN" --attribute-name Policy \
+  --attribute-value "{
+    \"Version\": \"2012-10-17\",
+    \"Statement\": [{
+      \"Sid\": \"AllowSmsVoicePublish\",
+      \"Effect\": \"Allow\",
+      \"Principal\": { \"Service\": \"sms-voice.amazonaws.com\" },
+      \"Action\": \"sns:Publish\",
+      \"Resource\": \"$TOPIC_ARN\",
+      \"Condition\": { \"StringEquals\": { \"aws:SourceAccount\": \"$ACCOUNT\" } }
+    }]
+  }"
+echo "    topic ready (sms-voice may publish)"
+
+echo "==> Configuration set: $CONFIG_SET → $EVENTS_TOPIC (TEXT_ALL)"
+if ! aws pinpoint-sms-voice-v2 describe-configuration-sets \
+      --configuration-set-names "$CONFIG_SET" --query 'ConfigurationSets[0]' \
+      --output text >/dev/null 2>&1; then
+  aws pinpoint-sms-voice-v2 create-configuration-set \
+    --configuration-set-name "$CONFIG_SET" >/dev/null
+fi
+HAS_DEST=$(aws pinpoint-sms-voice-v2 describe-configuration-sets \
+  --configuration-set-names "$CONFIG_SET" \
+  --query "ConfigurationSets[0].EventDestinations[?EventDestinationName=='sns-events'] | length(@)" \
+  --output text)
+if [[ "$HAS_DEST" == "0" || "$HAS_DEST" == "None" ]]; then
+  aws pinpoint-sms-voice-v2 create-event-destination \
+    --configuration-set-name "$CONFIG_SET" \
+    --event-destination-name sns-events \
+    --matching-event-types TEXT_ALL \
+    --sns-destination "TopicArn=$TOPIC_ARN" >/dev/null
+fi
+echo "    configuration set wired"
+
+echo "==> SNS: webhook subscription on $EVENTS_TOPIC"
+# Endpoint carries the token — read it from Secrets Manager, never print it.
+WEBHOOK_ENDPOINT=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ID" \
+  --query SecretString --output text | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print('https://www.dreamcreatestudio.com/api/webhooks/sms?token=' + d['SMS_WEBHOOK_SECRET'])
+")
+CONFIRMED=$(aws sns list-subscriptions-by-topic --topic-arn "$TOPIC_ARN" \
+  --query "Subscriptions[?Protocol=='https' && SubscriptionArn!='PendingConfirmation'] | length(@)" \
+  --output text)
+if [[ "$CONFIRMED" == "0" || "$CONFIRMED" == "None" ]]; then
+  aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol https \
+    --notification-endpoint "$WEBHOOK_ENDPOINT" >/dev/null
+  echo "    subscribed — confirms automatically once the webhook route is DEPLOYED"
+  echo "    (pending subscriptions expire in ~3 days; re-run this script after merge if needed)"
+else
+  echo "    already confirmed — leaving it alone"
+fi
+
+echo "==> App Runner: SMS env on service $SERVICE_NAME"
 SERVICE_ARN=$(aws apprunner list-services --region "$REGION" \
   --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
 if [[ -z "$SERVICE_ARN" || "$SERVICE_ARN" == "None" ]]; then
@@ -118,6 +188,9 @@ sec = img.get('RuntimeEnvironmentSecrets') or {}
 changed = False
 if env.get('SMS_DRIVER') != 'aws':
     env['SMS_DRIVER'] = 'aws'
+    changed = True
+if env.get('SMS_CONFIGURATION_SET') != 'dreamcrm-sms':
+    env['SMS_CONFIGURATION_SET'] = 'dreamcrm-sms'
     changed = True
 want_ref = f'{secret_arn}:SMS_WEBHOOK_SECRET::'
 if sec.get('SMS_WEBHOOK_SECRET') != want_ref:

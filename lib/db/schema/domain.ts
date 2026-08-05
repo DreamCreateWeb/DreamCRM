@@ -414,10 +414,17 @@ export const campaignEvents = pgTable(
     bookedAt: timestamp('booked_at', { withTimezone: true }),
     type: campaignEventTypeEnum('type').notNull(),
     meta: jsonb('meta').notNull().default(sql`'{}'::jsonb`),
+    // The provider's message id for an SMS send — the correlation key its
+    // delivery receipt (DLR) arrives with. Carried by the 'sent' row AND by
+    // the 'delivered'/'bounce' receipt rows minted from it, so receipt
+    // dedupe is one indexed read. Null on every email row.
+    providerMessageId: text('provider_message_id'),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex('campaign_events_campaign_recipient_type_idx').on(t.campaignId, t.recipientEmail, t.type, t.occurredAt),
+    // Every DLR is a lookup by provider message id.
+    index('campaign_events_provider_msg_idx').on(t.providerMessageId),
     // Per-patient timeline lookup ("show me all marketing events for Sophia")
     // — used by patient-timeline.ts.
     uniqueIndex('campaign_events_campaign_patient_type_idx').on(t.campaignId, t.patientId, t.type, t.occurredAt),

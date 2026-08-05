@@ -93,9 +93,19 @@ system, don't replace it.
   links); the manual drawer action's sms branch is live behind the same
   laws. AWS-side setup DONE (2026-08-05, scripts/setup-sms-aws.sh executed:
   IAM policy, SMS_WEBHOOK_SECRET, SMS_DRIVER=aws live on App Runner).
-  Remaining: DLR receipts, the post-approval SNS two-way wiring (printed by
-  the setup script; needs a provisioned number), and the honesty flip LAST.
-  Gmail OAuth for the staff inbox.
+  DLR RECEIPTS SHIPPED (2026-08-05, migration 0145 provider_message_id on
+  appointment_reminder_log + campaign_events): "sent" means handed to a
+  carrier; only a DELIVERED receipt earns "delivered" (SUCCESSFUL = carrier
+  acceptance = interim, never a receipt — lib/sms-dlr.ts pure
+  parse/classify). Receipts ride the SAME webhook as inbound (configuration
+  set `dreamcrm-sms` → SNS topic `dreamcrm-sms-events` → /api/webhooks/sms;
+  deliverSms names the set when SMS_CONFIGURATION_SET is set, optional by
+  design). A reminder receipt stamps deliveredAt (idempotent via the
+  null-guard); a campaign receipt mints the sibling 'delivered'/'bounce'
+  campaign_events row with the same attribution, deduped on the message id
+  (lib/services/sms-dlr.ts, never throws). Remaining: the post-approval SNS
+  two-way wiring (printed by the setup script; needs a provisioned number)
+  and the honesty flip LAST. Gmail OAuth for the staff inbox.
 - **Deployed on AWS App Runner** (`us-east-1`). Canonical
   **https://www.dreamcreatestudio.com**; clinic public sites at
   `{slug}.dreamcreatestudio.com` (wildcard DNS + cert live) + optional custom
@@ -578,7 +588,10 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0144** (`clinic_sms_config` renamed provider-neutral —
+  migration: **0145** (`provider_message_id` + lookup indexes on
+  `appointment_reminder_log` and `campaign_events` — the SMS delivery-receipt
+  correlation key, stamped at send time, read by lib/services/sms-dlr.ts).
+  Before it: **0144** (`clinic_sms_config` renamed provider-neutral —
   sms_phone_number / provider_phone_number_id / brand_registration_id /
   campaign_registration_id, nothing had ever read the twilio_* names — plus
   the brand-identity fields: ein, entity_type, brand_contact_name/_email.
