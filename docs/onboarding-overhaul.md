@@ -232,9 +232,36 @@ URL must not redirect through anything that drops the query string.
 
 Rule of thumb: much of what these vendors sell is "we already hold the
 Google approval." A direct approval costs $0/location forever and
-front-loads the gate risk. **Check Zernio first** — they hold GBP OAuth
-for us already; one location-PATCH endpoint from them skips the gate
-entirely.
+front-loads the gate risk.
+
+### 2.5 RESOLVED (2026-08-05, live API probe): Zernio ALREADY HAS THE WRITE
+
+Probed with our own API key against docs.zernio.com's published OpenAPI
+spec (`https://docs.zernio.com/api/openapi`, v1.0.4):
+
+- **`PUT /v1/accounts/{accountId}/gmb-location-details`**
+  (`updateGoogleBusinessLocationDetails`): body requires `updateMask`;
+  **`websiteUri` is a first-class field**, alongside `regularHours`,
+  `specialHours`, `profile.description`, `phoneNumbers`, `categories`,
+  `serviceItems`. Spec text: "This endpoint proxies Google's Business
+  Information API locations.patch, so any valid updateMask field is
+  supported." Optional `?locationId=` targets a specific location.
+- The GET twin now accepts `readMask` (incl. `websiteUri`) and returns a
+  derived `location` block with `placeId`, `reviewUrl`, `mapsUri`,
+  `isVerified` — Phase A's parse is a readMask addition, not archaeology.
+- **`docs/zernio-google-integration.md`'s "pull-only / no write-back"
+  limitation is STALE** — Zernio shipped listing writes after that doc was
+  written. Note also the spec's path shapes are newer
+  (`/v1/accounts/{accountId}/gmb-…`) than the ones `lib/zernio.ts` calls
+  (`/google-business/…?accountId=`); the old paths still serve prod today,
+  but new wrappers should follow the published spec.
+- **Consequences:** Phase D is NOT approval-gated — no Google application,
+  no Yext/Synup purchase. The Google Basic-Access application drops to
+  optional vendor-independence insurance. Residual unknown: whether our
+  Zernio plan gates this endpoint behind an add-on (their analytics 402
+  precedent) — unknowable without a real write, and the honest first write
+  IS the fix (setting Mammoth Spring's websiteUri, owner-approved), which
+  reports any 402/403 visibly.
 
 ---
 
@@ -377,19 +404,24 @@ request-mode until confirmed; GBP-connect prefill; conversion carries the
 full prospect dossier; the machine's own setup checklist replaces the
 dismissible one; waits narrated.
 
-**Phase D — native GBP write-back (approval-gated).** When/if Google
-approval lands: `locations.patch` websiteUri (+hours/phone opt-in),
-re-read-after-write, listing_sync ledger narration, the standing
-keep-in-sync watch. If the application stalls and Zernio won't build it:
-Synup-class vendor evaluation (~$35/mo/loc) as the fallback, or ship
-detect-and-guide permanently (it is already 90% of the value at 2–20
-clinics).
+**Phase D — GBP write-back via Zernio (UNGATED as of §2.5).**
+`PUT /v1/accounts/{accountId}/gmb-location-details` with
+`updateMask=websiteUri` — the machine fixes the button itself, with
+re-read-after-write (Google strips params), `listing_sync` ledger
+narration, and the standing keep-in-sync watch. The honest first write is
+Mammoth Spring's own websiteUri, owner-approved — it verifies our plan
+isn't add-on-gated AND fixes the incident in one move. Phases A and D may
+merge: detect → propose ("your Google listing points at the old site —
+fix it?") → the machine writes → verifies on the next sync. The
+detect-and-guide card remains the fallback for a 402 or an unverified
+listing. Google's native API application drops to OPTIONAL
+vendor-independence insurance.
 
 **Open questions for the owner**
-1. File the Google application now? Needs: Dream Create's own GBP verified
-   60+ days (does it exist?), application from the owner-email on the
-   matching domain, and a concrete use-case paragraph (drafted on request).
-2. Ask Zernio about a location-write endpoint? (One email; skips the gate.)
+1. ~~Ask Zernio for a write endpoint?~~ RESOLVED — it exists (§2.5).
+2. File the Google Basic-Access application anyway as vendor-independence
+   insurance? (Free, 1–6 weeks, needs Dream Create's own 60+-day verified
+   GBP; recommended: yes, low effort, hedges Zernio risk.)
 3. Should booking ship request-mode-by-default for new clinics until hours
    are confirmed (recommended), or stay live with an "unconfirmed hours"
    override?
