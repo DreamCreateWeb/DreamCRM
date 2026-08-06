@@ -18,7 +18,7 @@ system, don't replace it.
 | [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. |
 | [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc. Every P1 + P2 shipped; only the P3/SMS-gated tail remains. |
 | [`docs/STRUCTURE-AUDIT.md`](./docs/STRUCTURE-AUDIT.md) | The information-architecture reference: full feature inventory by purpose, competitor IA benchmarks (NexHealth/Weave/Birdeye/Kleer/Shopify/…), placement verdicts, and the redesign log (Payments split, rejected moves). Read before moving/renaming any surface. |
-| `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` · `docs/inbound-email.md` | Deep-dive specs for those systems. |
+| `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` · `docs/inbound-email.md` · `docs/onboarding-overhaul.md` | Deep-dive specs for those systems (onboarding-overhaul = the research foundation for the onboarding PROJECT, 2026-08-05). |
 
 ## Stack
 
@@ -917,6 +917,21 @@ sitemap/robots/OG.
    `schedule_gap` also joins `PATIENT_INBOX_CAPABILITIES`. Not seeded in the
    demo on purpose: the demo already carries the recall card, and seeding both
    would show a state the mutual stand-down means no real clinic can reach.
+0a. **THE ONBOARDING OVERHAUL (2026-08-05, owner: "make this a project,
+   not a sweep").** Research phase DONE — read `docs/onboarding-overhaul.md`
+   FIRST (current-state audit incl. the five contradicting readiness
+   surfaces + the ghost schedule + the GBP website-button blind spot that
+   cost Mammoth Spring all its traffic; GBP API/vendor landscape — native
+   `locations.patch websiteUri` works, gate is the one-time Basic-Access
+   application; competitor + activation research — nobody in dental does
+   self-serve onboarding, checklist completion medians ~10%, GBP-as-
+   onboarding is unclaimed ground). Proposed shape: Phase A GBP listing
+   truth (detect/guide/verify + UTM channel) → B readiness resolver → C
+   onboarding as the employee's first week (setup asks ARE proposals;
+   booking request-mode until hours confirmed) → D native GBP write-back
+   (approval-gated). Five open questions for the owner at the bottom of
+   the doc (Google application, Zernio ask, booking gating, trial-expiry
+   honesty, positioning). No code started.
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live
