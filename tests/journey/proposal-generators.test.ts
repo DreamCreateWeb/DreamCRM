@@ -104,6 +104,34 @@ vi.mock('@/lib/services/empty-chair', () => ({
   safeWindowLoad: vi.fn(async () => chair.window),
 }))
 
+// LISTING TRUTH's resolver (the onboarding overhaul, Phase A). Mocked at the
+// service boundary — the pure verdict logic has its own suite
+// (tests/gbp/gbp-listing.test.ts); here we pin the GENERATOR's gates.
+const gbpTruth = vi.hoisted(() => ({
+  value: {
+    connected: true,
+    isDemo: false,
+    accountId: 'acc_gbp' as string | null,
+    state: 'mismatch' as string,
+    snapshot: {
+      websiteUri: 'https://old-wix-site.com',
+      placeId: 'ChIJx',
+      reviewUrl: null,
+      mapsUri: null,
+      isVerified: true,
+      title: 'Acme Dental',
+      fetchedAt: '2026-07-27T14:00:00.000Z',
+    } as Record<string, unknown> | null,
+    siteUrl: 'https://acme.dreamcreatestudio.com',
+    targetUrl:
+      'https://acme.dreamcreatestudio.com?utm_source=google&utm_medium=organic&utm_campaign=gbp-listing&utm_content=website-button',
+    acceptable: ['https://acme.dreamcreatestudio.com', 'https://dreamcreatestudio.com/site/acme'],
+  },
+}))
+vi.mock('@/lib/services/gbp-listing', () => ({
+  getGbpListingTruth: vi.fn(async () => gbpTruth.value),
+}))
+
 const recall = vi.hoisted(() => ({
   stats: {
     recallDueReachableCount: 41,
@@ -259,6 +287,7 @@ import {
   generateContentPlanProposals,
   generateOutreachCampaignProposals,
   generateScheduleGapProposals,
+  generateGbpWebsiteFixProposals,
   sweepInvalidatedProposals,
   monthKey,
   weekKey,
@@ -294,6 +323,25 @@ beforeEach(() => {
   ]
   proposalsSvc.fileProposal.mockResolvedValue({ filed: true, id: 'prop_x' })
   proposalsSvc.autoExecuteProposal.mockResolvedValue({ ok: true, status: 'approved' } as never)
+  gbpTruth.value = {
+    connected: true,
+    isDemo: false,
+    accountId: 'acc_gbp',
+    state: 'mismatch',
+    snapshot: {
+      websiteUri: 'https://old-wix-site.com',
+      placeId: 'ChIJx',
+      reviewUrl: null,
+      mapsUri: null,
+      isVerified: true,
+      title: 'Acme Dental',
+      fetchedAt: '2026-07-27T14:00:00.000Z',
+    },
+    siteUrl: 'https://acme.dreamcreatestudio.com',
+    targetUrl:
+      'https://acme.dreamcreatestudio.com?utm_source=google&utm_medium=organic&utm_campaign=gbp-listing&utm_content=website-button',
+    acceptable: ['https://acme.dreamcreatestudio.com', 'https://dreamcreatestudio.com/site/acme'],
+  }
 })
 
 describe('review replies', () => {
@@ -887,6 +935,129 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteGrantedProposals', () => {
     expect(n).toBe(1)
     expect(proposalsSvc.autoExecuteProposal).toHaveBeenCalledWith(ORG, 'p_fresh')
     expect(proposalsSvc.autoExecuteProposal).not.toHaveBeenCalledWith(ORG, 'p_given_up')
+  })
+})
+
+describe('the GBP website fix (listing truth, onboarding Phase A)', () => {
+  const TZ = 'America/Chicago'
+
+  it('files ONE card on a mismatch — no AI, monthly sourceKey, 21-day expiry', async () => {
+    const n = await generateGbpWebsiteFixProposals(ORG, NOW, TZ)
+    expect(n).toBe(1)
+    expect(ai.runClaudeJson).not.toHaveBeenCalled()
+    const input = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
+    expect(input.capability).toBe('gbp_website_fix')
+    expect(input.sourceKey).toBe(`gbp_website_fix:${monthKey(NOW, TZ)}:acme.dreamcreatestudio.com`)
+    expect(input.title).toContain('wrong website')
+    expect(String(input.body)).toContain('https://old-wix-site.com')
+    expect(String(input.body)).toContain('https://acme.dreamcreatestudio.com')
+    const payload = input.payload as Record<string, unknown>
+    expect(payload.targetUrl).toContain('utm_campaign=gbp-listing')
+    expect(payload.previousUri).toBe('https://old-wix-site.com')
+    expect((input.expiresAt as Date).getTime()).toBe(NOW.getTime() + 21 * DAY)
+  })
+
+  it('a MISSING website files the add-the-link card', async () => {
+    gbpTruth.value.state = 'missing'
+    gbpTruth.value.snapshot = { ...(gbpTruth.value.snapshot as Record<string, unknown>), websiteUri: null }
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(1)
+    const input = proposalsSvc.fileProposal.mock.calls[0][0] as Record<string, unknown>
+    expect(input.title).toContain('no website button')
+  })
+
+  it('says NOTHING on ok / unknown / disconnected — a guess is worse than silence', async () => {
+    gbpTruth.value.state = 'ok'
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(0)
+    gbpTruth.value.state = 'unknown'
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(0)
+    gbpTruth.value = { ...gbpTruth.value, state: 'mismatch', connected: false, accountId: null }
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(0)
+    expect(proposalsSvc.fileProposal).not.toHaveBeenCalled()
+  })
+
+  it('an UNVERIFIED listing files nothing — Google won’t publish the edit', async () => {
+    gbpTruth.value.snapshot = { ...(gbpTruth.value.snapshot as Record<string, unknown>), isVerified: false }
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('sourceKey dedupe + open-card stand-down: never a second card in the month', async () => {
+    store.proposals = [
+      {
+        id: 'p1',
+        organizationId: ORG,
+        capability: 'gbp_website_fix',
+        sourceKey: `gbp_website_fix:${monthKey(NOW, TZ)}:acme.dreamcreatestudio.com`,
+        status: 'expired',
+        payload: {},
+        createdAt: new Date(NOW.getTime() - 2 * DAY),
+      },
+    ]
+    // Same month + same target → the burned key holds even though expired.
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(0)
+    // Next month, but an OPEN card from the rollover boundary → stand down.
+    store.proposals[0] = {
+      ...store.proposals[0],
+      sourceKey: 'gbp_website_fix:2026-06:acme.dreamcreatestudio.com',
+      status: 'open',
+    }
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('a recent decline is honored', async () => {
+    store.proposals = [
+      {
+        id: 'p1',
+        organizationId: ORG,
+        capability: 'gbp_website_fix',
+        sourceKey: 'gbp_website_fix:2026-06:acme.dreamcreatestudio.com',
+        status: 'declined',
+        payload: {},
+        createdAt: new Date(NOW.getTime() - 3 * DAY),
+        decidedAt: new Date(NOW.getTime() - 3 * DAY),
+      },
+    ]
+    expect(await generateGbpWebsiteFixProposals(ORG, NOW, TZ)).toBe(0)
+  })
+
+  it('the sweep retires an open card once the listing reads healthy', async () => {
+    store.proposals = [
+      {
+        id: 'p_gbp',
+        organizationId: ORG,
+        capability: 'gbp_website_fix',
+        sourceKey: 'k',
+        status: 'open',
+        payload: { targetUrl: 'https://acme.dreamcreatestudio.com?utm_campaign=gbp-listing' },
+        body: 'card',
+        patientId: null,
+        isDemo: 0,
+        createdAt: NOW,
+      },
+    ]
+    gbpTruth.value.state = 'ok'
+    const expired = await sweepInvalidatedProposals(ORG)
+    expect(expired).toBe(1)
+    expect((store.proposals[0] as Record<string, unknown>).status).toBe('expired')
+  })
+
+  it('the sweep leaves the card alone while the mismatch persists', async () => {
+    store.proposals = [
+      {
+        id: 'p_gbp',
+        organizationId: ORG,
+        capability: 'gbp_website_fix',
+        sourceKey: 'k',
+        status: 'open',
+        payload: {},
+        body: 'card',
+        patientId: null,
+        isDemo: 0,
+        createdAt: NOW,
+      },
+    ]
+    gbpTruth.value.state = 'mismatch'
+    expect(await sweepInvalidatedProposals(ORG)).toBe(0)
+    expect((store.proposals[0] as Record<string, unknown>).status).toBe('open')
   })
 })
 

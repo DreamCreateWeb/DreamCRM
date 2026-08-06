@@ -8,6 +8,27 @@ describe('classifyLeadChannel', () => {
     ).toBe('search')
   })
 
+  it('OUR GBP listing tag → gbp, ahead of search (its source/medium are deliberately generic)', () => {
+    // The exact params buildListingWebsiteUrl writes into the listing:
+    expect(
+      classifyLeadChannel({
+        utmSource: 'google',
+        utmMedium: 'organic',
+        utmCampaign: 'gbp-listing',
+        referrer: 'https://www.google.com/',
+      }),
+    ).toBe('gbp')
+    // Google stripped source/medium but the campaign marker survived:
+    expect(classifyLeadChannel({ utmCampaign: 'gbp-listing' })).toBe('gbp')
+    expect(LEAD_CHANNEL_LABELS.gbp).toBe('Google profile')
+  })
+
+  it('unrelated campaigns change nothing; untagged google stays search', () => {
+    expect(
+      classifyLeadChannel({ utmSource: 'google', utmMedium: 'organic', utmCampaign: 'spring-recall' }),
+    ).toBe('search')
+  })
+
   it('referrer-only search engines → search (google.co.uk, bing)', () => {
     expect(classifyLeadChannel({ referrer: 'https://www.google.co.uk/search?q=dentist' })).toBe('search')
     expect(classifyLeadChannel({ referrer: 'https://www.bing.com/' })).toBe('search')

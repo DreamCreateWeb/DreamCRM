@@ -74,6 +74,11 @@ const GOOGLE_LOC: GoogleLocation = {
   phone: '555-0000',
   categories: [],
   placeId: null,
+  websiteUri: null,
+  reviewUrl: null,
+  mapsUri: null,
+  isVerified: null,
+  title: null,
 }
 
 beforeEach(() => {

@@ -634,6 +634,23 @@ async function detectRecoveredWork(
       ledgerDetail: { campaignId },
     }
   }
+  if (p.capability === 'gbp_website_fix') {
+    // Attribution needs OUR OWN prior attempt (same law as review_reply):
+    // a listing that now points at the site could just as easily be the
+    // owner pasting the URL by hand after our card went stale. Evidence =
+    // the attempt marker + the stored snapshot reading 'ok' (the hourly
+    // sync's view of what Google holds — no network in the reconcile).
+    if (!hadOwnAttempt) return null
+    const targetUrl = str(payload.targetUrl)
+    if (!targetUrl) return null
+    const { getGbpListingTruth } = await import('@/lib/services/gbp-listing')
+    const truth = await getGbpListingTruth(p.organizationId)
+    if (truth.state !== 'ok') return null
+    return {
+      ledgerSummary: 'Pointed your Google listing’s Website button at your site',
+      ledgerDetail: { targetUrl },
+    }
+  }
   return null
 }
 
@@ -1051,6 +1068,8 @@ async function executeProposal(
       return executeContentPlan(p, payload, saidYes)
     case 'schedule_gap':
       return executeScheduleGap(p, payload, saidYes)
+    case 'gbp_website_fix':
+      return executeGbpWebsiteFix(p, payload, saidYes)
     default:
       return { ok: false, error: 'I don’t know how to carry this one out yet.' }
   }
@@ -1064,7 +1083,99 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'outreach_campaign': return `Sent the recall campaign ${saidYes}`
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
+    case 'gbp_website_fix': return `Pointed your Google listing at your website ${saidYes}`
     default: return `Did the work ${saidYes}`
+  }
+}
+
+/**
+ * LISTING TRUTH's executor (the onboarding overhaul, Phase A): point the
+ * clinic's Google listing "Website" button at their real site through
+ * Zernio's locations.patch proxy. Three laws:
+ *  - LIVE staleness check at the tap: the card was filed on an hourly
+ *    snapshot, and someone may have fixed the button by hand since. Already
+ *    pointing at us → retire, don't re-write (any edit can trigger an
+ *    automated re-review of the whole listing — a no-op write still spends
+ *    that risk). An UNREADABLE live check never vetoes an explicit human
+ *    yes (the empty-chair law's mirror).
+ *  - RE-READ AFTER WRITE: Google sometimes strips query params from this
+ *    field; the ledger entry says whether the fix verified, and the hourly
+ *    sync keeps watching after us.
+ *  - A refused write keeps the card and tells the human the by-hand path —
+ *    the machine failing must never leave the clinic with less than the
+ *    guided manual fix they'd have had without us.
+ */
+async function executeGbpWebsiteFix(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  const targetUrl = str(payload.targetUrl)
+  if (!targetUrl) {
+    return { ok: false, expired: true, error: 'This card lost its link — I’ll bring a fresh one.' }
+  }
+  const { getGbpListingTruth } = await import('@/lib/services/gbp-listing')
+  const truth = await getGbpListingTruth(p.organizationId)
+  if (!truth.connected || !truth.accountId) {
+    return {
+      ok: false,
+      error: 'Your Google connection is gone — reconnect Google in Integrations and I’ll take it from there.',
+    }
+  }
+  const { getGoogleBusinessLocation, updateGoogleBusinessWebsiteUri } = await import('@/lib/zernio')
+  const { listingPointsAtUs } = await import('@/lib/gbp-listing')
+  // Live staleness check — undefined = couldn't read, which never vetoes.
+  let liveUri: string | null | undefined
+  try {
+    liveUri = (await getGoogleBusinessLocation({ accountId: truth.accountId })).websiteUri
+  } catch {
+    liveUri = undefined
+  }
+  if (liveUri !== undefined && listingPointsAtUs(liveUri, truth.acceptable)) {
+    if (payload.approveAttempted === true) {
+      // Our own stranded attempt landed — narrate-once via the recovery path.
+      return {
+        ok: false,
+        expired: true,
+        error: 'Already done.',
+        recovered: {
+          ledgerSummary: `Pointed your Google listing at your website ${saidYes}`,
+          ledgerDetail: { targetUrl, recoveredFromPriorAttempt: true },
+        },
+      }
+    }
+    return {
+      ok: false,
+      expired: true,
+      error: 'Good news — your Google listing already points at your site. Nothing to change.',
+    }
+  }
+  try {
+    await updateGoogleBusinessWebsiteUri({ accountId: truth.accountId, websiteUri: targetUrl })
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        `Google didn’t accept the update (${(e as Error).message}). I’ll keep this card so you can try again — ` +
+        'or set it yourself: search “my business” on Google while signed in → Edit profile → Contact → Website.',
+    }
+  }
+  // Verify best-effort: a failed re-read is not a failed fix.
+  let verified: boolean | null = null
+  try {
+    const after = await getGoogleBusinessLocation({ accountId: truth.accountId })
+    verified = listingPointsAtUs(after.websiteUri, truth.acceptable)
+  } catch {
+    verified = null
+  }
+  return {
+    ok: true,
+    ledgerSummary: `Pointed your Google listing’s Website button at your site ${saidYes}`,
+    ledgerDetail: {
+      targetUrl,
+      previousUri: str(payload.previousUri),
+      ...(verified === null ? { verifyPending: true } : { verified }),
+    },
   }
 }
 

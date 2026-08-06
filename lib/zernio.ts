@@ -389,6 +389,24 @@ interface GbpRawLocation {
     newReviewUri?: string | null
     mapsUri?: string | null
   } | null
+  // The listing's Website button target + business name (Google's
+  // locations.get shape; confirmed on the wire via the published OpenAPI
+  // spec v1.0.4, 2026-08-05 — the onboarding overhaul's Phase A).
+  websiteUri?: string | null
+  title?: string | null
+  // The DERIVED summary block Zernio's current response nests as a SIBLING
+  // of the top-level fields (`location`): a compact public-facing summary
+  // with the place identity + Voice-of-Merchant flag. For unverified/new
+  // locations Google omits placeId/reviewUrl/mapsUri (null) and isVerified
+  // is false. NOTE this is the same key older payload shapes used for the
+  // FULL location object — unwrapLocation tells the two apart by content.
+  location?: {
+    name?: string | null
+    placeId?: string | null
+    reviewUrl?: string | null
+    mapsUri?: string | null
+    isVerified?: boolean | null
+  } | null
 }
 
 /** One normalized open/close period in our `HH:MM` 24-hour shape. */
@@ -418,6 +436,19 @@ export interface GoogleLocation {
   /** Google Place ID, when Zernio surfaces one (defensively parsed). Feeds the
    *  "review us on Google" write link. Null when unavailable → manual entry. */
   placeId: string | null
+  /** The listing's Website button target, verbatim. Null = the listing has
+   *  no website link (or the field wasn't on the wire) — the LISTING TRUTH
+   *  reader (lib/gbp-listing.ts) treats an unreadable value as unknown, so
+   *  null here never fabricates a "missing" verdict on its own. */
+  websiteUri: string | null
+  /** Google's own "write a review" URL, when the summary block carried one. */
+  reviewUrl: string | null
+  /** Public Google Maps URL for the location. */
+  mapsUri: string | null
+  /** Voice of Merchant (verified + live on Google). Null = payload didn't say. */
+  isVerified: boolean | null
+  /** Business name as Google shows it. */
+  title: string | null
 }
 
 /**
@@ -464,12 +495,39 @@ export function normalizeGbpTime(raw: unknown): string | null {
   return null
 }
 
-/** Reach through `{ location }` / `{ data }` wrappers to the bare GBP object. */
+/** Whether an object carries FULL-location fields (vs. the derived summary
+ *  block Zernio's current response nests under the same `location` key). */
+function looksLikeFullLocation(o: Record<string, unknown>): boolean {
+  return (
+    'regularHours' in o ||
+    'storefrontAddress' in o ||
+    'phoneNumbers' in o ||
+    'categories' in o ||
+    'websiteUri' in o
+  )
+}
+
+/**
+ * Reach through `{ location }` / `{ data }` wrappers to the bare GBP object.
+ * SHAPE FORK (OpenAPI v1.0.4, 2026-08-05): the current response carries the
+ * full location fields at the TOP LEVEL with `location` holding only a
+ * derived summary (name/placeId/reviewUrl/mapsUri/isVerified). Unwrapping
+ * that summary as if it were the whole location would silently drop hours,
+ * address, phone, and website — so `location` is only followed when it
+ * actually looks like a full location. The summary block stays reachable on
+ * the returned object's own `location` key for the normalizer.
+ */
 function unwrapLocation(data: unknown): GbpRawLocation {
   if (!data || typeof data !== 'object') return {}
   const o = data as Record<string, unknown>
-  if (o.location && typeof o.location === 'object') return o.location as GbpRawLocation
-  if (o.data && typeof o.data === 'object' && !Array.isArray(o.data)) return o.data as GbpRawLocation
+  if (o.location && typeof o.location === 'object') {
+    const inner = o.location as Record<string, unknown>
+    if (looksLikeFullLocation(inner) && !looksLikeFullLocation(o)) return inner as GbpRawLocation
+  }
+  if (o.data && typeof o.data === 'object' && !Array.isArray(o.data)) {
+    const inner = o.data as Record<string, unknown>
+    if (looksLikeFullLocation(inner) && !looksLikeFullLocation(o)) return inner as GbpRawLocation
+  }
   return o as GbpRawLocation
 }
 
@@ -490,14 +548,21 @@ function normalizeLocation(raw: GbpRawLocation): GoogleLocation {
   for (const c of raw.categories?.additionalCategories ?? []) {
     if (c?.displayName) categories.push(c.displayName)
   }
+  // The derived summary block (current shape) is the richest identity
+  // source; the older metadata block and bare fields remain as fallbacks.
+  const summary = raw.location && typeof raw.location === 'object' ? raw.location : null
   const placeId =
     raw.placeId ??
     raw.placeID ??
     raw.googlePlaceId ??
+    summary?.placeId ??
     raw.metadata?.placeId ??
+    extractPlaceIdFromUri(summary?.reviewUrl) ??
     extractPlaceIdFromUri(raw.metadata?.newReviewUri) ??
     extractPlaceIdFromUri(raw.metadata?.mapsUri) ??
     null
+  const trimmed = (v: unknown): string | null =>
+    typeof v === 'string' && v.trim() ? v.trim() : null
   return {
     periods,
     addressLines: Array.isArray(addr?.addressLines)
@@ -510,6 +575,11 @@ function normalizeLocation(raw: GbpRawLocation): GoogleLocation {
     phone: (raw.phoneNumbers?.primaryPhone ?? raw.primaryPhone)?.trim() || null,
     categories,
     placeId: typeof placeId === 'string' && placeId.trim() ? placeId.trim() : null,
+    websiteUri: trimmed(raw.websiteUri),
+    reviewUrl: trimmed(summary?.reviewUrl) ?? trimmed(raw.metadata?.newReviewUri),
+    mapsUri: trimmed(summary?.mapsUri) ?? trimmed(raw.metadata?.mapsUri),
+    isVerified: typeof summary?.isVerified === 'boolean' ? summary.isVerified : null,
+    title: trimmed(raw.title) ?? trimmed(summary?.name),
   }
 }
 
@@ -589,6 +659,47 @@ export async function listGoogleBusinessMedia(opts: {
   >(`/google-business/media?${qs.toString()}`)
   const rawList = Array.isArray(data) ? data : (data.mediaItems ?? data.media ?? data.data ?? [])
   return rawList.map(normalizeMediaItem).filter((p): p is GooglePhoto => p !== null)
+}
+
+// ── Google Business location WRITE (the listing's Website button) ────────────
+//
+// `PUT /v1/accounts/{accountId}/gmb-location-details` — Zernio proxies
+// Google's Business Information API `locations.patch` (updateMask required;
+// websiteUri / regularHours / phoneNumbers / categories / serviceItems all
+// legal). Confirmed against the PUBLISHED OpenAPI spec (v1.0.4, pulled
+// 2026-08-05 — the onboarding overhaul's Phase A; this spec supersedes the
+// "Zernio is pull-only for listing fields" note in
+// docs/zernio-google-integration.md). PATH SHAPE NOTE: the spec's canonical
+// form is account-scoped (`/accounts/{accountId}/gmb-…`), unlike the legacy
+// flat `/google-business/…?accountId=` namespace the read wrappers above
+// ride; new endpoints follow the published spec.
+//
+// Deliberately NARROW — this wrapper writes the ONE field the incident was
+// about. A general-purpose location writer invites unreviewed listing edits;
+// hours/phone write-back arrives as its own reviewed slice.
+
+/**
+ * Point the listing's Website button at `websiteUri`. The caller (the
+ * `gbp_website_fix` proposal executor) re-reads the listing afterwards —
+ * Google sometimes strips query params from this field, and any edit can
+ * trigger an automated listing re-review, so writes are always explicit,
+ * human-approved, and verified. Throws on a non-2xx.
+ */
+export async function updateGoogleBusinessWebsiteUri(opts: {
+  accountId: string
+  locationId?: string
+  websiteUri: string
+}): Promise<void> {
+  const qs = new URLSearchParams()
+  if (opts.locationId) qs.set('locationId', opts.locationId)
+  const suffix = qs.size > 0 ? `?${qs.toString()}` : ''
+  await zernioFetch(
+    `/accounts/${encodeURIComponent(opts.accountId)}/gmb-location-details${suffix}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ updateMask: 'websiteUri', websiteUri: opts.websiteUri }),
+    },
+  )
 }
 
 // ── Google Business performance (local metrics) ───────────────────────────────

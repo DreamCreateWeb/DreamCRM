@@ -191,6 +191,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
       convertedAt: schema.lead.convertedAt,
       utmSource: schema.lead.utmSource,
       utmMedium: schema.lead.utmMedium,
+      utmCampaign: schema.lead.utmCampaign,
       referrer: schema.lead.referrer,
     })
     .from(schema.lead)

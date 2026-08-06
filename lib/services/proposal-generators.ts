@@ -162,6 +162,10 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
     capability: 'schedule_gap',
     summary: 'Couldn’t check the week ahead for open chair time just now — I’ll keep trying.',
   },
+  gbp_website_fix: {
+    capability: 'gbp_website_fix',
+    summary: 'Couldn’t check where your Google listing points just now — I’ll keep trying.',
+  },
   autonomy: {
     capability: 'proposal_engine',
     summary: 'Couldn’t finish something you’d handed over to me — I’ll try it again shortly.',
@@ -337,6 +341,11 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
           () => generateContentPlanProposals(org.id, org.name, now, tz, softFailed('content_plan')),
         ],
         ['social_post', () => generateSocialPostProposals(org.id, org.name, now, tz, softFailed('social_post'))],
+        // LISTING TRUTH (the onboarding overhaul, Phase A): does the
+        // practice's Google listing point patients at their real site?
+        // No AI, no patient mail — reads the hourly sync's snapshot and
+        // files at most one card a month.
+        ['gbp_website_fix', () => generateGbpWebsiteFixProposals(org.id, now, tz)],
         // THE WEEK AHEAD before the general recall: both reach for the same
         // audience, and the more specific, time-critical answer gets first
         // refusal. Each also stands down while the other's card is open, so
@@ -523,6 +532,7 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
   const leadIds = new Map<string, string>()
   const socialProposals: Array<{ id: string; createdAt: Date }> = []
   const campaignProposals: string[] = []
+  const gbpProposals: string[] = []
   for (const p of open) {
     const payload = (p.payload ?? {}) as Record<string, unknown>
     if (p.capability === 'review_reply' && typeof payload.externalReviewId === 'string') {
@@ -533,6 +543,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       socialProposals.push({ id: p.id, createdAt: p.createdAt })
     } else if (p.capability === 'outreach_campaign') {
       campaignProposals.push(p.id)
+    } else if (p.capability === 'gbp_website_fix') {
+      gbpProposals.push(p.id)
     }
   }
   if (reviewIds.size > 0) {
@@ -610,6 +622,20 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       console.error('[proposals] recall-stats read failed during sweep', e)
     }
   }
+  // A "point Google at your site" card rots the moment the listing reads
+  // healthy — the owner may have pasted the URL by hand (the hourly sync's
+  // snapshot is the evidence). closeRecoveredProposal's attribution then
+  // separates our own stranded attempt (narrate once) from a hand fix
+  // (silent expire).
+  if (gbpProposals.length > 0) {
+    try {
+      const { getGbpListingTruth } = await import('@/lib/services/gbp-listing')
+      const truth = await getGbpListingTruth(organizationId)
+      if (truth.state === 'ok') toExpire.push(...gbpProposals)
+    } catch (e) {
+      console.error('[proposals] gbp listing-truth read failed during sweep', e)
+    }
+  }
 
   if (toExpire.length > 0) {
     // NARRATE-ONCE UNDER RECOVERY, in the sweep too (verification round 3):
@@ -666,6 +692,82 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
     }
   }
   return expired
+}
+
+// ── LISTING TRUTH (the onboarding overhaul, Phase A slice 1) ─────────────────
+// The month bucket in the sourceKey rides the existing monthKey helper:
+// sourceKey idempotency is FOREVER (open or decided), so without a time
+// bucket an expired card would burn the key and a real, persisting mismatch
+// could never be raised again; monthly is the honest middle between nagging
+// and abandonment.
+
+/** How long a listing-fix card lives — well under the month bucket, so a
+ *  card that expires unanswered goes quiet for the rest of its month
+ *  rather than instantly refiling. */
+const GBP_FIX_TTL_DAYS = 21
+
+/**
+ * Does the practice's Google Business listing point patients at their real
+ * website? Reads the hourly GBP sync's snapshot (clinic_profile.gbp_listing
+ * via getGbpListingTruth) — NO network, NO AI — and files at most ONE card
+ * a month when the Website button is missing or aims somewhere else.
+ *
+ * Born from a real incident (docs/onboarding-overhaul.md): a clinic whose
+ * listing pointed at a dead legacy site lost every Google click for months
+ * while every dashboard surface read healthy.
+ *
+ * Deliberate silences:
+ *  - 'unknown' files nothing — a card built on an unreadable value would
+ *    tell the practice something untrue about their own listing.
+ *  - An UNVERIFIED listing files nothing: Google won't publish edits until
+ *    Voice of Merchant, so "say yes and I'll fix it" would be a promise the
+ *    write can't keep. The connect/verify journey is Phase C's work.
+ *  - The demo org never reaches here (the driver scans non-demo orgs), and
+ *    the demo's seeded snapshot reads healthy by construction anyway.
+ */
+export async function generateGbpWebsiteFixProposals(
+  organizationId: string,
+  now: Date,
+  timeZone: string,
+): Promise<number> {
+  const { getGbpListingTruth } = await import('@/lib/services/gbp-listing')
+  const truth = await getGbpListingTruth(organizationId)
+  if (!truth.connected || truth.isDemo) return 0
+  if (truth.state !== 'mismatch' && truth.state !== 'missing') return 0
+  if (truth.snapshot?.isVerified === false) return 0
+  if (!truth.siteUrl || !truth.targetUrl) return 0
+
+  const { comparableUrl } = await import('@/lib/gbp-listing')
+  const target = comparableUrl(truth.siteUrl) ?? truth.siteUrl
+  const sourceKey = `gbp_website_fix:${monthKey(now, timeZone)}:${target}`
+  if (await sourceKeyTaken(organizationId, sourceKey)) return 0
+  if (await recentlyDeclined(organizationId, 'gbp_website_fix', now)) return 0
+  // The month rollover must not stack a second card on an unanswered first.
+  if (await hasOpenProposal(organizationId, 'gbp_website_fix')) return 0
+
+  const missing = truth.state === 'missing'
+  const currentUri = truth.snapshot?.websiteUri ?? null
+  const title = missing
+    ? 'Your Google listing has no website button'
+    : 'Google is sending patients to the wrong website'
+  const body = missing
+    ? `Your Google Business listing doesn’t link to a website at all — patients who find you on Google have no path to ${truth.siteUrl} or online booking. Say yes and I’ll add the link; I’ll check it took and note it in your activity.`
+    : `The “Website” button on your Google Business listing points at ${currentUri} — not your site. Patients who find you on Google and tap it never reach ${truth.siteUrl}. Say yes and I’ll point Google at your site; I’ll check it took and note it in your activity.`
+  const { filed } = await fileProposal({
+    organizationId,
+    capability: 'gbp_website_fix',
+    sourceKey,
+    title,
+    body,
+    payload: {
+      targetUrl: truth.targetUrl,
+      siteUrl: truth.siteUrl,
+      previousUri: currentUri,
+      state: truth.state,
+    },
+    expiresAt: new Date(now.getTime() + GBP_FIX_TTL_DAYS * DAY_MS),
+  })
+  return filed ? 1 : 0
 }
 
 // ── Shared AI drafting helper ────────────────────────────────────────────────

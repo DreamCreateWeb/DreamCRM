@@ -193,6 +193,11 @@ const GOOGLE_LOC: GoogleLocation = {
   phone: '(555) 867-5309',
   categories: ['Dentist'],
   placeId: null,
+  websiteUri: null,
+  reviewUrl: null,
+  mapsUri: null,
+  isVerified: null,
+  title: null,
 }
 
 beforeEach(() => {
@@ -315,6 +320,30 @@ describe('syncGoogleBusinessProfile', () => {
     expect(detail.changes.phone).toEqual({ from: undefined, to: '(555) 867-5309' })
     expect((detail.changes.address.to as Record<string, unknown>).addressLine1).toBe('742 Evergreen Terrace')
     expect(detail.changes.hours.to).toBeTruthy()
+  })
+
+  it('stamps the LISTING TRUTH snapshot (gbp_listing) on every sync — even when all profile fields are manual', async () => {
+    store.profiles = [fullProfile()] // all sources manual → no field writes
+    setConnected()
+    client.getGoogleBusinessLocation.mockResolvedValue({
+      ...GOOGLE_LOC,
+      websiteUri: 'https://old-wix-site.com/home',
+      reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJx',
+      mapsUri: 'https://maps.google.com/maps?cid=9',
+      isVerified: true,
+      title: 'Springfield Dental',
+      placeId: 'ChIJx',
+    })
+    const r = await syncGoogleBusinessProfile(ORG, { force: false })
+    expect(r.ok).toBe(true)
+    const snap = store.profiles[0].gbpListing as Record<string, unknown>
+    // A snapshot of GOOGLE's state, not a clinic setting — the manual-source
+    // safety invariant must NOT suppress it (the mismatch detector's feed).
+    expect(snap.websiteUri).toBe('https://old-wix-site.com/home')
+    expect(snap.reviewUrl).toContain('writereview')
+    expect(snap.isVerified).toBe(true)
+    expect(snap.title).toBe('Springfield Dental')
+    expect(typeof snap.fetchedAt).toBe('string')
   })
 
   it('a change ONLY in addressLine2/state still narrates — every written address column is compared (round-5 close-out)', async () => {

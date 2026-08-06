@@ -23,8 +23,14 @@ import type {
  * hours/location PR). PULLs the clinic's VERIFIED hours, address, phone, and
  * photos from their connected Google Business Profile into `clinic_profile`, so
  * the public site, booking slot generation, footer "open today", and JSON-LD
- * all ride the clinic's real Google data automatically. ONE-DIRECTIONAL —
- * Zernio is pull-only for listing fields, so there is NO write-back to Google.
+ * all ride the clinic's real Google data automatically. THIS MODULE is
+ * one-directional (pull). Write-back exists since 2026-08-05 (Zernio's
+ * locations.patch proxy) but ONLY through the gbp_website_fix proposal
+ * executor — a background sync must never edit a practice's public listing;
+ * every write is explicit, human-approved, and verified after the fact.
+ * The sync also stamps the LISTING TRUTH snapshot (clinic_profile.
+ * gbp_listing — what Google itself says: websiteUri/placeId/reviewUrl/
+ * isVerified) that the mismatch detector reads.
  *
  * SAFETY INVARIANT (the whole point of the `*_source` flags): an automatic /
  * background sync must NOT overwrite a field whose source is 'manual' — only
@@ -165,6 +171,15 @@ const DEMO_GOOGLE_LOCATION: GoogleLocation = {
   phone: '(512) 555-0100',
   categories: ['Dentist', 'Cosmetic dentist'],
   placeId: 'ChIJDemo000000000_DreamDental',
+  // The demo listing points at the demo clinic's own site (subdomain form —
+  // one of the acceptable identities regardless of routing env), so the demo
+  // showcases the HEALTHY listing-truth state; the mismatch card is a real-
+  // clinic surface only.
+  websiteUri: 'https://acme-dental-demo.dreamcreatestudio.com',
+  reviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJDemo000000000_DreamDental',
+  mapsUri: 'https://maps.google.com/maps?cid=000000000000',
+  isVerified: true,
+  title: 'Dream Dental',
 }
 
 /** Synthetic Google photos for the demo — reuses the demo office-photo URLs so
@@ -359,6 +374,20 @@ export async function syncGoogleBusinessProfile(
   // pull returns data — a safe trade vs. wiping on a transient failure.)
   const photoViews = toPhotoViews(photos)
   if (photoViews.length > 0) patch.googlePhotos = photoViews
+  // LISTING TRUTH (onboarding overhaul Phase A): stamp what the listing
+  // itself says — every sync, unconditionally. This is a snapshot of
+  // GOOGLE's state, not a clinic setting, so the manual-source safety
+  // invariant above doesn't apply; the mismatch detector and the
+  // gbp_website_fix proposal generator read it via parseGbpListingSnapshot.
+  patch.gbpListing = {
+    websiteUri: location.websiteUri,
+    placeId: location.placeId,
+    reviewUrl: location.reviewUrl,
+    mapsUri: location.mapsUri,
+    isVerified: location.isVerified,
+    title: location.title,
+    fetchedAt: new Date().toISOString(),
+  }
   patch.googleSyncedAt = new Date()
   patch.updatedAt = new Date()
 

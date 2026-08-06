@@ -73,6 +73,7 @@ const CAPABILITY_ICON: Record<string, string> = {
   social_post: '📣',
   inquiry_response: '💬',
   outreach_campaign: '💌',
+  gbp_website_fix: '📍',
 }
 
 /** Substitute the campaign merge tokens with a readable sample so the card

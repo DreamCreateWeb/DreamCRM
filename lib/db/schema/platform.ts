@@ -376,6 +376,15 @@ export const clinicProfile = pgTable('clinic_profile', {
   // curated gallery. Shape: Array<{ url, sourceUrl?, category? }> (defensive —
   // see resolveGooglePhotos in lib/services/gbp-sync.ts). Null = none pulled.
   googlePhotos: jsonb('google_photos'),
+  // LISTING TRUTH (the onboarding overhaul, Phase A — migration 0146): what
+  // the clinic's Google Business listing itself says, stamped by every GBP
+  // sync. Shape: GbpListingSnapshot (lib/gbp-listing.ts) — websiteUri /
+  // placeId / reviewUrl / mapsUri / isVerified / title / fetchedAt. The
+  // Website-button mismatch detector reads this (a listing pointing at a
+  // dead legacy site is invisible everywhere else); parsed defensively via
+  // parseGbpListingSnapshot, so junk here degrades to "unknown", never a
+  // false fix-it card. Null = no sync has run since the column shipped.
+  gbpListing: jsonb('gbp_listing'),
 
   // Which Dream Create plan tier this clinic is on. Drives module gating.
   // Mirrors Stripe subscription state; updated by the Stripe webhook.

@@ -21,6 +21,19 @@ per-platform social analytics + Facebook reviews) all shipped (2026-06-15).**
 >   is a permanent redirect to `/integrations`; the underlying service / connect
 >   route / server actions all live on. Where this doc says `/channels` below,
 >   read `/integrations`.
+> - **Write-back EXISTS now (2026-08-05, the onboarding overhaul Phase A):**
+>   every "pull-only — no write-back / would require Google's native API"
+>   note below is STALE. Zernio's published OpenAPI (v1.0.4) ships
+>   `PUT /v1/accounts/{accountId}/gmb-location-details` (proxies Google's
+>   `locations.patch`; websiteUri/regularHours/phoneNumbers/categories/
+>   serviceItems), plus place-actions, media upload, services, attributes
+>   and verification writes. We wrap ONLY the websiteUri write so far
+>   (`updateGoogleBusinessWebsiteUri` in `lib/zernio.ts`, driven by the
+>   `gbp_website_fix` proposal executor — human-approved, verified after
+>   the write, never a background sync). NOTE the spec's canonical paths
+>   are account-scoped (`/v1/accounts/{id}/gmb-…`), newer than the flat
+>   `/google-business/…?accountId=` namespace the read wrappers use; new
+>   wrappers follow the spec. See docs/onboarding-overhaul.md §2.5.
 > - **Next major Integrations work (plan approved, NOT built):** reframe
 >   Integrations as a menu of FEATURE BUNDLES (Practice Management + Google
 >   Business included; Social Media a paid add-on; Patient Communications;

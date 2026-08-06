@@ -588,7 +588,11 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0145** (`provider_message_id` + lookup indexes on
+  migration: **0146** (`clinic_profile.gbp_listing` jsonb — the LISTING
+  TRUTH snapshot: what the clinic's Google Business listing itself says
+  (websiteUri/placeId/reviewUrl/mapsUri/isVerified/title/fetchedAt),
+  stamped by every GBP sync, read by the `gbp_website_fix` mismatch
+  detector via `parseGbpListingSnapshot`). Before it: **0145** (`provider_message_id` + lookup indexes on
   `appointment_reminder_log` and `campaign_events` — the SMS delivery-receipt
   correlation key, stamped at send time, read by lib/services/sms-dlr.ts).
   Before it: **0144** (`clinic_sms_config` renamed provider-neutral —
@@ -928,10 +932,39 @@ sitemap/robots/OG.
    onboarding is unclaimed ground). Proposed shape: Phase A GBP listing
    truth (detect/guide/verify + UTM channel) → B readiness resolver → C
    onboarding as the employee's first week (setup asks ARE proposals;
-   booking request-mode until hours confirmed) → D native GBP write-back
-   (approval-gated). Five open questions for the owner at the bottom of
-   the doc (Google application, Zernio ask, booking gating, trial-expiry
-   honesty, positioning). No code started.
+   booking request-mode until hours confirmed) → D GBP write-back.
+   **Phase A slice 1 SHIPPED 2026-08-05** (LISTING TRUTH end-to-end;
+   Phases A+D merged the day Zernio's published OpenAPI v1.0.4 revealed a
+   locations.patch proxy — no Google application needed): migration 0146
+   `clinic_profile.gbp_listing` stamped by every GBP sync (the sync's
+   normalizer also grew the summary-sibling shape fork — the current
+   Zernio response nests a derived `location` summary beside top-level
+   fields, and the old unwrap would have swallowed hours/website);
+   pure `lib/gbp-listing.ts` (forgiving URL compare — scheme/www/slash/
+   query are noise, junk degrades to 'unknown' never a false mismatch;
+   `buildListingWebsiteUrl` UTM tags + `isGbpTaggedAttribution` reads the
+   same marker); `gbp_website_fix` proposal (registered ask-first, NOT
+   grantable — edits the practice's PUBLIC listing, no cadence to hand
+   over; generator is AI-free, monthly sourceKey bucket, files ONLY on
+   mismatch/missing + verified + connected — 'unknown' says nothing and
+   an unverified listing files nothing since Google won't publish the
+   edit; executor via `updateGoogleBusinessWebsiteUri` (the spec-path PUT)
+   with live staleness re-check at the tap — already-correct retires
+   rather than re-writes, since ANY edit can trigger a listing re-review —
+   re-read-after-write because Google strips params, refused-write keeps
+   the card and names the by-hand path; sweep retires healed cards through
+   closeRecoveredProposal, attribution = attempt marker + snapshot 'ok');
+   'gbp' lead channel ("Google profile") keyed on the utm_campaign marker
+   ahead of search. Next slices: place-actions Book-online link (the
+   listing's OTHER patient door), hours/phone write-back, readiness
+   resolver (Phase B). Owner actions pending: create Dream Create's GBP
+   (dreamcreateweb.com pair is simplest — the site is real), optional
+   Google Basic-Access application as vendor insurance; Mammoth Spring
+   fix now just needs THEIR GBP connected to DreamCRM once they recover
+   their Google login (or any clinic's first write validates plan
+   entitlement). Four open questions for the owner remain at the bottom
+   of the doc (application, booking gating, trial-expiry honesty,
+   positioning).
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live

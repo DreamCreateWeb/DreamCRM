@@ -85,6 +85,15 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // the practice may know something about next Thursday that the schedule
   // does not.
   { key: 'schedule_gap', label: 'Invite patients in when the week is quiet', defaultTrust: 'ask' },
+  // LISTING TRUTH (the onboarding overhaul, Phase A). The card that points
+  // the practice's Google listing "Website" button at their real site — born
+  // from a clinic whose button aimed at a dead legacy site and lost every
+  // Google click for months, invisibly. Ask-first and NOT grantable below:
+  // it edits the practice's PUBLIC Google listing, any edit can trigger an
+  // automated re-review of the whole profile, and it fires at most a
+  // handful of times in a practice's life — there is no cadence to hand
+  // over, only individual bounded yeses.
+  { key: 'gbp_website_fix', label: 'Point your Google listing at your website', defaultTrust: 'ask' },
 ] as const
 
 /**
