@@ -422,6 +422,27 @@ vendor-independence insurance.
 2. File the Google Basic-Access application anyway as vendor-independence
    insurance? (Free, 1–6 weeks, needs Dream Create's own 60+-day verified
    GBP; recommended: yes, low effort, hedges Zernio risk.)
+   **Owner update 2026-08-05: Dream Create has NO GBP yet** — the 60-day
+   clock hasn't started. Plan: create it now (business.google.com/add;
+   service-area business, honest category, complete profile), verify
+   (expect video verification for a SAB), and ALIGN THE DOMAIN PAIR first
+   — the application wants applicant-email domain ↔ GBP website domain to
+   match. Recommended pair: GBP website = www.dreamcreatestudio.com +
+   a Google account on that domain (apex inbound email is already live);
+   the alternative is keeping everything on dreamcreateweb.com, viable
+   only if a real site lives there. Verified this week → eligible ~Oct 10,
+   2026. None of this blocks Phases A–D (the Zernio path needs no
+   application).
+   **Mammoth Spring note:** they lost their Google credentials (recovery
+   in progress) — so FIRST check whether their org ever connected GBP to
+   DreamCRM: an existing Zernio OAuth token lets the machine fix their
+   website button without their login. If no token, their recovery is the
+   gate, and the moment they're back in, connecting GBP to DreamCRM comes
+   first so the fix never again depends on remembered credentials. A
+   plan-gating probe that needs no one's recovery: write All About
+   Smiles' websiteUri to its CURRENT (already-correct) value — proves the
+   endpoint on our plan with zero visible change; caveat: any edit can
+   trigger an automated listing re-review, so this is an owner call.
 3. Should booking ship request-mode-by-default for new clinics until hours
    are confirmed (recommended), or stay live with an "unconfirmed hours"
    override?
