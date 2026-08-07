@@ -615,3 +615,20 @@ call — at 2 clinics it cannot matter yet.
   chairs = a number field; booking mode = a two-option radio,
   requests-first recommended. The invalidation sweep retires
   answered-elsewhere cards each tick. Suite 6,380 → 6,395.
+
+- **THE INVITE DOOR — SHIPPED 2026-08-07** (deployed as 8f1ee9e). The
+  §1.7 conversion gap closes: `CreateManagedClinicInput` grew an
+  operational `dossier` (phone, address, IANA timezone validated via Intl
+  — an unknown zone is dropped, never stored — and the Google place id,
+  which seeds `clinic_review_config`'s writereview link before the owner
+  ever logs in), and `convertProspectAction` now maps the WHOLE prospect
+  record instead of two fields. A converted California practice no longer
+  runs its reminders on America/New_York; /book's call-us fallback has a
+  phone from day one. The Path B routing already existed
+  (accept-invite → /welcome for owners whose site needs the AI pass) and
+  the setup cards + go-live lever apply to managed orgs automatically, so
+  the invite → machine-led-setup flow is now end-to-end: provision →
+  invite → accept → AI interview → setup cards in the inbox → go-live
+  lever. Suite 6,395 → 6,398. NOT yet carried: the manual add-clinic
+  form has no address/phone inputs (the dossier's main source is prospect
+  conversion; form fields are a later nicety).
