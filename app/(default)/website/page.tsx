@@ -32,6 +32,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { TrendChart } from '@/components/ui/charts'
 import { siteNeedsPersonalization } from '@/lib/services/starter-pack'
+import { getReadinessReport } from '@/lib/services/readiness'
+import GoLiveCard, { TakeOfflineLink } from './go-live-card'
 
 export const metadata = {
   title: 'Website - DreamCRM',
@@ -104,6 +106,12 @@ export default async function WebsiteHubPage() {
   ])
   // The Quick-edits services modal needs the picker library (owner/admin only).
   const library = canEdit ? await listLibraryForPicker(ctx.organizationId).catch(() => []) : []
+  // The go-live card's honest state — only loaded while the lever is
+  // un-pulled (raw row on purpose: live-ness is a serving fact, not a draft).
+  const goLiveReport =
+    canEdit && !liveProfile.siteLiveAt
+      ? await getReadinessReport(ctx.organizationId).catch(() => null)
+      : null
 
   const completeness = contentCompleteness(profile)
   // What's staged and not yet live — the publish card (owner/admin only).
@@ -225,7 +233,7 @@ export default async function WebsiteHubPage() {
           canEdit ? (
             <div className="flex items-center gap-2">
               <ActionButton variant="secondary" size="sm" href={siteUrl} target="_blank">
-                View live ↗
+                {liveProfile.siteLiveAt ? 'View live ↗' : 'Preview site ↗'}
               </ActionButton>
               <ActionButton variant="primary" size="sm" href="/website/editor">
                 Open the editor
@@ -238,6 +246,20 @@ export default async function WebsiteHubPage() {
           )
         }
       />
+
+      {/* ── THE GO-LIVE LEVER — the one deliberate act that makes the site
+          (booking included) public. Rendered only while un-pulled; fed by
+          the readiness resolver so the clinic decides with the truth in
+          front of them. "View live" above still shows THEM the real site
+          (editors bypass the coming-soon gate). ── */}
+      {canEdit && !liveProfile.siteLiveAt && goLiveReport && (
+        <GoLiveCard
+          siteHost={siteHost}
+          attention={goLiveReport.attention.map((f) => ({ id: f.id, label: f.label }))}
+          openRequired={goLiveReport.openRequired.map((f) => ({ id: f.id, label: f.label }))}
+          waiting={goLiveReport.waiting.map((f) => ({ id: f.id, label: f.label }))}
+        />
+      )}
 
       {/* ── The hero: your actual website, alive in a browser frame ───────── */}
       <div className="v2-card overflow-hidden mb-6">
@@ -544,6 +566,10 @@ export default async function WebsiteHubPage() {
           <span className="font-semibold">Share & QR cards</span>
           <span className="text-gray-500 dark:text-gray-400">print-ready for the front desk</span>
         </Link>
+        {/* The lever's reverse gear — quiet on purpose (a footer utility, not
+            a red button): "we found a problem, hide the site while we fix it"
+            is a legitimate, reversible ask. */}
+        {canEdit && liveProfile.siteLiveAt && <TakeOfflineLink />}
       </div>
     </div>
   )

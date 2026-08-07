@@ -48,6 +48,10 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   const { slug } = await ctx.params
   const data = await getClinicSiteBySlug(slug)
   if (!data) return new NextResponse('Not found', { status: 404 })
+  // Behind the go-live lever there is nothing to index (robots.txt already
+  // disallows) — an empty 404 beats a sitemap of pages that render "Coming
+  // soon".
+  if (!data.profile.siteLiveAt) return new NextResponse('Not found', { status: 404 })
 
   const base = publicSiteUrl(data)
   const lastmod = data.profile.updatedAt

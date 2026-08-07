@@ -25,6 +25,7 @@ function baseInput(over: Partial<ReadinessInput> = {}): ReadinessInput {
     siteTeamCount: 2,
     hours: { present: true, source: 'manual', looksSeeded: false },
     selfBookingEnabled: true,
+    siteLive: true,
     domainState: null,
     gsc: { platformConnected: true, customDomain: false },
     gbp: { connected: true, errored: false, websiteButton: 'ok' },
@@ -89,6 +90,20 @@ describe('the ghost schedule (booking on unconfirmed hours)', () => {
     expect(get(r.facts, 'hours').grade).toBe('ready')
     expect(get(r.facts, 'booking').grade).toBe('ready')
   })
+  it('behind the go-live lever the ghost schedule is impossible — booking grades na', () => {
+    const r = resolveReadiness(
+      baseInput({
+        siteLive: false,
+        hours: { present: true, source: 'manual', looksSeeded: true },
+      }),
+    )
+    expect(get(r.facts, 'booking').grade).toBe('na')
+    expect(r.attention).toHaveLength(0)
+    // The hours themselves still want confirming — that's what feeds the
+    // go-live card's open list.
+    expect(get(r.facts, 'hours').grade).toBe('todo')
+  })
+
   it('request mode is a valid choice, never an alarm', () => {
     const r = resolveReadiness(
       baseInput({

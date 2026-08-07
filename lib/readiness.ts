@@ -89,6 +89,9 @@ export interface ReadinessInput {
     looksSeeded: boolean
   }
   selfBookingEnabled: boolean
+  /** The go-live lever (clinic_profile.site_live_at). While false, the
+   *  public site serves the coming-soon page, so booking exposure is moot. */
+  siteLive: boolean
   /** Custom-domain state ('active' | 'failed' | anything-else=pending), or
    *  null when the clinic is on the free address. */
   domainState: string | null
@@ -249,25 +252,36 @@ export function resolveReadiness(input: ReadinessInput): ReadinessReport {
           ),
   )
   facts.push(
-    input.selfBookingEnabled && !hoursConfirmed
-      ? fact(
+    !input.siteLive
+      ? // Behind the go-live lever nothing public exists, so booking can't
+        // leak — the ghost schedule is impossible until the lever is pulled.
+        fact(
           'booking',
-          'Booking is live on unconfirmed hours',
-          'attention',
-          input.hours.present
-            ? 'Patients can book real appointments into hours you haven’t confirmed yet — confirm your week or switch booking to request mode.'
-            : 'Your booking page shows “closed” every day until hours are set.',
+          'Booking opens with your site',
+          'na',
+          'Online booking goes public when you take the site live.',
           '/settings/practice',
+          true,
         )
-      : fact(
-          'booking',
-          input.selfBookingEnabled ? 'Online booking live' : 'Booking in request mode',
-          'ready',
-          input.selfBookingEnabled
-            ? 'Patients can book into your confirmed hours.'
-            : 'Patients request a time; you approve each one.',
-          '/settings/practice',
-        ),
+      : input.selfBookingEnabled && !hoursConfirmed
+        ? fact(
+            'booking',
+            'Booking is live on unconfirmed hours',
+            'attention',
+            input.hours.present
+              ? 'Patients can book real appointments into hours you haven’t confirmed yet — confirm your week or switch booking to request mode.'
+              : 'Your booking page shows “closed” every day until hours are set.',
+            '/settings/practice',
+          )
+        : fact(
+            'booking',
+            input.selfBookingEnabled ? 'Online booking live' : 'Booking in request mode',
+            'ready',
+            input.selfBookingEnabled
+              ? 'Patients can book into your confirmed hours.'
+              : 'Patients request a time; you approve each one.',
+            '/settings/practice',
+          ),
   )
 
   // ── Domain + search data ──────────────────────────────────────────────────

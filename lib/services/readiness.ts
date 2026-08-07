@@ -44,6 +44,7 @@ export async function getReadinessInput(
       tagline: schema.clinicProfile.tagline,
       onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
       selfBookingEnabled: schema.clinicProfile.selfBookingEnabled,
+      siteLiveAt: schema.clinicProfile.siteLiveAt,
       websiteDomain: schema.clinicProfile.websiteDomain,
       customDomainStatus: schema.clinicProfile.customDomainStatus,
     })
@@ -164,6 +165,7 @@ export async function getReadinessInput(
       looksSeeded: hoursLookSeeded(profile.hours, DEFAULT_CLINIC_HOURS),
     },
     selfBookingEnabled: profile.selfBookingEnabled !== false,
+    siteLive: profile.siteLiveAt != null,
     domainState: profile.websiteDomain ? (domainStatus?.state ?? 'pending') : null,
     gsc: { platformConnected: platformGsc, customDomain: !!profile.websiteDomain },
     gbp: {

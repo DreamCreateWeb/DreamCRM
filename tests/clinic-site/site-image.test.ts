@@ -142,6 +142,8 @@ describe('the public site renders uploaded photos through SiteImage', () => {
     'app/site/[slug]/opengraph-image.tsx': 'ImageResponse (satori), not the DOM',
     'app/site/[slug]/intake/[formSlug]/intake-form-runner.tsx':
       'previews the patient’s own just-picked file (blob: URLs)',
+    'components/clinic-site/coming-soon.tsx':
+      'pre-launch placeholder: a small fixed-height logo, no cover-crop math to get right',
   }
 
   function walk(dir: string, out: string[] = []): string[] {

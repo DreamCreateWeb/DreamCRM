@@ -525,3 +525,27 @@ export function staffInitials(fullName: string): string {
   const last = words.length > 1 ? words[words.length - 1][0] : ''
   return (first + last).toUpperCase()
 }
+
+/**
+ * THE GO-LIVE GATE (onboarding overhaul). Should this request see the
+ * branded coming-soon page instead of the real site? One rule, one home —
+ * the site layout is the single choke point that calls it, covering every
+ * public page including /book.
+ *
+ *  - A live site (siteLiveAt set) is never gated.
+ *  - The clinic's own editors always see the real site (that's how they
+ *    inspect it before pulling the lever).
+ *  - Gallery/template frames are editor-only surfaces already; they render
+ *    the real site so the hub preview + template gallery keep working
+ *    pre-live.
+ */
+export function shouldShowComingSoon(opts: {
+  siteLiveAt: Date | string | null | undefined
+  canEdit: boolean
+  isFrame: boolean
+}): boolean {
+  if (opts.siteLiveAt) return false
+  if (opts.canEdit) return false
+  if (opts.isFrame) return false
+  return true
+}

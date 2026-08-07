@@ -420,6 +420,20 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   // Resolve the org from the PUBLIC slug, never a client-posted orgId.
   const orgId = await resolveClinicOrgIdBySlug(slug ?? '')
   if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+  // The go-live lever guards the ACTION too, not just the page: the layout's
+  // coming-soon gate stops a visitor reaching /book, but a server action can
+  // be invoked directly — a pre-live clinic must not accept real bookings
+  // into hours nobody has confirmed.
+  {
+    const [gate] = await db
+      .select({ siteLiveAt: clinicProfile.siteLiveAt })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, orgId))
+      .limit(1)
+    if (!gate?.siteLiveAt) {
+      throw new Error('This practice isn’t taking online bookings yet. Please call the office.')
+    }
+  }
   if (!firstName || !lastName) throw new Error('Name is required')
   if (!startTimeRaw) throw new Error('Appointment date and time are required')
 

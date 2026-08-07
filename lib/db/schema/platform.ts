@@ -339,6 +339,17 @@ export const clinicProfile = pgTable('clinic_profile', {
   // no backfill. Settings → Practice → "Patient self-scheduling".
   selfBookingEnabled: boolean('self_booking_enabled').notNull().default(true),
 
+  // THE GO-LIVE LEVER (onboarding overhaul, owner ruling 2026-08-07: "one
+  // big lever — there's too much on the website that could go wrong if it
+  // has false information"). Null = the public site (including /book) shows
+  // a branded coming-soon page to visitors; the clinic's own editors always
+  // see the real site. Set once by the owner/admin pulling the lever on the
+  // Website hub; clearable ("take offline") because a lever that can't be
+  // un-pulled is a trap. The 0147 migration backfills every EXISTING clinic
+  // to live — they were live before the lever existed, and going dark on
+  // deploy would be the exact false-information incident this prevents.
+  siteLiveAt: timestamp('site_live_at'),
+
   // The "Message us" chat bubble on the PUBLIC clinic site. A visitor's
   // message lands as an inbound thread in /messages (reply goes out by
   // email). Default ON — it's the site's lowest-friction contact path;

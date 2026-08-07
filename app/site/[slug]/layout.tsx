@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { getClinicThemeBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
-import { appBaseUrl } from '@/lib/clinic-site-helpers'
+import { appBaseUrl, shouldShowComingSoon } from '@/lib/clinic-site-helpers'
+import ComingSoon from '@/components/clinic-site/coming-soon'
 import { canEditClinic } from '@/lib/clinic-site-edit'
 import { paletteCss } from '@/lib/clinic-site-theme'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
@@ -56,6 +57,13 @@ export default async function ClinicSiteLayout({
   // clinic-local day so a timed bar ("closed through Fri") doesn't drop a day
   // early on the server's UTC clock.
   let announcement: ReturnType<typeof activeAnnouncement> = null
+  // THE GO-LIVE GATE: while the lever is un-pulled (site_live_at null), a
+  // visitor sees the branded coming-soon page instead of ANY real page —
+  // this layout is the one choke point every public page (including /book)
+  // renders through. Editors and gallery frames keep the real site
+  // (shouldShowComingSoon owns the rule).
+  let comingSoon: { clinicName: string; phone: string | null; logoUrl: string | null } | null =
+    null
   if (orgId && !isFrame) {
     const [prof] = await db
       .select({
@@ -63,10 +71,20 @@ export default async function ClinicSiteLayout({
         displayName: clinicProfile.displayName,
         announcement: clinicProfile.announcement,
         timezone: clinicProfile.timezone,
+        siteLiveAt: clinicProfile.siteLiveAt,
+        phone: clinicProfile.phone,
+        logoUrl: clinicProfile.logoUrl,
       })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, orgId))
       .limit(1)
+    if (prof && shouldShowComingSoon({ siteLiveAt: prof.siteLiveAt, canEdit, isFrame })) {
+      comingSoon = {
+        clinicName: prof.displayName ?? 'Our practice',
+        phone: prof.phone ?? null,
+        logoUrl: prof.logoUrl ?? null,
+      }
+    }
     if (prof && prof.enabled !== false) {
       chatWidget = { enabled: true, clinicName: prof.displayName ?? 'our office' }
     }
@@ -74,6 +92,17 @@ export default async function ClinicSiteLayout({
       const tz = prof.timezone || 'America/New_York'
       announcement = activeAnnouncement(prof.announcement, clinicDayKey(new Date(), tz))
     }
+  }
+  if (comingSoon) {
+    // Pre-live visitor: the palette still paints (it's the clinic's brand)
+    // but NO site chrome — no nav, no chat, no beacon, no announcement.
+    return (
+      <>
+        <TemplateFontLinks fonts={def.fonts} />
+        <style>{paletteCss(palette)}</style>
+        <ComingSoon {...comingSoon} />
+      </>
+    )
   }
   return (
     <>

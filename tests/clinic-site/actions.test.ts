@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const insertedRows: Array<{ table: string; values: unknown }> = []
 const selectStubs = {
   patient: null as { id: string; firstName?: string; lastName?: string } | null,
+  /** The go-live gate's answer — defaults live; the gate test flips it. */
+  siteLiveAt: new Date() as Date | null,
   profile: null as
     | {
         email: string | null
@@ -41,6 +43,12 @@ vi.mock('@/lib/db', async () => {
         // family-safe id+name shape) vs profile lookup.
         if (cols && 'id' in cols && (Object.keys(cols).length === 1 || 'firstName' in cols)) {
           return chain(() => selectStubs.patient)
+        }
+        // The go-live gate's dedicated single-column select. Defaults LIVE so
+        // every pre-existing behavior test runs on a launched site; the gate
+        // test flips it.
+        if (cols && 'siteLiveAt' in cols && Object.keys(cols).length === 1) {
+          return chain(() => ({ siteLiveAt: selectStubs.siteLiveAt }))
         }
         return chain(() => selectStubs.profile)
       },
@@ -127,6 +135,7 @@ import { sendContactRequestEmail, sendBookingConfirmationEmail, sendNotification
 beforeEach(() => {
   insertedRows.length = 0
   selectStubs.patient = null
+  selectStubs.siteLiveAt = new Date()
   selectStubs.profile = null
   defaultForm = null
   vi.clearAllMocks()
@@ -306,6 +315,11 @@ describe('submitBookingRequest', () => {
     await expect(
       submitBookingRequest(form({ ...baseFields, slug: null })),
     ).rejects.toThrow(/clinic/i)
+  })
+
+  it('refuses bookings while the site is behind the go-live lever', async () => {
+    selectStubs.siteLiveAt = null
+    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/isn.t taking online bookings yet/i)
   })
 
   it('rejects missing first/last name', async () => {

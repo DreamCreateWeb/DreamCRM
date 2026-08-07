@@ -1734,6 +1734,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         visitTypeSettings: schema.clinicProfile.visitTypeSettings,
         recallDefaultMonths: schema.clinicProfile.recallDefaultMonths,
         onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
+        siteLiveAt: schema.clinicProfile.siteLiveAt,
         leadForms: schema.clinicProfile.leadForms,
         copyOverrides: schema.clinicProfile.copyOverrides,
         websiteDraft: schema.clinicProfile.websiteDraft,
@@ -1749,6 +1750,10 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // Backfill the interview stamp on legacy demos (seeded before the hub's
     // go-live checklist read it) — the demo site was always "personalized".
     if (!profile?.onboardingInterviewCompletedAt) patch.onboardingInterviewCompletedAt = new Date()
+    // The demo site is always LIVE — a freshly-minted demo org (new env, or
+    // a from-scratch resync) must never sit behind the go-live lever showing
+    // "Coming soon" to a prospect mid-pitch.
+    if (!profile?.siteLiveAt) patch.siteLiveAt = new Date()
     // Backfill the site announcement bar on legacy demos (migration 0134) so
     // the live demo site shows the strip. Only-when-unset — a clinic-authored
     // (or cleared) bar is never clobbered.
