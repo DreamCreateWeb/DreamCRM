@@ -556,3 +556,22 @@ the jump; cap the aggregate with a monthly included segment budget
 sends only; the per-patient frequency cap (0143) already bounds spam;
 surface usage honestly. Overage behavior (pause vs metered) is a later
 call — at 2 clinics it cannot matter yet.
+
+### Build log
+
+- **Phase B slice 1 — the readiness resolver (truth layer) — SHIPPED
+  2026-08-07** (deployed as 3f01f3a): pure `lib/readiness.ts` (facts
+  graded ready/attention/waiting/todo/na, anti-shame copy, optional
+  semantics, `hoursLookSeeded`) + `lib/services/readiness.ts` (one-pass
+  loader over the healthiest signal each subsystem exposes; per-load
+  degradation, null-is-never-all-set). Surfaces became views: the 11-task
+  activation checklist ticks on HEALTH (broken PMS ≠ done, GBP ≠ social,
+  `{}` ≠ configured, untouched hours seed ≠ set); the Website hub's
+  custom-domain Search-Console row is omitted rather than
+  forever-unfinished and its personalize row rides THE one predicate; the
+  Overview banner surfaces every broken subsystem (GBP website button,
+  dropped inbox, restricted Stripe, ghost-schedule booking-on-unconfirmed-
+  hours, SMS brand_action_needed) instead of PMS only. The ghost schedule
+  now at least ALERTS (the lever that prevents it ships in the go-live
+  slice). Next slices in the green-lit order: the go-live lever →
+  setup-as-Inbox-cards → the invite door → NexHealth + SMS kickoff.
