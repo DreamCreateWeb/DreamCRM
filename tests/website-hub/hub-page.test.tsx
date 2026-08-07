@@ -228,6 +228,9 @@ describe('the go-live checklist', () => {
   it('hides entirely once every row is done (calm chrome)', async () => {
     profileRow = makeProfile({
       onboardingInterviewCompletedAt: new Date(),
+      // The personalize row rides THE one predicate (siteNeedsPersonalization),
+      // which also demands the tagline moved off the starter sentence.
+      tagline: 'Gentle dentistry for the whole family',
       template: 'cosmetic',
       customDomainStatus: { state: 'active', domain: 'www.acmedental.com', requestedAt: 'x' },
     })
