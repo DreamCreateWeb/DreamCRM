@@ -575,3 +575,21 @@ call — at 2 clinics it cannot matter yet.
   now at least ALERTS (the lever that prevents it ships in the go-live
   slice). Next slices in the green-lit order: the go-live lever →
   setup-as-Inbox-cards → the invite door → NexHealth + SMS kickoff.
+
+- **The GO-LIVE LEVER — SHIPPED 2026-08-07** (deployed as d2bc1b6;
+  migration 0147 `clinic_profile.site_live_at`, every EXISTING clinic
+  grandfathered live in the same migration — verified post-deploy: the
+  demo site serves its real homepage). While un-pulled: visitors get a
+  branded coming-soon page from the ONE choke point every public page
+  renders through (`app/site/[slug]/layout.tsx` via the pure
+  `shouldShowComingSoon` — editors and gallery frames exempt, so preview
+  and the template gallery work pre-live); robots.txt disallows all; the
+  sitemap 404s; and `submitBookingRequest` refuses directly-invoked
+  bookings (the layout gate can't stop a hand-crafted POST). The Website
+  hub grows the lever card — fed by the readiness resolver, listing
+  attention/open/waiting HONESTLY but never blocking the pull ("clinics
+  choose") — plus a quiet reversible "Take site offline" in the utility
+  footer, and the header button says "Preview site" pre-live instead of
+  "View live". Readiness grades booking 'na' behind the lever (the ghost
+  schedule is impossible until live). The demo seeder self-heals
+  `site_live_at` so a fresh demo org never pitches "Coming soon".
