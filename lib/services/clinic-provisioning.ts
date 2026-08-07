@@ -48,6 +48,36 @@ export interface CreateManagedClinicInput {
   /** Optional brand seed — carried from a converted prospect so the new
    *  clinic boots in the brand we showed off in the demo. */
   brand?: { color?: string | null; logoUrl?: string | null }
+  /** Optional operational dossier — EVERYTHING we already know about the
+   *  practice (a converted prospect carries phone, address, a derived IANA
+   *  timezone, and their Google place id). Provisioning that discards known
+   *  facts re-asks the clinic for them later — the §1.7 audit gap: a
+   *  converted California practice ran every slot window and reminder on
+   *  America/New_York because this input couldn't accept a timezone. */
+  dossier?: {
+    phone?: string | null
+    addressLine1?: string | null
+    city?: string | null
+    state?: string | null
+    postalCode?: string | null
+    /** IANA zone; validated here — an unknown zone is dropped, never stored
+     *  (a bad stored zone would follow the clinic into every date render). */
+    timezone?: string | null
+    /** Seeds the review-request config's writereview deep link. */
+    googlePlaceId?: string | null
+  }
+}
+
+/** A zone we'd trust in clinic_profile.timezone — Intl is the authority. */
+function usableTimeZone(tz: string | null | undefined): string | null {
+  const v = tz?.trim()
+  if (!v) return null
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: v })
+    return v
+  } catch {
+    return null
+  }
 }
 
 export interface CreateManagedClinicResult {
@@ -157,7 +187,31 @@ export async function createManagedClinic(input: CreateManagedClinicInput): Prom
     // brand we showed in the demo (owner can change it anytime in Settings).
     ...(input.brand?.color ? { brandColor: input.brand.color } : {}),
     ...(input.brand?.logoUrl ? { logoUrl: input.brand.logoUrl } : {}),
+    // Dossier carry-over: never re-ask the clinic for a fact we already
+    // hold. Everything is owner-editable in Settings afterwards.
+    ...(input.dossier?.phone ? { phone: input.dossier.phone } : {}),
+    ...(input.dossier?.addressLine1 ? { addressLine1: input.dossier.addressLine1 } : {}),
+    ...(input.dossier?.city ? { city: input.dossier.city } : {}),
+    ...(input.dossier?.state ? { state: input.dossier.state } : {}),
+    ...(input.dossier?.postalCode ? { postalCode: input.dossier.postalCode } : {}),
+    ...(usableTimeZone(input.dossier?.timezone)
+      ? { timezone: usableTimeZone(input.dossier?.timezone)! }
+      : {}),
   })
+
+  // The prospect's Google place id seeds the review-request config — the
+  // "add your Google link once" step done before the owner ever logs in.
+  // Best-effort: reviews can be configured by hand later regardless.
+  if (input.dossier?.googlePlaceId) {
+    try {
+      await db
+        .insert(schema.clinicReviewConfig)
+        .values({ organizationId, googlePlaceId: input.dossier.googlePlaceId })
+        .onConflictDoNothing()
+    } catch (err) {
+      console.warn('[provisioning] could not seed review config from place id', err)
+    }
+  }
 
   // Referral attribution (optional): copy the partner's default rate/term and
   // stamp the term clock. Best-effort — a bad partner id must not block clinic

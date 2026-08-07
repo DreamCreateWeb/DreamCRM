@@ -581,10 +581,22 @@ export async function convertProspectAction(
     const { createManagedClinic } = await import('@/lib/services/clinic-provisioning')
     const { markConverted } = await import('@/lib/services/prospecting')
     const { usableBrandColor } = await import('@/lib/demo-skin-build')
-    // Carry the prospect's captured brand into the new clinic — the same brand
-    // we themed the demo in. Best-effort; a bad/absent color just seeds null.
+    // Carry EVERYTHING the hunt already learned into the new clinic — brand
+    // (the same one we themed the demo in) AND the operational dossier
+    // (phone, address, derived timezone, Google place id). The §1.7 audit:
+    // conversion used to carry two fields and throw the rest away, so a
+    // converted California practice ran its reminders on Eastern time.
     const [pros] = await db
-      .select({ enrichment: schema.prospect.enrichment })
+      .select({
+        enrichment: schema.prospect.enrichment,
+        phone: schema.prospect.phone,
+        addressLine1: schema.prospect.addressLine1,
+        city: schema.prospect.city,
+        state: schema.prospect.state,
+        postalCode: schema.prospect.postalCode,
+        timezone: schema.prospect.timezone,
+        googlePlaceId: schema.prospect.googlePlaceId,
+      })
       .from(schema.prospect)
       .where(eq(schema.prospect.id, parsed.prospectId))
       .limit(1)
@@ -593,6 +605,13 @@ export async function convertProspectAction(
       color: usableBrandColor(signals?.themeColor),
       logoUrl: signals?.iconUrl ?? null,
     }
+    // NPPES phones are normalized to bare digits — shape a 10-digit one for
+    // display (the profile column is patient-facing text).
+    const digits = pros?.phone?.replace(/\D/g, '') ?? ''
+    const displayPhone =
+      digits.length === 10
+        ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+        : (pros?.phone ?? null)
     const result = await createManagedClinic({
       name: parsed.name,
       ownerEmail: parsed.ownerEmail,
@@ -604,6 +623,15 @@ export async function convertProspectAction(
       inviterUserId: ctx.userId,
       inviterName: ctx.userName,
       brand,
+      dossier: {
+        phone: displayPhone,
+        addressLine1: pros?.addressLine1 ?? null,
+        city: pros?.city ?? null,
+        state: pros?.state ?? null,
+        postalCode: pros?.postalCode ?? null,
+        timezone: pros?.timezone ?? null,
+        googlePlaceId: pros?.googlePlaceId ?? null,
+      },
     })
     await markConverted(parsed.prospectId, result.organizationId)
     revalidatePath('/platform/prospecting')

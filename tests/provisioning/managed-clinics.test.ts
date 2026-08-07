@@ -83,7 +83,13 @@ beforeEach(() => {
   mockInsert.mockImplementation(() => ({
     values: (v: Record<string, unknown>) => {
       inserted.push(v)
-      return Promise.resolve(undefined)
+      // Awaitable directly AND via .onConflictDoNothing() (the review-config
+      // dossier seed uses the conflict-tolerant form).
+      const p = Promise.resolve(undefined) as Promise<undefined> & {
+        onConflictDoNothing: () => Promise<undefined>
+      }
+      p.onConflictDoNothing = () => Promise.resolve(undefined)
+      return p
     },
   }))
   mockUpdate.mockImplementation(() => ({ set: () => ({ where: async () => undefined }) }))
@@ -338,5 +344,52 @@ describe('resendClinicOwnerInvite', () => {
     await expect(resendClinicOwnerInvite({ organizationId: 'org1', inviterName: 'D' })).rejects.toThrow(
       /no pending invitation/i,
     )
+  })
+})
+
+describe('the dossier carry-over (onboarding overhaul: never re-ask a known fact)', () => {
+  it('writes phone, address, timezone, and seeds the review config from the place id', async () => {
+    selectReturning([[]]) // slug free
+    await createManagedClinic({
+      ...baseInput,
+      pricing: { kind: 'comped' },
+      dossier: {
+        phone: '(479) 555-0142',
+        addressLine1: '12 Main St',
+        city: 'Mammoth Spring',
+        state: 'AR',
+        postalCode: '72554',
+        timezone: 'America/Chicago',
+        googlePlaceId: 'ChIJmammoth',
+      },
+    })
+    const profile = inserted.find((v) => 'planTier' in v)!
+    expect(profile.phone).toBe('(479) 555-0142')
+    expect(profile.addressLine1).toBe('12 Main St')
+    expect(profile.city).toBe('Mammoth Spring')
+    expect(profile.state).toBe('AR')
+    expect(profile.postalCode).toBe('72554')
+    expect(profile.timezone).toBe('America/Chicago')
+    const reviewCfg = inserted.find((v) => 'googlePlaceId' in v)!
+    expect(reviewCfg.googlePlaceId).toBe('ChIJmammoth')
+  })
+
+  it('an unknown timezone is dropped, never stored', async () => {
+    selectReturning([[]])
+    await createManagedClinic({
+      ...baseInput,
+      pricing: { kind: 'comped' },
+      dossier: { timezone: 'Central Time-ish' },
+    })
+    const profile = inserted.find((v) => 'planTier' in v)!
+    expect('timezone' in profile).toBe(false)
+  })
+
+  it('no dossier behaves exactly as before', async () => {
+    selectReturning([[]])
+    await createManagedClinic({ ...baseInput, pricing: { kind: 'comped' } })
+    const profile = inserted.find((v) => 'planTier' in v)!
+    expect('phone' in profile).toBe(false)
+    expect(inserted.find((v) => 'googlePlaceId' in v)).toBeUndefined()
   })
 })
