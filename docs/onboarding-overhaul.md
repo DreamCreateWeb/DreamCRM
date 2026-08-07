@@ -534,8 +534,12 @@ Part 5:
     segment budget; marketing sends stop at the budget (transactional
     reminders keep going); usage is visible.
 11. **Onboarding is machine-only, with a human escape hatch at every
-    step** — an always-visible, one-tap "reach Dustin" support path,
-    but no human required to complete setup.
+    step** — an always-visible, one-tap support path, but no human
+    required to complete setup. Ruling amendment (2026-08-07): the
+    surface says **"Reach Support"** — never the owner's name. DreamCRM
+    presents as a platform, not a freelancer; that support currently
+    routes to the owner is an implementation detail the clinic never
+    sees. This is a COPY LAW for every onboarding/support surface.
 
 ### SMS unit economics (verified 2026-08-07, AWS End User Messaging US)
 
