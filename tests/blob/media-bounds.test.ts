@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { isVideoUrl, isVideoFile, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_IMAGE_MB, MAX_VIDEO_MB } from '@/lib/media'
+import {
+  isVideoUrl,
+  isVideoFile,
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
+  MAX_IMAGE_MB,
+  MAX_VIDEO_MB,
+  MAX_SITE_VIDEO_BYTES,
+  MAX_SITE_VIDEO_MB,
+  SITE_VIDEO_TYPES,
+} from '@/lib/media'
 
 describe('media bounds + helpers', () => {
   it('exposes generous, consistent caps', () => {
@@ -7,6 +17,14 @@ describe('media bounds + helpers', () => {
     expect(MAX_VIDEO_MB).toBe(100)
     expect(MAX_IMAGE_BYTES).toBe(25 * 1024 * 1024)
     expect(MAX_VIDEO_BYTES).toBe(100 * 1024 * 1024)
+  })
+
+  it('gives the site intro clip a 4K-sized ceiling above the social cap', () => {
+    expect(MAX_SITE_VIDEO_MB).toBe(500)
+    expect(MAX_SITE_VIDEO_BYTES).toBe(500 * 1024 * 1024)
+    expect(MAX_SITE_VIDEO_BYTES).toBeGreaterThan(MAX_VIDEO_BYTES)
+    // Presign accepts exactly the formats the classic route's sniff knows.
+    expect([...SITE_VIDEO_TYPES]).toEqual(['video/mp4', 'video/quicktime', 'video/webm'])
   })
 
   it('detects video URLs by extension (and ignores images)', () => {

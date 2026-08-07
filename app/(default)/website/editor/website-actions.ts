@@ -8,7 +8,7 @@ import { organization } from '@/lib/db/schema/auth'
 import { clinicLocation } from '@/lib/db/schema/platform'
 import { requireTenant, type TenantContext } from '@/lib/auth/context'
 import type { LeadFormField } from '@/lib/types/lead-forms'
-import { isValidVideoUrl } from '@/lib/website-url'
+import { isValidVideoUrl, videoUrlProblem } from '@/lib/website-url'
 import {
   parseStaff,
   parseStats,
@@ -526,6 +526,10 @@ export async function saveDifferenceVideo(url: string): Promise<SectionResult> {
   if (!isValidVideoUrl(url)) {
     return { ok: false, error: 'Enter a valid video link (https://…) or upload a file.' }
   }
+  // A Drive/YouTube/Dropbox PAGE link is a guaranteed grey box on the public
+  // site (`<video src>` can't play an HTML page) — refuse it with the reason.
+  const problem = videoUrlProblem(url)
+  if (problem) return { ok: false, error: problem }
   return runSection(async (ctx) => {
     const v = typeof url === 'string' && url.trim() ? url.trim() : null
     await writeSection(ctx, { differenceVideoUrl: v } as Partial<typeof clinicProfile.$inferInsert>)

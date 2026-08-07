@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/session'
 import { uploadBlob } from '@/lib/blob'
-import { MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_IMAGE_MB, MAX_VIDEO_MB } from '@/lib/media'
+import {
+  MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
+  MAX_IMAGE_MB,
+  MAX_VIDEO_MB,
+  MAX_SITE_VIDEO_BYTES,
+  MAX_SITE_VIDEO_MB,
+} from '@/lib/media'
 
 /**
  * Authenticated upload endpoint. Used for clinic IMAGES (logo, hero, staff
@@ -92,8 +99,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'empty file' }, { status: 400 })
   }
   // Hard upper bound before we even read bytes (videos are the largest case).
-  if (file.size > VIDEO_MAX_BYTES) {
-    return NextResponse.json({ error: `File too large (max ${MAX_VIDEO_MB}MB).` }, { status: 413 })
+  // The site's intro clip ('clinic-video') gets the 4K ceiling — in prod those
+  // ride the presigned direct-to-S3 route and only hit this buffered path as
+  // the dev/Vercel-Blob fallback. Everything else keeps the social video cap.
+  const videoCap = folder === 'clinic-video' ? MAX_SITE_VIDEO_BYTES : VIDEO_MAX_BYTES
+  const videoCapMb = folder === 'clinic-video' ? MAX_SITE_VIDEO_MB : MAX_VIDEO_MB
+  if (file.size > videoCap) {
+    return NextResponse.json({ error: `File too large (max ${videoCapMb}MB).` }, { status: 413 })
   }
 
   // Sniff the real content from the leading bytes — never trust file.type.
@@ -103,7 +115,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: sniff.reason }, { status: 415 })
   }
   // Per-kind size cap: images must stay small (the XSS/abuse surface); videos
-  // get the full 50MB.
+  // get the larger ceiling bounded above.
   if (sniff.kind === 'image' && file.size > IMAGE_MAX_BYTES) {
     return NextResponse.json({ error: `Image too large (max ${MAX_IMAGE_MB}MB).` }, { status: 413 })
   }

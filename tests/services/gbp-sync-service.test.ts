@@ -51,6 +51,7 @@ interface ProfileRow {
   googleSyncedAt?: Date | null
   googlePhotos?: unknown
   officePhotos?: unknown
+  gbpListing?: unknown
   updatedAt?: Date
 }
 const store: {

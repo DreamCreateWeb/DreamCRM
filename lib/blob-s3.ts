@@ -92,6 +92,39 @@ export async function uploadToS3(
   }
 }
 
+/**
+ * Presign a direct-from-browser PUT for a large site video. The signature
+ * locks the key, the exact byte length, and the content-type — the client
+ * can't upload anything but the declared video to the declared slot. Videos
+ * skip the app server entirely (App Runner cuts requests at ~120s and the
+ * buffered path would hold the whole file in RAM); the public-bucket XSS
+ * concern that makes the classic route sniff bytes doesn't apply here, since
+ * a `video/*` content-type is never rendered as HTML by browsers.
+ */
+export async function presignVideoUpload(
+  pathname: string,
+  contentType: string,
+  contentLength: number,
+): Promise<{ uploadUrl: string; url: string; pathname: string }> {
+  const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+  const key = withRandomSuffix(pathname)
+  const command = new PutObjectCommand({
+    Bucket: bucket(),
+    Key: key,
+    ContentType: contentType,
+    ContentLength: contentLength,
+  })
+  // The `as never` casts silence a types-only @smithy/types version skew: the
+  // repo pins several AWS SDK minors (s3 3.1053, cloudfront 3.1093, …) whose
+  // smithy type packages can't dedupe. Wire-compatible at runtime.
+  const uploadUrl = await getSignedUrl(
+    client() as never,
+    command as never,
+    { expiresIn: 60 * 30 }, // 500MB on a slow uplink can genuinely take this long
+  )
+  return { uploadUrl, url: `${publicBase()}/${key}`, pathname: key }
+}
+
 function keyFromUrl(url: string): string | null {
   try {
     const parsed = new URL(url)

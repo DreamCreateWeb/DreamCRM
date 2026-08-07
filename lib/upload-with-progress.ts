@@ -102,3 +102,89 @@ export function uploadFileWithProgress(
     },
   }
 }
+
+/**
+ * Upload a SITE VIDEO. Asks /api/upload/presign-video for a direct-to-S3 PUT
+ * (4K clips are far too large to buffer through the app server), then streams
+ * the file to the bucket with the same progress + cancel contract as
+ * uploadFileWithProgress. When the server answers { fallback: true } (dev /
+ * Vercel Blob driver), the classic buffered route carries it instead.
+ */
+export function uploadVideoWithProgress(
+  file: File,
+  onProgress?: (pct: number) => void,
+): UploadHandle {
+  const xhr = new XMLHttpRequest()
+  let cancelled = false
+  let sent = false
+  let rejectHandle: ((err: Error) => void) | null = null
+  // If we fall back to the classic route, cancel must reach THAT handle.
+  let inner: UploadHandle | null = null
+
+  const promise = new Promise<string>((resolve, reject) => {
+    rejectHandle = reject
+    void (async () => {
+      let presign: { uploadUrl?: string; url?: string; fallback?: boolean; error?: string }
+      try {
+        const res = await fetch('/api/upload/presign-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
+        })
+        presign = await res.json()
+        if (!res.ok) throw new Error(presign?.error ?? `Upload failed (${res.status})`)
+      } catch (e) {
+        reject(e instanceof Error ? e : new Error('Upload failed'))
+        return
+      }
+      if (cancelled) {
+        reject(new UploadCancelledError())
+        return
+      }
+
+      if (presign.fallback) {
+        inner = uploadFileWithProgress(file, 'clinic-video', onProgress)
+        inner.promise.then(resolve, reject)
+        return
+      }
+      if (!presign.uploadUrl || !presign.url) {
+        reject(new Error('Upload failed'))
+        return
+      }
+      const publicUrl = presign.url
+
+      xhr.open('PUT', presign.uploadUrl)
+      // Must match the signed content-type exactly or S3 rejects the PUT.
+      xhr.setRequestHeader('Content-Type', file.type)
+      if (xhr.upload) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && onProgress) {
+            onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)))
+          }
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress?.(100)
+          resolve(publicUrl)
+        } else {
+          reject(new Error(`Upload failed (${xhr.status})`))
+        }
+      }
+      xhr.onerror = () => reject(new Error('Upload failed — check your connection.'))
+      xhr.onabort = () => reject(new UploadCancelledError())
+      sent = true
+      xhr.send(file)
+    })()
+  })
+
+  return {
+    promise,
+    cancel: () => {
+      cancelled = true
+      if (inner) inner.cancel()
+      else if (sent) xhr.abort()
+      else rejectHandle?.(new UploadCancelledError())
+    },
+  }
+}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { videoUrlProblem } from '@/lib/website-url'
 
 /**
  * "Why us?" ambient-video URL field for the Branding section. URL-only by design
@@ -17,7 +18,7 @@ import { useState } from 'react'
 
 const VIDEO_EXT = /\.(mp4|webm|ogg|mov)(\?.*)?$/i
 
-type UrlState = 'empty' | 'ok' | 'ok-unknown-ext' | 'invalid'
+type UrlState = 'empty' | 'ok' | 'ok-unknown-ext' | 'invalid' | 'page-link'
 
 function classify(raw: string): UrlState {
   const v = raw.trim()
@@ -29,6 +30,9 @@ function classify(raw: string): UrlState {
     return 'invalid'
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'invalid'
+  // Drive/YouTube/Dropbox share links are web PAGES — `<video>` can't play
+  // them; they render as a silent grey box (lib/website-url.ts has the list).
+  if (videoUrlProblem(v)) return 'page-link'
   return VIDEO_EXT.test(u.pathname) ? 'ok' : 'ok-unknown-ext'
 }
 
@@ -77,6 +81,11 @@ export default function DifferenceVideoField({
         <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
           This link doesn&apos;t end in .mp4 or .webm — double-check it points
           straight at a video file, not a web page.
+        </p>
+      )}
+      {state === 'page-link' && (
+        <p className="mt-1 text-xs text-rose-600 dark:text-rose-400" role="alert">
+          {videoUrlProblem(value)}
         </p>
       )}
 

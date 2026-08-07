@@ -56,7 +56,8 @@ import {
   getWebsiteDraftStatusAction,
   type SectionResult,
 } from './website-actions'
-import { isValidVideoUrl } from '@/lib/website-url'
+import { isValidVideoUrl, videoUrlProblem } from '@/lib/website-url'
+import { MAX_SITE_VIDEO_BYTES, MAX_SITE_VIDEO_MB } from '@/lib/media'
 import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
 
 interface Props {
@@ -1034,23 +1035,24 @@ function StudioModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy, uploading, dirty])
 
-  // Direct video upload — reuses the auth-gated /api/upload route (S3), the
-  // same path ImageUploader uses, now with progress + cancel. On success the
-  // resolved URL fills the URL field, so upload and paste-a-URL converge.
+  // Direct video upload — presigned straight to S3 (4K clips run hundreds of
+  // MB; they never buffer through the app server), with progress + cancel. On
+  // success the resolved URL fills the URL field, so upload and paste-a-URL
+  // converge.
   async function handleVideoFile(file: File) {
     setUploadError(null)
     if (!file.type.startsWith('video/')) {
       setUploadError('Please choose a video file (MP4, MOV, or WebM).')
       return
     }
-    if (file.size > 50 * 1024 * 1024) {
-      setUploadError('That video is over 50MB — trim it, or paste a hosted URL instead.')
+    if (file.size > MAX_SITE_VIDEO_BYTES) {
+      setUploadError(`That video is over ${MAX_SITE_VIDEO_MB}MB — trim it, or paste a hosted URL instead.`)
       return
     }
     setUploading(true)
     setUploadProgress(0)
-    const { uploadFileWithProgress, UploadCancelledError } = await import('@/lib/upload-with-progress')
-    const handle = uploadFileWithProgress(file, 'clinic-video', setUploadProgress)
+    const { uploadVideoWithProgress, UploadCancelledError } = await import('@/lib/upload-with-progress')
+    const handle = uploadVideoWithProgress(file, setUploadProgress)
     videoUploadHandle.current = handle
     try {
       const url = await handle.promise
@@ -1103,6 +1105,14 @@ function StudioModal({
       // Client-side URL-shape guard before the round-trip (server re-validates).
       if (!isValidVideoUrl(videoUrl)) {
         setUploadError('Enter a valid video link (https://…) or upload a file.')
+        setBusy(false)
+        return
+      }
+      // A Drive/YouTube/Dropbox PAGE link would save fine and render a silent
+      // grey box on the public site — refuse it here with the reason.
+      const problem = videoUrlProblem(videoUrl)
+      if (problem) {
+        setUploadError(problem)
         setBusy(false)
         return
       }
@@ -1507,8 +1517,14 @@ function StudioModal({
                   That doesn’t look like a valid link — use https://… or upload a file.
                 </p>
               )}
+              {isValidVideoUrl(videoUrl) && videoUrlProblem(videoUrl) && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1" role="alert">
+                  {videoUrlProblem(videoUrl)}
+                </p>
+              )}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                MP4, MOV, or WebM · up to 50MB · short, muted &amp; looping looks best.
+                MP4, MOV, or WebM · up to {MAX_SITE_VIDEO_MB}MB (4K welcome) · short, muted
+                &amp; looping looks best.
               </p>
               {uploadError && <p className="text-xs text-rose-600 mt-2" role="alert">{uploadError}</p>}
               {videoUrl.trim() && (
