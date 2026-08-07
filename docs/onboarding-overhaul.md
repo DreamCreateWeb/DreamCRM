@@ -17,9 +17,10 @@ the clinic a pile of dismissible checklists for everything that actually
 produces patients.** The doctrine (DESIGN.md → The North Star) already
 names the fix: the employee's first week, not a better wizard.
 
-This document has five parts: (1) the internal audit, (2) the GBP/vendor
+This document has six parts: (1) the internal audit, (2) the GBP/vendor
 landscape, (3) competitor + activation research, (4) design implications,
-(5) proposed project shape + open questions.
+(5) proposed project shape + open questions, (6) owner rulings
+(2026-08-07) + the top-down design conversation.
 
 ---
 
@@ -458,3 +459,54 @@ FINISHING.md when picked up): the `/book` fallback-banner rule mismatch
 "ended" trial email claiming less than reality (§1.6); the dead
 plan-filter comment (`website/page.tsx:135-137`); `requireRole` having
 zero call sites while 78 files hand-roll the check.
+
+---
+
+## Part 6 — Owner rulings (2026-08-07) + the top-down design phase
+
+Rulings from the owner, superseding the corresponding open questions in
+Part 5:
+
+1. **Trial expiry: kill everything.** "If they don't pay they don't just
+   get the tools for free." At expiry the machine stops too — patient-
+   facing automation, the public site's booking, all of it (final shape of
+   "kill" to be specified in the design conversation — e.g. whether the
+   site itself stays up as a brochure or goes dark). This resolves §1.6:
+   the current staff-locked-out-while-the-machine-keeps-running state is
+   NOT the decided behavior.
+2. **Booking request-mode vs live is the CLINIC's choice, not a platform
+   default.** The owner's framing is a design law for the whole overhaul:
+   "these types of things are exactly why we're doing the onboarding
+   overhaul — clinics choose before it goes live." Onboarding's job is to
+   surface each such choice at the right moment; the machine may
+   recommend, never decide.
+3. **AI-driven onboarding: yes, explicitly.** The owner has seen it
+   elsewhere and wants it ("it's wonderful").
+4. **PMS strategy: NexHealth Synchronizer** (not yet wired in) is the
+   intended universal PMS bridge, replacing the one-PMS-at-a-time direct
+   integration path. Clinics on an unsupported PMS export their patient
+   list and import the CSV (the importer exists). Design implication: the
+   PMS step in onboarding must be designed for the Synchronizer shape
+   (one connection covering many PMSes) with CSV import as the honest
+   fallback, and must narrate the wait while the Synchronizer deal/wiring
+   is pending.
+5. **GBP connection economics:** Zernio charges ~$6/mo per connected
+   location. Trivial at 2 clinics; a real line item at scale — batch
+   pricing or the native Google path (the Basic-Access application) is
+   the long-term hedge. Also: All About Smiles' GBP is NOT urgent to
+   connect — their listing already points at the domain we built on, and
+   traffic is strong. Mammoth Spring is still recovering their Google
+   login (owner followed up 2026-08-07). Dream Create's own GBP gets
+   created ~2026-08-08, starting the 60-day clock for the Google
+   application.
+6. **Next slice REDIRECTED: design before code.** The owner rejected
+   jumping straight to the Phase B readiness resolver. The next unit of
+   work is a research-backed TOP-DOWN DESIGN CONVERSATION (owner +
+   assistant) settling what onboarding IS: the full inventory of what
+   wants to be set up (GBP + website button, social connections, website
+   template + content, platform settings, PMS via Synchronizer / CSV
+   import, hours/chairs/providers, payments, SMS registration, team,
+   forms, automations, domain, …), what the machine does alone vs what
+   the clinic must answer, in what order, and what gates go-live. The
+   readiness resolver and the rest of Phases B–D get re-scoped from the
+   outcome of that conversation.
