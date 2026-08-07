@@ -632,3 +632,42 @@ call — at 2 clinics it cannot matter yet.
   lever. Suite 6,395 → 6,398. NOT yet carried: the manual add-clinic
   form has no address/phone inputs (the dossier's main source is prospect
   conversion; form fields are a later nicety).
+
+### §2.6 — NexHealth Synchronizer install reality (researched 2026-08-08)
+
+The owner's suspicion was correct: there is NO one-click OAuth for
+server-based PMSes. The Synchronizer is a Windows service installed ON THE
+PRACTICE'S SERVER (same machine as the PMS database). How it gets there
+depends on the PMS:
+
+- **Dentrix / Eaglesoft / Open Dental (server-based): SELF-INSTALL.** The
+  DEVELOPER (us) creates an Institution + Sync in the NexHealth developer
+  portal, gets a unique product key + installer link, and the installer is
+  run on the practice's server with admin rights — by us on a remote
+  session, by the practice's IT, or by NexHealth's Integrations Team
+  remoting in via ConnectWise. Practice prerequisites: admin PMS login,
+  antivirus not blocking, ports 4506/4505/443 open. Keys are single-use
+  once an install completes.
+- **Other on-prem systems: NEXHEALTH INSTALLS.** Scheduled through the
+  portal; allow up to 72 business hours.
+- **Cloud PMSes (Denticon, Ascend, Curve…): no server install.** NexHealth
+  wires the backend from submitted credentials + a Chrome extension on
+  each workstation (practice IT installs those).
+
+**Fees:** practices pay nothing ("no setup fee, no subscription").
+Developers pay NexHealth's API pricing — NOT public; whatever the owner's
+signup agreement says governs (check the developer portal / agreement).
+**Sandbox:** each developer org gets one sandbox key + a demo practice;
+our PRODUCTION key verified live but holds ZERO institutions (probe
+2026-08-08) — the demo practice rides the sandbox key, which we need from
+the portal to build against.
+
+**Design implication:** the "connect your practice software" step is a
+REQUEST-AND-NARRATED-WAIT flow (the §3.1 finding again — the PMS connect
+is the universal hard gate, always with humans in the loop), not an OAuth
+button: clinic tells us their PMS → we create the institution+sync in the
+portal → the install happens (us remote / their IT / NexHealth's team,
+72h) → our app polls /locations until data flows → sync binds and the
+wait-card retires. Sources: the installation guide, the
+institutions/syncs/locations doc, and the server-based help article at
+docs.nexhealth.com / help.nexhealth.com.
