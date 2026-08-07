@@ -17,6 +17,9 @@ const data = {
       staff: [] as unknown[],
       displayName: 'Bright Smiles',
       city: 'Austin',
+      // Behind the go-live lever the sitemap 404s — these tests exercise a
+      // LIVE site's gating rules.
+      siteLiveAt: new Date('2026-06-01'),
     },
     primaryLocation: null as unknown,
   } as Record<string, unknown> | null,
@@ -86,5 +89,19 @@ describe('sitemap always-present URLs', () => {
     expect(xml).toContain('https://bright.dreamcreatestudio.com/</loc>')
     expect(xml).toContain('/about</loc>')
     expect(xml).toContain('/faq</loc>')
+  })
+})
+
+describe('the go-live lever', () => {
+  it('404s the whole sitemap while the site is not live', async () => {
+    const site = data.site as { profile: Record<string, unknown> }
+    const prev = site.profile
+    site.profile = { ...prev, siteLiveAt: null }
+    try {
+      const xml = await sitemap()
+      expect(xml).toBe('Not found')
+    } finally {
+      site.profile = prev
+    }
   })
 })
