@@ -1,7 +1,8 @@
 import 'server-only'
 import { and, asc, between, count, desc, eq, gte, inArray, isNotNull, lt, lte, ne, notInArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { getIntegrationsHealth, type IntegrationsHealth } from '@/lib/services/pms/health'
+import { getReadinessReport } from '@/lib/services/readiness'
+import type { ReadinessFact } from '@/lib/readiness'
 import { getReviewStats } from '@/lib/services/reviews'
 import { getInboxStats } from '@/lib/services/patient-messaging'
 import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient-followups'
@@ -95,7 +96,11 @@ export interface ClinicOverviewData {
     bookingsPerDay14: Array<{ bucket: string; value: number }>
   }
   recentActivity: ActivityRow[]
-  integrationsHealth: IntegrationsHealth | null
+  /** Broken/harmful setup facts from the readiness resolver (PMS sync down,
+   *  GBP button wrong, booking live on unconfirmed hours, …). Replaces the
+   *  old PMS-only health banner — connected-but-broken now reaches the
+   *  Overview for every subsystem, not just the PMS. */
+  readinessAttention: ReadinessFact[]
   /** Website traffic, last 7 days (total + delta + top page) — the "is my
    *  site working" signal on the morning-huddle screen. Best-effort: a
    *  failure yields null and the card simply doesn't render. */
@@ -600,8 +605,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [integrationsHealth, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState] = await Promise.all([
-    getIntegrationsHealth(organizationId, now),
+  const [readinessReport, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState] = await Promise.all([
+    getReadinessReport(organizationId).catch(() => null),
     // Paid shop orders still awaiting fulfillment (our move).
     db
       .select({ count: count() })
@@ -656,7 +661,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     reviewsReceived: { completed30d: reviewStats.completed30d, sent30d: reviewStats.sent30d },
     trends,
     recentActivity,
-    integrationsHealth,
+    readinessAttention: readinessReport?.attention ?? [],
     followups,
     siteTraffic,
     siteHealth: siteTraffic

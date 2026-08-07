@@ -154,7 +154,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
           bookingsPerDay14: [],
     },
     recentActivity: [],
-    integrationsHealth: null,
+    readinessAttention: [],
     followups: { openTotal: 0, overdue: 0, dueToday: 0, preview: [] },
     ...overrides,
   }
@@ -308,59 +308,65 @@ describe('Design System v2 migration', () => {
   })
 })
 
-describe('Integrations sync-health banner', () => {
-  it('renders nothing when health is null (no PMS connection)', async () => {
-    mockGetOverview.mockResolvedValueOnce(makeData({ integrationsHealth: null }))
+describe('Setup/sync attention banner (readiness resolver)', () => {
+  it('renders nothing when nothing needs attention', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData({ readinessAttention: [] }))
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.queryByText(/A sync needs your attention/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/need your attention/)).not.toBeInTheDocument()
   })
 
-  it("renders nothing when health is 'ok'/'info' severity", async () => {
+  it('renders one fact with its label, summary, and action link', async () => {
     mockGetOverview.mockResolvedValueOnce(
       makeData({
-        integrationsHealth: {
-          organizationId: 'org_1',
-          provider: 'open_dental',
-          status: 'ok',
-          severity: 'info',
-          message: 'Sync is healthy.',
-          lastSyncAt: new Date(),
-          lastSyncStatus: 'success',
-          lastError: null,
-          consecutiveFailures: 0,
-          staleAfterHours: 36,
-        },
+        readinessAttention: [
+          {
+            id: 'pms',
+            label: 'Practice-software sync is broken',
+            grade: 'attention',
+            summary: 'No successful sync in the last 48 hours.',
+            href: '/integrations',
+            optional: false,
+          },
+        ],
       }),
     )
     const ui = await ClinicOverview({ ctx: makeCtx() })
     render(ui)
-    expect(screen.queryByText(/A sync needs your attention/)).not.toBeInTheDocument()
-  })
-
-  it("renders the alert banner with the helper's message + an Open Integrations link when warn/error", async () => {
-    mockGetOverview.mockResolvedValueOnce(
-      makeData({
-        integrationsHealth: {
-          organizationId: 'org_1',
-          provider: 'open_dental',
-          status: 'stale',
-          severity: 'warn',
-          message: 'No successful sync in the last 48 hours.',
-          lastSyncAt: new Date(),
-          lastSyncStatus: 'success',
-          lastError: null,
-          consecutiveFailures: 0,
-          staleAfterHours: 36,
-        },
-      }),
-    )
-    const ui = await ClinicOverview({ ctx: makeCtx() })
-    render(ui)
-    expect(screen.getByText(/A sync needs your attention/)).toBeInTheDocument()
+    expect(screen.getByText(/Practice-software sync is broken/)).toBeInTheDocument()
     expect(screen.getByText(/No successful sync in the last 48 hours/)).toBeInTheDocument()
-    const cta = screen.getByRole('link', { name: /Open Integrations/i })
+    const cta = screen.getByRole('link', { name: /^Open$/ })
     expect(cta).toHaveAttribute('href', '/integrations')
+  })
+
+  it('lists every broken fact when several need attention — GBP button included', async () => {
+    mockGetOverview.mockResolvedValueOnce(
+      makeData({
+        readinessAttention: [
+          {
+            id: 'pms',
+            label: 'Practice-software sync is broken',
+            grade: 'attention',
+            summary: 'Last sync failed.',
+            href: '/integrations',
+            optional: false,
+          },
+          {
+            id: 'gbp_website_button',
+            label: 'Google sends patients to the wrong site',
+            grade: 'attention',
+            summary: 'Your listing\u2019s Website button points somewhere else.',
+            href: '/integrations',
+            optional: false,
+          },
+        ],
+      }),
+    )
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/2 things need your attention/)).toBeInTheDocument()
+    expect(screen.getByText(/Practice-software sync is broken/)).toBeInTheDocument()
+    expect(screen.getByText(/Google sends patients to the wrong site/)).toBeInTheDocument()
   })
 })
 

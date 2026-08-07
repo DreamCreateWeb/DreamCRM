@@ -11,9 +11,11 @@ const state = {
   hasPatient: false,
   hasInbox: false,
   hasReviewConfig: false,
+  /** A HEALTHY, synced PMS connection (readiness only ticks on health). */
   hasPms: false,
   hasProduct: false,
-  hasChannel: false,
+  /** REAL social accounts (zernio platform != 'googlebusiness'). */
+  socialCount: 0,
   memberCount: 1,
   onboardingRow: null as Record<string, unknown> | null,
 }
@@ -22,7 +24,7 @@ const upserts: Array<Record<string, unknown>> = []
 
 vi.mock('@/lib/db', async () => {
   const { clinicProfile } = await import('@/lib/db/schema/platform')
-  const { patient, clinicReviewConfig, pmsConnection, shopProduct, staffOnboarding, zernioAccount } =
+  const { patient, clinicReviewConfig, pmsConnection, pmsSyncRun, shopProduct, staffOnboarding, zernioAccount } =
     await import('@/lib/db/schema/clinic')
   const { emailAccount } = await import('@/lib/db/schema/email')
   const { member } = await import('@/lib/db/schema/auth')
@@ -31,11 +33,29 @@ vi.mock('@/lib/db', async () => {
   function rowsFor(table: unknown): unknown[] {
     if (table === clinicProfile) return state.profile ? [state.profile] : []
     if (table === patient) return state.hasPatient ? [{ id: 'p1' }] : []
-    if (table === emailAccount) return state.hasInbox ? [{ id: 'e1' }] : []
+    if (table === emailAccount) return state.hasInbox ? [{ id: 'e1', syncStatus: 'ready' }] : []
     if (table === clinicReviewConfig) return state.hasReviewConfig ? [{ id: 'org' }] : []
-    if (table === pmsConnection) return state.hasPms ? [{ id: 'org' }] : []
+    if (table === pmsConnection)
+      return state.hasPms
+        ? [
+            {
+              organizationId: 'org_1',
+              provider: 'open_dental',
+              status: 'connected',
+              autoSyncEnabled: 1,
+              lastSyncAt: new Date(),
+              lastSyncStatus: 'success',
+              lastError: null,
+            },
+          ]
+        : []
+    if (table === pmsSyncRun) return []
     if (table === shopProduct) return state.hasProduct ? [{ id: 's1' }] : []
-    if (table === zernioAccount) return state.hasChannel ? [{ id: 'z1' }] : []
+    // The readiness service selects a COUNT of non-GBP accounts from this
+    // table (the mock chain ignores where-filters, so the count is fed
+    // directly; the GBP-vs-social split itself is pinned by the pure-core
+    // tests in tests/readiness/).
+    if (table === zernioAccount) return [{ count: state.socialCount }]
     if (table === member) return [{ count: state.memberCount }]
     if (table === staffOnboarding) return state.onboardingRow ? [state.onboardingRow] : []
     return []
@@ -47,6 +67,8 @@ vi.mock('@/lib/db', async () => {
     p.from = (t: unknown) => chain(rowsFor(t))
     p.where = () => p
     p.limit = () => p
+    p.innerJoin = () => p
+    p.orderBy = () => p
     return p
   }
 
@@ -75,7 +97,7 @@ beforeEach(() => {
   state.hasReviewConfig = false
   state.hasPms = false
   state.hasProduct = false
-  state.hasChannel = false
+  state.socialCount = 0
   state.memberCount = 1
   state.onboardingRow = null
   upserts.length = 0
@@ -128,29 +150,64 @@ describe('getActivationChecklist', () => {
     expect(list.allDone).toBe(false)
   })
 
-  it('connect_social ticks once any channel (GBP or social) is connected', async () => {
-    state.hasChannel = true
+  it('connect_social ticks on a REAL social account (GBP alone no longer counts)', async () => {
+    state.socialCount = 1
     const list = await getActivationChecklist('org_1')
     expect(list.tasks.find((t) => t.id === 'connect_social')?.done).toBe(true)
   })
 
-  it('allDone flips when every signal is present', async () => {
+  it('allDone flips when every signal is present AND healthy', async () => {
     state.profile = {
       logoUrl: 'x',
       heroImageUrl: null,
       staff: [{}],
-      hours: {},
-      portalSettings: {},
+      // Not the untouched Mon–Fri 9–5 seed → counts as confirmed.
+      hours: { mon: { open: '08:00', close: '16:00' } },
+      // `{}` no longer counts as configured — a real choice does.
+      portalSettings: { features: { billing: true } },
     }
     state.hasPatient = true
     state.hasInbox = true
     state.hasReviewConfig = true
     state.hasPms = true
     state.hasProduct = true
-    state.hasChannel = true
+    state.socialCount = 1
     state.memberCount = 2
     const list = await getActivationChecklist('org_1')
     expect(list.allDone).toBe(true)
+  })
+
+  it('a HEALTHY synced PMS connection ticks connect_pms (health, not row-existence — the broken/never-synced grades are pinned in tests/readiness/)', async () => {
+    state.hasPms = true
+    const list = await getActivationChecklist('org_1')
+    expect(list.tasks.find((t) => t.id === 'connect_pms')?.done).toBe(true)
+  })
+
+  it('`{}` portal settings no longer count as configured', async () => {
+    state.profile = { logoUrl: null, heroImageUrl: null, staff: null, hours: null, portalSettings: {} }
+    const list = await getActivationChecklist('org_1')
+    expect(list.tasks.find((t) => t.id === 'portal_setup')?.done).toBe(false)
+  })
+
+  it('the untouched hours seed does not tick set_hours', async () => {
+    state.profile = {
+      logoUrl: null,
+      heroImageUrl: null,
+      staff: null,
+      hoursSource: 'manual',
+      hours: {
+        mon: { open: '09:00', close: '17:00' },
+        tue: { open: '09:00', close: '17:00' },
+        wed: { open: '09:00', close: '17:00' },
+        thu: { open: '09:00', close: '17:00' },
+        fri: { open: '09:00', close: '17:00' },
+        sat: { open: null, close: null },
+        sun: { open: null, close: null },
+      },
+      portalSettings: null,
+    }
+    const list = await getActivationChecklist('org_1')
+    expect(list.tasks.find((t) => t.id === 'set_hours')?.done).toBe(false)
   })
 
   it('hero image counts for brand_website when there is no logo', async () => {

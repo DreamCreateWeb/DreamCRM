@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import {
@@ -7,8 +7,8 @@ import {
   type ActivationChecklist,
   type ActivationTask,
 } from '@/lib/types/onboarding'
-import { siteNeedsPersonalization } from '@/lib/services/starter-pack'
-import type { PlanTier } from '@/lib/modules/types'
+import { getReadinessInput } from '@/lib/services/readiness'
+import { resolveReadiness, type ReadinessFactId } from '@/lib/readiness'
 
 /**
  * Staff tutorial state + the Getting-started activation checklist.
@@ -104,135 +104,60 @@ export async function dismissHint(
 
 /* ── Activation checklist ───────────────────────────────────────────── */
 
-async function exists(query: Promise<Array<unknown>>): Promise<boolean> {
-  return (await query).length > 0
+/** Which readiness fact answers each activation task. The checklist keeps
+ *  its task ids/copy (UI + tests unchanged) but every done/not-done now
+ *  comes from the READINESS RESOLVER's health grades — the fixes this buys:
+ *  a PMS connection in error no longer ticks "done", connecting Google
+ *  Business no longer ticks "Connect your social channels", `{}` no longer
+ *  counts as configured hours/portal. */
+const TASK_FACT: Record<string, ReadinessFactId> = {
+  brand_website: 'brand',
+  add_team: 'site_team',
+  set_hours: 'hours',
+  invite_team: 'team',
+  connect_social: 'social',
+  add_patients: 'patients',
+  connect_inbox: 'inbox',
+  portal_setup: 'portal',
+  reviews_setup: 'reviews',
+  connect_pms: 'pms',
+  open_shop: 'shop',
 }
 
 /**
- * Build the Getting-started checklist from live org data. Each check is a
- * cheap LIMIT-1 select; the whole thing runs in parallel and only on the
- * Overview page while the checklist is still showing.
+ * Build the Getting-started checklist as a VIEW of the readiness resolver
+ * (lib/readiness.ts) — one truth, this surface just formats it. Only runs
+ * on the Overview page while the checklist is still showing.
  */
 export async function getActivationChecklist(
   organizationId: string,
 ): Promise<ActivationChecklist> {
-  const [profileRow] = await db
-    .select({
-      logoUrl: schema.clinicProfile.logoUrl,
-      heroImageUrl: schema.clinicProfile.heroImageUrl,
-      staff: schema.clinicProfile.staff,
-      hours: schema.clinicProfile.hours,
-      portalSettings: schema.clinicProfile.portalSettings,
-      tagline: schema.clinicProfile.tagline,
-      onboardingInterviewCompletedAt: schema.clinicProfile.onboardingInterviewCompletedAt,
-    })
-    .from(schema.clinicProfile)
-    .where(eq(schema.clinicProfile.organizationId, organizationId))
-    .limit(1)
+  const input = await getReadinessInput(organizationId)
+  const report = input ? resolveReadiness(input) : null
+  const byId = new Map(report?.facts.map((f) => [f.id, f]) ?? [])
 
-  const [
-    hasPatient,
-    hasInbox,
-    hasReviewConfig,
-    hasPms,
-    hasProduct,
-    hasChannel,
-    memberCountRow,
-  ] = await Promise.all([
-    exists(
-      db
-        .select({ id: schema.patient.id })
-        .from(schema.patient)
-        .where(eq(schema.patient.organizationId, organizationId))
-        .limit(1),
-    ),
-    exists(
-      db
-        .select({ id: schema.emailAccount.id })
-        .from(schema.emailAccount)
-        .where(eq(schema.emailAccount.organizationId, organizationId))
-        .limit(1),
-    ),
-    exists(
-      db
-        .select({ id: schema.clinicReviewConfig.organizationId })
-        .from(schema.clinicReviewConfig)
-        .where(eq(schema.clinicReviewConfig.organizationId, organizationId))
-        .limit(1),
-    ),
-    exists(
-      db
-        .select({ id: schema.pmsConnection.organizationId })
-        .from(schema.pmsConnection)
-        .where(eq(schema.pmsConnection.organizationId, organizationId))
-        .limit(1),
-    ),
-    exists(
-      db
-        .select({ id: schema.shopProduct.id })
-        .from(schema.shopProduct)
-        .where(eq(schema.shopProduct.organizationId, organizationId))
-        .limit(1),
-    ),
-    // Any connected channel (Google Business OR a social account) ticks the
-    // "connect your social channels" task — it derives from real data, so it
-    // can't lie and self-completes the moment a connection lands.
-    exists(
-      db
-        .select({ id: schema.zernioAccount.id })
-        .from(schema.zernioAccount)
-        .where(eq(schema.zernioAccount.organizationId, organizationId))
-        .limit(1),
-    ),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(schema.member)
-      .where(eq(schema.member.organizationId, organizationId)),
-  ])
-
-  const staffArr = Array.isArray(profileRow?.staff) ? (profileRow!.staff as unknown[]) : []
-  const memberCount = Number(memberCountRow[0]?.count ?? 0)
-
-  const doneById: Record<string, boolean> = {
-    brand_website: Boolean(profileRow?.logoUrl || profileRow?.heroImageUrl),
-    add_team: staffArr.length > 0,
-    set_hours: profileRow?.hours != null,
-    invite_team: memberCount > 1,
-    connect_social: hasChannel,
-    add_patients: hasPatient,
-    connect_inbox: hasInbox,
-    portal_setup: profileRow?.portalSettings != null,
-    reviews_setup: hasReviewConfig,
-    connect_pms: hasPms,
-    open_shop: hasProduct,
-  }
-
-  const tasks: ActivationTask[] = ACTIVATION_TASK_DEFS.map((t) => ({
-    id: t.id,
-    label: t.label,
-    body: t.body,
-    href: t.href,
-    done: doneById[t.id] ?? false,
-  }))
+  const tasks: ActivationTask[] = ACTIVATION_TASK_DEFS.map((t) => {
+    const factId = TASK_FACT[t.id]
+    const fact = factId ? byId.get(factId) : undefined
+    // Only a healthy 'ready' ticks a task. 'waiting' (carrier queue, first
+    // sync pending) isn't the clinic's move but isn't DONE either — the
+    // fact's summary tells that story on richer surfaces.
+    return {
+      id: t.id,
+      label: t.label,
+      body: t.body,
+      href: t.href,
+      done: fact?.grade === 'ready',
+    }
+  })
 
   const doneCount = tasks.filter((t) => t.done).length
-
-  // The site still "needs personalization" when the AI interview was never
-  // completed OR the tagline is still Wave 1's starter sentence. (With the
-  // day-0 floor a fresh site is never EMPTY, so the old "no content" heuristic
-  // is always false.) Drives the one-tap "Draft your website with AI" re-entry
-  // to /welcome on the Getting-started card. `siteNeedsPersonalization` is a
-  // pure helper in starter-pack.ts so the rule lives in one place.
-  const needs = siteNeedsPersonalization({
-    onboardingInterviewCompletedAt: profileRow?.onboardingInterviewCompletedAt ?? null,
-    tagline: profileRow?.tagline ?? null,
-  })
 
   return {
     tasks,
     doneCount,
     totalCount: tasks.length,
     allDone: doneCount === tasks.length,
-    siteNeedsPersonalization: needs,
+    siteNeedsPersonalization: input?.personalizationNeeded ?? false,
   }
 }

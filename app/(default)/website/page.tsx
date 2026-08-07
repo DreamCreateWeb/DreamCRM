@@ -31,6 +31,7 @@ import QuickEdits from './quick-edits'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { TrendChart } from '@/components/ui/charts'
+import { siteNeedsPersonalization } from '@/lib/services/starter-pack'
 
 export const metadata = {
   title: 'Website - DreamCRM',
@@ -132,16 +133,22 @@ export default async function WebsiteHubPage() {
         : { tone: 'warn', label: 'Domain waiting on DNS' }
     : { tone: 'neutral', label: 'Free address' }
 
-  // ── Go-live checklist — REAL stored states only, anti-shame copy. Rows a
-  //    plan doesn't cover are omitted (the upsell cards below own that story);
-  //    optional rows say so. Fully-done checklists collapse to quiet facts. ──
+  // ── Go-live checklist — REAL stored states only, anti-shame copy; optional
+  //    rows say so. Fully-done checklists collapse to quiet facts. Rows that
+  //    CANNOT complete for this clinic (custom-domain search data) are omitted
+  //    rather than shown forever-unfinished. ──
   const templateDef = getSiteTemplate(profile.template)
   const checklist: { label: string; done: boolean; href: string; optional?: boolean; hint?: string }[] =
     canEdit
       ? [
           {
             label: 'Personalize your site',
-            done: !!profile.onboardingInterviewCompletedAt,
+            // THE one personalization predicate (starter-pack.ts) — the same
+            // rule the Overview uses, so the two surfaces can't disagree.
+            done: !siteNeedsPersonalization({
+              onboardingInterviewCompletedAt: profile.onboardingInterviewCompletedAt,
+              tagline: profile.tagline,
+            }),
             href: '/welcome',
             hint: 'A 3-minute interview drafts every page in your voice.',
           },
@@ -160,12 +167,21 @@ export default async function WebsiteHubPage() {
             hint: 'Two DNS records put your site on yourpractice.com.',
           },
           ...[
-                {
-                  label: 'Search data flowing',
-                  done: !!gscScope?.platformConnected && !gscScope.customDomain,
-                  href: '/website/seo',
-                  hint: 'Google Search Console clicks + queries, scoped to your pages.',
-                },
+                // The Search-data row only exists where it CAN complete: the
+                // platform's shared Search Console property can't see a
+                // custom-domain clinic's pages, so for them this row was
+                // permanently un-tickable — a checklist item no action could
+                // ever clear. Not their failure → not their row.
+                ...(gscScope?.customDomain
+                  ? []
+                  : [
+                      {
+                        label: 'Search data flowing',
+                        done: !!gscScope?.platformConnected,
+                        href: '/website/seo',
+                        hint: 'Google Search Console clicks + queries, scoped to your pages.',
+                      },
+                    ]),
                 {
                   label: 'Publish your first blog post',
                   done: (blogStats?.published ?? 0) > 0,

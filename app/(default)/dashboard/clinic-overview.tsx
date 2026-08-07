@@ -293,61 +293,45 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         }
       />
 
-      {/* ── Integrations sync-health banner (renders only when unhealthy) ── */}
-      {data.integrationsHealth && data.integrationsHealth.severity !== 'info' && (
+      {/* ── Setup/sync attention banner (renders only when something's broken).
+          Fed by the readiness resolver, so connected-but-broken reaches here
+          for EVERY subsystem — PMS sync, the Google listing's Website button,
+          a dropped inbox, Stripe restrictions, booking live on unconfirmed
+          hours — not just the PMS like the old banner. */}
+      {data.readinessAttention.length > 0 && (
         <section className="mb-6">
-          <div
-            className={[
-              'rounded-[var(--r-lg)] border p-4 flex items-start gap-3',
-              data.integrationsHealth.severity === 'error'
-                ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30'
-                : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30',
-            ].join(' ')}
-          >
-            <div
-              className={[
-                'w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold',
-                data.integrationsHealth.severity === 'error'
-                  ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300'
-                  : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
-              ].join(' ')}
-              aria-hidden="true"
-            >
-              !
-            </div>
-            <div className="flex-1 min-w-0">
-              <p
-                className={[
-                  'text-sm font-semibold',
-                  data.integrationsHealth.severity === 'error'
-                    ? 'text-rose-900 dark:text-rose-200'
-                    : 'text-amber-900 dark:text-amber-200',
-                ].join(' ')}
+          <div className="rounded-[var(--r-lg)] border p-4 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30">
+            <div className="flex items-start gap-3">
+              <div
+                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                aria-hidden="true"
               >
-                A sync needs your attention
-              </p>
-              <p
-                className={[
-                  'text-xs mt-0.5',
-                  data.integrationsHealth.severity === 'error'
-                    ? 'text-rose-800/90 dark:text-rose-300/90'
-                    : 'text-amber-800/90 dark:text-amber-300/90',
-                ].join(' ')}
-              >
-                {data.integrationsHealth.message}
-              </p>
+                !
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  {data.readinessAttention.length === 1
+                    ? data.readinessAttention[0].label
+                    : `${data.readinessAttention.length} things need your attention`}
+                </p>
+                <ul className="mt-1 space-y-1.5">
+                  {data.readinessAttention.map((f) => (
+                    <li key={f.id} className="text-xs text-amber-800/90 dark:text-amber-300/90">
+                      {data.readinessAttention.length > 1 && (
+                        <span className="font-medium">{f.label} — </span>
+                      )}
+                      {f.summary}{' '}
+                      <Link
+                        href={f.href}
+                        className="font-medium underline underline-offset-2 hover:text-amber-950 dark:hover:text-amber-100"
+                      >
+                        Open
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <Link
-              href="/integrations"
-              className={[
-                'text-xs font-medium px-3 py-1.5 rounded-lg shrink-0 self-center',
-                data.integrationsHealth.severity === 'error'
-                  ? 'bg-rose-100 text-rose-800 hover:bg-rose-200 dark:bg-rose-500/20 dark:text-rose-200 dark:hover:bg-rose-500/30'
-                  : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30',
-              ].join(' ')}
-            >
-              Open Integrations
-            </Link>
           </div>
         </section>
       )}
