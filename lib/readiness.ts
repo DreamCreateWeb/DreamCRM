@@ -222,8 +222,18 @@ export function resolveReadiness(input: ReadinessInput): ReadinessReport {
   )
 
   // ── Hours + booking (the ghost-schedule truth) ────────────────────────────
+  // Confirmed = the clinic's word, not our guess: 'google' (their real
+  // listing), 'confirmed' (the setup card's approve), or any human-shaped
+  // week. 'seeded' is OUR GUESS by definition — even if the clinic's real
+  // week happens to be Mon–Fri 9–5, only a human act upgrades it. The
+  // looksSeeded fallback covers legacy rows stamped 'manual' by the old
+  // seeder default.
   const hoursConfirmed =
-    input.hours.present && (input.hours.source === 'google' || !input.hours.looksSeeded)
+    input.hours.present &&
+    input.hours.source !== 'seeded' &&
+    (input.hours.source === 'google' ||
+      input.hours.source === 'confirmed' ||
+      !input.hours.looksSeeded)
   facts.push(
     !input.hours.present
       ? fact(

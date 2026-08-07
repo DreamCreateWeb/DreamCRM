@@ -65,7 +65,14 @@ export async function seedClinicDay0Defaults(organizationId: string): Promise<vo
   if (!profile) return
 
   const patch: Record<string, unknown> = {}
-  if (profile.hours == null) patch.hours = DEFAULT_CLINIC_HOURS
+  // The 'seeded' source is load-bearing (onboarding overhaul): it is how the
+  // readiness resolver and the setup_hours proposal know these hours are OUR
+  // GUESS, not the clinic's word. Every human write path stamps 'manual'
+  // (or the setup card's approve stamps 'confirmed', GBP sync 'google').
+  if (profile.hours == null) {
+    patch.hours = DEFAULT_CLINIC_HOURS
+    patch.hoursSource = 'seeded'
+  }
 
   if (Object.keys(patch).length === 0) return
   patch.updatedAt = new Date()

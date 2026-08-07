@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FlashToast } from '@/components/ui/flash-toast'
-import { isGrantable, BOOKING_BUTTON_CAPABILITIES } from '@/lib/autonomy'
+import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
 import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
 
 /**
@@ -74,6 +74,9 @@ const CAPABILITY_ICON: Record<string, string> = {
   inquiry_response: '💬',
   outreach_campaign: '💌',
   gbp_website_fix: '📍',
+  setup_hours: '🕒',
+  setup_chairs: '🪑',
+  setup_booking_mode: '📅',
 }
 
 /** Substitute the campaign merge tokens with a readable sample so the card
@@ -386,6 +389,13 @@ function ProposalCard({
   // already-granted card means the capability is granted.
   const capabilityGranted = proposal.capabilityGranted ?? alreadyGranted
   const tokens = HAS_TOKENS.test(body)
+  // Setup asks (onboarding overhaul): the card collects an ANSWER instead of
+  // approving a drafted artifact — no body editing (the body is the question,
+  // not a work product), a typed control per ask, and approve labels that
+  // say what saying yes does.
+  const isSetup = SETUP_CAPABILITIES.includes(proposal.capability)
+  const [chairsAnswer, setChairsAnswer] = useState('3')
+  const [modeAnswer, setModeAnswer] = useState<'requests' | 'direct'>('requests')
   // The send APPENDS a booking button for these capabilities when the body
   // doesn't place the link itself — say so on the card, because "what the
   // card shows is what sends" must be literally true (verification round:
@@ -402,6 +412,20 @@ function ProposalCard({
       setError('The subject can’t be empty — give it a few words first.')
       return
     }
+    // A setup answer is validated where it's typed — the server re-checks.
+    if (decision === 'approve' && proposal.capability === 'setup_chairs') {
+      const n = Number.parseInt(chairsAnswer, 10)
+      if (!Number.isFinite(n) || n < 1 || n > 30) {
+        setError('How many chairs? Pick a number from 1 to 30.')
+        return
+      }
+    }
+    const setupAnswer =
+      decision === 'approve' && proposal.capability === 'setup_chairs'
+        ? String(Number.parseInt(chairsAnswer, 10))
+        : decision === 'approve' && proposal.capability === 'setup_booking_mode'
+          ? modeAnswer
+          : undefined
     startTransition(async () => {
       // Every server-action call on this card has a failure boundary: a
       // rejected promise inside a transition is invisible, and the card would
@@ -413,6 +437,7 @@ function ProposalCard({
             ...(proposal.subject != null && subject.trim() && subject !== proposal.subject
               ? { subject }
               : {}),
+            ...(setupAnswer !== undefined ? { answer: setupAnswer } : {}),
           })
         : declineProposalAction({ proposalId: proposal.id })
       ).catch(() => ({
@@ -586,6 +611,54 @@ function ProposalCard({
         )}
       </div>
 
+      {/* Setup-ask answer controls — the card collects a fact, the approve
+          writes it. */}
+      {proposal.capability === 'setup_chairs' && (
+        <div className="mt-3 flex items-center gap-2">
+          <label
+            htmlFor={`chairs-${proposal.id}`}
+            className="text-sm text-gray-700 dark:text-gray-200 font-medium"
+          >
+            Chairs:
+          </label>
+          <input
+            id={`chairs-${proposal.id}`}
+            type="number"
+            min={1}
+            max={30}
+            value={chairsAnswer}
+            onChange={(e) => setChairsAnswer(e.target.value)}
+            disabled={pending}
+            className="w-20 text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+          />
+        </div>
+      )}
+      {proposal.capability === 'setup_booking_mode' && (
+        <div className="mt-3 space-y-1.5" role="radiogroup" aria-label="How should booking work?">
+          {(
+            [
+              ['requests', 'Requests I approve — nothing lands without my say-so (recommended)'],
+              ['direct', 'Direct booking — patients book straight into open times'],
+            ] as const
+          ).map(([value, label]) => (
+            <label
+              key={value}
+              className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer"
+            >
+              <input
+                type="radio"
+                name={`mode-${proposal.id}`}
+                checked={modeAnswer === value}
+                onChange={() => setModeAnswer(value)}
+                disabled={pending}
+                className="mt-1"
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
       {error && <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">{error}</p>}
 
       {/* THE HAND-BACK, said plainly (round-1 Phase-3 audit): the machine
@@ -669,16 +742,34 @@ function ProposalCard({
           disabled={pending}
           className="px-4 py-2 rounded-lg text-sm font-semibold bg-[color:var(--color-brand-600,theme(colors.sky.600))] text-white hover:opacity-90 disabled:opacity-50"
         >
-          {pending ? 'On it…' : 'Approve — send it'}
+          {pending
+            ? 'On it…'
+            : proposal.capability === 'setup_hours'
+              ? 'Yes — that’s my week'
+              : proposal.capability === 'setup_chairs'
+                ? 'Save'
+                : proposal.capability === 'setup_booking_mode'
+                  ? 'Save my choice'
+                  : 'Approve — send it'}
         </button>
-        <button
-          type="button"
-          onClick={() => setEditing((v) => !v)}
-          disabled={pending}
-          className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60 disabled:opacity-50"
-        >
-          {editing ? 'Done editing' : 'Edit first'}
-        </button>
+        {proposal.capability === 'setup_hours' && (
+          <a
+            href="/settings/clinic"
+            className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60"
+          >
+            Fix them instead
+          </a>
+        )}
+        {!isSetup && (
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            disabled={pending}
+            className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60 disabled:opacity-50"
+          >
+            {editing ? 'Done editing' : 'Edit first'}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {

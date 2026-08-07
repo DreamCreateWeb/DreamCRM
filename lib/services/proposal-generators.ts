@@ -166,6 +166,12 @@ export const STEP_FAILURE: Record<string, { capability: string; summary: string 
     capability: 'gbp_website_fix',
     summary: 'Couldn’t check where your Google listing points just now — I’ll keep trying.',
   },
+  // The three setup asks ride one step (one profile read files all three),
+  // so the step failure names the engine's job, not any single card.
+  setup: {
+    capability: 'proposal_engine',
+    summary: 'Couldn’t bring you your setup questions just now — I’ll keep trying.',
+  },
   autonomy: {
     capability: 'proposal_engine',
     summary: 'Couldn’t finish something you’d handed over to me — I’ll try it again shortly.',
@@ -327,6 +333,11 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
         // evidence), turning narrate-once into narrate-zero on a timer.
         ['reconcile', async () => (await reconcileStrandedApprovals(org.id, now), 0)],
         ['sweep', async () => ((result.expired += await sweepInvalidatedProposals(org.id)), 0)],
+        // SETUP ASKS FIRST (onboarding overhaul): a brand-new org's first
+        // hourly tick should put the employee's questions in the inbox —
+        // the manufactured week-1 aha — before any work-shaped generators
+        // (which all gate on data a day-0 clinic lacks anyway).
+        ['setup', () => generateSetupProposals(org.id)],
         ['review_reply', () => generateReviewReplyProposals(org.id, now, softFailed('review_reply'))],
         [
           'inquiry_response',
@@ -533,6 +544,7 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
   const socialProposals: Array<{ id: string; createdAt: Date }> = []
   const campaignProposals: string[] = []
   const gbpProposals: string[] = []
+  const setupProposals: Array<{ id: string; capability: string }> = []
   for (const p of open) {
     const payload = (p.payload ?? {}) as Record<string, unknown>
     if (p.capability === 'review_reply' && typeof payload.externalReviewId === 'string') {
@@ -545,6 +557,52 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
       campaignProposals.push(p.id)
     } else if (p.capability === 'gbp_website_fix') {
       gbpProposals.push(p.id)
+    } else if (
+      p.capability === 'setup_hours' ||
+      p.capability === 'setup_chairs' ||
+      p.capability === 'setup_booking_mode'
+    ) {
+      setupProposals.push({ id: p.id, capability: p.capability })
+    }
+  }
+
+  // Setup asks retire when the fact got set ANY other way — Settings, GBP
+  // sync, the go-live pull. A question whose answer already exists is noise.
+  if (setupProposals.length > 0) {
+    try {
+      const [prof] = await db
+        .select({
+          hours: schema.clinicProfile.hours,
+          hoursSource: schema.clinicProfile.hoursSource,
+          chairCount: schema.clinicProfile.chairCount,
+          selfBookingEnabled: schema.clinicProfile.selfBookingEnabled,
+          siteLiveAt: schema.clinicProfile.siteLiveAt,
+        })
+        .from(schema.clinicProfile)
+        .where(eq(schema.clinicProfile.organizationId, organizationId))
+        .limit(1)
+      if (prof) {
+        const { hoursLookSeeded } = await import('@/lib/readiness')
+        const { DEFAULT_CLINIC_HOURS } = await import('@/lib/onboarding/defaults')
+        const hoursConfirmedElsewhere =
+          prof.hoursSource === 'google' ||
+          prof.hoursSource === 'confirmed' ||
+          (prof.hoursSource === 'manual' && !hoursLookSeeded(prof.hours, DEFAULT_CLINIC_HOURS))
+        for (const sp of setupProposals) {
+          if (sp.capability === 'setup_hours' && hoursConfirmedElsewhere) toExpire.push(sp.id)
+          if (sp.capability === 'setup_chairs' && prof.chairCount != null) toExpire.push(sp.id)
+          if (
+            sp.capability === 'setup_booking_mode' &&
+            (prof.siteLiveAt != null || prof.selfBookingEnabled === false)
+          ) {
+            // Went live (the "when you go live" question is moot; Settings
+            // owns it now) or chose request mode by hand.
+            toExpire.push(sp.id)
+          }
+        }
+      }
+    } catch {
+      /* an unreadable profile just means the cards wait for the next sweep */
     }
   }
   if (reviewIds.size > 0) {
@@ -1426,4 +1484,108 @@ export async function generateOutreachCampaignProposals(
     expiresAt: new Date(now.getTime() + 14 * DAY_MS),
   })
   return filed ? 1 : 0
+}
+
+/* ── Setup asks (onboarding overhaul: "setup asks ARE proposals") ────────────
+ * The employee's first-week questions, filed as cards the moment the org
+ * exists instead of a settings wall nobody finishes (checklist completion
+ * medians ~10%). AI-FREE by design — a day-0 practice with no AI key still
+ * gets its questions — and each files ONCE EVER per org (the sourceKey has
+ * no time bucket): an answer writes the fact, a decline means "stop asking",
+ * and setting the fact any other way retires the card via the sweep. No
+ * expiresAt: a question patiently waits — work drafts go stale, questions
+ * don't.
+ */
+
+const WEEKDAY_LABELS: Record<string, string> = {
+  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+  fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+}
+
+function formatHoursWeek(hours: unknown): string {
+  if (hours == null || typeof hours !== 'object') return ''
+  const h = hours as Record<string, { open?: string | null; close?: string | null } | null>
+  const lines: string[] = []
+  for (const day of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) {
+    const d = h[day]
+    if (d && d.open && d.close) lines.push(`${WEEKDAY_LABELS[day]}: ${d.open}–${d.close}`)
+    else lines.push(`${WEEKDAY_LABELS[day]}: closed`)
+  }
+  return lines.join('\n')
+}
+
+export async function generateSetupProposals(organizationId: string): Promise<number> {
+  const [profile] = await db
+    .select({
+      hours: schema.clinicProfile.hours,
+      hoursSource: schema.clinicProfile.hoursSource,
+      chairCount: schema.clinicProfile.chairCount,
+      selfBookingEnabled: schema.clinicProfile.selfBookingEnabled,
+      siteLiveAt: schema.clinicProfile.siteLiveAt,
+    })
+    .from(schema.clinicProfile)
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+    .limit(1)
+  if (!profile) return 0
+  let filedCount = 0
+
+  // 1. "Are these your real hours?" — while the week is still OUR GUESS
+  //    ('seeded', or the legacy pre-stamp shape). GBP-connected clinics
+  //    usually never see this card: the hourly sync writes 'google' first.
+  const { hoursLookSeeded } = await import('@/lib/readiness')
+  const { DEFAULT_CLINIC_HOURS } = await import('@/lib/onboarding/defaults')
+  const hoursUnconfirmed =
+    profile.hours != null &&
+    (profile.hoursSource === 'seeded' ||
+      (profile.hoursSource === 'manual' && hoursLookSeeded(profile.hours, DEFAULT_CLINIC_HOURS)))
+  if (hoursUnconfirmed) {
+    const { filed } = await fileProposal({
+      organizationId,
+      capability: 'setup_hours',
+      sourceKey: 'setup_hours:v1',
+      title: 'Are these your real office hours?',
+      body:
+        `I started you on the most common dental week:\n\n${formatHoursWeek(profile.hours)}\n\n` +
+        `Your website, booking slots, and patient portal all run on these. If that’s your real week, approve and I’ll treat it as confirmed. If not, fix it under Settings → Business profile and this card will retire itself.`,
+    })
+    if (filed) filedCount++
+  }
+
+  // 2. "How many chairs?" — while the concurrency cap is unset (booking
+  //    silently assumes ONE chair, which under-books a multi-op practice).
+  if (profile.chairCount == null) {
+    const { filed } = await fileProposal({
+      organizationId,
+      capability: 'setup_chairs',
+      sourceKey: 'setup_chairs:v1',
+      title: 'How many chairs do you run?',
+      body:
+        'Online booking fills one patient per chair per time slot. Right now I’m assuming a single chair, which books the schedule tighter than a multi-chair practice needs — tell me the real number and I’ll open up the calendar to match.',
+      payload: { proposed: 3 },
+    })
+    if (filed) filedCount++
+  }
+
+  // 3. "How should booking work when you go live?" — only while the site is
+  //    still behind the go-live lever AND direct booking (the default)
+  //    hasn't been changed by hand. The recommendation is requests-first
+  //    (the clinic approves each time until their schedule is trustworthy) —
+  //    but it's their call, both answers are one tap.
+  if (profile.siteLiveAt == null && profile.selfBookingEnabled !== false) {
+    const { filed } = await fileProposal({
+      organizationId,
+      capability: 'setup_booking_mode',
+      sourceKey: 'setup_booking_mode:v1',
+      title: 'When your site goes live, how should booking work?',
+      body:
+        'Two ways to take patients online:\n\n' +
+        '• Requests you approve — patients ask for a time, you confirm each one. I’d start here: nothing lands on your schedule without your say-so.\n' +
+        '• Direct booking — patients book straight into open times. Great once your hours and chairs are confirmed.\n\n' +
+        'You can change this anytime under Settings → Practice.',
+      payload: { recommended: 'requests' },
+    })
+    if (filed) filedCount++
+  }
+
+  return filedCount
 }

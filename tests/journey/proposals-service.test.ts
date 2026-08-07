@@ -376,6 +376,11 @@ vi.mock('@/lib/db', () => {
       trialEndsAt: col('trialEndsAt'),
       subscriptionStatus: col('subscriptionStatus'),
       stripeSubscriptionId: col('stripeSubscriptionId'),
+      hours: col('hours'),
+      hoursSource: col('hoursSource'),
+      chairCount: col('chairCount'),
+      selfBookingEnabled: col('selfBookingEnabled'),
+      updatedAt: col('updatedAt'),
     },
     organization: { __name: 'organization', id: col('id'), name: col('name'), isDemo: col('isDemo') },
     campaigns: {
@@ -1993,5 +1998,84 @@ describe('expiry + helpers', () => {
     // A draft that places the link itself gets no duplicate button.
     const own = textToCampaignHtml('Book here: {{bookingUrl}}')
     expect(own.match(/\{\{bookingUrl\}\}/g)).toHaveLength(1)
+  })
+})
+
+describe('approveProposal — setup asks (onboarding overhaul)', () => {
+  it('setup_hours: approve stamps the week confirmed and narrates once', async () => {
+    store.profiles = [{ organizationId: ORG, hoursSource: 'seeded', hours: { mon: { open: '09:00', close: '17:00' } } }]
+    const p = seedProposal({ capability: 'setup_hours', sourceKey: 'setup_hours:v1' })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r).toMatchObject({ ok: true, status: 'approved' })
+    expect(store.profiles[0].hoursSource).toBe('confirmed')
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(entry.capability).toBe('setup_hours')
+    expect(String(entry.summary)).toContain('you approved it')
+  })
+
+  it('setup_hours: retires when the week became the clinic’s word another way', async () => {
+    store.profiles = [{ organizationId: ORG, hoursSource: 'google', hours: {} }]
+    const p = seedProposal({ capability: 'setup_hours', sourceKey: 'setup_hours:v1' })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(false)
+    expect((r as { expired?: boolean }).expired).toBe(true)
+    expect(store.profiles[0].hoursSource).toBe('google') // never overwritten
+    expect(p.status).toBe('expired')
+  })
+
+  it('setup_chairs: the typed answer writes the chair count', async () => {
+    store.profiles = [{ organizationId: ORG, chairCount: null }]
+    const p = seedProposal({ capability: 'setup_chairs', sourceKey: 'setup_chairs:v1' })
+    const r = await approveProposal(ORG, p.id, 'user_1', { answer: '4' })
+    expect(r).toMatchObject({ ok: true, status: 'approved' })
+    expect(store.profiles[0].chairCount).toBe(4)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toContain('4 chairs')
+  })
+
+  it('setup_chairs: junk answers are refused and the card stays live', async () => {
+    store.profiles = [{ organizationId: ORG, chairCount: null }]
+    const p = seedProposal({ capability: 'setup_chairs', sourceKey: 'setup_chairs:v1' })
+    const r = await approveProposal(ORG, p.id, 'user_1', { answer: 'zebra' })
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open') // reopened for a retry
+    expect(store.profiles[0].chairCount).toBeNull()
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('setup_chairs: retires when the count is already set', async () => {
+    store.profiles = [{ organizationId: ORG, chairCount: 6 }]
+    const p = seedProposal({ capability: 'setup_chairs', sourceKey: 'setup_chairs:v1' })
+    const r = await approveProposal(ORG, p.id, 'user_1', { answer: '2' })
+    expect(r.ok).toBe(false)
+    expect((r as { expired?: boolean }).expired).toBe(true)
+    expect(store.profiles[0].chairCount).toBe(6) // the human's value stands
+  })
+
+  it('setup_booking_mode: both answers write the switch; no answer is refused', async () => {
+    store.profiles = [{ organizationId: ORG, selfBookingEnabled: true }]
+    const p1 = seedProposal({ capability: 'setup_booking_mode', sourceKey: 'setup_booking_mode:v1' })
+    const r1 = await approveProposal(ORG, p1.id, 'user_1', { answer: 'requests' })
+    expect(r1.ok).toBe(true)
+    expect(store.profiles[0].selfBookingEnabled).toBe(false)
+
+    store.profiles = [{ organizationId: ORG, selfBookingEnabled: true }]
+    const p2 = seedProposal({ capability: 'setup_booking_mode', sourceKey: 'setup_booking_mode:v2' })
+    const r2 = await approveProposal(ORG, p2.id, 'user_1', { answer: 'direct' })
+    expect(r2.ok).toBe(true)
+    expect(store.profiles[0].selfBookingEnabled).toBe(true)
+
+    const p3 = seedProposal({ capability: 'setup_booking_mode', sourceKey: 'setup_booking_mode:v3' })
+    const r3 = await approveProposal(ORG, p3.id, 'user_1')
+    expect(r3.ok).toBe(false)
+    expect(p3.status).toBe('open')
+  })
+
+  it('a blank answer is refused before anything is claimed', async () => {
+    const p = seedProposal({ capability: 'setup_chairs', sourceKey: 'setup_chairs:v9' })
+    const r = await approveProposal(ORG, p.id, 'user_1', { answer: '   ' })
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open')
   })
 })

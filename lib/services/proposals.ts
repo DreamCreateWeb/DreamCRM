@@ -700,7 +700,7 @@ export async function approveProposal(
   organizationId: string,
   proposalId: string,
   userId: string,
-  opts: { body?: string; subject?: string } = {},
+  opts: { body?: string; subject?: string; answer?: string } = {},
 ): Promise<DecideResult> {
   return decideAndExecute(organizationId, proposalId, { kind: 'human', userId }, opts)
 }
@@ -723,8 +723,40 @@ async function decideAndExecute(
   organizationId: string,
   proposalId: string,
   actor: DecisionActor,
-  opts: { body?: string; subject?: string } = {},
+  opts: { body?: string; subject?: string; answer?: string } = {},
 ): Promise<DecideResult> {
+  // Structured ANSWER (setup asks — onboarding overhaul): a short typed value
+  // the card collects ("3" chairs, "requests" vs "direct"). Rides the payload
+  // exactly like the subject edit so the executor reads what was approved
+  // from the claimed row; never stashes originalBody (a setup answer is the
+  // point of the card, not an edit to a drafted artifact).
+  const answer = opts.answer?.trim()
+  if (opts.answer !== undefined && !answer) {
+    return { ok: false, error: 'Pick an answer first.' }
+  }
+  if (answer && answer.length > 120) {
+    return { ok: false, error: 'That answer looks too long.' }
+  }
+  if (answer) {
+    const [current] = await db
+      .select({ payload: schema.proposal.payload })
+      .from(schema.proposal)
+      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+      .limit(1)
+    if (current) {
+      const payload = (current.payload ?? {}) as Record<string, unknown>
+      await db
+        .update(schema.proposal)
+        .set({ payload: { ...payload, answer }, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.proposal.organizationId, organizationId),
+            eq(schema.proposal.id, proposalId),
+            eq(schema.proposal.status, 'open'),
+          ),
+        )
+    }
+  }
   const editedBody = opts.body?.trim()
   if (opts.body !== undefined && !editedBody) {
     return { ok: false, error: 'The message can’t be empty — edit it or decline instead.' }
@@ -1070,6 +1102,12 @@ async function executeProposal(
       return executeScheduleGap(p, payload, saidYes)
     case 'gbp_website_fix':
       return executeGbpWebsiteFix(p, payload, saidYes)
+    case 'setup_hours':
+      return executeSetupHours(p, payload, saidYes)
+    case 'setup_chairs':
+      return executeSetupChairs(p, payload, saidYes)
+    case 'setup_booking_mode':
+      return executeSetupBookingMode(p, payload, saidYes)
     default:
       return { ok: false, error: 'I don’t know how to carry this one out yet.' }
   }
@@ -1084,7 +1122,115 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'content_plan': return `Lined up a month of posts and articles ${saidYes}`
     case 'schedule_gap': return `Invited patients in for the week’s open times ${saidYes}`
     case 'gbp_website_fix': return `Pointed your Google listing at your website ${saidYes}`
+    case 'setup_hours': return `Confirmed your office hours ${saidYes}`
+    case 'setup_chairs': return `Noted how many chairs you run ${saidYes}`
+    case 'setup_booking_mode': return `Set how online booking works ${saidYes}`
     default: return `Did the work ${saidYes}`
+  }
+}
+
+/* ── Setup-ask executors (onboarding overhaul: setup asks ARE proposals) ─────
+ * Three tiny, AI-free executors that write ONE fact each. Shared laws:
+ *  - LIVE staleness at the tap: the card was filed on an hourly scan, and
+ *    someone may have set the fact by hand since (Settings, GBP sync). A
+ *    fact that's no longer ours to write → retire with the honest reason,
+ *    never overwrite a human's value with the card's older one.
+ *  - An UNREADABLE staleness check never vetoes an explicit human yes.
+ *  - The answer (when the card collects one) rides payload.answer, written
+ *    pre-claim by decideAndExecute — the executor validates it as untrusted
+ *    input even though our own card produced it.
+ */
+
+async function executeSetupHours(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  void payload
+  let current: { hoursSource: string | null; hours: unknown } | null = null
+  try {
+    const [row] = await db
+      .select({ hoursSource: schema.clinicProfile.hoursSource, hours: schema.clinicProfile.hours })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, p.organizationId))
+      .limit(1)
+    current = row ?? null
+  } catch {
+    current = null // unreadable never vetoes the yes
+  }
+  if (current && current.hoursSource && !['seeded', 'manual'].includes(current.hoursSource)) {
+    // 'google' or 'confirmed' landed since filing — the week is already the
+    // clinic's word; this card has nothing left to do.
+    return { ok: false, error: 'Your hours are already confirmed — nothing to do here.', expired: true }
+  }
+  await db
+    .update(schema.clinicProfile)
+    .set({ hoursSource: 'confirmed', updatedAt: new Date() })
+    .where(eq(schema.clinicProfile.organizationId, p.organizationId))
+  return {
+    ok: true,
+    ledgerSummary: `Confirmed your office hours ${saidYes} — booking and your site now run on your real week`,
+    ledgerDetail: { setup: 'hours' },
+  }
+}
+
+async function executeSetupChairs(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  const raw = typeof payload.answer === 'string' ? payload.answer : ''
+  const chairs = Number.parseInt(raw, 10)
+  if (!Number.isFinite(chairs) || chairs < 1 || chairs > 30) {
+    return { ok: false, error: 'How many chairs? Pick a number from 1 to 30.' }
+  }
+  try {
+    const [row] = await db
+      .select({ chairCount: schema.clinicProfile.chairCount })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, p.organizationId))
+      .limit(1)
+    if (row && row.chairCount != null) {
+      return { ok: false, error: 'Your chair count is already set — nothing to do here.', expired: true }
+    }
+  } catch {
+    /* unreadable never vetoes the yes */
+  }
+  await db
+    .update(schema.clinicProfile)
+    .set({ chairCount: chairs, updatedAt: new Date() })
+    .where(eq(schema.clinicProfile.organizationId, p.organizationId))
+  return {
+    ok: true,
+    ledgerSummary: `Set the schedule up for ${chairs} ${chairs === 1 ? 'chair' : 'chairs'} ${saidYes} — booking now fills up to ${chairs} ${chairs === 1 ? 'seat' : 'seats'} per time`,
+    ledgerDetail: { setup: 'chairs', chairs },
+  }
+}
+
+async function executeSetupBookingMode(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  const answer = typeof payload.answer === 'string' ? payload.answer : ''
+  if (answer !== 'requests' && answer !== 'direct') {
+    return { ok: false, error: 'Pick how booking should work first.' }
+  }
+  // No staleness retire here on purpose: the card is the clinic ANSWERING a
+  // question, and re-answering (e.g. after someone toggled Settings) is
+  // still their newest word — last write wins, exactly like the Settings
+  // toggle itself.
+  await db
+    .update(schema.clinicProfile)
+    .set({ selfBookingEnabled: answer === 'direct', updatedAt: new Date() })
+    .where(eq(schema.clinicProfile.organizationId, p.organizationId))
+  return {
+    ok: true,
+    ledgerSummary:
+      answer === 'direct'
+        ? `Turned on direct online booking ${saidYes} — patients book straight into open times`
+        : `Set booking to request mode ${saidYes} — patients ask, you approve each time`,
+    ledgerDetail: { setup: 'booking_mode', mode: answer },
   }
 }
 

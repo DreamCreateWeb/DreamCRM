@@ -83,6 +83,21 @@ describe('the ghost schedule (booking on unconfirmed hours)', () => {
     expect(get(r.facts, 'booking').grade).toBe('attention')
     expect(get(r.facts, 'hours').grade).toBe('todo')
   })
+  it("'seeded' hours are OUR GUESS — unconfirmed even when the shape was edited", () => {
+    const r = resolveReadiness(
+      baseInput({ hours: { present: true, source: 'seeded', looksSeeded: false } }),
+    )
+    expect(get(r.facts, 'hours').grade).toBe('todo')
+  })
+
+  it("the setup card's approve ('confirmed') counts as the clinic's word", () => {
+    const r = resolveReadiness(
+      baseInput({ hours: { present: true, source: 'confirmed', looksSeeded: true } }),
+    )
+    expect(get(r.facts, 'hours').grade).toBe('ready')
+    expect(get(r.facts, 'booking').grade).toBe('ready')
+  })
+
   it('google-sourced hours count as confirmed', () => {
     const r = resolveReadiness(
       baseInput({ hours: { present: true, source: 'google', looksSeeded: true } }),

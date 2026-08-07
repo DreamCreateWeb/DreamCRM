@@ -94,7 +94,27 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   // handful of times in a practice's life — there is no cadence to hand
   // over, only individual bounded yeses.
   { key: 'gbp_website_fix', label: 'Point your Google listing at your website', defaultTrust: 'ask' },
+  // ── Setup asks (onboarding overhaul: "setup asks ARE proposals") ──────────
+  // The employee's first-week questions, arriving as cards instead of a
+  // settings wall. Ask-first BY NATURE and deliberately NOT grantable: each
+  // is a fact only the clinic knows, asked once — there is no cadence to
+  // hand over. All three are AI-free (code-owned copy) so a day-0 practice
+  // with no AI key still gets its questions.
+  { key: 'setup_hours', label: 'Confirm your office hours', defaultTrust: 'ask' },
+  { key: 'setup_chairs', label: 'Confirm how many chairs you run', defaultTrust: 'ask' },
+  { key: 'setup_booking_mode', label: 'Choose how online booking works', defaultTrust: 'ask' },
 ] as const
+
+/**
+ * The setup-ask capabilities (onboarding overhaul). Single-homed here so the
+ * Approval Inbox (answer affordances, no body editing), the generator, and
+ * the executors all agree on membership.
+ */
+export const SETUP_CAPABILITIES: readonly string[] = [
+  'setup_hours',
+  'setup_chairs',
+  'setup_booking_mode',
+]
 
 /**
  * Capabilities whose SEND appends a "Book a time" button when the draft
