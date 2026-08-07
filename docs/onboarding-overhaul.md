@@ -510,3 +510,45 @@ Part 5:
    the clinic must answer, in what order, and what gates go-live. The
    readiness resolver and the rest of Phases B–D get re-scoped from the
    outcome of that conversation.
+
+### Round 2 rulings (2026-08-07, overnight)
+
+7. **Entry doors: Path B (self-serve) is the ONE flow.** Managed
+   provisioning = the owner fills in the clinic + first user, the
+   platform sends an invite, and accepting the invite drops that user
+   into the SAME self-serve machine-led onboarding. One flow, two doors.
+   Both ship "sooner rather than later," self-serve polished first.
+8. **Go-live is ONE BIG LEVER.** Website + booking + everything public
+   flips on together, only when the clinic pulls it — "there's too much
+   on the website that could go wrong if it has false information." This
+   supersedes today's live-at-subdomain-resolution behavior and the
+   two-door (site now, booking later) design sketch in Part 4 §3-4. The
+   machine prepares everything behind the curtain; the clinic inspects
+   and flips.
+9. **NexHealth Synchronizer is LIVE ACCESS, not a deal** — the owner has
+   already signed up and holds an API key (arriving ~2026-08-07 morning;
+   assistant reminder armed). Build the PMS step around it.
+10. **SMS starts registering IMMEDIATELY at onboarding** and is a
+    standard feature, not an add-on — pending the cost analysis (below),
+    with guardrails instead of an upsell: the plan includes a monthly
+    segment budget; marketing sends stop at the budget (transactional
+    reminders keep going); usage is visible.
+11. **Onboarding is machine-only, with a human escape hatch at every
+    step** — an always-visible, one-tap "reach Dustin" support path,
+    but no human required to complete setup.
+
+### SMS unit economics (verified 2026-08-07, AWS End User Messaging US)
+
+Per-segment outbound 10DLC: **$0.00883** ($0.00581 base + $0.00302
+carrier). Fixed per clinic: number $1/mo + campaign $2/mo (low-volume) or
+$10/mo (standard); one-time brand $4 + campaign vetting ~$15; T-Mobile's
+$50 campaign registration currently waived. The owner's nightmare case
+(200 texts/day × 30 days = 6,000 segments) = **~$53/mo** — real but
+bounded; a REALISTIC clinic month (reminder fallback for the
+no-email minority + one or two campaign blasts, GSM-7 single-segment law
+holding) = **$5–25/mo all-in**. Conclusion: include SMS in the plan from
+the jump; cap the aggregate with a monthly included segment budget
+(~2,000 segments ≈ $18 worst-case marginal cost) enforced on MARKETING
+sends only; the per-patient frequency cap (0143) already bounds spam;
+surface usage honestly. Overage behavior (pause vs metered) is a later
+call — at 2 clinics it cannot matter yet.
