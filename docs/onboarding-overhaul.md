@@ -593,3 +593,25 @@ call — at 2 clinics it cannot matter yet.
   "View live". Readiness grades booking 'na' behind the lever (the ghost
   schedule is impossible until live). The demo seeder self-heals
   `site_live_at` so a fresh demo org never pitches "Coming soon".
+
+- **SETUP ASKS AS INBOX CARDS — SHIPPED 2026-08-07** (deployed as
+  087f4c9; Phase C slice 1, "setup asks ARE proposals"). Three ask-first
+  capabilities — `setup_hours` / `setup_chairs` / `setup_booking_mode` —
+  registered non-grantable (facts only the clinic knows, no cadence to
+  hand over), filed by `generateSetupProposals` as the FIRST generator
+  step (the manufactured week-1 aha: a day-0 org's first hourly tick puts
+  the employee's questions in the inbox). AI-free, file once ever
+  (unbucketed sourceKeys), no expiry — questions wait, work drafts don't.
+  The seeder now stamps `hoursSource='seeded'` so "our guess" is a fact,
+  not a shape-heuristic ('confirmed' = the card's approve; readiness
+  trusts seeded < manual/confirmed/google, with the shape fallback for
+  legacy rows). The approve API grew a structured `payload.answer`
+  channel (pre-claim write, subject-edit pattern; never stashes
+  originalBody); executors carry live staleness (a fact set elsewhere
+  retires the card, never overwrites a human's value — except booking
+  mode, where re-answering is deliberately last-write-wins like the
+  Settings toggle it mirrors). The Inbox renders per-ask affordances:
+  hours = "Yes — that's my week" + a "Fix them instead" settings link;
+  chairs = a number field; booking mode = a two-option radio,
+  requests-first recommended. The invalidation sweep retires
+  answered-elsewhere cards each tick. Suite 6,380 → 6,395.
