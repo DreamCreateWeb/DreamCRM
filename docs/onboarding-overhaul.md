@@ -671,3 +671,28 @@ portal → the install happens (us remote / their IT / NexHealth's team,
 wait-card retires. Sources: the installation guide, the
 institutions/syncs/locations doc, and the server-based help article at
 docs.nexhealth.com / help.nexhealth.com.
+
+- **NEXHEALTH SYNCHRONIZER, WIRED IN — SHIPPED 2026-08-08** (deployed as
+  bda4a1a; §2.6's engine half). `lib/nexhealth.ts` (lazy client: token
+  mint/cache with 401 re-mint, defensive pagination with a runaway
+  backstop, sandbox/production switch — BOTH keys platform-level App
+  Runner secrets, mapped into the service config same deploy) +
+  `lib/services/pms/nexhealth.ts` implementing the existing
+  `PmsProviderClient`, so the whole audited sync engine (entity map,
+  content-hash skip, health monitor, hourly cron, readiness) drives it
+  unchanged. READ-ONLY v1: `connectNexHealth` pins syncDirection
+  'import'; write-backs are typed refusals; recalls honestly [] (no
+  endpoint — probed 404). Status mapping validated LIVE against the
+  sandbox demo practice (104 patients / 353 appointments, Dentrix
+  shapes) via a key-gated vitest suite (CI skips; run locally with
+  NEXHEALTH_SANDBOX_API_KEY). Scope rides pms_connection.meta
+  {subdomain, locationId, env} — no migration, no per-org secret. The
+  integrations page keys the PMS card by PROVIDER (a bridge connection
+  never lights Open Dental); the clinic-facing catalog card is
+  request-access with the Reach Support copy law; the platform bind
+  card lives on /ecommerce/customers/[id] and validates against the
+  live API before saving. REMAINING for the next slice: the clinic-side
+  request-and-narrated-wait flow (PMS picker card → ops queue → honest
+  "their queue, not yours" status), appointment-type name resolution,
+  and write-back (booking insert) once the read path has run against a
+  real practice.
