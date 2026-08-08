@@ -696,3 +696,56 @@ docs.nexhealth.com / help.nexhealth.com.
   "their queue, not yours" status), appointment-type name resolution,
   and write-back (booking insert) once the read path has run against a
   real practice.
+
+### §2.7 — NexHealth unit economics + the owner's three rulings (2026-08-08)
+
+**Pricing (owner-confirmed from the portal): $0.10/API call ·
+$0.03/webhook · free tier 30,000 calls + 10,000 webhooks per month
+(account-wide).** Current usage: 2/30,000 — zero exposure while nothing
+real is bound.
+
+**The math on the CURRENT adapter shape (hourly full polling)** — a
+1,500-patient practice ≈ 8 patient pages + 2 appointment pages + 1
+provider call ≈ 11 calls/hour ≈ **~7,900 calls/practice/month**. Beyond
+the free pool that is **~$790/practice/month** — 16× the planned $50
+add-on. UNSHIPPABLE to a real practice as-is; the free tier hides it for
+only ~3-4 practices.
+
+**The target shape (the "sync economics" slice, REQUIRED before the
+first real binding):**
+- Appointments: poll every 2h with a NARROW window (yesterday → +14d,
+  usually 1 page) ≈ 360 calls/mo.
+- Patients: full reconcile DAILY (not hourly — charts change slowly; the
+  operational day rides appointments) ≈ 250 calls/mo.
+- Providers/locations: weekly ≈ 5/mo.
+- **≈ 600-700 calls/practice/month** → the free pool carries ~45
+  practices at $0; beyond it ≈ **$60-70/practice/month at list price** —
+  roughly breakeven against a $50 add-on, and the point where a NexHealth
+  volume-pricing conversation happens (list rates are the
+  pay-as-you-go tier; the account page links a Billing upgrade).
+- **A hard per-org METER + circuit breaker** (mirrors ai_usage): every
+  NexHealth call counted per org per day; a per-practice daily budget
+  (default ~60 calls ≈ 1,800/mo ceiling ≈ $75 worst case — inside the
+  owner's stated $60-70 tolerance); the breaker pauses that org's sync at
+  budget + files a Guardian-visible engine failure, so ONE practice can
+  never run the bill (a stuck pagination loop is the nightmare case: the
+  MAX_PAGES backstop caps a single run, the meter caps the day).
+- Webhooks ($0.03/event) are NOT an automatic win: a high-churn office
+  (~150 events/day) costs ~$135/mo in webhooks alone vs ~$65 polled.
+  Evaluate selectively (appointment events only) where 2h freshness isn't
+  enough; the 10k free pool covers early experiments.
+
+**Owner rulings recorded:**
+1. PMS sync is the #1 retention/selling feature — celebrate accordingly.
+2. **Synced data must flow through the ENTIRE platform** — every slot
+   that can hold a synced fact must fill cleanly. Riding the existing
+   provider interface means patients/appointments/providers/balances
+   already reach the patients list, timeline, agenda, collections,
+   recall, journey stages, and the readiness fact — but this ruling
+   demands a SYNC COMPLETENESS AUDIT slice: map every NexHealth field →
+   platform slot, verify each end-to-end (the sandbox demo practice is
+   the fixture), and close gaps (appointment-type names, operatory →
+   chair signals, provider records → booking attribution).
+3. Planned pricing: **$50/mo PMS add-on**; tolerable variance $60-70 for
+   an outlier practice; never unbounded — the meter above is the
+   enforcement, not hope.
