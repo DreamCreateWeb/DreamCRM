@@ -297,6 +297,21 @@ export async function connectNexHealth(
     throw new Error('Enter the NexHealth location id.')
   }
 
+  // The DEMO org may bind NexHealth's SANDBOX only (its live PMS test bed —
+  // owner ruling 2026-08-08). Production practices on the demo org would
+  // break the isDemo-never-networks law for real; the sandbox is a test
+  // service with fake patients, which is the documented exception.
+  {
+    const [org] = await db
+      .select({ isDemo: schema.organization.isDemo })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, organizationId))
+      .limit(1)
+    if (org?.isDemo && env !== 'sandbox') {
+      throw new Error('The demo clinic can only bind the NexHealth SANDBOX (tick the sandbox box).')
+    }
+  }
+
   const { NexHealthProvider } = await import('./nexhealth')
   const provider = new NexHealthProvider({ subdomain, locationId: binding.locationId, env })
   const test = await provider.testConnection()

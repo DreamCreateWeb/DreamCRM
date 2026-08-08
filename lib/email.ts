@@ -105,6 +105,20 @@ ${opts.footnoteHtml ? `<p style="margin:18px 0 0;font-size:12px;line-height:1.5;
 // Exported so service modules with bespoke templates (e.g. the review-request
 // email) route through the SAME provider/driver/Gmail-fallback path instead of
 // instantiating their own Resend client with a stale hardcoded From.
+/** RFC 2606/6761-reserved domains — mail to them can never arrive. Pure +
+ *  exported for tests. Matches the domain and any subdomain of it. */
+export function isReservedUndeliverableAddress(to: string): boolean {
+  const at = to.lastIndexOf('@')
+  if (at < 0) return false
+  const domain = to.slice(at + 1).trim().toLowerCase().replace(/\.$/, '')
+  if (!domain) return false
+  const RESERVED = ['example.com', 'example.net', 'example.org', 'example.edu']
+  const RESERVED_TLDS = ['test', 'invalid', 'example', 'localhost']
+  if (RESERVED.some((d) => domain === d || domain.endsWith(`.${d}`))) return true
+  const tld = domain.slice(domain.lastIndexOf('.') + 1)
+  return RESERVED_TLDS.includes(tld)
+}
+
 export async function deliver(msg: {
   to: string
   subject: string
@@ -119,6 +133,19 @@ export async function deliver(msg: {
    *  Gmail + SES transports. */
   tags?: Array<{ name: string; value: string }>
 }): Promise<void> {
+  // RFC-reserved domains (example.com/.net/.org, .test, .invalid, .example)
+  // are undeliverable BY DEFINITION — every attempt is a guaranteed provider
+  // rejection (observed as Resend 422s in prod boot logs, 2026-08-07) that
+  // wastes sends and dings sender reputation. They appear in seeded persona
+  // data and in NexHealth's sandbox practice (the demo's live PMS test bed),
+  // so the guard lives HERE, on the one delivery path, not per caller.
+  // Silently-successful skip on purpose: to every caller, "delivered into a
+  // black hole" and "skipped" are the same outcome for a reserved address.
+  if (isReservedUndeliverableAddress(msg.to)) {
+    console.warn(`[email] skipping RFC-reserved undeliverable address: ${msg.to}`)
+    return
+  }
+
   // Config errors (missing key) throw raw — they're an ops problem, not a
   // delivery failure. Only actual SEND failures get the friendly remap so the
   // raw provider error (e.g. SES's verbose "identities failed the check in
