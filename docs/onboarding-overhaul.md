@@ -749,3 +749,29 @@ first real binding):**
 3. Planned pricing: **$50/mo PMS add-on**; tolerable variance $60-70 for
    an outlier practice; never unbounded — the meter above is the
    enforcement, not hope.
+
+- **DEMO ↔ SANDBOX RAILS — SHIPPED 2026-08-08** (deployed as 880b077;
+  owner ruling: the Dream Dental demo becomes NexHealth's sandbox
+  practice — living test bed for cost tuning, the completeness audit's
+  fixture, and a demo where the PMS sync is REAL). Two rails shipped
+  ahead of the binding: (1) `deliver()` drops RFC 2606/6761-reserved
+  addresses (example.com/.net/.org/.edu + .test/.invalid/.example/
+  .localhost) at the ONE delivery choke point — the sandbox's 104
+  @example.com patients can never be mailed, and the prod Resend-422
+  seam bug (2026-08-07 boot logs) is dead; (2) `connectNexHealth`
+  refuses a non-sandbox env on a demo org (the documented exception to
+  isDemo-never-networks: the SANDBOX is a fake-patient test service).
+  Verified safe: the demo resync only touches provider-'demo'
+  connections, so the binding survives every deploy; the hourly
+  pms-sync cron picks the binding up automatically. Test fixtures using
+  @example.com moved to a non-reserved stand-in (the guard broke them —
+  correct behavior, stale fixtures; ALSO the session's process note: a
+  red suite reached main because a push was chained before the results
+  were read — twice now; pushes are no longer chained with checks).
+  BINDING IS AN OWNER CLICK: Platform → Clinics → Dream Dental →
+  NexHealth card → subdomain `dream-create-demo-practice` · location
+  `353605` · Sandbox ✓ → Bind + test. Note the binding REPLACES the
+  demo's simulated 'demo' PMS connection (the crafted write-op showcase
+  rows freeze in place; real sandbox sync takes over) — reversible by
+  disconnecting and re-entering the demo, which re-activates the
+  simulated one.
