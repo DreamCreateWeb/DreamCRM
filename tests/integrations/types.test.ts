@@ -10,15 +10,16 @@ import {
 } from '@/lib/types/pms'
 
 describe('PMS provider catalog', () => {
-  it('wires exactly one provider as live (Open Dental)', () => {
-    const live = PMS_PROVIDERS.filter((p) => p.availability === 'live')
-    expect(live).toHaveLength(1)
-    expect(live[0].id).toBe('open_dental')
+  it('wires exactly two providers as live (Open Dental self-serve + the NexHealth bridge)', () => {
+    const live = PMS_PROVIDERS.filter((p) => p.availability === 'live').map((p) => p.id)
+    // NexHealth verified live against its sandbox demo practice 2026-08-08
+    // (tests/pms/nexhealth.test.ts LIVE suite).
+    expect(live.sort()).toEqual(['nexhealth', 'open_dental'])
   })
 
   it('shows the others honestly (request_access or roadmap, never live)', () => {
     for (const p of PMS_PROVIDERS) {
-      if (p.id === 'open_dental') continue
+      if (p.id === 'open_dental' || p.id === 'nexhealth') continue
       expect(['request_access', 'roadmap']).toContain(p.availability)
       expect(p.blurb.length).toBeGreaterThan(0)
       expect(p.connection.length).toBeGreaterThan(0)

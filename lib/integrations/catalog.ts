@@ -232,6 +232,24 @@ export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
     ],
   },
   {
+    // The universal PMS bridge (onboarding overhaul §2.6). Clinics can't
+    // self-serve this one — a small Synchronizer service gets installed on
+    // the practice's server (we handle it), so the card is request-access
+    // and the copy says so plainly. Once bound (platform-ops side) the
+    // connected state takes over.
+    id: 'nexhealth',
+    name: 'Dentrix, Eaglesoft + more',
+    category: 'pms',
+    logo: 'open_dental',
+    tagline: 'Most practice-management systems, through one bridge — we set it up with you.',
+    description:
+      'One connection that reaches Dentrix, Eaglesoft, and most other practice-management systems through the NexHealth Synchronizer. A short install on your server (we handle it — yours, your IT’s, or our remote session), then your patients and appointments sync in automatically. Read-only for now: nothing writes back to your system.',
+    keywords: ['pms', 'practice management', 'dentrix', 'eaglesoft', 'nexhealth', 'synchronizer', 'bridge', 'sync'],
+    availability: 'request_access',
+    connectKind: 'none',
+    note: 'We set this up with you — Reach Support and we’ll schedule the short server install. No cost to your practice.',
+  },
+  {
     id: 'dentrix_ascend',
     name: 'Dentrix Ascend',
     category: 'pms',

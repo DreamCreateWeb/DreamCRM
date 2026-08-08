@@ -380,3 +380,43 @@ export async function seedAndEnterDemoClinic(role: Role = 'owner') {
   )
   redirect('/')
 }
+
+const BindNexHealthInput = z.object({
+  orgId: z.string().min(1),
+  subdomain: z.string().min(1).max(120),
+  locationId: z.coerce.number().int().positive(),
+  sandbox: z.boolean().optional(),
+})
+
+/**
+ * Bind a NexHealth institution+location to a clinic org (onboarding
+ * overhaul §2.6 — the ops half of the Synchronizer flow: portal setup +
+ * server install happen first; this starts the data flowing). Platform
+ * admin only; validates against the live NexHealth API before persisting.
+ */
+export async function bindNexHealthAction(
+  input: z.infer<typeof BindNexHealthInput>,
+): Promise<{ ok: true; practiceTitle: string | null; note: string | null } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  const parsed = BindNexHealthInput.safeParse(input)
+  if (!parsed.success) return { ok: false, error: 'Enter the subdomain and a numeric location id.' }
+  const [org] = await db
+    .select({ id: organization.id, type: organization.type })
+    .from(organization)
+    .where(eq(organization.id, parsed.data.orgId))
+    .limit(1)
+  if (!org || org.type !== 'clinic') return { ok: false, error: 'That organization isn’t a clinic.' }
+  try {
+    const { connectNexHealth } = await import('@/lib/services/pms/connection')
+    const ctx = await requireTenant()
+    const test = await connectNexHealth(parsed.data.orgId, ctx.userId, {
+      subdomain: parsed.data.subdomain,
+      locationId: parsed.data.locationId,
+      env: parsed.data.sandbox ? 'sandbox' : 'production',
+    })
+    revalidatePath(`/ecommerce/customers/${parsed.data.orgId}`)
+    return { ok: true, practiceTitle: test.practiceTitle ?? null, note: test.scopeNote ?? null }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not bind NexHealth.' }
+  }
+}

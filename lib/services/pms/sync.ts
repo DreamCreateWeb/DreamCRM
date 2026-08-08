@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { decryptSecret } from '@/lib/crypto'
 import type { PmsConnection } from '@/lib/db/schema/clinic'
 import { OpenDentalProvider } from './open-dental'
+import { NexHealthProvider } from './nexhealth'
 import { DemoProvider } from './demo'
 import { getPmsConnection } from './connection'
 import type {
@@ -27,6 +28,22 @@ export function getProviderClient(connection: PmsConnection): PmsProviderClient 
     return new OpenDentalProvider(decryptSecret(connection.customerKeyEncrypted), {
       timeZone: typeof meta.timeZone === 'string' ? meta.timeZone : undefined,
       defaultOperatoryNum: typeof meta.defaultOperatoryNum === 'number' ? meta.defaultOperatoryNum : undefined,
+    })
+  }
+  if (connection.provider === 'nexhealth') {
+    // Scope rides meta (no per-org secret — the API key is platform-level,
+    // like OD's Developer Key). A malformed binding is a loud error, not a
+    // silent empty sync.
+    const meta = (connection.meta ?? {}) as Record<string, unknown>
+    const subdomain = typeof meta.subdomain === 'string' ? meta.subdomain : ''
+    const locationId = typeof meta.locationId === 'number' ? meta.locationId : NaN
+    if (!subdomain || !Number.isFinite(locationId)) {
+      throw new Error('The NexHealth binding is incomplete (subdomain + location) — rebind.')
+    }
+    return new NexHealthProvider({
+      subdomain,
+      locationId,
+      env: meta.env === 'sandbox' ? 'sandbox' : 'production',
     })
   }
   throw new Error(`The ${connection.provider} integration isn’t available yet.`)

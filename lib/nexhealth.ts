@@ -1,0 +1,221 @@
+import 'server-only'
+
+/**
+ * NexHealth Synchronizer API client (the universal PMS bridge — onboarding
+ * overhaul §2.6). One platform-level API key per environment; per-clinic
+ * scoping rides the (subdomain, location_id) pair stored on the org's
+ * pms_connection.meta — subdomain identifies the NexHealth "institution" we
+ * create for each practice in the developer portal, location_id the office.
+ *
+ * Auth is two-step: POST /authenticates with the API key mints a bearer
+ * token. Tokens are long-ish lived; we cache per environment for
+ * TOKEN_TTL_MS and re-mint once on a 401 (belt for early revocation).
+ *
+ * Environments: production and sandbox keys are BOTH platform secrets
+ * (NEXHEALTH_API_KEY / NEXHEALTH_SANDBOX_API_KEY); which one a connection
+ * uses rides its meta (`env: 'sandbox'`) — that's how our own test org
+ * binds NexHealth's demo practice while real clinics ride production.
+ *
+ * All wrappers are defensive-parse (the same posture as lib/zernio.ts):
+ * a shape surprise degrades to null/[], never a crash inside the sync
+ * engine. Response envelope: { code: boolean, data, count, error }.
+ */
+
+const BASE_URL = 'https://nexhealth.info'
+const ACCEPT = 'application/vnd.Nexhealth+json;version=2'
+const TOKEN_TTL_MS = 50 * 60 * 1000 // re-mint before the published 1h expiry
+const PAGE_SIZE = 200
+/** Runaway-pagination backstop (a 40k-patient office is ~200 pages). */
+const MAX_PAGES = 500
+
+export type NexHealthEnv = 'production' | 'sandbox'
+
+export function nexhealthConfigured(env: NexHealthEnv = 'production'): boolean {
+  return Boolean(
+    env === 'sandbox' ? process.env.NEXHEALTH_SANDBOX_API_KEY : process.env.NEXHEALTH_API_KEY,
+  )
+}
+
+function apiKey(env: NexHealthEnv): string {
+  const key =
+    env === 'sandbox' ? process.env.NEXHEALTH_SANDBOX_API_KEY : process.env.NEXHEALTH_API_KEY
+  if (!key) throw new Error(`NexHealth ${env} API key is not configured`)
+  return key
+}
+
+const tokenCache = new Map<NexHealthEnv, { token: string; mintedAt: number }>()
+
+async function mintToken(env: NexHealthEnv): Promise<string> {
+  const res = await fetch(`${BASE_URL}/authenticates`, {
+    method: 'POST',
+    headers: { Accept: ACCEPT, Authorization: apiKey(env) },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`NexHealth auth failed (${res.status})`)
+  const body = (await res.json()) as { data?: { token?: string } }
+  const token = body?.data?.token
+  if (!token) throw new Error('NexHealth auth returned no token')
+  tokenCache.set(env, { token, mintedAt: Date.now() })
+  return token
+}
+
+async function bearer(env: NexHealthEnv): Promise<string> {
+  const cached = tokenCache.get(env)
+  if (cached && Date.now() - cached.mintedAt < TOKEN_TTL_MS) return cached.token
+  return mintToken(env)
+}
+
+export interface NexRequestOpts {
+  env?: NexHealthEnv
+}
+
+/** One GET against the API, with a single re-mint retry on 401. */
+export async function nexGet<T = unknown>(
+  path: string,
+  params: Record<string, string | number | undefined>,
+  opts: NexRequestOpts = {},
+): Promise<{ data: T | null; count: number | null }> {
+  const env = opts.env ?? 'production'
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) if (v !== undefined) qs.set(k, String(v))
+  const url = `${BASE_URL}/${path}?${qs.toString()}`
+
+  let token = await bearer(env)
+  let res = await fetch(url, {
+    headers: { Accept: ACCEPT, Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  })
+  if (res.status === 401) {
+    token = await mintToken(env)
+    res = await fetch(url, {
+      headers: { Accept: ACCEPT, Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`NexHealth ${path} failed (${res.status}): ${text.slice(0, 200)}`)
+  }
+  const body = (await res.json()) as { data?: unknown; count?: unknown }
+  return {
+    data: (body?.data ?? null) as T | null,
+    count: typeof body?.count === 'number' ? body.count : null,
+  }
+}
+
+/**
+ * Paginate a collection endpoint to exhaustion. Some collections nest under
+ * a key inside `data` (e.g. /patients → data.patients) while others return
+ * `data` as the array — `unwrap` handles both: pass the nested key name and
+ * the helper falls back to a bare array automatically.
+ */
+export async function nexGetAll<Row = Record<string, unknown>>(
+  path: string,
+  params: Record<string, string | number | undefined>,
+  unwrapKey: string,
+  opts: NexRequestOpts = {},
+): Promise<Row[]> {
+  const out: Row[] = []
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const { data } = await nexGet<unknown>(path, { ...params, per_page: PAGE_SIZE, page }, opts)
+    let rows: unknown[] = []
+    if (Array.isArray(data)) rows = data
+    else if (data && typeof data === 'object') {
+      const nested = (data as Record<string, unknown>)[unwrapKey]
+      if (Array.isArray(nested)) rows = nested
+    }
+    out.push(...(rows as Row[]))
+    if (rows.length < PAGE_SIZE) break
+  }
+  return out
+}
+
+/* ── Typed row shapes (only the fields we read; defensive everywhere) ─────── */
+
+export interface NexLocation {
+  id: number
+  name?: string
+  institution_id?: number
+  street_address?: string | null
+  city?: string | null
+  state?: string | null
+  zip_code?: string | null
+  phone_number?: string | null
+  tz?: string | null
+  last_sync_time?: string | null
+  inactive?: boolean
+}
+
+export interface NexInstitution {
+  id: number
+  name?: string
+  subdomain?: string
+  emrs?: string[]
+  locations?: NexLocation[]
+}
+
+export interface NexPatient {
+  id: number
+  first_name?: string | null
+  last_name?: string | null
+  email?: string | null
+  inactive?: boolean
+  bio?: {
+    gender?: string | null
+    phone_number?: string | null
+    verified_mobile?: string | null
+    date_of_birth?: string | null
+    address_line_1?: string | null
+    city?: string | null
+    state?: string | null
+    zip_code?: string | null
+  } | null
+  balance?: { amount?: string | null; currency?: string | null } | null
+  location_ids?: number[]
+}
+
+export interface NexAppointment {
+  id: number
+  patient_id?: number
+  provider_id?: number | null
+  provider_name?: string | null
+  start_time?: string | null
+  end_time?: string | null
+  confirmed?: boolean
+  patient_confirmed?: boolean
+  patient_missed?: boolean
+  cancelled?: boolean
+  checked_out?: boolean
+  deleted?: boolean
+  note?: string | null
+  appointment_type_id?: number | null
+  location_id?: number
+}
+
+export interface NexProvider {
+  id: number
+  first_name?: string | null
+  last_name?: string | null
+  name?: string | null
+  inactive?: boolean
+}
+
+/** The institutions visible to this key — includes each one's locations. */
+export async function listInstitutions(opts: NexRequestOpts = {}): Promise<NexInstitution[]> {
+  const { data } = await nexGet<NexInstitution[]>('institutions', {}, opts)
+  return Array.isArray(data) ? data : []
+}
+
+/** The locations of one institution (the /locations response nests them). */
+export async function listLocations(
+  subdomain: string,
+  opts: NexRequestOpts = {},
+): Promise<NexLocation[]> {
+  const { data } = await nexGet<Array<{ locations?: NexLocation[] }>>(
+    'locations',
+    { subdomain },
+    opts,
+  )
+  if (!Array.isArray(data)) return []
+  return data.flatMap((inst) => (Array.isArray(inst.locations) ? inst.locations : []))
+}

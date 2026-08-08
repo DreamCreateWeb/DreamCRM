@@ -99,9 +99,11 @@ export default async function IntegrationsPage({
   // ── Assemble the per-integration live connection facts ────────────────────
   const connections: Record<string, IntegrationConnectionFact | undefined> = {}
 
-  // Open Dental (PMS).
+  // PMS: the connection row lights the card for ITS provider — a NexHealth
+  // bridge must never render as a connected Open Dental (and vice versa).
   if (connection?.status === 'connected') {
-    connections.open_dental = {
+    const cardId = connection.provider === 'nexhealth' ? 'nexhealth' : 'open_dental'
+    connections[cardId] = {
       connected: true,
       errored: connection.lastSyncStatus === 'error',
       isDemo: connection.provider === 'demo',

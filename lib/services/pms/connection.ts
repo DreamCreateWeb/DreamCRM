@@ -269,3 +269,54 @@ async function labelWriteOps(
     }
   })
 }
+
+/**
+ * Bind a NexHealth Synchronizer institution+location to an org (onboarding
+ * overhaul §2.6). PLATFORM-OPS driven: the institution and sync are created
+ * in the NexHealth developer portal and the Synchronizer installed on the
+ * practice's server first; this binding is how the org starts reading the
+ * data. Validates against the live API before persisting. No per-org secret
+ * — the API key is platform-level, so meta carries only the scope.
+ *
+ * syncDirection is PINNED to 'import': the v1 adapter is read-only and the
+ * pin keeps the write-back queue from ever calling its typed refusals.
+ */
+export async function connectNexHealth(
+  organizationId: string,
+  userId: string | null,
+  binding: { subdomain: string; locationId: number; env?: 'production' | 'sandbox' },
+): Promise<PmsTestResult> {
+  const { nexhealthConfigured } = await import('@/lib/nexhealth')
+  const env = binding.env ?? 'production'
+  if (!nexhealthConfigured(env)) {
+    throw new Error(`NexHealth isn’t enabled on this DreamCRM instance yet (missing ${env} API key).`)
+  }
+  const subdomain = binding.subdomain.trim().toLowerCase()
+  if (!subdomain) throw new Error('Enter the NexHealth institution subdomain.')
+  if (!Number.isFinite(binding.locationId) || binding.locationId <= 0) {
+    throw new Error('Enter the NexHealth location id.')
+  }
+
+  const { NexHealthProvider } = await import('./nexhealth')
+  const provider = new NexHealthProvider({ subdomain, locationId: binding.locationId, env })
+  const test = await provider.testConnection()
+  if (!test.ok) {
+    throw new Error(test.error || 'Could not reach that NexHealth institution/location.')
+  }
+
+  await upsertPmsConnection(organizationId, {
+    provider: 'nexhealth',
+    status: 'connected',
+    connectedByUserId: userId,
+    customerKeyEncrypted: null,
+    syncDirection: 'import',
+    meta: {
+      ...metaFromTest(test),
+      subdomain,
+      locationId: binding.locationId,
+      ...(env === 'sandbox' ? { env: 'sandbox' } : {}),
+    },
+    lastError: null,
+  })
+  return test
+}

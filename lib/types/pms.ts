@@ -11,6 +11,7 @@
 
 export type PmsProviderId =
   | 'open_dental'
+  | 'nexhealth'
   | 'dentrix_ascend'
   | 'dentrix_desktop'
   | 'eaglesoft'
@@ -60,6 +61,18 @@ export const PMS_PROVIDERS: PmsProviderInfo[] = [
     note: 'Sanctioned + audit-clean: every change lands in your Open Dental Audit Trail. We never touch the database directly.',
   },
   {
+    // The universal bridge (onboarding overhaul §2.6): one integration that
+    // reaches Dentrix, Eaglesoft, and most other PMSes through NexHealth's
+    // Synchronizer — a small service installed on the practice server (we
+    // handle the install), then data flows through NexHealth's cloud API.
+    id: 'nexhealth',
+    name: 'Dentrix, Eaglesoft + more (via NexHealth)',
+    availability: 'live',
+    blurb: 'One bridge to most practice-management systems, powered by the NexHealth Synchronizer.',
+    connection: 'Synchronizer install on your server · we handle it',
+    note: 'We set up the connection with you — a short install on your server (yours or our remote session), then patients and appointments sync automatically. Read-only for now.',
+  },
+  {
     id: 'dentrix_ascend',
     name: 'Dentrix Ascend',
     availability: 'request_access',
@@ -101,6 +114,7 @@ export function pmsProvider(id: PmsProviderId): PmsProviderInfo | undefined {
 // which presents as an Open Dental sandbox in the demo clinic).
 export const PROVIDER_LABELS: Record<PmsProviderId, string> = {
   open_dental: 'Open Dental',
+  nexhealth: 'NexHealth Synchronizer',
   dentrix_ascend: 'Dentrix Ascend',
   dentrix_desktop: 'Dentrix (desktop)',
   eaglesoft: 'Eaglesoft',

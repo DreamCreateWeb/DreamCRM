@@ -10,6 +10,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { getClinicDetail } from '@/lib/services/clinics'
 import { getClinicReferral, listActivePartners } from '@/lib/services/referrals'
 import ReferralCard from './referral-card'
+import NexHealthCard from './nexhealth-card'
 import {
   AGENCY_PROJECT_TYPE_LABELS,
   AGENCY_PROJECT_STATUS_LABELS,
@@ -80,6 +81,33 @@ export default async function ClinicDetailPage({
   const [referral, activePartners] = isPlatformManager
     ? await Promise.all([getClinicReferral(id), listActivePartners()])
     : [null, []]
+
+  // NexHealth binding state (platform manager only) — read the org's PMS
+  // connection row; the card shows the current bridge scope when bound.
+  let nexhealthBinding: { subdomain: string; locationId: number; sandbox: boolean } | null = null
+  if (isPlatformManager) {
+    try {
+      const { db, schema } = await import('@/lib/db')
+      const { eq } = await import('drizzle-orm')
+      const [conn] = await db
+        .select({ provider: schema.pmsConnection.provider, meta: schema.pmsConnection.meta, status: schema.pmsConnection.status })
+        .from(schema.pmsConnection)
+        .where(eq(schema.pmsConnection.organizationId, id))
+        .limit(1)
+      if (conn?.provider === 'nexhealth' && conn.status === 'connected') {
+        const meta = (conn.meta ?? {}) as Record<string, unknown>
+        if (typeof meta.subdomain === 'string' && typeof meta.locationId === 'number') {
+          nexhealthBinding = {
+            subdomain: meta.subdomain,
+            locationId: meta.locationId,
+            sandbox: meta.env === 'sandbox',
+          }
+        }
+      }
+    } catch {
+      /* card renders in unbound mode */
+    }
+  }
 
   const siteUrl = `https://${clinic.slug}.${SITE_DOMAIN}`
   const planTier = (clinic.profile?.planTier ?? 'basic') as keyof typeof PLAN_LABEL
@@ -249,6 +277,13 @@ export default async function ClinicDetailPage({
           )}
         </div>
       </div>
+
+      {/* NexHealth bridge binding (platform owner/admin only) */}
+      {isPlatformManager && (
+        <div className="mb-6 max-w-xl">
+          <NexHealthCard organizationId={clinic.orgId} current={nexhealthBinding} />
+        </div>
+      )}
 
       {/* Referral attribution (platform owner/admin only) */}
       {isPlatformManager && (
