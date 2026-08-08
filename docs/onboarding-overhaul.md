@@ -774,4 +774,7 @@ first real binding):**
   demo's simulated 'demo' PMS connection (the crafted write-op showcase
   rows freeze in place; real sandbox sync takes over) — reversible by
   disconnecting and re-entering the demo, which re-activates the
-  simulated one.
+  simulated one. BOUND BY THE OWNER 2026-08-08; the first
+  import ran clean the same hour (cron fired manually: scanned 1 /
+  succeeded 1 / failed 0 against org_cef2cf2ce26d) — the demo clinic is
+  now a LIVE NexHealth-synced practice and the standing test bed.
