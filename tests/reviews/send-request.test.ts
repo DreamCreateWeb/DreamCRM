@@ -84,7 +84,7 @@ vi.mock('drizzle-orm', () => ({
 
 import { createAndSendReviewRequest } from '@/lib/services/reviews'
 
-const OK_PATIENT = { id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', email: 'mia@example.com', marketingEmailOptIn: 1 }
+const OK_PATIENT = { id: 'pat_1', firstName: 'Mia', lastName: 'Hayes', email: 'mia@fixture-mail.com', marketingEmailOptIn: 1 }
 const OK_CONFIG = { googlePlaceId: 'ChIJ_abc', healthgradesUrl: null, facebookPageId: null, yelpBusinessSlug: null, minDaysBetweenRequests: 365, npsEnabled: 0, autoSendEnabled: 0, autoSendDelayHours: 24, privateFeedbackEmail: null }
 
 beforeEach(() => {
@@ -151,7 +151,7 @@ describe('createAndSendReviewRequest — guards', () => {
     expect(insert.values.token).toBe(out.token)
     // email actually attempted (to the patient, mocked Resend)
     expect(state.sentEmails).toHaveLength(1)
-    expect(state.sentEmails[0].to).toBe('mia@example.com')
+    expect(state.sentEmails[0].to).toBe('mia@fixture-mail.com')
     // status flipped to 'sent' after the email succeeds
     const sentUpdate = state.updates.find((u) => u.set.status === 'sent')
     expect(sentUpdate).toBeTruthy()

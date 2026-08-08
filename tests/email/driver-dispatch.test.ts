@@ -142,7 +142,7 @@ describe('sendCancellationConfirmation', () => {
   it('composes a warm cancellation email FROM the clinic identity with a rebook link', async () => {
     mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
     await sendCancellationConfirmation(
-      'mia@example.com',
+      'mia@fixture-mail.com',
       { ...baseData, rebookUrl: 'https://acme.dreamcreatestudio.com/book' },
       CLINIC_SENDER,
     )
@@ -150,7 +150,7 @@ describe('sendCancellationConfirmation', () => {
     const msg = mocks.resendSend.mock.calls[0]![0] as { from: string; to: string; replyTo?: string; subject: string; html: string }
     expect(msg.from).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
     expect(msg.replyTo).toBe('front@acmedental.com')
-    expect(msg.to).toBe('mia@example.com')
+    expect(msg.to).toBe('mia@fixture-mail.com')
     expect(msg.subject).toMatch(/cancelled/i)
     expect(msg.html).toContain('Mia Hayes')
     // Rebook CTA present + points at the public /book page.
@@ -163,7 +163,7 @@ describe('sendCancellationConfirmation', () => {
 
   it('falls back to call-us copy (no rebook link) when the plan has no online booking', async () => {
     mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
-    await sendCancellationConfirmation('mia@example.com', { ...baseData, rebookUrl: null }, CLINIC_SENDER)
+    await sendCancellationConfirmation('mia@fixture-mail.com', { ...baseData, rebookUrl: null }, CLINIC_SENDER)
     const msg = mocks.resendSend.mock.calls[0]![0] as { html: string }
     expect(msg.html).not.toContain('/book')
     expect(msg.html).toContain('555-1212') // "give us a call at …"
@@ -180,7 +180,7 @@ describe('sendMagicLinkEmail — clinic branding vs platform fallback', () => {
 
   it('wears the clinic brand when a sender is supplied (FROM clinic, subject names clinic)', async () => {
     mocks.resendSend.mockResolvedValue({ data: { id: 'm' }, error: null })
-    await sendMagicLinkEmail('mia@example.com', 'https://www.dreamcreatestudio.com/magic?t=abc', CLINIC_SENDER)
+    await sendMagicLinkEmail('mia@fixture-mail.com', 'https://www.dreamcreatestudio.com/magic?t=abc', CLINIC_SENDER)
     expect(mocks.resendSend).toHaveBeenCalledOnce()
     const msg = mocks.resendSend.mock.calls[0]![0] as { from: string; replyTo?: string; subject: string; html: string }
     expect(msg.from).toBe('Acme Dental <acme-dental@dreamcreatestudio.com>')
@@ -192,7 +192,7 @@ describe('sendMagicLinkEmail — clinic branding vs platform fallback', () => {
 
   it('routes through the clinic Gmail account (Tier 2) when present', async () => {
     mocks.gmailSend.mockResolvedValue({ id: 'g1', threadId: 't1' })
-    await sendMagicLinkEmail('mia@example.com', 'https://x/magic', {
+    await sendMagicLinkEmail('mia@fixture-mail.com', 'https://x/magic', {
       ...CLINIC_SENDER,
       gmail: { accountId: 'acct_1', from: 'Acme Dental <frontdesk@acmedental.com>' },
     })
@@ -267,7 +267,7 @@ describe('Tier 2 — send via the clinic Gmail account', () => {
   it('routes through the Gmail API (as the clinic address) and skips Resend', async () => {
     mocks.gmailSend.mockResolvedValue({ id: 'g1', threadId: 't1' })
     await sendIntakeRequestEmail(
-      'mia@example.com',
+      'mia@fixture-mail.com',
       { patientFirstName: 'Mia', clinicName: 'Acme Dental', intakeFormUrl: 'https://x/intake/f' },
       GMAIL_SENDER,
     )
@@ -276,7 +276,7 @@ describe('Tier 2 — send via the clinic Gmail account', () => {
       'access-tok',
       expect.objectContaining({
         from: 'Acme Dental <frontdesk@acmedental.com>',
-        to: ['mia@example.com'],
+        to: ['mia@fixture-mail.com'],
         bodyHtml: expect.stringContaining('intake form'),
       }),
     )
@@ -286,7 +286,7 @@ describe('Tier 2 — send via the clinic Gmail account', () => {
   it('falls back to the platform sender (Resend) when the Gmail send fails', async () => {
     mocks.gmailSend.mockRejectedValue(new Error('invalid_grant'))
     await sendIntakeRequestEmail(
-      'mia@example.com',
+      'mia@fixture-mail.com',
       { patientFirstName: 'Mia', clinicName: 'Acme Dental', intakeFormUrl: 'https://x/intake/f' },
       GMAIL_SENDER,
     )
@@ -294,7 +294,7 @@ describe('Tier 2 — send via the clinic Gmail account', () => {
     // The patient still gets the email — from the clinic-named platform address.
     expect(mocks.resendSend).toHaveBeenCalledOnce()
     expect(mocks.resendSend).toHaveBeenCalledWith(
-      expect.objectContaining({ from: 'Acme Dental <acme-dental@dreamcreatestudio.com>', to: 'mia@example.com' }),
+      expect.objectContaining({ from: 'Acme Dental <acme-dental@dreamcreatestudio.com>', to: 'mia@fixture-mail.com' }),
     )
   })
 })
