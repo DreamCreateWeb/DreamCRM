@@ -17,7 +17,7 @@ export default function NexHealthCard({
 }: {
   organizationId: string
   /** Existing binding, when the org's PMS connection is the NexHealth bridge. */
-  current: { subdomain: string; locationId: number; sandbox: boolean } | null
+  current: { subdomain: string; locationId: number; sandbox: boolean; monthCalls?: number } | null
 }) {
   const router = useRouter()
   const [subdomain, setSubdomain] = useState(current?.subdomain ?? '')
@@ -60,7 +60,7 @@ export default function NexHealthCard({
       </h2>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
         {current
-          ? `Bound to '${current.subdomain}' · location ${current.locationId}${current.sandbox ? ' · SANDBOX' : ''}.`
+          ? `Bound to '${current.subdomain}' · location ${current.locationId}${current.sandbox ? ' · SANDBOX' : ''} · ${current.monthCalls ?? 0} API calls this month${current.sandbox ? ' (free)' : ''}.`
           : 'After the portal setup + Synchronizer install, bind the institution here to start the sync.'}
       </p>
       <div className="flex flex-wrap items-end gap-2">

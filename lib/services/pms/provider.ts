@@ -111,9 +111,11 @@ export interface PmsProviderClient {
   /** Cheap reachability + auth check; never throws (returns ok:false). */
   testConnection(): Promise<PmsTestResult>
   listProviders(): Promise<NormalizedProvider[]>
-  // Patients have no DateTStamp delta on the OD list endpoint → full paginated
-  // pull (the engine's content-hash skip avoids redundant writes).
-  listPatients(): Promise<NormalizedPatient[]>
+  // Patients: adapters that support an updated-since delta honor `since`
+  // (NexHealth does — the engine passes its high-water mark); adapters that
+  // don't (Open Dental's list endpoint has no DateTStamp filter) ignore it
+  // and full-pull (the engine's content-hash skip avoids redundant writes).
+  listPatients(opts?: { since?: Date }): Promise<NormalizedPatient[]>
   listAppointments(opts?: { since?: Date }): Promise<NormalizedAppointment[]>
   /** PMS recall list — OD doesn't honor a DateTStamp filter on /recalls,
    *  so this is a full paginated pull (small N + content-skip per-patient). */

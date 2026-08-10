@@ -1037,6 +1037,13 @@
       "when": 1786121477867,
       "tag": "0147_glossy_makkari",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1786374503542,
+      "tag": "0148_burly_spectrum",
+      "breakpoints": true
     }
   ]
 }

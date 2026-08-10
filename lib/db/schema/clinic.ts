@@ -1431,6 +1431,28 @@ export const pmsEntityMap = pgTable(
 export type PmsEntityMap = typeof pmsEntityMap.$inferSelect
 export type NewPmsEntityMap = typeof pmsEntityMap.$inferInsert
 
+// Per-org, per-day PMS API call meter (onboarding overhaul §2.7 — NexHealth
+// charges $0.10/call past the free tier, so a runaway sync is a BILL, not
+// just a bug). One row per (org, day); the count increments BEFORE each
+// HTTP request so a crashed run can never under-report, and the circuit
+// breaker in the provider reads it to stop any one practice running the
+// platform's bill. Day is the UTC date string ('YYYY-MM-DD') — billing
+// windows are vendor-side and coarse; clinic-local precision buys nothing.
+export const pmsApiUsage = pgTable(
+  'pms_api_usage',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    day: text('day').notNull(),
+    calls: integer('calls').notNull().default(0),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('pms_api_usage_org_day_idx').on(t.organizationId, t.day)],
+)
+export type PmsApiUsage = typeof pmsApiUsage.$inferSelect
+
 // Audit header for each inbound sync job (PMS → DreamCRM).
 export const pmsSyncRun = pgTable(
   'pms_sync_run',

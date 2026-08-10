@@ -16,6 +16,27 @@ export const maxDuration = 300
 const CRON_BUDGET_MS = 250_000
 const PER_ORG_BUDGET_MS = 90_000
 
+// NexHealth calls are metered ($0.10 past the free tier) and `updated_since`
+// deltas mean a sync's cost is per-RUN, not per-row — so halving the run
+// cadence halves the steady-state bill. The gate: skip a NexHealth org whose
+// last sync landed under ~105 minutes ago, which lands them on every OTHER
+// hourly tick (~2h cadence). 105 rather than 120 so EventBridge jitter can't
+// make an org alternate between 2h and 3h gaps. Open Dental (self-hosted,
+// free calls) keeps the hourly cadence; the manual "Sync now" button is a
+// different code path and is never gated.
+const NEXHEALTH_MIN_INTERVAL_MS = 105 * 60 * 1000
+
+/** Pure cadence rule, exported for tests. */
+export function shouldSkipForCadence(
+  provider: string,
+  lastSyncAt: Date | null,
+  now: Date = new Date(),
+): boolean {
+  if (provider !== 'nexhealth') return false
+  if (!lastSyncAt) return false // never synced — run immediately
+  return now.getTime() - lastSyncAt.getTime() < NEXHEALTH_MIN_INTERVAL_MS
+}
+
 /**
  * Scheduled PMS auto-sync. Until now `runImport` was only ever called from the
  * manual "Sync now" button, so the `pms_connection.autoSyncEnabled` toggle was
@@ -43,7 +64,11 @@ async function run(request: Request) {
 
   try {
     const connections = await db
-      .select({ organizationId: schema.pmsConnection.organizationId, provider: schema.pmsConnection.provider })
+      .select({
+        organizationId: schema.pmsConnection.organizationId,
+        provider: schema.pmsConnection.provider,
+        lastSyncAt: schema.pmsConnection.lastSyncAt,
+      })
       .from(schema.pmsConnection)
       .where(
         and(eq(schema.pmsConnection.status, 'connected'), eq(schema.pmsConnection.autoSyncEnabled, 1)),
@@ -54,9 +79,15 @@ async function run(request: Request) {
     let failed = 0
     let resuming = 0
     let deferred = 0
+    let skipped = 0
 
     const cronDeadline = Date.now() + CRON_BUDGET_MS
     for (const conn of connections) {
+      // Metered-provider cadence gate (see NEXHEALTH_MIN_INTERVAL_MS above).
+      if (shouldSkipForCadence(conn.provider, conn.lastSyncAt)) {
+        skipped++
+        continue
+      }
       // Out of cron time — leave the rest for next hour (their cursors, if any,
       // are already parked, so nothing is lost).
       if (Date.now() >= cronDeadline) {
@@ -95,7 +126,7 @@ async function run(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, scanned: connections.length, succeeded, failed, resuming, deferred, results })
+    return NextResponse.json({ ok: true, scanned: connections.length, succeeded, failed, resuming, deferred, skipped, results })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }

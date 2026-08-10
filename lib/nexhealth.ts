@@ -67,6 +67,10 @@ async function bearer(env: NexHealthEnv): Promise<string> {
 
 export interface NexRequestOpts {
   env?: NexHealthEnv
+  /** Invoked before EVERY outbound HTTP request (including the 401 re-mint
+   *  retry — that's two vendor-billed calls, so it counts twice). The meter
+   *  hangs here; a hook failure never blocks the request. */
+  onCall?: () => void | Promise<void>
 }
 
 /** One GET against the API, with a single re-mint retry on 401. */
@@ -80,13 +84,23 @@ export async function nexGet<T = unknown>(
   for (const [k, v] of Object.entries(params)) if (v !== undefined) qs.set(k, String(v))
   const url = `${BASE_URL}/${path}?${qs.toString()}`
 
+  const countCall = async () => {
+    try {
+      await opts.onCall?.()
+    } catch (e) {
+      console.error('[nexhealth] onCall hook failed (request proceeds):', e)
+    }
+  }
+
   let token = await bearer(env)
+  await countCall()
   let res = await fetch(url, {
     headers: { Accept: ACCEPT, Authorization: `Bearer ${token}` },
     cache: 'no-store',
   })
   if (res.status === 401) {
     token = await mintToken(env)
+    await countCall()
     res = await fetch(url, {
       headers: { Accept: ACCEPT, Authorization: `Bearer ${token}` },
       cache: 'no-store',

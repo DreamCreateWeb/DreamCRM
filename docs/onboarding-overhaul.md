@@ -778,3 +778,55 @@ first real binding):**
   import ran clean the same hour (cron fired manually: scanned 1 /
   succeeded 1 / failed 0 against org_cef2cf2ce26d) — the demo clinic is
   now a LIVE NexHealth-synced practice and the standing test bed.
+
+- **NEXHEALTH COST ENGINEERING — meter + breaker + delta sync + cadence
+  — SHIPPED 2026-08-10** (§2.7's three rulings made mechanical; migration
+  0148 `pms_api_usage` (org, UTC day, calls) unique-keyed upsert). Four
+  layers, cheapest lever first: (1) **DELTA SYNC** — `updated_since` is
+  verified server-side filtering (probed both directions against the
+  sandbox 2026-08-08), so `listPatients`/`listAppointments` now forward
+  the engine's high-water mark and a quiet hour costs ~3 calls returning
+  nothing instead of a full multi-page pull; appointments keep the wide
+  schedule window (90d back / 365d forward) and let `updated_since` do
+  the filtering; cold start (no mark) is the one intentional full pull.
+  The provider interface grew `listPatients(opts?: { since })` — OD and
+  demo ignore it unchanged (OD has no list-side DateTStamp filter; the
+  content-hash skip already absorbs its full pulls). The mark is safe as
+  a patient watermark because patients complete strictly before the
+  appointment phase advances it. (2) **THE METER** — `lib/services/pms/
+  api-meter.ts`; every outbound HTTP request (401-retry included)
+  increments the (org, day) counter BEFORE the request goes out via the
+  client's `onCall` hook, so a crashed run can never under-report.
+  Metering never throws — it must not break the call it measures.
+  Sandbox is metered (the counters are the tuning instrument) but free.
+  (3) **THE BREAKER** — `assertPmsApiBudget` at the top of every list
+  operation, production-only: at the daily budget (default 60 calls/day,
+  `NEXHEALTH_DAILY_CALL_BUDGET` to override) the sync throws
+  `PmsApiBudgetExceededError` and fails LOUDLY — the cron's failure path
+  alerts the clinic and the Guardian sees a broken engine — instead of
+  the bill saying it quietly. An unreadable meter fails OPEN: spend
+  protection must not also take the sync down. Worst month at the
+  default budget ≈ 1,800 calls ≈ $180 at list — bounded and visible,
+  and only past the 30k/mo free pool, which absorbs the early fleet
+  entirely. (4) **CADENCE** — the hourly cron now skips NexHealth orgs
+  whose last sync landed under 105 minutes ago (`shouldSkipForCadence`),
+  landing them on every OTHER tick (~2h): with deltas the cost is
+  per-RUN, so halving cadence halves the steady bill. 105 not 120 so
+  EventBridge jitter can't stretch an org to 3h. OD keeps hourly (free
+  calls); manual "Sync now" is a different path and is never gated.
+  Projected steady state: ~12 runs/day × 3 calls (providers + patients
+  delta + appointments delta; the ~hourly token mint is shared
+  platform-wide, not per-org) ≈ 36/day ≈ 1,080/practice/month — the
+  30k/mo free pool carries ~27 steady practices before the first billed
+  call. Past the pool a practice runs ~$108/mo at list, which is ABOVE
+  the $50-70 comfort band — the recorded plan for that day, in order:
+  (1) webhooks ($0.03/event, near-zero polling — the real fix), (2)
+  volume pricing, (3) stretch cadence to 3h (~$72). Not pre-solved now
+  because at 2 practices the bill is $0 and freshness on the #1 feature
+  wins. The
+  platform bind card now shows the month's call count. Tests:
+  tests/pms/api-meter.test.ts (upsert shape, never-throws, breaker
+  at-budget + fail-open, env override) · tests/pms/nexhealth-metering.
+  test.ts (delta pass-through, breaker-before-HTTP, sandbox exemption,
+  hook wiring) · cadence pins in tests/automation/pms-sync-failure-
+  streak.test.ts.

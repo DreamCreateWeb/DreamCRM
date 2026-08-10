@@ -44,6 +44,10 @@ export function getProviderClient(connection: PmsConnection): PmsProviderClient 
       subdomain,
       locationId,
       env: meta.env === 'sandbox' ? 'sandbox' : 'production',
+      // Metered + budget-guarded per org (§2.7): every call counts, and a
+      // production org past its daily budget fails the sync loudly instead
+      // of running the bill.
+      organizationId: connection.organizationId,
     })
   }
   throw new Error(`The ${connection.provider} integration isn’t available yet.`)
@@ -246,9 +250,13 @@ export async function runImport(
 
     await reconcileProviders(organizationId, await client.listProviders(), counts.providers)
 
+    // Delta-capable adapters (NexHealth) narrow this to changed-since-mark
+    // rows; the mark is safe as the patient watermark too, because it only
+    // advances after a run in which the patient phase COMPLETED (appointments
+    // run strictly after patientImportComplete). Full-pull adapters ignore it.
     const patientRes = await reconcilePatients(
       organizationId,
-      await client.listPatients(),
+      await client.listPatients({ since }),
       counts.patients,
       { startIndex: startCursor, deadline, now: clock, backfill: isBackfill },
     )

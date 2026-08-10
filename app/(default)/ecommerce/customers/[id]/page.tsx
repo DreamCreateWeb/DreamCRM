@@ -84,7 +84,7 @@ export default async function ClinicDetailPage({
 
   // NexHealth binding state (platform manager only) — read the org's PMS
   // connection row; the card shows the current bridge scope when bound.
-  let nexhealthBinding: { subdomain: string; locationId: number; sandbox: boolean } | null = null
+  let nexhealthBinding: { subdomain: string; locationId: number; sandbox: boolean; monthCalls: number } | null = null
   if (isPlatformManager) {
     try {
       const { db, schema } = await import('@/lib/db')
@@ -97,10 +97,12 @@ export default async function ClinicDetailPage({
       if (conn?.provider === 'nexhealth' && conn.status === 'connected') {
         const meta = (conn.meta ?? {}) as Record<string, unknown>
         if (typeof meta.subdomain === 'string' && typeof meta.locationId === 'number') {
+          const { getMonthCalls } = await import('@/lib/services/pms/api-meter')
           nexhealthBinding = {
             subdomain: meta.subdomain,
             locationId: meta.locationId,
             sandbox: meta.env === 'sandbox',
+            monthCalls: await getMonthCalls(id).catch(() => 0),
           }
         }
       }

@@ -7,7 +7,11 @@ vi.mock('@/lib/services/pms/sync', () => ({ runImport: vi.fn() }))
 vi.mock('@/lib/email', () => ({ sendNotificationEmail: vi.fn() }))
 vi.mock('@/lib/services/notifications', () => ({ notifyOrgMembers: vi.fn() }))
 
-import { consecutiveFailuresFrom, shouldAlertForFailureStreak } from '@/app/api/cron/pms-sync/route'
+import {
+  consecutiveFailuresFrom,
+  shouldAlertForFailureStreak,
+  shouldSkipForCadence,
+} from '@/app/api/cron/pms-sync/route'
 
 describe('consecutiveFailuresFrom — counts failures from most-recent backwards', () => {
   it('counts a leading run of error/partial then stops at the first success', () => {
@@ -42,5 +46,29 @@ describe('shouldAlertForFailureStreak — alert only at streak start + at the re
 
   it('does not alert when there is no failure streak (0)', () => {
     expect(shouldAlertForFailureStreak(0)).toBe(false)
+  })
+})
+
+describe('shouldSkipForCadence — NexHealth runs every OTHER hourly tick (metered calls)', () => {
+  const now = new Date('2026-08-10T12:00:00Z')
+  const minutesAgo = (m: number) => new Date(now.getTime() - m * 60 * 1000)
+
+  it('skips a nexhealth org whose last sync landed under 105 minutes ago', () => {
+    expect(shouldSkipForCadence('nexhealth', minutesAgo(60), now)).toBe(true)
+    expect(shouldSkipForCadence('nexhealth', minutesAgo(104), now)).toBe(true)
+  })
+
+  it('runs a nexhealth org once the last sync is 105+ minutes old', () => {
+    expect(shouldSkipForCadence('nexhealth', minutesAgo(105), now)).toBe(false)
+    expect(shouldSkipForCadence('nexhealth', minutesAgo(180), now)).toBe(false)
+  })
+
+  it('never gates a never-synced nexhealth org (cold start runs immediately)', () => {
+    expect(shouldSkipForCadence('nexhealth', null, now)).toBe(false)
+  })
+
+  it('never gates Open Dental or the demo provider (their calls are free)', () => {
+    expect(shouldSkipForCadence('open_dental', minutesAgo(5), now)).toBe(false)
+    expect(shouldSkipForCadence('demo', minutesAgo(5), now)).toBe(false)
   })
 })

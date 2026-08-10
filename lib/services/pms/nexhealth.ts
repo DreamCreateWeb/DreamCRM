@@ -54,6 +54,10 @@ export interface NexHealthProviderConfig {
   subdomain: string
   locationId: number
   env?: NexHealthEnv
+  /** When set, every outbound call is metered against this org and the
+   *  daily budget breaker applies (production env only — sandbox is free
+   *  and is the tuning fixture). Absent = unmetered (tests, probes). */
+  organizationId?: string
 }
 
 function digitsOrNull(v: string | null | undefined): string | null {
@@ -89,20 +93,43 @@ export class NexHealthProvider implements PmsProviderClient {
   private readonly subdomain: string
   private readonly locationId: number
   private readonly env: NexHealthEnv
+  private readonly organizationId: string | null
 
   constructor(config: NexHealthProviderConfig) {
     this.subdomain = config.subdomain
     this.locationId = config.locationId
     this.env = config.env ?? 'production'
+    this.organizationId = config.organizationId ?? null
   }
 
   private get scope() {
     return { subdomain: this.subdomain, location_id: this.locationId }
   }
 
+  /** Request opts carrying the per-call meter hook when an org is bound. */
+  private reqOpts(): { env: NexHealthEnv; onCall?: () => Promise<void> } {
+    const orgId = this.organizationId
+    if (!orgId) return { env: this.env }
+    return {
+      env: this.env,
+      onCall: async () => {
+        const { recordPmsApiCall } = await import('./api-meter')
+        await recordPmsApiCall(orgId)
+      },
+    }
+  }
+
+  /** The circuit breaker — checked at the start of every list operation.
+   *  Production only: sandbox calls are free and are the tuning fixture. */
+  private async checkBudget(): Promise<void> {
+    if (!this.organizationId || this.env === 'sandbox') return
+    const { assertPmsApiBudget } = await import('./api-meter')
+    await assertPmsApiBudget(this.organizationId)
+  }
+
   async testConnection(): Promise<PmsTestResult> {
     try {
-      const locations = await listLocations(this.subdomain, { env: this.env })
+      const locations = await listLocations(this.subdomain, this.reqOpts())
       const loc = locations.find((l) => l.id === this.locationId)
       if (!loc) {
         return {
@@ -125,7 +152,8 @@ export class NexHealthProvider implements PmsProviderClient {
   }
 
   async listProviders(): Promise<NormalizedProvider[]> {
-    const rows = await nexGetAll<NexProvider>('providers', this.scope, 'providers', { env: this.env })
+    await this.checkBudget()
+    const rows = await nexGetAll<NexProvider>('providers', this.scope, 'providers', this.reqOpts())
     return rows
       .filter((p) => p && typeof p.id === 'number' && !p.inactive)
       .map((p) => ({
@@ -138,8 +166,19 @@ export class NexHealthProvider implements PmsProviderClient {
       }))
   }
 
-  async listPatients(): Promise<NormalizedPatient[]> {
-    const rows = await nexGetAll<NexPatient>('patients', this.scope, 'patients', { env: this.env })
+  async listPatients(opts: { since?: Date } = {}): Promise<NormalizedPatient[]> {
+    await this.checkBudget()
+    // DELTA when the engine hands us its high-water mark: `updated_since`
+    // is verified server-side filtering (probed both directions against the
+    // sandbox, 2026-08-08) — a quiet hour costs ONE call returning nothing
+    // instead of a full multi-page patient pull. Cold start (no mark) is
+    // the one intentional full pull.
+    const rows = await nexGetAll<NexPatient>(
+      'patients',
+      { ...this.scope, ...(opts.since ? { updated_since: opts.since.toISOString() } : {}) },
+      'patients',
+      this.reqOpts(),
+    )
     return rows
       .filter((p) => p && typeof p.id === 'number' && !p.inactive)
       .map((p) => ({
@@ -161,17 +200,26 @@ export class NexHealthProvider implements PmsProviderClient {
   }
 
   async listAppointments(opts: { since?: Date } = {}): Promise<NormalizedAppointment[]> {
-    // The endpoint requires an explicit window. `since` (the engine's delta
-    // hint) narrows the lookback; the horizon always extends forward so
-    // future bookings land.
+    await this.checkBudget()
+    // The endpoint requires an explicit SCHEDULE window (start/end filter by
+    // appointment time). The cost lever is `updated_since` (verified real
+    // filtering, probed 2026-08-08): with the engine's high-water mark we
+    // sweep a WIDE schedule window but only CHANGED rows come back — a quiet
+    // hour is one call returning nothing. Cold start (no mark) is the one
+    // intentional full backfill of the same window.
     const now = Date.now()
-    const start = opts.since ?? new Date(now - APPT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
+    const start = new Date(now - APPT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
     const end = new Date(now + APPT_HORIZON_DAYS * 24 * 60 * 60 * 1000)
     const rows = await nexGetAll<NexAppointment>(
       'appointments',
-      { ...this.scope, start: start.toISOString(), end: end.toISOString() },
+      {
+        ...this.scope,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        ...(opts.since ? { updated_since: opts.since.toISOString() } : {}),
+      },
       'appointments',
-      { env: this.env },
+      this.reqOpts(),
     )
     const out: NormalizedAppointment[] = []
     for (const a of rows) {
