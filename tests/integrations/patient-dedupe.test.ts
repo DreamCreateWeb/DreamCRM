@@ -24,9 +24,10 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn(() => ({ _: 'eq' })),
   inArray: vi.fn(() => ({ _: 'inArray' })),
   isNotNull: vi.fn(() => ({ _: 'isNotNull' })),
+  isNull: vi.fn(() => ({ _: 'isNull' })),
 }))
 
-import { findUnmappedPatientByContact } from '@/lib/services/pms/sync'
+import { findUnmappedPatientByContact, isMinorDob } from '@/lib/services/pms/sync'
 
 const NONE = new Set<string>()
 
@@ -81,5 +82,24 @@ describe('findUnmappedPatientByContact', () => {
   it('does NOT link a phone match when the PMS record has no last name to confirm', async () => {
     state.candidates = [{ id: 'p_phone', email: null, phone: '5125559117', lastName: 'Hayes' }]
     expect(await findUnmappedPatientByContact('org', NONE, null, '5125559117', null)).toBeNull()
+  })
+})
+
+describe('isMinorDob — the guardian-link gate (privacy-cautious on unknowns)', () => {
+  const NOW = new Date('2026-08-10T12:00:00Z')
+
+  it('under 18 is a minor; 18th birthday and beyond is not', () => {
+    expect(isMinorDob('2015-03-01', NOW)).toBe(true)
+    expect(isMinorDob('2008-08-11', NOW)).toBe(true) // 18 tomorrow
+    expect(isMinorDob('2008-08-10', NOW)).toBe(false) // 18 today
+    expect(isMinorDob('1990-01-01', NOW)).toBe(false)
+  })
+
+  it('unknown or malformed DOB is NOT a minor — no link on "don\'t know"', () => {
+    expect(isMinorDob(null, NOW)).toBe(false)
+    expect(isMinorDob(undefined, NOW)).toBe(false)
+    expect(isMinorDob('', NOW)).toBe(false)
+    expect(isMinorDob('03/01/2015', NOW)).toBe(false)
+    expect(isMinorDob('2015-13-99', NOW)).toBe(false)
   })
 })

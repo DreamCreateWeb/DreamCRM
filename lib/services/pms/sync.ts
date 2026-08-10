@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHash, randomUUID } from 'crypto'
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { decryptSecret } from '@/lib/crypto'
 import type { PmsConnection } from '@/lib/db/schema/clinic'
@@ -250,13 +250,39 @@ export async function runImport(
 
     await reconcileProviders(organizationId, await client.listProviders(), counts.providers)
 
+    // PMS-known chair count → fill an EMPTY clinic_profile.chairCount (the
+    // truth the setup_chairs ask was going to request; the setup sweep then
+    // retires that card as answered-elsewhere). Never overwrites a clinic's
+    // own answer, so once the slot fills this costs zero calls forever.
+    if (client.countChairs) {
+      try {
+        const [prof] = await db
+          .select({ chairCount: schema.clinicProfile.chairCount })
+          .from(schema.clinicProfile)
+          .where(eq(schema.clinicProfile.organizationId, organizationId))
+          .limit(1)
+        if (prof && prof.chairCount == null) {
+          const chairs = await client.countChairs()
+          if (chairs != null && chairs >= 1 && chairs <= 99) {
+            await db
+              .update(schema.clinicProfile)
+              .set({ chairCount: chairs, updatedAt: new Date() })
+              .where(eq(schema.clinicProfile.organizationId, organizationId))
+          }
+        }
+      } catch (e) {
+        console.warn('[pms-sync] chair-count fill skipped:', e)
+      }
+    }
+
     // Delta-capable adapters (NexHealth) narrow this to changed-since-mark
     // rows; the mark is safe as the patient watermark too, because it only
     // advances after a run in which the patient phase COMPLETED (appointments
     // run strictly after patientImportComplete). Full-pull adapters ignore it.
+    const patientRows = await client.listPatients({ since })
     const patientRes = await reconcilePatients(
       organizationId,
-      await client.listPatients({ since }),
+      patientRows,
       counts.patients,
       { startIndex: startCursor, deadline, now: clock, backfill: isBackfill },
     )
@@ -271,6 +297,9 @@ export async function runImport(
     // half-loaded patient set would needlessly skip rows. A budget-capped
     // patient pass resumes patients-first next run.
     if (patientImportComplete) {
+      // Consent + family signals need every patient in this pull mapped, so
+      // they run only once the phase completed (same gate as appointments).
+      await applyPatientSignals(organizationId, patientRows)
       await reconcileAppointments(organizationId, await client.listAppointments({ since }), counts.appointments, isBackfill, since)
       appointmentsPulledOk = true
       await reconcileRecalls(organizationId, await client.listRecalls(), counts.recalls)
@@ -498,13 +527,25 @@ async function reconcilePatients(
 
 // One already-mapped patient: skip-on-unchanged, else PMS-wins-but-keep-our-
 // contact-when-the-patient-has-a-login. Safe to run concurrently with peers.
+// One hash recipe for the patient profile — the mapped + unmapped paths must
+// agree or every row re-updates forever. Insurance + language ride the hash
+// so a PMS-side change is seen as a change.
+function patientProfileHash(np: NormalizedPatient): string {
+  return hash([
+    np.firstName, np.lastName, np.dateOfBirth, np.email, np.phone,
+    np.addressLine1, np.city, np.state, np.postalCode,
+    np.insuranceProvider ?? null, np.insurancePolicyNumber ?? null, np.insuranceGroupNumber ?? null,
+    np.preferredLanguage ?? null,
+  ])
+}
+
 async function reconcileMappedPatient(
   organizationId: string,
   np: NormalizedPatient,
   existing: MapRow,
   t: Tally,
 ) {
-  const profileHash = hash([np.firstName, np.lastName, np.dateOfBirth, np.email, np.phone, np.addressLine1, np.city, np.state, np.postalCode])
+  const profileHash = patientProfileHash(np)
   const [row] = await db
     .select()
     .from(schema.patient)
@@ -544,6 +585,13 @@ async function reconcileMappedPatient(
       city: np.city ?? row.city,
       state: np.state ?? row.state,
       postalCode: np.postalCode ?? row.postalCode,
+      // PMS-wins when it HAS a value; absent never clears the clinic's own
+      // entry (a Dentrix office that doesn't sync insurance must not wipe
+      // what the front desk typed here).
+      insuranceProvider: np.insuranceProvider ?? row.insuranceProvider,
+      insurancePolicyNumber: np.insurancePolicyNumber ?? row.insurancePolicyNumber,
+      insuranceGroupNumber: np.insuranceGroupNumber ?? row.insuranceGroupNumber,
+      preferredLanguage: np.preferredLanguage ?? row.preferredLanguage,
       pmsBalanceCents: np.balanceCents ?? null,
       pmsBalanceUpdatedAt: new Date(),
       updatedAt: new Date(),
@@ -552,7 +600,7 @@ async function reconcileMappedPatient(
   // Hash the values we ACTUALLY persisted, so a guarded row doesn't re-trigger
   // an update every single sync (its stored contact never matches the PMS hash).
   const persistedHash = contactWouldChange
-    ? hash([np.firstName, np.lastName, np.dateOfBirth, row.email, row.phone, np.addressLine1, np.city, np.state, np.postalCode])
+    ? patientProfileHash({ ...np, email: row.email, phone: row.phone })
     : profileHash
   await touchMap(existing.id, persistedHash)
   if (contactWouldChange) t.skippedContactOverwrites = (t.skippedContactOverwrites ?? 0) + 1
@@ -569,7 +617,7 @@ async function reconcileUnmappedPatient(
   t: Tally,
   backfill: boolean,
 ) {
-  const profileHash = hash([np.firstName, np.lastName, np.dateOfBirth, np.email, np.phone, np.addressLine1, np.city, np.state, np.postalCode])
+  const profileHash = patientProfileHash(np)
   const linkId = await findUnmappedPatientByContact(organizationId, mappedInternalIds, np.email, np.phone, np.lastName)
   if (linkId) {
     await db
@@ -580,6 +628,10 @@ async function reconcileUnmappedPatient(
         city: np.city ?? undefined,
         state: np.state ?? undefined,
         postalCode: np.postalCode ?? undefined,
+        insuranceProvider: np.insuranceProvider ?? undefined,
+        insurancePolicyNumber: np.insurancePolicyNumber ?? undefined,
+        insuranceGroupNumber: np.insuranceGroupNumber ?? undefined,
+        preferredLanguage: np.preferredLanguage ?? undefined,
         pmsBalanceCents: np.balanceCents ?? null,
         pmsBalanceUpdatedAt: new Date(),
         updatedAt: new Date(),
@@ -615,6 +667,10 @@ async function createImportedPatient(organizationId: string, np: NormalizedPatie
     city: np.city ?? null,
     state: np.state ?? null,
     postalCode: np.postalCode ?? null,
+    insuranceProvider: np.insuranceProvider ?? null,
+    insurancePolicyNumber: np.insurancePolicyNumber ?? null,
+    insuranceGroupNumber: np.insuranceGroupNumber ?? null,
+    preferredLanguage: np.preferredLanguage ?? null,
     source: backfill ? 'pms_import' : 'pms',
     lifecycle: 'active',
     firstSeenAt: now,
@@ -622,6 +678,82 @@ async function createImportedPatient(organizationId: string, np: NormalizedPatie
     pmsBalanceUpdatedAt: np.balanceCents != null ? now : null,
   })
   return id
+}
+
+/** Under-18 at `now`, judged from a 'YYYY-MM-DD' DOB. Unknown/garbage DOB is
+ *  NOT a minor — the guardian link is a privacy-affecting grant, so the
+ *  cautious answer to "don't know" is no. Exported for tests. */
+export function isMinorDob(dob: string | null | undefined, now: Date = new Date()): boolean {
+  if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return false
+  const d = new Date(`${dob}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return false
+  const eighteenth = new Date(d)
+  eighteenth.setUTCFullYear(d.getUTCFullYear() + 18)
+  return now.getTime() < eighteenth.getTime()
+}
+
+/**
+ * Consent + family signals the PMS carries beyond the profile columns
+ * (completeness slice, 2026-08-10). Runs AFTER the patient phase so every
+ * row in this pull is mapped. Best-effort per row — a blip here must never
+ * fail the run (the profile import already landed).
+ *
+ * - A PMS "do not text" flag becomes a STANDING opt-out through the consent
+ *   spine (recordSmsOptOut — the ONLY lawful writer). Applied once: a row
+ *   with any opt-out already stamped is left alone, and false/absent never
+ *   opts anyone in. After it stands, only a START reply clears it — an
+ *   intake checkbox can't silently override what Dentrix says.
+ * - The PMS guarantor becomes the portal guardian ONLY for minors, only
+ *   into an EMPTY slot (never overwriting a clinic-set link), and only when
+ *   the guarantor is themselves a synced patient. Adult-to-adult guarantor
+ *   relationships (spouses) are deliberately NOT linked — the guardian slot
+ *   grants portal visibility, and that's a consent question for adults.
+ */
+async function applyPatientSignals(organizationId: string, rows: NormalizedPatient[]): Promise<void> {
+  const optOuts = rows.filter((r) => r.smsOptOut === true)
+  const guardianLinks = rows.filter(
+    (r) => r.guarantorExternalId && r.guarantorExternalId !== r.externalId && isMinorDob(r.dateOfBirth),
+  )
+  if (optOuts.length === 0 && guardianLinks.length === 0) return
+
+  const map = await loadMap(organizationId, 'patient')
+  const { recordSmsOptOut } = await import('@/lib/services/sms-consent')
+
+  for (const np of optOuts) {
+    const internalId = map.get(np.externalId)?.internalId
+    if (!internalId) continue
+    try {
+      const [row] = await db
+        .select({ optOutAt: schema.patient.marketingSmsOptOutAt })
+        .from(schema.patient)
+        .where(and(eq(schema.patient.organizationId, organizationId), eq(schema.patient.id, internalId)))
+        .limit(1)
+      if (!row || row.optOutAt) continue
+      await recordSmsOptOut(organizationId, { patientId: internalId })
+    } catch (e) {
+      console.warn('[pms-sync] PMS sms opt-out not applied (retries next change):', e)
+    }
+  }
+
+  for (const np of guardianLinks) {
+    const internalId = map.get(np.externalId)?.internalId
+    const guardianId = np.guarantorExternalId ? map.get(np.guarantorExternalId)?.internalId : undefined
+    if (!internalId || !guardianId || internalId === guardianId) continue
+    try {
+      await db
+        .update(schema.patient)
+        .set({ guardianPatientId: guardianId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.patient.organizationId, organizationId),
+            eq(schema.patient.id, internalId),
+            isNull(schema.patient.guardianPatientId),
+          ),
+        )
+    } catch (e) {
+      console.warn('[pms-sync] PMS guardian link not applied (retries next change):', e)
+    }
+  }
 }
 
 async function touchMapInternal(mapId: string, internalId: string, contentHash: string | null) {
@@ -661,7 +793,7 @@ async function reconcileAppointments(
       continue
     }
     const providerInternalId = na.providerExternalId ? provMap.get(na.providerExternalId)?.internalId ?? null : null
-    const h = hash([na.startTime.toISOString(), na.endTime?.toISOString() ?? null, na.status, providerInternalId, na.note])
+    const h = hash([na.startTime.toISOString(), na.endTime?.toISOString() ?? null, na.status, providerInternalId, na.note, na.type ?? null])
     const statusFields = appointmentStatusFields(na.status)
     const existing = apptMap.get(na.externalId)
 
@@ -713,6 +845,10 @@ async function reconcileAppointments(
             status: na.status,
             providerId: providerInternalId,
             notes: na.note ?? null,
+            // A PMS-known visit type upgrades the row; absent keeps ours
+            // (the create-time default was 'checkup', and clobbering a
+            // staff-corrected type with a null would be a downgrade).
+            ...(na.type ? { type: na.type } : {}),
             ...(statusChanged ? statusFields : {}),
             ...(goingLiveCompleted ? { source: 'pms_live' } : {}),
             updatedAt: new Date(),

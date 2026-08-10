@@ -168,12 +168,34 @@ export interface NexInstitution {
   locations?: NexLocation[]
 }
 
+export interface NexInsuranceCoverage {
+  id: number
+  patient_id?: number
+  priority?: number | null
+  subscriber_num?: string | null
+  effective_date?: string | null
+  expiration_date?: string | null
+  plan?: {
+    id?: number
+    name?: string | null
+    group_num?: string | null
+    payer_id?: string | null
+    deleted_at?: string | null
+  } | null
+}
+
 export interface NexPatient {
   id: number
   first_name?: string | null
   last_name?: string | null
   email?: string | null
   inactive?: boolean
+  /** PMS-recorded financially-responsible party (usually a parent). */
+  guarantor_id?: number | null
+  /** The PMS-side "do not text" flag (Dentrix et al. sync it through). */
+  unsubscribe_sms?: boolean
+  preferred_language?: string | null
+  preferred_locale?: string | null
   bio?: {
     gender?: string | null
     phone_number?: string | null
@@ -186,6 +208,8 @@ export interface NexPatient {
   } | null
   balance?: { amount?: string | null; currency?: string | null } | null
   location_ids?: number[]
+  /** Present when the request asked for include[]=insurance_coverages. */
+  insurance_coverages?: NexInsuranceCoverage[]
 }
 
 export interface NexAppointment {
@@ -212,11 +236,59 @@ export interface NexProvider {
   last_name?: string | null
   name?: string | null
   inactive?: boolean
+  npi?: string | null
+  /** e.g. "Dentist" — NexHealth's own coarse specialty label. */
+  nexhealth_specialty?: string | null
+}
+
+export interface NexAppointmentType {
+  id: number
+  name?: string | null
+  minutes?: number | null
+  bookable_online?: boolean
+}
+
+export interface NexOperatory {
+  id: number
+  name?: string | null
+  active?: boolean
+  location_id?: number
 }
 
 /** The institutions visible to this key — includes each one's locations. */
 export async function listInstitutions(opts: NexRequestOpts = {}): Promise<NexInstitution[]> {
   const { data } = await nexGet<NexInstitution[]>('institutions', {}, opts)
+  return Array.isArray(data) ? data : []
+}
+
+/** A location's appointment types (name + minutes + bookable flag). Small,
+ *  rarely-changing lookup — callers should cache (the adapter keeps a 24h
+ *  in-memory cache so this costs ~1 metered call per day, not per sync). */
+export async function listAppointmentTypes(
+  subdomain: string,
+  locationId: number,
+  opts: NexRequestOpts = {},
+): Promise<NexAppointmentType[]> {
+  const { data } = await nexGet<NexAppointmentType[]>(
+    'appointment_types',
+    { subdomain, location_id: locationId, per_page: 200 },
+    opts,
+  )
+  return Array.isArray(data) ? data : []
+}
+
+/** A location's operatories (physical chairs). Tiny list; fetched only when
+ *  the clinic's chair count is still unknown. */
+export async function listOperatories(
+  subdomain: string,
+  locationId: number,
+  opts: NexRequestOpts = {},
+): Promise<NexOperatory[]> {
+  const { data } = await nexGet<NexOperatory[]>(
+    'operatories',
+    { subdomain, location_id: locationId, per_page: 200 },
+    opts,
+  )
   return Array.isArray(data) ? data : []
 }
 

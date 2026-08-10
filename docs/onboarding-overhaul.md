@@ -830,3 +830,46 @@ first real binding):**
   test.ts (delta pass-through, breaker-before-HTTP, sandbox exemption,
   hook wiring) · cadence pins in tests/automation/pms-sync-failure-
   streak.test.ts.
+
+- **SYNC COMPLETENESS, PASS 1 — SHIPPED 2026-08-10** (owner ruling: "if
+  our platform has a slot for that information, it needs to show up
+  there, and it needs to do so cleanly"). Live sandbox inventory first
+  (full record dumps + endpoint probes; artifacts informed the map):
+  the patient record carries gender, guarantor_id, unsubscribe_sms,
+  preferred_language/locale, chart_id, billing_type; appointments carry
+  appointment_type_id, operatory_id, checkin/checkout/cancel timestamps;
+  /appointment_types (names + minutes + bookable flags), /operatories
+  (chairs), /insurance_plans, /availabilities (provider schedules!),
+  /payments + /charges (empty in sandbox), /webhook_endpoints all exist;
+  /insurance_coverages, /guarantors, /documents do NOT (coverage rides
+  the patient record via include[] — VERIFIED on the LIST endpoint, so
+  insurance costs ZERO extra calls). What now fills, each into its
+  existing slot: **insurance** (carrier / member id / group #) onto the
+  patient's insurance columns — PMS-wins-when-present, absent never
+  wipes what the front desk typed; **visit types** through a day-cached
+  appointment-type name map (~1 extra call/day, not per sync) onto the
+  visit-type vocabulary via keyword mapping, unknown names honestly
+  'other', absent keeps the row's current type; **provider roles** from
+  nexhealth_specialty (dentist/hygienist/assistant, unknown →
+  specialist); **preferred language** (Spanish detection, token-safe so
+  'Estonian' ≠ es); **PMS "do not text"** → a STANDING opt-out through
+  the consent spine's recordSmsOptOut (the only lawful writer), applied
+  once, never opting anyone IN, and only START clears it after; **PMS
+  guarantor → portal guardian for MINORS ONLY**, only into an empty
+  slot, never adult-to-adult (the guardian slot grants portal
+  visibility — a consent question for adults, so deliberately not
+  automated); **chair count** from active operatories fills an EMPTY
+  clinic_profile.chairCount (never overwrites; retires the setup_chairs
+  ask as answered-elsewhere; zero steady-state calls once filled). The
+  patient/appointment content hashes grew the new fields (one-time full
+  update pass per fleet, then delta-quiet). No new tables, no new
+  columns — every fact landed in a slot that already existed. NOT
+  pulled yet, recorded for later passes: gender (no platform slot),
+  /availabilities → booking slots (the OD-blocked schedule feature could
+  work TODAY through NexHealth — flagged as its own slice),
+  payments/charges (empty fixtures; revisit when a real practice syncs),
+  webhooks (the at-scale cost fix). Cost shape unchanged: ~3 calls per
+  delta run + ~1/day for the type map; operatories only while chairs
+  unknown. LIVE suite extended (types resolve, opt-outs + insurance
+  survive normalization, chairs=2 — the sandbox's OP3 is inactive and
+  the honest count is the active ones).

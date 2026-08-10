@@ -2,10 +2,13 @@ import 'server-only'
 import {
   nexGetAll,
   listLocations,
+  listAppointmentTypes,
+  listOperatories,
   type NexHealthEnv,
   type NexPatient,
   type NexAppointment,
   type NexProvider,
+  type NexInsuranceCoverage,
 } from '@/lib/nexhealth'
 import type {
   PmsProviderClient,
@@ -50,6 +53,12 @@ import type {
 const APPT_LOOKBACK_DAYS = 90
 const APPT_HORIZON_DAYS = 365
 
+// Appointment-type names change ~never, so the (subdomain, location) → name
+// map is cached in module memory for a day: ~1 metered call per day instead
+// of one per sync. A process restart just re-fetches once.
+const APPT_TYPE_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const apptTypeCache = new Map<string, { fetchedAt: number; names: Map<number, string> }>()
+
 export interface NexHealthProviderConfig {
   subdomain: string
   locationId: number
@@ -70,6 +79,63 @@ function centsFromAmount(amount: string | null | undefined): number | null {
   const n = Number.parseFloat(amount)
   if (!Number.isFinite(n)) return null
   return Math.round(n * 100)
+}
+
+/**
+ * PMS appointment-type NAME → our appointment.type vocabulary. Keyword match,
+ * most-specific first ("New patient exam and cleaning" is a hygiene visit,
+ * so cleaning outranks exam). Unrecognized names are honestly 'other' —
+ * never a guessed 'checkup'.
+ */
+export function mapNexApptTypeName(name: string | null | undefined): string | null {
+  const n = (name ?? '').toLowerCase()
+  if (!n.trim()) return null
+  if (/root canal|endo/.test(n)) return 'root_canal'
+  if (/extract/.test(n)) return 'extraction'
+  if (/fill/.test(n)) return 'filling'
+  if (/emergency|tooth ?pain|toothache/.test(n)) return 'emergency'
+  if (/clean|hygiene|prophy/.test(n)) return 'cleaning'
+  if (/consult/.test(n)) return 'consultation'
+  if (/exam|check ?up|recall|new patient/.test(n)) return 'checkup'
+  return 'other'
+}
+
+/** NexHealth's coarse specialty label → our clinic_provider.role vocabulary. */
+export function mapNexSpecialty(specialty: string | null | undefined): string | null {
+  const s = (specialty ?? '').toLowerCase()
+  if (!s.trim()) return null
+  if (/hygien/.test(s)) return 'hygienist'
+  if (/assist/.test(s)) return 'assistant'
+  if (/dentist|doctor|dds|dmd/.test(s)) return 'dentist'
+  return 'specialist'
+}
+
+/** preferred_language/locale → our 'es' | null (English is the null default). */
+export function mapNexPreferredLanguage(
+  language: string | null | undefined,
+  locale: string | null | undefined,
+): string | null {
+  const v = `${language ?? ''} ${locale ?? ''}`.toLowerCase()
+  return /spanish|(^|[^a-z])es([-_]|$|\s)/.test(v) ? 'es' : null
+}
+
+/**
+ * Pick the coverage to surface: lowest priority number (0 = primary) whose
+ * plan isn't deleted and whose window (when stated) includes `now`.
+ */
+export function pickPrimaryCoverage(
+  coverages: NexInsuranceCoverage[] | null | undefined,
+  now: Date = new Date(),
+): NexInsuranceCoverage | null {
+  if (!Array.isArray(coverages)) return null
+  const live = coverages.filter((c) => {
+    if (!c || typeof c !== 'object') return false
+    if (c.plan?.deleted_at) return false
+    if (c.expiration_date && new Date(c.expiration_date).getTime() < now.getTime()) return false
+    return Boolean(c.plan?.name || c.subscriber_num)
+  })
+  live.sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
+  return live[0] ?? null
 }
 
 export function mapNexAppointmentStatus(
@@ -162,7 +228,7 @@ export class NexHealthProvider implements PmsProviderClient {
           p.name?.trim() ||
           [p.first_name, p.last_name].filter(Boolean).join(' ').trim() ||
           `Provider ${p.id}`,
-        role: null, // NexHealth doesn't expose a role vocabulary
+        role: mapNexSpecialty(p.nexhealth_specialty),
       }))
   }
 
@@ -175,28 +241,43 @@ export class NexHealthProvider implements PmsProviderClient {
     // the one intentional full pull.
     const rows = await nexGetAll<NexPatient>(
       'patients',
-      { ...this.scope, ...(opts.since ? { updated_since: opts.since.toISOString() } : {}) },
+      {
+        ...this.scope,
+        // Insurance rides the SAME call (verified on the list endpoint,
+        // 2026-08-10) — coverage costs zero extra requests.
+        'include[]': 'insurance_coverages',
+        ...(opts.since ? { updated_since: opts.since.toISOString() } : {}),
+      },
       'patients',
       this.reqOpts(),
     )
     return rows
       .filter((p) => p && typeof p.id === 'number' && !p.inactive)
-      .map((p) => ({
-        externalId: String(p.id),
-        firstName: p.first_name?.trim() || 'Unknown',
-        lastName: p.last_name?.trim() || '',
-        dateOfBirth: p.bio?.date_of_birth ?? null,
-        // NexHealth seeds placeholder @example.com addresses in sandbox data;
-        // they're real-shaped, so we pass them through — the engine's linked-
-        // login guard already protects portal identities from overwrites.
-        email: p.email?.trim() || null,
-        phone: digitsOrNull(p.bio?.verified_mobile ?? p.bio?.phone_number),
-        addressLine1: p.bio?.address_line_1 ?? null,
-        city: p.bio?.city ?? null,
-        state: p.bio?.state ?? null,
-        postalCode: p.bio?.zip_code ?? null,
-        balanceCents: centsFromAmount(p.balance?.amount),
-      }))
+      .map((p) => {
+        const coverage = pickPrimaryCoverage(p.insurance_coverages)
+        return {
+          externalId: String(p.id),
+          firstName: p.first_name?.trim() || 'Unknown',
+          lastName: p.last_name?.trim() || '',
+          dateOfBirth: p.bio?.date_of_birth ?? null,
+          // NexHealth seeds placeholder @example.com addresses in sandbox data;
+          // they're real-shaped, so we pass them through — the engine's linked-
+          // login guard already protects portal identities from overwrites.
+          email: p.email?.trim() || null,
+          phone: digitsOrNull(p.bio?.verified_mobile ?? p.bio?.phone_number),
+          addressLine1: p.bio?.address_line_1 ?? null,
+          city: p.bio?.city ?? null,
+          state: p.bio?.state ?? null,
+          postalCode: p.bio?.zip_code ?? null,
+          balanceCents: centsFromAmount(p.balance?.amount),
+          insuranceProvider: coverage?.plan?.name?.trim() || null,
+          insurancePolicyNumber: coverage?.subscriber_num?.trim() || null,
+          insuranceGroupNumber: coverage?.plan?.group_num?.trim() || null,
+          preferredLanguage: mapNexPreferredLanguage(p.preferred_language, p.preferred_locale),
+          smsOptOut: p.unsubscribe_sms === true,
+          guarantorExternalId: p.guarantor_id != null ? String(p.guarantor_id) : null,
+        }
+      })
   }
 
   async listAppointments(opts: { since?: Date } = {}): Promise<NormalizedAppointment[]> {
@@ -221,12 +302,14 @@ export class NexHealthProvider implements PmsProviderClient {
       'appointments',
       this.reqOpts(),
     )
+    const typeNames = await this.apptTypeNames()
     const out: NormalizedAppointment[] = []
     for (const a of rows) {
       if (!a || typeof a.id !== 'number' || typeof a.patient_id !== 'number') continue
       const startTime = a.start_time ? new Date(a.start_time) : null
       if (!startTime || Number.isNaN(startTime.getTime())) continue
       const endTime = a.end_time ? new Date(a.end_time) : null
+      const typeName = a.appointment_type_id != null ? typeNames.get(a.appointment_type_id) : undefined
       out.push({
         externalId: String(a.id),
         patientExternalId: String(a.patient_id),
@@ -234,11 +317,47 @@ export class NexHealthProvider implements PmsProviderClient {
         startTime,
         endTime: endTime && !Number.isNaN(endTime.getTime()) ? endTime : null,
         status: mapNexAppointmentStatus(a),
-        type: null, // appointment_type names need a second lookup; v2
+        type: mapNexApptTypeName(typeName),
         note: a.note?.trim() || null,
       })
     }
     return out
+  }
+
+  /** The location's appointment-type id → name map, day-cached (see above).
+   *  A failed fetch degrades to an empty map — visits import untyped rather
+   *  than not at all — and doesn't poison the cache. */
+  private async apptTypeNames(): Promise<Map<number, string>> {
+    const key = `${this.env}:${this.subdomain}:${this.locationId}`
+    const cached = apptTypeCache.get(key)
+    if (cached && Date.now() - cached.fetchedAt < APPT_TYPE_CACHE_TTL_MS) return cached.names
+    try {
+      const types = await listAppointmentTypes(this.subdomain, this.locationId, this.reqOpts())
+      const names = new Map<number, string>()
+      for (const t of types) {
+        if (t && typeof t.id === 'number' && t.name?.trim()) names.set(t.id, t.name.trim())
+      }
+      apptTypeCache.set(key, { fetchedAt: Date.now(), names })
+      return names
+    } catch (e) {
+      console.warn('[pms/nexhealth] appointment_types fetch failed (visits import untyped):', e)
+      return cached?.names ?? new Map()
+    }
+  }
+
+  /** Physical chairs = active operatories. Called by the engine only while
+   *  clinic_profile.chairCount is empty, so this is a handful of calls per
+   *  clinic ever, not per sync. */
+  async countChairs(): Promise<number | null> {
+    await this.checkBudget()
+    try {
+      const ops = await listOperatories(this.subdomain, this.locationId, this.reqOpts())
+      const active = ops.filter((o) => o && typeof o.id === 'number' && o.active !== false)
+      return active.length > 0 ? active.length : null
+    } catch (e) {
+      console.warn('[pms/nexhealth] operatories fetch failed (chair count stays unknown):', e)
+      return null
+    }
   }
 
   async listRecalls(): Promise<NormalizedRecall[]> {

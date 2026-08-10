@@ -21,6 +21,21 @@ export interface NormalizedPatient {
   postalCode?: string | null
   /** Estimated patient balance in cents. PMS owns AR truth; read-only here. */
   balanceCents?: number | null
+  /** Insurance snapshot from the PMS (carrier name / member id / group #).
+   *  PMS-wins when present; absent never clears a clinic-entered value. */
+  insuranceProvider?: string | null
+  insurancePolicyNumber?: string | null
+  insuranceGroupNumber?: string | null
+  /** Normalized to our patient.preferred_language vocabulary ('es' | null). */
+  preferredLanguage?: string | null
+  /** True ONLY when the PMS affirmatively records a standing "do not text"
+   *  (e.g. NexHealth unsubscribe_sms). The engine routes it through the SMS
+   *  consent spine as an opt-OUT; false/absent says nothing and never opts
+   *  anyone in. */
+  smsOptOut?: boolean
+  /** PMS guarantor (financially-responsible party). The engine links it as
+   *  the portal guardian ONLY for minors, and only into an empty slot. */
+  guarantorExternalId?: string | null
 }
 
 export interface NormalizedAppointment {
@@ -117,6 +132,11 @@ export interface PmsProviderClient {
   // and full-pull (the engine's content-hash skip avoids redundant writes).
   listPatients(opts?: { since?: Date }): Promise<NormalizedPatient[]>
   listAppointments(opts?: { since?: Date }): Promise<NormalizedAppointment[]>
+  /** Physical chair count from the PMS (operatories), when the provider can
+   *  answer it. Optional — the engine uses it only to fill an EMPTY
+   *  clinic_profile.chairCount (never to overwrite a clinic's own answer),
+   *  so implementations are called at most until the slot fills. */
+  countChairs?(): Promise<number | null>
   /** PMS recall list — OD doesn't honor a DateTStamp filter on /recalls,
    *  so this is a full paginated pull (small N + content-skip per-patient). */
   listRecalls(): Promise<NormalizedRecall[]>

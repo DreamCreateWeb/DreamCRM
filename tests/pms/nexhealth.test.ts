@@ -60,6 +60,11 @@ const LIVE = Boolean(process.env.NEXHEALTH_SANDBOX_API_KEY)
     expect(patients.length).toBeGreaterThan(50)
     const withDob = patients.find((x) => x.dateOfBirth)
     expect(withDob?.dateOfBirth).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    // Completeness slice: the sandbox seeds ~49 sms opt-outs and a handful of
+    // insurance coverages — they must survive normalization.
+    expect(patients.some((x) => x.smsOptOut)).toBe(true)
+    const insured = patients.find((x) => x.insuranceProvider)
+    expect(insured?.insurancePolicyNumber).toBeTruthy()
 
     const appts = await p.listAppointments({ since: new Date('2026-01-01') })
     expect(appts.length).toBeGreaterThan(100)
@@ -67,6 +72,13 @@ const LIVE = Boolean(process.env.NEXHEALTH_SANDBOX_API_KEY)
     for (const s of Array.from(new Set(appts.map((a) => a.status)))) {
       expect(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show']).toContain(s)
     }
+    // Completeness slice: visit types resolve through the appointment_types
+    // name map (sandbox rows all carry an appointment_type_id).
+    expect(appts.some((a) => a.type != null)).toBe(true)
+
+    // Chairs: the sandbox location has 3 operatories but OP3 is inactive —
+    // the honest count is the 2 active ones.
+    expect(await p.countChairs()).toBe(2)
   }, 120_000)
 
   it('recalls are honestly empty (no NexHealth endpoint)', async () => {
