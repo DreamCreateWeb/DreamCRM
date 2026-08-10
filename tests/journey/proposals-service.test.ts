@@ -43,10 +43,11 @@ const store: {
   profiles: Array<Record<string, unknown>>
   /** The org row the count joins for isDemo — production always has one. */
   orgs: Array<Record<string, unknown>>
+  smsConfigs: Array<Record<string, unknown>>
   /** When true, the next UPDATE that stamps executedAt throws — the
    *  bookkeeping-after-success failure the reopen region must NOT catch. */
   failExecutedAtStamp: boolean
-} = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], profiles: [], orgs: [], failExecutedAtStamp: false }
+} = { proposals: [], reviews: [], leads: [], postTargets: [], socialPosts: [], campaigns: [], profiles: [], orgs: [], smsConfigs: [], failExecutedAtStamp: false }
 
 const { recordActionMock, hasEntryForProposalMock } = vi.hoisted(() => ({
   recordActionMock: vi.fn(async (..._a: unknown[]) => true),
@@ -142,6 +143,14 @@ vi.mock('@/lib/services/empty-chair', () => ({
   safeWindowLoad: vi.fn(async () => chair.window),
 }))
 
+const smsReg = vi.hoisted(() => ({
+  start: vi.fn(async (_org: string, _input: Record<string, unknown>) =>
+    ({ ok: true as const, state: 'brand_pending' })),
+}))
+vi.mock('@/lib/services/sms-registration', () => ({
+  startSmsRegistration: smsReg.start,
+}))
+
 const blogErr = vi.hoisted(() => ({ Cls: class BlogPublishError extends Error {} }))
 const blog = vi.hoisted(() => ({
   posts: [] as Array<Record<string, unknown>>,
@@ -185,6 +194,7 @@ vi.mock('@/lib/db', () => {
     if (name === 'campaigns') return store.campaigns
     if (name === 'clinic_profile') return store.profiles
     if (name === 'organization') return store.orgs
+    if (name === 'clinic_sms_config') return store.smsConfigs
     return []
   }
 
@@ -383,6 +393,11 @@ vi.mock('@/lib/db', () => {
       updatedAt: col('updatedAt'),
     },
     organization: { __name: 'organization', id: col('id'), name: col('name'), isDemo: col('isDemo') },
+    clinicSmsConfig: {
+      __name: 'clinic_sms_config',
+      organizationId: col('organizationId'),
+      a2pStatus: col('a2pStatus'),
+    },
     campaigns: {
       __name: 'campaigns',
       id: col('id'),
@@ -507,6 +522,7 @@ beforeEach(() => {
   // Production always has the org row the count's gate joins — a real
   // clinic, not a demo (fixture realism).
   store.orgs = [{ id: ORG, name: 'Acme Dental', isDemo: false }]
+  store.smsConfigs = []
   store.failExecutedAtStamp = false
   calendar.ahead = 0
   blog.posts = []
@@ -2077,5 +2093,48 @@ describe('approveProposal — setup asks (onboarding overhaul)', () => {
     const r = await approveProposal(ORG, p.id, 'user_1', { answer: '   ' })
     expect(r.ok).toBe(false)
     expect(p.status).toBe('open')
+  })
+
+  it('setup_texting: the JSON answer starts the registration through the ONE entry point', async () => {
+    const p = seedProposal({ capability: 'setup_texting', sourceKey: 'setup_texting:v1' })
+    const answer = JSON.stringify({
+      ein: '12-3456789',
+      entityType: 'llc',
+      brandContactName: 'Dr. Ada Reyes',
+      brandContactEmail: 'ada@acmedental.com',
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1', { answer })
+    expect(r).toMatchObject({ ok: true, status: 'approved' })
+    expect(smsReg.start).toHaveBeenCalledWith(ORG, {
+      ein: '12-3456789',
+      entityType: 'llc',
+      brandContactName: 'Dr. Ada Reyes',
+      brandContactEmail: 'ada@acmedental.com',
+    })
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toContain('texting registration')
+  })
+
+  it('setup_texting: field issues come back as one readable line and the card stays live', async () => {
+    smsReg.start.mockResolvedValueOnce({
+      ok: false as const,
+      issues: [{ field: 'ein', message: 'That doesn’t look like an EIN.' }],
+    } as never)
+    const p = seedProposal({ capability: 'setup_texting', sourceKey: 'setup_texting:v1' })
+    const r = await approveProposal(ORG, p.id, 'user_1', { answer: JSON.stringify({ ein: 'x' }) })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('EIN')
+    expect(p.status).toBe('open')
+  })
+
+  it('setup_texting: retires when a registration already started elsewhere — never a second filing', async () => {
+    store.smsConfigs = [{ organizationId: ORG, a2pStatus: 'brand_pending' }]
+    const p = seedProposal({ capability: 'setup_texting', sourceKey: 'setup_texting:v1' })
+    const r = await approveProposal(ORG, p.id, 'user_1', {
+      answer: JSON.stringify({ ein: '12-3456789', entityType: 'llc', brandContactName: 'A', brandContactEmail: 'a@b.co' }),
+    })
+    expect(r.ok).toBe(false)
+    expect((r as { expired?: boolean }).expired).toBe(true)
+    expect(smsReg.start).not.toHaveBeenCalled()
   })
 })

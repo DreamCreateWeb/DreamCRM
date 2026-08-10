@@ -102,7 +102,7 @@ vi.mock('drizzle-orm', () => ({
   sql: (_strings: TemplateStringsArray, _col: unknown, n: number) => ({ __inc: n }),
 }))
 
-import { deliverSms, getClinicSmsIdentity } from '@/lib/sms'
+import { deliverSms, getClinicSmsIdentity, getSmsUsage } from '@/lib/sms'
 
 const ORG = 'org_1'
 const config = (over: Record<string, unknown> = {}) => ({
@@ -214,5 +214,45 @@ describe('deliverSms', () => {
       expect(r.error).toContain('rate-limiting')
       expect(r.error).not.toContain('ThrottlingException')
     }
+  })
+})
+
+describe('the included segment budget (ruling #10 — a guardrail, not an upsell)', () => {
+  it('MARKETING stops at the budget with a typed refusal, and the carrier is never called', async () => {
+    store.configs = [config({ monthlySendCount: 2000 })]
+    const r = await deliverSms(ORG, { to: '415-555-0101', body: 'Come back in!', kind: 'marketing' })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('over_budget')
+    expect(aws.sent).toHaveLength(0)
+  })
+
+  it('TRANSACTIONAL reminders keep going past the budget — a budget must never silence a reminder', async () => {
+    store.configs = [config({ monthlySendCount: 99999 })]
+    const r = await deliverSms(ORG, { to: '415-555-0101', body: 'See you tomorrow at 2.', kind: 'transactional' })
+    expect(r.ok).toBe(true)
+    expect(aws.sent).toHaveLength(1)
+  })
+
+  it('an EXPIRED window is a fresh budget (the counter just has not rolled yet)', async () => {
+    store.configs = [
+      config({ monthlySendCount: 5000, monthlySendCountResetAt: new Date(Date.now() - 40 * 24 * 3600_000) }),
+    ]
+    const r = await deliverSms(ORG, { to: '415-555-0101', body: 'Come back in!', kind: 'marketing' })
+    expect(r.ok).toBe(true)
+  })
+
+  it('under budget sends normally', async () => {
+    store.configs = [config({ monthlySendCount: 1999 })]
+    const r = await deliverSms(ORG, { to: '415-555-0101', body: 'Come back in!', kind: 'marketing' })
+    expect(r.ok).toBe(true)
+  })
+
+  it('getSmsUsage reports the window honestly (expired → 0)', async () => {
+    store.configs = [config({ monthlySendCount: 750 })]
+    expect(await getSmsUsage(ORG)).toEqual({ used: 750, included: 2000 })
+    store.configs = [
+      config({ monthlySendCount: 750, monthlySendCountResetAt: new Date(Date.now() - 40 * 24 * 3600_000) }),
+    ]
+    expect((await getSmsUsage(ORG)).used).toBe(0)
   })
 })

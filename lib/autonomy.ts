@@ -103,6 +103,11 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'setup_hours', label: 'Confirm your office hours', defaultTrust: 'ask' },
   { key: 'setup_chairs', label: 'Confirm how many chairs you run', defaultTrust: 'ask' },
   { key: 'setup_booking_mode', label: 'Choose how online booking works', defaultTrust: 'ask' },
+  // Texting kickoff (ruling #10: SMS starts registering at onboarding).
+  // The card carries the carriers' one form — EIN, business type, a contact
+  // at the practice — and the approve hands the whole registration machine
+  // its keys. Asked once; the /integrations/sms form answers it elsewhere.
+  { key: 'setup_texting', label: 'Set up texting for your practice', defaultTrust: 'ask' },
 ] as const
 
 /**
@@ -114,6 +119,7 @@ export const SETUP_CAPABILITIES: readonly string[] = [
   'setup_hours',
   'setup_chairs',
   'setup_booking_mode',
+  'setup_texting',
 ]
 
 /**

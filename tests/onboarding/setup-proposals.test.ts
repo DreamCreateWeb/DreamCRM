@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * generateSetupProposals (onboarding overhaul: "setup asks ARE proposals").
@@ -25,6 +25,10 @@ vi.mock('@/lib/db', () => {
         chairCount: {},
         selfBookingEnabled: {},
         siteLiveAt: {},
+        organizationId: {},
+      },
+      clinicSmsConfig: {
+        a2pStatus: {},
         organizationId: {},
       },
     },
@@ -148,5 +152,31 @@ describe('generateSetupProposals', () => {
       .find((c) => c.capability === 'setup_hours')!
     expect(hoursCall.body).toContain('Monday: 09:00–17:00')
     expect(hoursCall.body).toContain('Saturday: closed')
+  })
+})
+
+describe('setup_texting (ruling #10 — registration starts at onboarding)', () => {
+  afterEach(() => {
+    delete process.env.SMS_DRIVER
+  })
+
+  it('files the texting ask when the driver is live and nothing has started', async () => {
+    process.env.SMS_DRIVER = 'aws'
+    setProfile({}) // a2pStatus absent → 'none'
+    await generateSetupProposals('org_1')
+    expect(filedCapabilities()).toContain('setup_texting')
+  })
+
+  it('never files while the driver is off — no card for a thing that cannot run', async () => {
+    setProfile({})
+    await generateSetupProposals('org_1')
+    expect(filedCapabilities()).not.toContain('setup_texting')
+  })
+
+  it('never files once a registration exists in any state', async () => {
+    process.env.SMS_DRIVER = 'aws'
+    setProfile({ a2pStatus: 'brand_pending' })
+    await generateSetupProposals('org_1')
+    expect(filedCapabilities()).not.toContain('setup_texting')
   })
 })

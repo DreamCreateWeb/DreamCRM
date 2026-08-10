@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getSmsRegistration, smsDriver } from '@/lib/services/sms-registration'
+import { getSmsUsage } from '@/lib/sms'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusPill } from '@/components/ui/status-pill'
 import { BrandLogo } from '@/components/integrations/brand-logos'
@@ -35,6 +36,13 @@ export default async function SmsDetailPage() {
 
   const live = smsDriver() !== 'none'
   const registration = live ? await getSmsRegistration(ctx.organizationId) : null
+  // Usage honesty (ruling #10): texting is included with a monthly segment
+  // budget, so the surface says where the month stands. Only meaningful once
+  // approved; best-effort (a failed read hides the line, never the page).
+  const usage =
+    registration?.state === 'approved'
+      ? await getSmsUsage(ctx.organizationId).catch(() => null)
+      : null
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-3xl mx-auto">
@@ -79,6 +87,7 @@ export default async function SmsDetailPage() {
           phoneNumber={registration.phoneNumber ? formatPhone(registration.phoneNumber) : null}
           details={registration.details}
           clinicName={ctx.organizationName ?? 'your practice'}
+          usage={usage}
         />
       ) : null}
     </div>

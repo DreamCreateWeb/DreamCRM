@@ -22,6 +22,42 @@ import { smsDriver } from '@/lib/services/sms-registration'
  * state, not an error.
  */
 
+/**
+ * THE INCLUDED SEGMENT BUDGET (onboarding ruling #10): texting is a standard
+ * feature with a guardrail instead of an upsell. The plan includes this many
+ * segments per rolling ~30-day window; MARKETING sends stop at the budget
+ * (a typed refusal, recorded honestly), while transactional reminders keep
+ * going — a reminder is the practice talking to its own patient about their
+ * own visit, and a budget must never silence that. ~2,000 segments ≈ $18
+ * worst-case marginal cost at AWS's per-segment price.
+ */
+export const INCLUDED_MONTHLY_SEGMENTS = 2000
+
+export function includedMonthlySegments(): number {
+  const v = Number.parseInt(process.env.SMS_INCLUDED_MONTHLY_SEGMENTS ?? '', 10)
+  return Number.isFinite(v) && v > 0 ? v : INCLUDED_MONTHLY_SEGMENTS
+}
+
+const WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
+/** Segments used in the CURRENT rolling window (an expired window is 0 —
+ *  the counter just hasn't rolled yet). */
+export async function getSmsUsage(
+  organizationId: string,
+): Promise<{ used: number; included: number }> {
+  const included = includedMonthlySegments()
+  const [row] = await db
+    .select({
+      count: schema.clinicSmsConfig.monthlySendCount,
+      resetAt: schema.clinicSmsConfig.monthlySendCountResetAt,
+    })
+    .from(schema.clinicSmsConfig)
+    .where(eq(schema.clinicSmsConfig.organizationId, organizationId))
+    .limit(1)
+  const expired = !row?.resetAt || Date.now() - row.resetAt.getTime() > WINDOW_MS
+  return { used: expired ? 0 : row?.count ?? 0, included }
+}
+
 export type SmsIdentityResult =
   | { ok: true; fromNumber: string }
   | { ok: false; reason: 'driver_off' | 'not_approved' }
@@ -59,7 +95,11 @@ export interface DeliverSmsInput {
 
 export type DeliverSmsResult =
   | { ok: true; messageId: string | null; segments: number }
-  | { ok: false; reason: 'driver_off' | 'not_approved' | 'bad_number' | 'empty' | 'failed'; error: string }
+  | {
+      ok: false
+      reason: 'driver_off' | 'not_approved' | 'bad_number' | 'empty' | 'failed' | 'over_budget'
+      error: string
+    }
 
 /**
  * Send one text from the clinic's own number. Never throws — callers get a
@@ -85,6 +125,25 @@ export async function deliverSms(
   }
   const body = input.body.trim()
   if (!body) return { ok: false, reason: 'empty', error: 'There’s no message to send.' }
+
+  // The budget stop — MARKETING only, checked at the choke point so no
+  // campaign path can route around it. Transactional traffic never sees it.
+  // An unreadable counter fails OPEN (this is a guardrail on spend, and a DB
+  // blip must not also break sending) — the same posture as the PMS meter.
+  if (input.kind === 'marketing') {
+    try {
+      const { used, included } = await getSmsUsage(organizationId)
+      if (used >= included) {
+        return {
+          ok: false,
+          reason: 'over_budget',
+          error: `This month’s included texts are used up (${used.toLocaleString()} of ${included.toLocaleString()} segments) — marketing texts pause until the window rolls over. Reminders still go out.`,
+        }
+      }
+    } catch (e) {
+      console.error('[sms] budget read failed (send proceeds):', e)
+    }
+  }
 
   try {
     const { PinpointSMSVoiceV2Client, SendTextMessageCommand } = await import(

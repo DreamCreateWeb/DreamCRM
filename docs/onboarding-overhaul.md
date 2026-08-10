@@ -873,3 +873,33 @@ first real binding):**
   unknown. LIVE suite extended (types resolve, opt-outs + insurance
   survive normalization, chairs=2 — the sandbox's OP3 is inactive and
   the honest count is the active ones).
+
+- **TEXTING KICKOFF + THE INCLUDED SEGMENT BUDGET — SHIPPED 2026-08-10**
+  (ruling #10 made mechanical; the last green-lit item of the approved
+  build order). Three pieces. (1) THE BUDGET STOP: the plan includes
+  `INCLUDED_MONTHLY_SEGMENTS` = 2,000 segments per rolling 30-day window
+  (env-overridable; ≈ $18 worst-case marginal at AWS's per-segment
+  price); `deliverSms` refuses MARKETING sends past it with the typed
+  `over_budget` refusal at the one choke point no campaign path can
+  route around — and transactional reminders NEVER see the check,
+  because a budget must not silence a practice talking to its own
+  patient about their own visit. The marketing-send loop treats
+  over_budget as org-level and stops burning the batch. An unreadable
+  counter fails OPEN (same posture as the PMS meter). (2) USAGE
+  HONESTY: `getSmsUsage` + the line on /integrations/sms — "N of 2,000
+  included segments used this month", with the 80% nearing note and the
+  at-cap explanation (marketing pauses, reminders keep going). (3) THE
+  DAY-0 CARD: `setup_texting` joins the setup asks (registered
+  ask-first, NOT grantable, in SETUP_CAPABILITIES) — filed once-ever
+  while the driver is live and no registration exists, because the
+  carriers' review takes WEEKS and every day the question waits is dead
+  air later. The card carries the carriers' one form (EIN · business
+  type · contact at the practice — the same four fields as
+  /integrations/sms) as a JSON answer; the executor hands it to
+  `startSmsRegistration`, the SAME single entry the settings form uses,
+  so demo-refusal/driver-gate/validation live once. Already-started
+  elsewhere retires the card (never a second carrier filing); the sweep
+  retires it when the settings form answers first. Field issues come
+  back as one readable line. Remaining from ruling #10: nothing — the
+  overage behavior (pause vs metered past the included budget) stays an
+  explicitly-deferred owner call, currently PAUSE by construction.

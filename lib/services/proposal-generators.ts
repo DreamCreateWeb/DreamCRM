@@ -560,7 +560,8 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
     } else if (
       p.capability === 'setup_hours' ||
       p.capability === 'setup_chairs' ||
-      p.capability === 'setup_booking_mode'
+      p.capability === 'setup_booking_mode' ||
+      p.capability === 'setup_texting'
     ) {
       setupProposals.push({ id: p.id, capability: p.capability })
     }
@@ -588,9 +589,21 @@ export async function sweepInvalidatedProposals(organizationId: string): Promise
           prof.hoursSource === 'google' ||
           prof.hoursSource === 'confirmed' ||
           (prof.hoursSource === 'manual' && !hoursLookSeeded(prof.hours, DEFAULT_CLINIC_HOURS))
+        // Texting started any other way (the /integrations/sms form) →
+        // the ask is answered. Read lazily only when such a card is open.
+        let textingStartedElsewhere = false
+        if (setupProposals.some((sp) => sp.capability === 'setup_texting')) {
+          const [smsRow] = await db
+            .select({ a2pStatus: schema.clinicSmsConfig.a2pStatus })
+            .from(schema.clinicSmsConfig)
+            .where(eq(schema.clinicSmsConfig.organizationId, organizationId))
+            .limit(1)
+          textingStartedElsewhere = (smsRow?.a2pStatus ?? 'none') !== 'none'
+        }
         for (const sp of setupProposals) {
           if (sp.capability === 'setup_hours' && hoursConfirmedElsewhere) toExpire.push(sp.id)
           if (sp.capability === 'setup_chairs' && prof.chairCount != null) toExpire.push(sp.id)
+          if (sp.capability === 'setup_texting' && textingStartedElsewhere) toExpire.push(sp.id)
           if (
             sp.capability === 'setup_booking_mode' &&
             (prof.siteLiveAt != null || prof.selfBookingEnabled === false)
@@ -1585,6 +1598,34 @@ export async function generateSetupProposals(organizationId: string): Promise<nu
       payload: { recommended: 'requests' },
     })
     if (filed) filedCount++
+  }
+
+  // 4. "Want texting from your own number?" — ruling #10: SMS registration
+  //    starts at onboarding, and the carriers' review takes WEEKS, so every
+  //    day this question waits is a day of dead air later. Filed only while
+  //    the driver is live and nothing has started; the /integrations/sms
+  //    form answers it elsewhere (the sweep retires the card). The demo org
+  //    never reaches here (excluded from the cron), and startSmsRegistration
+  //    refuses demo orgs anyway.
+  const { smsDriver } = await import('./sms-registration')
+  if (smsDriver() === 'aws') {
+    const [smsRow] = await db
+      .select({ a2pStatus: schema.clinicSmsConfig.a2pStatus })
+      .from(schema.clinicSmsConfig)
+      .where(eq(schema.clinicSmsConfig.organizationId, organizationId))
+      .limit(1)
+    if ((smsRow?.a2pStatus ?? 'none') === 'none') {
+      const { filed } = await fileProposal({
+        organizationId,
+        capability: 'setup_texting',
+        sourceKey: 'setup_texting:v1',
+        title: 'Want reminders and replies by text, from your practice’s own number?',
+        body:
+          'Texting is included in your plan. The carriers verify every business that sends texts — one form, once, and I handle the rest: registration, review, and your practice’s own number.\n\n' +
+          'Their review takes a few weeks, so the sooner it starts, the sooner texts flow. Fill in the three details below and approve — you’ll see honest progress under Integrations → Text messaging.',
+      })
+      if (filed) filedCount++
+    }
   }
 
   return filedCount

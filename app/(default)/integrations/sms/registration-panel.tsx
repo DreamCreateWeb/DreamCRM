@@ -32,6 +32,9 @@ interface Props {
   phoneNumber: string | null
   details: Details
   clinicName: string
+  /** Rolling-window segment usage vs the plan's included budget (approved
+   *  clinics only; null hides the line). */
+  usage?: { used: number; included: number } | null
 }
 
 /** Tone contract: working = info, their move = warn, live = ok, ours = neutral
@@ -75,6 +78,17 @@ export default function RegistrationPanel(props: Props) {
           )}
         </div>
         <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{props.statusText}</p>
+        {props.usage && (
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 tabular-nums">
+            {props.usage.used.toLocaleString()} of {props.usage.included.toLocaleString()} included
+            text segments used this month
+            {props.usage.used >= props.usage.included
+              ? ' — marketing texts pause until the window rolls over; reminders keep going.'
+              : props.usage.used >= props.usage.included * 0.8
+                ? ' — getting close; marketing texts pause at the cap, reminders always go.'
+                : '.'}
+          </p>
+        )}
         {props.notice && props.audience === 'clinic' && (
           <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
             {props.notice}

@@ -1108,6 +1108,8 @@ async function executeProposal(
       return executeSetupChairs(p, payload, saidYes)
     case 'setup_booking_mode':
       return executeSetupBookingMode(p, payload, saidYes)
+    case 'setup_texting':
+      return executeSetupTexting(p, payload, saidYes)
     default:
       return { ok: false, error: 'I don’t know how to carry this one out yet.' }
   }
@@ -1125,6 +1127,7 @@ function demoLedgerSummary(p: typeof schema.proposal.$inferSelect, saidYes: stri
     case 'setup_hours': return `Confirmed your office hours ${saidYes}`
     case 'setup_chairs': return `Noted how many chairs you run ${saidYes}`
     case 'setup_booking_mode': return `Set how online booking works ${saidYes}`
+    case 'setup_texting': return `Started your texting registration with the carriers ${saidYes}`
     default: return `Did the work ${saidYes}`
   }
 }
@@ -1231,6 +1234,63 @@ async function executeSetupBookingMode(
         ? `Turned on direct online booking ${saidYes} — patients book straight into open times`
         : `Set booking to request mode ${saidYes} — patients ask, you approve each time`,
     ledgerDetail: { setup: 'booking_mode', mode: answer },
+  }
+}
+
+/**
+ * Texting kickoff (ruling #10). The card collects the carriers' one form
+ * (EIN, business type, a contact at the practice) as a JSON answer; the
+ * approve hands it to startSmsRegistration — the SAME entry the
+ * /integrations/sms form uses, so every validation and refusal (demo org,
+ * driver off, half-blank business profile) is enforced once, there. A
+ * registration that already started elsewhere retires the card rather than
+ * double-filing with the carriers.
+ */
+async function executeSetupTexting(
+  p: typeof schema.proposal.$inferSelect,
+  payload: Record<string, unknown>,
+  saidYes: string,
+): Promise<ExecResult> {
+  let answer: Record<string, unknown>
+  try {
+    answer = JSON.parse(typeof payload.answer === 'string' ? payload.answer : '{}') as Record<string, unknown>
+  } catch {
+    return { ok: false, error: 'Fill in the texting details first.' }
+  }
+  const s = (v: unknown) => (typeof v === 'string' ? v : '')
+
+  // LIVE staleness: started any other way since the card was filed →
+  // retire, never a second registration at the carriers.
+  try {
+    const [row] = await db
+      .select({ a2pStatus: schema.clinicSmsConfig.a2pStatus })
+      .from(schema.clinicSmsConfig)
+      .where(eq(schema.clinicSmsConfig.organizationId, p.organizationId))
+      .limit(1)
+    if (row && row.a2pStatus !== 'none') {
+      return { ok: false, error: 'Texting setup already started — watch its progress under Integrations → Text messaging.', expired: true }
+    }
+  } catch {
+    /* unreadable never vetoes the yes — startSmsRegistration re-checks */
+  }
+
+  const { startSmsRegistration } = await import('./sms-registration')
+  const r = await startSmsRegistration(p.organizationId, {
+    ein: s(answer.ein),
+    entityType: s(answer.entityType),
+    brandContactName: s(answer.brandContactName),
+    brandContactEmail: s(answer.brandContactEmail),
+  })
+  if (!r.ok) {
+    // Field-level issues come back as one readable line — the inbox card
+    // has no per-field error slots, and the message names what to fix.
+    const issueText = r.issues?.length ? r.issues.map((i) => i.message).join(' ') : null
+    return { ok: false, error: issueText ?? r.error ?? 'The registration didn’t start — check the details and try again.' }
+  }
+  return {
+    ok: true,
+    ledgerSummary: `Started your texting registration with the carriers ${saidYes} — reviews take a few weeks, and honest progress lives under Integrations → Text messaging`,
+    ledgerDetail: { setup: 'texting' },
   }
 }
 

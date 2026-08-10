@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
+import { SMS_ENTITY_TYPES } from '@/lib/sms-registration'
 import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
 
 /**
@@ -77,6 +78,7 @@ const CAPABILITY_ICON: Record<string, string> = {
   setup_hours: '🕒',
   setup_chairs: '🪑',
   setup_booking_mode: '📅',
+  setup_texting: '💬',
 }
 
 /** Substitute the campaign merge tokens with a readable sample so the card
@@ -396,6 +398,12 @@ function ProposalCard({
   const isSetup = SETUP_CAPABILITIES.includes(proposal.capability)
   const [chairsAnswer, setChairsAnswer] = useState('3')
   const [modeAnswer, setModeAnswer] = useState<'requests' | 'direct'>('requests')
+  const [texting, setTexting] = useState({
+    ein: '',
+    entityType: '',
+    brandContactName: '',
+    brandContactEmail: '',
+  })
   // The send APPENDS a booking button for these capabilities when the body
   // doesn't place the link itself — say so on the card, because "what the
   // card shows is what sends" must be literally true (verification round:
@@ -420,12 +428,20 @@ function ProposalCard({
         return
       }
     }
+    if (decision === 'approve' && proposal.capability === 'setup_texting') {
+      if (!texting.ein.trim() || !texting.entityType || !texting.brandContactName.trim() || !texting.brandContactEmail.trim()) {
+        setError('Fill in all four details first — the carriers need every one.')
+        return
+      }
+    }
     const setupAnswer =
       decision === 'approve' && proposal.capability === 'setup_chairs'
         ? String(Number.parseInt(chairsAnswer, 10))
         : decision === 'approve' && proposal.capability === 'setup_booking_mode'
           ? modeAnswer
-          : undefined
+          : decision === 'approve' && proposal.capability === 'setup_texting'
+            ? JSON.stringify(texting)
+            : undefined
     startTransition(async () => {
       // Every server-action call on this card has a failure boundary: a
       // rejected promise inside a transition is invisible, and the card would
@@ -633,6 +649,77 @@ function ProposalCard({
           />
         </div>
       )}
+      {proposal.capability === 'setup_texting' && (
+        <div className="mt-3 grid sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor={`ein-${proposal.id}`} className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+              EIN (tax ID)
+            </label>
+            <input
+              id={`ein-${proposal.id}`}
+              type="text"
+              inputMode="numeric"
+              placeholder="12-3456789"
+              value={texting.ein}
+              onChange={(e) => setTexting((t) => ({ ...t, ein: e.target.value }))}
+              disabled={pending}
+              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+            />
+          </div>
+          <div>
+            <label htmlFor={`entity-${proposal.id}`} className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+              Business type
+            </label>
+            <select
+              id={`entity-${proposal.id}`}
+              value={texting.entityType}
+              onChange={(e) => setTexting((t) => ({ ...t, entityType: e.target.value }))}
+              disabled={pending}
+              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+            >
+              <option value="" disabled>
+                Pick one…
+              </option>
+              {SMS_ENTITY_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`contact-name-${proposal.id}`} className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+              Contact person
+            </label>
+            <input
+              id={`contact-name-${proposal.id}`}
+              type="text"
+              placeholder="Dr. Ada Reyes"
+              value={texting.brandContactName}
+              onChange={(e) => setTexting((t) => ({ ...t, brandContactName: e.target.value }))}
+              disabled={pending}
+              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+            />
+          </div>
+          <div>
+            <label htmlFor={`contact-email-${proposal.id}`} className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+              Their email at your practice
+            </label>
+            <input
+              id={`contact-email-${proposal.id}`}
+              type="email"
+              placeholder="you@yourpractice.com"
+              value={texting.brandContactEmail}
+              onChange={(e) => setTexting((t) => ({ ...t, brandContactEmail: e.target.value }))}
+              disabled={pending}
+              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              The carriers email this person a verification link — it needs to be an address at your practice, not ours.
+            </p>
+          </div>
+        </div>
+      )}
       {proposal.capability === 'setup_booking_mode' && (
         <div className="mt-3 space-y-1.5" role="radiogroup" aria-label="How should booking work?">
           {(
@@ -750,7 +837,9 @@ function ProposalCard({
                 ? 'Save'
                 : proposal.capability === 'setup_booking_mode'
                   ? 'Save my choice'
-                  : 'Approve — send it'}
+                  : proposal.capability === 'setup_texting'
+                    ? 'Start my registration'
+                    : 'Approve — send it'}
         </button>
         {proposal.capability === 'setup_hours' && (
           <a
