@@ -1,6 +1,7 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
 import { and, eq, ne } from 'drizzle-orm'
+import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { getMyDay, type MyDayData } from '@/lib/services/my-day'
 import { getDigestOptOutUserIds } from '@/lib/services/staff-notification-pref'
@@ -181,8 +182,12 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
     .from(schema.clinicProfile)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
 
+  // THE KILL (owner ruling): no morning digest from a shut-down practice —
+  // the dashboard wall is the only thing its staff should hear from.
+  const shutDown = await listShutDownOrgIds(now)
   for (const clinic of clinics) {
     if (!clinic.organizationId || clinic.isDemo || clinic.enabled !== 1) continue
+    if (shutDown.has(clinic.organizationId)) continue
 
     // Monday (clinic-local) → append the weekly website block. Fetched ONCE per
     // clinic (not per staff member) and strictly best-effort: a traffic-read

@@ -1,5 +1,6 @@
 'use server'
 
+import { resolveTrialState } from '@/lib/trial'
 import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -184,6 +185,20 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
 
   const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
   if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+  {
+    const [gate] = await db
+      .select({
+        trialEndsAt: clinicProfile.trialEndsAt,
+        subscriptionStatus: clinicProfile.subscriptionStatus,
+        stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
+      })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, orgId))
+      .limit(1)
+    if (gate && resolveTrialState(gate).expired) {
+      throw new Error('This practice isn’t taking requests online right now. Please call the office.')
+    }
+  }
 
   const firstName = formData.get('firstName')?.toString().trim() || ''
   const lastName = formData.get('lastName')?.toString().trim() || ''
@@ -426,12 +441,19 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   // into hours nobody has confirmed.
   {
     const [gate] = await db
-      .select({ siteLiveAt: clinicProfile.siteLiveAt })
+      .select({
+        siteLiveAt: clinicProfile.siteLiveAt,
+        trialEndsAt: clinicProfile.trialEndsAt,
+        subscriptionStatus: clinicProfile.subscriptionStatus,
+        stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
+      })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, orgId))
       .limit(1)
-    if (!gate?.siteLiveAt) {
-      throw new Error('This practice isn’t taking online bookings yet. Please call the office.')
+    if (!gate?.siteLiveAt || resolveTrialState(gate).expired) {
+      // The kill covers the ACTION too — the dark site stops the form, this
+      // stops a hand-crafted POST from booking into a shut-down practice.
+      throw new Error('This practice isn’t taking online bookings right now. Please call the office.')
     }
   }
   if (!firstName || !lastName) throw new Error('Name is required')

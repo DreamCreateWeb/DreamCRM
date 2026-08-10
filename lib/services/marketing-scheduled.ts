@@ -1,5 +1,6 @@
 import 'server-only'
 import { and, eq, isNotNull, lte } from 'drizzle-orm'
+import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { sendCampaign } from './marketing-send'
 import { reportAutomationFailure } from '@/lib/services/engine-failures'
@@ -51,7 +52,16 @@ export async function sendDueScheduledCampaigns(opts?: { now?: Date }): Promise<
 
   result.due = dueCampaigns.length
 
+  // THE KILL (owner ruling): a shut-down org's scheduled sends stay PARKED,
+  // not claimed — skipped here without touching status, so the moment the
+  // practice pays, the next tick sends them exactly as saved.
+  const shutDown = await listShutDownOrgIds(now)
+
   for (const c of dueCampaigns) {
+    if (c.organizationId && shutDown.has(c.organizationId)) {
+      result.skipped++
+      continue
+    }
     // Atomic claim: only one runner can move it off 'scheduled'.
     const claimed = await db
       .update(schema.campaigns)

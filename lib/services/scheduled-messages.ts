@@ -1,5 +1,6 @@
 import 'server-only'
-import { and, asc, eq, lte, inArray } from 'drizzle-orm'
+import { and, asc, eq, lte, inArray, notInArray } from 'drizzle-orm'
+import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { sendMessageToPatient } from '@/lib/services/patient-messaging'
@@ -144,6 +145,10 @@ export interface FlushResult {
  * a failure marks that one 'failed' with the error and never blocks the others.
  */
 export async function sendDueScheduledMessages(now: Date = new Date()): Promise<FlushResult> {
+  // THE KILL (owner ruling): a shut-down org's scheduled messages stay
+  // PENDING — excluded from the claim itself, so paying releases them
+  // untouched on the next tick.
+  const shutDown = await listShutDownOrgIds(now)
   // Claim due rows in one atomic UPDATE … RETURNING so a concurrent run sees
   // them already 'sending'.
   const claimed = await db
@@ -153,6 +158,7 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
       and(
         eq(schema.scheduledMessage.status, 'pending'),
         lte(schema.scheduledMessage.scheduledFor, now),
+        shutDown.size > 0 ? notInArray(schema.scheduledMessage.organizationId, Array.from(shutDown)) : undefined,
       ),
     )
     .returning({

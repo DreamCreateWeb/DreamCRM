@@ -1,5 +1,6 @@
 import 'server-only'
 import { and, eq, gte, inArray, isNotNull, lte, ne, or } from 'drizzle-orm'
+import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { authEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
@@ -590,7 +591,10 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     })
     .from(schema.clinicProfile)
 
+  // THE KILL (owner ruling): an expired trial's practice sends nothing.
+  const shutDown = await listShutDownOrgIds(now)
   for (const profile of profiles) {
+    if (shutDown.has(profile.organizationId)) continue
     const settings = resolveReminderSettings(profile.reminderSettings)
     if (!settings.enabled) continue
     result.orgsScanned++
@@ -857,7 +861,10 @@ export async function runDueFormReminders(opts?: { now?: Date }): Promise<Remind
 
   const { sendIntakeRequestToPatient } = await import('@/lib/services/patient-intake-send')
 
+  // THE KILL: a shut-down practice nudges nobody about paperwork either.
+  const shutDown = await listShutDownOrgIds(now)
   for (const profile of profiles) {
+    if (shutDown.has(profile.organizationId)) continue
     const settings = resolveReminderSettings(profile.reminderSettings)
     if (!settings.formsReminder) continue
     result.orgsScanned++

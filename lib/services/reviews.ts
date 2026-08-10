@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
+import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { recordAction } from '@/lib/services/action-ledger'
 import { deliver } from '@/lib/email'
@@ -1405,7 +1406,10 @@ export async function autoSendDueReviewRequests(opts?: {
 
   const result: AutoSendResult = { scanned: 0, sent: 0, skipped: 0, failed: 0, errors: [] }
 
+  // THE KILL (owner ruling): a shut-down practice asks nobody for reviews.
+  const shutDownOrgs = await listShutDownOrgIds(now)
   for (const org of orgs) {
+    if (shutDownOrgs.has(org.organizationId)) continue
     const config = await getReviewConfig(org.organizationId)
     if (!isReviewConfigComplete(config)) {
       // Auto-send is on but no platform is set up — staff misconfig;

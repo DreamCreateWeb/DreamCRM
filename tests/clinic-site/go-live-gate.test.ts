@@ -31,3 +31,17 @@ describe('shouldShowComingSoon', () => {
     expect(shouldShowComingSoon({ siteLiveAt: null, canEdit: false, isFrame: true })).toBe(false)
   })
 })
+
+describe('the kill (owner ruling: an expired trial gates the site for EVERYONE)', () => {
+  it('shutDown gates a live site, an editor, and a frame alike', () => {
+    const live = new Date('2026-08-01')
+    expect(shouldShowComingSoon({ siteLiveAt: live, canEdit: false, isFrame: false, shutDown: true })).toBe(true)
+    expect(shouldShowComingSoon({ siteLiveAt: live, canEdit: true, isFrame: false, shutDown: true })).toBe(true)
+    expect(shouldShowComingSoon({ siteLiveAt: live, canEdit: false, isFrame: true, shutDown: true })).toBe(true)
+  })
+
+  it('shutDown false/absent changes nothing about the go-live rules', () => {
+    expect(shouldShowComingSoon({ siteLiveAt: new Date(), canEdit: false, isFrame: false, shutDown: false })).toBe(false)
+    expect(shouldShowComingSoon({ siteLiveAt: null, canEdit: false, isFrame: false })).toBe(true)
+  })
+})

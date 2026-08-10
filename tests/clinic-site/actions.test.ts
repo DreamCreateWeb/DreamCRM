@@ -6,6 +6,8 @@ const selectStubs = {
   patient: null as { id: string; firstName?: string; lastName?: string } | null,
   /** The go-live gate's answer — defaults live; the gate test flips it. */
   siteLiveAt: new Date() as Date | null,
+  /** Null = never on a trial (alive). The kill tests set a past date. */
+  trialEndsAt: null as Date | null,
   profile: null as
     | {
         email: string | null
@@ -44,11 +46,25 @@ vi.mock('@/lib/db', async () => {
         if (cols && 'id' in cols && (Object.keys(cols).length === 1 || 'firstName' in cols)) {
           return chain(() => selectStubs.patient)
         }
-        // The go-live gate's dedicated single-column select. Defaults LIVE so
-        // every pre-existing behavior test runs on a launched site; the gate
-        // test flips it.
-        if (cols && 'siteLiveAt' in cols && Object.keys(cols).length === 1) {
-          return chain(() => ({ siteLiveAt: selectStubs.siteLiveAt }))
+        // The go-live + shutdown gate's dedicated select (siteLiveAt + the
+        // billing fields). Defaults LIVE + PAID-SHAPE so every pre-existing
+        // behavior test runs on a launched, alive site; the gate tests flip.
+        if (cols && 'siteLiveAt' in cols) {
+          return chain(() => ({
+            siteLiveAt: selectStubs.siteLiveAt,
+            trialEndsAt: selectStubs.trialEndsAt,
+            subscriptionStatus: null,
+            stripeSubscriptionId: null,
+          }))
+        }
+        // submitAppointmentRequest's shutdown-only gate (billing fields, no
+        // siteLiveAt).
+        if (cols && 'trialEndsAt' in cols && !('email' in cols)) {
+          return chain(() => ({
+            trialEndsAt: selectStubs.trialEndsAt,
+            subscriptionStatus: null,
+            stripeSubscriptionId: null,
+          }))
         }
         return chain(() => selectStubs.profile)
       },
@@ -136,6 +152,7 @@ beforeEach(() => {
   insertedRows.length = 0
   selectStubs.patient = null
   selectStubs.siteLiveAt = new Date()
+  selectStubs.trialEndsAt = null
   selectStubs.profile = null
   defaultForm = null
   vi.clearAllMocks()
@@ -319,7 +336,15 @@ describe('submitBookingRequest', () => {
 
   it('refuses bookings while the site is behind the go-live lever', async () => {
     selectStubs.siteLiveAt = null
-    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/isn.t taking online bookings yet/i)
+    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/isn.t taking online bookings right now/i)
+  })
+
+  it('refuses bookings for a SHUT-DOWN clinic (expired trial) even on a live site', async () => {
+    selectStubs.siteLiveAt = new Date('2026-07-01')
+    selectStubs.trialEndsAt = new Date('2026-08-01') // expired, no subscription
+    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(
+      /isn.t taking online bookings right now/i,
+    )
   })
 
   it('rejects missing first/last name', async () => {

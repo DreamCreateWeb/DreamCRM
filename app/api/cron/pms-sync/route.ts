@@ -81,8 +81,18 @@ async function run(request: Request) {
     let deferred = 0
     let skipped = 0
 
+    // THE KILL (owner ruling): a shut-down clinic's PMS sync stops — for
+    // NexHealth every poll is metered money spent on a dead account. Paying
+    // resumes the sync on the next tick; the delta mark parks untouched.
+    const { listShutDownOrgIds } = await import('@/lib/services/billing-state')
+    const shutDown = await listShutDownOrgIds()
+
     const cronDeadline = Date.now() + CRON_BUDGET_MS
     for (const conn of connections) {
+      if (shutDown.has(conn.organizationId)) {
+        skipped++
+        continue
+      }
       // Metered-provider cadence gate (see NEXHEALTH_MIN_INTERVAL_MS above).
       if (shouldSkipForCadence(conn.provider, conn.lastSyncAt)) {
         skipped++

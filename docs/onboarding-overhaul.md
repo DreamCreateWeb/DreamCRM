@@ -903,3 +903,33 @@ first real binding):**
   back as one readable line. Remaining from ruling #10: nothing — the
   overage behavior (pause vs metered past the included budget) stays an
   explicitly-deferred owner call, currently PAUSE by construction.
+
+- **THE KILL — trial expiry shuts everything down — SHIPPED 2026-08-10**
+  (owner ruling: "when a free trial ends, we kill everything for that
+  clinic"; until now only the dashboard walled and the site, portal,
+  booking and every engine kept running for free, forever). One resolver
+  (`lib/services/billing-state.ts` — `listShutDownOrgIds` /
+  `isClinicShutDown`), one rule: `resolveTrialState(...).expired`, the
+  dashboard wall's own, so the wall and the kill can never disagree.
+  FAIL-OPEN everywhere: an unreadable database shuts down nobody. What
+  dies: the PUBLIC SITE (coming-soon for EVERYONE — editors and gallery
+  frames included; robots.txt disallows; sitemap 404s), BOOKING (both the
+  direct action and the request form refuse a hand-crafted POST too), the
+  PATIENT PORTAL (calm phone-first notice in the clinic's own palette —
+  the machine's quarrel is with the practice's bill, never the patient,
+  so no billing words appear), and every OUTBOUND ENGINE: visit + forms
+  reminders, review auto-asks, retention automations, the daily digest,
+  the proposal generators (cards would sit invisible behind the wall
+  while drafts spend AI money), and the metered PMS SYNC (NexHealth
+  polls are real dollars on a dead account). Scheduled campaigns AND
+  scheduled patient messages stay PARKED, not cancelled — excluded from
+  the claim itself, so paying releases them untouched on the next tick.
+  DELIBERATELY NOT killed: patient payment-plan charges (money patients
+  owe the practice through Stripe Connect — a contractual flow between
+  them, not our feature to switch off), internal-only bookkeeping
+  (follow-up rules, loyalty accrual — invisible, free), and the Guardian
+  (already billing-aware). Reactivation is just paying: every gate reads
+  live state, nothing is deleted, the machine wakes on the next tick
+  after Stripe says active. Tests: tests/billing/shutdown.test.ts (who
+  is dead, who is alive, fail-open) + the shutDown cases in
+  tests/clinic-site/go-live-gate.test.ts.

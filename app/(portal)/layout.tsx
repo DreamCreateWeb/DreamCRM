@@ -6,6 +6,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { auth } from '@/lib/auth/server'
 import { db, schema } from '@/lib/db'
 import { getPortalSettings } from '@/lib/services/portal-settings'
+import { isClinicShutDown } from '@/lib/services/billing-state'
 import {
   getPortalClinicInfo,
   getMyPatientRecord,
@@ -59,6 +60,35 @@ export default async function PortalLayout({ children }: { children: React.React
   const clinic = await getPortalClinicInfo(ctx.organizationId)
   const brand = clinic?.brandColor ?? '#9CAF9F'
   const clinicName = clinic?.displayName ?? ctx.organizationName
+
+  // THE KILL (owner ruling: an expired trial kills everything) — the portal
+  // included. The patient gets a calm, phone-first notice in the clinic's
+  // own warm neutrals; the machine's quarrel is with the practice's bill,
+  // never with the patient, so no billing words appear here.
+  if (await isClinicShutDown(ctx.organizationId)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: '#FAF7F2' }}>
+        <div className="max-w-md text-center">
+          <h1 className="text-2xl font-semibold mb-3" style={{ color: '#1C1A17' }}>
+            The portal is taking a break
+          </h1>
+          <p className="text-[0.95rem] leading-relaxed" style={{ color: '#6B635A' }}>
+            {clinicName}&apos;s online portal isn&apos;t available right now. For appointments and
+            questions, please call the office
+            {clinic?.phone ? (
+              <>
+                {' at '}
+                <a href={`tel:${clinic.phone}`} className="font-semibold" style={{ color: brand }}>
+                  {clinic.phone}
+                </a>
+              </>
+            ) : null}
+            .
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   // A patient member whose patient row was never linked can't load any
   // portal data. Render a soft help screen (redirecting to `/` would loop —

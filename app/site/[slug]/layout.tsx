@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { getClinicThemeBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { appBaseUrl, shouldShowComingSoon } from '@/lib/clinic-site-helpers'
+import { resolveTrialState } from '@/lib/trial'
 import ComingSoon from '@/components/clinic-site/coming-soon'
 import { canEditClinic } from '@/lib/clinic-site-edit'
 import { paletteCss } from '@/lib/clinic-site-theme'
@@ -64,7 +65,7 @@ export default async function ClinicSiteLayout({
   // (shouldShowComingSoon owns the rule).
   let comingSoon: { clinicName: string; phone: string | null; logoUrl: string | null } | null =
     null
-  if (orgId && !isFrame) {
+  if (orgId) {
     const [prof] = await db
       .select({
         enabled: clinicProfile.chatWidgetEnabled,
@@ -74,21 +75,28 @@ export default async function ClinicSiteLayout({
         siteLiveAt: clinicProfile.siteLiveAt,
         phone: clinicProfile.phone,
         logoUrl: clinicProfile.logoUrl,
+        trialEndsAt: clinicProfile.trialEndsAt,
+        subscriptionStatus: clinicProfile.subscriptionStatus,
+        stripeSubscriptionId: clinicProfile.stripeSubscriptionId,
       })
       .from(clinicProfile)
       .where(eq(clinicProfile.organizationId, orgId))
       .limit(1)
-    if (prof && shouldShowComingSoon({ siteLiveAt: prof.siteLiveAt, canEdit, isFrame })) {
+    // THE KILL (owner ruling): an expired trial gates the site for everyone
+    // — editors and gallery frames included. resolveTrialState is the same
+    // rule the dashboard wall uses, so the two can never disagree.
+    const shutDown = prof ? resolveTrialState(prof).expired : false
+    if (prof && shouldShowComingSoon({ siteLiveAt: prof.siteLiveAt, canEdit, isFrame, shutDown })) {
       comingSoon = {
         clinicName: prof.displayName ?? 'Our practice',
         phone: prof.phone ?? null,
         logoUrl: prof.logoUrl ?? null,
       }
     }
-    if (prof && prof.enabled !== false) {
+    if (prof && prof.enabled !== false && !isFrame) {
       chatWidget = { enabled: true, clinicName: prof.displayName ?? 'our office' }
     }
-    if (prof?.announcement) {
+    if (prof?.announcement && !isFrame) {
       const tz = prof.timezone || 'America/New_York'
       announcement = activeAnnouncement(prof.announcement, clinicDayKey(new Date(), tz))
     }

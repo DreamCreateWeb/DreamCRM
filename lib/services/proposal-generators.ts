@@ -1,5 +1,6 @@
 import 'server-only'
 import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
+import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { z } from 'zod'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
@@ -310,7 +311,13 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     return result
   }
 
+  // THE KILL (owner ruling): a shut-down clinic gets no generated work —
+  // cards would sit invisible behind the wall while the drafts spend AI
+  // money. The moment they pay, the next hourly tick resumes filing.
+  const shutDownOrgs = await listShutDownOrgIds(now)
+
   for (const org of orgs) {
+    if (shutDownOrgs.has(org.id)) continue
     result.orgsScanned++
     // Per-org, always: a step that set the flag and THEN threw leaves it
     // behind, and a stale flag would charge the next clinic with a break

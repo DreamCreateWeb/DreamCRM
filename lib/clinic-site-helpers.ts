@@ -543,7 +543,13 @@ export function shouldShowComingSoon(opts: {
   siteLiveAt: Date | string | null | undefined
   canEdit: boolean
   isFrame: boolean
+  /** THE KILL (owner ruling: an expired trial kills everything). When the
+   *  clinic is shut down the site gates for EVERYONE — editors and frames
+   *  included: there is no site to inspect, only a bill to settle, and the
+   *  dashboard wall already owns telling them that. */
+  shutDown?: boolean
 }): boolean {
+  if (opts.shutDown) return true
   if (opts.siteLiveAt) return false
   if (opts.canEdit) return false
   if (opts.isFrame) return false

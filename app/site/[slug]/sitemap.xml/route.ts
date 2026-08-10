@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveTrialState } from '@/lib/trial'
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
@@ -51,7 +52,8 @@ export async function GET(_req: Request, ctx: { params: Promise<Params> }) {
   // Behind the go-live lever there is nothing to index (robots.txt already
   // disallows) — an empty 404 beats a sitemap of pages that render "Coming
   // soon".
-  if (!data.profile.siteLiveAt) return new NextResponse('Not found', { status: 404 })
+  if (!data.profile.siteLiveAt || resolveTrialState(data.profile).expired)
+    return new NextResponse('Not found', { status: 404 })
 
   const base = publicSiteUrl(data)
   const lastmod = data.profile.updatedAt

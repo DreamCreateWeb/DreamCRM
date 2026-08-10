@@ -1,5 +1,6 @@
 import 'server-only'
 import { and, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
+import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { recordAction } from '@/lib/services/action-ledger'
 import { resolvePatientAudience, type PatientAudienceFilterT } from './marketing'
@@ -187,12 +188,15 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
     .from(schema.clinicProfile)
     .innerJoin(schema.organization, eq(schema.organization.id, schema.clinicProfile.organizationId))
 
+  // THE KILL (owner ruling): no retention mail from a shut-down practice.
+  const shutDown = await listShutDownOrgIds(now)
   for (const clinic of clinics) {
     const orgId = clinic.organizationId
     if (!orgId) continue
     // Demo clinics never send real email — the demo seeds enabled toggles purely
     // so the settings card showcases the "on" state; skip them here.
     if (clinic.isDemo) continue
+    if (shutDown.has(orgId)) continue
     const birthdayOn = clinic.birthday === 1
     const reactivationOn = clinic.reactivation === 1
     // Benefits season is Oct–Dec — outside it the toggle stays armed but quiet.
