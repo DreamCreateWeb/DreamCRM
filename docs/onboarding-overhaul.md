@@ -933,3 +933,99 @@ first real binding):**
   after Stripe says active. Tests: tests/billing/shutdown.test.ts (who
   is dead, who is alive, fail-open) + the shutDown cases in
   tests/clinic-site/go-live-gate.test.ts.
+
+### §2.8 — Write-back research (2026-08-11, BEFORE any code — owner
+directive: "if our app has any issues and we push that into the clinic's
+live PMS, we could get scorched")
+
+Verified against docs + LIVE sandbox probes (probe records created and
+cancelled same-minute; the "Writeback Proof" test patient remains in the
+sandbox and will appear in the demo org via sync — harmless, and a
+standing proof of the loop):
+
+1. **POST /appointments** requires patient_id + provider_id + start_time;
+   `operatory_id` REQUIRED when the location maps bookings to operatories
+   (ours does — most Dentrix shops do); `appointment_type_id` OPTIONAL —
+   and a WRONG type for the operatory is REFUSED ("not configured for the
+   requested slot") while a typeless write is accepted. `note` ≤128 chars
+   lands in the EHR. `notify_patient=false` always — WE own patient
+   comms; their notifications double-text.
+2. **NexHealth's server is itself a guard**: a second booking into the
+   same operatory+time is REFUSED ("this time is no longer available") —
+   double-book protection under our own slot math. Required-field and
+   type-pairing validation likewise server-side, with readable errors.
+3. **POST /patients** requires provider_id + first/last + EMAIL + DOB +
+   PHONE — the exact missing-required-field hazard the owner named. A
+   DreamCRM patient lacking any of these CANNOT be written; the design
+   answer is a typed, visible refusal naming the missing fields, never
+   invented data. `return_existing_if_match=true` makes creation
+   dedupe-safe server-side (200 + existing chart instead of a duplicate).
+4. **Writes are ASYNC into the PMS**: a 201 means NexHealth accepted it
+   (foreign_id null, foreign_id_type "nex"); the Synchronizer inserts it
+   into the practice's system later — offices power servers off nightly/
+   weekends, so hours-long write downtime is NORMAL. The
+   `appointment_insertion` webhook fires complete/failed;
+   GET /sync_status reports read/write health per install (empty on the
+   sandbox — no real Synchronizer behind it).
+5. **PATCH /appointments/{id}**: vocabulary is confirmed / cancelled /
+   checkin_at / times / operatory / note — NO no_show or completed.
+   CANCEL works even before the appointment reaches the PMS; CONFIRM is
+   refused until synced ("not synced with the PMS and/or a live client")
+   — a WAITING state, not a failure, and the queue must not burn retry
+   attempts on it.
+6. **GET /appointment_slots** returns their real bookable slots WITH the
+   operatory to book into — the pre-write validator (and the foundation
+   of the future booking-from-real-schedules slice).
+
+**The safety design (v1):** appointments only — create + cancel (+
+confirm when synced); no patient demographic edits, no no_show/completed
+(no API vocabulary). Per-clinic write switch OFF by default
+(syncDirection stays 'import' at bind; an explicit platform-ops toggle
+flips 'two_way' per practice). Before every create, validate the slot
+against THEIR slot engine (/appointment_slots) and take the operatory
+from the matching slot — if their schedule says the time isn't open, we
+REFUSE to push and say so, because "our app disagrees with their PMS" is
+exactly the scorching scenario; the honest failure lands in the write-op
+log. Omit appointment_type_id entirely in v1 (typeless is legal; wrong
+is refused). New-patient writes ride return_existing_if_match and
+refuse with named missing fields — and the LIVE suite caught that the
+flag only works under the v3 API header (`Nex-Api-Version: v3.0.0`);
+under the legacy v2 Accept header it is silently ignored and a
+duplicate ERRORS. Writes therefore speak v3 (reads stay on v2, the
+shapes the whole import pipeline is validated against), with a belt:
+the duplicate error names the existing chart id, and the adapter
+recovers it instead of failing into a retry loop. The queue's existing hardening
+(idempotent retries, orphan-id recovery, cancel-supersedes-create,
+6-attempt cap, audit payloads) carries over; two NEW typed states:
+WAITING (PMS offline / not-yet-synced — retries without burning
+attempts) and NOT-SUPPORTED (no_show/completed — op marked skipped, not
+error). Cancels are exempt from the daily call budget (compliance-
+critical: the #1 integration complaint is reminders to already-cancelled
+patients); creates are not. The DEMO org is the proving ground: its
+binding writes into the sandbox, so the full loop can be demonstrated
+with zero real-world risk before any live practice flips the switch.
+
+- **WRITE-BACK v1 — SHIPPED 2026-08-11** (research-first per the owner
+  directive; §2.8 above is the full research record + safety design).
+  What shipped: `nexWrite` (POST/PATCH transport, metered, 401-retry,
+  v3 header, API error text preserved verbatim for the audit trail) +
+  `listAppointmentSlots` (their real bookable slots, with operatory);
+  adapter `createPatient` (named-missing-fields refusal, dedupe via
+  return_existing_if_match + the recover-the-named-id belt) /
+  `createAppointment` (slot-validated against THEIR engine, operatory
+  from the matching slot, typeless in v1, notify_patient=false, 128-char
+  note) / `updateAppointment` (cancel only; confirm-not-synced → WAITING;
+  no_show/completed → NOT-SUPPORTED); the queue's two new lanes
+  (`settleWriteFailure`: WAITING retries without burning attempts —
+  practice servers sleep nightly; NOT-SUPPORTED parks as skipped); and
+  the per-clinic WRITE-BACK SWITCH on the platform bind card (OFF by
+  default; bind still pins 'import'; flipping to two_way is a deliberate
+  platform-ops act). LIVE-verified end-to-end on the sandbox: existing
+  chart reused, booking placed into a real open slot, cancelled, plus
+  the double-book refusal and the operatory×type validation observed
+  first-hand. NOT in v1, recorded: appointment_insertion webhook
+  confirmation (rides the webhooks slice), confirm write-back queueing
+  (the queue never files 'confirmed' ops today), patient demographic
+  edits (deliberately never), commlog (no endpoint — typed skip). Next
+  human step: flip the demo org's switch and make a portal booking to
+  watch the loop live, sandbox-side, before any real practice.

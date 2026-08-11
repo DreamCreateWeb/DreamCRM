@@ -84,13 +84,13 @@ export default async function ClinicDetailPage({
 
   // NexHealth binding state (platform manager only) — read the org's PMS
   // connection row; the card shows the current bridge scope when bound.
-  let nexhealthBinding: { subdomain: string; locationId: number; sandbox: boolean; monthCalls: number } | null = null
+  let nexhealthBinding: { subdomain: string; locationId: number; sandbox: boolean; monthCalls: number; writeBack: boolean } | null = null
   if (isPlatformManager) {
     try {
       const { db, schema } = await import('@/lib/db')
       const { eq } = await import('drizzle-orm')
       const [conn] = await db
-        .select({ provider: schema.pmsConnection.provider, meta: schema.pmsConnection.meta, status: schema.pmsConnection.status })
+        .select({ provider: schema.pmsConnection.provider, meta: schema.pmsConnection.meta, status: schema.pmsConnection.status, syncDirection: schema.pmsConnection.syncDirection })
         .from(schema.pmsConnection)
         .where(eq(schema.pmsConnection.organizationId, id))
         .limit(1)
@@ -103,6 +103,7 @@ export default async function ClinicDetailPage({
             locationId: meta.locationId,
             sandbox: meta.env === 'sandbox',
             monthCalls: await getMonthCalls(id).catch(() => 0),
+            writeBack: conn.syncDirection === 'two_way',
           }
         }
       }

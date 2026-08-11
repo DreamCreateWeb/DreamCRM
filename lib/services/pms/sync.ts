@@ -8,14 +8,16 @@ import { OpenDentalProvider } from './open-dental'
 import { NexHealthProvider } from './nexhealth'
 import { DemoProvider } from './demo'
 import { getPmsConnection } from './connection'
-import type {
-  CommLogDirection,
-  CommLogMode,
-  NormalizedAppointment,
-  NormalizedPatient,
-  NormalizedProvider,
-  NormalizedRecall,
-  PmsProviderClient,
+import {
+  PmsWriteWaitingError,
+  PmsWriteNotSupportedError,
+  type CommLogDirection,
+  type CommLogMode,
+  type NormalizedAppointment,
+  type NormalizedPatient,
+  type NormalizedProvider,
+  type NormalizedRecall,
+  type PmsProviderClient,
 } from './provider'
 
 const VALID_ROLES = ['dentist', 'hygienist', 'assistant', 'specialist', 'admin']
@@ -1193,7 +1195,7 @@ async function processCommLogWriteOp(
       .set({ status: 'success', externalId: result.externalId ?? null, error: null, completedAt: new Date() })
       .where(eq(schema.pmsWriteOp.id, op.id))
   } catch (e) {
-    await failOp(op.id, op.attempts + 1, (e as Error).message)
+    await settleWriteFailure(op, e)
   }
 }
 
@@ -1220,7 +1222,7 @@ async function processAppointmentUpdateOp(
       .set({ status: 'success', externalId, error: null, completedAt: new Date() })
       .where(eq(schema.pmsWriteOp.id, op.id))
   } catch (e) {
-    await failOp(op.id, op.attempts + 1, (e as Error).message)
+    await settleWriteFailure(op, e)
   }
 }
 
@@ -1313,7 +1315,7 @@ async function processAppointmentWriteOp(
       .set({ status: 'success', externalId: res.externalId, error: null, completedAt: new Date() })
       .where(eq(schema.pmsWriteOp.id, op.id))
   } catch (e) {
-    await failOp(op.id, op.attempts + 1, (e as Error).message)
+    await settleWriteFailure(op, e)
   }
 }
 
@@ -1400,4 +1402,37 @@ async function ensurePatientExternalId(
 
 async function failOp(opId: string, attempts: number, error: string) {
   await db.update(schema.pmsWriteOp).set({ status: 'error', attempts, error }).where(eq(schema.pmsWriteOp.id, opId))
+}
+
+/**
+ * Route a write failure into the right lane (write-back v1, §2.8):
+ *  - WAITING (PMS offline / entity not yet synced): back to 'pending' with
+ *    the attempt counter RESTORED — offices power servers off nightly and a
+ *    6-attempt cap would exhaust over one closed weekend. The reason is
+ *    kept visible on the op.
+ *  - NOT-SUPPORTED (no API vocabulary for this write): 'skipped', done —
+ *    an honest "this one doesn't travel", never an alarm.
+ *  - anything else: the normal error lane (attempts counted, retried to
+ *    the cap).
+ * Exported for the write-back tests.
+ */
+export async function settleWriteFailure(
+  op: { id: string; attempts: number },
+  e: unknown,
+): Promise<void> {
+  if (e instanceof PmsWriteWaitingError) {
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ status: 'pending', attempts: op.attempts, error: e.message })
+      .where(eq(schema.pmsWriteOp.id, op.id))
+    return
+  }
+  if (e instanceof PmsWriteNotSupportedError) {
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ status: 'skipped', attempts: op.attempts, error: e.message, completedAt: new Date() })
+      .where(eq(schema.pmsWriteOp.id, op.id))
+    return
+  }
+  await failOp(op.id, op.attempts + 1, e instanceof Error ? e.message : String(e))
 }

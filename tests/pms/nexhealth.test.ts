@@ -84,4 +84,40 @@ const LIVE = Boolean(process.env.NEXHEALTH_SANDBOX_API_KEY)
   it('recalls are honestly empty (no NexHealth endpoint)', async () => {
     expect(await provider().listRecalls()).toEqual([])
   })
+
+  it('WRITE round-trip: dedupe-safe patient → slot-validated booking → cancel (sandbox only)', async () => {
+    const p = provider()
+    // Same details every run — return_existing_if_match returns the one
+    // standing "Writeback Proof" chart instead of minting duplicates.
+    const pat = await p.createPatient({
+      firstName: 'Writeback',
+      lastName: 'Proof',
+      email: 'writeback.proof@fixture-mail.com',
+      phone: '2125550188',
+      dateOfBirth: '1990-01-01',
+    })
+    expect(pat.externalId).toMatch(/^\d+$/)
+
+    // Book into a REAL open slot from their slot engine (next few days),
+    // then cancel immediately — the sandbox stays clean.
+    const { listAppointmentSlots } = await import('@/lib/nexhealth')
+    let booked: string | null = null
+    for (let ahead = 1; ahead <= 7 && !booked; ahead++) {
+      const day = new Date(Date.now() + ahead * 24 * 3600_000).toISOString().slice(0, 10)
+      const slots = await listAppointmentSlots('dream-create-demo-practice', 353605, 503128460, day, 1, { env: 'sandbox' })
+      const slot = slots.find((s) => s.time && new Date(s.time).getTime() > Date.now())
+      if (!slot?.time) continue
+      const r = await p.createAppointment({
+        patientExternalId: pat.externalId,
+        startTime: new Date(slot.time),
+        endTime: slot.end_time ? new Date(slot.end_time) : null,
+        providerExternalId: '503128460',
+        note: 'LIVE suite write round-trip (cancelled immediately)',
+      })
+      expect(r.externalId).toMatch(/^\d+$/)
+      booked = r.externalId
+      await p.updateAppointment(booked, { status: 'cancelled' })
+    }
+    expect(booked).not.toBeNull()
+  }, 120_000)
 })

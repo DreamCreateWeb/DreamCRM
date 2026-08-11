@@ -1,27 +1,31 @@
 import 'server-only'
 import {
   nexGetAll,
+  nexWrite,
   listLocations,
   listAppointmentTypes,
   listOperatories,
+  listAppointmentSlots,
   type NexHealthEnv,
   type NexPatient,
   type NexAppointment,
   type NexProvider,
   type NexInsuranceCoverage,
 } from '@/lib/nexhealth'
-import type {
-  PmsProviderClient,
-  PmsTestResult,
-  PmsWriteResult,
-  NormalizedPatient,
-  NormalizedAppointment,
-  NormalizedProvider,
-  NormalizedRecall,
-  CreatePatientPayload,
-  CreateAppointmentPayload,
-  CreateCommLogPayload,
-  AppointmentStatusChange,
+import {
+  PmsWriteWaitingError,
+  PmsWriteNotSupportedError,
+  type PmsProviderClient,
+  type PmsTestResult,
+  type PmsWriteResult,
+  type NormalizedPatient,
+  type NormalizedAppointment,
+  type NormalizedProvider,
+  type NormalizedRecall,
+  type CreatePatientPayload,
+  type CreateAppointmentPayload,
+  type CreateCommLogPayload,
+  type AppointmentStatusChange,
 } from './provider'
 
 /**
@@ -367,21 +371,182 @@ export class NexHealthProvider implements PmsProviderClient {
     return []
   }
 
-  async createPatient(_payload: CreatePatientPayload): Promise<PmsWriteResult> {
-    throw new Error('NexHealth write-back is not enabled yet (v1 is import-only).')
+  /**
+   * Create the patient in the PMS — only ever called by the write queue as
+   * part of pushing a booking (ensurePatientExternalId). NexHealth REQUIRES
+   * email + DOB + phone: a chart can't be minted without them, so the
+   * refusal NAMES the missing fields (the front desk can fix the record)
+   * instead of inventing data. `return_existing_if_match` makes this
+   * dedupe-safe server-side — a matching chart comes back instead of a
+   * duplicate.
+   */
+  async createPatient(payload: CreatePatientPayload): Promise<PmsWriteResult> {
+    await this.checkBudget()
+    const missing: string[] = []
+    if (!payload.email?.trim()) missing.push('an email')
+    if (!payload.dateOfBirth?.trim()) missing.push('a date of birth')
+    if (!payload.phone?.trim()) missing.push('a phone number')
+    if (missing.length > 0) {
+      throw new Error(
+        `Their practice system requires ${missing.join(', ')} to create a patient chart — add ${missing.length === 1 ? 'it' : 'them'} to the patient record and the push will retry on the next sync.`,
+      )
+    }
+    const providerId = await this.anyProviderId()
+    if (!providerId) {
+      throw new PmsWriteWaitingError('No provider is synced from the practice system yet — retrying after the next sync.')
+    }
+    let data: { user?: NexPatient } | null
+    try {
+      data = await nexWrite<{ user?: NexPatient }>(
+        'POST',
+        'patients',
+        { ...this.scope },
+        {
+          provider: { provider_id: providerId },
+          patient: {
+            first_name: payload.firstName,
+            last_name: payload.lastName,
+            email: payload.email,
+            bio: { date_of_birth: payload.dateOfBirth, phone_number: payload.phone },
+          },
+          return_existing_if_match: true,
+        },
+        this.reqOpts(),
+      )
+    } catch (e) {
+      // BELT under return_existing_if_match (LIVE-verified failure shape):
+      // "A patient with that information already exists - id=NNN". The
+      // error NAMES the existing chart — reusing it is exactly the dedupe
+      // intent, and strictly safer than failing into a retry loop.
+      const m = /already exists[^0-9]*id=(\d+)/i.exec(e instanceof Error ? e.message : '')
+      if (m) return { externalId: m[1], raw: { id: Number(m[1]), recoveredFromDuplicateError: true } }
+      throw e
+    }
+    const user = data?.user
+    if (!user || typeof user.id !== 'number') {
+      throw new Error('NexHealth accepted the patient but returned no id — nothing was linked.')
+    }
+    return { externalId: String(user.id), raw: { id: user.id } }
   }
 
   async createCommLog(_payload: CreateCommLogPayload): Promise<PmsWriteResult> {
     // NexHealth has no comm-log resource; call sites treat mirroring as
-    // best-effort, so this typed refusal is logged and skipped.
-    throw new Error('NexHealth does not support comm-log mirroring.')
+    // best-effort, so this typed refusal is marked skipped, never an error.
+    throw new PmsWriteNotSupportedError('NexHealth does not support comm-log mirroring.')
   }
 
-  async createAppointment(_payload: CreateAppointmentPayload): Promise<PmsWriteResult> {
-    throw new Error('NexHealth write-back is not enabled yet (v1 is import-only).')
+  /**
+   * Push a DreamCRM booking into the practice's schedule — the single most
+   * dangerous write in the product, so it goes out ONLY into a slot the
+   * practice's OWN slot engine says is open:
+   *
+   *  1. Ask /appointment_slots for that provider + day, find the slot
+   *     containing our start time, and take its operatory (required when
+   *     the location maps by operatory — most Dentrix shops).
+   *  2. No matching slot → REFUSE with the honest reason. Pushing an
+   *     appointment into a time their PMS considers closed is exactly the
+   *     client-scorching scenario; the front desk books it by hand instead.
+   *  3. No appointment_type_id in v1 (typeless is legal; a wrong type for
+   *     the operatory is refused by their server).
+   *  4. notify_patient=false always — WE own patient comms.
+   *
+   * NexHealth's own server is the second net: it refuses double-books and
+   * bad field pairs with readable errors the write-op log keeps verbatim.
+   */
+  async createAppointment(payload: CreateAppointmentPayload): Promise<PmsWriteResult> {
+    await this.checkBudget()
+    const providerExternal = payload.providerExternalId
+      ? Number.parseInt(payload.providerExternalId, 10)
+      : await this.anyProviderId()
+    if (!providerExternal || !Number.isFinite(providerExternal)) {
+      throw new PmsWriteWaitingError('No provider is synced from the practice system yet — retrying after the next sync.')
+    }
+
+    const startMs = payload.startTime.getTime()
+    const day = payload.startTime.toISOString().slice(0, 10)
+    const slots = await listAppointmentSlots(
+      this.subdomain,
+      this.locationId,
+      providerExternal,
+      day,
+      2, // their day boundary is practice-local; 2 days covers the UTC skew
+      this.reqOpts(),
+    )
+    const slot = slots.find((s) => {
+      const t = s.time ? new Date(s.time).getTime() : NaN
+      return Number.isFinite(t) && t === startMs
+    })
+    if (!slot) {
+      throw new Error(
+        'Their practice schedule doesn’t show this time as open, so I didn’t push the booking — the front desk should enter it by hand (or move it to an open time).',
+      )
+    }
+
+    const end = payload.endTime ?? new Date(startMs + 30 * 60 * 1000)
+    const note = (payload.note?.trim() || 'Booked online via DreamCRM').slice(0, 128)
+    const data = await nexWrite<{ appt?: NexAppointment }>(
+      'POST',
+      'appointments',
+      { ...this.scope, notify_patient: false },
+      {
+        appt: {
+          patient_id: Number.parseInt(payload.patientExternalId, 10),
+          provider_id: providerExternal,
+          ...(slot.operatory_id != null ? { operatory_id: slot.operatory_id } : {}),
+          start_time: payload.startTime.toISOString(),
+          end_time: end.toISOString(),
+          note,
+        },
+      },
+      this.reqOpts(),
+    )
+    const appt = data?.appt
+    if (!appt || typeof appt.id !== 'number') {
+      throw new Error('NexHealth accepted the booking but returned no id — nothing was linked.')
+    }
+    return { externalId: String(appt.id), raw: { id: appt.id } }
   }
 
-  async updateAppointment(_externalId: string, _changes: AppointmentStatusChange): Promise<void> {
-    throw new Error('NexHealth write-back is not enabled yet (v1 is import-only).')
+  /**
+   * Status write-back. NexHealth's PATCH vocabulary is confirmed/cancelled
+   * only — no_show and completed have no write path and are marked skipped.
+   * CANCEL works even before the appointment reaches the PMS (verified on
+   * the sandbox); a "not synced with the PMS" refusal is a WAITING state
+   * (their server powers off nightly), never a burned attempt. Cancels skip
+   * the daily budget on purpose: the #1 integration complaint is reminders
+   * to already-cancelled patients, and a compliance-critical, bounded write
+   * must not wait on a spend guardrail.
+   */
+  async updateAppointment(externalId: string, changes: AppointmentStatusChange): Promise<void> {
+    if (changes.status !== 'cancelled') {
+      throw new PmsWriteNotSupportedError(
+        `NexHealth has no ${changes.status} write-back — the status stays in DreamCRM only.`,
+      )
+    }
+    try {
+      await nexWrite(
+        'PATCH',
+        `appointments/${encodeURIComponent(externalId)}`,
+        { subdomain: this.subdomain },
+        { appt: { cancelled: true } },
+        this.reqOpts(),
+      )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (/not synced with the PMS|live client/i.test(msg)) {
+        throw new PmsWriteWaitingError(
+          'Their practice system is offline or still syncing — the cancellation retries on the next sync.',
+        )
+      }
+      throw e
+    }
+  }
+
+  /** First active synced provider — the intake provider for patient writes
+   *  when the booking carries none. */
+  private async anyProviderId(): Promise<number | null> {
+    const rows = await nexGetAll<NexProvider>('providers', this.scope, 'providers', this.reqOpts())
+    const active = rows.find((p) => p && typeof p.id === 'number' && !p.inactive)
+    return active ? active.id : null
   }
 }

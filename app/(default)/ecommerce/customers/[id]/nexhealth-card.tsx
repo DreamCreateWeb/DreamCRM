@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { bindNexHealthAction } from '../admin-actions'
+import { bindNexHealthAction, setNexHealthWriteBackAction } from '../admin-actions'
 
 /**
  * Platform-ops NexHealth binding card (onboarding overhaul §2.6). The
@@ -17,7 +17,13 @@ export default function NexHealthCard({
 }: {
   organizationId: string
   /** Existing binding, when the org's PMS connection is the NexHealth bridge. */
-  current: { subdomain: string; locationId: number; sandbox: boolean; monthCalls?: number } | null
+  current: {
+    subdomain: string
+    locationId: number
+    sandbox: boolean
+    monthCalls?: number
+    writeBack?: boolean
+  } | null
 }) {
   const router = useRouter()
   const [subdomain, setSubdomain] = useState(current?.subdomain ?? '')
@@ -106,6 +112,47 @@ export default function NexHealthCard({
           {pending ? 'Checking…' : current ? 'Rebind' : 'Bind + test'}
         </button>
       </div>
+      {current && (
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+          <label className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={current.writeBack ?? false}
+              disabled={pending}
+              onChange={(e) => {
+                const enabled = e.target.checked
+                setError(null)
+                setResult(null)
+                startTransition(async () => {
+                  const r = await setNexHealthWriteBackAction({ orgId: organizationId, enabled }).catch(
+                    () => ({ ok: false as const, error: 'Something went wrong — try again.' }),
+                  )
+                  if (r.ok) {
+                    setResult(
+                      enabled
+                        ? 'Write-back ON — DreamCRM bookings and cancellations now push into their practice system on each sync.'
+                        : 'Write-back OFF — nothing is pushed; queued writes wait.',
+                    )
+                    router.refresh()
+                  } else {
+                    setError(r.error)
+                  }
+                })
+              }}
+              className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+            />
+            <span>
+              <span className="font-semibold text-gray-800 dark:text-gray-100">
+                Write-back {current.writeBack ? 'ON' : 'OFF'}
+              </span>{' '}
+              — push DreamCRM bookings + cancellations into their practice system. Ships OFF: flip
+              only after the Synchronizer is verified live (writes go out only into times their own
+              schedule shows open, and their server refuses double-books, but this writes into a
+              live PMS — deliberate hands only).
+            </span>
+          </label>
+        </div>
+      )}
       {result && <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">{result}</p>}
       {error && (
         <p className="mt-2 text-xs text-rose-600" role="alert">

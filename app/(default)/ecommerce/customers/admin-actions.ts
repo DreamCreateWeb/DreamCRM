@@ -420,3 +420,38 @@ export async function bindNexHealthAction(
     return { ok: false, error: err instanceof Error ? err.message : 'Could not bind NexHealth.' }
   }
 }
+
+/**
+ * The WRITE-BACK SWITCH (write-back v1, §2.8) — per-clinic, platform-ops
+ * only, OFF by default. Flipping to two_way lets the sync queue push
+ * DreamCRM bookings + cancellations into the practice's PMS; flipping back
+ * to import stops all writes (queued ops simply wait). The bind pins
+ * 'import', so nothing writes until a human deliberately throws this.
+ */
+export async function setNexHealthWriteBackAction(input: {
+  orgId: string
+  enabled: boolean
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requirePlatformAdmin()
+  if (typeof input?.orgId !== 'string' || !input.orgId) return { ok: false, error: 'Missing organization.' }
+  try {
+    const { db: dbi, schema: schemai } = await import('@/lib/db')
+    const { and: andi, eq: eqi } = await import('drizzle-orm')
+    const updated = await dbi
+      .update(schemai.pmsConnection)
+      .set({ syncDirection: input.enabled ? 'two_way' : 'import', updatedAt: new Date() })
+      .where(
+        andi(
+          eqi(schemai.pmsConnection.organizationId, input.orgId),
+          eqi(schemai.pmsConnection.provider, 'nexhealth'),
+          eqi(schemai.pmsConnection.status, 'connected'),
+        ),
+      )
+      .returning({ organizationId: schemai.pmsConnection.organizationId })
+    if (updated.length === 0) return { ok: false, error: 'No connected NexHealth binding for this clinic.' }
+    revalidatePath(`/ecommerce/customers/${input.orgId}`)
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not update write-back.' }
+  }
+}

@@ -121,6 +121,26 @@ export interface PmsWriteResult {
   raw?: Record<string, unknown>
 }
 
+/**
+ * A write the PMS can't take YET — the practice's server is offline (they
+ * power them down nightly/on weekends) or the entity hasn't synced into the
+ * PMS. The queue retries these WITHOUT burning attempts: hours-long write
+ * downtime is NORMAL for on-prem installs, and a 6-attempt cap would
+ * exhaust over one closed weekend.
+ */
+export class PmsWriteWaitingError extends Error {
+  readonly waiting = true as const
+}
+
+/**
+ * A write this provider's API has no vocabulary for (e.g. NexHealth has no
+ * no_show/completed write-back). The queue marks the op `skipped` — an
+ * honest "this one doesn't travel", never an error that alarms anyone.
+ */
+export class PmsWriteNotSupportedError extends Error {
+  readonly notSupported = true as const
+}
+
 export interface PmsProviderClient {
   readonly id: PmsProviderId
   /** Cheap reachability + auth check; never throws (returns ok:false). */

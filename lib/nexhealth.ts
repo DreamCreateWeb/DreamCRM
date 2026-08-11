@@ -118,6 +118,68 @@ export async function nexGet<T = unknown>(
 }
 
 /**
+ * One WRITE against the API (POST/PATCH), with the same metering hook and
+ * single re-mint retry as nexGet. Returns the envelope's data — callers
+ * check for their entity. A non-2xx throws with the API's own error text
+ * (NexHealth's write errors are readable sentences — "this time is no
+ * longer available", "not configured for the requested slot" — and the
+ * write-op log stores them verbatim for the audit trail).
+ */
+export async function nexWrite<T = unknown>(
+  method: 'POST' | 'PATCH',
+  path: string,
+  params: Record<string, string | number | boolean | undefined>,
+  body: Record<string, unknown>,
+  opts: NexRequestOpts = {},
+): Promise<T | null> {
+  const env = opts.env ?? 'production'
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) if (v !== undefined) qs.set(k, String(v))
+  const url = `${BASE_URL}/${path}?${qs.toString()}`
+
+  const countCall = async () => {
+    try {
+      await opts.onCall?.()
+    } catch (e) {
+      console.error('[nexhealth] onCall hook failed (request proceeds):', e)
+    }
+  }
+  const doFetch = async (token: string) =>
+    fetch(url, {
+      method,
+      headers: {
+        // Writes speak v3 (LIVE-verified 2026-08-11): under the legacy v2
+        // Accept header, POST /patients IGNORES return_existing_if_match and
+        // errors on a duplicate — the exact double-chart hazard the flag
+        // exists to prevent. Reads stay on v2 (their shapes are what the
+        // whole import pipeline is validated against).
+        'Nex-Api-Version': 'v3.0.0',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    })
+
+  let token = await bearer(env)
+  await countCall()
+  let res = await doFetch(token)
+  if (res.status === 401) {
+    token = await mintToken(env)
+    await countCall()
+    res = await doFetch(token)
+  }
+  const parsed = (await res.json().catch(() => null)) as
+    | { code?: boolean; data?: unknown; error?: unknown }
+    | null
+  if (!res.ok || parsed?.code === false) {
+    const apiError = Array.isArray(parsed?.error) ? parsed.error.join('; ') : String(parsed?.error ?? '')
+    throw new Error(apiError || `NexHealth ${method} ${path} failed (${res.status})`)
+  }
+  return (parsed?.data ?? null) as T | null
+}
+
+/**
  * Paginate a collection endpoint to exhaustion. Some collections nest under
  * a key inside `data` (e.g. /patients → data.patients) while others return
  * `data` as the array — `unwrap` handles both: pass the nested key name and
@@ -259,6 +321,42 @@ export interface NexOperatory {
 export async function listInstitutions(opts: NexRequestOpts = {}): Promise<NexInstitution[]> {
   const { data } = await nexGet<NexInstitution[]>('institutions', {}, opts)
   return Array.isArray(data) ? data : []
+}
+
+export interface NexSlot {
+  time?: string
+  end_time?: string
+  operatory_id?: number
+}
+
+/**
+ * The practice's REAL bookable slots for one provider over a date range —
+ * computed by NexHealth from provider availabilities + existing
+ * appointments. The write path uses this as the pre-write validator: a
+ * create only goes out into a slot THEIR engine says is open, and takes
+ * the operatory from the matching slot.
+ */
+export async function listAppointmentSlots(
+  subdomain: string,
+  locationId: number,
+  providerId: number,
+  startDate: string, // YYYY-MM-DD
+  days: number,
+  opts: NexRequestOpts = {},
+): Promise<NexSlot[]> {
+  const { data } = await nexGet<Array<{ lid?: number; pid?: number; slots?: NexSlot[] }>>(
+    'appointment_slots',
+    {
+      subdomain,
+      'lids[]': locationId,
+      'pids[]': providerId,
+      start_date: startDate,
+      days,
+    },
+    opts,
+  )
+  if (!Array.isArray(data)) return []
+  return data.flatMap((d) => (Array.isArray(d.slots) ? d.slots : []))
 }
 
 /** A location's appointment types (name + minutes + bookable flag). Small,
