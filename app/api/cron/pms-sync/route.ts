@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { runImport } from '@/lib/services/pms/sync'
 import { sendNotificationEmail } from '@/lib/email'
@@ -87,6 +87,22 @@ async function run(request: Request) {
     const { listShutDownOrgIds } = await import('@/lib/services/billing-state')
     const shutDown = await listShutDownOrgIds()
 
+    // PENDING WRITES OVERRIDE THE CADENCE (write-back v1): the queue only
+    // flushes inside a sync run, so the cost-saving every-other-tick rhythm
+    // would make a queued booking — or worse, a CANCELLATION — wait up to
+    // ~2h. A pending write is patient-facing state the practice's schedule
+    // is wrong about; the next hourly tick must carry it.
+    let pendingWriteOrgs = new Set<string>()
+    try {
+      const rows = await db
+        .selectDistinct({ organizationId: schema.pmsWriteOp.organizationId })
+        .from(schema.pmsWriteOp)
+        .where(inArray(schema.pmsWriteOp.status, ['pending', 'error']))
+      pendingWriteOrgs = new Set(rows.map((r) => r.organizationId))
+    } catch {
+      /* unreadable → no override; writes flush on the normal cadence */
+    }
+
     const cronDeadline = Date.now() + CRON_BUDGET_MS
     for (const conn of connections) {
       if (shutDown.has(conn.organizationId)) {
@@ -94,7 +110,10 @@ async function run(request: Request) {
         continue
       }
       // Metered-provider cadence gate (see NEXHEALTH_MIN_INTERVAL_MS above).
-      if (shouldSkipForCadence(conn.provider, conn.lastSyncAt)) {
+      if (
+        shouldSkipForCadence(conn.provider, conn.lastSyncAt) &&
+        !pendingWriteOrgs.has(conn.organizationId)
+      ) {
         skipped++
         continue
       }
