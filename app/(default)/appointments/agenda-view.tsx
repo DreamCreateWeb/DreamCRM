@@ -180,6 +180,13 @@ export default function AgendaView({
     EMPTY_CONFIRMED,
     (current, id) => new Set(current).add(id),
   )
+  // And for CANCEL from the drawer (2026-08-12, owner-caught: the row kept its
+  // old status until a hard refresh). The row flips the instant the drawer's
+  // cancel fires; the action's revalidation + refresh land behind it.
+  const [optimisticCancelled, addOptimisticCancelled] = useOptimistic<Set<string>, string>(
+    EMPTY_CONFIRMED,
+    (current, id) => new Set(current).add(id),
+  )
   const [_pending, startTransition] = useTransition()
   const [bulkPending, startBulk] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
@@ -467,6 +474,7 @@ export default function AgendaView({
               onComplete={onComplete}
               optimisticConfirmed={optimisticConfirmed}
               optimisticCompleted={optimisticCompleted}
+              optimisticCancelled={optimisticCancelled}
             />
           ))}
         </div>
@@ -504,6 +512,7 @@ export default function AgendaView({
         <AppointmentDrawer
           appointmentId={openDetail}
           onClose={() => setOpenDetail(null)}
+          onCancelled={addOptimisticCancelled}
         />
       )}
     </div>
@@ -520,6 +529,7 @@ function DaySection({
   onComplete,
   optimisticConfirmed,
   optimisticCompleted,
+  optimisticCancelled,
 }: {
   group: AppointmentDayGroup
   selected: Set<string>
@@ -530,6 +540,7 @@ function DaySection({
   onComplete: (id: string, e: React.MouseEvent) => void
   optimisticConfirmed: Set<string>
   optimisticCompleted: Set<string>
+  optimisticCancelled: Set<string>
 }) {
   const allSelected = group.rows.length > 0 && group.rows.every((r) => selected.has(r.id))
   const stillUnconfirmed = group.rows.filter(
@@ -564,6 +575,7 @@ function DaySection({
             onComplete={(e) => onComplete(r.id, e)}
             confirmedOptimistic={optimisticConfirmed.has(r.id)}
             completedOptimistic={optimisticCompleted.has(r.id)}
+            cancelledOptimistic={optimisticCancelled.has(r.id)}
           />
         ))}
       </ul>
@@ -580,6 +592,7 @@ function AppointmentRowCard({
   onComplete,
   confirmedOptimistic,
   completedOptimistic,
+  cancelledOptimistic,
 }: {
   row: AppointmentRow
   selected: boolean
@@ -589,14 +602,17 @@ function AppointmentRowCard({
   onComplete: (e: React.MouseEvent) => void
   confirmedOptimistic: boolean
   completedOptimistic: boolean
+  cancelledOptimistic: boolean
 }) {
   const typeLabel = row.type.replace(/_/g, ' ')
   // Reflect an in-flight confirm/complete immediately (the button hides, the pill flips).
-  const status = completedOptimistic
-    ? 'completed'
-    : confirmedOptimistic && row.status === 'scheduled'
-      ? 'confirmed'
-      : row.status
+  const status = cancelledOptimistic
+    ? 'cancelled'
+    : completedOptimistic
+      ? 'completed'
+      : confirmedOptimistic && row.status === 'scheduled'
+        ? 'confirmed'
+        : row.status
   // A past visit that's still open (scheduled/confirmed) is the one that needs
   // marking done — surface it inline so the front desk doesn't open the drawer.
   const isPastOpen =

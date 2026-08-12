@@ -61,6 +61,7 @@ export async function confirmAppointmentAction(appointmentId: string): Promise<{
   await confirmAppointment(ctx.organizationId, appointmentId, 'manual')
   revalidatePath('/appointments')
   revalidatePath('/')
+  revalidatePath('/my-day')
   return { ok: true }
 }
 
@@ -73,6 +74,7 @@ export async function cancelAppointmentAction(appointmentId: string): Promise<{ 
   })
   revalidatePath('/appointments')
   revalidatePath('/')
+  revalidatePath('/my-day')
   return { ok: true }
 }
 
@@ -117,6 +119,7 @@ export async function markCompletedAction(
   const { reviewSent } = await markCompleted(ctx.organizationId, appointmentId)
   revalidatePath('/appointments')
   revalidatePath('/')
+  revalidatePath('/my-day')
   return { ok: true, reviewSent }
 }
 
@@ -144,6 +147,7 @@ export async function bulkSetAppointmentStatusAction(
   }
   revalidatePath('/appointments')
   revalidatePath('/')
+  revalidatePath('/my-day')
   return { ok: true, updated, skipped }
 }
 
@@ -210,6 +214,7 @@ export async function rescheduleAppointmentAction(input: {
 
   revalidatePath('/appointments')
   revalidatePath('/')
+  revalidatePath('/my-day')
   return { ok: true, newId }
 }
 

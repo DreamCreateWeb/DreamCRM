@@ -78,9 +78,14 @@ const STATUS_TITLE: Record<string, string> = {
 export default function AppointmentDrawer({
   appointmentId,
   onClose,
+  onCancelled,
 }: {
   appointmentId: string
   onClose: () => void
+  /** Lets the agenda flip the row to cancelled INSTANTLY (owner-caught
+   *  2026-08-12: the row kept its old status until a hard refresh). Called
+   *  inside the cancel transition, before the action resolves. */
+  onCancelled?: (id: string) => void
 }) {
   const router = useRouter()
   const confirm = useConfirm()
@@ -180,10 +185,14 @@ export default function AppointmentDrawer({
     )
       return
     startTransition(async () => {
+      // Optimistic FIRST — the row flips before the network round-trip.
+      onCancelled?.(appointmentId)
       await cancelAppointmentAction(appointmentId)
       flash('Cancelled.')
-      router.refresh()
+      // Close BEFORE refresh: refreshing under an open drawer that then
+      // unmounts mid-payload is the race that left the list stale.
       onClose()
+      router.refresh()
     })
   }
 
