@@ -52,10 +52,10 @@ vi.mock('@/lib/services/booking', async () => {
   const { db } = await import('@/lib/db')
   const { appointment } = await import('@/lib/db/schema/clinic')
   return {
-    isSlotAvailable: (...a: unknown[]) => slotAvailableMock(...(a as [])),
-    getSlotsForDay: vi.fn(async () => ({ slots: [], closedReason: null })),
+    isBookableSlot: (...a: unknown[]) => slotAvailableMock(...(a as [])),
+    getBookableSlotsForDay: vi.fn(async () => ({ slots: [], closedReason: null, source: 'local' })),
     // Route the atomic-book insert through the db mock so the inserts capture works.
-    insertAppointmentIfSlotFree: async (_o: string, _s: Date, _d: unknown, values: unknown) => {
+    insertAppointmentIfBookable: async (_o: string, _s: Date, _d: unknown, values: unknown) => {
       await db.insert(appointment).values(values as never)
       return true
     },

@@ -1029,3 +1029,30 @@ with zero real-world risk before any live practice flips the switch.
   edits (deliberately never), commlog (no endpoint — typed skip). Next
   human step: flip the demo org's switch and make a portal booking to
   watch the loop live, sandbox-side, before any real practice.
+
+- **REAL SLOTS — the booking page offers the practice's ACTUAL open times
+  — SHIPPED 2026-08-12** (write-back's load-bearing sibling: the write
+  path refuses times their PMS says aren't open, so our booking surfaces
+  must OFFER only times their PMS says are open, or real practices would
+  see push-refusals and hand-entry). For NexHealth-connected clinics the
+  patient-facing slot sources — the public /book picker, the portal's
+  booking + reschedule, and BOTH submit-time guards — now answer from
+  THEIR slot engine (/appointment_slots, slot_length-sized so a 30-min
+  visit gets overlap-aware 30-min slots; all active synced providers ride
+  ONE metered call via the entity map, never a listProviders spend; the
+  probe verified multi-pid + slot_length live). One 2-minute cache per
+  (org, day, duration) keeps browsing patients from spending the API
+  budget; the SUBMIT guard always re-reads fresh (a write decision never
+  trusts a cache) and ALSO counts local not-yet-pushed bookings against
+  chairCount — the one thing their engine can't know yet (chairCount is
+  synced from their operatories, so the two capacity models agree).
+  Branch-consistency is the law: list, validate, and the atomic insert
+  (`insertAppointmentIfBookable`) all decide from the same source, so a
+  slot the page offered can never be refused at submit by the OTHER
+  engine's rules. Fallbacks are honest degradation: no binding / no
+  synced providers / daily budget reached / any PMS hiccup → the local
+  hours+chairs engine answers (a degraded list beats a dead booking page;
+  the write path's refusal stays the safety net). STAFF paths keep the
+  local engine on purpose — the front desk may deliberately squeeze a
+  walk-in. The demo org (sandbox-bound) becomes the living proof: its
+  /book page now offers the sandbox practice's real Eastern-time slots.

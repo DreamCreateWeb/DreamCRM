@@ -49,6 +49,9 @@ vi.mock('@/lib/services/appointments', () => ({
 vi.mock('@/lib/services/booking', () => ({
   getSlotsForDay: vi.fn(),
   isSlotAvailable: vi.fn(),
+  getBookableSlotsForDay: vi.fn(),
+  isBookableSlot: vi.fn(),
+  insertAppointmentIfBookable: vi.fn(),
   SLOT_MINUTES: 30,
 }))
 vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn() }))

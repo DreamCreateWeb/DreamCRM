@@ -19,7 +19,7 @@ import {
   cancelAppointment,
   rescheduleAppointment,
 } from '@/lib/services/appointments'
-import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
+import { getBookableSlotsForDay, isBookableSlot, insertAppointmentIfBookable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { addToWaitlist } from '@/lib/services/appointment-waitlist'
 import { proposePaymentPlan } from '@/lib/services/payment-plans'
 import { paymentPlan, npsResponse } from '@/lib/db/schema/clinic'
@@ -69,7 +69,7 @@ function revalidateVisits() {
 export async function getPortalSlotsAction(dateKey: string): Promise<SlotsForDay> {
   const ctx = await requirePatient()
   const settings = await getPortalSettings(ctx.organizationId)
-  return getSlotsForDay(ctx.organizationId, dateKey, undefined, undefined, settings.booking.minNoticeHours)
+  return getBookableSlotsForDay(ctx.organizationId, dateKey, undefined, undefined, settings.booking.minNoticeHours)
 }
 
 export async function confirmMyVisitAction(visitId: string): Promise<PortalActionResult> {
@@ -195,7 +195,7 @@ export async function rescheduleMyVisitAction(
   }
   // The new slot must be a real opening (ignore the visit being moved so its
   // current time still counts as available).
-  const { slots } = await getSlotsForDay(ctx.organizationId, newStart, visitId)
+  const { slots } = await getBookableSlotsForDay(ctx.organizationId, newStart, visitId)
   const targetIso = newStart.toISOString()
   const free = slots.some((s) => s.startIso === targetIso && s.available)
   if (!free) return { ok: false, error: 'That time was just taken — pick another one.' }
@@ -284,7 +284,7 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   }
   const durationMinutes = visitTypeDuration(vtRow?.visitTypeSettings ?? null, type)
 
-  const free = await isSlotAvailable(ctx.organizationId, startTime, durationMinutes)
+  const free = await isBookableSlot(ctx.organizationId, startTime, durationMinutes)
   if (!free) return { ok: false, error: 'That time was just taken — pick another one.' }
 
   const notes = formData.get('notes')?.toString().trim() || ''
@@ -308,7 +308,7 @@ export async function bookMyVisitAction(formData: FormData): Promise<PortalActio
   const endTime = new Date(startTime.getTime() + Math.max(SLOT_MINUTES, durationMinutes) * 60_000)
   const apptId = randomUUID()
   // Atomic book — re-check under an advisory lock before insert (no double-book).
-  const booked = await insertAppointmentIfSlotFree(ctx.organizationId, startTime, durationMinutes, {
+  const booked = await insertAppointmentIfBookable(ctx.organizationId, startTime, durationMinutes, {
     id: apptId,
     organizationId: ctx.organizationId,
     patientId: forPatientId,

@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, eq, gte, lte, ne, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { appointment } from '@/lib/db/schema/clinic'
+import { appointment, clinicProvider, pmsConnection, pmsEntityMap } from '@/lib/db/schema/clinic'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { parseOdDateTime, formatOdDate } from './pms/datetime'
 import { CLINIC_DEFAULT_TZ, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
@@ -320,6 +320,291 @@ export async function isSlotAvailable(
  * under the lock (the caller surfaces "pick another time"). A multi-chair clinic
  * still allows up to `chairCount` concurrent bookings — the re-check honors it.
  */
+/* ── REAL SLOTS (write-back's sibling, 2026-08-12) ──────────────────────────
+ * A NexHealth-connected practice's booking surfaces offer THEIR slot
+ * engine's open times — the same source the write path validates against —
+ * so a patient can never book a time the push would refuse. Our
+ * hours+chairs engine stays for everyone else and as the fallback when the
+ * PMS is unreachable (a degraded slot list beats no booking page; the
+ * write path's refusal remains the safety net).
+ *
+ * Scope: PATIENT-FACING surfaces only (public site + portal). Staff paths
+ * keep the local engine on purpose — the front desk may deliberately
+ * squeeze a walk-in, and the write-op log carries any push refusal.
+ */
+
+const PMS_SLOTS_TTL_MS = 120_000
+const pmsSlotsCache = new Map<string, { at: number; slots: BookingSlot[] }>()
+
+interface PmsBinding {
+  subdomain: string
+  locationId: number
+  env: 'production' | 'sandbox'
+}
+
+/** The org's connected NexHealth binding, or null (= use the local engine). */
+async function resolvePmsBinding(organizationId: string): Promise<PmsBinding | null> {
+  try {
+    const [conn] = await db
+      .select({ provider: pmsConnection.provider, status: pmsConnection.status, meta: pmsConnection.meta })
+      .from(pmsConnection)
+      .where(eq(pmsConnection.organizationId, organizationId))
+      .limit(1)
+    if (!conn || conn.provider !== 'nexhealth' || conn.status !== 'connected') return null
+    const meta = (conn.meta ?? {}) as Record<string, unknown>
+    if (typeof meta.subdomain !== 'string' || typeof meta.locationId !== 'number') return null
+    return {
+      subdomain: meta.subdomain,
+      locationId: meta.locationId,
+      env: meta.env === 'sandbox' ? 'sandbox' : 'production',
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The practice's REAL open slots for one clinic-local day, sized to the
+ * visit duration by THEIR engine (slot_length — overlap-aware, verified).
+ * All active synced providers ride ONE metered call; results cache for
+ * 2 minutes so browsing patients don't spend the API budget. Returns null
+ * when the PMS can't answer (no providers synced yet, budget reached,
+ * network) — callers fall back to the local engine.
+ */
+async function fetchPmsSlotsForDay(
+  binding: PmsBinding,
+  organizationId: string,
+  dateKey: string,
+  timeZone: string,
+  durationMinutes: number,
+  opts: { bypassCache?: boolean } = {},
+): Promise<BookingSlot[] | null> {
+  const cacheKey = `${organizationId}:${dateKey}:${durationMinutes}`
+  const cached = pmsSlotsCache.get(cacheKey)
+  if (!opts.bypassCache && cached && Date.now() - cached.at < PMS_SLOTS_TTL_MS) return cached.slots
+
+  // The daily call budget applies (production only — sandbox is free): past
+  // it, the local engine carries the booking page rather than the bill.
+  if (binding.env !== 'sandbox') {
+    try {
+      const { assertPmsApiBudget } = await import('./pms/api-meter')
+      await assertPmsApiBudget(organizationId)
+    } catch {
+      return null
+    }
+  }
+
+  // Every ACTIVE synced provider — from the entity map (free; the hourly
+  // sync maintains it), never a metered listProviders call.
+  const provRows = await db
+    .select({ externalId: pmsEntityMap.externalId })
+    .from(pmsEntityMap)
+    .innerJoin(clinicProvider, eq(clinicProvider.id, pmsEntityMap.internalId))
+    .where(
+      and(
+        eq(pmsEntityMap.organizationId, organizationId),
+        eq(pmsEntityMap.entityType, 'provider'),
+        eq(clinicProvider.isActive, 1),
+      ),
+    )
+  const pids = provRows.map((r) => Number.parseInt(r.externalId, 10)).filter((n) => Number.isFinite(n))
+  if (pids.length === 0) return null
+
+  const { listAppointmentSlots } = await import('@/lib/nexhealth')
+  const { recordPmsApiCall } = await import('./pms/api-meter')
+  const raw = await listAppointmentSlots(
+    binding.subdomain,
+    binding.locationId,
+    pids,
+    dateKey,
+    // Their day boundary is practice-local; 2 days covers any tz skew
+    // between the practice zone and the clinic-profile zone.
+    2,
+    { env: binding.env, onCall: () => recordPmsApiCall(organizationId) },
+    durationMinutes,
+  )
+
+  // Merge every provider's slots: keep the requested clinic-local day,
+  // dedupe by instant, sort, label in the clinic's zone. All open by
+  // definition — their engine only returns free times.
+  const seen = new Set<number>()
+  const slots: BookingSlot[] = []
+  for (const s of raw) {
+    if (!s.time) continue
+    const start = new Date(s.time)
+    if (Number.isNaN(start.getTime())) continue
+    if (formatOdDate(start, timeZone) !== dateKey) continue
+    const t = start.getTime()
+    if (seen.has(t)) continue
+    seen.add(t)
+    slots.push({ startIso: start.toISOString(), label: fmtLabel(start, timeZone), available: true })
+  }
+  slots.sort((a, b) => a.startIso.localeCompare(b.startIso))
+  pmsSlotsCache.set(cacheKey, { at: Date.now(), slots })
+  return slots
+}
+
+/**
+ * The booking surfaces' slot source. PMS-connected → THEIR real open
+ * times; otherwise (or on any PMS hiccup) → the local hours+chairs engine.
+ * Same contract as getSlotsForDay plus `source`, so tests and callers can
+ * see which engine answered.
+ */
+export async function getBookableSlotsForDay(
+  organizationId: string,
+  date: Date | string,
+  excludeAppointmentId?: string,
+  durationMinutes?: number,
+  minNoticeHours?: number,
+): Promise<SlotsForDay & { source: 'pms' | 'local' }> {
+  const binding = await resolvePmsBinding(organizationId)
+  if (binding) {
+    try {
+      const [profile] = await db
+        .select({ timezone: clinicProfile.timezone })
+        .from(clinicProfile)
+        .where(eq(clinicProfile.organizationId, organizationId))
+        .limit(1)
+      const timeZone = profile?.timezone?.trim() || CLINIC_DEFAULT_TZ
+      const dateKey =
+        typeof date === 'string' && DATE_KEY_RE.test(date)
+          ? date
+          : formatOdDate(date instanceof Date ? date : new Date(date), timeZone)
+      const duration =
+        durationMinutes && Number.isFinite(durationMinutes) && durationMinutes > 0
+          ? Math.round(durationMinutes)
+          : SLOT_MINUTES
+      const raw = await fetchPmsSlotsForDay(binding, organizationId, dateKey, timeZone, duration)
+      if (raw) {
+        const earliestBookable =
+          minNoticeHours && Number.isFinite(minNoticeHours) && minNoticeHours > 0
+            ? Date.now() + minNoticeHours * 3_600_000
+            : Date.now()
+        const slots = raw.filter((s) => new Date(s.startIso).getTime() >= earliestBookable)
+        // Their engine returns only OPEN times, so an empty day can mean
+        // closed OR fully booked — 'day_closed' renders the honest "no
+        // openings this day" copy either way; all-filtered means the
+        // remaining openings were simply too soon.
+        const closedReason: SlotsClosedReason | null =
+          slots.length > 0 ? null : raw.length === 0 ? 'day_closed' : 'past_closing'
+        return { slots, closedReason, source: 'pms' }
+      }
+    } catch (e) {
+      console.warn('[booking] PMS slots unavailable — local engine answering:', e)
+    }
+  }
+  const local = await getSlotsForDay(organizationId, date, excludeAppointmentId, durationMinutes, minNoticeHours)
+  return { ...local, source: 'local' }
+}
+
+/**
+ * The submit-time guard for patient-facing bookings, branch-consistent with
+ * getBookableSlotsForDay (a slot the page offered must not be refused at
+ * submit by the OTHER engine's rules). PMS branch: a FRESH slot read (cache
+ * bypassed — this decides a write) plus the local overlap check, which
+ * catches a booking made here moments ago that hasn't pushed to the PMS
+ * yet. chairCount is synced from their operatories, so the two capacity
+ * models agree for these orgs. PMS unreachable at submit → local rules (a
+ * degraded check beats a dead booking form; their server still refuses
+ * true double-books at push time).
+ */
+export async function isBookableSlot(
+  organizationId: string,
+  startTime: Date,
+  durationMinutes?: number,
+  excludeAppointmentId?: string,
+  minNoticeHours?: number,
+): Promise<boolean> {
+  const binding = await resolvePmsBinding(organizationId)
+  if (binding) {
+    try {
+      const [profile] = await db
+        .select({ timezone: clinicProfile.timezone })
+        .from(clinicProfile)
+        .where(eq(clinicProfile.organizationId, organizationId))
+        .limit(1)
+      const timeZone = profile?.timezone?.trim() || CLINIC_DEFAULT_TZ
+      const dateKey = formatOdDate(startTime, timeZone)
+      const duration =
+        durationMinutes && Number.isFinite(durationMinutes) && durationMinutes > 0
+          ? Math.round(durationMinutes)
+          : SLOT_MINUTES
+      const slots = await fetchPmsSlotsForDay(binding, organizationId, dateKey, timeZone, duration, {
+        bypassCache: true,
+      })
+      if (slots) {
+        if (minNoticeHours && startTime.getTime() < Date.now() + minNoticeHours * 3_600_000) return false
+        const target = startTime.toISOString()
+        if (!slots.some((s) => s.startIso === target)) return false
+        return localCapacityOpen(organizationId, startTime, duration, excludeAppointmentId)
+      }
+    } catch (e) {
+      console.warn('[booking] PMS submit-check unavailable — local rules deciding:', e)
+    }
+  }
+  return isSlotAvailable(organizationId, startTime, durationMinutes, excludeAppointmentId, minNoticeHours)
+}
+
+/** Local not-yet-pushed bookings still consume capacity — the one thing the
+ *  PMS can't know about yet. Overlap-vs-chairs only; no hours check (the
+ *  PMS owns hours truth on this branch). */
+async function localCapacityOpen(
+  organizationId: string,
+  startTime: Date,
+  durationMinutes: number,
+  excludeAppointmentId?: string,
+): Promise<boolean> {
+  const [profile] = await db
+    .select({ chairCount: clinicProfile.chairCount })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, organizationId))
+    .limit(1)
+  const chairCount = normalizeChairCount(profile?.chairCount)
+  const windowMs = Math.max(SLOT_MS, durationMinutes * 60_000)
+  const startMs = startTime.getTime()
+  const fetchFrom = new Date(startMs - 12 * 60 * 60 * 1000)
+  const filters = [
+    eq(appointment.organizationId, organizationId),
+    gte(appointment.startTime, fetchFrom),
+    lte(appointment.startTime, new Date(startMs + windowMs)),
+  ]
+  if (excludeAppointmentId) filters.push(ne(appointment.id, excludeAppointmentId))
+  const rows = await db
+    .select({ startTime: appointment.startTime, endTime: appointment.endTime, status: appointment.status })
+    .from(appointment)
+    .where(and(...filters))
+  let n = 0
+  for (const b of rows) {
+    if (b.status === 'cancelled' || b.status === 'no_show') continue
+    const bStart = new Date(b.startTime).getTime()
+    const bEnd = b.endTime ? new Date(b.endTime).getTime() : bStart + SLOT_MS
+    if (startMs < bEnd && startMs + windowMs > bStart) n += 1
+  }
+  return n < chairCount
+}
+
+/**
+ * The patient-facing sibling of insertAppointmentIfSlotFree: same advisory
+ * lock, but the free-check is branch-consistent (isBookableSlot). Public
+ * site + portal use this; staff paths keep the local variant.
+ */
+export async function insertAppointmentIfBookable(
+  organizationId: string,
+  startTime: Date,
+  durationMinutes: number | undefined,
+  values: typeof appointment.$inferInsert,
+  excludeAppointmentId?: string,
+): Promise<boolean> {
+  const lockText = `appt:${organizationId}:${startTime.toISOString()}`
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockText}))`)
+    const free = await isBookableSlot(organizationId, startTime, durationMinutes, excludeAppointmentId)
+    if (!free) return false
+    await tx.insert(appointment).values(values)
+    return true
+  })
+}
+
 export async function insertAppointmentIfSlotFree(
   organizationId: string,
   startTime: Date,

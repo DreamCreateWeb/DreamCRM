@@ -12,7 +12,7 @@ import { getPortalSettings } from '@/lib/services/portal-settings'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
-import { getSlotsForDay, isSlotAvailable, insertAppointmentIfSlotFree, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
+import { getBookableSlotsForDay, isBookableSlot, insertAppointmentIfBookable, SLOT_MINUTES, type SlotsForDay } from '@/lib/services/booking'
 import { visitTypeDuration, visitTypeDepositCents } from '@/lib/types/visit-types'
 import { createBookingDepositSession } from '@/lib/services/booking-deposits'
 import { getDefaultFormTemplate } from '@/lib/services/forms'
@@ -346,11 +346,11 @@ export async function listBookingSlots(
   // patient-facing booking (FINISHING Class 6: public booking used to skip it).
   const { booking } = await getPortalSettings(orgId)
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
-    return getSlotsForDay(orgId, dateIso, undefined, durationMinutes, booking.minNoticeHours)
+    return getBookableSlotsForDay(orgId, dateIso, undefined, durationMinutes, booking.minNoticeHours)
   }
   const date = new Date(dateIso)
   if (isNaN(date.getTime())) return { slots: [], closedReason: 'invalid_hours' }
-  return getSlotsForDay(orgId, date, undefined, durationMinutes, booking.minNoticeHours)
+  return getBookableSlotsForDay(orgId, date, undefined, durationMinutes, booking.minNoticeHours)
 }
 
 /**
@@ -523,7 +523,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   // Race-condition guard — between page load and submit, someone else
   // could have grabbed the same slot. Re-check against the live calendar
   // across the whole visit window (respecting the clinic's chair count).
-  const stillFree = await isSlotAvailable(orgId, startTime, durationMinutes)
+  const stillFree = await isBookableSlot(orgId, startTime, durationMinutes)
   if (!stillFree) {
     throw new Error('That slot is no longer available — please pick another time.')
   }
@@ -567,7 +567,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   const apptId = randomUUID()
   // Atomic book: re-checks availability under an advisory lock before inserting,
   // so two patients submitting the same last-open slot can't both get it.
-  const booked = await insertAppointmentIfSlotFree(orgId, startTime, durationMinutes, {
+  const booked = await insertAppointmentIfBookable(orgId, startTime, durationMinutes, {
     id: apptId,
     organizationId: orgId,
     patientId,

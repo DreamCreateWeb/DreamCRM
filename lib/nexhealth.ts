@@ -76,12 +76,17 @@ export interface NexRequestOpts {
 /** One GET against the API, with a single re-mint retry on 401. */
 export async function nexGet<T = unknown>(
   path: string,
-  params: Record<string, string | number | undefined>,
+  params: Record<string, string | number | Array<string | number> | undefined>,
   opts: NexRequestOpts = {},
 ): Promise<{ data: T | null; count: number | null }> {
   const env = opts.env ?? 'production'
   const qs = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) if (v !== undefined) qs.set(k, String(v))
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined) continue
+    // Array values repeat the key (NexHealth's pids[]/lids[] style).
+    if (Array.isArray(v)) for (const item of v) qs.append(k, String(item))
+    else qs.set(k, String(v))
+  }
   const url = `${BASE_URL}/${path}?${qs.toString()}`
 
   const countCall = async () => {
@@ -339,19 +344,26 @@ export interface NexSlot {
 export async function listAppointmentSlots(
   subdomain: string,
   locationId: number,
-  providerId: number,
+  providerIds: number | number[],
   startDate: string, // YYYY-MM-DD
   days: number,
   opts: NexRequestOpts = {},
+  /** Slot size in minutes — their engine returns overlap-aware slots of
+   *  exactly this length (verified 2026-08-12), so a 30-minute visit never
+   *  needs client-side consecutive-slot math. */
+  slotLength?: number,
 ): Promise<NexSlot[]> {
+  const pids = Array.isArray(providerIds) ? providerIds : [providerIds]
+  if (pids.length === 0) return []
   const { data } = await nexGet<Array<{ lid?: number; pid?: number; slots?: NexSlot[] }>>(
     'appointment_slots',
     {
       subdomain,
       'lids[]': locationId,
-      'pids[]': providerId,
+      'pids[]': pids,
       start_date: startDate,
       days,
+      ...(slotLength ? { slot_length: slotLength } : {}),
     },
     opts,
   )
