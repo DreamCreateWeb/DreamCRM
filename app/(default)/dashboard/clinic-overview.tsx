@@ -318,6 +318,8 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       // The capability is automatic AT ALL — the consent checkbox's gate, so
       // a card the machine won't act on never re-asks for a standing trust.
       capabilityGranted: grantedSet.has(p.capability),
+      // When the card retires itself — the queue rail's urgency dot.
+      expiresAt: p.expiresAt ?? null,
       // Patient mail waits for daylight, so "within the hour" would be a lie
       // in the evening (round-2 audit).
       waitsForMorning:

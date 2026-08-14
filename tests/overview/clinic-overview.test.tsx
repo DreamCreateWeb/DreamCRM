@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -109,6 +109,7 @@ vi.mock('next/navigation', async (orig) => ({
 }))
 
 import ClinicOverview from '@/app/(default)/dashboard/clinic-overview'
+import { expiryTone } from '@/app/(default)/dashboard/approval-inbox'
 import type { TenantContext } from '@/lib/auth/context'
 import type { ClinicOverviewData } from '@/lib/services/clinic-overview'
 
@@ -1440,5 +1441,121 @@ describe('the weekly standup card on the Overview', () => {
     render(ui)
     expect(screen.queryByText('What I got done last week')).not.toBeInTheDocument()
     expect(screen.getByText(/appointment reminders are switched off/)).toBeInTheDocument()
+  })
+})
+
+/**
+ * THE SIGN-HERE STACK (owner-chosen shape, 2026-08-14): one card
+ * front-and-center, a queue rail of chips, skip/jump/see-all. THE
+ * INVARIANT these whole-DOM tests assert: every undecided card stays
+ * MOUNTED (CSS-hidden, never unmounted — the settings-tabs law), so
+ * per-card state (edits, an uploaded photo, an armed decline) survives
+ * skipping away and back. Anyone who "optimizes" the stack into
+ * mount-one-at-a-time starts wiping in-progress work — these tests are
+ * the tripwire.
+ */
+describe('the sign-here stack', () => {
+  const stackProposal = (n: number) => ({
+    id: `prop_stack_${n}`,
+    capability: 'social_post',
+    capabilityLabel: 'Publish social & Google posts',
+    patientId: null,
+    title: `Stack card ${n}`,
+    body: `Stack body ${n}`,
+    payload: {},
+    status: 'open',
+    createdAt: new Date('2026-05-19T10:00:00Z'),
+    expiresAt: null,
+  })
+
+  async function renderStack(n: number) {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce(Array.from({ length: n }, (_, i) => stackProposal(i + 1)))
+    const ui = await ClinicOverview({ ctx: makeCtx() })
+    return render(ui)
+  }
+
+  it('shows ONE card focused with the rest mounted-but-hidden, and an honest counter', async () => {
+    await renderStack(3)
+    expect(
+      screen.getByText((_, el) => el?.tagName === 'SPAN' && /^1 of 3$/.test(el.textContent?.replace(/\s+/g, ' ').trim() ?? '')),
+    ).toBeInTheDocument()
+    // Card 1 focused (not inside a hidden wrapper); cards 2-3 hidden but IN THE DOM.
+    expect(screen.getByText('Stack body 1').closest('.hidden')).toBeNull()
+    expect(screen.getByText('Stack body 2').closest('.hidden')).not.toBeNull()
+    expect(screen.getByText('Stack body 3').closest('.hidden')).not.toBeNull()
+  })
+
+  it('approving advances focus to the next card and quiets the decided chip', async () => {
+    await renderStack(3)
+    fireEvent.click(screen.getAllByRole('button', { name: /approve — send it/i })[0])
+    await waitFor(() => {
+      expect(screen.getByText('Stack body 2').closest('.hidden')).toBeNull()
+    })
+    expect(screen.queryByText('Stack body 1')).toBeNull() // decided → leaves the DOM as before
+    expect(screen.getByRole('button', { name: 'Decided: Stack card 1' })).toBeDisabled()
+  })
+
+  it('SKIP never approves or declines — it just moves focus, cycling', async () => {
+    await renderStack(2)
+    fireEvent.click(screen.getByRole('button', { name: /skip for now/i }))
+    expect(mockApproveAction).not.toHaveBeenCalled()
+    expect(mockDeclineAction).not.toHaveBeenCalled()
+    expect(screen.getByText('Stack body 2').closest('.hidden')).toBeNull()
+    expect(screen.getByText('Stack body 1').closest('.hidden')).not.toBeNull()
+    // Skipping past the end wraps back to the first undecided.
+    fireEvent.click(screen.getByRole('button', { name: /skip for now/i }))
+    expect(screen.getByText('Stack body 1').closest('.hidden')).toBeNull()
+  })
+
+  it('an in-progress edit SURVIVES skipping away and chip-jumping back (the mounted invariant)', async () => {
+    await renderStack(2)
+    fireEvent.click(screen.getAllByRole('button', { name: /edit first/i })[0])
+    fireEvent.change(screen.getAllByLabelText('Edit the drafted text')[0], {
+      target: { value: 'My half-finished rewrite' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /skip for now/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to: Stack card 1' }))
+    // Card 1 is still in EDIT MODE with the half-typed rewrite intact — the
+    // exact state a mount-one-at-a-time "optimization" would have wiped.
+    expect(screen.getByDisplayValue('My half-finished rewrite')).toBeInTheDocument()
+  })
+
+  it('"See all" expands to the grid (nothing hidden) and back, preserving state', async () => {
+    await renderStack(3)
+    fireEvent.click(screen.getByRole('button', { name: /see all 3/i }))
+    for (const n of [1, 2, 3]) {
+      expect(screen.getByText(`Stack body ${n}`).closest('.hidden')).toBeNull()
+    }
+    fireEvent.click(screen.getByRole('button', { name: /one at a time/i }))
+    expect(screen.getByText('Stack body 1').closest('.hidden')).toBeNull()
+    expect(screen.getByText('Stack body 2').closest('.hidden')).not.toBeNull()
+  })
+
+  it('a single card renders with no rail — no counter, no skip, no see-all', async () => {
+    await renderStack(1)
+    expect(
+      screen.queryByText((_, el) => el?.tagName === 'SPAN' && /^1 of 1$/.test(el.textContent?.replace(/\s+/g, ' ').trim() ?? '')),
+    ).toBeNull()
+    expect(screen.queryByRole('button', { name: /skip for now/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /see all/i })).toBeNull()
+    expect(screen.getByText('Stack body 1')).toBeInTheDocument()
+  })
+
+  it('deciding the last card shows the warm completion note', async () => {
+    await renderStack(1)
+    fireEvent.click(screen.getByRole('button', { name: /approve — send it/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/That’s all of them — nothing else is waiting on your yes\./)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/I’ll bring the next batch here as it’s ready\./)).toBeInTheDocument()
+  })
+
+  it('expiryTone: an imminent expiry earns a tone dot, a far one earns silence', () => {
+    const now = new Date('2026-08-14T12:00:00Z')
+    expect(expiryTone(null, now)).toBeNull()
+    expect(expiryTone(new Date('2026-08-14T20:00:00Z'), now)).toBe('urgent') // 8h
+    expect(expiryTone(new Date('2026-08-16T12:00:00Z'), now)).toBe('warn') // 48h
+    expect(expiryTone(new Date('2026-08-24T12:00:00Z'), now)).toBeNull() // 10d
   })
 })

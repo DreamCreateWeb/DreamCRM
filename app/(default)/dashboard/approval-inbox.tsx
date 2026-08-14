@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
+import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { SMS_ENTITY_TYPES } from '@/lib/sms-registration'
 import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
 import { uploadFileWithProgress, UploadCancelledError } from '@/lib/upload-with-progress'
@@ -81,6 +82,8 @@ export interface ProposalCardData {
    *  in its platform's chrome, an email as an email, a reply under its
    *  review). Null → the plain-paragraph fallback. */
   artifact?: ProposalArtifact | null
+  /** When this card retires itself — drives the queue rail's urgency dot. */
+  expiresAt?: Date | null
 }
 
 const CAPABILITY_ICON: Record<string, string> = {
@@ -93,6 +96,8 @@ const CAPABILITY_ICON: Record<string, string> = {
   setup_chairs: '🪑',
   setup_booking_mode: '📅',
   setup_texting: '💬',
+  content_plan: '🗂️',
+  schedule_gap: '🌤️',
 }
 
 /** Substitute the campaign merge tokens with a readable sample so the card
@@ -104,6 +109,17 @@ export function renderTokenSample(text: string): string {
 }
 
 const HAS_TOKENS = /\{\{(firstName|bookingUrl)\}\}/
+
+/** The queue rail's urgency dot: a card about to retire itself deserves a
+ *  quiet tone mark (never the brand hue — tones carry meaning). Pure;
+ *  exported for tests. */
+export function expiryTone(expiresAt: Date | null | undefined, now: Date = new Date()): Tone | null {
+  if (!expiresAt) return null
+  const ms = expiresAt.getTime() - now.getTime()
+  if (ms <= 24 * 60 * 60 * 1000) return 'urgent'
+  if (ms <= 72 * 60 * 60 * 1000) return 'warn'
+  return null
+}
 
 /** How many of a capability's autonomous entries the strip names before it
  *  clamps and says how many it is holding back. Generous on purpose: the
@@ -163,13 +179,82 @@ export default function ApprovalInbox({
 }) {
   const [gone, setGone] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
+  // ── THE SIGN-HERE STACK (owner-chosen shape, 2026-08-14) ────────────────
+  // One card front-and-center at a time — the soonest-to-expire first, the
+  // order the list already arrives in — with a queue rail of chips and a
+  // "See all" escape back to the grid. The employee hands you one paper at
+  // a time to sign.
+  //
+  // THE LOAD-BEARING RENDER DECISION: every undecided card stays MOUNTED
+  // (CSS-hidden, never unmounted — the settings-tabs law). Per-card state
+  // (an in-progress edit, an uploaded photo, an armed decline) survives
+  // skipping away and back; the whole-DOM tests assert this on purpose.
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const [viewAll, setViewAll] = useState(false)
+  const [entered, setEntered] = useState(true)
+  // sessionStorage read happens in an EFFECT, never a lazy initializer —
+  // the server renders stack-mode, and a mismatched first client render
+  // would be a hydration error (morning-reveal's own rule).
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('approval-inbox-see-all') === '1') setViewAll(true)
+    } catch {
+      /* private mode — default stack */
+    }
+  }, [])
   const visible = proposals.filter((p) => !gone.has(p.id))
+  // Stale focus (decided card, or a server refresh removed it) falls to the
+  // head of the queue — the soonest-to-expire card.
+  const focused = visible.find((p) => p.id === focusId) ?? visible[0] ?? null
+  // The advance transition: two-phase rAF, transform/opacity only, 200ms —
+  // the sanctioned morning-reveal recipe, scoped to one card. Reduced
+  // motion snaps.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    setEntered(false)
+    const raf = requestAnimationFrame(() => setEntered(true))
+    return () => cancelAnimationFrame(raf)
+  }, [focused?.id])
+
+  /** The next undecided card after `id` in queue order, cycling; `alsoGone`
+   *  lets a decision exclude itself before state lands. */
+  function nextUndecidedAfter(id: string, alsoGone?: string): string | null {
+    const dead = alsoGone ? new Set(gone).add(alsoGone) : gone
+    const i = proposals.findIndex((p) => p.id === id)
+    for (let k = 1; k <= proposals.length; k++) {
+      const p = proposals[(i + k) % proposals.length]
+      if (!dead.has(p.id)) return p.id
+    }
+    return null
+  }
+
   if (visible.length === 0) {
     // The strip stays even with no cards — a granted capability produces
     // no cards, and the way back to asking must never disappear with them.
+    // When cards existed THIS render (all decided client-side just now), a
+    // modest completion note marks the moment — it collapses to nothing on
+    // the next server render, and is deliberately not a third signature
+    // moment.
+    const hadHidden = (totalOpen ?? proposals.length) > proposals.length
     return (
       <>
         {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+        {proposals.length > 0 && (
+          <div className="mb-8 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2,white)] p-6 text-center ring-1 ring-[color:var(--color-hairline)]">
+            <p className="text-2xl" aria-hidden="true">
+              🌤️
+            </p>
+            <p className="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+              That’s all of them — nothing else is waiting on your yes.
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {hadHidden
+                ? 'A few more are queuing up — they’ll appear here shortly.'
+                : 'I’ll bring the next batch here as it’s ready.'}
+            </p>
+          </div>
+        )}
         {(grants.length > 0 || autonomousWork.length > 0) && (
           <GrantsStrip
             grants={grants}
@@ -210,25 +295,157 @@ export default function ApprovalInbox({
           </p>
         )}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {visible.map((p) => (
-          <ProposalCard
-            key={p.id}
-            proposal={p}
-            alreadyGranted={p.machineHandles ?? grantedSet.has(p.capability)}
-            isDemo={isDemo}
-            clinicName={clinicName}
-            onDone={(id, message) => {
-              setGone((s) => new Set(s).add(id))
-              if (message) setToast(message)
-            }}
-          />
-        ))}
+      {proposals.length > 1 && (
+        <QueueRail
+          proposals={proposals}
+          gone={gone}
+          focusedId={focused?.id ?? null}
+          grantedSet={grantedSet}
+          viewAll={viewAll}
+          onJump={(id) => setFocusId(id)}
+          onSkip={() => {
+            if (focused) setFocusId(nextUndecidedAfter(focused.id))
+          }}
+          onToggleView={() => {
+            setViewAll((v) => {
+              const next = !v
+              try {
+                sessionStorage.setItem('approval-inbox-see-all', next ? '1' : '0')
+              } catch {
+                /* private mode */
+              }
+              return next
+            })
+          }}
+        />
+      )}
+      <div className={viewAll ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : 'mx-auto w-full max-w-2xl'}>
+        {visible.map((p) => {
+          const isFocused = !viewAll && p.id === focused?.id
+          return (
+            <div
+              key={p.id}
+              className={viewAll || isFocused ? undefined : 'hidden'}
+              style={
+                isFocused
+                  ? {
+                      opacity: entered ? 1 : 0,
+                      transform: entered ? 'translateY(0)' : 'translateY(8px)',
+                      transition:
+                        'opacity var(--dur-base, 200ms) var(--ease-out, ease-out), transform var(--dur-base, 200ms) var(--ease-out, ease-out)',
+                    }
+                  : undefined
+              }
+            >
+              <ProposalCard
+                proposal={p}
+                alreadyGranted={p.machineHandles ?? grantedSet.has(p.capability)}
+                isDemo={isDemo}
+                clinicName={clinicName}
+                onDone={(id, message) => {
+                  setGone((s) => new Set(s).add(id))
+                  if (message) setToast(message)
+                  setFocusId(nextUndecidedAfter(id, id))
+                }}
+              />
+            </div>
+          )
+        })}
       </div>
       {(grants.length > 0 || autonomousWork.length > 0) && (
         <GrantsStrip grants={grants} work={autonomousWork} isDemo={isDemo} onToast={setToast} />
       )}
     </section>
+  )
+}
+
+/**
+ * The sign-here stack's queue rail: "2 of 5", one chip per card (in queue
+ * order — decided ones stay as quiet ✓s so progress is visible), Skip, and
+ * the See-all escape hatch. Chips jump focus; the teal ring is SELECTION
+ * (identity usage, same as call mode's current-call ring), the tiny tone
+ * dot is a soon-to-expire mark (tones carry meaning; the brand hue never
+ * does), and machine-handled chips wear the same sky tint as the card's
+ * "I'm handling this one" pill so the mark reads as one vocabulary.
+ */
+function QueueRail({
+  proposals,
+  gone,
+  focusedId,
+  grantedSet,
+  viewAll,
+  onJump,
+  onSkip,
+  onToggleView,
+}: {
+  proposals: ProposalCardData[]
+  gone: Set<string>
+  focusedId: string | null
+  grantedSet: Set<string>
+  viewAll: boolean
+  onJump: (id: string) => void
+  onSkip: () => void
+  onToggleView: () => void
+}) {
+  const remaining = proposals.filter((p) => !gone.has(p.id))
+  const pos = focusedId ? Math.max(1, proposals.findIndex((p) => p.id === focusedId) + 1) : 1
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      {!viewAll && (
+        <span className="whitespace-nowrap font-mono-num text-xs font-bold text-gray-700 dark:text-gray-200">
+          {pos} <span className="font-normal text-gray-400 dark:text-gray-500">of {proposals.length}</span>
+        </span>
+      )}
+      <div className="flex flex-1 flex-wrap items-center gap-1.5" aria-label="The queue">
+        {proposals.map((p) => {
+          const decided = gone.has(p.id)
+          const isFocused = !viewAll && p.id === focusedId
+          const machine = p.machineHandles ?? grantedSet.has(p.capability)
+          const tone = decided ? null : expiryTone(p.expiresAt)
+          return (
+            <button
+              key={p.id}
+              type="button"
+              disabled={decided}
+              onClick={() => onJump(p.id)}
+              aria-label={decided ? `Decided: ${p.title}` : `Jump to: ${p.title}`}
+              aria-current={isFocused ? 'true' : undefined}
+              title={p.title}
+              className={[
+                'inline-flex h-7 min-w-7 items-center justify-center gap-1 rounded-full px-1.5 text-sm',
+                'transition-transform [transition-duration:var(--dur-fast,140ms)] [transition-timing-function:var(--spring-pop,ease-out)]',
+                isFocused
+                  ? 'bg-white dark:bg-gray-800 ring-2 ring-teal-500 scale-105'
+                  : decided
+                    ? 'bg-[color:var(--color-surface-sunk)] opacity-50'
+                    : machine
+                      ? 'bg-sky-50 dark:bg-sky-500/10 hover:scale-105'
+                      : 'bg-[color:var(--color-surface-sunk)] hover:scale-105',
+              ].join(' ')}
+            >
+              <span aria-hidden="true">{decided ? '✓' : (CAPABILITY_ICON[p.capability] ?? '✨')}</span>
+              {tone && <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[tone]}`} />}
+            </button>
+          )
+        })}
+      </div>
+      {!viewAll && remaining.length > 1 && (
+        <button
+          type="button"
+          onClick={onSkip}
+          className="whitespace-nowrap text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          Skip for now →
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onToggleView}
+        className="whitespace-nowrap text-xs font-medium text-gray-500 dark:text-gray-400 underline decoration-dotted underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
+      >
+        {viewAll ? 'One at a time' : `See all ${proposals.length}`}
+      </button>
+    </div>
   )
 }
 
