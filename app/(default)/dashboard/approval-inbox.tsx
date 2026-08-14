@@ -6,6 +6,7 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
 import { SMS_ENTITY_TYPES } from '@/lib/sms-registration'
 import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
+import { uploadFileWithProgress, UploadCancelledError } from '@/lib/upload-with-progress'
 import {
   SocialArtifact,
   EmailArtifact,
@@ -423,6 +424,31 @@ function ProposalCard({
     brandContactName: '',
     brandContactEmail: '',
   })
+  // Staff-attached photo for a social card (owner-caught gap: an approved
+  // post published imageless with no way to add one). Uploaded through the
+  // composer's own storage path; the preview renders it live, the approve
+  // carries its URL.
+  const [image, setImage] = useState<string | null>(null)
+  const [imageUploading, setImageUploading] = useState(false)
+  const [imagePct, setImagePct] = useState(0)
+  const [imageError, setImageError] = useState<string | null>(null)
+
+  async function onPickImage(file: File | null) {
+    if (!file || imageUploading) return
+    setImageError(null)
+    setImageUploading(true)
+    setImagePct(0)
+    try {
+      const url = await uploadFileWithProgress(file, 'social-posts', setImagePct).promise
+      setImage(url)
+    } catch (err) {
+      if (!(err instanceof UploadCancelledError)) {
+        setImageError(err instanceof Error ? err.message : 'Upload failed — try again.')
+      }
+    } finally {
+      setImageUploading(false)
+    }
+  }
   // The send APPENDS a booking button for these capabilities when the body
   // doesn't place the link itself — say so on the card, because "what the
   // card shows is what sends" must be literally true (verification round:
@@ -480,6 +506,7 @@ function ProposalCard({
               ? { subject }
               : {}),
             ...(setupAnswer !== undefined ? { answer: setupAnswer } : {}),
+            ...(image && proposal.capability === 'social_post' ? { imageUrl: image } : {}),
           })
         : declineProposalAction({ proposalId: proposal.id })
       ).catch(() => ({
@@ -638,7 +665,43 @@ function ProposalCard({
             clinicName={clinicName}
           />
         ) : artifact?.kind === 'social' ? (
-          <SocialArtifact body={body} clinicName={clinicName} channel={artifact.channel} />
+          <div>
+            <SocialArtifact body={body} clinicName={clinicName} channel={artifact.channel} imageUrl={image} />
+            <div className="mt-2 flex items-center gap-3">
+              <label className="text-xs font-medium text-sky-700 dark:text-sky-300 cursor-pointer hover:underline">
+                {imageUploading
+                  ? `Uploading… ${imagePct}%`
+                  : image
+                    ? 'Change photo'
+                    : 'Add a photo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={pending || imageUploading}
+                  onChange={(e) => {
+                    void onPickImage(e.target.files?.[0] ?? null)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              {image && !imageUploading && (
+                <button
+                  type="button"
+                  onClick={() => setImage(null)}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+                >
+                  Remove photo
+                </button>
+              )}
+              {!image && !imageUploading && (
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  Posts without one — exactly as shown.
+                </span>
+              )}
+            </div>
+            {imageError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{imageError}</p>}
+          </div>
         ) : artifact?.kind === 'plan' ? (
           <PlanArtifact items={artifact.items} clinicName={clinicName} channel={artifact.channel} />
         ) : artifact?.kind === 'email' ? (

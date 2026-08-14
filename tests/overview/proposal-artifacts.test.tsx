@@ -116,3 +116,17 @@ describe('GbpFixArtifact', () => {
     expect(screen.getByText('https://acme.dental')).toBeInTheDocument()
   })
 })
+
+describe('SocialArtifact with a photo', () => {
+  it('renders the attached image in the preview — what the card shows is what publishes', () => {
+    render(
+      <SocialArtifact
+        body="Say cheese."
+        clinicName="Acme Dental"
+        channel={null}
+        imageUrl="https://cdn.example.io/smile.jpg"
+      />,
+    )
+    expect(screen.getByAltText('Attached photo')).toHaveAttribute('src', 'https://cdn.example.io/smile.jpg')
+  })
+})

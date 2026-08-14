@@ -700,7 +700,7 @@ export async function approveProposal(
   organizationId: string,
   proposalId: string,
   userId: string,
-  opts: { body?: string; subject?: string; answer?: string } = {},
+  opts: { body?: string; subject?: string; answer?: string; imageUrl?: string } = {},
 ): Promise<DecideResult> {
   return decideAndExecute(organizationId, proposalId, { kind: 'human', userId }, opts)
 }
@@ -723,7 +723,7 @@ async function decideAndExecute(
   organizationId: string,
   proposalId: string,
   actor: DecisionActor,
-  opts: { body?: string; subject?: string; answer?: string } = {},
+  opts: { body?: string; subject?: string; answer?: string; imageUrl?: string } = {},
 ): Promise<DecideResult> {
   // Structured ANSWER (setup asks — onboarding overhaul): a short typed value
   // the card collects ("3" chairs, "requests" vs "direct"). Rides the payload
@@ -748,6 +748,36 @@ async function decideAndExecute(
       await db
         .update(schema.proposal)
         .set({ payload: { ...payload, answer }, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.proposal.organizationId, organizationId),
+            eq(schema.proposal.id, proposalId),
+            eq(schema.proposal.status, 'open'),
+          ),
+        )
+    }
+  }
+  // ATTACHED IMAGE (owner-caught 2026-08-13: a social card could publish an
+  // imageless post with no way to add one). The card uploads through the
+  // composer's own storage path and sends the URL here; it rides the payload
+  // pre-claim exactly like the answer, so the executor publishes exactly
+  // what the preview showed. Validated the same way createSocialPost does —
+  // a bad URL must fail the approve, not the publish.
+  const imageUrl = opts.imageUrl?.trim()
+  if (opts.imageUrl !== undefined && imageUrl) {
+    if (!/^https?:\/\//i.test(imageUrl) || imageUrl.length > 2000) {
+      return { ok: false, error: 'That photo didn’t attach cleanly — try uploading it again.' }
+    }
+    const [current] = await db
+      .select({ payload: schema.proposal.payload })
+      .from(schema.proposal)
+      .where(and(eq(schema.proposal.organizationId, organizationId), eq(schema.proposal.id, proposalId)))
+      .limit(1)
+    if (current) {
+      const payload = (current.payload ?? {}) as Record<string, unknown>
+      await db
+        .update(schema.proposal)
+        .set({ payload: { ...payload, imageUrl }, updatedAt: new Date() })
         .where(
           and(
             eq(schema.proposal.organizationId, organizationId),
@@ -1528,6 +1558,10 @@ async function executeSocialPost(
       postType: 'standard',
       summary: p.body,
       accountIds,
+      // Staff-attached photo (rides the payload pre-claim; the preview
+      // showed it, so the publish carries it — what the card shows is what
+      // sends). Absent → text-only, exactly as previewed.
+      imageUrl: str(payload.imageUrl),
     },
     {
       // Stamp the link the MOMENT the rows persist, before any network

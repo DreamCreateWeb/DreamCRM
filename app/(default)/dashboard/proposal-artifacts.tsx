@@ -37,10 +37,10 @@ export type ProposalArtifact =
   | { kind: 'plan'; items: PlanArtifactItem[]; channel: ArtifactChannel | null }
   | { kind: 'gbp'; targetUrl: string; previousUri: string | null }
 
-function postContent(body: string, clinicName: string): PreviewContent {
+function postContent(body: string, clinicName: string, imageUrl: string | null): PreviewContent {
   return {
     summary: body,
-    imageUrl: null,
+    imageUrl,
     clinicName,
     postType: 'standard',
     ctaLabel: null,
@@ -56,10 +56,13 @@ export function SocialArtifact({
   body,
   clinicName,
   channel,
+  imageUrl = null,
 }: {
   body: string
   clinicName: string
   channel: ArtifactChannel | null
+  /** Staff-attached photo — the preview shows exactly what will publish. */
+  imageUrl?: string | null
 }) {
   if (channel) {
     const pc: PreviewChannel = {
@@ -68,15 +71,23 @@ export function SocialArtifact({
       label: channel.label,
       handle: channel.handle,
     }
-    const card = <PlatformPostCard channel={pc} content={postContent(body, clinicName)} />
+    const card = <PlatformPostCard channel={pc} content={postContent(body, clinicName, imageUrl)} />
     if (card !== null) {
       return <div className="max-w-sm">{card}</div>
     }
   }
-  return <GenericFeedCard body={body} clinicName={clinicName} />
+  return <GenericFeedCard body={body} clinicName={clinicName} imageUrl={imageUrl} />
 }
 
-function GenericFeedCard({ body, clinicName }: { body: string; clinicName: string }) {
+function GenericFeedCard({
+  body,
+  clinicName,
+  imageUrl = null,
+}: {
+  body: string
+  clinicName: string
+  imageUrl?: string | null
+}) {
   const initial = clinicName.replace(/[^A-Za-z]/g, '').charAt(0).toUpperCase() || 'C'
   return (
     <div className="max-w-sm rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3">
@@ -93,6 +104,10 @@ function GenericFeedCard({ body, clinicName }: { body: string; clinicName: strin
         </div>
       </div>
       <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{body}</p>
+      {imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="Attached photo" className="mt-2 w-full rounded-lg object-cover max-h-64" />
+      )}
     </div>
   )
 }

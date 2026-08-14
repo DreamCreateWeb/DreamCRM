@@ -27,6 +27,9 @@ export async function approveProposalAction(input: {
   /** A setup ask's typed answer (chair count, booking mode) — the executor
    *  validates it; the card collects it. */
   answer?: string
+  /** A staff-attached photo for a social card (uploaded through the
+   *  composer's storage path; the preview showed it, the publish carries it). */
+  imageUrl?: string
 }): Promise<{ ok: true; message?: string } | { ok: false; error: string; expired?: boolean }> {
   const ctx = await requireTenant()
   const gate = ensureClinicStaff(ctx)
@@ -35,6 +38,7 @@ export async function approveProposalAction(input: {
     ...(input.body !== undefined ? { body: input.body } : {}),
     ...(input.subject !== undefined ? { subject: input.subject } : {}),
     ...(input.answer !== undefined ? { answer: input.answer } : {}),
+    ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
   })
   // The STRUCTURED dead-card signal rides through to the client — the card
   // clears on the flag, never on matching the error copy (verification

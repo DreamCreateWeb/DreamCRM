@@ -767,11 +767,38 @@ describe('approveProposal — the other executors', () => {
         postType: 'standard',
         summary: p.body,
         accountIds: ['acc_1', 'acc_2'],
+        imageUrl: null,
       },
       expect.objectContaining({ onPersisted: expect.any(Function) }),
     )
     expect(recordActionMock).toHaveBeenCalledTimes(1)
     expect(String((recordActionMock.mock.calls[0][0] as Record<string, unknown>).summary)).toContain('2 channels')
+  })
+
+  it('social_post: a staff-attached photo rides the approve and reaches the publish (owner-caught 2026-08-13)', async () => {
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:2026-08-img',
+      body: 'Say cheese.',
+      payload: { accountIds: ['acc_1'] },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1', { imageUrl: 'https://cdn.example.io/smile.jpg' })
+    expect(r.ok).toBe(true)
+    const input = executors.createSocialPost.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(input.imageUrl).toBe('https://cdn.example.io/smile.jpg')
+  })
+
+  it('social_post: a junk image URL fails the APPROVE, never the publish', async () => {
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:2026-08-img2',
+      body: 'Say cheese.',
+      payload: { accountIds: ['acc_1'] },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1', { imageUrl: 'javascript:alert(1)' })
+    expect(r.ok).toBe(false)
+    expect(p.status).toBe('open')
+    expect(executors.createSocialPost).not.toHaveBeenCalled()
   })
 
   it('social_post: a PARTIAL publish narrates what actually landed, never the requested list (round-1 #3)', async () => {
