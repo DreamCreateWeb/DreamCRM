@@ -804,21 +804,26 @@ describe('the Approval Inbox on the Overview', () => {
     // …and so is the thing being ANSWERED — staff never approve a public
     // reply blind (round-1 in-phase gap).
     expect(screen.getByText(/waited 45 minutes/)).toBeInTheDocument()
-    expect(screen.getByText(/Rob Castellano, 2★/)).toBeInTheDocument()
+    // The redesign (2026-08-13): the review renders AS a Google review —
+    // reviewer name, a star row, and the drafted reply NESTED beneath it
+    // the way the listing will actually show the exchange.
+    expect(screen.getByText('Rob Castellano')).toBeInTheDocument()
+    expect(screen.getByLabelText('2 of 5 stars')).toBeInTheDocument()
+    expect(screen.getByText(/Reply from Acme Dental/)).toBeInTheDocument()
     // The recipient-count honesty line rides the campaign card.
     expect(screen.getByText(/goes to ~41 patients/i)).toBeInTheDocument()
     // Merge tokens render as a SAMPLE, never raw syntax at a non-technical
     // reader (round-1 in-phase gap) — the raw text lives in edit mode only.
     expect(screen.getByText(/Hi Maria, come see us\./)).toBeInTheDocument()
     expect(screen.getByText(/Shown with a sample name/)).toBeInTheDocument()
-    // The email SUBJECT is part of the artifact — shown on the card, never
-    // hidden from the approver (round-2 in-phase gap).
-    expect(screen.getByText('Subject')).toBeInTheDocument()
+    // The email SUBJECT is part of the artifact — the redesign shows it
+    // inside the email-frame preview, never hidden from the approver.
     expect(screen.getByText('We miss you')).toBeInTheDocument()
-    // The send appends a booking button to this draft (no {{bookingUrl}} in
-    // the body) — the card says so, because what the card shows must be
-    // literally what sends (verification round).
-    expect(screen.getByText('Your booking button goes at the bottom.')).toBeInTheDocument()
+    // The send appends a booking button (no {{bookingUrl}} in the body) —
+    // the redesign RENDERS the button in the preview, because what the card
+    // shows must be literally what sends.
+    expect(screen.getByText('Book a time')).toBeInTheDocument()
+    expect(screen.getByText(/Added automatically/)).toBeInTheDocument()
     // One big Approve per card.
     expect(screen.getAllByRole('button', { name: /approve — send it/i })).toHaveLength(2)
     expect(screen.getAllByRole('button', { name: /no thanks/i })).toHaveLength(2)
@@ -873,7 +878,9 @@ describe('the Approval Inbox on the Overview', () => {
     render(ui)
     expect(screen.getByText(/Asked about/)).toBeInTheDocument()
     expect(screen.getByText('next Tuesday morning')).toBeInTheDocument()
-    expect(screen.getByText(/Sam Ortiz/)).toBeInTheDocument()
+    // Twice by design since the redesign: the quoted context's byline AND
+    // the email preview's To-line both name the patient.
+    expect(screen.getAllByText(/Sam Ortiz/).length).toBeGreaterThanOrEqual(1)
   })
 
   it('a social card NAMES its destinations — never a bare count hiding the Google Business listing (verification round)', async () => {

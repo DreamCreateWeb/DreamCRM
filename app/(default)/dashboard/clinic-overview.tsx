@@ -14,6 +14,7 @@ import {
 import { listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 import { isGrantable } from '@/lib/autonomy'
 import { describeDays } from '@/lib/empty-chair'
+
 import { buildWeeklyStandup } from '@/lib/services/standup'
 import { getActiveGuardianNote } from '@/lib/services/guardian'
 import ApprovalInbox, { type ProposalCardData } from './approval-inbox'
@@ -37,6 +38,18 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import { patientFlagGlyphs, type Tone, type GlyphId, type PillLegendRow } from '@/lib/ui/encodings'
 import { leadAgeLabel } from '@/lib/lead-age'
 import { MorningReveal } from './morning-reveal'
+
+/** The email artifact's To-line: a named patient for an inquiry reply, the
+ *  honest audience size for campaign-shaped sends. */
+function emailToLine(
+  capability: string,
+  payload: Record<string, unknown>,
+  author: string | null,
+): string | null {
+  if (capability === 'inquiry_response') return author
+  const n = typeof payload.recipientCount === 'number' ? payload.recipientCount : null
+  return n != null ? `~${n} patients` : 'your recall list'
+}
 
 // Appointment status → semantic tone + plain-language label. The tone carries
 // the meaning per the design-system contract (warn = needs our action,
@@ -157,6 +170,35 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       }),
     ),
   )
+  // ARTIFACT ENRICHMENT (owner design directive 2026-08-13: show the work,
+  // not a paragraph). Social-flavored cards resolve their destination's
+  // platform + handle at READ time from the connected accounts — the same
+  // source the composer's live preview uses, so the two can never drift —
+  // and legacy payloads without labels degrade to a neutral feed card.
+  const needsChannels = proposals.some(
+    (p) => p.capability === 'social_post' || p.capability === 'content_plan',
+  )
+  const channelById = new Map<string, { platform: string; label: string; handle: string | null }>()
+  if (needsChannels) {
+    try {
+      const { getComposerChannels } = await import('@/lib/services/social-posts')
+      for (const c of await getComposerChannels(ctx.organizationId)) {
+        channelById.set(c.accountId, { platform: c.platform, label: c.label, handle: c.handle ?? null })
+      }
+    } catch {
+      /* previews degrade to the neutral card */
+    }
+  }
+  const firstChannelOf = (payload: Record<string, unknown>) => {
+    const ids = Array.isArray(payload.accountIds) ? (payload.accountIds as unknown[]) : []
+    for (const id of ids) {
+      if (typeof id !== 'string') continue
+      const c = channelById.get(id)
+      if (c) return { accountId: id, ...c }
+    }
+    return null
+  }
+
   const proposalCards: ProposalCardData[] = proposals.map((p) => {
     const payload = (p.payload ?? {}) as Record<string, unknown>
     let meta: string | null = null
@@ -219,12 +261,44 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             preferredDate: typeof rawCtx.preferredDate === 'string' ? rawCtx.preferredDate : null,
           }
         : null
+    // The artifact payload each card renders instead of a text dump.
+    let artifact: ProposalCardData['artifact'] = null
+    if (p.capability === 'social_post') {
+      artifact = { kind: 'social', channel: firstChannelOf(payload) }
+    } else if (p.capability === 'content_plan') {
+      const items = Array.isArray(payload.items)
+        ? (payload.items as unknown[])
+            .map((it) => {
+              if (!it || typeof it !== 'object') return null
+              const o = it as Record<string, unknown>
+              const kind = o.kind === 'blog' ? ('blog' as const) : ('social' as const)
+              const body = typeof o.body === 'string' ? o.body : ''
+              if (!body.trim()) return null
+              return { kind, title: typeof o.title === 'string' ? o.title : null, body }
+            })
+            .filter((x): x is NonNullable<typeof x> => x !== null)
+        : []
+      artifact = items.length > 0 ? { kind: 'plan', items, channel: firstChannelOf(payload) } : null
+    } else if (
+      p.capability === 'inquiry_response' ||
+      p.capability === 'outreach_campaign' ||
+      p.capability === 'schedule_gap'
+    ) {
+      artifact = { kind: 'email', toLine: emailToLine(p.capability, payload, context?.author ?? null) }
+    } else if (p.capability === 'gbp_website_fix' && typeof payload.targetUrl === 'string') {
+      artifact = {
+        kind: 'gbp',
+        targetUrl: payload.targetUrl,
+        previousUri: typeof payload.previousUri === 'string' ? payload.previousUri : null,
+      }
+    }
     return {
       id: p.id,
       capability: p.capability,
       capabilityLabel: p.capabilityLabel,
       title: p.title,
       body: p.body,
+      artifact,
       // The patient-facing subject is part of the artifact (round-2 gap) —
       // shown + editable on the card for the email-sending capabilities.
       subject: typeof payload.subject === 'string' ? payload.subject : null,
@@ -373,6 +447,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
       <ApprovalInbox
         proposals={proposalCards}
         totalOpen={totalOpenProposals}
+        clinicName={name}
         grants={trustGrants
           .filter((g) => g.level === 'auto')
           .map((g) => ({ capability: g.capability, label: g.label, grantedAt: g.grantedAt }))}

@@ -6,6 +6,14 @@ import { FlashToast } from '@/components/ui/flash-toast'
 import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
 import { SMS_ENTITY_TYPES } from '@/lib/sms-registration'
 import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
+import {
+  SocialArtifact,
+  EmailArtifact,
+  ReviewReplyArtifact,
+  PlanArtifact,
+  GbpFixArtifact,
+  type ProposalArtifact,
+} from './proposal-artifacts'
 
 /**
  * THE APPROVAL INBOX (Transformation Phase 2 — DESIGN.md primitive #2).
@@ -67,6 +75,11 @@ export interface ProposalCardData {
    *  this for me" checkbox, which must never re-ask for a trust the clinic
    *  already gave (round-2 audit). */
   capabilityGranted?: boolean
+  /** The artifact this card renders instead of a text dump (owner design
+   *  directive 2026-08-13: staff LOOK at the work as it will exist — a post
+   *  in its platform's chrome, an email as an email, a reply under its
+   *  review). Null → the plain-paragraph fallback. */
+  artifact?: ProposalArtifact | null
 }
 
 const CAPABILITY_ICON: Record<string, string> = {
@@ -127,6 +140,7 @@ export default function ApprovalInbox({
   grants = [],
   autonomousWork = [],
   isDemo = false,
+  clinicName = 'Your clinic',
 }: {
   proposals: ProposalCardData[]
   /** How many open cards EXIST for this clinic — the same population this
@@ -143,6 +157,8 @@ export default function ApprovalInbox({
   /** The demo clinic never really sends — the grant strip says so rather
    *  than promising work that the demo's own cron exclusion prevents. */
   isDemo?: boolean
+  /** Names the sender/author inside the artifact previews. */
+  clinicName?: string
 }) {
   const [gone, setGone] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
@@ -200,6 +216,7 @@ export default function ApprovalInbox({
             proposal={p}
             alreadyGranted={p.machineHandles ?? grantedSet.has(p.capability)}
             isDemo={isDemo}
+            clinicName={clinicName}
             onDone={(id, message) => {
               setGone((s) => new Set(s).add(id))
               if (message) setToast(message)
@@ -362,9 +379,11 @@ function ProposalCard({
   proposal,
   alreadyGranted = false,
   isDemo = false,
+  clinicName = 'Your clinic',
   onDone,
 }: {
   proposal: ProposalCardData
+  clinicName?: string
   /** Demo clinic — the grant never actually fires (the generator cron skips
    *  demo orgs), so the card must not promise autonomous delivery. */
   isDemo?: boolean
@@ -410,6 +429,13 @@ function ProposalCard({
   // staff could rewrite the invitation and still ship a button unseen).
   const appendsBookingButton =
     BOOKING_BUTTON_CAPABILITIES.includes(proposal.capability) && !body.includes('{{bookingUrl}}')
+  // The executor appends the clinic sign-off to an UNSIGNED inquiry reply —
+  // the email artifact renders it so what the card shows is what sends.
+  const appendsSignoff =
+    proposal.capability === 'inquiry_response' &&
+    !(body.trim().split('\n').filter((l) => l.trim()).pop() ?? '').trim().match(/^[—-]/)
+  const artifact = proposal.artifact ?? null
+  const showsEmailArtifact = artifact?.kind === 'email' && !editing
 
   const decide = (decision: 'approve' | 'decline') => {
     setError(null)
@@ -542,7 +568,7 @@ function ProposalCard({
       {/* What we're answering — never approve a public reply blind. A
           date-only inquiry (no message) still shows its one statement: the
           date they asked about (round-3 audit). */}
-      {proposal.context && (proposal.context.text || proposal.context.preferredDate) && (
+      {proposal.context && proposal.capability !== 'review_reply' && (proposal.context.text || proposal.context.preferredDate) && (
         <blockquote className="mt-3 border-l-2 border-gray-300 dark:border-gray-600 pl-3 text-xs text-gray-500 dark:text-gray-400">
           {proposal.context.text && <p className="whitespace-pre-wrap">“{proposal.context.text}”</p>}
           {proposal.context.preferredDate && (
@@ -559,7 +585,7 @@ function ProposalCard({
 
       {/* The email subject — the first line the patient reads is part of
           the artifact, never hidden from the approver (round-2 gap). */}
-      {proposal.subject != null && (
+      {proposal.subject != null && !showsEmailArtifact && (
         <div className="mt-3">
           {editing ? (
             <input
@@ -603,6 +629,29 @@ function ProposalCard({
               </p>
             )}
           </>
+        ) : proposal.capability === 'review_reply' && proposal.context ? (
+          <ReviewReplyArtifact
+            author={proposal.context.author}
+            starRating={proposal.context.starRating}
+            reviewText={proposal.context.text}
+            reply={body}
+            clinicName={clinicName}
+          />
+        ) : artifact?.kind === 'social' ? (
+          <SocialArtifact body={body} clinicName={clinicName} channel={artifact.channel} />
+        ) : artifact?.kind === 'plan' ? (
+          <PlanArtifact items={artifact.items} clinicName={clinicName} channel={artifact.channel} />
+        ) : artifact?.kind === 'email' ? (
+          <EmailArtifact
+            clinicName={clinicName}
+            toLine={artifact.toLine}
+            subject={proposal.subject != null ? subject : null}
+            body={tokens ? renderTokenSample(body) : body}
+            showBookingButton={appendsBookingButton}
+            showSignoff={appendsSignoff}
+          />
+        ) : artifact?.kind === 'gbp' ? (
+          <GbpFixArtifact targetUrl={artifact.targetUrl} previousUri={artifact.previousUri} />
         ) : (
           <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3 border border-transparent">
             {tokens ? renderTokenSample(body) : body}
@@ -613,7 +662,7 @@ function ProposalCard({
             Shown with a sample name — each patient gets their own.
           </p>
         )}
-        {appendsBookingButton && (
+        {appendsBookingButton && !showsEmailArtifact && (
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {/* The sign-off half mirrors the executor's own heuristic: a
                 draft whose last line is an em-dash signature sends as

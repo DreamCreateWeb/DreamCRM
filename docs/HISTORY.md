@@ -5255,3 +5255,24 @@ SelfManagedOptOutsEnabled — from that moment the STOP/HELP replies are OURS
 
 Suite 6,268 → 6,280. Remaining in the limb: reminders channel choice
 (finally reaching phone-only patients), delivery receipts, the honesty flip.
+
+## 2026-08-13 — The Approval Inbox shows the work, not a paragraph
+
+Owner design directive: the "employee not tool" cards dumped text staff
+skim past ("here's 4 post ideas" + a long paragraph). Every card type now
+renders its artifact AS IT WILL EXIST: social posts in their platform's
+own chrome (`app/(default)/dashboard/proposal-artifacts.tsx` reusing the
+composer's `PlatformPostCard` — one preview system, the two can never
+drift; destination resolved at read time from the connected accounts, so
+legacy payloads degrade to a neutral feed card); review replies NESTED
+under the Google review they answer (name, star row, "Reply from
+{clinic} (owner)"); email-shaped sends (inquiry / recall / empty-chair)
+as an email — From/To lines, subject in the frame, and the appended
+booking button + sign-off RENDERED instead of promised in a caption; the
+month plan as its four pieces; the GBP website fix as the listing button
+before → after. Laws carried over: what the card shows is what sends
+(artifacts render the LIVE edit state), edit mode keeps the raw text +
+token legend, the sample-name caption stays. Setup asks unchanged
+(already interactive). Server enrichment in clinic-overview.tsx
+(`artifact` on ProposalCardData); demo cards get real platform previews
+free (the seeder already stamps real account ids).
