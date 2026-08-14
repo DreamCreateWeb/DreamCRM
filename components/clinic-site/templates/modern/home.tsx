@@ -773,20 +773,27 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 style={{
                   borderRadius: '32px',
                   backgroundColor: brandTint(brand, 0.1),
-                  aspectRatio: '4 / 3',
+                  // A VIDEO keeps its own shape (owner-caught 2026-08-15: the
+                  // fixed 4:3 + object-cover crop zoomed clinic videos until
+                  // they spilled off the card). Photos/placeholder keep 4:3.
+                  ...(profile.differenceVideoUrl ? {} : { aspectRatio: '4 / 3' }),
                 }}
                 data-edit-field="differenceVideoUrl"
                 data-edit-kind="modal"
                 data-edit-label="intro video"
               >
                 {profile.differenceVideoUrl ? (
+                  // w-full h-auto: the card hugs the video's real aspect —
+                  // nothing is ever cropped. The max-height guards against a
+                  // towering portrait phone video: past it, object-contain
+                  // letterboxes onto the brand-tint behind, never a crop.
                   <video
                     autoPlay
                     muted
                     loop
                     playsInline
                     preload="metadata"
-                    className="w-full h-full object-cover"
+                    className="block w-full h-auto max-h-[560px] object-contain"
                     aria-hidden="true"
                   >
                     <source src={profile.differenceVideoUrl} />
