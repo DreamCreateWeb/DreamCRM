@@ -152,7 +152,7 @@ export default function SignUpForm() {
         </div>
       </div>
       {error && (
-        <div className="mt-4 text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">
+        <div role="alert" className="mt-4 text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">
           {error}
           {/^.*(exist|already|registered|taken).*$/i.test(error) && (
             <>

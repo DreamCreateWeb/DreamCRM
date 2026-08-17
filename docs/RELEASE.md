@@ -798,6 +798,34 @@ Now: per-post try/catch, and the update CASes on `status='scheduled'` with
 `.returning()` — losing the claim is a quiet `continue`, not an error. Test
 added for the CAS-loss path.
 
+### Slice 6 — the accessibility slice (R1·S7's S2 cluster) · DONE
+
+The S7 sweep found 0 blockers but a real S2 cluster, heaviest in the portal
+(older patients — commercially the most a11y-sensitive surface). Fixed:
+
+- **Colour-only selection, now announced.** The portal `SlotPicker` day and
+  time buttons and the portal booking choice-chips ("Who's this visit for?",
+  "What kind of visit?") carried their selected state in brand colour ALONE,
+  with no `aria-pressed` and no accessible name — a screen-reader user could
+  not tell what was selected. All now carry `aria-pressed` + labels + a
+  `focus-visible` ring, bringing the portal to parity with the public booking
+  form (which already did this correctly and served as the reference).
+- **"Taken" slots** conveyed unavailability by strikethrough + colour only;
+  they now carry an `sr-only` "— taken".
+- **Missing accessible names on the top public conversion path:** the primary
+  visit-type `<select>` had no label at all, and first/last name, phone and
+  email were placeholder-only (a placeholder vanishes on input and is a weak
+  name). All labelled.
+- **Unannounced errors/results** now live-region'd: public booking error,
+  portal booking error, the portal VisitCard's confirm/reschedule/cancel
+  feedback (`role="status"` on success / `role="alert"` on failure — the
+  portal's primary action feedback), and the sign-in / sign-up error blocks.
+
+Combined with slice 0's shared `PortalInput`/`PortalTextarea` focus ring (R1),
+this closes the S7 cluster's load-bearing half. Remaining S3 polish (drawer
+`DialogTitle`, portal desktop-nav `aria-current`, phase-change announcements,
+the family "Book for {name}" pre-select) stays on the polish list.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

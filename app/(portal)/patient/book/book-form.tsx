@@ -112,7 +112,9 @@ export default function PortalBookForm({
           <p className="mb-2 text-[0.85rem] font-semibold" style={{ color: INK }}>
             Who’s this visit for?
           </p>
-          <div className="flex flex-wrap gap-2">
+          {/* A single-select chip group: give it group semantics and announce
+              the choice, which is otherwise carried by brand colour alone. */}
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Who’s this visit for?">
             {people.map((p) => {
               const active = forPatientId === p.id
               return (
@@ -120,7 +122,8 @@ export default function PortalBookForm({
                   key={p.id}
                   type="button"
                   onClick={() => setForPatientId(p.id)}
-                  className="rounded-full px-4 py-2 text-[0.88rem] font-semibold"
+                  aria-pressed={active}
+                  className="rounded-full px-4 py-2 text-[0.88rem] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={
                     active
                       ? { backgroundColor: brand, color: '#FFFFFF' }
@@ -139,7 +142,7 @@ export default function PortalBookForm({
         <p className="mb-2 text-[0.85rem] font-semibold" style={{ color: INK }}>
           What kind of visit?
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="What kind of visit?">
           {allowedTypes.map((t) => {
             const active = type === t
             return (
@@ -147,7 +150,8 @@ export default function PortalBookForm({
                 key={t}
                 type="button"
                 onClick={() => setType(t)}
-                className="rounded-full px-4 py-2 text-[0.88rem] font-semibold"
+                aria-pressed={active}
+                className="rounded-full px-4 py-2 text-[0.88rem] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={
                   active
                     ? { backgroundColor: brand, color: '#FFFFFF' }
@@ -204,7 +208,7 @@ export default function PortalBookForm({
       </section>
 
       {error && (
-        <p className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }}>
+        <p role="alert" className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }}>
           {error}
         </p>
       )}

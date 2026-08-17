@@ -121,7 +121,11 @@ export default function SlotPicker({
                 key={d}
                 type="button"
                 onClick={() => pickDay(d)}
-                className="flex min-w-[4.4rem] flex-col items-center rounded-2xl px-3 py-2.5"
+                // Selection must not be conveyed by colour alone, and the day
+                // needs a spoken name (the visual label is three split spans).
+                aria-pressed={active}
+                aria-label={`${today ? 'Today, ' : ''}${MONTH_NAME_SHORT[keyParts(d).m - 1]} ${keyParts(d).d}`}
+                className="flex min-w-[4.4rem] flex-col items-center rounded-2xl px-3 py-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={
                   active
                     ? { backgroundColor: brand, color: '#FFFFFF' }
@@ -182,6 +186,9 @@ export default function SlotPicker({
                     style={{ color: '#B9B0A5', backgroundColor: '#F3EEE7' }}
                   >
                     {slot.label}
+                    {/* "Taken" is otherwise carried only by strikethrough +
+                        colour, neither of which a screen reader conveys. */}
+                    <span className="sr-only"> — taken</span>
                   </span>
                 )
               }
@@ -190,7 +197,11 @@ export default function SlotPicker({
                   key={slot.startIso}
                   type="button"
                   onClick={() => onSelect(active ? null : slot.startIso)}
-                  className="rounded-xl px-2 py-2.5 text-center text-[0.85rem] font-semibold transition-colors"
+                  // Mirrors the public booking form: selection is announced,
+                  // not carried by colour alone.
+                  aria-pressed={active}
+                  aria-label={`${slot.label} — available`}
+                  className="rounded-xl px-2 py-2.5 text-center text-[0.85rem] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={
                     active
                       ? { backgroundColor: brand, color: '#FFFFFF' }

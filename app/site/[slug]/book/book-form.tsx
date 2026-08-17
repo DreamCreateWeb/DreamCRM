@@ -644,6 +644,7 @@ export default function BookForm({
               type="text"
               required
               placeholder="First name"
+              aria-label="First name"
               autoComplete="given-name"
               className="px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
               style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
@@ -653,6 +654,7 @@ export default function BookForm({
               type="text"
               required
               placeholder="Last name"
+              aria-label="Last name"
               autoComplete="family-name"
               className="px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
               style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
@@ -663,6 +665,7 @@ export default function BookForm({
             type="tel"
             required
             placeholder="Phone number"
+            aria-label="Phone number"
             autoComplete="tel"
             inputMode="tel"
             className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
@@ -672,6 +675,7 @@ export default function BookForm({
             name="email"
             type="email"
             placeholder="Email (optional, for confirmation)"
+            aria-label="Email (optional, for confirmation)"
             autoComplete="email"
             inputMode="email"
             className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
@@ -698,6 +702,9 @@ export default function BookForm({
           </label>
           <select
             name="type"
+            // The primary "what visit" field on the top public conversion path;
+            // without this it announces only the current option, not the field.
+            aria-label="Visit type"
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
             className="w-full min-h-[44px] px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2 appearance-none"
@@ -764,7 +771,7 @@ export default function BookForm({
       </section>
 
       {submitState === 'error' && errorMsg && (
-        <p className="text-sm text-red-600">{errorMsg}</p>
+        <p role="alert" className="text-sm text-red-600">{errorMsg}</p>
       )}
 
       <div className="pt-2">

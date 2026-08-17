@@ -307,6 +307,9 @@ export default function VisitCard({
 
       {message && (
         <p
+          // The portal's primary action feedback (confirm / reschedule /
+          // cancel). Without a live region the text appears silently.
+          role={message.kind === 'ok' ? 'status' : 'alert'}
           className="mt-3 rounded-xl px-3.5 py-2.5 text-[0.85rem] font-medium"
           style={
             message.kind === 'ok'
