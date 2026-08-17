@@ -538,6 +538,59 @@ three cheap high-value classes (fixed) plus loop-hardening (R2).
 class, domain double-charge, trial-KILL leak ×2, 2 Guardian signals); the
 loop-hardening + atomic-claim items are R2. No S0/S1.
 
+### R1 · S5 sweep — Performance (2026-08-17)
+
+Two finders (DB/query shape · frontend/page-weight). Verdict: the schema
+indexing, the `<SiteImage>` pipeline, bundle code-splitting (EditBridge and
+Recharts are both split out of the public bundle), streaming server
+components, and the uniquely-indexed public token point-lookups are all
+genuinely well-built. The findings are scale-shaped — real at a busy real
+clinic, none breaking at the current one-beta-clinic scale.
+
+**Fixed this session:**
+
+- S2 · missing index `patient(organizationId, first_seen_at)` — the Overview
+  acquisition trend tiles and Analytics filter on `first_seen_at` and were
+  falling back to an org-leading index (residual scan of the whole roster). ·
+  **FIXED** — migration 0149 adds the composite index.
+
+**Reported by the S5 sweep — R2 burn-down candidates:**
+
+- **S1 (scale) · the Patients list (`listPatients`)** loads the entire roster
+  with `select()` (no projection, incl. jsonb), no `LIMIT`/pagination, applies
+  the money/tag filters + sort in JS after the full load, and fans out
+  unbounded last-visit/next-visit/last-message queries that scan EVERY
+  appointment and message in the org. Falls over first on a real clinic
+  (thousands of patients × history) on the t4g.micro. **THE must-fix perf
+  slice** — server keyset/LIMIT pagination + column projection + SQL-side
+  `DISTINCT ON`/`MAX…GROUP BY` aggregation + push filters/sort into SQL,
+  mirroring the already-correct windowed+projected+batched `listAppointments`.
+  Needs a UI pagination change too, so it's a dedicated slice with tests. · OPEN.
+- S2 · `resolvePatientAudience` has the same JS-aggregation-of-all-appointments
+  anti-pattern (shared root cause), and it's hit by the retention cron (×4/day
+  per clinic), the marketing send path, and the proposal generators. Fold the
+  MAX/MIN-in-SQL fix in with the Patients rework. · OPEN.
+- S2 · `/messages` `listPatientThreads` has no `LIMIT` and filters search in JS
+  over the full set — LIMIT + keyset paging + SQL `ILIKE`/phone search. · OPEN.
+- S2 · `campaign_events` frequency-cap query filters by `patientId`/`recipientEmail`
+  but every index is `campaignId`-leading — a partial index
+  `(patientId, occurredAt) where type='sent'` if it shows in slow logs. · OPEN.
+- S2 · the public-site + marketing body font (Inter) loads via a
+  render-blocking third-party `@import` in `app/css/style.css:1` — violates
+  the self-hosted-woff2 font doctrine (Nunito is already self-hosted correctly).
+  Self-host Inter as woff2 `@font-face` with matching latin/latin-ext subsets. ·
+  OPEN.
+- S3/watch · `daily-digest` / `generate-proposals` / `retention-automations`
+  fan out per-clinic SEQUENTIALLY (by design, to spare the t4g.micro), so the
+  risk is cron wall-clock OVERRUN as clinic count grows, not DB overload —
+  give them a wall-clock budget + resumability before onboarding many clinics;
+  `listMessagesInThread` loads a whole thread with no limit. · OPEN.
+
+**S5 sweep CLOSED (2026-08-17):** 1 S2 fixed (index, migration 0149); the
+Patients-list scale rework (S1) is THE headline R2 perf slice, plus the
+shared audience/inbox/font items. All scale-shaped — nothing breaks at
+current scale. No S0.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,

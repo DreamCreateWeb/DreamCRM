@@ -129,6 +129,9 @@ export const patient = pgTable(
     index('patient_org_marketing_email_idx').on(t.organizationId, t.marketingEmailOptIn),
     // New-patient counts (Overview MTD trend) + recent-activity ordering.
     index('patient_org_created_idx').on(t.organizationId, t.createdAt),
+    // Acquisition windows filter on first_seen_at (Overview trend tiles +
+    // Analytics acquisition) — without this they scan the org's whole roster.
+    index('patient_org_first_seen_idx').on(t.organizationId, t.firstSeenAt),
   ],
 )
 

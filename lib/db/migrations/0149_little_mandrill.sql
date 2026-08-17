@@ -1,0 +1,1 @@
+CREATE INDEX "patient_org_first_seen_idx" ON "patient" USING btree ("organization_id","first_seen_at");
