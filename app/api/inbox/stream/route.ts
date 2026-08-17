@@ -17,6 +17,13 @@ export const maxDuration = 300
  */
 export async function GET(): Promise<Response> {
   const ctx = await requireTenant()
+  // The staff Gmail inbox is clinic-staff-only. requireTenant() alone admits a
+  // patient-tenant member (their organizationId is the clinic org), who would
+  // then receive every inbox_events NOTIFY for that clinic's mailbox. Mirror the
+  // persona guard the sibling realtime/stream route already enforces.
+  if (ctx.tenantType !== 'clinic') {
+    return new Response('forbidden', { status: 403 })
+  }
   const orgId = ctx.organizationId
 
   const connectionString = process.env.DATABASE_URL

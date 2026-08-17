@@ -302,6 +302,12 @@ as confirmed defects yet.
   (`role==='patient'`), which still admitted the partner persona
   (contained to the partner's own id-namespace, no cross-tenant reach). ·
   **FIXED** — switched to the positive `clinic|platform` form.
+- S2 · `api/inbox/stream` · `requireTenant()` with no role check, so a
+  patient-tenant member could open the SSE stream and receive every
+  `inbox_events` NOTIFY for their clinic's staff Gmail mailbox (metadata
+  only — orgId/kind/messageId/threadId/actorKind/at, no PII, no
+  cross-tenant reach). Sibling `realtime/stream` already guards this. ·
+  **FIXED** — reject `tenantType !== 'clinic'` after the tenant gate.
 
 **Reported by the S1 sweep — R2 burn-down candidates (pending main-loop verify):**
 
@@ -338,6 +344,20 @@ platform admin-action files (partners/prospecting/service-library/invoices/
 customers admin) — every client-supplied id was traced into its service and
 confirmed paired with `organizationId` in the SQL. Cron + admin routes are
 uniformly fail-closed on an unset/empty secret with no pre-auth work.
+
+The PUBLIC-surface partition (token-IS-auth landings r/c/w/b/d/i/n, the
+public `site/[slug]` actions, and the webhook/OAuth routes) came back with
+NO S0/S1 — token mints are 128–144-bit random, mutations gate on their
+row's status (replay-safe), every webhook verifies its signature/secret
+BEFORE any effect (Stripe constructEvent, Svix, SMS shared-secret, Gmail
+OIDC), all three cookie-based OAuth callbacks bind the connected account to
+the session's own org via a state-nonce + `requireTenant()` org match, and
+every public-site write derives its org from the slug, never a client
+`orgId`, with `namesLooselyMatch` family-safe identity. The lone finding
+was the inbox/stream persona gap above (S2, fixed).
+
+**S1 sweep CLOSED (2026-08-17):** 1 S0 + 3 S1 + 2 S2 fixed and verified;
+the remaining S2/S3 items are R2 burn-down candidates. No open S0/S1.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
