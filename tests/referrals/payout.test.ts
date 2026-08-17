@@ -7,7 +7,7 @@ const { TABLES } = vi.hoisted(() => ({
   TABLES: {
     referralPartner: { __t: 'referralPartner' },
     referralCommission: { id: 'id', partnerId: 'partnerId', status: 'status' },
-    referralPayout: { id: 'id' },
+    referralPayout: { id: 'id', idempotencyKey: 'idempotencyKey', stripeTransferId: 'stripeTransferId' },
   },
 }))
 
@@ -16,6 +16,10 @@ const state = {
   accruedRows: [] as Array<{ id: number; amountCents: number }>,
   transferShouldThrow: false,
   ledgerShouldThrow: false,
+  /** true = the idempotency-key claim already exists (a prior attempt). */
+  claimConflict: false,
+  /** the transfer id on that prior claim, if it already sent. */
+  priorTransferId: null as string | null,
   inserts: [] as Array<{ table: string; values: Record<string, unknown> }>,
   updates: [] as Array<{ table: string; set: Record<string, unknown> }>,
   txCalls: 0,
@@ -38,7 +42,13 @@ function dbMethods(): any {
           // partner lookup uses .limit(1); accrued-rows lookup does not.
           const rowsFor = () => (tableName(t) === 'referralPartner' ? (state.partner ? [state.partner] : []) : state.accruedRows)
           const chain: any = {
-            limit: async () => (state.partner ? [state.partner] : []),
+            limit: async () => {
+              // The prior-claim lookup (only reached when the claim conflicts).
+              if (tableName(t) === 'referralPayout') {
+                return [{ id: 99, stripeTransferId: state.priorTransferId }]
+              }
+              return state.partner ? [state.partner] : []
+            },
             then: (resolve: (v: unknown) => unknown) => resolve(rowsFor()),
           }
           return chain
@@ -49,6 +59,14 @@ function dbMethods(): any {
       values: (values: Record<string, unknown>) => {
         const rec = { table: tableName(t), values }
         return {
+          // The payout CLAIM (persist-key-before-transfer). Returning a row =
+          // we won the claim; state.claimConflict simulates "already claimed".
+          onConflictDoNothing: () => ({
+            returning: async () => {
+              state.inserts.push(rec)
+              return state.claimConflict ? [] : [{ id: 99 }]
+            },
+          }),
           returning: async () => {
             state.inserts.push(rec)
             return [{ id: 99 }]
@@ -64,7 +82,7 @@ function dbMethods(): any {
     update: (t: unknown) => ({
       set: (s: Record<string, unknown>) => ({
         where: async () => {
-          state.updates.push({ table: String(t), set: s })
+          state.updates.push({ table: tableName(t), set: s })
         },
       }),
     }),
@@ -109,6 +127,8 @@ beforeEach(() => {
   state.accruedRows = []
   state.transferShouldThrow = false
   state.ledgerShouldThrow = false
+  state.claimConflict = false
+  state.priorTransferId = null
   state.inserts = []
   state.updates = []
   state.txCalls = 0
@@ -193,10 +213,34 @@ describe('payoutPartner — money flow', () => {
     expect(r.amountCents).toBe(3980)
     // Transfer made for the exact summed cents, to the connected account.
     expect(state.transferCalls[0]).toMatchObject({ amount: 3980, currency: 'usd', destination: 'acct_1' })
-    // Ledger finalized inside a transaction: payout row inserted + rows updated to paid.
+    // The payout row is CLAIMED (pending + idempotency key) BEFORE the money
+    // moves, then finalized to paid inside the transaction — one transfer can
+    // therefore never produce two payout rows.
+    expect(
+      state.inserts.some(
+        (i) => i.table === 'referralPayout' && i.values.status === 'pending' && !!i.values.idempotencyKey,
+      ),
+    ).toBe(true)
     expect(state.txCalls).toBe(1)
-    expect(state.inserts.some((i) => i.table === 'referralPayout' && i.values.status === 'paid')).toBe(true)
-    expect(state.updates.some((u) => u.set.status === 'paid')).toBe(true)
+    expect(state.updates.some((u) => u.table === 'referralPayout' && u.set.status === 'paid')).toBe(true)
+    expect(state.updates.some((u) => u.table === 'referralCommission' && u.set.status === 'paid')).toBe(true)
+  })
+
+  it('RECOVERS instead of double-paying when a prior attempt already transferred', async () => {
+    // The scar: a previous run's transfer succeeded but its ledger write failed,
+    // so the rows are still accrued. Past Stripe's ~24h idempotency window a
+    // naive retry would send a SECOND real transfer.
+    state.partner = activePartner
+    state.accruedRows = [{ id: 1, amountCents: 5000 }]
+    state.claimConflict = true
+    state.priorTransferId = 'tr_prior'
+
+    const r = await payoutPartner('p1', { initiatedBy: 'admin' })
+    expect(r.ok).toBe(true)
+    // NO second transfer was created.
+    expect(mockTransfersCreate).not.toHaveBeenCalled()
+    // …and the ledger is finished against the transfer that actually happened.
+    expect(state.updates.some((u) => u.table === 'referralCommission' && u.set.status === 'paid')).toBe(true)
   })
 
   it('uses an idempotency key so a retry over the same rows cannot double-pay', async () => {
@@ -219,7 +263,8 @@ describe('payoutPartner — money flow', () => {
     // No transaction ran; no commission row flipped to paid.
     expect(state.txCalls).toBe(0)
     expect(state.updates.some((u) => u.set.status === 'paid')).toBe(false)
-    // A failed payout audit row was written.
-    expect(state.inserts.some((i) => i.table === 'referralPayout' && i.values.status === 'failed')).toBe(true)
+    // The claim row is marked failed (so the next attempt re-derives the same
+    // key and retries cleanly) rather than a second audit row being inserted.
+    expect(state.updates.some((u) => u.table === 'referralPayout' && u.set.status === 'failed')).toBe(true)
   })
 })

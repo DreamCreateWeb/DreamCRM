@@ -1,0 +1,2 @@
+ALTER TABLE "referral_payout" ADD COLUMN "idempotency_key" text;--> statement-breakpoint
+ALTER TABLE "referral_payout" ADD CONSTRAINT "referral_payout_idempotency_key_unique" UNIQUE("idempotency_key");

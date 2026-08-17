@@ -115,7 +115,8 @@ describe('ConnectChannels — guards', () => {
 
   it('renders a "not enabled" note when Zernio is off on the instance', () => {
     render(<ConnectChannels {...props({ zernioConfigured: false })} />)
-    expect(screen.getByText(/enabled on this DreamCRM instance/)).toBeTruthy()
+    // Plain, non-jargon copy — the clinic never reads the internal product name.
+    expect(screen.getByText(/switched on yet/)).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Connect Instagram' })).toBeNull()
   })
 })

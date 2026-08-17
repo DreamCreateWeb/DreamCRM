@@ -105,7 +105,13 @@ describe('runDomainRenewals', () => {
     h.dueRows = [dueRow()]
     const res = await runDomainRenewals({ now: NOW })
     expect(res.renewed).toBe(1)
-    expect(h.piCreate).toHaveBeenCalledWith(expect.objectContaining({ customer: 'cus_1', amount: 1699 }))
+    // The idempotency key is the double-charge guard: deterministic per
+    // (domain row, renewal period), so a crash before renewsAt advances — or a
+    // concurrent daily run — reuses this PaymentIntent instead of re-charging.
+    expect(h.piCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: 'cus_1', amount: 1699 }),
+      { idempotencyKey: 'domrenew_p1_2026-08-20' },
+    )
     expect(h.renewDomain).toHaveBeenCalledWith('brightsmiles.com', 1699)
     const upd = h.updates.find((u) => u.renewsAt)
     expect((upd!.renewsAt as Date).getUTCFullYear()).toBe(2027)

@@ -173,9 +173,17 @@ describe('adjustLoyaltyPoints', () => {
   })
 
   it('writes the adjust row and returns the fresh balance', async () => {
+    state.selectQueue.push([{ id: 'p1' }]) // patient-in-org guard
     state.selectQueue.push([{ total: 90 }]) // post-insert balance
     const r = await adjustLoyaltyPoints('org_1', 'p1', 40, 'Welcome bonus', 'user_1')
     expect(r).toEqual({ ok: true, newBalance: 90 })
     expect(state.inserts[0].values).toMatchObject({ kind: 'adjust', points: 40, createdByUserId: 'user_1' })
+  })
+
+  it('refuses a patient who is not in the org (no orphan ledger row)', async () => {
+    state.selectQueue.push([]) // patient-in-org guard finds nothing
+    const r = await adjustLoyaltyPoints('org_1', 'p_foreign', 40, 'Welcome bonus', 'user_1')
+    expect(r).toMatchObject({ ok: false })
+    expect(state.inserts).toHaveLength(0)
   })
 })

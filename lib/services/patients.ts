@@ -199,11 +199,31 @@ export async function listPatients(
     )
   }
 
-  const patients = await db.select().from(schema.patient).where(and(...where))
+  // Project ONLY the columns the row composer below reads. A bare select()
+  // pulls every column (including large jsonb) for the whole roster.
+  const patients = await db
+    .select({
+      id: schema.patient.id,
+      firstName: schema.patient.firstName,
+      lastName: schema.patient.lastName,
+      email: schema.patient.email,
+      phone: schema.patient.phone,
+      dateOfBirth: schema.patient.dateOfBirth,
+      source: schema.patient.source,
+      lifecycle: schema.patient.lifecycle,
+      firstSeenAt: schema.patient.firstSeenAt,
+      userId: schema.patient.userId,
+      marketingEmailOptIn: schema.patient.marketingEmailOptIn,
+      pmsBalanceCents: schema.patient.pmsBalanceCents,
+      pmsBalanceUpdatedAt: schema.patient.pmsBalanceUpdatedAt,
+      pmsRecallDueAt: schema.patient.pmsRecallDueAt,
+      recallIntervalMonths: schema.patient.recallIntervalMonths,
+    })
+    .from(schema.patient)
+    .where(and(...where))
 
   if (patients.length === 0) return []
   const ids = patients.map((p) => p.id)
-  const emails = patients.map((p) => p.email).filter((e): e is string => !!e)
 
   // Clinic-wide cadence settings: recall default (per-patient overrides win;
   // both fall through to RECALL_DEFAULT_MONTHS) + the lapsed threshold (the 💤
@@ -214,9 +234,13 @@ export async function listPatients(
   // Pull joined data in parallel.
   const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear, tagsByPatient] =
     await Promise.all([
-      // Last completed/confirmed appointment per patient (most recent past startTime).
+      // Last completed/confirmed appointment per patient (most recent past
+      // startTime). DISTINCT ON collapses to ONE row per patient in Postgres —
+      // the composer below only ever read the first row per patient anyway, so
+      // this is behaviour-identical without dragging every historical
+      // appointment in the org across the wire.
       db
-        .select({
+        .selectDistinctOn([schema.appointment.patientId], {
           patientId: schema.appointment.patientId,
           startTime: schema.appointment.startTime,
         })
@@ -230,10 +254,10 @@ export async function listPatients(
             ne(schema.appointment.status, 'no_show'),
           ),
         )
-        .orderBy(desc(schema.appointment.startTime)),
-      // Next future booking per patient.
+        .orderBy(schema.appointment.patientId, desc(schema.appointment.startTime)),
+      // Next future booking per patient (same one-row-per-patient collapse).
       db
-        .select({
+        .selectDistinctOn([schema.appointment.patientId], {
           patientId: schema.appointment.patientId,
           startTime: schema.appointment.startTime,
           type: schema.appointment.type,
@@ -248,7 +272,7 @@ export async function listPatients(
             ne(schema.appointment.status, 'no_show'),
           ),
         )
-        .orderBy(asc(schema.appointment.startTime)),
+        .orderBy(schema.appointment.patientId, asc(schema.appointment.startTime)),
       // Unconfirmed within 48h.
       db
         .select({ patientId: schema.appointment.patientId })
@@ -293,8 +317,11 @@ export async function listPatients(
         ),
       // Last contact — most-recent message in any conversation the patient
       // user is part of.
+      // DISTINCT ON the member user id: one row per patient-user instead of
+      // EVERY message row in the org (the composer only read the newest per
+      // user). Behaviour-identical, bounded by patient count.
       db
-        .select({
+        .selectDistinctOn([schema.conversationMembers.userId], {
           userId: schema.conversationMembers.userId,
           createdAt: schema.messages.createdAt,
         })
@@ -313,7 +340,7 @@ export async function listPatients(
             inArray(schema.patient.id, ids),
           ),
         )
-        .orderBy(desc(schema.messages.createdAt)),
+        .orderBy(schema.conversationMembers.userId, desc(schema.messages.createdAt)),
       // Next future booking with status='scheduled' (counts as "recall scheduled" if within recall window).
       db
         .select({ patientId: schema.appointment.patientId })

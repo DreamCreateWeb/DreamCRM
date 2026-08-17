@@ -335,6 +335,72 @@ export async function voidAccruedCommission(partnerId: string, note: string): Pr
   return { voidedCents }
 }
 
+/**
+ * Reverse the commission accrued for ONE Stripe invoice — the refund/dispute
+ * counterpart of accrueCommissionForInvoice. A clinic that pays and is then
+ * refunded (or wins a dispute) never actually produced that revenue, so paying
+ * a partner a cut of it is money the platform simply loses.
+ *
+ * An 'accrued' (not yet paid out) row flips to 'reversed' — the row is kept as
+ * the audit trail, never deleted. A row already 'paid' CANNOT be un-paid here:
+ * the transfer left the platform, so it is surfaced for a human clawback
+ * decision rather than silently rewritten. Idempotent (a replayed webhook
+ * matches no 'accrued' row the second time) and never throws — this rides a
+ * best-effort webhook branch and must not break billing sync.
+ */
+export async function reverseCommissionForInvoice(
+  stripeInvoiceId: string,
+  reason: 'refund' | 'dispute',
+): Promise<{ reversedCents: number; needsClawbackCents: number }> {
+  try {
+    const [row] = await db
+      .select({
+        amountCents: schema.referralCommission.amountCents,
+        status: schema.referralCommission.status,
+        partnerId: schema.referralCommission.partnerId,
+      })
+      .from(schema.referralCommission)
+      .where(eq(schema.referralCommission.stripeInvoiceId, stripeInvoiceId))
+      .limit(1)
+    if (!row) return { reversedCents: 0, needsClawbackCents: 0 }
+
+    if (row.status === 'paid') {
+      // Already transferred to the partner. Loud in the log so a human can
+      // decide; we do not rewrite settled money.
+      console.warn('[referral] commission already PAID on a reversed invoice — clawback decision needed', {
+        stripeInvoiceId,
+        partnerId: row.partnerId,
+        amountCents: row.amountCents,
+        reason,
+      })
+      return { reversedCents: 0, needsClawbackCents: row.amountCents }
+    }
+
+    const flipped = await db
+      .update(schema.referralCommission)
+      .set({ status: 'reversed' })
+      .where(
+        and(
+          eq(schema.referralCommission.stripeInvoiceId, stripeInvoiceId),
+          eq(schema.referralCommission.status, 'accrued'),
+        ),
+      )
+      .returning({ id: schema.referralCommission.id })
+    if (flipped.length === 0) return { reversedCents: 0, needsClawbackCents: 0 }
+
+    console.info('[referral] commission reversed', {
+      stripeInvoiceId,
+      partnerId: row.partnerId,
+      amountCents: row.amountCents,
+      reason,
+    })
+    return { reversedCents: row.amountCents, needsClawbackCents: 0 }
+  } catch (err) {
+    console.warn('[referral] commission reversal failed (non-fatal)', err)
+    return { reversedCents: 0, needsClawbackCents: 0 }
+  }
+}
+
 export interface ArchivePartnerResult {
   outcome: 'archived' | 'refused'
   /** When refused, why — the balance must be resolved first. */

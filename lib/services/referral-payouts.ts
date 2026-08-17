@@ -200,54 +200,112 @@ export async function payoutPartner(
       .digest('hex')
       .slice(0, 40)
 
-  let transferId: string
+  // CLAIM THE KEY BEFORE THE MONEY MOVES. Stripe only dedupes an idempotency
+  // key for ~24h; if a previous attempt sent the transfer but its ledger write
+  // failed, the rows are still 'accrued' and a later retry would re-derive this
+  // exact key and send a SECOND real transfer. The unique claim below is the
+  // durable record that survives that window.
+  let claimedPayoutId = 0
+  let priorTransferId: string | null = null
   try {
-    const transfer = await stripe.transfers.create(
-      {
-        amount: totalCents,
-        currency: 'usd',
-        destination: p.accountId,
-        metadata: { referralPartnerId: partnerId, initiatedBy: opts.initiatedBy },
-      },
-      { idempotencyKey },
-    )
-    transferId = transfer.id
-  } catch (err) {
-    // Transfer failed — nothing claimed, rows stay accrued. Surface a clean
-    // message; record a failed payout row for visibility.
-    const msg = err instanceof Error ? err.message : 'Stripe transfer failed'
-    console.warn('[referral-payout] transfer failed', partnerId, msg)
-    try {
-      await db.insert(schema.referralPayout).values({
-        partnerId,
-        amountCents: totalCents,
-        status: 'failed',
-        note: msg.slice(0, 500),
-      })
-    } catch {
-      /* best-effort audit row */
+    const [claim] = await db
+      .insert(schema.referralPayout)
+      .values({ partnerId, amountCents: totalCents, status: 'pending', idempotencyKey })
+      .onConflictDoNothing({ target: schema.referralPayout.idempotencyKey })
+      .returning({ id: schema.referralPayout.id })
+    if (claim) {
+      claimedPayoutId = claim.id
+    } else {
+      // We have been here before with this exact accrued-row set.
+      const [existing] = await db
+        .select({ id: schema.referralPayout.id, stripeTransferId: schema.referralPayout.stripeTransferId })
+        .from(schema.referralPayout)
+        .where(eq(schema.referralPayout.idempotencyKey, idempotencyKey))
+        .limit(1)
+      if (existing?.stripeTransferId) {
+        // The money ALREADY went out; only the ledger never caught up. Finish
+        // the bookkeeping instead of paying again.
+        claimedPayoutId = existing.id
+        priorTransferId = existing.stripeTransferId
+      } else if (existing) {
+        claimedPayoutId = existing.id
+      }
     }
+  } catch (err) {
+    console.warn('[referral-payout] payout claim failed', partnerId, err)
     return { ok: false, error: 'The payout could not be sent. Please try again.' }
   }
 
-  // Transfer succeeded — finalize the ledger.
+  let transferId: string
+  if (priorTransferId) {
+    // Recovery path: the transfer already left on an earlier attempt whose
+    // ledger write failed. Do NOT send again — fall through to finish the
+    // bookkeeping against the transfer that actually happened.
+    transferId = priorTransferId
+    console.warn('[referral-payout] reusing prior transfer (ledger reconciliation)', {
+      partnerId,
+      transferId,
+    })
+  } else {
+    try {
+      const transfer = await stripe.transfers.create(
+        {
+          amount: totalCents,
+          currency: 'usd',
+          destination: p.accountId,
+          metadata: { referralPartnerId: partnerId, initiatedBy: opts.initiatedBy },
+        },
+        { idempotencyKey },
+      )
+      transferId = transfer.id
+      // Stamp the transfer id on the CLAIM immediately, so any later retry sees
+      // the money already left even after Stripe's own dedupe window expires.
+      try {
+        await db
+          .update(schema.referralPayout)
+          .set({ stripeTransferId: transferId })
+          .where(eq(schema.referralPayout.id, claimedPayoutId))
+      } catch (stampErr) {
+        console.error('[referral-payout] CRITICAL: could not stamp transfer id on claim', {
+          partnerId,
+          transferId,
+          err: stampErr,
+        })
+      }
+    } catch (err) {
+      // Transfer failed — no money moved, rows stay accrued. Mark the claim
+      // failed so the NEXT attempt re-derives the same key and tries cleanly.
+      const msg = err instanceof Error ? err.message : 'Stripe transfer failed'
+      console.warn('[referral-payout] transfer failed', partnerId, msg)
+      try {
+        await db
+          .update(schema.referralPayout)
+          .set({ status: 'failed', note: msg.slice(0, 500) })
+          .where(eq(schema.referralPayout.id, claimedPayoutId))
+      } catch {
+        /* best-effort audit row */
+      }
+      return { ok: false, error: 'The payout could not be sent. Please try again.' }
+    }
+  }
+
+  // Transfer is real — finalize the ledger against the CLAIM row (never a new
+  // payout row: one transfer must never produce two payout records).
   try {
-    let payoutId = 0
     await db.transaction(async (tx) => {
-      const [payout] = await tx
-        .insert(schema.referralPayout)
-        .values({ partnerId, amountCents: totalCents, stripeTransferId: transferId, status: 'paid' })
-        .returning({ id: schema.referralPayout.id })
-      payoutId = payout.id
+      await tx
+        .update(schema.referralPayout)
+        .set({ status: 'paid', stripeTransferId: transferId, note: null })
+        .where(eq(schema.referralPayout.id, claimedPayoutId))
       await tx
         .update(schema.referralCommission)
-        .set({ status: 'paid', payoutId })
+        .set({ status: 'paid', payoutId: claimedPayoutId })
         .where(inArray(schema.referralCommission.id, claimedIds))
     })
-    return { ok: true, amountCents: totalCents, payoutId }
+    return { ok: true, amountCents: totalCents, payoutId: claimedPayoutId }
   } catch (err) {
-    // Money moved but the ledger write failed. Loud log + a paid payout row so
-    // the transfer isn't lost; the accrued rows can be reconciled by hand.
+    // Money moved but the ledger write failed. The claim row already carries
+    // the transfer id, so the next retry RECOVERS instead of double-paying.
     console.error(
       '[referral-payout] CRITICAL: transfer',
       transferId,
@@ -256,13 +314,13 @@ export async function payoutPartner(
       err,
     )
     try {
-      await db.insert(schema.referralPayout).values({
-        partnerId,
-        amountCents: totalCents,
-        stripeTransferId: transferId,
-        status: 'paid',
-        note: 'Transfer sent; ledger reconciliation needed (commission rows not flipped).',
-      })
+      await db
+        .update(schema.referralPayout)
+        .set({
+          status: 'paid',
+          note: 'Transfer sent; ledger reconciliation needed (commission rows not flipped).',
+        })
+        .where(eq(schema.referralPayout.id, claimedPayoutId))
     } catch {
       /* best-effort */
     }

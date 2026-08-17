@@ -100,6 +100,11 @@ export const referralPayout = pgTable('referral_payout', {
   // 'paid' | 'failed'
   status: text('status').notNull().default('paid'),
   note: text('note'),
+  // The Stripe idempotency key this payout was sent under, claimed BEFORE the
+  // transfer. Stripe only dedupes a key for ~24h, so a retry after that window
+  // would send a SECOND real transfer; this unique claim is what makes the
+  // retry recognize "already sent" and reconcile instead of re-paying.
+  idempotencyKey: text('idempotency_key').unique(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

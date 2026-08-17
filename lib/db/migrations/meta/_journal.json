@@ -1051,6 +1051,13 @@
       "when": 1786993772331,
       "tag": "0149_little_mandrill",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1786997487609,
+      "tag": "0150_fuzzy_fenris",
+      "breakpoints": true
     }
   ]
 }

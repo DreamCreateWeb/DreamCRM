@@ -697,6 +697,69 @@ seven commits pushed. Migration 0149 added.
 R2 fixes by severity with full-suite gates; the perf slice and the money
 hardening lead. Then R3 (E2E + hardening), R4 (beta), R5 (launch).
 
+---
+
+## R2 — BURN-DOWN (in progress, opened 2026-08-17)
+
+Fixing by severity, full-suite gate on every slice.
+
+### Slice 1 — the Patients-list scale rework (the S5 headline) · DONE
+
+`listPatients` was the one finding that falls over first on a real clinic.
+Three behaviour-preserving fixes, no UI change:
+
+- **The unbounded fan-outs are gone.** `lastVisits`, `nextVisits` and
+  `lastMessages` each pulled EVERY matching row in the org (all appointment
+  history; every message row) purely to derive one value per patient. All
+  three now use Postgres `DISTINCT ON (patientId)` — exactly the row the
+  composer already took (it read only the first per patient), so the result is
+  identical while the transfer collapses from O(all appointments + all
+  messages) to O(patients).
+- **Column projection.** The roster select was a bare `select()` (every column
+  including jsonb); it now projects the 15 columns the composer actually reads.
+- Dropped a dead `emails` local.
+
+Scale effect for a 3,000-patient clinic with history: tens of thousands of
+appointment + message rows into Node per page render → ~3,000 projected rows
+plus three one-row-per-patient aggregates.
+
+**Still open (deliberately deferred):** pagination itself. The derived filters
+(`hasBalance`, `missingIntake`, birthday, recall) and the sort still run in JS
+after the load, so a `LIMIT` would silently truncate BEFORE filtering and
+return wrong results. Correct pagination requires pushing those filters + sort
+into SQL first, plus a UI change — a follow-up slice. With the fan-outs fixed
+the remaining cost is bounded by the patient table alone.
+
+### Slice 2 — money hardening (the two S2 money items) · DONE
+
+- **Refund/dispute commission reversal.** A clinic that paid and was then
+  refunded (or charged back) never produced that revenue, but the accrued
+  partner commission survived — real platform loss. New
+  `reverseCommissionForInvoice` + `charge.refunded` / `charge.dispute.created`
+  cases on the platform webhook (a dispute resolves its charge → invoice).
+  An `accrued` row flips to `reversed` (kept as audit, never deleted); an
+  already-`paid` row is NOT rewritten — settled money surfaces for a human
+  clawback decision instead. Idempotent, never throws. 5 tests.
+- **Partner-payout double-pay window CLOSED** (migration 0150,
+  `referral_payout.idempotency_key` unique). The key was derived from the
+  claimed row set, but Stripe only dedupes a key for ~24h: after a transfer
+  succeeded and its ledger write failed, the rows stayed `accrued` and a retry
+  past that window re-derived the same key and sent a SECOND REAL TRANSFER.
+  The key is now CLAIMED (a `pending` payout row) BEFORE the money moves and
+  stamped with the transfer id the moment it lands, so a later retry sees the
+  transfer already went out and RECONCILES the ledger instead of paying again.
+  The failure path marks the claim `failed` (next attempt retries cleanly) and
+  success finalizes the SAME row — one transfer can no longer produce two
+  payout records. Recovery-path test added.
+
+### Test-hygiene note (worth keeping)
+
+Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
+assignee guard) had broken `tests/patients` — a subset run had missed it
+because those suites weren't in the subset. Caught by the full-suite gate,
+fixed, and both guards now carry their own regression tests. Reinforces the
+repo convention: **the full `pnpm test`, not a module subset, gates a slice.**
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,

@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   patientRows: [] as Record<string, unknown>[],
   followupRows: [] as Record<string, unknown>[],
   userRows: [] as Record<string, unknown>[],
+  memberRows: [] as Record<string, unknown>[],
   inserts: [] as Record<string, unknown>[],
 }))
 
@@ -17,6 +18,7 @@ vi.mock('@/lib/db', () => {
       if (ctx.tbl === 'patient') return Promise.resolve(h.patientRows)
       if (ctx.tbl === 'patientFollowup') return Promise.resolve(h.followupRows)
       if (ctx.tbl === 'user') return Promise.resolve(h.userRows)
+      if (ctx.tbl === 'member') return Promise.resolve(h.memberRows)
       return Promise.resolve([])
     }
     o.values = (v: Record<string, unknown>) => { h.inserts.push(v); return Promise.resolve(undefined) }
@@ -28,7 +30,7 @@ vi.mock('@/lib/db', () => {
       patient: { __t: 'patient', id: 'id', organizationId: 'organizationId', firstName: 'firstName', lastName: 'lastName' },
       patientFollowup: { __t: 'patientFollowup', id: 'id', organizationId: 'organizationId', sourceAppointmentId: 'sourceAppointmentId' },
       user: { __t: 'user', id: 'id', name: 'name' },
-      member: { __t: 'member' },
+      member: { __t: 'member', id: 'id', organizationId: 'organizationId', userId: 'userId' },
     },
   }
 })
@@ -52,6 +54,7 @@ beforeEach(() => {
   h.patientRows = []
   h.followupRows = []
   h.userRows = []
+  h.memberRows = []
   h.inserts = []
   recordActionMock.mockClear()
 })
@@ -86,6 +89,7 @@ describe('createFollowup', () => {
 
   it('keeps a well-formed due date + resolves the assignee name', async () => {
     h.patientRows = [{ id: 'p1', firstName: 'Mia', lastName: 'Hayes' }]
+    h.memberRows = [{ id: 'm1' }] // assignee IS a member of this clinic
     h.userRows = [{ name: 'Dr. Reyes' }]
     const f = await createFollowup(
       { organizationId: 'org_1', patientId: 'p1', title: 'Call', dueDate: '2026-07-01', assignedUserId: 'u9' },
@@ -93,6 +97,18 @@ describe('createFollowup', () => {
     )
     expect(f.dueDate).toBe('2026-07-01')
     expect(f.assigneeName).toBe('Dr. Reyes')
+  })
+
+  it('refuses an assignee who is not a member of the org (no orphan row)', async () => {
+    h.patientRows = [{ id: 'p1', firstName: 'Mia', lastName: 'Hayes' }]
+    h.memberRows = [] // the caller-supplied assignee belongs to another clinic
+    await expect(
+      createFollowup(
+        { organizationId: 'org_1', patientId: 'p1', title: 'Call', assignedUserId: 'u_foreign' },
+        'u1',
+      ),
+    ).rejects.toThrow(/not a member/i)
+    expect(h.inserts).toHaveLength(0)
   })
 })
 

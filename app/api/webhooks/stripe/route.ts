@@ -202,6 +202,39 @@ export async function POST(request: Request) {
         }
         break
       }
+      // A clinic that pays and is then refunded (or charges back) never
+      // produced that revenue — an accrued referral commission on it is money
+      // the platform would simply lose. Reverse it. Best-effort + idempotent:
+      // this must never break billing sync, and a replayed event is a no-op.
+      case 'charge.refunded':
+      case 'charge.dispute.created': {
+        try {
+          let invoiceId: string | null = null
+          if (event.type === 'charge.refunded') {
+            const charge = event.data.object as { invoice?: string | null }
+            invoiceId = typeof charge.invoice === 'string' ? charge.invoice : null
+          } else {
+            // A dispute carries the charge id, not the invoice — resolve it.
+            const dispute = event.data.object as { charge?: string | null }
+            if (typeof dispute.charge === 'string') {
+              const charge = (await stripe.charges.retrieve(dispute.charge)) as unknown as {
+                invoice?: string | null
+              }
+              invoiceId = typeof charge.invoice === 'string' ? charge.invoice : null
+            }
+          }
+          if (invoiceId) {
+            const { reverseCommissionForInvoice } = await import('@/lib/services/referrals')
+            await reverseCommissionForInvoice(
+              invoiceId,
+              event.type === 'charge.refunded' ? 'refund' : 'dispute',
+            )
+          }
+        } catch (err) {
+          console.warn('[stripe webhook] commission reversal failed (non-fatal)', err)
+        }
+        break
+      }
       default:
         if (process.env.NODE_ENV !== 'production') {
           console.log('[stripe webhook] ignored event:', event.type)

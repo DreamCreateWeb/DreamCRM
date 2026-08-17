@@ -77,8 +77,9 @@ describe('getMrrSnapshot', () => {
     ])
     const m = await getMrrSnapshot()
     expect(m.activeClinics).toBe(12)
-    // 4×9900 + 6×14900 + 2×19900 = 39600 + 89400 + 39800 = 168800
-    expect(m.monthlyRecurringCents).toBe(4 * 9900 + 6 * 14900 + 2 * 19900)
+    // Premium is the one purchasable plan at $200 (basic/pro are legacy
+    // managed rows): 4×15000 + 6×25000 + 2×20000.
+    expect(m.monthlyRecurringCents).toBe(4 * 15000 + 6 * 25000 + 2 * 20000)
     expect(m.annualRunRateCents).toBe(m.monthlyRecurringCents * 12)
     expect(m.arpu).toBe(Math.round(m.monthlyRecurringCents / 12))
   })

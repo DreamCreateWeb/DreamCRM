@@ -33,7 +33,9 @@ vi.mock('@/lib/db', async () => {
     p.limit = () => p
     return p
   }
-  return { db: { select: () => chain([]) }, schema }
+  // selectDistinctOn is the same chain — the service uses it to collapse
+  // last-visit / next-visit / last-contact to one row per patient in SQL.
+  return { db: { select: () => chain([]), selectDistinctOn: () => chain([]) }, schema }
 })
 
 vi.mock('@/lib/services/recall-status', () => ({
