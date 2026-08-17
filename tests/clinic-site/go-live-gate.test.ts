@@ -45,3 +45,31 @@ describe('the kill (owner ruling: an expired trial gates the site for EVERYONE)'
     expect(shouldShowComingSoon({ siteLiveAt: null, canEdit: false, isFrame: false })).toBe(true)
   })
 })
+
+describe('access routes — the doors are not the marketing site', () => {
+  it('the portal sign-in / intake gate stay open before the site goes live', () => {
+    // A practice can be fully operating (patients synced, portal in use) before
+    // it publishes a marketing site. The link/QR it hands patients must work.
+    expect(
+      shouldShowComingSoon({ siteLiveAt: null, canEdit: false, isFrame: false, isAccessRoute: true }),
+    ).toBe(false)
+  })
+
+  it('but an expired trial STILL closes them — the kill outranks the exemption', () => {
+    expect(
+      shouldShowComingSoon({
+        siteLiveAt: null,
+        canEdit: false,
+        isFrame: false,
+        shutDown: true,
+        isAccessRoute: true,
+      }),
+    ).toBe(true)
+  })
+
+  it('marketing pages are unaffected — they still gate until go-live', () => {
+    expect(
+      shouldShowComingSoon({ siteLiveAt: null, canEdit: false, isFrame: false, isAccessRoute: false }),
+    ).toBe(true)
+  })
+})

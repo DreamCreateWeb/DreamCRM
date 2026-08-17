@@ -145,10 +145,22 @@ function isPublicPath(pathname: string) {
  */
 function siteResponse(request: NextRequest, pathname: string) {
   const frame = pathname.match(/^\/site\/[^/]+\/tf\/([a-z0-9-]+)$/)
-  if (!frame && !request.headers.has('x-dc-template-frame')) return NextResponse.next()
+  // ACCESS ROUTES — the doors, not the marketing site. `/portal` is the patient
+  // portal sign-in (the link/QR a clinic hands out) and `/intake-start` is the
+  // account gate in front of intake. They live under /site/[slug]/ only for the
+  // clinic-branded chrome, so the pre-live "coming soon" gate would strand a
+  // patient at a locked door for a practice that is operating but hasn't
+  // published its marketing site yet. Same stamp-a-header trick as the frame
+  // above: the layout can't read the pathname, so middleware tells it.
+  const accessRoute = /^\/site\/[^/]+\/(portal|intake-start)(\/.*)?$/.test(pathname)
+  if (!frame && !accessRoute && !request.headers.has('x-dc-template-frame') && !request.headers.has('x-dc-access-route')) {
+    return NextResponse.next()
+  }
   const requestHeaders = new Headers(request.headers)
   requestHeaders.delete('x-dc-template-frame')
+  requestHeaders.delete('x-dc-access-route')
   if (frame) requestHeaders.set('x-dc-template-frame', frame[1])
+  if (accessRoute) requestHeaders.set('x-dc-access-route', '1')
   return NextResponse.next({ request: { headers: requestHeaders } })
 }
 

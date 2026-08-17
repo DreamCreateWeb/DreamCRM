@@ -548,10 +548,19 @@ export function shouldShowComingSoon(opts: {
    *  included: there is no site to inspect, only a bill to settle, and the
    *  dashboard wall already owns telling them that. */
   shutDown?: boolean
+  /** An ACCESS route (patient-portal sign-in, intake gate) rather than
+   *  marketing content. These are the doors a practice hands out by link/QR, so
+   *  the go-live lever must not lock them: a clinic can be fully operating —
+   *  patients synced, portal live — before it publishes its marketing site.
+   *  Deliberately checked AFTER `shutDown`: an expired trial still closes
+   *  everything (the portal shows its own calm notice), because that is about
+   *  being a customer, not about whether a website is published. */
+  isAccessRoute?: boolean
 }): boolean {
   if (opts.shutDown) return true
   if (opts.siteLiveAt) return false
   if (opts.canEdit) return false
   if (opts.isFrame) return false
+  if (opts.isAccessRoute) return false
   return true
 }

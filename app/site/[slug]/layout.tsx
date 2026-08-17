@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
@@ -48,6 +49,11 @@ export default async function ClinicSiteLayout({
   const { orgId, brand, hasEditorDraft } = await getClinicThemeBySlug(slug)
   const { def, isPreview, isFrame } = await resolveActiveSiteTemplate(slug)
   const canEdit = orgId ? await canEditClinic(orgId) : false
+  // The doors (portal sign-in, intake gate) are never gated by the MARKETING
+  // site's go-live lever — a practice that is operating but hasn't published
+  // its site would otherwise hand out a portal link that dead-ends on
+  // "coming soon". Stamped by middleware, which alone can read the pathname.
+  const isAccessRoute = (await headers()).get('x-dc-access-route') === '1'
   const palette = def.buildPalette(brand)
   // The "Message us" bubble (site-wide, so it lives here, not per-page).
   // Default ON; Settings → Practice is the off switch. Never in a gallery
@@ -86,7 +92,7 @@ export default async function ClinicSiteLayout({
     // — editors and gallery frames included. resolveTrialState is the same
     // rule the dashboard wall uses, so the two can never disagree.
     const shutDown = prof ? resolveTrialState(prof).expired : false
-    if (prof && shouldShowComingSoon({ siteLiveAt: prof.siteLiveAt, canEdit, isFrame, shutDown })) {
+    if (prof && shouldShowComingSoon({ siteLiveAt: prof.siteLiveAt, canEdit, isFrame, shutDown, isAccessRoute })) {
       comingSoon = {
         clinicName: prof.displayName ?? 'Our practice',
         phone: prof.phone ?? null,
