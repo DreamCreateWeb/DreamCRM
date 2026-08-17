@@ -425,6 +425,55 @@ binding are all correct. The payment-plan charger was the exception.
 refund/dispute reversal and payout double-pay hardening are the two
 substantive R2 money items. No open S0.
 
+### R1 · S3 sweep — Four-persona journey audit (2026-08-17)
+
+Three parallel finders walked patient/public, clinic-staff, and platform/
+partner journeys for logic breaks, dead ends, dishonest empty states, and
+voice/tenant-voice slips. Verdict: the app is **release-quality on journey
+logic** — 0 S1 across every persona; empty states are honest and kind,
+orientation/back-paths hold, "prospect" vocabulary holds, and tenant-voice
+is correctly branched on every dual-tenant surface checked. Only 2 S2s (both
+patient) and a handful of S3 polish items.
+
+**Fixed this session (verified, typecheck + build clean):**
+
+- S2/journey · `r/[token]` review landing · with no Google URL, no other
+  platforms, AND private feedback off, the page rendered a warm heading with
+  nothing to click (dead-end). · **FIXED** — when there's no public
+  destination, the private note path is offered (and opened) so the "we'd
+  love to hear how your visit went" heading always has an affordance.
+- S3/money-adjacent · managed provisioning modal + prospect→clinic convert
+  card both defaulted the plan to legacy `'pro'` ($250), not the marketed
+  `'premium'` ($200) — a real wrong-price on a real conversion if the owner
+  didn't touch the dropdown. · **FIXED** — both default to `premium`.
+- S3/voice · `site/[slug]/intake-start` tab title leaked the internal product
+  name "DreamCRM" to patients. · **FIXED** — `generateMetadata` titles against
+  the clinic name like every sibling page.
+
+**Reported by the S3 sweep — R2/polish candidates:**
+
+- S2 · the go-live "coming soon" gate (`site/[slug]/layout.tsx`) has no
+  pathname exemption, so a pre-live clinic's shared portal-login link / QR
+  (`/portal`), the `/intake-start` gate, and portal out-links (shop,
+  dental-plans upsell) dead-end on the marketing coming-soon page. Mitigated
+  (magic-link EMAIL sign-in bypasses the site layout), so not S1 — but the
+  shared-link door is stranded. **R2 scoped item**: needs a pathname
+  exemption (middleware-stamped) + a test that a pre-live clinic's portal
+  login still resolves. · OPEN.
+- S3 · portal visit-card offers no change affordance inside the notice window
+  when the clinic has no phone on file (fall back to a "message us" link);
+  family "Book for {name}" doesn't pre-select the dependent (`?for=` param);
+  hardcoded "SMS replies — coming soon" tile on the clinic Overview (should
+  ride the SMS honesty-flip, not be hand-removed); `/growth/audiences` uses
+  the top-level eyebrow instead of the `‹ Growth` back-link; dead `?upgrade`
+  param on the `/settings/plans` redirect; partner payout button reads
+  "Withdraw $0.00" at zero balance; unreachable `isManage` branch in
+  `website/seo/page.tsx`. · OPEN (polish).
+
+**S3 sweep CLOSED (2026-08-17):** of 2 S2 found, 1 fixed (review dead-end)
+and 1 (portal coming-soon gate) scoped to R2; 2 S3 fixed (plan defaults,
+DreamCRM title leak); the rest is polish. No S0/S1.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,

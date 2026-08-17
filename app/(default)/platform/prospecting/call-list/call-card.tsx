@@ -33,7 +33,7 @@ function ConvertForm({
   const [name, setName] = useState(row.name)
   const [ownerName, setOwnerName] = useState(row.authorizedOfficialName ?? '')
   const [ownerEmail, setOwnerEmail] = useState(row.email ?? '')
-  const [planId, setPlanId] = useState<'basic' | 'pro' | 'premium'>('pro')
+  const [planId, setPlanId] = useState<'basic' | 'pro' | 'premium'>('premium')
   const [interval, setInterval] = useState<'monthly' | 'annual'>('monthly')
   const [pricingKind, setPricingKind] = useState<'standard' | 'percent_off' | 'comped'>('standard')
   const [percentOff, setPercentOff] = useState(20)

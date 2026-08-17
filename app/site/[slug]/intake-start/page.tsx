@@ -16,11 +16,18 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
-export const metadata = {
-  title: 'Start your intake — DreamCRM',
-  // Public flow shouldn't be indexed — the page is just a sign-in/sign-up
-  // gate to the patient portal's intake form.
-  robots: { index: false, follow: false },
+export async function generateMetadata({ params }: Props) {
+  const { slug } = await params
+  const data = await getClinicSiteBySlug(slug)
+  // Title against the CLINIC's name like every sibling public page — the patient
+  // must never see the internal product name in their browser tab.
+  const name = data ? data.profile.displayName ?? data.orgName : 'Our practice'
+  return {
+    title: `Start your intake — ${name}`,
+    // Public flow shouldn't be indexed — the page is just a sign-in/sign-up
+    // gate to the patient portal's intake form.
+    robots: { index: false, follow: false },
+  }
 }
 
 

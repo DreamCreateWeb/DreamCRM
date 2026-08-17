@@ -63,9 +63,9 @@ export default function ReviewForm({
   const noPublic = !googleUrl && otherSites.length === 0
 
   const [privateSent, setPrivateSent] = useState(false)
-  // Open the private form by default only when there's no public platform to send
-  // to (and the clinic allows private feedback) — otherwise it's a quiet opt-in.
-  const [showPrivate, setShowPrivate] = useState(noPublic && showPrivateFeedback)
+  // Open the private form by default when there's no public platform to send to
+  // — otherwise it's a quiet opt-in below the public buttons.
+  const [showPrivate, setShowPrivate] = useState(noPublic)
   const [text, setText] = useState('')
   const [rating, setRating] = useState<number | null>(null)
   // Star-gate answer (null = not asked / not answered yet).
@@ -249,7 +249,11 @@ export default function ReviewForm({
     </>
   )
 
-  const privateBlock = showPrivateFeedback && (
+  // When there's no public destination at all, the private note is the only way
+  // to honor the "we'd love to hear how your visit went" heading — so offer it
+  // even if the clinic normally keeps private feedback off, rather than leaving
+  // the patient on a card with nothing to click.
+  const privateBlock = (showPrivateFeedback || noPublic) && (
     <div
       className={noPublic || lowGate ? '' : 'mt-6 pt-6'}
       style={noPublic || lowGate ? undefined : { borderTop: `1px solid ${BORDER}` }}
