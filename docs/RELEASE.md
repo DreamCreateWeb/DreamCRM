@@ -752,6 +752,52 @@ the remaining cost is bounded by the patient table alone.
   success finalizes the SAME row — one transfer can no longer produce two
   payout records. Recovery-path test added.
 
+### Slice 3 — send-reminders per-org isolation (the near-S1) · DONE
+
+Two queries in the reminder engine were unwrapped, so a statement timeout or a
+malformed row for ONE clinic threw past both loops to the route's catch → HTTP
+500 → **every remaining clinic went unreminded for that tick**.
+
+- The per-org candidate scan is isolated: count the org failed, report the
+  engine failure to the Guardian, continue to the next clinic.
+- The per-appointment reminder-log read is isolated per APPOINTMENT, and
+  deliberately so: that read IS the idempotency check, so a throw must never be
+  treated as "nothing sent yet" (which would re-send a reminder the patient
+  already got) and must not abort the org's whole batch.
+
+**Still open:** the atomic reminder CLAIM (the double-send window — the log is
+written AFTER `deliver`, so an overlap/crash can re-send). Deferred
+deliberately: it needs a unique index on `(appointmentId, template)`, but
+`template` is NULLABLE (Postgres treats NULLs as distinct) and existing prod
+rows may already contain duplicates from the very bug being fixed — a failed
+migration blocks deploys, since migrations auto-apply on boot. Needs a dedup
+step + a partial unique index, as its own careful slice. · OPEN.
+
+### Slice 4 — the doors are not the marketing site · DONE
+
+The S3 sweep's one patient-facing dead-end. A practice fully operating but not
+yet published was handing out portal links/QRs (from `/website/share`) that
+dead-ended on the coming-soon page, which has NO navigation. Middleware now
+stamps `x-dc-access-route` for `/site/[slug]/portal` and `/intake-start`
+(mirroring the existing `x-dc-template-frame` pattern — a layout cannot read
+the pathname), and `shouldShowComingSoon` takes an explicit `isAccessRoute`
+exemption.
+
+The exemption is checked AFTER `shutDown` on purpose: an expired trial still
+closes everything — being a customer and having published a website are
+different questions. Three tests pin it (doors open pre-live; the kill still
+outranks; marketing pages unaffected). Build verified.
+
+### Slice 5 — publish-scheduled-posts loop guard + status CAS · DONE
+
+The cron loop spans EVERY org, and one post's throw (a ledger write, a bad row)
+aborted the publish of every remaining post including other clinics'. The flip
+also filtered on id alone, so two overlapping runs both published AND both
+wrote a `blog_publish` ledger entry — double-reporting into the story/standup.
+Now: per-post try/catch, and the update CASes on `status='scheduled'` with
+`.returning()` — losing the claim is a quiet `continue`, not an error. Test
+added for the CAS-loss path.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

@@ -11,7 +11,9 @@ const state: {
   selectQueue: unknown[][]
   ops: Op[]
   wheres: unknown[]
-} = { selectQueue: [], ops: [], wheres: [] }
+  /** true = every status-CAS update matches nothing (a concurrent runner won). */
+  updateClaimLost: boolean
+} = { selectQueue: [], ops: [], wheres: [], updateClaimLost: false }
 
 const { recordActionMock } = vi.hoisted(() => ({ recordActionMock: vi.fn(async (..._a: unknown[]) => true) }))
 vi.mock('@/lib/services/action-ledger', () => ({ recordAction: recordActionMock }))
@@ -58,7 +60,9 @@ vi.mock('@/lib/db', async () => {
             return {
               returning: async () => {
                 state.ops.push({ kind: 'update', table: tn, set })
-                return [{ id: 'updated', ...(set as object) }]
+                // Empty = the status CAS matched nothing (another runner
+                // already claimed this row).
+                return state.updateClaimLost ? [] : [{ id: 'updated', ...(set as object) }]
               },
               then: (resolve: (v: unknown) => void) => {
                 state.ops.push({ kind: 'update', table: tn, set })
@@ -95,6 +99,7 @@ import {
 } from '@/lib/services/blog'
 
 beforeEach(() => {
+  state.updateClaimLost = false
   state.selectQueue.length = 0
   state.ops.length = 0
   state.wheres.length = 0
@@ -353,6 +358,20 @@ describe('publishDueScheduledPosts', () => {
 
   it('nothing due → nothing published, nothing claimed', async () => {
     state.selectQueue.push([])
+    const result = await publishDueScheduledPosts()
+    expect(result.published).toBe(0)
+    expect(recordActionMock).not.toHaveBeenCalled()
+  })
+
+  it('losing the status CAS records nothing — a concurrent run cannot double-report', async () => {
+    // Two overlapping cron ticks both see the row as due. Only the one whose
+    // update still matched status='scheduled' may report the publish; without
+    // the CAS both would write a blog_publish entry into the story/standup.
+    const past = new Date(Date.now() - 3_600_000)
+    state.selectQueue.push([
+      { id: 'a', organizationId: 'org_1', title: 'Why crowns last', slug: 'why-crowns-last', publishedAt: null, scheduledFor: past },
+    ])
+    state.updateClaimLost = true
     const result = await publishDueScheduledPosts()
     expect(result.published).toBe(0)
     expect(recordActionMock).not.toHaveBeenCalled()

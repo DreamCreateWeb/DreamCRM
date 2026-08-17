@@ -473,21 +473,33 @@ export async function publishDueScheduledPosts(now: Date = new Date()): Promise<
     )
   let published = 0
   for (const p of due) {
-    await db
-      .update(blogPost)
-      .set({ status: 'published', publishedAt: p.publishedAt ?? p.scheduledFor ?? now, updatedAt: new Date() })
-      .where(eq(blogPost.id, p.id))
-    published += 1
-    // A human wrote and scheduled it; the MACHINE put it live at the chosen
-    // moment — the delivery reports (same actor line as scheduled campaigns
-    // and scheduled messages; round-2 audit). Neutral phrasing on purpose:
-    // this path serves the platform org's marketing blog too.
-    await recordAction({
-      organizationId: p.organizationId,
-      capability: 'blog_publish',
-      summary: `Published the blog post “${p.title}” on schedule`,
-      detail: { blogPostId: p.id, slug: p.slug },
-    })
+    // Per-post isolation: this loop spans EVERY org, so an unwrapped throw on
+    // one post (a ledger write, a bad row) would abort the publish of every
+    // remaining post — including other clinics'.
+    try {
+      // CAS on status: claim the row only if it is still 'scheduled'. Two
+      // overlapping cron runs would otherwise both flip it and both write a
+      // ledger entry, double-reporting the publish into the story/standup.
+      const claimed = await db
+        .update(blogPost)
+        .set({ status: 'published', publishedAt: p.publishedAt ?? p.scheduledFor ?? now, updatedAt: new Date() })
+        .where(and(eq(blogPost.id, p.id), eq(blogPost.status, 'scheduled')))
+        .returning({ id: blogPost.id })
+      if (claimed.length === 0) continue // another runner got it — not an error
+      published += 1
+      // A human wrote and scheduled it; the MACHINE put it live at the chosen
+      // moment — the delivery reports (same actor line as scheduled campaigns
+      // and scheduled messages; round-2 audit). Neutral phrasing on purpose:
+      // this path serves the platform org's marketing blog too.
+      await recordAction({
+        organizationId: p.organizationId,
+        capability: 'blog_publish',
+        summary: `Published the blog post “${p.title}” on schedule`,
+        detail: { blogPostId: p.id, slug: p.slug },
+      })
+    } catch (err) {
+      console.warn('[blog] scheduled publish failed for post', p.id, err)
+    }
   }
   return { published }
 }
