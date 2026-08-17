@@ -1,8 +1,18 @@
-# The Onboarding Overhaul — research foundation
+# The Onboarding Overhaul — research foundation + build log
 
-**Status: RESEARCH (2026-08-05). No code yet.** Owner ruling: this is a
-PROJECT, not a sweep — "your current research just told me we need to make
-this a project."
+**Status: BUILT (updated 2026-08-17).** This doc began as pure research
+(2026-08-05, "no code yet") and became the project's build log as slices
+shipped. **The green-lit build order is COMPLETE** — readiness resolver,
+go-live lever, setup-as-Inbox-cards, the invite door, NexHealth (through
+write-back v1 + real-slots booking), SMS kickoff, and the trial-expiry
+kill all shipped by 2026-08-13; see the Build log section for every slice.
+**Read Parts 1–4 as the historical 2026-08-05 snapshot**: every defect
+named in Part 1's audit tables has since been fixed (the build log records
+each fix), and several "limitations" below were later disproven (marked
+in place). Remaining onboarding polish rides `docs/RELEASE.md` (the
+beta→1.0 program, esp. R4's stranger test). Original owner ruling: this is
+a PROJECT, not a sweep — "your current research just told me we need to
+make this a project."
 
 **The triggering incident.** Two beta clinics, same product. All About
 Smiles' Google Business Profile "Website" button points at their DreamCRM
@@ -69,7 +79,12 @@ landscape, (3) competitor + activation research, (4) design implications,
 - Zernio is **pull-only for listing fields** — the only GBP writes are
   review replies and posts (`lib/services/gbp-sync.ts:26-27`,
   `docs/zernio-google-integration.md:455-461`). We could not fix the
-  button even if we detected the mismatch.
+  button even if we detected the mismatch. **[SUPERSEDED — §2.5 found the
+  write endpoint in Zernio's OpenAPI spec, and the whole detect-and-fix
+  machine SHIPPED 2026-08-06 as Phase A slice 1 (see the build log):
+  `gbp_listing` snapshot, mismatch detector, `gbp_website_fix` proposal,
+  `updateGoogleBusinessWebsiteUri` write-back, UTM-tagged 'gbp' lead
+  channel.]**
 - GBP clicks arrive untagged: no UTM builder exists anywhere in the GBP
   path, so a listing click classifies as generic `'search'`
   (`lib/lead-channel.ts:42-58`). `websiteClicks` (the GBP metric) is never
@@ -391,7 +406,10 @@ own UTM params); the guided fix card (Overview + integrations detail) with
 auto-verification and ledger narration; the UTM channel in
 `classifyLeadChannel` + lead-channel surfaces; Guardian/readiness fact.
 Also: the owner files the Google Basic-Access application + the Zernio
-write-endpoint ask (template below).
+write-endpoint ask. **[As built: no ask was needed — §2.5 found the write
+endpoint already in Zernio's spec, so Phases A+D merged and shipped
+2026-08-06; the Basic-Access application dropped to optional
+vendor-insurance (Q2 below). No template was ever written.]**
 
 **Phase B — the readiness resolver.** `lib/readiness.ts` (pure grading) +
 service; health-graded facts replace every existence-check; the five
@@ -444,14 +462,20 @@ vendor-independence insurance.
    Smiles' websiteUri to its CURRENT (already-correct) value — proves the
    endpoint on our plan with zero visible change; caveat: any edit can
    trigger an automated listing re-review, so this is an owner call.
-3. Should booking ship request-mode-by-default for new clinics until hours
-   are confirmed (recommended), or stay live with an "unconfirmed hours"
-   override?
-4. Trial expiry: pause patient-facing automation, or keep it running and
-   say so honestly?
+3. ~~Should booking ship request-mode-by-default for new clinics until
+   hours are confirmed (recommended), or stay live with an "unconfirmed
+   hours" override?~~ ANSWERED — rulings #2 + #8: the clinic's choice,
+   never a platform default; shipped as the `setup_booking_mode` inbox
+   card (last-write-wins) + the go-live lever gating the whole site.
+4. ~~Trial expiry: pause patient-facing automation, or keep it running and
+   say so honestly?~~ ANSWERED — ruling #1 "kill everything"; shipped
+   2026-08-10 (`lib/services/billing-state.ts`, see the build log's THE
+   KILL entry).
 5. Setup fee: the vertical charges $500–1,500 for humans; do we want
    "white-glove included, done by the machine" as explicit positioning
    (recommended: yes, it's the differentiator, priced at $0)?
+   **[THE ONE STILL-OPEN QUESTION — no ruling recorded anywhere in this
+   doc; a positioning call for the marketing pivot.]**
 
 **Seam bugs found during research, worth fixing regardless** (log in
 FINISHING.md when picked up): the `/book` fallback-banner rule mismatch
@@ -482,7 +506,9 @@ Part 5:
    recommend, never decide.
 3. **AI-driven onboarding: yes, explicitly.** The owner has seen it
    elsewhere and wants it ("it's wonderful").
-4. **PMS strategy: NexHealth Synchronizer** (not yet wired in) is the
+4. **PMS strategy: NexHealth Synchronizer** (not yet wired in at the time
+   of this ruling — **superseded by ruling #9 (live access) and WIRED IN
+   2026-08-08, see the build log**) is the
    intended universal PMS bridge, replacing the one-PMS-at-a-time direct
    integration path. Clinics on an unsupported PMS export their patient
    list and import the CSV (the importer exists). Design implication: the
@@ -509,7 +535,10 @@ Part 5:
    forms, automations, domain, …), what the machine does alone vs what
    the clinic must answer, in what order, and what gates go-live. The
    readiness resolver and the rest of Phases B–D get re-scoped from the
-   outcome of that conversation.
+   outcome of that conversation. **[The conversation happened that same
+   night — the Round 2 rulings below ARE its output, and they green-lit
+   the build order the build log then executed: readiness resolver →
+   go-live lever → setup cards → invite door → NexHealth + SMS kickoff.]**
 
 ### Round 2 rulings (2026-08-07, overnight)
 
@@ -558,6 +587,33 @@ surface usage honestly. Overage behavior (pause vs metered) is a later
 call — at 2 clinics it cannot matter yet.
 
 ### Build log
+
+- **Phase A slice 1 — GBP LISTING TRUTH — SHIPPED 2026-08-06** (deployed
+  as 7b8627a; backfilled into this log 2026-08-17 — it shipped the day
+  after the research, before this Build log section existed, and was the
+  fix for the project's founding incident). Phases A+D merged the day
+  §2.5 found the `locations.patch` proxy in Zernio's published OpenAPI —
+  no Google application needed. Migration 0146 `clinic_profile.
+  gbp_listing` (the LISTING TRUTH snapshot: websiteUri/placeId/reviewUrl/
+  mapsUri/isVerified/title/fetchedAt), stamped by every GBP sync — whose
+  normalizer also grew the summary-sibling shape fork (Zernio now nests a
+  derived `location` summary beside top-level fields; the old unwrap
+  would have swallowed hours/website). Pure `lib/gbp-listing.ts`
+  (forgiving URL compare — scheme/www/slash/query are noise; junk
+  degrades to 'unknown', never a false mismatch; `buildListingWebsiteUrl`
+  UTM tags + `isGbpTaggedAttribution` reads the same marker back). The
+  `gbp_website_fix` proposal: registered ask-first, NOT grantable (it
+  edits the practice's PUBLIC listing); AI-free generator, monthly
+  sourceKey, files ONLY on mismatch/missing + verified + connected;
+  executor via `updateGoogleBusinessWebsiteUri` (the spec-path PUT) with
+  a live staleness re-check at the tap — already-correct RETIRES rather
+  than re-writes (any edit can trigger a listing re-review),
+  re-read-after-write because Google strips params, a refused write keeps
+  the card and names the by-hand path; the sweep retires healed cards.
+  Plus the 'gbp' lead channel ("Google profile") keyed on the
+  utm_campaign marker ahead of search — the All About Smiles effect is
+  finally measurable, and Mammoth Spring's blind spot is detectable the
+  moment their GBP connects.
 
 - **Phase B slice 1 — the readiness resolver (truth layer) — SHIPPED
   2026-08-07** (deployed as 3f01f3a): pure `lib/readiness.ts` (facts
@@ -1056,3 +1112,16 @@ with zero real-world risk before any live practice flips the switch.
   local engine on purpose — the front desk may deliberately squeeze a
   walk-in. The demo org (sandbox-bound) becomes the living proof: its
   /book page now offers the sandbox practice's real Eastern-time slots.
+
+- **PROJECT CLOSE-OUT — 2026-08-17.** The green-lit build order (ruling
+  #6 → round-2 rulings) is complete, plus the unplanned additions the
+  work surfaced: the trial-expiry KILL, NexHealth write-back v1
+  (round-trip verified against the sandbox in both directions, including
+  a human-driven cancel), real-slots booking, and the sign-here Approval
+  Inbox where the setup cards land. Owner actions still pending: the
+  optional Google Basic-Access application (vendor insurance; Dream
+  Create's GBP 60-day clock started ~2026-08-08) and Mammoth Spring's
+  GBP connection once they recover their Google login. The one open
+  question is Q5 (setup-fee positioning). Everything further —
+  onboarding polish, the stranger test, beta onboarding of real
+  practices — now rides `docs/RELEASE.md` (the beta→1.0 program).

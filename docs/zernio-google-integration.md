@@ -34,6 +34,14 @@ per-platform social analytics + Facebook reviews) all shipped (2026-06-15).**
 >   are account-scoped (`/v1/accounts/{id}/gmb-…`), newer than the flat
 >   `/google-business/…?accountId=` namespace the read wrappers use; new
 >   wrappers follow the spec. See docs/onboarding-overhaul.md §2.5.
+> - **Dashboard paths moved (the Growth/Website restructure, 2026-07):**
+>   `/social-posts` → **`/growth/social`** (the old path is a 308 stub;
+>   `/google-posts` now redirects to `/growth/social` too), `/reviews`
+>   (+`/received`) → **`/growth/reviews`** (+`/received`), `/seo` →
+>   **`/website/seo`**, `/analytics` → **`/growth/analytics`**. The stale
+>   mentions below are annotated in place; Zernio REST paths
+>   (`/v1/analytics/…`, `/v1/posts`, …) are API routes, not dashboard
+>   pages — unchanged.
 > - **Next major Integrations work (plan approved, NOT built):** reframe
 >   Integrations as a menu of FEATURE BUNDLES (Practice Management + Google
 >   Business included; Social Media a paid add-on; Patient Communications;
@@ -47,11 +55,13 @@ flat per-tier Stripe add-on, **Google Business free on every plan tier**); the
 **`/channels` surface** (PR2) lets a clinic connect/disconnect Google Business +
 the 5 shortlisted social platforms (Instagram / Facebook / TikTok / YouTube /
 LinkedIn), enforcing the plan's social-connection cap at the connect route (GBP
-uncapped/free); the **unified `/social-posts` composer + content calendar** (PR3)
-lets a clinic compose once and publish/schedule to Google Business + the connected
+uncapped/free); the **unified `/social-posts` composer + content calendar** (PR3;
+now `/growth/social`) lets a clinic compose once and publish/schedule to Google
+Business + the connected
 socials at once (the GBP-only `/google-posts` was generalized — `gbp_post` →
 `social_post` + a `social_post_target` child, migration 0068 — and `/google-posts`
-redirects to `/social-posts`); and **PR4** adds **per-platform social analytics**
+redirects to `/social-posts`; today both land on `/growth/social`); and **PR4**
+adds **per-platform social analytics**
 (followers / reach / impressions / engagement per connected social channel, on the
 Analytics "Social performance" band) + **Facebook reviews/recommendations folded
 into the Reviews module** (the `google_review` table was generalized →
@@ -66,9 +76,20 @@ entirely defensively + is best-effort).**
 
 | Plan | GBP | Free social | Social add-on | Social limit (base → with add-on) |
 |---|---|---|---|---|
-| Basic ($99) | ✓ all plans | 0 | **not available** (upgrade to Pro) | 0 |
+| Basic ($150) | ✓ all plans | 0 | **not available** (upgrade to Pro) | 0 |
 | Pro ($250) | ✓ | 1 | **$30/mo** | 1 → **3** |
-| Premium ($500) | ✓ | 2 | **$20/mo** | 2 → **5** |
+| Premium ($200 founding rate · list $500) | ✓ | 2 | **$20/mo** | 2 → **5** |
+
+> **[Pricing + single-plan correction, 2026-08-17]:** prices above now match
+> `lib/stripe-config.ts` — Basic $150 (this table originally said $99),
+> Pro $250, Premium **$200/mo "founding practice rate"** (list $500 shown
+> struck through; $2,000 annual = 2 months free). Since **2026-07-19**
+> `PURCHASABLE_PLANS` = **Premium only** — the Basic/Pro rows are
+> **legacy-lookup-only** (they stay in `PLANS` for legacy tiers + managed
+> provisioning, never as self-serve options). And since the no-plan-gating
+> convention (**2026-07-25**) nothing in the app is tier-gated; the per-tier
+> social CAP MATH below remains live as a legal **add-on entitlement**
+> (`lib/types/social-entitlements.ts`), and GBP stays free/uncapped.
 
 - **Google Business is FREE + SEPARATE on every tier** — it does NOT count
   toward the social limit and is never blocked (owner/admin role still required).
@@ -95,7 +116,9 @@ entirely defensively + is best-effort).**
   keyless for build/tests.)
 
 - **GBP posting (Phase 2 — this PR):** ✅ **DONE.** A polished **Google Posts**
-  surface (`/google-posts`, premium + owner/admin, Growth sidebar group) lets a
+  surface (`/google-posts`, ~~premium +~~ owner/admin [plan gating removed
+  2026-07-25 — role gate only; the composer itself later folded into
+  `/growth/social`], Growth sidebar group) lets a
   clinic publish GBP posts — **Updates / Offers / Events** with a CTA button + an
   image — and keeps a post history. Composer: post-type selector, a live char
   counter to 1,500, image upload via the shared XHR helper (→ public S3 URL
@@ -114,7 +137,7 @@ entirely defensively + is best-effort).**
   +published timestamps/googleUrl/lastError/isDemo. **HONESTY:** Google
   DEPRECATED per-post insights, so the history shows publish STATUS + a "View on
   Google" permalink — never fabricated per-post metrics (the page points to /seo
-  for location-level performance). Disconnected → connect-prompt to
+  — now `/website/seo` — for location-level performance). Disconnected → connect-prompt to
   `/integrations`; connected + no posts → "Write your first Google post."
   EmptyState. Demo seeds 3 posts (published Update w/ image + Book CTA, published
   Offer w/ a coupon, scheduled Event). 63 new tests. **Confirmed create-post
@@ -178,15 +201,19 @@ local-metrics surface are live:
   HH:MM 24-hour) so booking `getSlotsForDay` + the footer "open today" +
   `clinicJsonLd` consume it UNCHANGED (round-trip test in
   `tests/booking/gbp-synced-hours.test.ts`). UI: a "Sync from Google" card on
-  Settings → Clinic profile (premium + owner/admin) — per-field "From Google ·
+  Settings → Clinic profile (~~premium +~~ owner/admin — plan gating removed
+  2026-07-25) — per-field "From Google ·
   synced {date}" vs "You've customized this" indicators, a force-sync button,
   per-field "use Google's version" / "stop syncing", and an import-from-Google
   photo gallery; disconnected → connect-prompt to `/integrations`. Cron
   `app/api/cron/sync-gbp/route.ts` (CRON_SECRET-gated; non-force, respects manual
   flags). Demo seeds the synced state + `google_photos` (one overlapping the
-  curated gallery to showcase the "Added" state). Pull-only — NO write-back to
-  Google (Zernio limitation). 62 new tests. **Confirmed location + media REST
-  shapes below.**
+  curated gallery to showcase the "Added" state). Pull-only — ~~NO write-back to
+  Google (Zernio limitation)~~ [SUPERSEDED 2026-08-05: listing writes now ship
+  via `updateGoogleBusinessWebsiteUri` (`PUT /accounts/{id}/gmb-location-details`
+  w/ `updateMask`) — see the update note at the top; the hours/address SYNC
+  itself remains pull-only by design]. 62 new tests. **Confirmed location +
+  media REST shapes below.**
 - **Foundation + reviews:** the connection architecture (foundation) and the
   first half of Phase 1's review work are live:
 - **Foundation:** the lazy client (`lib/zernio.ts`), client-safe types
@@ -206,9 +233,10 @@ local-metrics surface are live:
   `syncAllGoogleReviews` for the cron); a **legit `AggregateRating`** in
   `clinicJsonLd` sourced ONLY from real synced Google reviews (omitted at zero,
   never fabricated); the **Reviews UI refactor** (a "From Google" section on
-  `/reviews/received` with reply / edit-reply / delete-reply + "Refresh from
+  `/reviews/received` — now `/growth/reviews/received` — with reply /
+  edit-reply / delete-reply + "Refresh from
   Google" + a Connect-prompt empty state, plus Google rating/count/needs-reply
-  KPIs on `/reviews`); the cron route
+  KPIs on `/reviews`, now `/growth/reviews`); the cron route
   `app/api/cron/sync-google-reviews/route.ts` (CRON_SECRET-gated, hourly);
   demo seed `seedDemoGoogleReviews` (~6 synthetic reviews, varied ratings incl.
   a 4★ + a rating-only review + replied/unreplied). The hand-pasted
@@ -291,10 +319,51 @@ are the next PRs per the phased roadmap below.
   path or the field shapes won't strand the integration. If a real connected
   office reveals a different path at build time, only the two `zernioFetch` URLs
   in the wrappers need adjusting — the mapper + service + UI are path-agnostic.
-- **LIMITATION (unchanged):** Zernio exposes **no** endpoint to WRITE
-  hours/address back to Google. The sync is one-directional Google → Dream
+- **LIMITATION (as written 2026-06-15):** ~~Zernio exposes **no** endpoint to
+  WRITE hours/address back to Google. The sync is one-directional Google → Dream
   Create. True write-back needs Google's native Business Profile API (separate
-  heavy OAuth + verification) — a possible later phase, out of Zernio's scope.
+  heavy OAuth + verification) — a possible later phase, out of Zernio's scope.~~
+  [SUPERSEDED 2026-08-05: Zernio's published OpenAPI v1.0.4 DOES ship listing
+  writes — `PUT /v1/accounts/{accountId}/gmb-location-details` proxies Google's
+  `locations.patch` (websiteUri/regularHours/phoneNumbers/categories). We wrap
+  the websiteUri write so far (`updateGoogleBusinessWebsiteUri` in
+  `lib/zernio.ts`); no native-Google-API phase needed — see the update note at
+  the top.]
+
+## Listing truth — the GBP snapshot + write-back (shipped 2026-08-05, onboarding overhaul Phase A slice 1)
+
+What shipped alongside the `updateGoogleBusinessWebsiteUri` write wrapper:
+
+- **`clinic_profile.gbp_listing` (migration 0146)** — a jsonb snapshot of what
+  the clinic's Google listing ITSELF says (websiteUri / placeId / reviewUrl /
+  mapsUri / isVerified / title / fetchedAt), stamped by EVERY GBP sync
+  (`lib/services/gbp-sync.ts` — unconditionally: it is a snapshot of GOOGLE's
+  state, not a clinic setting, so the manual-source safety invariant doesn't
+  apply). Read by the `gbp_website_fix` proposal generator + the mismatch
+  detector via `parseGbpListingSnapshot`.
+- **Pure `lib/gbp-listing.ts` + service `lib/services/gbp-listing.ts`** —
+  `parseGbpListingSnapshot` (defensive jsonb → snapshot; unknown shapes come
+  back all-null "unknown", never a throw), `listingWebsiteState` (the verdict
+  `unknown | missing | mismatch | ok`, built on a FORGIVING URL compare —
+  scheme/www/trailing-slash/query/hash are noise; junk degrades to `unknown`,
+  never a false mismatch), and `buildListingWebsiteUrl` (the URL we ask Google
+  to carry rides UTM params — `utm_medium=organic` keeps GA4-style attribution
+  sane; `utm_campaign=gbp-listing` is OUR marker; idempotent, never
+  double-appends).
+- **The 'gbp' lead channel** — `lib/lead-channel.ts` classifies a lead as
+  `'gbp'` ("Google profile") via `isGbpTaggedAttribution` reading the same
+  `utm_campaign` marker (campaign alone, since Google strips params one at a
+  time), checked AHEAD of generic search — so "came from the Google profile"
+  is finally distinguishable from organic search.
+- **The location normalizer's summary-sibling shape fork** (`lib/zernio.ts`
+  ~397–515): Zernio's CURRENT location-details response carries the full
+  location fields at the TOP LEVEL, with `location` holding only a derived
+  SUMMARY block (name/placeId/reviewUrl/mapsUri/isVerified) as a sibling. The
+  old `{ location: {...} }` unwrap would have treated that summary as the whole
+  location and silently swallowed hours/address/phone/website —
+  `unwrapLocation` now follows `location`/`data` only when the inner object
+  `looksLikeFullLocation`, and keeps the summary block reachable for identity
+  fields (placeId/reviewUrl/mapsUri/isVerified/title).
 
 ## Confirmed performance + search-keywords REST shapes (this PR — docs.zernio.com llms-full.txt + OpenAPI probe, 2026-06-15)
 These pages WERE readable (unlike the JS-only reviews/location `.mdx` — the
@@ -347,7 +416,9 @@ so the paths + params + response shapes are **confirmed**, not assumed.
   field-name aliases, kept so a future schema tweak can't strand the surface.
   The performance `total` is pre-summed by Zernio, but we still sum `values` as a
   fallback in case a metric ever omits `total`.
-- **No write-back here** — these are pull-only analytics reads. Per-POST GBP
+- **No write-back here** — these are pull-only analytics reads. [Still true for
+  analytics itself; listing-field writes shipped separately 2026-08-05 via
+  `updateGoogleBusinessWebsiteUri` — see the update note at the top.] Per-POST GBP
   analytics are deprecated by Google with no replacement (Zernio's docs say so
   explicitly); the location-level Performance API above is the only GBP
   engagement signal. Phase 2 posting will surface what it can per post, but
@@ -400,7 +471,8 @@ documented/precedent shape and serialized/parsed DEFENSIVELY.
 - **No per-post metrics:** Google DEPRECATED per-post insights with no
   replacement (the docs say so explicitly). The history surfaces publish STATUS
   + a permalink, NOT fabricated per-post numbers; location-level performance
-  (impressions/calls/directions) lives on `/seo` via `gbp-metrics.ts`.
+  (impressions/calls/directions) lives on `/seo` (now `/website/seo`) via
+  `gbp-metrics.ts`.
 
 ## Confirmed connection REST shapes (validated against the live OpenAPI spec, 2026-06-15)
 - **`GET /v1/connect/{platform}`** — the connect query param is **`redirect_url`**
@@ -465,13 +537,20 @@ documented/precedent shape and serialized/parsed DEFENSIVELY.
 - METRICS: `/analytics/get-google-business-performance` (daily impressions,
   clicks, calls, directions, bookings) + `…-search-keywords`.
 - Also: manage services / menus / place-actions.
-- **LIMITATION (set expectations):** Zernio exposes **no** endpoint to WRITE
-  hours/address/core listing fields back to Google. So the sync is asymmetric:
-  **Google → Dream Create = full pull** (hours, address, phone, photos,
-  reviews); **Dream Create → Google = posts/offers/events + review replies**,
-  NOT listing-field edits. True hours/address write-back would require Google's
-  **native** Business Profile API (separate heavy OAuth + Google verification) —
-  a possible later phase, out of Zernio's scope.
+- **LIMITATION (set expectations, as written 2026-06-15):** ~~Zernio exposes
+  **no** endpoint to WRITE hours/address/core listing fields back to Google. So
+  the sync is asymmetric: **Google → Dream Create = full pull** (hours, address,
+  phone, photos, reviews); **Dream Create → Google = posts/offers/events +
+  review replies**, NOT listing-field edits. True hours/address write-back would
+  require Google's **native** Business Profile API (separate heavy OAuth +
+  Google verification) — a possible later phase, out of Zernio's scope.~~
+  [SUPERSEDED 2026-08-05: Zernio's OpenAPI v1.0.4 ships listing writes
+  (`PUT /v1/accounts/{id}/gmb-location-details` w/ `updateMask`, proxying
+  Google's `locations.patch`), plus place-actions, media upload, services,
+  attributes and verification writes. Shipped so far: the websiteUri write via
+  `updateGoogleBusinessWebsiteUri`, driven by the human-approved
+  `gbp_website_fix` proposal executor — hours/phone write-back is a named next
+  slice. See the update note at the top.]
 
 **Beyond Google (for the future social module):** 15 platforms total — Instagram
 (Feed/Stories/Reels/Carousels), Facebook (Page posts/Reels/Stories + **reviews**),
@@ -495,10 +574,12 @@ FB/IG/etc.
   (mirror `lib/stripe.ts` proxy pattern); client-safe types in `lib/types/zernio.ts`.
 
 ## Per-module refactor plan
-- **Reviews** (`lib/services/reviews.ts`, `app/(default)/reviews/**`): keep the
+- **Reviews** (`lib/services/reviews.ts`, `app/(default)/reviews/**` — now
+  `app/(default)/growth/reviews/**`): keep the
   first-party "patient writes the review in Dream Create" flow (we own that
   text). ADD a synced **Google reviews** source: pull real reviews+ratings,
-  show them on `/reviews/received`, **reply from the dashboard**, feature genuine
+  show them on `/reviews/received` (now `/growth/reviews/received`), **reply
+  from the dashboard**, feature genuine
   ones on the public site. Replace the hand-pasted `clinic_review_config.googlePlaceId`
   with the Zernio GBP connection (auto-resolved). New `google_review` table (or
   extend) keyed by org + Google review id; idempotent sync via a cron + webhook.
@@ -506,7 +587,8 @@ FB/IG/etc.
   exist, emit a **legitimate `AggregateRating`** (we deliberately withheld it —
   see the FTC note) → star rich-snippets. Source the rating from the synced
   Google reviews, never fabricated.
-- **SEO** — ✅ **DONE.** The static "claim your GBP" checklist on `/seo` is
+- **SEO** — ✅ **DONE.** The static "claim your GBP" checklist on `/seo` (now
+  `/website/seo`) is
   replaced by a real **connect + live GBP local-metrics card** — when connected:
   impressions / calls / directions / website clicks / bookings KPIs + a
   top-search-terms list (honoring the window); when not connected: a calm
@@ -527,8 +609,11 @@ FB/IG/etc.
   overwrites `'google'` fields; an explicit force sync may overwrite a manual
   one + flips its source to `'google'`; editing a field via any editor flips it
   back to `'manual'`. Photos land in a separate `google_photos` column + an
-  import-from-Google gallery (never auto-clobbers the curated officePhotos). No
-  push-back to Google — pull-only (see limitation).
+  import-from-Google gallery (never auto-clobbers the curated officePhotos).
+  ~~No push-back to Google — pull-only (see limitation).~~ [SUPERSEDED
+  2026-08-05: the websiteUri write ships via `updateGoogleBusinessWebsiteUri`;
+  hours/phone write-back is a named next slice — see the update note at the
+  top.]
 - **NEW Social module**: compose once → publish/schedule to GBP + IG/FB/… with a
   content calendar + per-platform analytics, reusing the same connection. The
   GBP "Book" CTA deep-links the clinic's `/book`.
@@ -543,9 +628,11 @@ FB/IG/etc.
     `GET /v1/google-business/gmb-reviews` into the `google_review` table
     (migration **0064**, idempotent upsert by org + Google review id; cron
     `/api/cron/sync-google-reviews` + on-demand "Refresh from Google"); a
-    "From Google" section on `/reviews/received` with **reply / edit-reply /
+    "From Google" section on `/reviews/received` (now
+    `/growth/reviews/received`) with **reply / edit-reply /
     delete-reply** + a Connect-prompt empty state; Google rating/count/needs-
-    reply KPIs on `/reviews`; a **legitimate `AggregateRating`** in
+    reply KPIs on `/reviews` (now `/growth/reviews`); a **legitimate
+    `AggregateRating`** in
     `clinicJsonLd` sourced ONLY from the real synced rating (omitted at zero);
     `clinic_review_config.googlePlaceId` superseded by the auto-resolved Zernio
     GBP connection (column kept as a deprecated fallback). Demo seeds ~6
@@ -560,7 +647,8 @@ FB/IG/etc.
     (impressions/calls/directions/website-clicks/bookings via
     `GET /v1/analytics/googlebusiness/performance`) + top search keywords
     (`…/search-keywords`) pulled through the Zernio connection into a real
-    connect + live-metrics card on `/seo` (replacing the static "claim your GBP"
+    connect + live-metrics card on `/seo` (now `/website/seo`; replacing the
+    static "claim your GBP"
     checklist) AND the Analytics Acquisition band ("Google Business — local
     actions" tile, honoring the 30/90 toggle). Client wrappers in `lib/zernio.ts`;
     service `lib/services/gbp-metrics.ts` (demo-safe + best-effort + window-aware);
@@ -574,17 +662,21 @@ FB/IG/etc.
     upsert, so reviews land instantly instead of waiting for the hourly cron.
 - **Phase 2 — GBP posting:** ✅ **DONE.** Create Updates / Offers / Events to
   GBP from a composer (CTA button + image + schedule) with a post history, via
-  `POST /v1/posts` through the Zernio connection. Page `/google-posts` (premium +
-  owner/admin, Growth group); client wrappers `createGbpPost` / `listPosts` /
+  `POST /v1/posts` through the Zernio connection. Page `/google-posts`
+  (~~premium +~~ owner/admin — plan gating removed 2026-07-25; the page now
+  redirects to `/growth/social`, Growth group); client wrappers
+  `createGbpPost` / `listPosts` /
   `deletePost` (`lib/zernio.ts`); service `lib/services/gbp-posts.ts` (validate +
   persist-first + best-effort publish, demo-safe, never throws); schema `gbp_post`
   (**migration 0066**). The "Book" CTA deep-links the clinic's `/book` (via
   `publicSiteUrl`). Zernio publishes scheduled posts itself, so NO publish cron.
   HONEST: no per-post metrics (Google deprecated per-post insights — the
   location-level Performance API from Phase 1 is the durable engagement signal,
-  surfaced on `/seo`). Demo seeds 3 posts (published Update + image + Book CTA,
+  surfaced on `/seo`, now `/website/seo`). Demo seeds 3 posts (published Update
+  + image + Book CTA,
   published Offer + coupon, scheduled Event). See `lib/services/gbp-posts.ts` +
-  `app/(default)/google-posts/`. **→ Phase 2 (GBP posting) is now COMPLETE.**
+  `app/(default)/google-posts/` (now a redirect stub; the composer lives in
+  `app/(default)/growth/social/`). **→ Phase 2 (GBP posting) is now COMPLETE.**
 - **Phase 3 PR1 (DONE) — billing + entitlements foundation:** the social-module
   billing is now DECIDED + shipped (see the "Social-module billing — DECIDED"
   table above): per-plan social-connection entitlements
@@ -593,9 +685,12 @@ FB/IG/etc.
   `clinic_profile.social_addon` (migration 0067), the cap helper
   `canConnectSocialPlatform` (ready for PR2's connect flow), and **Google Business
   relaxed from Premium-only to all plans** (connect/callback routes, integrations
-  Zernio actions, Settings GBP-sync actions, `/reviews` Google actions,
-  `/google-posts`). The demo (Premium) is seeded with the add-on on (5 social
-  slots).
+  Zernio actions, Settings GBP-sync actions, `/reviews` Google actions — now
+  `/growth/reviews` —
+  `/google-posts` — now `/growth/social`) [since mooted by the no-plan-gating
+  convention, 2026-07-25: NOTHING is tier-gated anymore, these surfaces are
+  owner/admin-gated only]. The demo (Premium) is seeded with the add-on on
+  (5 social slots).
 - **Phase 3 PR2 (DONE) — cap-aware multi-platform connect ("Channels"):** a new
   **`/channels`** surface (clinic sidebar, Growth group, NO minPlan) is the
   canonical place a clinic connects its Google + social presence. Shipped:
@@ -643,7 +738,8 @@ FB/IG/etc.
 - **Phase 3 PR3 (SHIPPED) — unified multi-platform composer + content calendar:**
   the GBP-only Google Posts surface was generalized into a **compose-once →
   publish/schedule to any connected channel** surface at **`/social-posts`**
-  (Growth sidebar, "Social Posts", no minPlan; `/google-posts` permanently
+  (now **`/growth/social`** — the old path is a 308 stub; Growth sidebar,
+  "Social Posts", no minPlan; `/google-posts` permanently
   REDIRECTS here — exactly ONE composer, no dead page).
   - **Schema:** `gbp_post` RENAMED → `social_post` (parent: shared composed
     content + a `status` rollup) + a new `social_post_target` child (per-channel
@@ -666,7 +762,8 @@ FB/IG/etc.
     `getZernioConnection().accounts`), `listSocialPosts` (parent + nested
     targets), `deleteSocialPost` (best-effort delete each target + always drop
     local), `seedDemoSocialPosts`.
-  - **UI** (`app/(default)/social-posts/`, DESIGN-SYSTEM v2): a channel-picker
+  - **UI** (`app/(default)/social-posts/`, now `app/(default)/growth/social/`,
+    DESIGN-SYSTEM v2): a channel-picker
     (checkboxes over connected accounts w/ icons), shared text/image (shared XHR →
     S3), a live counter at the tightest cap across picked channels, GBP-specific
     options shown ONLY when GBP is picked (Book CTA defaults to `/book`), Post-now/
@@ -678,7 +775,8 @@ FB/IG/etc.
     `createSocialPostAction`/`deleteSocialPostAction` (`{ok|error}`, owner/admin +
     clinic, no plan gate). Disconnected → connect-prompt to `/channels`.
   - **Honest:** still no fabricated per-post metrics (deprecated on Google + not
-    pulled for socials yet) — points to `/seo`; per-platform analytics are PR4.
+    pulled for socials yet) — points to `/seo` (now `/website/seo`);
+    per-platform analytics are PR4.
   - **Demo:** `seedDemoSocialPosts` seeds a published GBP+IG+FB cross-post
     (image + Book CTA), a published GBP Offer (coupon), a scheduled IG+FB social
     cross-post, and a scheduled GBP Event (using the PR2 demo GBP+IG+FB accounts;
@@ -701,7 +799,8 @@ FB/IG/etc.
     never network), **best-effort** (no socials → `connected:false`; one
     platform's failure → that tile reads zeros + an `error`, the others render;
     never throws), 30/90 window threaded. Surfaced as a **"Social performance"
-    band on `/analytics`** (per-platform followers/reach/impressions/engagement
+    band on `/analytics`** (now `/growth/analytics`; per-platform
+    followers/reach/impressions/engagement
     tiles; a connect-prompt to `/channels` when nothing social is connected; an
     honest "couldn't load — analytics add-on required" note on a 402, never fake
     zeros-as-data).
@@ -714,7 +813,8 @@ FB/IG/etc.
     `google-reviews.ts` (sync via the unified `listFacebookReviews` client
     wrapper, idempotent upsert, demo-safe, best-effort, recommend/don't tallies)
     scoped to `platform='facebook'`. A **"From Facebook" section** on
-    `/reviews/received` shows recommendations **read-only** with a "reply on
+    `/reviews/received` (now `/growth/reviews/received`) shows recommendations
+    **read-only** with a "reply on
     Facebook" link-out — **honest: Zernio exposes NO Facebook reply endpoint**,
     so we don't fake a reply box. The Google path is UNCHANGED (its functions now
     filter `platform='googlebusiness'`); the public-site **AggregateRating stays
@@ -763,8 +863,12 @@ reply support (no Zernio endpoint today — read-only + link-out for now).
 - Demo-mode story: the demo clinic can't connect a real GBP — seed a synthetic
   "Google reviews" sample set behind `isDemo` so the refactored Reviews/SEO
   surfaces still showcase populated (per the no-fake-content rule, demo-only).
-- Native Google Business Profile API as a later add for true hours/address
-  write-back (separate OAuth + Google verification) — only if clinics ask.
+- ~~Native Google Business Profile API as a later add for true hours/address
+  write-back (separate OAuth + Google verification) — only if clinics ask.~~
+  [RESOLVED 2026-08-05: not needed — Zernio's OpenAPI v1.0.4 proxies
+  `locations.patch` (`PUT /v1/accounts/{id}/gmb-location-details`); the
+  websiteUri write is live via `updateGoogleBusinessWebsiteUri`, hours/phone
+  write-back is a named next slice. See the update note at the top.]
 
 ---
 
@@ -808,7 +912,8 @@ Wiring: client wrappers + `isInboxAddonError`/`isAnalyticsAddonError` in
 `lib/zernio.ts`; service `lib/services/social-comments.ts` (resolves the
 target's accountId+zernioPostId from `social_post_target`; demo-safe synthetic
 thread/counts; best-effort add-on gating); actions in
-`app/(default)/social-posts/comment-actions.ts`. NO migration (comments live on
+`app/(default)/social-posts/comment-actions.ts` (moved with the composer — now
+`app/(default)/growth/social/comment-actions.ts`). NO migration (comments live on
 the platform; we read/act through Zernio). Demo: the synthetic thread/counts are
 generated live whenever the connection is `isDemo` (the demo posts already carry
 a `zernioPostId`), so `seedDemoPostComments` is a documented no-op.

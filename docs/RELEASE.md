@@ -79,7 +79,8 @@ one night; v2 exists so that never happens again).
   wrong (blocks everything), S1 a core journey broken for any persona
   (blocks launch), S2 polish/copy/edge (fix in burn-down if cheap,
   else post-1.0 ledger), S3 nice-to-have (post-1.0).
-- Freeze rule: new feature ideas go to `docs/POST-1.0.md`. The North
+- Freeze rule: new feature ideas go to `docs/POST-1.0.md` (created
+  2026-08-17, seeded from every doc's verified open threads). The North
   Star doctrine still governs fixes (no new consoles born in QA).
 
 ### R1 — THE GREAT AUDIT (the parallel sweeps; ~2-4 sessions)
@@ -174,5 +175,8 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
 status`. Verified findings only — a finder's claim is not a defect.)
 
 ## Part 6 — The post-1.0 backlog
-(Feature freeze catch: webhooks at scale, plan-card photo slots, OD
-schedule availability on vendor approval, ECS move, …)
+Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
+externally-gated items (OD vendor portal, first A2P approval,
+procedure-code data), deferred feature ideas (webhooks at scale,
+plan-card photo slots, SMS second wave, phones territory, …), and the
+ECS decision.

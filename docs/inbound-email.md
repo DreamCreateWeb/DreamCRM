@@ -18,7 +18,9 @@ instead (unread badge + staff bell + realtime, same as portal messages).
      `recordInboundMessage` (channel `email`, quoted history stripped,
      Resend `email_id` as `externalId` so svix replays are no-ops);
    - unknown sender → the email is **forwarded to the clinic's own inbox**
-     (nothing is ever silently dropped);
+     when the clinic has an email on file; the no-address edge case returns
+     an explicit `ignored:no_clinic_email` outcome (logged, never silently
+     dropped);
    - wrong domain / unknown slug / unconfigured → ignored.
 4. Pure parsing/heuristics (recipient slug, quoted-reply stripping, defensive
    payload normalization) live in `lib/inbound-email.ts` with tests in

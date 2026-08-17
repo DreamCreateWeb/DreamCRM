@@ -14,8 +14,9 @@ as the **operating layer that wraps a clinic's existing practice management
 system (PMS)**.
 
 The clinic's public website is the foundation. Every other module bolts onto
-it. Sold at $200/mo (eventually ~$400/mo) by replacing 5–6 separate vendor
-subscriptions a typical clinic juggles today.
+it. Sold at $200/mo founding-practice rate against a $500 list price (one
+purchasable plan), by replacing 5–6 separate vendor subscriptions a typical
+clinic juggles today.
 
 We are **not (yet) a PMS**. We do not manage treatment plans, charts,
 procedures, insurance claims, encounter notes, lab orders, or any other
@@ -119,6 +120,12 @@ standup; first proposal types: review replies, posts, quiet-engine
 campaigns, inquiry responses) · Phase 3 the ladder live ("always do this
 for me") · Phase 4 guardian + shared brain · Phase 5+ new limbs (SMS,
 Apple/Bing presence, content calendar, phone), each born proposal-first.
+**[Status 2026-08-17: Phases 1–4 SHIPPED and audit-closed (docs/AUDITS.md).
+Phase 5 limbs shipped: content calendar, the empty chair, SMS (machinery
+complete behind carrier registration), plus limbs the list didn't
+anticipate — GBP listing truth and onboarding setup-asks, both
+proposal-first per this doctrine. Apple/Bing presence and phone remain
+unbuilt (docs/POST-1.0.md). CLAUDE.md carries the shipped detail.]**
 
 The piecemeal era built the organs and the instincts (honest data, editable
 copy, review-before-save, anti-shame voice). This doctrine is the nervous
@@ -248,16 +255,20 @@ These shape every decision. Re-read before any module design.
     `organizationId`, every insert sets it, every test pins WHERE-clause
     org-id literals. See `tests/tenant-scoping/` for the regression pattern.
 
-13. **Every new feature has audit-log coverage.** Inbox audit log
-    (`inbox_action_log`) is the prototype. PHI-adjacent mutations get the
-    same treatment so we can answer "who did what when" cleanly.
+13. **Every new feature has audit-log coverage.** The **Action Ledger**
+    (Transformation Phase 1) is now the platform-wide primitive — a
+    feature that acts without a ledger entry is a bug (see the North
+    Star). The inbox audit log (`inbox_action_log`) was the pre-doctrine
+    prototype and still stands. PHI-adjacent mutations get the same
+    treatment so we can answer "who did what when" cleanly.
 
 14. **Server-only services in `lib/services/`** marked `import 'server-only'`.
     Client-safe types live in `lib/types/`. Server actions live next to the
     route as `actions.ts` (user) or `admin-actions.ts` (platform-admin).
 
-15. **Tests before merge, every time.** Vitest suite runs in <20s; no excuse
-    to skip.
+15. **Tests before merge, every time.** The FULL Vitest suite (~6,400
+    tests) runs in under 4 minutes; no excuse to skip — and no subset
+    counts, since the repo-wide CI guards only run in the full pass.
 
 ---
 
@@ -333,8 +344,11 @@ These shape every decision. Re-read before any module design.
 
 ## Website templates
 
-Three variants cover ~90% of premium dental positioning. Default install is
-**Modern Family/Wellness**; others are clinic-switchable settings.
+The variant system below was the founding spec; **four templates are live
+today** (modern, cosmetic, pediatric, hometown — registry defaults to
+modern) with more planned as their own design project (CLAUDE.md item 0b).
+Default install is **Modern Family/Wellness**; others are clinic-switchable
+instantly (content is universal across templates).
 
 | Variant | Use case | Visual cues | Booking copy |
 |---|---|---|---|
@@ -343,8 +357,9 @@ Three variants cover ~90% of premium dental positioning. Default install is
 | **Pediatric** | Kids' dentistry | Soft pastels + bright accent; illustration + photo blend; rounded sans, larger scale; parent-focused | "Book a Visit" |
 
 All variants share: real-photo requirement, 4–6 service maximum on homepage,
-sticky mobile booking bar, off-white background tokens, 2-weight typography
-contrast, anti-shame voice slot in hero.
+floating mobile booking CTAs (originally spec'd as a sticky bar — corrected
+to corner CTAs, see the Mobile-first section), off-white background tokens,
+2-weight typography contrast, anti-shame voice slot in hero.
 
 ### Homepage section order (default Modern Family/Wellness)
 
@@ -359,7 +374,8 @@ contrast, anti-shame voice slot in hero.
 8. (Optional) Membership / pricing transparency
 9. Booking CTA section — second strong reminder
 10. Footer — hours, map, contact, social, secondary nav
-11. Sticky mobile bar — Book + Call
+11. Floating mobile Book + Call CTAs (originally a sticky bar; corrected —
+    see the Mobile-first section)
 
 ---
 
@@ -412,12 +428,18 @@ Phased by what unlocks the most platform value with the least dependent work.
 
 ### Phase 2 — Patient surfaces (the orbital-layer replacement story)
 **2. Patient portal core** — login, appointments view, profile, balance.
-   Lives at `{slug}.dreamcreatestudio.com/portal`.
+   Lives at `/patient/*` on the clinic's domain (SHIPPED; the original
+   `/portal` path idea was never used).
 **3. Online booking** — native widget (4-field mobile-first, deposit
-   collection via Stripe, reminders via Twilio, intake prefill) + embed
-   wrapper for clinics on NexHealth/Modento/LocalMed.
-**4. Patient communications** — Twilio SMS + email, two-way, threaded by
-   patient.
+   collection via Stripe, reminders, intake prefill). SHIPPED — and a
+   PMS-connected practice's booking surfaces now offer its REAL slots via
+   the NexHealth connection (the embed-wrapper idea died; we became the
+   thing that syncs instead).
+**4. Patient communications** — SMS + email, two-way, threaded by
+   patient. SHIPPED (email fully; SMS on **AWS End User Messaging** — the
+   original Twilio choice was reversed 2026-08-02, see
+   docs/sms-provider-evaluation.md — machinery complete behind per-clinic
+   carrier registration).
 **5. Intake forms** — builder, e-signature, attach-to-appointment, prefill
    on next visit, portal surfacing.
 **6. Reviews & reputation** — post-visit review prompts. (Shipped v2: the
@@ -434,9 +456,12 @@ Phased by what unlocks the most platform value with the least dependent work.
    automation layer added).
 
 ### Phase 4 — Integration & cockpit
-**9. PMS integrations** — Open Dental first (open API, friendly vendor
-   list), Dentrix second. Run as parallel research/spike track from Phase 1
-   onward so the integration architecture is anticipated in earlier modules.
+**9. PMS integrations** — SHIPPED, and the doc's own aggregator bet came
+   true: Open Dental direct (built; vendor-portal approval pending) and
+   the **NexHealth Synchronizer as the universal door** (one connection
+   reaching Dentrix/Eaglesoft/etc., two-way with off-by-default
+   write-back and real-slot booking). "Dentrix second" is superseded —
+   Dentrix arrives through NexHealth. See CLAUDE.md's stack entry.
 **10. Patients module refinement** — unified cockpit view of all the data
     captured across modules: source attribution, lifetime engagement, last
     contact, balance, lifecycle stage. Naturally rich because earlier
@@ -450,10 +475,14 @@ Phased by what unlocks the most platform value with the least dependent work.
     metrics into SEO + Analytics, GBP posting, a unified multi-platform composer
     + content calendar, per-platform social analytics, and Facebook reviews. The
     billing model: per-plan social-connection caps + a flat per-tier paid add-on;
-    **Google Business is free on every tier.** Full design +
+    **Google Business is free on every tier.** [Per-tier language is
+    historical — one purchasable plan since 2026-07-19; the social cap +
+    paid add-on survive as legal add-on entitlements, GBP stays free.]
+    Full design +
     REST shapes in [`docs/zernio-google-integration.md`](./docs/zernio-google-integration.md);
     `CLAUDE.md` tracks the shipped detail.
-**12. Integrations as feature BUNDLES (DIRECTION — plan approved, not built).**
+**12. Integrations as feature BUNDLES (SHIPPED — `lib/integrations/bundles.ts`
+    + `applyBundleGate` drive the sidebar exactly as described below).**
     `/integrations` shipped as a catalog-driven app-library marketplace
     (`lib/integrations/catalog.ts` + `resolve.ts`); the durable direction is to
     reframe it as a menu of **feature bundles** a clinic activates to "build its
@@ -532,6 +561,10 @@ convert in the clinic's timezone).
 **aggregator connector** (Kolla at the low end, NexHealth for real-time) — one
 integration for the painful long tail vs. per-PMS partner gates (~$3–5k
 Eaglesoft PIC, etc.). Aggregators implement the same `PmsProviderClient`.
+**[As built, 2026-08: the aggregator path won outright — NexHealth shipped
+as the universal door implementing `PmsProviderClient`, and "Dentrix Ascend
+direct next" is superseded (Dentrix arrives through NexHealth). Direct
+integrations remain the exception, not the roadmap.]**
 
 **Phasing.** Phase 0 correctness (`DateTStamp` delta + Offset/Limit pagination,
 Op via schedules + default-op config, clinic-TZ datetimes, provider role via

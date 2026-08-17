@@ -18,7 +18,9 @@ booking-confirmation send, default template, submissions on the patient
 timeline, the 📝! missing-intake glyph). But against best-in-class it's missing
 file/photo upload, insurance-card capture, conditional logic, rules-based
 auto-send, completion-status triage + reminders, return-visit pre-fill, kiosk
-mode, Spanish, and any PMS chart mirror.
+mode *(since shipped: the "Kiosk ↗" `?kiosk=1` link on `/intake-forms`, handled
+by the intake-form-runner — locked chrome, auto-reset for the next patient)*,
+Spanish, and any PMS chart mirror.
 
 ## What the research established (high-confidence, mostly from NexHealth's own
 ## Help Center + API docs)
@@ -87,7 +89,8 @@ field sync.
 ### Phase 1 — table stakes + the #1 pitfall fix
 - New field types: **file/photo upload**, **insurance-card capture (front/back)**
   (reuse hardened `/api/upload` → S3 + `uploadFileWithProgress`), **number**,
-  **address**, **content/instructions** (static, no input). Extend
+  **address** *[cut — never shipped; no address type in the `FormFieldType`
+  union, `lib/types/forms.ts`]*, **content/instructions** (static, no input). Extend
   `FormFieldValue` for uploads (a `{url,name,contentType}[]` shape, reuse
   `sanitizeAttachments` discipline).
 - **Completion-status triage + reminders** tied to live appointment state
@@ -99,7 +102,9 @@ field sync.
 - **Conditional logic** (`visibleWhen` rule → show/hide field/section), evaluated
   in both the preview and the public/portal renderer.
 - **Smart auto-send rules** (new-vs-returning, appointment type, **annual
-  medical-history refresh**).
+  medical-history refresh**). *Shipped audience-only —
+  `'all' | 'new' | 'returning'` (`FormAutoSendAudience`, `lib/types/forms.ts`);
+  appointment-type and annual-refresh rules did not ship (post-1.0 candidates).*
 - **Return-visit pre-fill** — finish the `systemKey` scaffold (patient confirms/
   updates last answers; we own the data → we beat everyone here).
 - **Form packets** (bundle several forms into one patient flow).
@@ -108,7 +113,9 @@ field sync.
 - **Insurance-card OCR auto-fill** — photograph card → Claude vision extracts
   carrier/member-ID/group → pre-fills, patient confirms ("we read what we can").
   *Confirm `runClaudeJson` accepts image content blocks; extend the wrapper if
-  it's text-only.*
+  it's text-only.* *[Resolved: `runClaudeVisionJson` shipped in `lib/ai.ts` —
+  same forced-tool pattern with image URLs — and `lib/services/insurance-ocr.ts`
+  uses it.]*
 - **AI pre-visit summary + alerts** — on submit, summarize allergies/meds/
   conditions/anxiety onto the patient record + appointment so the provider sees
   flags.

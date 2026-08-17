@@ -336,3 +336,31 @@ Two AWS-specific facts the provisioning slice must design around:
 - [AWS — 10DLC registration best practices (programmatic registration)](https://aws.amazon.com/blogs/messaging-and-targeting/10dlc-registration-best-practices-to-send-sms-with-aws-end-user-messaging/)
 - [Twilio Editions (BAA requires Security/Enterprise Edition)](https://www.twilio.com/docs/iam/twilio-editions)
 - [Twilio — Editions introduction ("companies at scale", annual contracts)](https://help.twilio.com/articles/17071957479195)
+
+---
+
+## What shipped (postscript, 2026-08-17)
+
+The limb this document green-lit has since largely shipped — CLAUDE.md's SMS
+stack entry is the full record. Four corrections to the revision's
+forward-looking claims, for the file:
+
+1. The driver shipped as `smsDriver(): 'aws' | 'none'`
+   (`lib/services/sms-registration.ts`) — there is no inert Twilio branch;
+   `'none'` is the dark-build state, not a second provider held in reserve.
+2. The `twilio_*` → provider-neutral column rename happened (migration 0144),
+   but the `'twilio_sms'` CHANNEL enum value survived un-renamed
+   (`lib/db/schema/domain.ts`) and is now the live SMS channel identifier
+   riding an AWS provider. The naming contradiction this document set out to
+   settle persists in that one enum value — acknowledged, not fixed.
+3. Both "AWS-specific facts the provisioning slice must design around" were
+   designed in as planned: the `brand_contact_email` column exists, and
+   `REQUIRES_AUTHENTICATION` is an honestly modelled state in the
+   registration machine.
+4. One thing the cost model didn't anticipate: an included monthly marketing
+   budget shipped — `INCLUDED_MONTHLY_SEGMENTS = 2000` (`lib/sms.ts`,
+   env-overridable), with a marketing-only `'over_budget'` typed refusal;
+   transactional reminders are never budget-silenced.
+
+Remaining: the first real carrier registration → the SNS two-way wiring →
+the honesty flip.

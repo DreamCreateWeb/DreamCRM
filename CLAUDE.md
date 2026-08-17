@@ -16,9 +16,11 @@ system, don't replace it.
 | **This file** | Current implementation state: architecture, module map, subsystem reference, conventions, ops. |
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log (moved out of this file 2026-07-02). Per-session implementation detail lives there. |
 | [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. |
-| [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc. Every P1 + P2 shipped; only the P3/SMS-gated tail remains. |
+| [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc. Every P1 shipped; remaining: the PMS-procedure-data-gated P2s (no procedure-code entity yet), the per-clinic-registration-gated SMS tail, and P3s. |
 | [`docs/STRUCTURE-AUDIT.md`](./docs/STRUCTURE-AUDIT.md) | The information-architecture reference: full feature inventory by purpose, competitor IA benchmarks (NexHealth/Weave/Birdeye/Kleer/Shopify/…), placement verdicts, and the redesign log (Payments split, rejected moves). Read before moving/renaming any surface. |
-| `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` · `docs/inbound-email.md` · `docs/onboarding-overhaul.md` | Deep-dive specs for those systems (onboarding-overhaul = the research foundation for the onboarding PROJECT, 2026-08-05). |
+| [`docs/RELEASE.md`](./docs/RELEASE.md) | **THE CURRENT PROGRAM OF RECORD (2026-08-16, owner directive).** The product is feature-complete; the work now is beta → 1.0: phases R0–R5, the eight audit sweeps, severity bars, the defect ledger. Read this before starting new feature work — new ideas go to the post-1.0 backlog, not the release. |
+| [`docs/AUDITS.md`](./docs/AUDITS.md) | The phase-audit certificates: per-phase round history, retrospectives, the standing self-sweep checklist, the owner's depth-backlog menu. |
+| `docs/zernio-google-integration.md` · `docs/intake-forms-overhaul.md` · `docs/custom-domains.md` · `docs/inbound-email.md` · `docs/onboarding-overhaul.md` · `docs/sms-provider-evaluation.md` · `docs/outreach-go-live.md` | Deep-dive specs + decision records (onboarding-overhaul = the onboarding PROJECT's research foundation AND build log — the NexHealth arc lives there; sms-provider-evaluation = the AWS-over-Twilio decision record). |
 
 ## Stack
 
@@ -49,10 +51,12 @@ system, don't replace it.
   `lib/ai-bedrock.ts`, `AI_DRIVER=bedrock` for a future single-BAA move)
 - **Zernio** — Google Business + social (IG/FB/TikTok/YouTube/LinkedIn) hosted
   OAuth, reviews, GBP listing sync, posting, metrics (`lib/zernio.ts`)
-- **SMS: AWS End User Messaging + A2P 10DLC (Phase 5 limb 3, in flight;
+- **SMS: AWS End User Messaging + A2P 10DLC (machinery SHIPPED + ARMED;
   owner committed to AWS 2026-08-02 — docs/sms-provider-evaluation.md, incl.
-  the same-day Twilio→AWS reversal record).** Shipped so far, DARK behind
-  `SMS_DRIVER=aws`: the consent spine (lib/sms-consent.ts +
+  the same-day Twilio→AWS reversal record). `SMS_DRIVER=aws` is LIVE on App
+  Runner; per-clinic sends unlock on that clinic's a2p_status='approved',
+  so everything below waits only on the first real carrier registration.**
+  Shipped: the consent spine (lib/sms-consent.ts +
   lib/services/sms-consent.ts — the ONLY writers of marketing_sms_opt_in;
   an opt-out is louder than an opt-in), lib/phone.ts E.164 (US-only,
   honest-null), the patient-keyed frequency cap (0143), and the full
@@ -103,9 +107,40 @@ system, don't replace it.
   design). A reminder receipt stamps deliveredAt (idempotent via the
   null-guard); a campaign receipt mints the sibling 'delivered'/'bounce'
   campaign_events row with the same attribution, deduped on the message id
-  (lib/services/sms-dlr.ts, never throws). Remaining: the post-approval SNS
-  two-way wiring (printed by the setup script; needs a provisioned number)
-  and the honesty flip LAST. Gmail OAuth for the staff inbox.
+  (lib/services/sms-dlr.ts, never throws). TEXTING KICKOFF AT ONBOARDING +
+  THE INCLUDED BUDGET (2026-08-10): a new clinic's setup cards include
+  `setup_texting` (ask-first, JSON answer → startSmsRegistration), and
+  marketing texts ride an included monthly budget —
+  `INCLUDED_MONTHLY_SEGMENTS = 2000` (env-overridable), `getSmsUsage`, and
+  a typed 'over_budget' refusal in deliverSms that blocks MARKETING only
+  (transactional reminders always send; fail-open on an unreadable count).
+  Remaining: the post-approval SNS two-way wiring (printed by the setup
+  script; needs a provisioned number) and the honesty flip LAST. Gmail
+  OAuth for the staff inbox.
+- **PMS: NexHealth Synchronizer (LIVE, the universal door) + Open Dental
+  (direct API, vendor-portal approval pending).** `lib/nexhealth.ts` API
+  client (reads on the v2 Accept header; ALL writes stamp
+  `Nex-Api-Version: v3.0.0` — `return_existing_if_match` is silently
+  ignored under v2, live-verified) + `lib/services/pms/nexhealth.ts`
+  provider. Import covers patients (insurance, language, guarantor/family,
+  SMS-consent signals), appointments (typed visit names), providers,
+  operatories→chairCount. COST ENGINEERING: every call metered into
+  `pms_api_usage` (0148) via `lib/services/pms/api-meter.ts`
+  (DEFAULT_DAILY_CALL_BUDGET=60, fail-open), 105-min cadence gate in the
+  pms-sync cron (~2h rhythm; pending write-ops override it; sandbox never
+  budget-limited). WRITE-BACK v1 (off by default — the platform bind card
+  flips syncDirection 'import'→'two_way'): slot-validated appointment
+  creates (their engine picks operatory), patient creates w/ named
+  missing-field refusal + duplicate-id recovery, cancel-only PATCH,
+  `notify_patient=false` always, typed WAITING/NOT-SUPPORTED failure lanes
+  (`settleWriteFailure`); round-trip verified against the sandbox both
+  directions. REAL SLOTS: booking surfaces (public site + portal ONLY)
+  offer a PMS-connected practice's actual open times —
+  `getBookableSlotsForDay`/`isBookableSlot`/`insertAppointmentIfBookable`
+  in `lib/services/booking.ts` (2-min cache, budget-guarded, degrades to
+  the local hours+chairs engine); staff paths stay local. Demo org binds
+  the NexHealth SANDBOX only; `deliver()` drops RFC-reserved test
+  addresses. Economics + the whole build story: docs/onboarding-overhaul.md.
 - **Deployed on AWS App Runner** (`us-east-1`). Canonical
   **https://www.dreamcreatestudio.com**; clinic public sites at
   `{slug}.dreamcreatestudio.com` (wildcard DNS + cert live) + optional custom
@@ -121,8 +156,9 @@ app/
   (double-sidebar)/  /inbox + /messages (two-pane surfaces w/ inner sidebar)
   (auth)/            signin / signup / reset-password / accept-invite
                      (shared components/auth/auth-shell.tsx, v2 brand)
-  (onboarding)/      4-step onboarding → clinic org + Stripe Checkout; /welcome
-                     AI interview; /onboarding-complete
+  (onboarding)/      4-step onboarding → clinic org + no-card trial (NO Stripe
+                     call at signup — deliberate); /welcome AI interview;
+                     /onboarding-complete
   (marketing)/       Public B2B marketing site at the root of www (/, /product,
                      /pricing, /compare, /docs, /blog)
   (portal)/          Patient portal /patient/* — clinic-branded chrome
@@ -146,8 +182,9 @@ app/
                      token-IS-auth pattern: w/ (fast-pass claim), c/ (one-click
                      visit confirm), b/ (email-to-pay balance page)
   api/               auth handler · webhooks (stripe, stripe-connect, gmail OIDC,
-                     resend/svix) · 17 CRON_SECRET-gated /api/cron/* routes ·
-                     3 /api/admin/* (migrate, seed-platform, resync-demo) ·
+                     resend/svix, sms) · 21 CRON_SECRET-gated /api/cron/* routes ·
+                     4 /api/admin/* (migrate, seed-platform, resync-demo,
+                     redrive-custom-domains) ·
                      oauth (gmail, gsc) + connect (shop) + zernio connect/callback ·
                      token-auth publics (/api/calendar/[token], track, unsub) ·
                      /api/internal/custom-domains (host→slug map for middleware)
@@ -155,11 +192,12 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0141 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0148 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
-  services/          ~135 server-only modules (import 'server-only') — one per
-                     entity/subsystem; demo-clinic.ts is the demo seeder
+  services/          ~190 server-only modules (import 'server-only') — one per
+                     entity/subsystem (incl. pms/ — the PMS provider layer);
+                     demo-clinic.ts is the demo seeder
   modules/           Sidebar registries per tenant type (clinic/platform/patient/
                      partner) — ModuleDef w/ roles + requiresBundle +
                      pinned/shortcut gating
@@ -200,7 +238,7 @@ components/ui/       dashboard-shell.tsx (all authed layouts go through it),
                      new hand-rolled polylines
 middleware.ts        Auth gate + public-path allowlist + {slug} subdomain rewrite
                      + custom-domain host→slug routing + app./apex → www redirect
-tests/               Vitest (happy-dom), ~460 files / 4,200+ tests; pnpm test
+tests/               Vitest (happy-dom), ~650 files / 6,400+ tests; pnpm test
 scripts/             db-migrate.mjs + resync-demo.mjs (run on container boot),
                      migrate.mjs (direct), setup-cron-schedules.sh (EventBridge)
 ```
@@ -247,7 +285,9 @@ The prod server's clock is UTC; clinics live in US timezones
 
 Client components (`'use client'`) format in the viewer's browser tz — generally
 acceptable for staff (they sit in the clinic), but public/patient-facing slot
-times should still be clinic-local (see `docs/FINISHING.md`).
+times must be clinic-local — FIXED and now law: every booking path (local
+engine and NexHealth real-slots alike) labels slots against the clinic tz
+in `lib/services/booking.ts`.
 
 ## Demo-org data rules (critical — real patients exist in the demo org)
 
@@ -274,7 +314,7 @@ hub) / **Business** (Payments · Shop · Integrations) + a pinned
 |---|---|---|---|
 | Daily | Overview | `/` → `/dashboard` | Morning-huddle: today's chair, attention cards, trends, activity feed, integrations-health banner, follow-up summary. Clinic-tz day windows. |
 | Daily | My Day | `/my-day` | Per-staff cockpit: my/unclaimed follow-ups, my conversations, today's schedule, collections nudge. Mirrored by the opt-in morning digest email (per-staff opt-out). |
-| Daily | Messages | `/messages` (double-sidebar) | Front-style unified patient inbox (in_app + email; SMS deferred). Receipts (in-app read + email Delivered/Opened/bounce via tagged Resend webhooks, 2026-07-14), attachments, AI draft, quick-book, scheduled send, star/unread, auto-reply after hours. ACTIVITY MARKERS (2026-07-23): every automated touch (reminders, campaigns+opened, bookings/cancels w/ actor, review asks, balance nudges, surveys, forms) interleaves the thread as thin gray context lines — read-time merge (`lib/services/thread-activity.ts`, no new write paths, history backfills free); LAW: markers never bump unread/reopen/reorder and never render in the patient portal; runs of 4+ collapse; open/click signals attribute per-send; pre-history older than 14d before the first message trims (the patient timeline keeps it all). Gmail mailbox at `/inbox`. |
+| Daily | Messages | `/messages` (double-sidebar) | Front-style unified patient inbox (in_app + email + inbound SMS — replies thread as channel 'sms' once a clinic's texting is live; the outbound SMS composer option waits on the honesty flip). Receipts (in-app read + email Delivered/Opened/bounce via tagged Resend webhooks, 2026-07-14), attachments, AI draft, quick-book, scheduled send, star/unread, auto-reply after hours. ACTIVITY MARKERS (2026-07-23): every automated touch (reminders, campaigns+opened, bookings/cancels w/ actor, review asks, balance nudges, surveys, forms) interleaves the thread as thin gray context lines — read-time merge (`lib/services/thread-activity.ts`, no new write paths, history backfills free); LAW: markers never bump unread/reopen/reorder and never render in the patient portal; runs of 4+ collapse; open/click signals attribute per-send; pre-history older than 14d before the first message trims (the patient timeline keeps it all). Gmail mailbox at `/inbox`. |
 | Daily | Appointments | `/appointments` | Agenda grouped by clinic-local day; window chips; aging borders; drawer (confirm/reschedule/cancel/no-show + review request); bulk actions; saved views; CSV call-sheet export. |
 | Daily | Patients | `/patients` + `/patients/[id]` | Relationship record: glyphs, filters, saved views (promote-to-audience), tags, documents, merge, CSV import/export, bulk email/portal-invite. Detail: timeline (clinic-tz), needs-attention, notes, follow-ups. |
 | Daily | Follow-ups | `/followups` | Assignable patient reminders board + smart rules (balance/recall/unconfirmed; hourly cron) + auto-rebook on no-show; sidebar due badge; ⌘K quick-add. |
@@ -284,7 +324,7 @@ hub) / **Business** (Payments · Shop · Integrations) + a pinned
 | Website | Website (workspace) | `/website` | ONE sidebar entry → the Shopify-style hub (v3 redesign 2026-07-24: the clinic's OWN homepage as a live scaled browser-frame hero via the beacon-free `/site/[slug]/tf/` route, setup ProgressRing + open checklist beside it — collapses to quiet quick-facts when done, SVG gradient area sparkline on the 30-day band; bottom half = three zones shaped like their contents: "What's happening" number-first news cards (Forms/Blog/SEO/Careers, no brochure copy) + a "Quick edits" dock (Hours/Services/Team/Photos — MODALS on the hub reusing the Content page's editors + scoped actions, hours live-instant / rest draft-staged) + a quiet utility footer (Design · Pages · Domain · Share links; Domain pill only off-neutral)), go-live checklist (real states only). Quick-edits UX law: the hub surfaces what a front desk changes weekly (hours, services, team, photos, ANNOUNCEMENT) as modals; day-one/rare surfaces (design, pages) demote to text links, editor stays the header primary. Announcement bar (2026-07-24, migration 0134 `clinic_profile.announcement` jsonb): a thin brand-deep strip above the header on every public page + template (rendered once in `app/site/[slug]/layout.tsx` via `components/clinic-site/announcement-bar.tsx`); LIVE-INSTANT (not a draft column) + self-expiring (inclusive clinic-local `endsAt`, resolved by pure `activeAnnouncement` in lib/types/clinic-content.ts); optional link sanitized (`sanitizeAnnouncementHref`, site-relative or http(s) only) at BOTH save and render. Sub-pages: `/website/editor` (the full-screen Studio — EditBridge, section modals, AI bar, page navigator, 🎨 Design picker; honors `?previewTemplate=`/`?page=` deep links), `/website/content` (THE plain-form home for site content — per-section forms riding the Studio's scoped actions; `CONTENT_SECTIONS` registry in `lib/website-content-sections.ts`), `/website/design` (template cards + brand color + hero media + intro video), `/website/pages` (unified page manager — `buildSitePagesIndex` live/needs-content rows, per-page copy-override editing via `saveInlineField`, Search-appearance meta editor), `/website/forms` (both LeadFormBuilders + chat-widget toggle + submissions glance), `/website/blog` (was `/posts`; platform org authors the marketing blog through it too), `/website/seo` (was `/seo`), `/website/careers` (was `/careers`; ATS + JSON-LD), `/website/domain` (auto-polling custom-domain card), `/website/share` (QR cards). Old paths 308 via route-level stubs (NEVER next.config — it would hijack public clinic-site paths pre-middleware). `/settings/clinic` is now the identity-only **Business profile** (names, contact/email sender, address, hours, timezone, logo + GBP sync/calendar feed) — `updateClinicProfile` is identity-only BY CONTRACT: a website column in its payload would be nulled on every identity save (tests/settings/clinic-actions.test.ts pins the exclusion). **Draft→Publish (2026-07-12)**: every website save STAGES to `clinic_profile.website_draft` jsonb (identity columns stay live-immediate) — pure core `lib/website-draft.ts` (WEBSITE_DRAFT_COLUMNS/merge/split/changes), server plumbing `lib/services/website-draft.ts` (`stageWebsiteValues` routes ALL writers: writeSection, AI edit, services picker, seoMeta); a verified editor sees the merged view via the overlay in `loadSite` + `getClinicThemeBySlug` (visitors never do; owner-facing DraftPreviewBanner pill on the site); Publish/Discard live on the hub (PublishCard) + Studio top bar; publish records ONE `__publish` history entry so undo-after-publish reverts live, while normal undo walks draftable columns back INSIDE the draft. Editing surfaces read `getEffectiveWebsiteProfile`; Pages/hub live-pills read the raw row on purpose. **Template gallery (2026-07-12)**: `/website/templates` — practice-type categories + style-tag filters + sort, one card per design with a LIVE scaled iframe of the clinic's own homepage in that template via the side-effect-free frame route `/site/[slug]/tf/[template]` (middleware stamps the `x-dc-template-frame` request header for that path; `resolveActiveSiteTemplate` honors it per-request for a verified editor, beating the preview cookie — six cards render six templates without clobbering; `isFrame` makes the layout suppress beacon/chat/banners/EditBridge). Catalog metadata lives on `SITE_TEMPLATE_CATALOG` (practiceTypes/styleTags/bestFor); the Design page slims to a current-design summary + gallery door; Apply stages `template` to the draft. |
 | Business | Payments | `/payments` | Payments bundle. The money workspace (split out of Shop 2026-07-14; Weave/Pearly pattern): hub w/ KPI story (Outstanding → To reconcile → Payment plans → Recurring MRR) + Stripe status + doors → Online payments (`/payments/online`, reconciliation + deposits), Collections (`/payments/collections`, dunning + payment plans), Memberships (`/payments/memberships`; powers the site's /dental-plans page). Old `/shop/*` money paths 308. |
 | Business | Shop | `/shop` | Pure commerce: hub w/ Orders + Coupons doors + Stripe Connect status + catalog + loyalty config. Storefront + checkout, orders/fulfillment, coupons + birthday codes, low-stock nudge, CSV exports; Recurring KPI drills into Payments. |
-| Business | Integrations | `/integrations` | Catalog-driven marketplace + **feature bundles** (activating one surfaces its modules in the sidebar). PMS: Open Dental two-way (detail page = full sync dashboard); GBP + socials via Zernio; Gmail; Stripe. Social caps + paid add-on live here. |
+| Business | Integrations | `/integrations` | Catalog-driven marketplace + **feature bundles** (activating one surfaces its modules in the sidebar). PMS: **NexHealth Synchronizer (LIVE — the universal PMS door; platform binds, write-back off by default)** + Open Dental direct (detail page = full sync dashboard; vendor-portal approval pending); GBP + socials via Zernio; Gmail; Stripe; SMS registration at `/integrations/sms`. Social caps + paid add-on live here. |
 | Settings | Settings | `/settings` | Card-grid home → 13 focused pages (clinic = the identity-only Business profile, practice, locations, portal, automations/emails, message-templates, team, apps, billing, account, notifications, security, feedback) + 3 redirect stubs (plans, reminders, seo → /website/pages). |
 
 **Platform tenant** (`lib/modules/platform.ts`; sidebar sections Daily / Customers / Sales / Insights / Content since 2026-07-13; the redundant Marketing funnel row dropped; prospecting has a persistent sub-nav layout): overview, clinics (+ managed
@@ -382,16 +422,27 @@ sitemap/robots/OG.
 - **Trial**: every new clinic starts a no-card 7-day full-Premium trial
   (`lib/trial.ts`; `TrialBanner`/`TrialEndedWall` in dashboard-shell; escalating
   reminder emails via the `trial-reminders` cron, recorded on
-  `clinic_profile.trialRemindersSent`).
+  `clinic_profile.trialRemindersSent`). **TRIAL EXPIRY KILLS EVERYTHING
+  (owner ruling, 2026-08-10)**: `lib/services/billing-state.ts`
+  (`listShutDownOrgIds`/`isClinicShutDown`, fail-open) — an expired
+  unconverted clinic's crons all skip it (reminders, review auto-send,
+  retention, campaigns stay parked, scheduled messages, proposal
+  generators, daily digest, pms-sync), its public site shows coming-soon
+  (even to editors), and its patient portal shows a calm phone-first
+  notice with no billing words. Nothing is deleted; paying revives all.
 - **Referral partners**: `lib/services/referrals.ts` (+ `referral-payouts.ts`,
   Stripe Express, $25 floor). Commission accrues per paid invoice
   (unique on `stripe_invoice_id`). Platform manages at `/partners`; partners
   see `/partner`.
-- **PMS (Open Dental, two-way)**: `lib/services/pms/` — provider abstraction,
-  sync engine (entity map, DateTStamp delta, write-back queue + retry,
-  health monitor), CommLog mirroring from 6+ send sites, recall sync, hourly
-  cron. Clinic-tz wall-clock conversion in `pms/datetime.ts`. Blocked item:
-  schedule-driven availability awaits OD vendor-portal approval.
+- **PMS (`lib/services/pms/`, two providers behind one abstraction)**:
+  sync engine (entity map, delta sync, write-back queue + retry, health
+  monitor), CommLog mirroring from 6+ send sites, recall sync, cron.
+  Clinic-tz wall-clock conversion in `pms/datetime.ts`. **NexHealth
+  Synchronizer is the LIVE universal door** (see the stack entry for the
+  full picture: v3-header writes, api-meter budget, cadence gate,
+  off-by-default write-back, real-slots booking, sandbox-bound demo).
+  **Open Dental direct** remains built + blocked: schedule-driven
+  availability + real-office Customer Keys await OD vendor-portal approval.
 - **Zernio (GBP + social)**: `lib/zernio.ts` + services (`zernio.ts`,
   `google-reviews.ts`, `facebook-reviews.ts`, `gbp-sync.ts`, `gbp-metrics.ts`,
   `social-posts.ts`, `social-comments.ts`, `social-metrics.ts`,
@@ -419,12 +470,23 @@ sitemap/robots/OG.
   `clinic_profile.standup_last_sent_at`) · `demo-voice.ts` (seeder). UI:
   Approval Inbox + Standup card at the top of the clinic Overview
   (`app/(default)/dashboard/approval-inbox.tsx`, `standup-card.tsx`,
-  `actions.ts`).
+  `actions.ts`). REDESIGNED 2026-08-13/14 (owner directive "staff LOOK at
+  the work, not read about it"): every card renders its ARTIFACT — the
+  social post in the platform's own chrome (+ a staff photo-attach
+  control), the email as an email w/ the real Book-a-time button, the
+  review reply nested under the review as Google will show it, the plan
+  as a mini feed, the GBP fix as before→after
+  (`proposal-artifacts.tsx`) — and the group presents as the SIGN-HERE
+  STACK: one card front-and-center (soonest-to-expire first), a queue
+  rail of capability chips w/ expiry-tone dots, skip/jump/see-all;
+  undecided cards stay MOUNTED (hidden, settings-tabs law) so
+  in-progress edits survive skipping away and back.
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 20 routes, all `Authorization: Bearer $CRON_SECRET`:**
-  `pms-sync` (hourly) · `send-reminders` (30m, incl. forms reminders) ·
+- **Crons — 21 routes, all `Authorization: Bearer $CRON_SECRET`:**
+  `pms-sync` (hourly; NexHealth orgs self-gate to a ~2h cadence, pending
+  write-ops override the gate) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
@@ -438,8 +500,10 @@ sitemap/robots/OG.
   new/changed problem and then weekly, to whoever the AUDIENCE LOCK says) ·
   `learn-defaults` (WEEKLY Mon 15:00 UTC — the shared brain's one learning
   pass over the whole platform; weekly because send-time behaviour moves on
-  the scale of seasons and a faster cadence only chases noise)
-  — 18 EventBridge rules
+  the scale of seasons and a faster cadence only chases noise) ·
+  `sms-registration` (6h — advances every clinic's A2P registration state
+  machine)
+  — 19 EventBridge rules
   managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
   every merge** (idempotent self-heal — a new cron route can't ship un-fired,
   the drift that once left prospecting + 4 other jobs silently dead); the
@@ -588,11 +652,17 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0146** (`clinic_profile.gbp_listing` jsonb — the LISTING
+  migration: **0148** (`pms_api_usage` — the NexHealth call-budget ledger:
+  one row per org per UTC day, unique index, read by
+  `lib/services/pms/api-meter.ts`). Before it: **0147**
+  (`clinic_profile.site_live_at` — the GO-LIVE LEVER: a clinic's public
+  site serves only after one deliberate act; the migration grandfathers
+  every EXISTING clinic to live, since they were serving traffic before
+  the lever existed). **0146** (`clinic_profile.gbp_listing` jsonb — the LISTING
   TRUTH snapshot: what the clinic's Google Business listing itself says
   (websiteUri/placeId/reviewUrl/mapsUri/isVerified/title/fetchedAt),
   stamped by every GBP sync, read by the `gbp_website_fix` mismatch
-  detector via `parseGbpListingSnapshot`). Before it: **0145** (`provider_message_id` + lookup indexes on
+  detector via `parseGbpListingSnapshot`). **0145** (`provider_message_id` + lookup indexes on
   `appointment_reminder_log` and `campaign_events` — the SMS delivery-receipt
   correlation key, stamped at send time, read by lib/services/sms-dlr.ts).
   Before it: **0144** (`clinic_sms_config` renamed provider-neutral —
@@ -648,6 +718,19 @@ sitemap/robots/OG.
 
 ## Open items (priority order)
 
+-1. **THE RELEASE PROGRAM (2026-08-16, owner directive — THE CURRENT
+   PROGRAM OF RECORD).** "We have every feature we plan to offer currently,
+   so now we can start polishing, refining, and getting the app to the full
+   release point where I can pivot to marketing instead of building." Read
+   `docs/RELEASE.md` FIRST in any new session: phases R0 (scope lock +
+   severity bars) → R1 (the eight audit sweeps: tenant/auth, money,
+   journeys, resilience, performance, copy, accessibility, compliance) →
+   R2 (burn-down) → R3 (hardening: Playwright E2E suite, error
+   aggregation, the RDS restore drill, load sanity) → R4 (dress rehearsal
+   + beta cohort) → R5 (RC + go/no-go + launch watch). Feature freeze: new
+   ideas go to the post-1.0 backlog (RELEASE.md Part 6 until
+   docs/POST-1.0.md exists), not the release. Everything below this line
+   is either absorbed into that program or explicitly deferred by it.
 0. **THE TRANSFORMATION (2026-07-27, full owner approval): "the employee,
    not the tool."** Read DESIGN.md → "The North Star" FIRST. Build order:
    Phase 1 the spine (journey-stage resolver + Action Ledger + autonomy
@@ -955,16 +1038,24 @@ sitemap/robots/OG.
    the card and names the by-hand path; sweep retires healed cards through
    closeRecoveredProposal, attribution = attempt marker + snapshot 'ok');
    'gbp' lead channel ("Google profile") keyed on the utm_campaign marker
-   ahead of search. Next slices: place-actions Book-online link (the
-   listing's OTHER patient door), hours/phone write-back, readiness
-   resolver (Phase B). Owner actions pending: create Dream Create's GBP
-   (dreamcreateweb.com pair is simplest — the site is real), optional
+   ahead of search. **THE GREEN-LIT BUILD ORDER IS COMPLETE (2026-08-13):**
+   Phase B readiness resolver (`lib/readiness.ts` + `lib/services/
+   readiness.ts` — ONE truth layer grading ready/attention/waiting/todo/na,
+   the five contradicting surfaces re-pointed) · the go-live lever (0147
+   `site_live_at`; new clinics' sites start private, one deliberate act
+   publishes; existing clinics grandfathered) · Phase C setup-as-Inbox-cards
+   (`setup_hours`/`setup_chairs`/`setup_booking_mode`/`setup_texting` in
+   lib/autonomy.ts — day-0 asks ARE proposals, ask-first, not grantable) ·
+   the invite door (managed provisioning carries the full prospect DOSSIER —
+   brand, GBP, vendors — `lib/services/clinic-provisioning.ts`) · SMS
+   kickoff + the included segment budget · the trial-expiry KILL (owner
+   ruling; see the Trial subsystem entry) · the NexHealth arc through
+   write-back v1 + real-slots booking (see the stack entry). Build log for
+   ALL of it: docs/onboarding-overhaul.md. Owner actions pending: optional
    Google Basic-Access application as vendor insurance; Mammoth Spring
-   fix now just needs THEIR GBP connected to DreamCRM once they recover
-   their Google login (or any clinic's first write validates plan
-   entitlement). Four open questions for the owner remain at the bottom
-   of the doc (application, booking gating, trial-expiry honesty,
-   positioning).
+   needs THEIR GBP connected once they recover their Google login. The one
+   surviving open question in the doc: setup-fee/positioning (Q5). Further
+   onboarding polish now rides docs/RELEASE.md (R4's stranger test).
 0b. **Dentistry-type site templates** (task #69, design-first —
    own session). The rails are live: template registry +
    `lib/clinic-site-theme.ts`, /website/templates gallery w/ per-card live
@@ -980,8 +1071,9 @@ sitemap/robots/OG.
    - Resend key `re_BZDw…` — mint fresh, swap in Secrets Manager, delete the
      dead `re_T8fyc…`.
 2. **The finishing pass is CLEAR** (2026-07-02) — every item in
-   `docs/FINISHING.md` is fixed, decided, or accepted. Log NEW seam bugs
-   there as they surface (hunting method at the bottom of that doc).
+   `docs/FINISHING.md` is fixed, decided, or accepted. That doc is now
+   FROZEN history: during the release program, new defects go to
+   `docs/RELEASE.md` Part 5 (the program's ledger), not FINISHING.
 3. **Inbound email replies → `/messages` — LIVE (2026-07-23).** Resend
    inbound domain `in.dreamcreatestudio.com` verified, MX + DKIM at name.com,
    `INBOUND_REPLY_DOMAIN` set, webhook rebuilt on the www host with ALL
@@ -989,20 +1081,22 @@ sitemap/robots/OG.
    delivery/opened receipts were silently dead until this repair) + open
    tracking on. Human verification still worth doing: reply to a clinic
    email, watch /messages.
-4. **OD vendor portal approval** (in flight) — unblocks schedule-driven booking
-   availability (`/schedules`) + real-office Customer Keys. On approval: swap
+4. **OD vendor portal approval** (in flight) — no longer the gate on
+   schedule-driven booking (NexHealth real-slots shipped, see the stack
+   entry); still unblocks the DIRECT Open Dental path: real-office Customer
+   Keys + OD `/schedules`. On approval: swap
    `PMS_OPEN_DENTAL_DEVELOPER_KEY`, generate per-office Customer Keys, office
    installs eConnector.
-5. **Phase B — SMS (IN FLIGHT as Phase 5 limb 3; see the stack entry).**
-   Remaining: slice 3 (lib/sms.ts deliverSms + the twilio_sms channel branch
-   in marketing-send + reminders channel choice + the inbound/DLR webhook →
-   /messages with STOP/HELP via lib/sms-consent.ts, flipping
-   SelfManagedOptOuts) and slice 4 (the honesty flip: marketing pages,
-   catalog availability, the disabled composer options). Ops before enabling
-   SMS_DRIVER=aws: grant sms-voice registration/number/describe actions on
-   DreamCRMAppRunnerInstanceRole; first live registration verifies the AWS
-   field paths (they cannot be integration-tested from CI — a wrong path
-   degrades to REQUIRES_UPDATES/brand_action_needed, visible, never silent).
+5. **SMS — machinery COMPLETE, waiting on the first real carrier
+   registration (see the stack entry for everything shipped).** Remaining,
+   in order: (1) a real clinic submits the /integrations/sms form → the
+   first live A2P registration verifies the AWS field paths (they cannot be
+   integration-tested from CI — a wrong path degrades to
+   REQUIRES_UPDATES/brand_action_needed, visible, never silent); (2) on
+   approval + a provisioned number, the SNS two-way wiring (commands
+   printed by scripts/setup-sms-aws.sh) TOGETHER with flipping
+   SelfManagedOptOutsEnabled; (3) the honesty flip LAST (marketing pages,
+   catalog availability, the disabled composer options).
 6. **Platform webhook idempotency** shipped; review auto-send is anchored to
    `completedAt` with a 7-day ask-while-fresh floor (2026-07-14) — CLOSED.
 7. **Phase 4's six named open items** (docs/AUDITS.md certificate, 2026-07-31):
@@ -1083,7 +1177,7 @@ pnpm dev                  # local dev
 pnpm build                # next build (REQUIRED for UI/font/config changes)
 pnpm db:generate          # drizzle-kit generate (after schema changes)
 pnpm typecheck            # tsc --noEmit
-pnpm test                 # vitest run (~4,200 tests)
+pnpm test                 # vitest run (~6,400 tests, <4 min)
 pnpm test:watch
 ```
 

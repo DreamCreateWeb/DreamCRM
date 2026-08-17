@@ -246,6 +246,13 @@ activity-feed stagger 100–140ms, first reveal only, ≤6 rows.
 2. **Ambient breath** — the active nav pill + the page's single primary
    carry a ~6s compositor-only gradient drift. Subliminal.
 
+The morning-reveal RECIPE (two-phase rAF, transform/opacity, `--dur-base`
++ `--ease-out`, reduced-motion snaps) may be reused at SMALL scope — one
+card, one panel — as an ordinary enter transition (e.g. the Approval
+Inbox's sign-here advance). That is sanctioned reuse of a recipe, not a
+third signature moment: a signature moment is page-scale and orchestrated;
+a scoped enter is furniture.
+
 (Dark-mode canvas stars are a THEME property, not a motion moment — a
 static/very-slow-twinkle decorative layer behind everything, killed under
 reduced-motion. They live in the shell canvas only.)
@@ -301,6 +308,7 @@ Import from `@/components/ui/...` — same inventory, re-skinned:
 | `KpiStat` | `kpi-stat.tsx` | Geist Mono numerals (text-3xl ink-900), ink-500 caps label, floating card, hover lift when drillable, count-up per Part 3, **heartbeat slot** (`spark` — law 7). |
 | `ProgressRing` | `progress-ring.tsx` | Share-of-whole heartbeat: brand ring fills once on mount (≤1.1s), % text inside, REQUIRED `label` aria + always paired with visible text; renders nothing at max ≤ 0; reduced-motion snaps. |
 | `FlashToast` | `flash-toast.tsx` | motion per Part 3; tone-tinted edge (info edge = violet). |
+| **The chart kit** | `charts/` (`TrendChart`, `MiniTrend`; old `Sparkline` = compat wrapper) | THE single home for graphs (2026-07-26, Recharts). Series colors ride the validated `--color-chart-1..4` tokens ONLY — fixed order, dark-aware, never raw hex; TrendChart = axes + crosshair tooltip, MiniTrend = hover spark (law 7's heartbeat slot). LAW with CI teeth: no hand-rolled `<polyline>`/SVG charts — `tests/ui/chart-kit.test.tsx` fails the build. |
 
 Tables/agenda rows: header row surface-sunk + ink-500 caps labels; row
 hover bg tint (instant); selected row = brand inner ring

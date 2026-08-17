@@ -88,7 +88,7 @@ Home · Orders · Products · Customers · Marketing · Discounts · Content · 
 ## Stage 1 — Inventory: every feature + setting, by purpose
 
 ### Purpose: Daily Operations Cockpit
-- **Overview /dashboard** — morning-huddle header + legend; integrations-health + website check-engine banners; 7 plan-gated attention cards (unconfirmed, intake submissions, balances, new leads, unanswered messages, follow-ups due, orders to fulfill); today's chair; 5 trend KPIs; activity feed; reviews-received card; honest SMS placeholder; welcome modal + getting-started checklist.
+- **Overview /dashboard** — morning-huddle header + legend; integrations-health + website check-engine banners; 7 attention cards *(plan gating deleted 2026-07-25 — no-plan-gating convention)* (unconfirmed, intake submissions, balances, new leads, unanswered messages, follow-ups due, orders to fulfill); today's chair; 5 trend KPIs; activity feed; reviews-received card; honest SMS placeholder; welcome modal + getting-started checklist. *(Added since, top of Overview: the Approval Inbox — sign-here stack, 2026-08-14: one card at a time + a queue rail, per-capability artifact rendering — plus StandupCard (weekly Narrator) and GuardianNoteCard (the practice-facing Guardian heads-up). The PLATFORM overview gained GuardianPanel + SharedBrainCard.)*
 - **My Day /my-day** — personal KPI strip; my follow-ups (interactive complete/reassign); my conversations; today's schedule w/ in-office breadcrumbs; tomorrow-audit (live per-visit prep audit); personal digest opt-out. Settings: clinic-wide morning digest toggle lives on /followups (rules card); personal opt-out on /my-day.
 - **Follow-ups /followups** — mine/everyone + due filters; due-grouped board; complete/reopen/reassign; quick-add from any drawer. Settings IN-FEATURE: auto-add rules (balances / overdue recalls / unconfirmed visits, default off) + morning digest toggle (owner/admin).
 
@@ -102,7 +102,7 @@ Home · Orders · Products · Customers · Marketing · Discounts · Content · 
 - Settings elsewhere: message templates → **Settings→Message templates**; after-hours auto-reply → **Settings→Portal→Voice & display**; AI allowance = plan.
 
 ### Purpose: Patient Records & Relationship
-- **Patients /patients(+/[id])** — status/source/tag filters + search + sortable columns; saved views (premium → audience); import/export CSV; bulk email/tag/portal-invite/pay-link; detail: header actions (message/book/intake/review/edit), lifecycle + glyphs, stat strip, needs-attention rail, follow-ups/tags/identity/family/referral/loyalty panels, filtered timeline, notes, documents, archive/merge.
+- **Patients /patients(+/[id])** — status/source/tag filters + search + sortable columns; saved views (premium → audience *— tier label historical; no-plan-gating 2026-07-25*); import/export CSV; bulk email/tag/portal-invite/pay-link; detail: header actions (message/book/intake/review/edit), lifecycle + glyphs, stat strip, needs-attention rail, follow-ups/tags/identity/family/referral/loyalty panels, filtered timeline, notes, documents, archive/merge.
 - Settings: portal-invite + pay-link email copy → Automations; recall/lapsed thresholds → Practice; loyalty visibility → Shop loyalty config.
 
 ### Purpose: Intake & Forms
@@ -124,10 +124,10 @@ Home · Orders · Products · Customers · Marketing · Discounts · Content · 
 - **/growth/social** — multi-channel composer (GBP post types, event/offer fields, char caps, media, CTA, schedule, per-channel preview); history/calendar; comment manager. Connect + cap + $ add-on → Integrations (canonical) w/ billing summary card.
 
 ### Purpose: Analytics & Reporting
-- **/growth/analytics** (premium) — 30/90 ranges; scorecard; acquisition (sources, funnels, GBP local, site visits); social performance; schedule health; recall funnel + won-back attribution; reputation proof; honest PMS-deferral; everything drills to filtered surfaces.
+- **/growth/analytics** (premium *— historical; no-plan-gating 2026-07-25*) — 30/90 ranges; scorecard; acquisition (sources, funnels, GBP local, site visits); social performance; schedule health; recall funnel + won-back attribution; reputation proof; honest PMS-deferral; everything drills to filtered surfaces.
 
 ### Purpose: Website & Online Presence
-- **/website** hub (live-site card, PublishCard, checklist, 30d snapshot, 10 doors) + editor (Studio: in-place edit, AI bar w/ allowance, undo, publish bar) + content (10 section forms) + design (brand color, heroes, video) + templates (gallery w/ live per-card iframes) + pages (live/needs pills, copy overrides, per-page SEO meta) + forms (2 lead-form builders + chat-widget toggle + submissions glance) + blog (Pro; AI drafts, calendar) + seo (Pro; health score, GSC, GBP local) + careers (Premium; ATS) + domain (DNS wizard + auto-poll) + share (QR cards). Draft→Publish across all editing. /welcome AI interview drafts the whole site.
+- **/website** hub (live-site card, PublishCard, checklist, 30d snapshot, 10 doors) + editor (Studio: in-place edit, AI bar w/ allowance, undo, publish bar) + content (10 section forms) + design (brand color, heroes, video) + templates (gallery w/ live per-card iframes) + pages (live/needs pills, copy overrides, per-page SEO meta) + forms (2 lead-form builders + chat-widget toggle + submissions glance) + blog (Pro; AI drafts, calendar) + seo (Pro; health score, GSC, GBP local) + careers (Premium; ATS) *(the Pro/Premium labels are historical — no-plan-gating 2026-07-25)* + domain (DNS wizard + auto-poll) + share (QR cards). Draft→Publish across all editing. /welcome AI interview drafts the whole site. *(Added since: the GO-LIVE lever — `clinic_profile.site_live_at`, hub go-live-card; un-pulled, every public page shows the branded coming-soon — and setup readiness now comes from the single resolver `lib/services/readiness.ts`.)*
 - Identity (names/contact/hours/logo/timezone/sender) → **Settings→Business profile** (+ GBP sync w/ per-field provenance, calendar feed).
 
 ### Purpose: Online Booking
@@ -137,13 +137,13 @@ Home · Orders · Products · Customers · Marketing · Discounts · Content · 
 - **Settings→Portal** — feature switches (booking/reschedule/messages/billing/payments/records/forms/family/shop); booking windows; voice & display (welcome, announcement, care note, team photos, after-hours auto-reply); preview-as-patient.
 
 ### Purpose: Payments & AR
-- **/shop/payments** — online-payments reconciliation; deposits table; CSV; **balance-reminder cadence card IN-FEATURE** (min balance, cadence days, max sends). **/shop/collections** — open balances + dunning state; email pay link; payment plans (propose 2–12 installments, autopay, public accept, progress table). Stripe Connect onboarding = Shop hub.
+- **/payments/online** *(was /shop/payments — moved in the 2026-07-14 Payments split, old path 308s)* — online-payments reconciliation; deposits table; CSV; **balance-reminder cadence card IN-FEATURE** (min balance, cadence days, max sends). **/payments/collections** *(was /shop/collections, 308)* — open balances + dunning state; email pay link; payment plans (propose 2–12 installments, autopay, public accept, progress table). Stripe Connect onboarding = Shop hub.
 
 ### Purpose: E-commerce & Memberships
 - **/shop** hub — Stripe panel, storefront banner, low-stock nudges, sales KPIs, doors, catalog, fulfillment/storefront/tax toggles, **loyalty config card** (points per visit/referral/payment, redeem threshold/value). Products (variants, FSA, fulfillment). Orders (state machine + CSV). Memberships (plans: interval/price/discount/benefits w/ redemption counters; members + MRR). Coupons (manual + birthday generator + loyalty-minted).
 
 ### Purpose: Integrations & Data Sync
-- **/integrations** — bundle-grouped catalog, search, cap meter, per-kind connect flows, PMS demand capture, social add-on (canonical), preferred GBP account. Open Dental detail = full sync dashboard (connect key, direction, auto-sync, KPIs, scope, mapping, logs). Google Business detail. **Settings→Apps** = connected-accounts status (Gmail health, Stripe, platform-only Resend/Anthropic/PubSub).
+- **/integrations** — bundle-grouped catalog, search, cap meter, per-kind connect flows, PMS demand capture, social add-on (canonical), preferred GBP account. Open Dental detail = full sync dashboard (connect key, direction, auto-sync, KPIs, scope, mapping, logs). Google Business detail. *(Added since: **/integrations/sms** — the one-form A2P 10DLC registration UI — and the **NexHealth** catalog entry, the universal PMS door reaching Dentrix/Eaglesoft/etc.)* **Settings→Apps** = connected-accounts status (Gmail health, Stripe, platform-only Resend/Anthropic/PubSub).
 
 ### Purpose: Team / Account / Notifications / Security
 - Team (invite/roles/pending), Billing (plan grid, Stripe portal, cancel/resume, invoices, social summary), Account (profile/email/password/text size), Notifications (bell buckets, digest, pause-all), Security (sessions, password), Feedback (+ platform inbox). Redirect stubs: reminders/plans/seo.
@@ -184,20 +184,27 @@ below hold every purpose area against both the norm and our own pattern.
 
 ### Change list (ranked, structure-only)
 
-1. **Bridge the booking split** — cross-link both homes: Settings→Practice→Online
+1. ☑ **Bridge the booking split** — SHIPPED (verified 2026-08-17: both
+   cross-links live — practice-panel.tsx links /settings/portal,
+   portal-settings-form.tsx links back to /settings/practice). Cross-link
+   both homes: Settings→Practice→Online
    booking gets a "Portal booking rules" link (allowed types / notice / cutoffs
    → /settings/portal), and Settings→Portal→Booking gets a "Visit types,
    providers & chairs" link back (→ /settings/practice). No settings move —
    the homes are semantically correct; the bridge is what's missing.
-2. **Surface refer-a-friend from Growth** — the outreach hub gets a
+2. ☐ **Surface refer-a-friend from Growth** — **STILL OPEN (re-verified
+   2026-08-17: no referral door on the outreach hub).** The outreach hub gets a
    referral-program door/card linking to the existing Shop→Loyalty config
    (where the program lives), so a growth-minded owner can find it. No config
    moves; no new features.
-3. **Appointments → reminder-journey deep link** — alongside the existing
-   "Edit confirmation email" action, link the reminder card
-   (`/settings/automations/emails?email=appointment_reminder`).
-4. **Chat-widget action seam** — the toggle renders on /website/forms but its
-   server action lives in settings/practice/actions.ts; move the action next
+3. ☑ **Appointments → reminder-journey deep link** — SHIPPED (verified
+   2026-08-17: agenda-view.tsx links
+   `/settings/automations/emails?email=appointment_reminder`). Alongside the
+   existing "Edit confirmation email" action, link the reminder card.
+4. ☑ **Chat-widget action seam** — SHIPPED (verified 2026-08-17: the action
+   now lives in app/(default)/website/forms/actions.ts, next to its route).
+   The toggle renders on /website/forms but its
+   server action lived in settings/practice/actions.ts; move the action next
    to its route (code hygiene, zero user-facing change).
 
 Everything else verified in place. Non-structural observations parked for
@@ -214,7 +221,9 @@ first-class; membership revenue nested inside payments) now applies: /payments
 hub (KPI story: outstanding → to-reconcile → open plans → MRR + doors) with
 /payments/online, /payments/collections, /payments/memberships moved out of
 /shop (old paths 308). Shop is pure commerce (products, orders, coupons,
-storefront, loyalty). Same gates as before (premium + payments bundle) — pure
+storefront, loyalty). Same gates as before (premium + payments bundle *— the
+premium half is historical: plan gating deleted 2026-07-25; `requiresBundle`
+is the only surviving gate class*) — pure
 reorganization, zero access change. Sidebar Business group: Payments · Shop ·
 Integrations.
 
@@ -235,3 +244,34 @@ badge, a keyboard shortcut, and rot borders tuned to response speed. NexHealth
 routes the same requests into its DAILY communications surface. Folding it
 into the Growth workspace would demote a daily queue to save one nav slot —
 churn, not structure. Daily keeps 8 entries; every one is an operational queue.
+
+**Website hub v3 + announcement bar (2026-07-24, logged 2026-08-17).** The
+/website hub reshaped Shopify-style: the clinic's OWN homepage as a live
+scaled browser-frame hero, setup ProgressRing + checklist beside it, then
+three zones shaped like their contents — number-first "What's happening" news
+cards, a "Quick edits" modal dock (hours/services/team/photos/announcement,
+reusing the Content page's editors), and a quiet utility footer (Design ·
+Pages · Domain · Share). Same day: the announcement bar (migration 0134,
+live-instant + self-expiring) rendered once in the public-site layout. Pure
+reorganization of the hub; the sub-pages kept their paths.
+
+**Growth hub v3 (2026-07-26, logged 2026-08-17).** The /growth hub redesigned
+around "acquisition leads, two engines": hero = New-patients scoreboard
+(trailing-4-week total + 12-week heartbeat + per-channel rows), band 2 = the
+reactivation funnel, number-first news cards with attention tones, utility
+footer (Audiences · queue · Analytics); New campaign = header primary →
+/growth/outreach?new=1. Later gained the "What's going out" forward report
+(content-calendar limb, renders only when something is actually scheduled).
+No path changes — a hub re-shape, not a move.
+
+**Setup asks as proposals + the sign-here Approval Inbox (2026-08-07/14,
+logged 2026-08-17).** Onboarding-overhaul Phase C: setup questions (hours,
+chairs, booking mode, texting, …) now arrive as ask-first PROPOSALS through
+the same Approval Inbox rails as every other ask — no separate setup
+wizard surface. The Approval Inbox itself reshaped 2026-08-14 into the
+sign-here stack: ONE card at a time with a queue rail beside it, each card
+rendering its capability's artifact (email/social/reply/plan/GBP-fix) so the
+approver sees the actual thing before saying yes. Structure consequence: the
+clinic Overview's top now stacks Approval Inbox → StandupCard →
+GuardianNoteCard; the platform Overview carries GuardianPanel +
+SharedBrainCard.

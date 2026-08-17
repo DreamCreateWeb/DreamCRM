@@ -11,6 +11,11 @@ call sites, then adding the regression test.
 five classes is fixed, decided, or explicitly accepted (marked ▣). New seam
 bugs get logged here as they're found — use the hunting method at the bottom.
 
+**DEFECT ROUTING (2026-08-17): this doc is FROZEN as the pre-release
+punch-list history.** While THE RELEASE PROGRAM runs (docs/RELEASE.md,
+started 2026-08-16), new defects go to RELEASE.md Part 5 — the program's
+defect ledger — not here.
+
 Status legend: ☑ fixed · ▣ accepted as-is (decision recorded) · ☐ open.
 
 ---
@@ -241,7 +246,9 @@ Audit ran 2026-07-02. Verified CLEAN: demo-mode actions all resolve to visible
 feedback; portal feature toggles HIDE everywhere (nav, home cards, deep links
 all guarded + `requirePortalFeature` server-side); `soon`/coming-soon tiles are
 honest and non-clickable; `requirePlan`'s `?upgrade=` param survives to
-`/settings/billing`.
+`/settings/billing`. *(Historical note 2026-08-17: `requirePlan` and every
+upsell CTA were deleted by the NO PLAN GATING convention, 2026-07-25 — the
+verified-clean findings here stand as history of the pre-deletion state.)*
 
 Fixed 2026-07-02 (round 2):
 
@@ -257,6 +264,9 @@ Fixed 2026-07-02 (round 2):
   settings-search "Reminders", social-posts + integrations upgrade CTAs, and
   `requirePlan` itself now target `/settings/billing` /
   `/settings/automations/emails` directly (no double-redirect hop).
+  *(Historical note 2026-08-17: `requirePlan` and the upgrade CTAs named
+  here were later deleted outright by the NO PLAN GATING convention,
+  2026-07-25.)*
 
 Closed 2026-07-02 (round 5):
 
@@ -278,7 +288,12 @@ Stripe Connect/Open Dental), and first-run configuration + upgrades.
 **Verified solid (no action):** no redirect loops anywhere (mid-onboarding
 re-entry, org-less users, pending invites all converge); slug race is atomic;
 AI welcome interview never dead-ends; trial expiry locks only the clinic app
-(public site + portal + booking stay up) and the wall embeds real checkout;
+(public site + portal + booking stay up — **INVERTED by owner ruling
+2026-08-10**: expiry now kills EVERYTHING via the shutdown resolver
+`lib/services/billing-state.ts` — crons skip the org, the public site shows
+the branded coming-soon page even to editors, and the portal shows a calm
+phone-first notice; the wall itself is unchanged) and the wall embeds real
+checkout;
 trial reminder cron is idempotent w/ correct copy; webhook idempotency;
 first-run empty states crash-free; portal toggles hide everywhere; wrong-user
 invite acceptance blocked on every flow; partner payout ledger is double-pay
@@ -327,8 +342,9 @@ Fixed 2026-07-02 (round 3):
   says "already used", not "expired").
 - ☑ Team-invite duplicate-member guard was case-sensitive on stored email.
 - ☑ GBP multi-location accounts flipped nondeterministically between
-  locations (unordered select + `[0]`) — now stably ordered. (A real location
-  PICKER is still open, below.)
+  locations (unordered select + `[0]`) — now stably ordered. (The real
+  location PICKER shipped in round 5, below —
+  `zernio_connection.preferred_gbp_account_id`, migration 0114.)
 - ☑ One more bare-UTC time render on the Overview unconfirmed preview.
 
 Owner decisions (2026-07-02) + what shipped on them (round 4):
@@ -404,10 +420,16 @@ Closed 2026-07-02 (round 5):
 3. Any disagreement → find the class (tz? attribution? divergent query? stale
    copy?) → fix the CLASS (helper + convention + sweep + test), not the pixel.
 4. Log fixed/remaining items here; keep CLAUDE.md's conventions in sync.
+5. **ROUTING (2026-08-17):** during THE RELEASE PROGRAM, log new defects in
+   docs/RELEASE.md Part 5 (the program's defect ledger) instead of here —
+   this doc is frozen as the pre-release history.
 
 ---
 
-## Class 6 — Action-link dead ends needing new params/routes (2026-07-20 audit)
+## Class 8 — Action-link dead ends needing new params/routes (2026-07-20 audit)
+
+*(Renumbered 2026-08-17: this section was accidentally the second "Class 6";
+Class 6 is "Cross-surface rule drift" above, Class 7 is "Identity seams".)*
 
 **Rule (DESIGN-SYSTEM v3):** every number links to the filtered view that
 explains it. Passes 1–2 wired everything whose destination already existed;

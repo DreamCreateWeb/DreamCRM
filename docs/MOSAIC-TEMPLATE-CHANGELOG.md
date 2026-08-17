@@ -1,4 +1,9 @@
-# CHANGELOG.md
+# Mosaic template changelog (historical)
+
+**This is the upstream Mosaic admin template's version history, not
+DreamCRM's.** The template provided the original dashboard bones (see
+CLAUDE.md's intro); DreamCRM's own build log is `docs/HISTORY.md`. Kept
+for provenance only — moved out of the repo root 2026-08-17.
 
 ## [6.2.0] - 2025-12-12
 

@@ -53,8 +53,9 @@ In `dreamcrm/app-secrets` (values are the FRESH, rotated ones):
 | `OUTREACH_REPLY_TO` | `dustin@dreamcreateweb.com` (an inbox you watch) | replies route here even on the Resend path — see §4 |
 | `MARKETING_POSTAL_ADDRESS` | your real business mailing address | **CAN-SPAM requires it**; renders in every outreach footer |
 
-Redeploy after saving. The Settings → Prospecting page shows a green
-"Configured" pill for the Places key and the sender once they're live.
+Redeploy after saving. The Settings → Prospecting page's readiness pills go
+green once they're live — "Connected" for the Places key, "Configured" for
+the sender ("Not configured" until then).
 
 ## 3. Capturing replies (the close half of the loop)
 

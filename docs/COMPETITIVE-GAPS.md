@@ -13,6 +13,32 @@ Weave, Adit, Lighthouse 360/360+, YAPI.
 
 ---
 
+> ## ⚠️ RE-BASELINE (2026-08-17) — read before trusting any row below
+>
+> Three ground facts shifted after most rows were written; rows are annotated
+> in place where it matters, but the markers and per-tier copy read through
+> this lens:
+>
+> 1. **SMS machinery has SHIPPED end-to-end** — outbound send (`lib/sms.ts`
+>    deliverSms), inbound two-way (`lib/services/inbound-sms.ts` →
+>    /messages, STOP/START), DLR delivery receipts (`lib/sms-dlr.ts`), and
+>    the reminders SMS fallback channel. Every 📵 "blocked on SMS (Phase B)"
+>    marker below now means **"waiting on that clinic's A2P carrier
+>    registration approval"** (per-clinic 10DLC brand/campaign/number via
+>    /integrations/sms), not an unbuilt phase.
+> 2. **NexHealth shipped as the universal PMS door**
+>    (`lib/services/pms/nexhealth.ts` — reaches Dentrix/Eaglesoft/etc.;
+>    real-slots booking; write-back v1), redrawing which gaps are
+>    PMS-reachable. BUT no procedure-code entity exists yet, so the
+>    procedure-gated P2s (post-op follow-ups, treatment-plan follow-ups,
+>    consents, per-provider production) remain open.
+> 3. **Pricing is now ONE purchasable plan** — Premium at $200/mo founding
+>    rate (list $500, `lib/stripe-config.ts`; NO PLAN GATING convention
+>    2026-07-25). All per-tier copy below (premium/pro/basic allowances,
+>    plan-branched features) is historical.
+
+---
+
 ## The big picture
 
 **Where we already win (no vendor has these):** self-serve website CMS +
@@ -52,7 +78,9 @@ write-back + reminders (email, 30m cron) + review-request on complete.
   siblings flip to lost, the claimer's old visit auto-releases + re-offers
   onward. Panel on /appointments; persona-anchored demo seed. Later: SMS
   channel, patient self-serve join from the portal, staff manual "offer this
-  slot" picker.
+  slot" picker. *(2026-08-17: portal self-serve join SHIPPED — "notify me if
+  something opens sooner" on the visit card; the waitlist SMS channel is
+  still absent.)*
 - ✅ **Booking deposits** — SHIPPED 2026-07-02. Per-visit-type `depositCents`
   (Settings → Practice → Visit types; $0 default — most clinics charge none),
   collected at website booking via the clinic's Stripe Connect account
@@ -85,10 +113,15 @@ write-back + reminders (email, 30m cron) + review-request on complete.
 - ✅ **No-show follow-up** — SHIPPED 2026-07-02. On no-show the patient now
   ALSO gets the warm "we missed you — no judgment, find a new time" note
   (new no_show_rebook Emails-hub key, clinic-editable + toggleable, default
-  ON; "Find a new time" button on pro/premium, call-us copy on basic; PMS
-  comm-log mirror). Staff alert + auto-rebook follow-up unchanged.
+  ON; "Find a new time" button on pro/premium, call-us copy on basic *(the
+  plan branch is GONE, 2026-07-25 no-plan-gating — every clinic gets the
+  booking link)*; PMS comm-log mirror). Staff alert + auto-rebook follow-up
+  unchanged.
 - 📵 Text confirmations w/ sentiment ("any affirmative reply confirms"),
-  voice-call reminders.
+  voice-call reminders. *(2026-08-17: SMS reminders SHIPPED — the fallback
+  channel texts where no inbox exists, carrying the same `/c/[token]`
+  one-click confirm; affirmative-reply-confirms is still unbuilt, as are
+  voice-call reminders.)*
 - Skip: recurring appointments (PMS territory).
 
 ### 2. Billing & payments outreach (Shop module + patient billing)
@@ -101,7 +134,9 @@ nudge (My Day), balance follow-up rule.
   category); the email's button lands on the public `/b/[token]` pay page
   (token-is-auth, live PMS balance, partial payments, Connect direct
   charge, idempotent finalize + webhook backstop, /payments/online
-  reconciliation). SMS sibling when the SMS channel lands.
+  reconciliation). SMS sibling when the SMS channel lands. *(2026-08-17:
+  the channel has landed; the text-to-pay sibling itself is still
+  unbuilt.)*
 - ✅ **Automated balance-reminder cadence** — SHIPPED 2026-07-02. Opt-in
   (default OFF) at Shop → Payments: balance ≥ $X → the same pay-link email
   every N days, capped at M sends per rolling 90 days ("after that it's a
@@ -123,7 +158,9 @@ nudge (My Day), balance follow-up rule.
   3 strikes for staff follow-up; staff get pinged on every charge/decline/
   completion. Plans table on the Collections board (progress, next charge,
   cancel). Later: patient-portal plan visibility, card-update flow, SMS
-  nudges.
+  nudges. *(2026-08-17: portal plan visibility SHIPPED — open-plan status in
+  portal billing — plus PATIENT-STARTED payment plans, which no row here
+  anticipated.)*
 - ✅ **Collections/AR board** (DI) — SHIPPED 2026-07-02 as an honest
   WORKBOARD at /payments/collections: every open PMS balance sorted largest
   first with its dunning state (pay link sent/paid + when, last online
@@ -181,7 +218,9 @@ birthday/reactivation autos, templates, promote-view-to-audience.
   pulse" section on /reviews: rolling-90d NPS, promoter/detractor split,
   recent comments. Deliberately separate + delayed from review requests so
   a patient never gets two asks in one afternoon. Later: SMS channel,
-  per-visit-type targeting, trend chart in Analytics.
+  per-visit-type targeting, trend chart in Analytics. *(2026-08-17: the
+  in-portal post-visit 0–10 survey SHIPPED — `getOrCreatePortalSurvey`,
+  same NPS rows/escalation as the email engine.)*
 - Skip: direct-mail postcards, RevenueWell TV.
 
 ### 4. Messages
@@ -222,7 +261,10 @@ Gmail mailbox, templates.
   (AI translation, review-before-send, shares the AI-draft allowance).
   Later: more languages, auto-translate automated emails.
 - 📵 Two-way SMS (the module's biggest unlock), missed-call text-back,
-  voicemail drops.
+  voicemail drops. *(2026-08-17: two-way SMS is BUILT — inbound texts thread
+  into /messages (`lib/services/inbound-sms.ts`) and the staff composer has
+  a live SMS channel, gated on the clinic's A2P registration approval;
+  missed-call text-back + voicemail drops still missing — phones territory.)*
 
 ### 5. Front-desk automation (Follow-ups + My Day + Overview)
 Current: follow-ups board + smart rules (balance/recall/unconfirmed) +
@@ -266,7 +308,9 @@ feedback, FB read-only, escalation, sidebar badge.
   bakes in the public/HIPAA guardrails (never confirm patienthood or
   clinical detail; low ratings apologize + invite a call). Metered via
   ai_usage_counter kind 'review_reply_draft' (premium 200 / pro 80 / basic
-  20 per month).
+  20 per month). *(2026-08-17: the meter is now a flat 200/mo for everyone —
+  a fair-use cost control, never a plan gate;
+  `lib/services/review-reply-ai.ts:22`.)*
 - ⏭ Review-site steering by patient email domain (Lighthouse Gmail→Google) —
   DECIDED 2026-07-02: skip permanently. Our landing is already Google-first
   for every patient; domain-based steering changes nothing.
@@ -335,3 +379,5 @@ import/export, bulk comms, portal invites.
 
 Re-run pricing/packaging comparison after SMS lands (our $150–500 vs their
 $249–499/location is a weapon — every parity feature widens it).
+*(2026-08-17: the comparison is now ONE plan — Premium at $200/mo founding
+rate, list $500 — vs their $249–499/location; the weapon got sharper.)*

@@ -1,9 +1,16 @@
 # DreamCRM — Build history (session log)
 
 The chronological record of what shipped, session by session — moved out of
-`CLAUDE.md` (2026-07-02) so the working manual stays lean. Newest first.
+`CLAUDE.md` (2026-07-02) so the working manual stays lean.
 Each entry preserves the implementation detail that was load-bearing at the
 time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
+
+**How this file is organized (2026-08-17 note):** the file has grown three
+regions. The bullet region just below is the OLDEST convention, newest-first
+(it stops 2026-07-24 and is dormant). Midway down, "Historical epics +
+migration records" holds early epics. Everything since 2026-07-13 is
+APPENDED AT THE END as `## YYYY-MM-DD — Title` sections in ASCENDING order —
+new entries go at the very bottom of the file in that style.
 
 ---
 
@@ -5256,6 +5263,81 @@ SelfManagedOptOutsEnabled — from that moment the STOP/HELP replies are OURS
 Suite 6,268 → 6,280. Remaining in the limb: reminders channel choice
 (finally reaching phone-only patients), delivery receipts, the honesty flip.
 
+## 2026-08-05 — SMS limb: the tail (channel choice, DLR receipts, AWS live)
+
+The three items the 3b entry named as remaining, all shipped (entries
+backfilled 2026-08-17; per-slice depth in CLAUDE.md's SMS stack entry):
+
+- **Reminders channel choice** — email stays primary; the SMS fallback
+  texts only where NO inbox exists (own email → guardian email → own
+  textable phone → guardian's phone), only when the clinic's texting is
+  live. A standing STOP silences even transactional texts (checked at the
+  NUMBER level); copy is code-owned + GSM-7-safe by contract
+  (`reminderSmsBody`/`familyReminderSmsBody`, lib/types/reminders.ts); a
+  shared family phone gets ONE household text.
+- **DLR delivery receipts** (migration 0145 `provider_message_id` on
+  appointment_reminder_log + campaign_events): "sent" means handed to a
+  carrier; only a DELIVERED receipt earns "delivered" (`lib/sms-dlr.ts`).
+  Receipts ride the same webhook as inbound.
+- **AWS-side setup executed** (`scripts/setup-sms-aws.sh`): IAM policy,
+  SMS_WEBHOOK_SECRET, `SMS_DRIVER=aws` live on App Runner. The machinery
+  is armed; per-clinic sends unlock on that clinic's A2P approval.
+
+## 2026-08-05→13 — THE ONBOARDING OVERHAUL + the NexHealth arc
+
+The project of the fortnight. **The full build log lives in
+`docs/onboarding-overhaul.md`** (the convention for deep-dive-doc'd work is
+an entry in both places; this is the pointer entry, backfilled 2026-08-17).
+The arc, compressed:
+
+- **08-05/06 — research + GBP listing truth.** The research doc (five
+  contradicting readiness surfaces, the ghost schedule, the GBP
+  website-button blind spot that cost Mammoth Spring all its traffic) and
+  the same-week fix: migration 0146 `gbp_listing` snapshot, the
+  `gbp_website_fix` proposal writing through Zernio's `locations.patch`
+  proxy, the UTM-tagged 'gbp' lead channel.
+- **08-07 — the design night + four slices.** Owner rulings (one flow two
+  doors; the clinic's choice, never a platform default; trial expiry
+  kills everything; NexHealth as the universal PMS door) → the readiness
+  resolver (`lib/readiness.ts`, ONE truth layer), the go-live lever
+  (migration 0147 `site_live_at` — a new clinic's site is private until
+  one deliberate act; existing clinics grandfathered), setup-asks-as-
+  Inbox-cards (`setup_hours`/`setup_chairs`/`setup_booking_mode`/
+  `setup_texting` — day-0 setup IS proposals), and the invite door
+  (managed provisioning carries the full prospect dossier). Same day,
+  standalone: 4K site videos (500MB presigned direct-to-S3 uploads).
+- **08-08 — NexHealth wired in.** `lib/nexhealth.ts` API client +
+  `lib/services/pms/nexhealth.ts` provider + platform binding; the demo
+  org bound to the NexHealth SANDBOX only (`deliver()` grew the
+  RFC-reserved-address guard so sandbox patients can never be emailed);
+  first clean import.
+- **08-10 — cost engineering + completeness + texting kickoff + THE
+  KILL.** The API meter (migration 0148 `pms_api_usage`, daily budget 60,
+  fail-open) + the 105-min cadence gate; sync completeness pass 1
+  (insurance, visit types, consent signals, guardian links, chair fill);
+  SMS kickoff at onboarding + `INCLUDED_MONTHLY_SEGMENTS = 2000`
+  (marketing-only over-budget refusal); and the trial-expiry kill switch
+  (`lib/services/billing-state.ts` — crons skip, site goes coming-soon,
+  portal gets a calm phone-first notice; nothing deleted, paying revives).
+- **08-11/13 — write-back v1 + real slots.** Research first (owner
+  directive: "don't do any work without researching and thinking it
+  through first"): v3-header writes, slot-validated creates, cancel-only
+  PATCH, `notify_patient=false` always, typed WAITING/NOT-SUPPORTED
+  failure lanes, off by default behind the platform bind card — then
+  round-trip verified against the sandbox in BOTH directions (my booking
+  landed in the sandbox; the owner's UI cancel flowed back). Pending
+  write-ops override the cadence gate. Real-slots booking: public site +
+  portal offer a PMS-connected practice's ACTUAL open times
+  (`lib/services/booking.ts`; staff paths stay local on purpose).
+
+## 2026-08-12 — Appointments: cancel flips the row instantly
+
+Owner-caught bug during the write-back test: cancelling from the drawer
+didn't update the agenda until a hard reload. Fix: optimistic cancelled
+state (useOptimistic) threaded to the Row's status resolution,
+close-before-refresh ordering, and revalidatePath('/my-day') on all five
+status-mutation sites.
+
 ## 2026-08-13 — The Approval Inbox shows the work, not a paragraph
 
 Owner design directive: the "employee not tool" cards dumped text staff
@@ -5276,3 +5358,54 @@ token legend, the sample-name caption stays. Setup asks unchanged
 (already interactive). Server enrichment in clinic-overview.tsx
 (`artifact` on ProposalCardData); demo cards get real platform previews
 free (the seeder already stamps real account ids).
+
+## 2026-08-14 — The sign-here stack (+ photo attach, + never-crop)
+
+Two follow-ons the artifact redesign demanded, both owner-directed:
+
+- **Photo attach on social cards.** The owner caught the gap from a
+  screenshot: a card asking permission to publish a post with no image
+  and no way to add one. Staff can now attach a photo before approving —
+  upload rides the existing pipeline ('social-posts' folder), previews
+  live inside the artifact, and the approve action carries `imageUrl`
+  (validated http(s), ≤2000 chars, written to the payload PRE-CLAIM so
+  the executor publishes exactly what the card showed).
+- **The SIGN-HERE STACK** (owner-chosen shape for the group): the
+  redesigned cards were huge, so up to 12 stacked blocks buried the
+  morning huddle under competing primaries. Now ONE card front-and-center
+  (soonest-to-expire first), a queue rail of capability chips ("2 of 5"
+  counter, expiry-tone dots — <24h urgent, <72h warn), skip/jump/see-all,
+  200ms advance transition (the sanctioned reveal recipe at card scope,
+  deliberately not a third signature moment). The load-bearing decision:
+  undecided cards stay MOUNTED (hidden — the settings-tabs law) so an
+  in-progress edit or uploaded photo survives skipping away and back.
+  A11y fix caught by tests: role="listitem" on the chips clobbered their
+  implicit button role.
+- **Site intro video never-crop** (same session, owner-caught on All
+  About Smiles): the difference-section media box forced 4:3 object-cover
+  and cut the video off; now the card hugs the video's own aspect
+  (max-h-[560px] object-contain, brand-tint letterbox).
+
+## 2026-08-17 — THE RELEASE PROGRAM + the docs alignment pass
+
+The pivot session. Owner: "we have every feature we plan to offer
+currently… start polishing, refining, and getting the app to the full
+release point where I can pivot to marketing instead of building."
+
+- **`docs/RELEASE.md`** — the program of record: how an agency pushes
+  through beta, re-shaped for one owner + one AI partner + parallel
+  subagent sweeps. Phases R0 (scope lock + severity bars) → R1 (the
+  eight audit sweeps) → R2 (burn-down) → R3 (hardening: Playwright E2E,
+  error aggregation, the RDS restore drill, load sanity) → R4 (dress
+  rehearsal + beta cohort) → R5 (RC + go/no-go + launch watch), plus the
+  budget rules and the defect ledger.
+- **The docs alignment pass** (this entry's own session): eight parallel
+  audit agents read all 18 repo docs against the code and every verified
+  staleness got fixed — CLAUDE.md caught up on its twelve-day blind spot
+  (NexHealth, the kill switch, the go-live lever, migrations 0147/0148,
+  21 crons, ~6,400 tests), the onboarding doc got its status header +
+  Phase A backfill + close-out, this file got the 08-05→08-17 entries,
+  README.md was rewritten from its early-days snapshot, the Mosaic
+  template changelog moved to docs/, docs/POST-1.0.md was created, and
+  the runbooks (custom-domains, zernio, sms-evaluation, intake,
+  finishing, competitive-gaps, structure-audit) were corrected per audit.
