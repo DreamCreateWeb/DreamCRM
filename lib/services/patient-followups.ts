@@ -343,6 +343,19 @@ export interface CreateFollowupInput {
   sourceAppointmentId?: string | null
 }
 
+/** A follow-up can only be assigned to a member of the same org. The assignee
+ *  id is caller-supplied, so verify it before writing — otherwise a stale or
+ *  foreign userId lands on the row and the assignee join renders a stranger's
+ *  name. Throws when the id is not a member of the org. */
+async function assertAssignableInOrg(organizationId: string, userId: string): Promise<void> {
+  const [m] = await db
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(and(eq(schema.member.organizationId, organizationId), eq(schema.member.userId, userId)))
+    .limit(1)
+  if (!m) throw new Error('That assignee is not a member of this clinic.')
+}
+
 /** Create a follow-up. Verifies the patient is in the org first. Returns the
  *  created view (assignee name resolved). */
 export async function createFollowup(
@@ -361,6 +374,7 @@ export async function createFollowup(
 
   const dueDate = cleanDueDate(input.dueDate)
   const assignedUserId = input.assignedUserId || null
+  if (assignedUserId) await assertAssignableInOrg(input.organizationId, assignedUserId)
   const id = newId()
   const createdAt = new Date()
   await db.insert(schema.patientFollowup).values({
@@ -421,6 +435,7 @@ export async function bulkCreateFollowups(
 
   const dueDate = cleanDueDate(input.dueDate)
   const assignedUserId = input.assignedUserId || null
+  if (assignedUserId) await assertAssignableInOrg(organizationId, assignedUserId)
   await db.insert(schema.patientFollowup).values(
     ownedIds.map((patientId) => ({
       id: newId(),
@@ -448,7 +463,11 @@ export async function updateFollowup(
     set.title = t
   }
   if (patch.dueDate !== undefined) set.dueDate = cleanDueDate(patch.dueDate)
-  if (patch.assignedUserId !== undefined) set.assignedUserId = patch.assignedUserId || null
+  if (patch.assignedUserId !== undefined) {
+    const next = patch.assignedUserId || null
+    if (next) await assertAssignableInOrg(organizationId, next)
+    set.assignedUserId = next
+  }
   await db
     .update(schema.patientFollowup)
     .set(set)

@@ -218,7 +218,8 @@ describe('runDuePlanCharges', () => {
         // 1% platform fee rides every installment.
         application_fee_amount: 100,
       }),
-      { stripeAccount: 'acct_1' },
+      // Deterministic per (plan, installment) — a retry/race reuses the charge.
+      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2' },
     )
     const payment = state.inserts.find((i) => i.table === 'patient_balance_payment')
     expect(payment!.values).toMatchObject({
@@ -228,6 +229,26 @@ describe('runDuePlanCharges', () => {
     })
     const update = state.updates.find((u) => u.table === 'payment_plan')
     expect(update!.values).toMatchObject({ installmentsPaid: 3, status: 'active', failedAttempts: 0 })
+  })
+
+  it('records no second payment row when the counter CAS loses (duplicate/racing charge)', async () => {
+    state.selectQueue.push([DUE_PLAN]) // due plans
+    state.selectQueue.push([{ isDemo: false }]) // org
+    state.selectQueue.push([{ accountId: 'acct_1', status: 'active', charges: 1, currency: 'usd', platformFeeBps: 100 }]) // shop config
+    // The CAS advance loses — another writer already recorded this installment.
+    state.updateReturning.push([])
+
+    const r = await runDuePlanCharges({ now: NOW })
+    // The charge still fired once, but with the SAME idempotency key it is the
+    // same PaymentIntent — Stripe does not double-charge.
+    expect(paymentIntentCreateMock).toHaveBeenCalledTimes(1)
+    expect(paymentIntentCreateMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2' },
+    )
+    // …and losing the CAS, it writes NO second balance-payment row.
+    expect(state.inserts.find((i) => i.table === 'patient_balance_payment')).toBeUndefined()
+    expect(r).toMatchObject({ scanned: 1 })
   })
 
   it('the FINAL installment ledgers the actual remainder amount, not the even split (round-5 close-out)', async () => {
@@ -247,7 +268,8 @@ describe('runDuePlanCharges', () => {
     // Stripe charged the remainder…
     expect(paymentIntentCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ amount: 16_668 }),
-      { stripeAccount: 'acct_1' },
+      // Deterministic per (plan, installment) — a retry/race reuses the charge.
+      { stripeAccount: 'acct_1', idempotencyKey: 'ppl_ppl_1_2' },
     )
     // …and the ledger reports THAT amount (the money statement must match the
     // charge), never the even-split installmentCents.

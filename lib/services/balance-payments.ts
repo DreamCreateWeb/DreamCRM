@@ -23,6 +23,7 @@ import { getClinicTimeZone } from './clinic-timezone'
  */
 
 const MIN_PAYMENT_CENTS = 100 // Stripe's floor is 50¢; $1 keeps fees sane.
+const MAX_PAYMENT_CENTS = 5_000_000 // $50k sanity ceiling — a null PMS balance must never mean "unbounded".
 
 function newPaymentId(): string {
   return `bp_${randomBytes(10).toString('hex')}`
@@ -69,6 +70,9 @@ export async function createBalancePaymentSession(input: {
   }
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_PAYMENT_CENTS) {
     throw new Error('The minimum online payment is $1.')
+  }
+  if (input.amountCents > MAX_PAYMENT_CENTS) {
+    throw new Error('That payment is over the online limit — give us a call and we’ll take it over the phone.')
   }
 
   // What the patient saw at pay time — reconciliation aid when the PMS

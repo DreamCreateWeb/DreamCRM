@@ -425,12 +425,35 @@ async function chargePlanInstallment(
         description: `Payment plan installment ${index + 1} of ${plan.installments}`,
         metadata: { kind: 'payment_plan', planId: plan.id, organizationId: plan.organizationId },
       } as never,
-      { stripeAccount: cfg.accountId },
+      // Deterministic per (plan, installment): a retry after a mid-write crash,
+      // or the finalize↔cron race, reuses the SAME PaymentIntent instead of
+      // creating a second real charge. This is the crash-consistency guarantee
+      // the daily cron assumes ("idempotent-by-state").
+      { stripeAccount: cfg.accountId, idempotencyKey: `ppl_${plan.id}_${index}` },
     )
 
     const now = new Date()
     const paid = index + 1
     const done = paid >= plan.installments
+
+    // Advance the counter FIRST, with a CAS on the pre-charge index, so exactly
+    // one writer records this installment. With the idempotency key above, a
+    // duplicate/racing call reuses the same charge and — losing this CAS — writes
+    // no second balance-payment row and never overshoots the plan total.
+    const advanced = await db
+      .update(schema.paymentPlan)
+      .set({
+        installmentsPaid: paid,
+        status: done ? 'completed' : 'active',
+        failedAttempts: 0,
+        lastError: null,
+        nextChargeAt: done ? null : addOneMonth(plan.nextChargeAt ?? now),
+        completedAt: done ? now : null,
+        updatedAt: now,
+      })
+      .where(and(eq(schema.paymentPlan.id, plan.id), eq(schema.paymentPlan.installmentsPaid, index)))
+      .returning({ id: schema.paymentPlan.id })
+    if (advanced.length === 0) return true
 
     await db.insert(schema.patientBalancePayment).values({
       id: `bp_${randomBytes(10).toString('hex')}`,
@@ -442,19 +465,6 @@ async function chargePlanInstallment(
       stripePaymentIntentId: intent.id,
       note: `Payment plan installment ${paid} of ${plan.installments}`,
     })
-
-    await db
-      .update(schema.paymentPlan)
-      .set({
-        installmentsPaid: paid,
-        status: done ? 'completed' : 'active',
-        failedAttempts: 0,
-        lastError: null,
-        nextChargeAt: done ? null : addOneMonth(plan.nextChargeAt ?? now),
-        completedAt: done ? now : null,
-        updatedAt: now,
-      })
-      .where(eq(schema.paymentPlan.id, plan.id))
 
     queueCommLogWriteBack(plan.organizationId, plan.patientId, {
       note: `Payment plan installment ${paid} of ${plan.installments} charged (${fmtDollars(amount)}).`,

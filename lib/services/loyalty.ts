@@ -306,6 +306,15 @@ export async function adjustLoyaltyPoints(
     return { ok: false, error: 'Enter a point amount (±10,000 max).' }
   }
   if (!note.trim()) return { ok: false, error: 'Add a short note — future-you will thank you.' }
+  // The patientId is caller-supplied; confirm it belongs to this org before
+  // writing, so a stale/foreign id can't create an orphan ledger row (matches
+  // the guard in patient-notes / patient-tags).
+  const [owner] = await db
+    .select({ id: schema.patient.id })
+    .from(schema.patient)
+    .where(and(eq(schema.patient.id, patientId), eq(schema.patient.organizationId, organizationId)))
+    .limit(1)
+  if (!owner) return { ok: false, error: 'Patient not found in this organization.' }
   const eventId = newId('loy')
   await db.insert(schema.loyaltyEvent).values({
     id: eventId,

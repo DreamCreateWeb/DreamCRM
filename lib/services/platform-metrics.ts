@@ -5,7 +5,10 @@ import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, agencyProject } from '@/lib/db/schema/platform'
 import { patient, appointment } from '@/lib/db/schema/clinic'
 
-const TIER_PRICES_CENTS = { basic: 9900, pro: 14900, premium: 19900 } as const
+// Premium is the one purchasable plan at $200/mo (basic/pro are legacy managed
+// rows). Recognized MRR counts PAID clinics only — see the 'active' filter below;
+// trialing clinics are on the no-card trial and are not yet revenue.
+const TIER_PRICES_CENTS = { basic: 15000, pro: 25000, premium: 20000 } as const
 
 // "Already missing" Postgres error codes — return zero state instead of crashing
 // when migrations haven't run yet on a fresh environment.
@@ -139,7 +142,7 @@ export async function getMrrSnapshot(): Promise<MrrSnapshot> {
       })
       .from(clinicProfile)
       .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
-      .where(and(sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`, eq(organization.isDemo, false)))
+      .where(and(sql`${clinicProfile.subscriptionStatus} = 'active'`, eq(organization.isDemo, false)))
       .groupBy(clinicProfile.planTier)
 
     const byTier = { basic: 0, pro: 0, premium: 0 }

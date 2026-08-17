@@ -313,7 +313,7 @@ as confirmed defects yet.
 
 - S2 · `patients.adjustLoyaltyPointsAction` → `loyalty.adjustLoyaltyPoints` ·
   no patient-in-org guard before the ledger insert (orphan row in caller's
-  own org; no cross-tenant read). · OPEN.
+  own org; no cross-tenant read). · **FIXED** (patient-in-org guard).
 - S2 · `shop.updateShopConfigAction` · accepts `platformFeeBps` in the
   client patch → a clinic owner could zero Dream Create's Connect
   application fee on their own charges. · OPEN.
@@ -324,7 +324,8 @@ as confirmed defects yet.
   non-TLS accepted. Same class: insurance-OCR URL (no SSRF — Anthropic
   fetches — but burns the OCR allowance). · OPEN.
 - S2 · `patient-followups` `assignedUserId` (create/update/bulk) · assignee
-  not verified as an org member (integrity only). · OPEN.
+  not verified as an org member (integrity only). · **FIXED**
+  (`assertAssignableInOrg`).
 - S2 · all 25 `CRON_SECRET` routes · non-constant-time `!==` secret compare
   (theoretical timing oracle) + 25× copy-paste (drift risk); a shared
   `lib/cron-auth.ts` with `timingSafeEqual` fixes all. · OPEN.
@@ -358,6 +359,71 @@ was the inbox/stream persona gap above (S2, fixed).
 
 **S1 sweep CLOSED (2026-08-17):** 1 S0 + 3 S1 + 2 S2 fixed and verified;
 the remaining S2/S3 items are R2 burn-down candidates. No open S0/S1.
+
+### R1 · S2 sweep — Money paths (2026-08-17)
+
+Three parallel finders (platform billing · Connect + payouts · payment
+plans/collections/MRR); every finding re-verified against the cited code.
+Both billing/Connect partitions found NO S0/S1 — fund routing, fee math
+(integer cents on the discounted subtotal), webhook signature-gating,
+accrual idempotency (unique `stripe_invoice_id`), and Connect-OAuth org
+binding are all correct. The payment-plan charger was the exception.
+
+**Fixed this session (verified against code, tested):**
+
+- S1 · `payment-plans.chargePlanInstallment` · the off-session installment
+  charge had NO Stripe idempotency key, created the PaymentIntent BEFORE
+  recording it, and bumped `installmentsPaid` with no CAS — so a DB error
+  after a successful charge (→ 3-day retry) or the finalize↔cron race
+  re-charged the same installment. A real double-charge path. · **FIXED** —
+  deterministic `idempotencyKey: ppl_{plan}_{index}` (a retry reuses the same
+  charge) + CAS-advance the counter before recording (a racing writer records
+  no second row, never overshoots). Regression tests added.
+- S2 · `settings.startStripeCheckout` / `openBillingPortal` · missing the
+  owner/admin gate every sibling money action has — a `role='member'` staff
+  could open the Stripe Customer Portal (cancel sub, swap card). · **FIXED**.
+- S2 · `settings.startStripeCheckout` · client `planId` not restricted to
+  `PURCHASABLE_PLANS`, so a clinic could self-serve a subscription at the
+  cheaper legacy Basic/Pro price for the same (full) access. · **FIXED** —
+  reject non-purchasable at the action (managed `/billing/activate` keeps its
+  platform-reserved plan path).
+- S2 · `balance-payments.createBalancePaymentSession` · no server-side upper
+  bound; the `5,000,000` cap lived only in the `/b/[token]` wrapper, so a
+  null (unsynced) PMS balance meant an unbounded charge from the portal
+  path. · **FIXED** — `MAX_PAYMENT_CENTS` enforced in the shared service.
+- S2 · `stripe` webhook commission accrual · accrued on `amount_paid`, which
+  includes Stripe Tax the platform remits — overpaying partners a cut of
+  sales tax. · **FIXED** — accrue on the pre-tax net
+  (`total_excluding_tax ?? amount_paid − tax`).
+- S2 · `platform-metrics.getMrrSnapshot` · counted unpaid `trialing` clinics
+  at a stale $199 premium price — inflating MRR/ARR/ARPU on the owner's own
+  dashboard. · **FIXED** — premium $200, recognized-revenue = `active` only.
+
+**Reported by the S2 sweep — R2 burn-down candidates (money):**
+
+- S2 · `stripe` + `stripe-connect` webhooks · no `charge.refunded` /
+  `charge.dispute.created` handler, so an accrued/paid referral commission is
+  never reversed on a refunded/disputed invoice (platform eats it), and
+  shop/balance/deposit records stay `'paid'` after a Stripe-side refund
+  (`OrderStatus 'refunded'` is never set). Needs a new webhook case. · OPEN.
+- S2 · `referral-payouts.payoutPartner` · double-pay window — after a
+  transfer succeeds but the ledger write fails, a manual retry >24h later
+  (Stripe idempotency window lapsed) re-derives the same key and sends a
+  SECOND real transfer; concurrent payouts also duplicate the payout ledger
+  row. Needs persist-key-before-charge + a transactional accrued-set claim. ·
+  OPEN.
+- S2 · `getMrrSnapshot` stale tier constant duplicated in `projects.ts` +
+  `clinics.ts` — single-source the tier→price map (ideally derive from live
+  Stripe amounts as `/ecommerce/invoices` already does). · OPEN.
+- S3 · stripe-webhook release-and-retry re-fires non-idempotent in-app
+  notifications; collections board header total truncated at 200 rows;
+  `stripe-admin.monthlyContributionCents` ignores `quantity`/`interval_count`;
+  legacy `billing_profiles` vanity write; `(pay)/ecommerce/pay` demo cart
+  accepts an arbitrary amount (moves no real money). · OPEN.
+
+**S2 sweep CLOSED (2026-08-17):** 1 S1 + 5 S2 fixed and verified; the
+refund/dispute reversal and payout double-pay hardening are the two
+substantive R2 money items. No open S0.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:

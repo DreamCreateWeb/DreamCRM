@@ -16,6 +16,7 @@ import {
   upsertNotificationPrefs,
 } from '@/lib/services/settings'
 import { createCheckoutSession, createPortalSession, setSubscriptionCancelation, updateSubscriptionPlan } from '@/lib/services/billing'
+import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
 import type { BillingInterval, PlanId } from '@/lib/stripe-config'
 
 export async function saveAccount(input: unknown) {
@@ -47,6 +48,17 @@ export async function startStripeCheckout(planId: PlanId, interval: BillingInter
   if (ctx.tenantType !== 'clinic') {
     throw new Error('Only clinic tenants can change plans here')
   }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Only an owner or admin can change billing.')
+  }
+  // Self-serve may only buy a PURCHASABLE plan. The legacy Basic/Pro rows
+  // survive in PLANS as managed-provisioning lookups (used by /billing/activate
+  // with a platform-reserved pendingPlanId); accepting a client planId here
+  // would let a clinic mint a subscription at the cheaper legacy price for the
+  // same full access (no-plan-gating).
+  if (!PURCHASABLE_PLANS.some((p) => p.id === planId)) {
+    throw new Error('That plan isn’t available for self-serve checkout.')
+  }
   // A clinic that ALREADY has a live subscription changes plan in place
   // (price swap + proration) — Checkout would mint a SECOND subscription and
   // the old one would keep billing. Checkout is only for the first purchase.
@@ -74,6 +86,11 @@ export async function openBillingPortal() {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
     throw new Error('Only clinic tenants can open a billing portal here')
+  }
+  // The Stripe Customer Portal can cancel the subscription and swap the card —
+  // owner/admin only, like every sibling billing action.
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    throw new Error('Only an owner or admin can manage billing.')
   }
   const portal = await createPortalSession({
     organizationId: ctx.organizationId,

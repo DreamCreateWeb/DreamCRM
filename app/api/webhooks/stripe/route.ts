@@ -33,8 +33,16 @@ async function accrueReferralForInvoice(invoice: {
   id?: string
   customer?: string | null
   amount_paid?: number
+  total_excluding_tax?: number | null
+  tax?: number | null
 }): Promise<void> {
   if (!invoice.id || !invoice.customer || !invoice.amount_paid) return
+  // Accrue commission on the PRE-TAX amount. Stripe Tax is on every checkout, so
+  // amount_paid includes sales tax the platform remits to the state — paying a
+  // partner a cut of that is a revenue leak. Prefer total_excluding_tax; fall
+  // back to amount_paid minus the collected tax.
+  const netCents = invoice.total_excluding_tax ?? invoice.amount_paid - (invoice.tax ?? 0)
+  if (!Number.isFinite(netCents) || netCents <= 0) return
   const [profile] = await db
     .select({ organizationId: schema.clinicProfile.organizationId })
     .from(schema.clinicProfile)
@@ -44,7 +52,7 @@ async function accrueReferralForInvoice(invoice: {
   await accrueCommissionForInvoice({
     organizationId: profile.organizationId,
     stripeInvoiceId: invoice.id,
-    amountPaidCents: invoice.amount_paid,
+    amountPaidCents: Math.round(netCents),
   })
 }
 
@@ -145,6 +153,8 @@ export async function POST(request: Request) {
           customer_email?: string
           amount_due?: number
           amount_paid?: number
+          total_excluding_tax?: number | null
+          tax?: number | null
           currency?: string
         }
         if (typeof invoice.subscription === 'string') {
