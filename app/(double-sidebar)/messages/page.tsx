@@ -10,11 +10,11 @@ import {
   listClientConversations,
   listClinicContacts,
   listConversationsForUser,
+  listMessagableContacts,
   listMessages,
   listTeamContacts,
   markConversationRead,
 } from '@/lib/services/messages'
-import { listCommunityUsers } from '@/lib/services/community'
 
 export const metadata = {
   title: 'Messages - DreamCRM',
@@ -103,8 +103,10 @@ export default async function Messages({ searchParams }: { searchParams: Promise
     )
   }
 
-  // Clinic and patient tenants — generic chat surface.
-  const [convoRows, allUsers] = await Promise.all([listConversationsForUser(user.id), listCommunityUsers()])
+  // Patient tenants — generic chat surface (clinic + platform returned above).
+  // Contacts are authorized server-side to the caller's own clinic staff, so the
+  // picker never offers a recipient createConversation would reject.
+  const [convoRows, allUsers] = await Promise.all([listConversationsForUser(user.id), listMessagableContacts(user.id)])
   const conversations: ConvoListItem[] = convoRows.map((c) => ({
     id: c.id,
     title: c.title,
@@ -141,7 +143,7 @@ export default async function Messages({ searchParams }: { searchParams: Promise
         <MessagesSidebar
           conversations={conversations}
           activeId={activeId}
-          users={allUsers.filter((u) => u.id !== user.id).map((u) => ({ id: u.id, name: u.name }))}
+          users={allUsers.filter((u) => u.id !== user.id).map((u) => ({ id: u.id, name: u.name ?? '' }))}
         />
         <MessagesBody
           conversationId={activeId}

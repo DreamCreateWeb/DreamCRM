@@ -44,13 +44,13 @@ import { isRetentionKind } from '@/lib/types/retention'
  */
 async function requireClinicStaff() {
   const ctx = await requireTenant()
-  if (ctx.tenantType === 'patient' || ctx.role === 'patient') {
+  // Positively require a staff persona (clinic or platform) — this dual-tenant
+  // surface serves both. Excluding patients by subtraction would still admit the
+  // partner persona (tenantType 'partner', role 'member'), which resolves to its
+  // own partner-id namespace and has no business on the outreach surface.
+  if (ctx.tenantType !== 'clinic' && ctx.tenantType !== 'platform') {
     throw new Error('Recall & Outreach is only available to clinic staff.')
   }
-  // Recall & Outreach is Premium-tier for clinics (lib/modules/clinic.ts) —
-  // block a below-tier clinic from firing the action even via deep-link.
-  // Platform tenants (the SaaS-side Marketing surface) aren't plan-gated and
-  // pass through; demo contexts inherit the demo org's premium tier.
   return ctx
 }
 

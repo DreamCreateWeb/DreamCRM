@@ -263,6 +263,82 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
 (Populated by R1 sweeps. Format: `S# · severity · surface · one-line ·
 status`. Verified findings only — a finder's claim is not a defect.)
 
+### R1 · S1 sweep — Tenant & auth (2026-08-17)
+
+Parallel finders enumerated every server action, API route, and cron; the
+main loop re-verified each severity-level claim against the cited code
+before it entered this ledger or got fixed. Findings below the S2 line were
+reported by the finders but are NOT yet main-loop-verified — they are
+R2 burn-down candidates, listed so nothing is lost, and are not asserted
+as confirmed defects yet.
+
+**Fixed this session (verified against code, tested):**
+
+- S0 · `api/admin/seed-platform` · any `CRON_SECRET` holder could POST an
+  email+password to reset that user's credential password and stamp
+  `platformAdmin: true` → total platform-owner account takeover (PHI,
+  Stripe, every clinic). The route's own comment said "run once, then
+  remove"; it was still deployed. · **FIXED** — route + its middleware
+  allowlist entry deleted (bootstrap already done in prod).
+- S1 · `(onboarding)/submitOnboarding` · the org-reuse path had no role
+  check, so a `role='patient'` or plain-`member` session carrying a clinic
+  `activeOrganizationId` could rewrite the practice's identity (display
+  name, brand color, address, timezone). · **FIXED** — owner/admin guard on
+  the reuse path (mirrors `requireWelcomeClinic`); create path already
+  server-mints role `owner`. Regression tests added.
+- S1 · `messages.createConversation` · trusted client-supplied
+  `participantIds`, letting any authenticated user (incl. a patient) create
+  a conversation targeting arbitrary user ids and inject messages into a
+  platform admin's / another clinic's inbox — cross-tenant message write. ·
+  **FIXED** — recipients authorized server-side (`allowedRecipientIds`):
+  non-platform callers reach only their own org's staff; the generic
+  contact picker (`listMessagableContacts`) now matches, replacing the
+  all-users `listCommunityUsers`. Regression tests added.
+- S1 · `ecommerce/{customers,orders,invoices}` actions · only `requireTenant()`,
+  which a patient-role member passes, so a patient could delete/edit the
+  clinic's CRM/leads, orders, and invoices via direct action POST. ·
+  **FIXED** — positive `requireStaff` gate (`tenantType clinic|platform`).
+- S2 · `marketing.requireClinicStaff` · gated by subtraction
+  (`role==='patient'`), which still admitted the partner persona
+  (contained to the partner's own id-namespace, no cross-tenant reach). ·
+  **FIXED** — switched to the positive `clinic|platform` form.
+
+**Reported by the S1 sweep — R2 burn-down candidates (pending main-loop verify):**
+
+- S2 · `patients.adjustLoyaltyPointsAction` → `loyalty.adjustLoyaltyPoints` ·
+  no patient-in-org guard before the ledger insert (orphan row in caller's
+  own org; no cross-tenant read). · OPEN.
+- S2 · `shop.updateShopConfigAction` · accepts `platformFeeBps` in the
+  client patch → a clinic owner could zero Dream Create's Connect
+  application fee on their own charges. · OPEN.
+- S2 · patient-portal `loyalty` redeem + `payment-plans` propose · read-then-
+  insert TOCTOU (concurrent double-spend / two open plans). · OPEN.
+- S2 · portal message attachments (`sanitizeAttachments`) · accept arbitrary
+  `http(s)` URLs (no host allowlist) → staff-inbox tracking-pixel/IP-leak;
+  non-TLS accepted. Same class: insurance-OCR URL (no SSRF — Anthropic
+  fetches — but burns the OCR allowance). · OPEN.
+- S2 · `patient-followups` `assignedUserId` (create/update/bulk) · assignee
+  not verified as an org member (integrity only). · OPEN.
+- S2 · all 25 `CRON_SECRET` routes · non-constant-time `!==` secret compare
+  (theoretical timing oracle) + 25× copy-paste (drift risk); a shared
+  `lib/cron-auth.ts` with `timingSafeEqual` fixes all. · OPEN.
+- S2 · `api/internal/custom-domains` · public + cacheable enumeration of
+  every custom-domain clinic (data already public; convenient scraper). · OPEN.
+- S3/housekeeping · `uploadPatientDocumentAction` writes the S3 blob before
+  the patient-in-org check (forged id orphans a blob; no row, no access);
+  `enterDemoMode` doesn't validate the target org (self-only, re-validated
+  downstream). · OPEN.
+
+Partitions audited CLEAN (no defect): appointments, patients, leads,
+intake-forms, followups, my-day, search, growth (outreach/reviews/social),
+website (blog/careers/forms/seo), settings (all pages incl. team/clinic/
+practice/locations), payments (collections/memberships/online), shop +
+coupons, billing/activate, integrations, partner portal + accept, the
+platform admin-action files (partners/prospecting/service-library/invoices/
+customers admin) — every client-supplied id was traced into its service and
+confirmed paired with `organizationId` in the SQL. Cron + admin routes are
+uniformly fail-closed on an unset/empty secret with no pre-auth work.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,

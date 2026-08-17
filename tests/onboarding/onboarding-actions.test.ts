@@ -211,4 +211,46 @@ describe('submitOnboarding — starts a no-card trial (no Stripe)', () => {
     expect(mockInsert).not.toHaveBeenCalled()
     expect(mockTransaction).not.toHaveBeenCalled()
   })
+
+  // R1/S1 sweep (2026-08-17): the reuse path (org already exists) is a REWRITE
+  // of a real practice's identity, so only owner/admin may run it. A patient- or
+  // plain-member session carrying a clinic activeOrganizationId must be refused
+  // before any clinic_profile write.
+  it('refuses the reuse path for a patient-role member (no profile write)', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      ...userSession,
+      session: { ...userSession.session, activeOrganizationId: 'orgExisting' },
+    })
+    // guard select → caller is a patient in that org
+    selectReturning([[{ role: 'patient' }]])
+    await expect(submitOnboarding({ practiceName: 'Pwned Dental' })).rejects.toThrow(/owner or admin/i)
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses the reuse path for a plain member, and allows an owner', async () => {
+    // plain member → refused
+    mockGetSession.mockResolvedValueOnce({
+      ...userSession,
+      session: { ...userSession.session, activeOrganizationId: 'orgExisting' },
+    })
+    selectReturning([[{ role: 'member' }]])
+    await expect(submitOnboarding({ practiceName: 'Nope' })).rejects.toThrow(/owner or admin/i)
+    expect(mockInsert).not.toHaveBeenCalled()
+
+    // owner → the profile rewrite proceeds
+    vi.clearAllMocks()
+    mockGetSession.mockResolvedValueOnce({
+      ...userSession,
+      session: { ...userSession.session, activeOrganizationId: 'orgExisting' },
+    })
+    selectReturning([[{ role: 'owner' }]])
+    const inserts: Record<string, unknown>[] = []
+    captureInserts(inserts)
+    const result = await submitOnboarding({ practiceName: 'Renamed Dental' })
+    expect(result).toEqual({ ok: true })
+    const profile = inserts.find((v) => v.planTier !== undefined) as { displayName: string }
+    expect(profile.displayName).toBe('Renamed Dental')
+    // reuse path never mints a new org
+    expect(mockTransaction).not.toHaveBeenCalled()
+  })
 })

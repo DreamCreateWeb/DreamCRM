@@ -90,7 +90,6 @@ const PUBLIC_PATHS = [
   '/api/health',
   // CRON_SECRET-guarded one-shot admin routes (run from inside the VPC).
   '/api/admin/migrate',
-  '/api/admin/seed-platform',
   '/api/admin/resync-demo',
   '/api/admin/redrive-custom-domains',
   // Internal host→slug map for custom-domain routing — middleware fetches it.

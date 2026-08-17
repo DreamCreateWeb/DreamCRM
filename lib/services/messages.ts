@@ -62,10 +62,87 @@ export async function listMessages(conversationId: number, userId: string) {
     .orderBy(asc(schema.messages.createdAt))
 }
 
+/**
+ * The set of user ids `currentUserId` is allowed to start a conversation with.
+ * The client-supplied participantIds are NEVER trusted — a conversation is an
+ * unsolicited message into someone's inbox, so the recipient set is authorized
+ * server-side against the caller's identity:
+ *   - Platform staff → any clinic owner/admin (Client Messaging) plus their own
+ *     platform teammates. Exactly the two lists the UI offers.
+ *   - Everyone else (clinic staff, patients) → the STAFF of their own org(s)
+ *     only: owner/admin/member, never another patient, never another org, and
+ *     never a platform admin. A patient thus cannot reach outside their clinic
+ *     or contact anyone but that clinic's staff.
+ */
+export async function allowedRecipientIds(currentUserId: string): Promise<Set<string>> {
+  const memberships = await db
+    .select({
+      orgId: schema.member.organizationId,
+      orgType: schema.organization.type,
+    })
+    .from(schema.member)
+    .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
+    .where(eq(schema.member.userId, currentUserId))
+
+  const allowed = new Set<string>()
+  const isPlatform = memberships.some((m) => m.orgType === 'platform')
+
+  if (isPlatform) {
+    const [clinicContacts, teamContacts] = await Promise.all([
+      listClinicContacts(),
+      listTeamContacts(currentUserId),
+    ])
+    for (const c of clinicContacts) allowed.add(c.userId)
+    for (const c of teamContacts) allowed.add(c.userId)
+  } else {
+    const orgIds = Array.from(new Set(memberships.map((m) => m.orgId)))
+    if (orgIds.length > 0) {
+      const staff = await db
+        .select({ userId: schema.member.userId })
+        .from(schema.member)
+        .where(
+          and(
+            inArray(schema.member.organizationId, orgIds),
+            inArray(schema.member.role, ['owner', 'admin', 'member']),
+          ),
+        )
+      for (const s of staff) allowed.add(s.userId)
+    }
+  }
+
+  allowed.delete(currentUserId)
+  return allowed
+}
+
+/** Messagable contacts (id + name) for the generic chat surface — same
+ *  authorization as {@link allowedRecipientIds}, so the UI never offers a
+ *  recipient the server would reject. */
+export async function listMessagableContacts(
+  currentUserId: string,
+): Promise<{ id: string; name: string | null }[]> {
+  const allowed = await allowedRecipientIds(currentUserId)
+  if (allowed.size === 0) return []
+  const rows = await db
+    .select({ id: schema.user.id, name: schema.user.name })
+    .from(schema.user)
+    .where(inArray(schema.user.id, Array.from(allowed)))
+    .orderBy(asc(schema.user.name))
+  return rows
+}
+
 export async function createConversation(input: z.infer<typeof ConversationInput>, currentUserId: string) {
   const data = ConversationInput.parse(input)
+  // Authorize the recipients server-side — the client array is untrusted.
+  const allowed = await allowedRecipientIds(currentUserId)
+  const requested = Array.from(new Set(data.participantIds)).filter((id) => id !== currentUserId)
+  if (requested.length === 0) {
+    throw new Error('Pick at least one person to message.')
+  }
+  if (requested.some((id) => !allowed.has(id))) {
+    throw new Error('You can only start a conversation with your own team or clinic contacts.')
+  }
   const [convo] = await db.insert(schema.conversations).values({ title: data.title ?? null }).returning()
-  const allIds = Array.from(new Set([currentUserId, ...data.participantIds]))
+  const allIds = Array.from(new Set([currentUserId, ...requested]))
   await db.insert(schema.conversationMembers).values(allIds.map((userId) => ({ conversationId: convo.id, userId }))).onConflictDoNothing()
   return convo
 }

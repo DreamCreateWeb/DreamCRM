@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { auth } from '@/lib/auth/server'
 import { db, schema } from '@/lib/db'
@@ -171,6 +171,24 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     const { findPendingInviteForEmail } = await import('@/lib/auth/pending-invite')
     const pending = await findPendingInviteForEmail(session.user.email)
     if (pending) redirect(`/accept-invite?token=${pending.id}`)
+  }
+
+  // Reuse path: the org already exists (this submit did NOT mint it), so its
+  // clinic_profile below is a REWRITE of a real practice's identity — display
+  // name, brand color, address, timezone. Only an owner/admin may do that. A
+  // role='patient' or plain 'member' user carrying a clinic activeOrganizationId
+  // must never rewrite the practice's profile. Mirrors requireWelcomeClinic in
+  // welcome/actions.ts. The create path below sets role 'owner' server-side, so
+  // it is unaffected (orgId is still null here for a fresh signup).
+  if (orgId) {
+    const [caller] = await db
+      .select({ role: schema.member.role })
+      .from(schema.member)
+      .where(and(eq(schema.member.organizationId, orgId), eq(schema.member.userId, session.user.id)))
+      .limit(1)
+    if (!caller || (caller.role !== 'owner' && caller.role !== 'admin')) {
+      throw new Error('Only an owner or admin can complete clinic setup.')
+    }
   }
 
   // Set when this submit CREATES the org — the welcome email sends once, not
