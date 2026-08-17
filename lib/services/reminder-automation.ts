@@ -631,7 +631,19 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       and(isNotNull(schema.patient.email), ne(schema.patient.email, '')),
       isNotNull(schema.patient.guardianPatientId),
     )
-    const candidates = await db
+    // ONE CLINIC MUST NEVER SILENCE THE TICK. This query is per-org; an
+    // unwrapped throw here (statement timeout, a malformed row) would escape
+    // both loops to the route's catch → HTTP 500 → every REMAINING clinic goes
+    // unreminded for this run. Isolate it: count the org failed, tell the
+    // Guardian, move to the next clinic.
+    let candidates: Array<{
+      appointmentId: string
+      patientId: string
+      startTime: Date
+      guardianPatientId: string | null
+    }>
+    try {
+      candidates = await db
       .select({
         appointmentId: schema.appointment.id,
         patientId: schema.appointment.patientId,
@@ -656,6 +668,16 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
         ),
       )
       .limit(500)
+    } catch (err) {
+      result.failed++
+      result.errors.push({
+        organizationId: profile.organizationId,
+        appointmentId: '',
+        error: err instanceof Error ? err.message : 'candidate scan failed',
+      })
+      await reportAutomationFailure(profile.organizationId, 'reminders').catch(() => {})
+      continue
+    }
 
     // Due items collect here, then send grouped by inbox + clinic-local day —
     // a family with several same-day visits gets ONE consolidated email.
@@ -684,7 +706,13 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       //      went out within REMINDER_MIN_GAP_HOURS — touches never stack
       //      back-to-back on a late booking, and a manual drawer send
       //      suppresses the next automated touch.
-      const priorLogs = await db
+      // Isolated per APPOINTMENT: this is the idempotency read, so a throw here
+      // must never be treated as "nothing sent yet" (that would re-send a
+      // reminder the patient already got) and must not abort the org's whole
+      // batch. Skip just this appointment; the next run retries it.
+      let priorLogs: Array<{ template: string | null; sentAt: Date }>
+      try {
+        priorLogs = await db
         .select({
           template: schema.appointmentReminderLog.template,
           sentAt: schema.appointmentReminderLog.sentAt,
@@ -699,6 +727,15 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
             ),
           ),
         )
+      } catch (err) {
+        result.failed++
+        result.errors.push({
+          organizationId: profile.organizationId,
+          appointmentId: c.appointmentId,
+          error: err instanceof Error ? err.message : 'reminder-log read failed',
+        })
+        continue
+      }
       const touchAlreadySent = priorLogs.some((l) => l.template === template)
       const recentReminder = priorLogs.some(
         (l) =>
