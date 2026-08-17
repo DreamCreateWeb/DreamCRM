@@ -64,4 +64,34 @@ describe('settleWriteFailure', () => {
     await settleWriteFailure(OP, new Error('slot no longer available'))
     expect(state.updates[0]).toMatchObject({ status: 'error', attempts: 4, error: 'slot no longer available' })
   })
+
+  it('a TRANSIENT vendor outage waits instead of burning an attempt', async () => {
+    // The scar: only the cancel path said "waiting" out loud, so an outage
+    // across a long weekend exhausted the 6-attempt cap on a CREATE and the
+    // booking silently never reached the practice's schedule.
+    for (const msg of ['fetch failed', 'The operation timed out', 'NexHealth appointments failed (503): upstream']) {
+      state.updates = []
+      await settleWriteFailure(OP, new Error(msg))
+      expect(state.updates[0]).toMatchObject({ status: 'pending', attempts: 3 })
+    }
+  })
+
+  it('a real 4xx still exhausts its retries (transient detection stays conservative)', async () => {
+    await settleWriteFailure(OP, new Error('NexHealth patients failed (422): missing last_name'))
+    expect(state.updates[0]).toMatchObject({ status: 'error', attempts: 4 })
+  })
+})
+
+describe('isTransientPmsError', () => {
+  it('recognizes outage shapes, not payload mistakes', async () => {
+    const { isTransientPmsError } = await import('@/lib/services/pms/sync')
+    expect(isTransientPmsError(new Error('ECONNRESET'))).toBe(true)
+    expect(isTransientPmsError(new Error('socket hang up'))).toBe(true)
+    expect(isTransientPmsError(new Error('failed (502): bad gateway'))).toBe(true)
+    expect(isTransientPmsError(new Error('failed (429): too many requests'))).toBe(true)
+    // Not transient — these are the write being wrong.
+    expect(isTransientPmsError(new Error('failed (422): missing last_name'))).toBe(false)
+    expect(isTransientPmsError(new Error('slot no longer available'))).toBe(false)
+    expect(isTransientPmsError(null)).toBe(false)
+  })
 })

@@ -1434,5 +1434,40 @@ export async function settleWriteFailure(
       .where(eq(schema.pmsWriteOp.id, op.id))
     return
   }
+  // A TRANSIENT vendor outage is a WAITING condition, not a failed write. Only
+  // the cancel path used to say so explicitly, so an outage across a long
+  // weekend burned the 6-attempt cap on appointment/patient CREATES and the op
+  // was permanently skipped — the booking silently never reached the practice's
+  // schedule, which is precisely what the WAITING lane exists to prevent.
+  // Attempts are preserved (as with any waiting op) so a genuine outage costs
+  // no retries; a real 4xx still falls through to the error lane below.
+  if (isTransientPmsError(e)) {
+    await db
+      .update(schema.pmsWriteOp)
+      .set({
+        status: 'pending',
+        attempts: op.attempts,
+        error: e instanceof Error ? e.message : String(e),
+      })
+      .where(eq(schema.pmsWriteOp.id, op.id))
+    return
+  }
   await failOp(op.id, op.attempts + 1, e instanceof Error ? e.message : String(e))
+}
+
+/**
+ * Is this write failure the practice system being unreachable rather than the
+ * write being wrong? Matches network/timeout/abort shapes and 5xx / 429
+ * responses from the provider client. Deliberately conservative: anything it
+ * cannot positively identify as transient goes to the normal error lane, so a
+ * genuinely bad payload still exhausts its retries and surfaces.
+ * Exported for the write-back tests.
+ */
+export function isTransientPmsError(e: unknown): boolean {
+  const msg = (e instanceof Error ? e.message : String(e ?? '')).toLowerCase()
+  if (!msg) return false
+  if (/\b(429|500|502|503|504)\b/.test(msg)) return true
+  return /timed? ?out|timeout|aborted|abortterror|econnreset|econnrefused|enotfound|etimedout|socket hang up|network|fetch failed|temporarily unavailable|bad gateway|service unavailable|gateway timeout|too many requests/.test(
+    msg,
+  )
 }

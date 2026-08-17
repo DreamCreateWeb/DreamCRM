@@ -826,6 +826,22 @@ this closes the S7 cluster's load-bearing half. Remaining S3 polish (drawer
 `DialogTitle`, portal desktop-nav `aria-current`, phase-change announcements,
 the family "Book for {name}" pre-select) stays on the polish list.
 
+### Slice 7 — the PMS WAITING lane covers CREATES, not just cancels · DONE
+
+Only the cancel path classified a vendor outage as `PmsWriteWaitingError`, so a
+NexHealth outage during an appointment/patient CREATE fell through to the
+counted error lane: each cron run burned an attempt, and after
+`MAX_WRITE_ATTEMPTS` (6) the op was permanently SKIPPED — the booking silently
+never reached the practice's schedule. That is exactly the failure the WAITING
+lane exists to prevent (an outage across a long weekend exhausts the cap).
+
+Fixed centrally in `settleWriteFailure` rather than per call site, so every
+write path is covered at once: a new exported `isTransientPmsError` recognises
+network/timeout/abort shapes and 5xx/429 responses and routes them to
+`pending` with attempts PRESERVED. Deliberately conservative — anything it
+cannot positively identify as transient (a 422, "slot no longer available")
+still exhausts its retries and surfaces. Tests pin both directions.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
