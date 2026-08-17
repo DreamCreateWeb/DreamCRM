@@ -2,6 +2,7 @@ import 'server-only'
 import { randomBytes } from 'crypto'
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { authEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { recordAction } from '@/lib/services/action-ledger'
@@ -56,8 +57,13 @@ export async function runDueNpsSurveys(opts?: { now?: Date }): Promise<NpsSurvey
     .from(schema.clinicReviewConfig)
     .where(eq(schema.clinicReviewConfig.npsEnabled, 1))
 
+  // TRIAL EXPIRY KILLS EVERYTHING (owner ruling): an expired unconverted clinic
+  // must not keep emailing its patients post-visit surveys.
+  const shutDown = await listShutDownOrgIds(now)
+
   for (const cfg of configs) {
     const orgId = cfg.organizationId
+    if (shutDown.has(orgId)) continue
     const [org] = await db
       .select({ isDemo: schema.organization.isDemo })
       .from(schema.organization)

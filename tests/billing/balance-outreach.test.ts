@@ -18,6 +18,11 @@ const recordActionMock = vi.fn(async (..._a: unknown[]) => true)
 vi.mock('@/lib/services/action-ledger', () => ({
   recordAction: (...a: unknown[]) => recordActionMock(...(a as [])),
 }))
+// No clinic is shut down in these cases — the trial-KILL skip is covered
+// separately; here it must not consume from the db select queue.
+vi.mock('@/lib/services/billing-state', () => ({
+  listShutDownOrgIds: async () => new Set<string>(),
+}))
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const obj: any = {}

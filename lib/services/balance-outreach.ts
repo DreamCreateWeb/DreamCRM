@@ -2,6 +2,7 @@ import 'server-only'
 import { randomBytes } from 'crypto'
 import { and, desc, eq, gte, isNotNull, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { listShutDownOrgIds } from '@/lib/services/billing-state'
 import { recordAction } from '@/lib/services/action-ledger'
 import { newId } from '@/lib/utils'
 import { authEmailShell, deliver } from '@/lib/email'
@@ -211,7 +212,12 @@ export async function runBalanceReminderCadence(opts?: { now?: Date }): Promise<
     })
     .from(schema.clinicProfile)
 
+  // TRIAL EXPIRY KILLS EVERYTHING (owner ruling): an expired unconverted clinic
+  // must not keep emailing its patients balance nudges.
+  const shutDown = await listShutDownOrgIds(now)
+
   for (const profile of profiles) {
+    if (shutDown.has(profile.organizationId)) continue
     const settings = resolveBalanceOutreachSettings(profile.balanceOutreach)
     if (!settings.enabled) continue
 

@@ -39,6 +39,10 @@ export async function zernioFetch<T = unknown>(path: string, init?: RequestInit)
     },
     // Zernio is a 3rd-party API — never cache through Next's fetch cache.
     cache: 'no-store',
+    // Bound the call so a Zernio stall can't hang the staff action (social
+    // composer / connect flow) until undici's ~300s default; callers already
+    // treat a throw as "degraded, show a status".
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
   })
 
   if (!res.ok) {

@@ -13,6 +13,12 @@ const state = {
   updateReturning: [] as unknown[][],
 }
 
+// No clinic is shut down in these cases — the trial-KILL skip must not consume
+// from the db select queue here.
+vi.mock('@/lib/services/billing-state', () => ({
+  listShutDownOrgIds: async () => new Set<string>(),
+}))
+
 vi.mock('@/lib/db', () => {
   const chain = () => {
     const obj: any = {}

@@ -90,6 +90,14 @@ export async function sendDueScheduledCampaigns(opts?: { now?: Date }): Promise<
       // its draft/scheduled/paused claim, and every scheduled send no-ops.
       const send = await sendCampaign({ organizationId: c.organizationId, campaignId: c.id, alreadyClaimed: true })
       result.results.push({ campaignId: c.id, organizationId: c.organizationId, sent: send.sent, failed: send.failed })
+      // TELL THE GUARDIAN when EVERY recipient failed. sendCampaign is
+      // best-effort per recipient and never throws on a carrier/provider
+      // failure, so an all-failed run returns normally — without this the
+      // engine reads 'healthy' while nothing is going out (the reminders gap
+      // Phase 4 fixed, in the campaigns path).
+      if (send.attempted > 0 && send.sent === 0 && send.failed > 0) {
+        await reportAutomationFailure(c.organizationId, 'campaigns')
+      }
       // sendCampaign returns early (without touching status) when nobody was
       // sendable — but our atomic claim already set the row 'active'.
       if (send.attempted === 0) {

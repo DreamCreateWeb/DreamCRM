@@ -24,6 +24,11 @@ import 'server-only'
 const BASE_URL = 'https://nexhealth.info'
 const ACCEPT = 'application/vnd.Nexhealth+json;version=2'
 const TOKEN_TTL_MS = 50 * 60 * 1000 // re-mint before the published 1h expiry
+// Bound every request: without this a NexHealth STALL (connection opens, never
+// responds) hangs the caller until undici's ~300s default. The public booking
+// page relies on a THROWN failure to fall back to the local slot engine, so a
+// silent stall must become a timeout error, not a 5-minute page hang.
+const REQUEST_TIMEOUT_MS = 10_000
 const PAGE_SIZE = 200
 /** Runaway-pagination backstop (a 40k-patient office is ~200 pages). */
 const MAX_PAGES = 500
@@ -50,6 +55,7 @@ async function mintToken(env: NexHealthEnv): Promise<string> {
     method: 'POST',
     headers: { Accept: ACCEPT, Authorization: apiKey(env) },
     cache: 'no-store',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`NexHealth auth failed (${res.status})`)
   const body = (await res.json()) as { data?: { token?: string } }
@@ -102,6 +108,7 @@ export async function nexGet<T = unknown>(
   let res = await fetch(url, {
     headers: { Accept: ACCEPT, Authorization: `Bearer ${token}` },
     cache: 'no-store',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (res.status === 401) {
     token = await mintToken(env)
@@ -109,6 +116,7 @@ export async function nexGet<T = unknown>(
     res = await fetch(url, {
       headers: { Accept: ACCEPT, Authorization: `Bearer ${token}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
   }
   if (!res.ok) {
@@ -164,6 +172,7 @@ export async function nexWrite<T = unknown>(
       },
       body: JSON.stringify(body),
       cache: 'no-store',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
 
   let token = await bearer(env)

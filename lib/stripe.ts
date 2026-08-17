@@ -14,6 +14,11 @@ function getStripe(): StripeInstance {
   cached = new Stripe(key, {
     apiVersion: '2026-04-22.dahlia',
     typescript: true,
+    // Bound every Stripe call: the SDK default socket timeout is ~80s, long
+    // enough that a black-holed connection pins a request worker or a cron
+    // iteration. One retry covers a transient network blip.
+    timeout: 15_000,
+    maxNetworkRetries: 1,
   })
   return cached
 }

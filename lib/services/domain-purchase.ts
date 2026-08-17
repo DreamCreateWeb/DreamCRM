@@ -486,15 +486,24 @@ export async function runDomainRenewals(opts?: { now?: Date }): Promise<DomainRe
           continue
         }
         try {
-          const intent = await stripe.paymentIntents.create({
-            customer: stripeCustomerId,
-            amount: renewalPrice,
-            currency: 'usd',
-            off_session: true,
-            confirm: true,
-            description: `Domain renewal: ${row.domain} (1 year)`,
-            metadata: { organizationId: row.organizationId, domain: row.domain, kind: 'domain_renewal' },
-          })
+          // Deterministic per (domain, renewal period) so a crash between the
+          // registrar renewal and the renewsAt advance, or a concurrent/retried
+          // daily run (the row stays due for the whole window), reuses the SAME
+          // PaymentIntent instead of charging the card twice. Keyed on renewsAt,
+          // NOT `now` — `now` differs per run and would defeat the dedupe.
+          const dueKey = row.renewsAt ? row.renewsAt.toISOString().slice(0, 10) : 'initial'
+          const intent = await stripe.paymentIntents.create(
+            {
+              customer: stripeCustomerId,
+              amount: renewalPrice,
+              currency: 'usd',
+              off_session: true,
+              confirm: true,
+              description: `Domain renewal: ${row.domain} (1 year)`,
+              metadata: { organizationId: row.organizationId, domain: row.domain, kind: 'domain_renewal' },
+            },
+            { idempotencyKey: `domrenew_${row.id}_${dueKey}` },
+          )
           renewalPaymentIntentId = intent.id
         } catch (err) {
           await fail(err instanceof Error ? err.message : 'Card charge failed.')

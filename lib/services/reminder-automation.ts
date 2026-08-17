@@ -774,6 +774,10 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
         appointmentId: dueItems[0].detail.id,
         error: err instanceof Error ? err.message : 'sender identity failed',
       })
+      // TELL THE GUARDIAN — a persistently broken sender identity silently
+      // stops every reminder for this clinic, the same as a send failure
+      // (which DOES report below); without this the engine reads 'healthy'.
+      await reportAutomationFailure(profile.organizationId, 'reminders').catch(() => {})
       continue
     }
 

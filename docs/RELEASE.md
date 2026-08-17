@@ -474,6 +474,70 @@ patient) and a handful of S3 polish items.
 and 1 (portal coming-soon gate) scoped to R2; 2 S3 fixed (plan defaults,
 DreamCRM title leak); the rest is polish. No S0/S1.
 
+### R1 · S4 sweep — Resilience drills (2026-08-17)
+
+Three parallel finders drilled the outage matrix (external services ·
+integrations · the 21 crons). Verdict: the never-throw/best-effort laws
+hold across the great majority of paths — **0 S1**. The gaps cluster into
+three cheap high-value classes (fixed) plus loop-hardening (R2).
+
+**Fixed this session (verified against code, tested):**
+
+- S2 · no request timeout on the Stripe, NexHealth, and Zernio clients — a
+  black-holed connection (a STALL, not a clean error) pinned a request
+  worker or a cron iteration up to ~80s (Stripe SDK default) / ~300s
+  (undici default), and the public booking page's local-engine fallback
+  only fires on a THROWN failure, so a NexHealth stall hung the patient's
+  booking page. · **FIXED** — `timeout: 15_000, maxNetworkRetries: 1` on
+  Stripe; `AbortSignal.timeout(10_000)` on every NexHealth fetch;
+  `AbortSignal.timeout(15_000)` on Zernio. A stall now throws → the existing
+  catch degrades.
+- S2 · `domain-renewals` cron · the renewal `paymentIntents.create` had no
+  idempotency key and `renewsAt` advanced only after the charge — same
+  double-charge class as the payment-plan fix (a crash before the advance,
+  or a concurrent daily run, re-charges the card). · **FIXED** —
+  deterministic `idempotencyKey` keyed on the row + its due date.
+- S2 · the trial-expiry KILL leaked · `balance-outreach` (dunning nudges)
+  and `nps` (post-visit surveys) didn't gate on `listShutDownOrgIds`, so an
+  expired unconverted clinic kept emailing its patients — against the owner
+  ruling. · **FIXED** — both loops skip shut-down orgs (test mocks updated).
+- S2 · Guardian blind spots · an all-recipients-failed campaign for an
+  APPROVED clinic returned normally (no throw) so the campaigns engine read
+  `healthy`; a persistently broken reminder sender-identity did the same. ·
+  **FIXED** — `reportAutomationFailure` on an all-failed campaign
+  (`attempted>0 && sent===0`) and on the sender-identity failure path.
+
+**Reported by the S4 sweep — R2 burn-down candidates:**
+
+- S2 · public `site/[slug]/shop` + `membership` checkout actions throw raw
+  to the patient on a Stripe outage AND orphan a `pending` row (the
+  balance-payment path already wraps correctly) — fix needs the action to
+  return a typed error + the client to surface it. · OPEN.
+- S2 · `send-reminders` has no per-ORG try around the candidate/priorLogs
+  queries, so one org's query throw 500s the route and silences the tick for
+  everyone (near-S1); and its idempotency is a read-before-send with the log
+  written AFTER `deliver`, so an overlap/retry can double-send. Needs a
+  per-iteration try + an atomic claim (unique on appointmentId+template,
+  `onConflictDoNothing().returning()`) before sending. · OPEN.
+- S2 · a campaign that crashes mid-`sendCampaign` is stranded `active` with
+  no requeue and no per-recipient resume (partial send, rest dropped);
+  `publish-scheduled-posts` has an unwrapped per-post loop + no
+  `status='scheduled'` guard on the flip (double-ledger under overlap). ·
+  OPEN.
+- S2 · a NexHealth outage during an appointment/patient CREATE burns the
+  6-attempt write-back cap instead of parking in the WAITING lane (only the
+  cancel path classifies offline errors as `PmsWriteWaitingError`). · OPEN.
+- S3 · staff billing actions unwrapped; upload route raw 500; `pms-sync`
+  config-throw skips the Guardian signal; optimistic `emailSent` flag;
+  trial-reminders milestone stamped after send; scheduled-message requeue
+  double-send window; `auto-send-reviews` / `customize-services` unwrapped
+  per-org loops (+ read-modify-write on `services`); prospect stuck-
+  enrollment on a failed touch; Monday standup ignores the KILL. · OPEN.
+
+**S4 sweep CLOSED (2026-08-17):** 6 S2 fixed (3 client timeouts as one
+class, domain double-charge, trial-KILL leak ×2, 2 Guardian signals); the
+loop-hardening + atomic-claim items are R2. No S0/S1.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,
