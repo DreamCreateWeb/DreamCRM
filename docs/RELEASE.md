@@ -12,6 +12,95 @@ run dozens-to-hundreds of parallel review agents in a single pass.
 
 ---
 
+## Part 0 — The 1.0 definition (scope lock)
+
+Ratified 2026-08-17. This is what 1.0 IS. Anything not on this list is
+either an accepted exclusion (below) or post-1.0 (`docs/POST-1.0.md`). The
+freeze rule is in force: new feature ideas land in POST-1.0, not here.
+
+### What ships in 1.0 — the feature list as it stands
+
+The product is a multi-tenant SaaS for dental clinics with four personas
+(below). 1.0 is the current live surface, no more and no less:
+
+- **Clinic dashboard.** Daily (Overview huddle · My Day · Messages ·
+  Appointments · Patients · Follow-ups · Leads · Intake Forms), Growth
+  (the acquisition/reactivation hub + outreach/reviews/social/analytics),
+  Website (the Shopify-style hub + Studio editor, multi-template public
+  sites, Draft→Publish, custom domains, announcement bar), Business
+  (Payments · Shop · Integrations), Settings (13 focused pages).
+- **The employee, not the tool.** The Phase 1–4 transformation is in
+  scope: journey-stage resolver + Action Ledger + autonomy ladder; the
+  proposal spine and its executors; the Approval Inbox sign-here stack +
+  weekly standup; the Guardian + shared brain; the Phase-5 limbs shipped
+  (content calendar, empty chair). Governed by the North Star doctrine.
+- **Platform tenant.** Dream Create's own cockpit: clinics + managed
+  provisioning, client messaging, MRR/subscriptions, partners, sales
+  pipeline, and the full prospecting engine ("The Hunter" — discovery →
+  enrichment → outreach → call mode → self-booking demos → convert).
+- **Patient portal.** Clinic-branded: visits, reschedule/cancel, booking,
+  forms, billing, in-portal survey, records, messages, family access,
+  magic-link auth, per-clinic feature toggles.
+- **Referral-partner portal.** Invite acceptance, referral tracking,
+  Stripe Express payouts.
+- **Public clinic sites.** Multi-template, brand-derived palettes, the
+  token-IS-auth landings (r/ review, c/ confirm, w/ fast-pass, b/ balance,
+  d/ demo booking, i/ intake, n/ …), booking with real PMS slots.
+- **The integrations that are LIVE.** Resend email (+ inbound replies),
+  AWS S3 storage, Anthropic AI surfaces, Zernio (GBP + social), NexHealth
+  Synchronizer PMS (import + write-back v1 + real-slots), Stripe platform
+  billing + Connect, GBP listing-truth write-back.
+
+### The four personas (the audit matrix's rows)
+
+1. **Clinic staff** (owner/admin/member) — the dashboard.
+2. **Platform owner** (Dream Create) — the platform tenant + demo.
+3. **Patient** — the portal + public booking/intake/pay.
+4. **Referral partner** — the partner portal.
+
+Plus the **public visitor** (unauthenticated) on clinic sites and the
+token-IS-auth landings — a fifth column in the journey matrix even though
+it is not a logged-in persona.
+
+### Known-and-accepted exclusions (ship 1.0 without these)
+
+These are KNOWN, DECIDED, and not launch blockers. Each has a home in
+`docs/POST-1.0.md` or an open item in CLAUDE.md:
+
+- **SMS is machinery-complete but dark.** Sends unlock per-clinic on the
+  first real A2P carrier approval; the honesty flip (marketing pages,
+  composer options) is deliberately LAST. 1.0 ships with texting built,
+  armed, and truthfully presented as pending registration — not as a
+  promised-but-broken feature.
+- **Open Dental direct path** is built but blocked on OD vendor-portal
+  approval. NexHealth already covers real-slot booking, so this is not a
+  journey gap — it's a second PMS door awaiting a key.
+- **Procedure-code-gated campaigns** (post-op, treatment-plan follow-ups,
+  per-provider production analytics) — no procedure entity in PMS sync yet.
+- **No E2E browser suite yet** — this is an R3 deliverable, not an
+  exclusion; called out here so R0's "what 1.0 IS" is honest about the
+  current test posture (happy-dom unit/integration only).
+- **HIPAA/BAA posture is undocumented** — S8 produces the honest write-up;
+  the positioning decision is the owner's (Part 4, point 4).
+- Webhooks-at-scale, phones territory (missed-call text-back), Apple/Bing
+  presence, per-staff/per-location booking, 2FA, patient-view audit log —
+  all POST-1.0.
+
+### The severity bars (restated here as the ratified scope-lock version)
+
+- **S0** — data loss, security hole, cross-tenant leak, or money computed/
+  moved wrong. Blocks EVERYTHING; fix before any other work proceeds.
+- **S1** — a core journey broken for any persona (can't book, can't pay,
+  can't sign in, a dead-end in a golden path). Blocks launch.
+- **S2** — polish, copy, edge-case, non-blocking UX. Fix in R2 burn-down
+  if cheap; else the post-1.0 ledger.
+- **S3** — nice-to-have. Post-1.0.
+
+R0 is CLOSED with this section. R1 (the eight sweeps) is the next phase;
+its findings populate Part 5.
+
+---
+
 ## Part 1 — How agencies do it (the model we're adapting)
 
 A serious agency moves a feature-complete product through five gates:
