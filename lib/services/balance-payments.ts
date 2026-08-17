@@ -140,7 +140,7 @@ export async function createBalancePaymentSession(input: {
     .set({ stripeCheckoutSessionId: session.id })
     .where(eq(schema.patientBalancePayment.id, paymentId))
 
-  if (!session.url) throw new Error('Stripe did not return a checkout URL.')
+  if (!session.url) throw new Error('We couldn’t start checkout just now — please try again in a moment.')
   return { url: session.url }
 }
 

@@ -146,7 +146,9 @@ export async function submitContactRequest(formData: FormData) {
         firstName: name.split(' ')[0],
         clinicName: sender.name,
         clinicPhone: profile?.phone ?? '',
-        urgentLine: profile?.phone ? ` you can call us at ${profile.phone}` : '',
+        urgentLine: profile?.phone
+          ? ` If it's urgent, you can reach us at ${profile.phone}.`
+          : " If it's urgent, just reply and we'll prioritize it.",
       })
       if (rendered.enabled) {
         await sendNotificationEmail(

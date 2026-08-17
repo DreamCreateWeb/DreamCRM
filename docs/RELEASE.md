@@ -591,6 +591,112 @@ Patients-list scale rework (S1) is THE headline R2 perf slice, plus the
 shared audience/inbox/font items. All scale-shaped — nothing breaks at
 current scale. No S0.
 
+### R1 · S6 sweep — Copy & voice (2026-08-17)
+
+One finder over error messages, email templates, and the help-path law
+(empty states + page-body voice were S3's territory, already clean). Verdict:
+the corpus is a model of the anti-shame voice — the email default copy,
+patient-brand isolation (no "DreamCRM" leak in any patient email), and the
+"call the office" help-path law are all done well. 0 S1.
+
+**Fixed this session:**
+
+- S2 · the contact-ack auto-reply email had a dangling `{{urgentLine}}` merge —
+  a phone-less clinic sent a patient "If it's urgent — otherwise, sit tight…"
+  (broken sentence). · **FIXED** — the whole urgent clause is now conditional
+  (phone → "reach us at …", no phone → "just reply and we'll prioritize it").
+- S2 · raw Stripe/jargon strings that could reach a user — "Stripe did not
+  return a setup URL" to a PATIENT starting a payment plan; "Stripe did not
+  return a checkout URL"/"connected account id" to a clinic owner (checkout,
+  membership, balance, Connect, settings). · **FIXED** — friendly
+  "we couldn't start … please try again / call the office" copy at all sites.
+- S2 · the public intake-start form surfaced raw better-auth `error.message`
+  ("User already exists", validation internals) to patients. · **FIXED** —
+  mapped to a friendly fixed set (bad-credentials / already-have-an-account).
+- S3 · "on this DreamCRM instance" dev-jargon → "aren't switched on yet";
+  billing footnote "Stripe tries again" → "we'll retry automatically". · FIXED.
+
+**R2 candidate:** public booking/contact/intake forms display a THROWN
+server-action `.message`, which Next redacts in production — so the carefully
+worded action strings ("That slot is no longer available…") may never reach
+the patient. Adopt the portal's structured `{ ok, error }` result pattern (same
+root as the S4 public-checkout-wrap item). · OPEN.
+
+### R1 · S7 sweep — Accessibility (2026-08-17)
+
+One finder walked booking / portal / auth / the sign-here stack / the shared
+primitives. Verdict: no blockers — the modal focus-trap infra and the shared
+primitives (FlashToast `role=status`, StatusPill text-not-color, the PUBLIC
+booking picker with `aria-pressed`+labels, skip-to-content) are exemplary.
+0 S1; 11 S2, 4 S3 — an announcement/label cluster, heaviest in the portal.
+
+**Fixed this session:**
+
+- S2 · the shared portal input primitive (`PortalInput`/`PortalTextarea`)
+  stripped the focus outline with no replacement — a keyboard user saw NO focus
+  on every portal form (billing, family, survey, booking). · **FIXED** —
+  `focus-visible` ring on the primitive (multiplies across every portal form).
+
+**R2 candidate — a focused a11y slice (all S2/S3, cohesive):** bring the PORTAL
+slot-picker + booking choice-chips to aria parity with the already-correct
+public form (`aria-pressed`/`aria-label`/`role=radiogroup`, "taken" text alt);
+add `<label sr-only>`/`aria-label` to the public booking visit-type select +
+placeholder-only inputs; a `role="alert"`/`role="status"` sweep over the ~7
+unannounced error/success nodes (public booking, portal visit-card + booking,
+auth sign-in/up/reset, approval-inbox validation); + S3 (drawer `DialogTitle`,
+portal desktop-nav `aria-current`, phase-change announcements). · OPEN.
+
+### R1 · S8 sweep — Compliance & data (2026-08-17)
+
+One finder produced the written posture assessment now in **`docs/COMPLIANCE.md`**
+— the decision document the owner needs before the marketing pivot. Verdict:
+TCPA/SMS-consent and CAN-SPAM are GENUINELY STRONG and verified; the entire
+real risk is the HIPAA subprocessor posture, contained today ONLY by the fact
+that the product makes zero compliance claims (grep-verified). 0 S1 today.
+
+**Delivered:** `docs/COMPLIANCE.md` (posture per area + the findings ledger +
+the owner's framed decision). No code fixed here — the S8 items are
+policy/legal/ops decisions, not defects.
+
+**Owner decisions (now surfaced in CLAUDE.md open items):** the HIPAA/BAA path
+(the highest-leverage single move is the already-scaffolded `AI_DRIVER=bedrock`
+flip, putting PHI-touching AI under the AWS BAA), execute the AWS BAA, move
+patient email to SES, confirm NexHealth, write the customer legal pages
+(Privacy/ToS/DPA/BAA — none exist), add patient-level deletion (right to
+erasure), and a written retention policy. S3 doc items: verify S3 SSE, scrub
+email addresses from a few log paths, refresh the stale SMS-eval recommendation.
+
+---
+
+## R1 — THE GREAT AUDIT: CLOSED (2026-08-17)
+
+All eight sweeps run and verified in one program session. **Headline: the
+product is in strong shape.** Zero broken core journeys across all four
+personas + the public visitor; the findings were real but almost all fixable
+in place, and whole subsystems audited clean (the staff dashboard, the token-
+auth public surfaces, the image pipeline, the consent machinery).
+
+**Fixed in-band during R1 (S0/S1 + cheap high-value S2/S3):** 1 S0 + 4 S1 +
+~20 S2/S3 across the eight sweeps, each verified against code and tested,
+seven commits pushed. Migration 0149 added.
+
+**Carried to R2 burn-down (the ledger above), by theme:**
+- **Perf (the headline):** the Patients-list scale rework (S1-at-scale) +
+  shared `resolvePatientAudience` + `/messages` pagination + the Inter font
+  self-host + cron wall-clock budgets.
+- **Money hardening:** refund/dispute commission reversal; the partner-payout
+  double-pay window.
+- **Resilience:** the send-reminders per-org try + atomic claim; stranded-
+  campaign recovery; publish-posts loop guard; NexHealth-create WAITING lane;
+  the public-checkout wrap (shared with S6's thrown-message item).
+- **A11y:** the focused slice (slot-picker/chips parity + input labels +
+  `role=alert` sweep).
+- **Journeys:** the portal coming-soon-gate dead-end (pathname exemption).
+- **Compliance/ops:** the whole `docs/COMPLIANCE.md` decision list (owner-gated).
+
+R2 fixes by severity with full-suite gates; the perf slice and the money
+hardening lead. Then R3 (E2E + hardening), R4 (beta), R5 (launch).
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,

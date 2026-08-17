@@ -49,7 +49,9 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
           password,
         })
         if (error) {
-          setErrorMsg(error.message ?? 'Sign in failed. Check your password.')
+          // Never surface the raw auth-system message to a patient on a public
+          // dental site — map to friendly copy.
+          setErrorMsg('That email and password don’t match. Please try again.')
           setSubmitting(false)
           return
         }
@@ -61,7 +63,14 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
           password,
         } as never)) as { error?: { message?: string } | null }
         if (error) {
-          setErrorMsg(error.message ?? 'Could not create account.')
+          // Map the raw auth message (e.g. "User already exists") to friendly
+          // copy — a patient should never read auth-system phrasing.
+          const already = /exist|already|taken|registered/i.test(error.message ?? '')
+          setErrorMsg(
+            already
+              ? 'Looks like you already have an account — switch to “Sign in” above.'
+              : 'We couldn’t create your account just now. Please try again.',
+          )
           setSubmitting(false)
           return
         }

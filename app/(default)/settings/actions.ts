@@ -78,7 +78,7 @@ export async function startStripeCheckout(planId: PlanId, interval: BillingInter
     planId,
     interval,
   })
-  if (!session.url) throw new Error('Stripe did not return a checkout URL')
+  if (!session.url) throw new Error('We couldn’t start checkout just now — please try again in a moment.')
   redirect(session.url)
 }
 

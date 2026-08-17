@@ -363,7 +363,7 @@ export const EMAIL_AUTOMATION_SPECS: Record<EmailAutomationKey, EmailAutomationS
     ],
     slotDefaults: {
       subject: 'Thanks for reaching out to {{clinicName}}',
-      body: "Hi {{firstName}}, we got your message and we'll reach out within one business day. If it's urgent{{urgentLine}} — otherwise, sit tight and we'll be in touch soon.",
+      body: "Hi {{firstName}}, we got your message and we'll reach out within one business day.{{urgentLine}} Otherwise, sit tight and we'll be in touch soon.",
     },
     includesNote: ['A short greeting and your clinic name signature'],
   },

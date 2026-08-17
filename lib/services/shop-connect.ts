@@ -32,7 +32,7 @@ export function getConnectAuthorizeUrl(state: string, redirectUri: string): stri
 export async function exchangeConnectCode(code: string): Promise<string> {
   const res = await stripe.oauth.token({ grant_type: 'authorization_code', code })
   const accountId = res.stripe_user_id
-  if (!accountId) throw new Error('Stripe did not return a connected account id')
+  if (!accountId) throw new Error('We couldn’t start payment setup just now — please try again in a moment.')
   return accountId
 }
 

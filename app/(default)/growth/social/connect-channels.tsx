@@ -167,7 +167,7 @@ export default function ConnectChannels(props: ConnectChannelsProps) {
 
       {!zernioConfigured ? (
         <p className="mt-5 text-sm text-gray-500 dark:text-gray-400 italic">
-          Channel connections aren&apos;t enabled on this DreamCRM instance yet.
+          Channel connections aren&apos;t switched on yet — reach out and we&apos;ll enable them.
         </p>
       ) : (
         <>

@@ -313,7 +313,7 @@ export async function createPlanSetupCheckout(
       } as never,
       { stripeAccount: cfg.accountId },
     )
-    if (!session.url) return { ok: false, error: 'Stripe did not return a setup URL.' }
+    if (!session.url) return { ok: false, error: 'We couldn’t start your plan just now — please try again, or call the office and we’ll set it up for you.' }
 
     await db
       .update(schema.paymentPlan)

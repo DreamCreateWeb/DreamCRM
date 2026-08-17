@@ -260,7 +260,7 @@ export function PortalInput(props: React.InputHTMLAttributes<HTMLInputElement>) 
   return (
     <input
       {...rest}
-      className={`w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none ${className}`}
+      className={`w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-1 ${className}`}
       style={{ border: `1px solid ${PORTAL_BORDER}`, color: PORTAL_INK, backgroundColor: '#FFFFFF', ...style }}
     />
   )
@@ -272,7 +272,7 @@ export function PortalTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaE
   return (
     <textarea
       {...rest}
-      className={`w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none ${className}`}
+      className={`w-full rounded-2xl px-3.5 py-2.5 text-[0.92rem] outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-1 ${className}`}
       style={{ border: `1px solid ${PORTAL_BORDER}`, color: PORTAL_INK, backgroundColor: '#FFFFFF', ...style }}
     />
   )

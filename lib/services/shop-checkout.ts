@@ -203,7 +203,7 @@ export async function createShopCheckoutSession(
     .set({ stripeCheckoutSessionId: session.id, updatedAt: new Date() })
     .where(eq(schema.shopOrder.id, orderId))
 
-  if (!session.url) throw new Error('Stripe did not return a checkout URL.')
+  if (!session.url) throw new Error('We couldn’t start checkout just now — please try again in a moment.')
   return { url: session.url }
 }
 

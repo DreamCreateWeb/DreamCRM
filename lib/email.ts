@@ -747,7 +747,7 @@ export async function sendBillingPastDueEmail(
       buttonUrl: data.billingUrl,
       buttonLabel: 'Update payment method',
       accent: '#e11d48',
-      footnoteHtml: "Already updated your card? You can ignore this — Stripe tries again automatically.",
+      footnoteHtml: "Already updated your card? You can ignore this — we’ll retry automatically.",
     }),
   })
 }
