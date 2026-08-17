@@ -82,6 +82,8 @@ export async function markNoShowAction(appointmentId: string): Promise<{ ok: tru
   const ctx = await requireClinicTenant()
   await markNoShow(ctx.organizationId, appointmentId)
   revalidatePath('/appointments')
+  revalidatePath('/')
+  revalidatePath('/my-day')
   return { ok: true }
 }
 

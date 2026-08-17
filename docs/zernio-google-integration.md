@@ -83,8 +83,9 @@ entirely defensively + is best-effort).**
 > **[Pricing + single-plan correction, 2026-08-17]:** prices above now match
 > `lib/stripe-config.ts` — Basic $150 (this table originally said $99),
 > Pro $250, Premium **$200/mo "founding practice rate"** (list $500 shown
-> struck through; $2,000 annual = 2 months free). Since **2026-07-19**
-> `PURCHASABLE_PLANS` = **Premium only** — the Basic/Pro rows are
+> struck through; $2,000 annual = 2 months free). Since the one-plan
+> collapse (marketing went one-price **2026-07-19**; in-app billing
+> followed shortly after) `PURCHASABLE_PLANS` = **Premium only** — the Basic/Pro rows are
 > **legacy-lookup-only** (they stay in `PLANS` for legacy tiers + managed
 > provisioning, never as self-serve options). And since the no-plan-gating
 > convention (**2026-07-25**) nothing in the app is tier-gated; the per-tier
@@ -356,7 +357,7 @@ What shipped alongside the `updateGoogleBusinessWebsiteUri` write wrapper:
   time), checked AHEAD of generic search — so "came from the Google profile"
   is finally distinguishable from organic search.
 - **The location normalizer's summary-sibling shape fork** (`lib/zernio.ts`
-  ~397–515): Zernio's CURRENT location-details response carries the full
+  ~397–533): Zernio's CURRENT location-details response carries the full
   location fields at the TOP LEVEL, with `location` holding only a derived
   SUMMARY block (name/placeId/reviewUrl/mapsUri/isVerified) as a sibling. The
   old `{ location: {...} }` unwrap would have treated that summary as the whole
@@ -739,7 +740,7 @@ FB/IG/etc.
   the GBP-only Google Posts surface was generalized into a **compose-once →
   publish/schedule to any connected channel** surface at **`/social-posts`**
   (now **`/growth/social`** — the old path is a 308 stub; Growth sidebar,
-  "Social Posts", no minPlan; `/google-posts` permanently
+  "Social Posts", no minPlan; `/google-posts` also
   REDIRECTS here — exactly ONE composer, no dead page).
   - **Schema:** `gbp_post` RENAMED → `social_post` (parent: shared composed
     content + a `status` rollup) + a new `social_post_target` child (per-channel

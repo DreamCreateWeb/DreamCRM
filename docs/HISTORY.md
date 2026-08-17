@@ -5,10 +5,11 @@ The chronological record of what shipped, session by session — moved out of
 Each entry preserves the implementation detail that was load-bearing at the
 time; treat `CLAUDE.md` + the code as the source of truth for CURRENT state.
 
-**How this file is organized (2026-08-17 note):** the file has grown three
+**How this file is organized (2026-08-17 note):** the file has grown
 regions. The bullet region just below is the OLDEST convention, newest-first
 (it stops 2026-07-24 and is dormant). Midway down, "Historical epics +
-migration records" holds early epics. Everything since 2026-07-13 is
+migration records" holds early epics, followed by a descending block of
+dated `##` entries (2026-07-04 → 07-02). Everything since 2026-07-13 is
 APPENDED AT THE END as `## YYYY-MM-DD — Title` sections in ASCENDING order —
 new entries go at the very bottom of the file in that style.
 
@@ -5335,8 +5336,10 @@ The arc, compressed:
 Owner-caught bug during the write-back test: cancelling from the drawer
 didn't update the agenda until a hard reload. Fix: optimistic cancelled
 state (useOptimistic) threaded to the Row's status resolution,
-close-before-refresh ordering, and revalidatePath('/my-day') on all five
-status-mutation sites.
+close-before-refresh ordering, and revalidatePath('/my-day') on the
+status-mutation actions (the no-show action's missing revalidation — the
+same seam — was caught and fixed in the 2026-08-17 docs verification
+pass).
 
 ## 2026-08-13 — The Approval Inbox shows the work, not a paragraph
 

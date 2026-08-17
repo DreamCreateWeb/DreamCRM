@@ -27,6 +27,8 @@ memory.
   waitlist SMS channel, balance-nudge SMS sibling, NPS SMS channel.
 - Phones territory: missed-call text-back, voicemail drops (Weave
   parity; needs a voice provider decision).
+- Apple Maps + Bing Places presence (the DESIGN.md Phase-5 limbs that
+  never started; GBP shipped, these siblings didn't).
 - Intake: appointment-type + annual-refresh auto-send rules (audience
   rules shipped; these didn't), an address field type (cut from v2).
 - The refer-a-friend door on Growth (docs/STRUCTURE-AUDIT.md change list

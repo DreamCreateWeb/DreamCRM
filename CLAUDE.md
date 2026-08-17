@@ -15,7 +15,7 @@ system, don't replace it.
 | [`DESIGN-SYSTEM.md`](./DESIGN-SYSTEM.md) | The binding dashboard UI system (v3 "Cute Dream, Living Data" — dream blue, bubbles, Nunito, living-data law; re-skinned from v2 2026-07-17) — semantic tones, glyphs, motion, components. Read before touching dashboard UI. |
 | **This file** | Current implementation state: architecture, module map, subsystem reference, conventions, ops. |
 | [`docs/HISTORY.md`](./docs/HISTORY.md) | The chronological session-by-session build log (moved out of this file 2026-07-02). Per-session implementation detail lives there. |
-| [`docs/FINISHING.md`](./docs/FINISHING.md) | The living "finishing pass" punch list — known seam bugs + polish gaps, by class. |
+| [`docs/FINISHING.md`](./docs/FINISHING.md) | The finishing-pass punch list — FROZEN history since the release program began (new defects go to docs/RELEASE.md Part 5). |
 | [`docs/COMPETITIVE-GAPS.md`](./docs/COMPETITIVE-GAPS.md) | The module-deepening roadmap: per-module feature gaps vs NexHealth/RevenueWell/Weave/etc. Every P1 shipped; remaining: the PMS-procedure-data-gated P2s (no procedure-code entity yet), the per-clinic-registration-gated SMS tail, and P3s. |
 | [`docs/STRUCTURE-AUDIT.md`](./docs/STRUCTURE-AUDIT.md) | The information-architecture reference: full feature inventory by purpose, competitor IA benchmarks (NexHealth/Weave/Birdeye/Kleer/Shopify/…), placement verdicts, and the redesign log (Payments split, rejected moves). Read before moving/renaming any surface. |
 | [`docs/RELEASE.md`](./docs/RELEASE.md) | **THE CURRENT PROGRAM OF RECORD (2026-08-16, owner directive).** The product is feature-complete; the work now is beta → 1.0: phases R0–R5, the eight audit sweeps, severity bars, the defect ledger. Read this before starting new feature work — new ideas go to the post-1.0 backlog, not the release. |
@@ -234,7 +234,7 @@ components/ui/       dashboard-shell.tsx (all authed layouts go through it),
                      TrendChart (axes + crosshair tooltip) / MiniTrend (hover
                      spark); series colors ride the validated --color-chart-*
                      tokens (fixed order, dark-aware); old Sparkline is a
-                     compat wrapper; tests/ui/chart-kit.test.ts guards against
+                     compat wrapper; tests/ui/chart-kit.test.tsx guards against
                      new hand-rolled polylines
 middleware.ts        Auth gate + public-path allowlist + {slug} subdomain rewrite
                      + custom-domain host→slug routing + app./apex → www redirect
@@ -408,10 +408,13 @@ sitemap/robots/OG.
 
 ## Key subsystem reference
 
-- **Stripe (platform billing)**: `lib/stripe-config.ts` PLANS (Basic $150 /
-  Pro $250 / Premium $500 mo; annual = 2 months free — repriced 2026-07-02,
-  new Stripe Prices must be created + env ids swapped; beta users lock in via
-  coupons) + Stripe Tax (automatic_tax on every platform checkout + plan
+- **Stripe (platform billing)**: `lib/stripe-config.ts` — ONE purchasable
+  plan since 2026-07-19: **Premium at $200/mo "founding practice rate"**
+  (list $500 shown struck through; $2,000 annual = 2 months free). The
+  2026-07-02 $150/$250/$500 reprice was never executed Stripe-side, so the
+  display now tells the truth; Basic $150 / Pro $250 remain in PLANS as
+  legacy-lookup rows only (legacy tiers + managed provisioning, never
+  self-serve). + Stripe Tax (automatic_tax on every platform checkout + plan
   swap; activate Tax + registrations in the Stripe dashboard) + the social
   add-on
   prices (Pro $30/mo · Premium $20/mo, live). Webhook
@@ -452,7 +455,7 @@ sitemap/robots/OG.
 - **Email identity**: Tier 1 `"Clinic Name" <slug@dreamcreatestudio.com>` w/
   deliverable Reply-To; Tier 2 sends as the clinic's connected Gmail with
   Tier-1 fallback. Automated patient-email copy is clinic-editable
-  (`lib/services/email-automations.ts`, 7 keys, deviations in
+  (`lib/services/email-automations.ts`, 10 keys, deviations in
   `clinic_profile.email_automations`).
 - **AI surfaces**: website copy rewrite (tier allowance via `ai_usage_counter`),
   service customization, welcome-interview site generation, message draft
@@ -491,7 +494,7 @@ sitemap/robots/OG.
   `auto-send-reviews` (hourly) · `customize-services` (hourly) ·
   `sync-google-reviews` (hourly, Google + Facebook) · `sync-gbp` (hourly) ·
   `retention-automations` (daily) · `followup-rules` (hourly) · `daily-digest`
-  (daily) · `trial-reminders` (daily) · `prospect-discovery` (6h) ·
+  (daily) · `trial-reminders` (6h; per-milestone idempotent) · `prospect-discovery` (6h) ·
   `prospect-enrich` (30m) · `prospect-outreach` (30m) · `domain-renewals` (daily) ·
   `generate-proposals` (hourly — the Phase-2 proposal generators + staleness
   sweep; the weekly standup email rides `daily-digest` on clinic-local
@@ -591,7 +594,7 @@ sitemap/robots/OG.
   seeder populates every column shown anywhere (empty/common/edge covered);
   self-heal backfills legacy demos. Ship wiring + seed + self-heal in one PR.
 - Vertical slices: schema + service + UI + tests in one PR. Tenant scoping is
-  non-negotiable. Tests before merge — the FULL `pnpm test` (<4 min), not a
+  non-negotiable. Tests before merge — the FULL `pnpm test` (~4 min), not a
   module subset: the repo-wide CI guards (legibility floor, tenant scoping,
   cron parity, token single-homes) only run in the full pass, and deploys
   don't run tests.
@@ -728,8 +731,7 @@ sitemap/robots/OG.
    R2 (burn-down) → R3 (hardening: Playwright E2E suite, error
    aggregation, the RDS restore drill, load sanity) → R4 (dress rehearsal
    + beta cohort) → R5 (RC + go/no-go + launch watch). Feature freeze: new
-   ideas go to the post-1.0 backlog (RELEASE.md Part 6 until
-   docs/POST-1.0.md exists), not the release. Everything below this line
+   ideas go to `docs/POST-1.0.md`, not the release. Everything below this line
    is either absorbed into that program or explicitly deferred by it.
 0. **THE TRANSFORMATION (2026-07-27, full owner approval): "the employee,
    not the tool."** Read DESIGN.md → "The North Star" FIRST. Build order:
@@ -1046,8 +1048,9 @@ sitemap/robots/OG.
    publishes; existing clinics grandfathered) · Phase C setup-as-Inbox-cards
    (`setup_hours`/`setup_chairs`/`setup_booking_mode`/`setup_texting` in
    lib/autonomy.ts — day-0 asks ARE proposals, ask-first, not grantable) ·
-   the invite door (managed provisioning carries the full prospect DOSSIER —
-   brand, GBP, vendors — `lib/services/clinic-provisioning.ts`) · SMS
+   the invite door (managed provisioning carries the prospect DOSSIER —
+   brand color/logo, phone, address, timezone, Google place id —
+   `lib/services/clinic-provisioning.ts`) · SMS
    kickoff + the included segment budget · the trial-expiry KILL (owner
    ruling; see the Trial subsystem entry) · the NexHealth arc through
    write-back v1 + real-slots booking (see the stack entry). Build log for
@@ -1177,7 +1180,7 @@ pnpm dev                  # local dev
 pnpm build                # next build (REQUIRED for UI/font/config changes)
 pnpm db:generate          # drizzle-kit generate (after schema changes)
 pnpm typecheck            # tsc --noEmit
-pnpm test                 # vitest run (~6,400 tests, <4 min)
+pnpm test                 # vitest run (~6,400 tests, ~4 min)
 pnpm test:watch
 ```
 
