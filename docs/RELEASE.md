@@ -842,6 +842,19 @@ network/timeout/abort shapes and 5xx/429 responses and routes them to
 cannot positively identify as transient (a 422, "slot no longer available")
 still exhausts its retries and surfaces. Tests pin both directions.
 
+### A flaky test, recorded rather than shrugged off (R3 candidate)
+
+`tests/patient-portal/survey-card.test.tsx` → "skipping the note (Done with
+empty box)" failed ONCE in a full run and passed on the re-run, on 5/5 in
+isolation and 81/81 across the portal directory. The failure was a
+`findByRole`/`findByText` timeout under full-suite load, in a file none of that
+slice's changes touched — load-induced, not a regression.
+
+It is logged because a test that fails ~1 run in N is a future CI annoyance
+that will eventually be blamed on a real change. Fix shape: raise the
+`findBy*` timeout in that file (or drive the phase change with an explicit
+`waitFor`) as part of R3's suite-stability work. · OPEN.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
