@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { confirmVisitAction } from './actions'
+import { buildIcs, icsDataUrl } from '@/lib/ics'
 
 /**
  * The one-button confirm card. States: pending (Confirm my visit) → confirmed
@@ -27,6 +28,7 @@ export default function ConfirmForm({
   prepInstructions,
   initialState,
   bookUrl,
+  startTimeIso,
 }: {
   token: string
   brand: string
@@ -38,6 +40,8 @@ export default function ConfirmForm({
   providerName: string | null
   prepInstructions: string
   initialState: State
+  /** ISO start — powers Add-to-calendar on the confirmed state. */
+  startTimeIso?: string | null
   bookUrl: string | null
 }) {
   const [state, setState] = useState<State>(initialState)
@@ -92,6 +96,26 @@ export default function ConfirmForm({
           {providerName ? ` with ${providerName}` : ''} is locked in for{' '}
           <strong style={{ color: INK }}>{whenLabel}</strong>. See you then!
         </p>
+        {/* The natural next act for the exact patient who needed a reminder
+            email: put it on the calendar. Same inline-.ics artifact as the
+            public booking success — no server round-trip. */}
+        {startTimeIso && (
+          <a
+            href={icsDataUrl(
+              buildIcs({
+                uid: `confirm-${new Date(startTimeIso).getTime()}@dreamcreatestudio.com`,
+                start: new Date(startTimeIso),
+                end: new Date(new Date(startTimeIso).getTime() + 30 * 60 * 1000),
+                summary: `${visitTypeLabel} at ${clinicName}`,
+              }),
+            )}
+            download="appointment.ics"
+            className="mt-4 inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-[0.9rem] font-semibold transition active:scale-[0.98]"
+            style={{ border: `1px solid ${BORDER}`, color: INK }}
+          >
+            Add to calendar
+          </a>
+        )}
         {prepBlock}
       </>,
     )

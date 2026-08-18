@@ -119,7 +119,14 @@ function fmtTime(d: Date): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
-function emptyCopy(filters: AppointmentListFilters): { icon: string; title: string; body: string } {
+function emptyCopy(filters: AppointmentListFilters): {
+  icon: string
+  title: string
+  body: string
+  /** When the copy names a specific next step, this hands it over (replaces
+   *  the generic "+ New booking" primary; still exactly one primary). */
+  action?: { href: string; label: string }
+} {
   if (filters.attention?.includes('unconfirmed')) {
     return { icon: '✅', title: 'No unconfirmed appointments — nice.', body: 'Everything in this window is confirmed.' }
   }
@@ -130,15 +137,30 @@ function emptyCopy(filters: AppointmentListFilters): { icon: string; title: stri
     return { icon: '📋', title: 'All upcoming visitors have their intake on file.', body: 'Nothing to chase.' }
   }
   if (filters.attention?.includes('lapsed_rebooking')) {
-    return { icon: '🌱', title: 'No lapsed-patient rebookings in this window.', body: 'Run a recall campaign to bring them back.' }
+    return {
+      icon: '🌱',
+      title: 'No lapsed-patient rebookings in this window.',
+      body: 'Run a recall campaign to bring them back.',
+      action: { href: '/growth/outreach?new=1', label: 'Start a recall campaign' },
+    }
   }
   if (filters.attention?.includes('needs_rebooking')) {
     return { icon: '🌿', title: 'Nobody waiting to be rebooked.', body: 'Every recent cancellation or no-show already has a next visit on the books.' }
   }
   if (filters.window === 'today') {
-    return { icon: '☕', title: 'Nothing booked today.', body: 'Go enjoy a quiet morning, or send your booking link out to fill the gaps.' }
+    return {
+      icon: '☕',
+      title: 'Nothing booked today.',
+      body: 'Go enjoy a quiet morning, or send your booking link out to fill the gaps.',
+      action: { href: '/website/share', label: 'Share your booking link' },
+    }
   }
-  return { icon: '📅', title: 'No appointments in this window.', body: 'Try a wider date range, or share your booking link.' }
+  return {
+    icon: '📅',
+    title: 'No appointments in this window.',
+    body: 'Try a wider date range, or share your booking link.',
+    action: { href: '/website/share', label: 'Share your booking link' },
+  }
 }
 
 // Stable empty base for the optimistic-confirmed set (useOptimistic resets to it).
@@ -731,9 +753,22 @@ function AgendaEmptyState({
       title={copy.title}
       body={copy.body}
       action={
-        <ActionButton variant="primary" onClick={onNewBooking}>
-          + New booking
-        </ActionButton>
+        copy.action ? (
+          // The copy named this exact step — hand it over. New booking stays
+          // one tier down so there's still exactly one primary.
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <ActionButton variant="primary" href={copy.action.href}>
+              {copy.action.label}
+            </ActionButton>
+            <ActionButton variant="secondary" onClick={onNewBooking}>
+              + New booking
+            </ActionButton>
+          </div>
+        ) : (
+          <ActionButton variant="primary" onClick={onNewBooking}>
+            + New booking
+          </ActionButton>
+        )
       }
     />
   )

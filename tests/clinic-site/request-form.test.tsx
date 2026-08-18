@@ -30,11 +30,11 @@ describe('RequestForm (self-booking off)', () => {
 
   it('requires email but NOT phone, and shows no date/time picker', () => {
     renderForm()
-    const email = screen.getByPlaceholderText('Email') as HTMLInputElement
+    const email = screen.getByLabelText(/^email/i) as HTMLInputElement
     expect(email.required).toBe(true)
     expect(email.type).toBe('email')
 
-    const phone = screen.getByPlaceholderText(/phone number \(optional\)/i) as HTMLInputElement
+    const phone = screen.getByLabelText(/phone number/i) as HTMLInputElement
     expect(phone.required).toBe(false)
 
     // The whole point of request-only mode: no calendar / slot grid.
@@ -53,9 +53,9 @@ describe('RequestForm (self-booking off)', () => {
 
   it('submits the request and shows the "Request received" confirmation', async () => {
     renderForm()
-    fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Jordan' } })
-    fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Park' } })
-    fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'jordan@example.com' } })
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Jordan' } })
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Park' } })
+    fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: 'jordan@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: /send request/i }))
 
     await waitFor(() => expect(submitAppointmentRequest).toHaveBeenCalledTimes(1))
@@ -68,11 +68,11 @@ describe('RequestForm (self-booking off)', () => {
   it('surfaces a server error inline without flipping to success', async () => {
     submitAppointmentRequest.mockRejectedValueOnce(new Error('Our scheduler is temporarily unavailable'))
     renderForm()
-    fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Jordan' } })
-    fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Park' } })
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Jordan' } })
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Park' } })
     // Valid email so the form actually submits (happy-dom blocks submit on an
     // invalid required field); the rejection simulates a server-side failure.
-    fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'jordan@example.com' } })
+    fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: 'jordan@example.com' } })
     fireEvent.click(screen.getByRole('button', { name: /send request/i }))
 
     expect(await screen.findByText(/temporarily unavailable/i)).toBeTruthy()

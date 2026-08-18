@@ -60,6 +60,7 @@ export default async function ConfirmVisitPage({
               clinicPhone={ctx.clinicPhone}
               patientFirstName={ctx.patientFirstName}
               whenLabel={formatClinicDayTime(ctx.startTime, ctx.timeZone)}
+              startTimeIso={ctx.startTime.toISOString()}
               visitTypeLabel={ctx.visitTypeLabel}
               providerName={ctx.providerName}
               prepInstructions={ctx.prepInstructions}

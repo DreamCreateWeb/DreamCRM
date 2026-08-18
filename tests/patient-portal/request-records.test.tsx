@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, configure } from '@testing-library/react'
+
+// Same load-flake class as survey-card: this card drives an async action
+// through a transition, and the library's 1s default can lose the race under
+// full-suite parallel load. Raised for this file only (see docs/RELEASE.md).
+configure({ asyncUtilTimeout: 5_000 })
 
 /**
  * The records page's old "call us" card is now a real, tracked request: one tap

@@ -687,49 +687,71 @@ export default function BookForm({
           03 · Your info
         </p>
         <div className="space-y-4">
+          {/* Visible labels, not placeholder-only: a placeholder vanishes on
+              the first keystroke, so a patient mid-form (or checking a browser
+              autofill) sees four filled boxes and no way to tell which is
+              which. Placeholders demote to examples. */}
           <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="bf-first" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+                First name
+              </label>
+              <input
+                id="bf-first"
+                name="firstName"
+                type="text"
+                required
+                autoComplete="given-name"
+                className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+                style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+              />
+            </div>
+            <div>
+              <label htmlFor="bf-last" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+                Last name
+              </label>
+              <input
+                id="bf-last"
+                name="lastName"
+                type="text"
+                required
+                autoComplete="family-name"
+                className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+                style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="bf-phone" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+              Phone number
+            </label>
             <input
-              name="firstName"
-              type="text"
+              id="bf-phone"
+              name="phone"
+              type="tel"
               required
-              placeholder="First name"
-              aria-label="First name"
-              autoComplete="given-name"
-              className="px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
-              style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
-            />
-            <input
-              name="lastName"
-              type="text"
-              required
-              placeholder="Last name"
-              aria-label="Last name"
-              autoComplete="family-name"
-              className="px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+              placeholder="(555) 123-4567"
+              autoComplete="tel"
+              inputMode="tel"
+              className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
               style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
             />
           </div>
-          <input
-            name="phone"
-            type="tel"
-            required
-            placeholder="Phone number"
-            aria-label="Phone number"
-            autoComplete="tel"
-            inputMode="tel"
-            className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
-            style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
-          />
-          <input
-            name="email"
-            type="email"
-            placeholder="Email (optional, for confirmation)"
-            aria-label="Email (optional, for confirmation)"
-            autoComplete="email"
-            inputMode="email"
-            className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
-            style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
-          />
+          <div>
+            <label htmlFor="bf-email" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+              Email{' '}
+              <span className="font-normal">(optional, for confirmation)</span>
+            </label>
+            <input
+              id="bf-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+              style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+            />
+          </div>
           {/* SMS CONSENT (Phase 5 limb 3). Marketing texts need prior express
               WRITTEN consent, so: never pre-ticked, the disclosure rendered
               right here rather than buried in a terms link, and the whole

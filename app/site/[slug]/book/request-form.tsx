@@ -97,47 +97,70 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
         Request an appointment
       </p>
 
+      {/* Visible labels (placeholders vanish on the first keystroke — the
+          same recipe as the booking form's fields). */}
       <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="rf-first" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+            First name
+          </label>
+          <input
+            id="rf-first"
+            name="firstName"
+            type="text"
+            required
+            autoComplete="given-name"
+            className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+            style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+          />
+        </div>
+        <div>
+          <label htmlFor="rf-last" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+            Last name
+          </label>
+          <input
+            id="rf-last"
+            name="lastName"
+            type="text"
+            required
+            autoComplete="family-name"
+            className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+            style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="rf-email" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+          Email
+        </label>
         <input
-          name="firstName"
-          type="text"
+          id="rf-email"
+          name="email"
+          type="email"
           required
-          placeholder="First name"
-          autoComplete="given-name"
-          className="px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
-          style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
-        />
-        <input
-          name="lastName"
-          type="text"
-          required
-          placeholder="Last name"
-          autoComplete="family-name"
-          className="px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+          autoComplete="email"
+          inputMode="email"
+          className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
           style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
         />
       </div>
 
-      <input
-        name="email"
-        type="email"
-        required
-        placeholder="Email"
-        autoComplete="email"
-        inputMode="email"
-        className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
-        style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
-      />
-
-      <input
-        name="phone"
-        type="tel"
-        placeholder="Phone number (optional)"
-        autoComplete="tel"
-        inputMode="tel"
-        className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
-        style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
-      />
+      <div>
+        <label htmlFor="rf-phone" className="mb-1 block text-xs font-semibold" style={{ color: INK_MUTED }}>
+          Phone number <span className="font-normal">(optional)</span>
+        </label>
+        <input
+          id="rf-phone"
+          name="phone"
+          type="tel"
+          placeholder="(555) 123-4567"
+          autoComplete="tel"
+          inputMode="tel"
+          className="w-full px-4 py-3 rounded-xl text-[15px] focus:outline-none focus:ring-2"
+          style={{ backgroundColor: SURFACE, color: INK, border: `1px solid ${BORDER}` }}
+        />
+      </div>
 
       {reasons.length > 0 && (
         <select

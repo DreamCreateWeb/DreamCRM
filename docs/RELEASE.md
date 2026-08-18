@@ -1064,13 +1064,25 @@ server's window scan now returns WHICH day first has an opening
 one-tap "See Thursday's openings →" (this was the funnel's most fragile
 moment: one tap + one fetch per day, 14 times).
 
-**Scout proposals still open for batch 3:** the shared `SearchInput`
-primitive (Messages' icon+clear recipe on agenda/patients) · the "?" shortcut
-sheet + `G-M`/`G-D` chords · c/ confirm-page add-to-calendar (prop plumb) ·
-visible labels on the public booking inputs (placeholder demotion) · empty
-states that hand over the action they name (recall campaign / share booking
-link) · the drawer's pending-prop adoption sweep (ActionButton `pending` now
-exists; old ternaries migrate opportunistically).
+**Batch 3 (same day; merged to main per the new owner directive — main gets
+every gated turn):** c/ confirm landing gains Add-to-calendar on the confirmed
+state (the natural next act for the exact patient who needed a reminder email;
+same inline-.ics as the booking success — the context already carried the
+start time, one prop plumb) · **visible labels on the public booking + request
+forms** — name/phone/email were placeholder-only, and a placeholder vanishes
+on the first keystroke, so a patient mid-form (or eyeing a browser autofill)
+saw four filled boxes with no way to tell which was which; placeholders demote
+to examples, aria-labels become real `<label htmlFor>` · **agenda empty states
+hand over the action they name** — `emptyCopy` grew an action override, so
+"Run a recall campaign to bring them back" now ships a *Start a recall
+campaign* primary (→ `/growth/outreach?new=1`) and the quiet-today state ships
+*Share your booking link* (→ `/website/share`), with + New booking one tier
+down (still exactly one primary).
+
+**Scout proposals still open for batch 4:** the shared `SearchInput` primitive
+(Messages' icon+clear recipe on agenda/patients) · the "?" shortcut sheet +
+`G-M`/`G-D` chords · the ActionButton `pending` adoption sweep (the prop now
+exists; old ternaries + no-signal buttons migrate opportunistically).
 
 ### Test-hygiene note (worth keeping)
 
