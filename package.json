@@ -16,6 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
     "test": "vitest run",
+    "test:e2e": "bash scripts/e2e-harness.sh",
+    "test:e2e:quick": "bash scripts/e2e-harness.sh --skip-build",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
@@ -63,6 +65,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/postcss": "^4.0.3",
     "@tailwindcss/typography": "^0.5.19",

@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, isNotNull, lte } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, lte } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { sendCampaign } from './marketing-send'
@@ -33,6 +33,55 @@ export interface ScheduledSendResult {
   failed: number
   results: Array<{ campaignId: number; organizationId: string | null; sent: number; failed: number }>
   errors: Array<{ campaignId: number; error: string }>
+}
+
+/**
+ * Put campaigns stranded in 'active' back in the queue.
+ *
+ * The claim flips scheduled → active BEFORE sendCampaign walks the recipients.
+ * If the process dies mid-walk (deploy, OOM, function timeout) the row is left
+ * 'active' forever: the cron only ever re-selects 'scheduled', so nobody
+ * finishes it, the un-mailed tail of the audience never hears anything, and
+ * because nothing threw there is no Guardian signal either — the practice just
+ * sees a campaign that says it sent.
+ *
+ * A live send updates the row when it finishes, so "active and untouched for
+ * STUCK_AFTER_MS" is the honest signal for abandoned. The requeue is safe
+ * because sendCampaign now drops recipients that already have a 'sent' event
+ * for the campaign (dropAlreadySentRecipients) — the re-run finishes the tail
+ * rather than re-mailing the half that got through.
+ *
+ * Mirrors requeueStuckScheduledMessages. Never throws: this runs at the top of
+ * the cron and must not stop the due-campaign sweep behind it.
+ */
+export const STUCK_CAMPAIGN_AFTER_MS = 30 * 60 * 1000
+
+export async function requeueStuckCampaigns(opts?: { now?: Date; olderThanMs?: number }): Promise<number> {
+  const now = opts?.now ?? new Date()
+  const cutoff = new Date(now.getTime() - (opts?.olderThanMs ?? STUCK_CAMPAIGN_AFTER_MS))
+  try {
+    const stuck = await db
+      .select({ id: schema.campaigns.id })
+      .from(schema.campaigns)
+      .where(
+        and(
+          eq(schema.campaigns.status, 'active'),
+          isNotNull(schema.campaigns.scheduledAt),
+          lte(schema.campaigns.updatedAt, cutoff),
+        ),
+      )
+    if (stuck.length === 0) return 0
+    const ids = stuck.map((c) => c.id)
+    await db
+      .update(schema.campaigns)
+      .set({ status: 'scheduled', updatedAt: now })
+      .where(and(inArray(schema.campaigns.id, ids), eq(schema.campaigns.status, 'active')))
+    console.warn('[marketing-scheduled] requeued stranded campaigns', { count: ids.length })
+    return ids.length
+  } catch (err) {
+    console.warn('[marketing-scheduled] stuck-campaign requeue failed (non-fatal)', err)
+    return 0
+  }
 }
 
 export async function sendDueScheduledCampaigns(opts?: { now?: Date }): Promise<ScheduledSendResult> {

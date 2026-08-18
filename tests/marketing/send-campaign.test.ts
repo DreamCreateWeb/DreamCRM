@@ -39,6 +39,8 @@ const h = vi.hoisted(() => ({
   // db op spies
   claimReturningMock: vi.fn(),
   profileRowsMock: vi.fn().mockResolvedValue([]),
+  // Prior 'sent' campaign_events — the resume filter's input.
+  priorSentMock: vi.fn().mockResolvedValue([]),
 }))
 
 // Chainable db mock. `update().set().where()` either resolves (final status
@@ -58,9 +60,14 @@ vi.mock('@/lib/db', () => {
     insert: () => ({ values: async () => undefined }),
     select: () => ({
       from: () => ({
-        where: () => ({
-          limit: async () => h.profileRowsMock(),
-        }),
+        where: () => {
+          // Two shapes: the clinic-profile lookup ends at .limit(); the
+          // resume filter's prior-sent-events read awaits .where() directly.
+          const o: any = { limit: async () => h.profileRowsMock() }
+          o.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) =>
+            Promise.resolve(h.priorSentMock()).then(res, rej)
+          return o
+        },
       }),
     }),
   }
@@ -68,7 +75,7 @@ vi.mock('@/lib/db', () => {
     db,
     schema: {
       campaigns: { id: 'id', status: 'status' },
-      campaignEvents: {},
+      campaignEvents: { campaignId: 'campaignId', type: 'type', patientId: 'patientId', recipientEmail: 'recipientEmail', recipientPhone: 'recipientPhone' },
       clinicProfile: {
         organizationId: 'organizationId',
         addressLine1: 'addressLine1',
@@ -143,7 +150,7 @@ vi.mock('@/lib/services/marketing-frequency', () => ({
   partitionByPriorAutomationSend: h.priorAutoMock,
 }))
 
-import { sendCampaign, buildCampaignPreview, neutralizePreviewLinks } from '@/lib/services/marketing-send'
+import { sendCampaign, buildCampaignPreview, neutralizePreviewLinks, dropAlreadySentRecipients } from '@/lib/services/marketing-send'
 
 const CLINIC_SENDER = {
   name: 'Acme Dental',
@@ -594,5 +601,59 @@ describe('the staff-actor pass-through (round-4 pin)', () => {
     const src = readFileSync(resolve(__dirname, '../../app/(default)/marketing/actions.ts'), 'utf8')
     const call = src.slice(src.indexOf('sendCampaign('))
     expect(call.slice(0, 400)).toMatch(/initiatedByUserId: ctx\.userId/)
+  })
+})
+
+describe('dropAlreadySentRecipients — resume, never re-send', () => {
+  const rec = (over: Record<string, unknown>) =>
+    ({
+      id: 'x', customerId: null, patientId: null, firstName: 'A', name: 'A',
+      email: null, phone: null, emailOptIn: true, smsOptIn: null, ...over,
+    }) as never
+
+  it('a first run has no prior events, so nobody is dropped', async () => {
+    h.priorSentMock.mockResolvedValueOnce([])
+    const list = [rec({ patientId: 'p1', email: 'a@x.com' }), rec({ patientId: 'p2', email: 'b@x.com' })]
+    expect(await dropAlreadySentRecipients(1, list)).toHaveLength(2)
+  })
+
+  it('skips the half already mailed and keeps the un-mailed tail', async () => {
+    // The crash case: p1 got the email before the process died.
+    h.priorSentMock.mockResolvedValueOnce([
+      { patientId: 'p1', recipientEmail: 'a@x.com', recipientPhone: null },
+    ])
+    const list = [rec({ patientId: 'p1', email: 'a@x.com' }), rec({ patientId: 'p2', email: 'b@x.com' })]
+    const out = (await dropAlreadySentRecipients(1, list)) as unknown as Array<{ patientId: string }>
+    expect(out).toHaveLength(1)
+    expect(out[0].patientId).toBe('p2')
+  })
+
+  it('matches email case-insensitively when there is no patient id', async () => {
+    h.priorSentMock.mockResolvedValueOnce([
+      { patientId: null, recipientEmail: 'a@x.com', recipientPhone: null },
+    ])
+    const list = [rec({ email: 'A@X.com' }), rec({ email: 'b@x.com' })]
+    expect(await dropAlreadySentRecipients(1, list)).toHaveLength(1)
+  })
+
+  it('matches on phone for an SMS send (no address is recorded)', async () => {
+    h.priorSentMock.mockResolvedValueOnce([
+      { patientId: null, recipientEmail: null, recipientPhone: '+15551234567' },
+    ])
+    const list = [rec({ phone: '+15551234567' }), rec({ phone: '+15559999999' })]
+    expect(await dropAlreadySentRecipients(1, list)).toHaveLength(1)
+  })
+
+  it('FAILS OPEN — an unreadable events table sends the full list rather than cancelling', async () => {
+    // Treating a failed read as "everyone already got it" would silently
+    // cancel a legitimate campaign, which is worse than a duplicate.
+    h.priorSentMock.mockRejectedValueOnce(new Error('db down'))
+    const list = [rec({ patientId: 'p1' }), rec({ patientId: 'p2' })]
+    expect(await dropAlreadySentRecipients(1, list)).toHaveLength(2)
+  })
+
+  it('an empty recipient list short-circuits without querying at all', async () => {
+    h.priorSentMock.mockRejectedValueOnce(new Error('should not be called'))
+    expect(await dropAlreadySentRecipients(1, [])).toHaveLength(0)
   })
 })

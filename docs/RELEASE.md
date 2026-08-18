@@ -842,6 +842,77 @@ network/timeout/abort shapes and 5xx/429 responses and routes them to
 cannot positively identify as transient (a 422, "slot no longer available")
 still exhausts its retries and surfaces. Tests pin both directions.
 
+### Slice 8 — stranded-campaign recovery · DONE
+
+The claim flips a campaign `scheduled` → `active` BEFORE `sendCampaign` walks
+its recipients, and that walk is NOT atomic (one send + one `campaign_events`
+row at a time). A crash mid-walk — deploy, OOM, function timeout — left the row
+`active` forever: the sweep only ever re-selects `scheduled`, so nobody
+finished it. Half the audience got the email, the rest never heard anything,
+and because nothing threw there was no error and no Guardian signal — the
+practice just saw a campaign that claimed it sent.
+
+Two halves, because either alone is wrong:
+
+- `requeueStuckCampaigns` (run at the top of the same cron, mirroring
+  `requeueStuckScheduledMessages`) puts a campaign left `active` and untouched
+  for `STUCK_CAMPAIGN_AFTER_MS` (30 min) back to `scheduled`. A live send
+  updates the row as it works, so "active and stale" is the honest signal for
+  abandoned. Never throws — it must not stop the due sweep behind it.
+- `dropAlreadySentRecipients` is what makes that requeue SAFE: it drops anyone
+  already carrying a `sent` event for the campaign, matching on the same keys
+  the send loops stamp (patientId → email → phone, for SMS sends with no
+  address). So the re-run finishes the tail instead of re-mailing the half that
+  got through. It **fails OPEN** — an unreadable events table sends the full
+  list, because treating a failed read as "everyone already got it" would
+  silently cancel a legitimate campaign, which is worse than a duplicate.
+
+10 tests across both halves.
+
+---
+
+## R3 — HARDENING (in progress, opened 2026-08-18)
+
+### Deliverable 1 — the E2E browser suite · FIRST SPECS GREEN
+
+Part 1 of this program named "E2E browser journeys: **None** (happy-dom only)"
+as **the biggest single gap**. It is now open: **10 specs passing in real
+Chromium against a real Next production build and a real Postgres.**
+
+- `playwright.config.ts` — Chromium project, traces/screenshots retained on
+  failure, one retry in CI only (a golden path that needs a retry is a flaky
+  spec, and a flaky E2E suite is worse than none because people learn to
+  ignore red).
+- `scripts/e2e-harness.sh` + `pnpm test:e2e` — one command that stands up a
+  throwaway Postgres, applies EVERY migration from scratch, builds, serves,
+  runs Playwright, and tears down on exit (including on failure). Prod RDS is
+  VPC-only, so the suite brings its own database.
+- `e2e/smoke.spec.ts` — seed-free specs covering what happy-dom structurally
+  cannot see: middleware auth redirects on four protected surfaces, real
+  server rendering of the marketing site, the `$200` pricing truth, sign-in
+  form usability, the `role="alert"` on a failed sign-in (pinning the R2 a11y
+  fix), and a 404 on an unknown clinic slug.
+- `docs/E2E.md` — how to run it, why it is NOT in `pnpm test` (the merge gate
+  stays fast), the browser-version pinning note, and the seeded journeys to
+  write next (public booking, portal reschedule/cancel, staff day, sign-here,
+  onboarding path B).
+
+**A free side-benefit:** the harness applies all 150 migrations to an EMPTY
+database, which rehearses the deploy path (migrations auto-apply on boot). It
+verified 0149 (`patient_org_first_seen_idx`) and 0150
+(`referral_payout.idempotency_key` + its unique constraint) land cleanly from
+zero — exactly the failure mode that would otherwise wedge a deploy.
+
+**Scars worth keeping:**
+- `@playwright/test` will not always match the pre-installed browser build, so
+  the config points `executablePath` at the on-disk Chromium when present and
+  falls back to Playwright's own resolution otherwise (a normal CI image is
+  unaffected). Never run `playwright install` here — downloads are blocked.
+- Running `pnpm add` WHILE the unit suite was in flight produced 78 bogus
+  failures ("`headers` was called outside a request scope"): pnpm relinked
+  `next` into a new virtual-store path mid-run, so mocks and runtime resolved
+  to different copies. Not a code regression — never install during a test run.
+
 ### A flaky test, recorded rather than shrugged off (R3 candidate)
 
 `tests/patient-portal/survey-card.test.tsx` → "skipping the note (Done with

@@ -194,6 +194,56 @@ function displayNameOf(header: string): string {
   return m?.[1]?.trim() || header
 }
 
+/**
+ * Drop recipients this campaign has ALREADY recorded a 'sent' event for.
+ *
+ * Makes a re-run of a half-finished campaign resume instead of double-mailing
+ * the people it already reached. Matches on the same identity keys the send
+ * loops stamp on their events: patientId when we have one, else the lowercased
+ * email, else the phone (SMS sends carry no address).
+ *
+ * Fails OPEN — an unreadable events table returns the recipient list untouched.
+ * The alternative (treating a failed read as "everyone was already sent") would
+ * silently cancel a legitimate campaign, which is worse than the duplicate this
+ * filter exists to avoid.
+ */
+export async function dropAlreadySentRecipients(
+  campaignId: number,
+  recipients: ResolvedRecipient[],
+): Promise<ResolvedRecipient[]> {
+  if (recipients.length === 0) return recipients
+  try {
+    const prior = await db
+      .select({
+        patientId: schema.campaignEvents.patientId,
+        recipientEmail: schema.campaignEvents.recipientEmail,
+        recipientPhone: schema.campaignEvents.recipientPhone,
+      })
+      .from(schema.campaignEvents)
+      .where(
+        and(eq(schema.campaignEvents.campaignId, campaignId), eq(schema.campaignEvents.type, 'sent')),
+      )
+    if (prior.length === 0) return recipients
+    const patients = new Set<string>()
+    const emails = new Set<string>()
+    const phones = new Set<string>()
+    for (const row of prior) {
+      if (row.patientId) patients.add(row.patientId)
+      if (row.recipientEmail) emails.add(row.recipientEmail.toLowerCase())
+      if (row.recipientPhone) phones.add(row.recipientPhone)
+    }
+    return recipients.filter((r) => {
+      if (r.patientId && patients.has(r.patientId)) return false
+      if (r.email && emails.has(r.email.toLowerCase())) return false
+      if (r.phone && phones.has(r.phone)) return false
+      return true
+    })
+  } catch (err) {
+    console.warn('[marketing-send] resume filter unreadable — sending the full list', err)
+    return recipients
+  }
+}
+
 export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
   const campaign = await getMarketingCampaign(opts.organizationId, opts.campaignId)
   if (!campaign) throw new Error('Campaign not found')
@@ -264,6 +314,17 @@ export async function sendCampaign(opts: SendOptions): Promise<SendResult> {
     )
     recipients = allowed
     suppressedCount += suppressed.length
+  }
+
+  // RESUME, don't re-send. sendCampaign is not atomic: it walks recipients one
+  // at a time, writing a 'sent' campaign_events row per success. If the process
+  // dies mid-run (deploy, OOM, timeout) the campaign is left claimed 'active'
+  // with half its audience mailed. The stuck-campaign requeue puts it back in
+  // the queue, and THIS filter is what makes that safe — everyone already
+  // recorded as sent for this campaign is dropped, so a re-run finishes the
+  // tail instead of mailing the first half twice.
+  if (!opts.test) {
+    recipients = await dropAlreadySentRecipients(campaign.id, recipients)
   }
 
   if (!recipients.length) {

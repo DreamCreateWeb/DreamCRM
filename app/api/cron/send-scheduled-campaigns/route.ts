@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { sendDueScheduledCampaigns } from '@/lib/services/marketing-scheduled'
+import { sendDueScheduledCampaigns, requeueStuckCampaigns } from '@/lib/services/marketing-scheduled'
 import { sendDueScheduledMessages, requeueStuckScheduledMessages } from '@/lib/services/scheduled-messages'
 
 export const runtime = 'nodejs'
@@ -31,7 +31,15 @@ async function run(request: Request) {
   }
   try {
     // Re-arm any rows stuck mid-send from a prior crashed run, then flush.
-    await requeueStuckScheduledMessages().catch(() => 0)
+    // Campaigns need this as much as messages: the claim flips a campaign
+    // 'active' BEFORE walking its recipients, so a crash mid-walk strands it
+    // there forever (the sweep only re-selects 'scheduled') with half its
+    // audience mailed and no error anywhere. The re-run resumes rather than
+    // re-mails — sendCampaign drops recipients already recorded as sent.
+    const [, requeuedCampaigns] = await Promise.all([
+      requeueStuckScheduledMessages().catch(() => 0),
+      requeueStuckCampaigns().catch(() => 0),
+    ])
     const [result, messages] = await Promise.all([
       sendDueScheduledCampaigns(),
       // Best-effort — a scheduled-message failure must not fail the whole cron
@@ -43,7 +51,7 @@ async function run(request: Request) {
         failed: 0,
       })),
     ])
-    return NextResponse.json({ ok: true, ...result, messages })
+    return NextResponse.json({ ok: true, ...result, requeuedCampaigns, messages })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'unknown' }, { status: 500 })
   }
