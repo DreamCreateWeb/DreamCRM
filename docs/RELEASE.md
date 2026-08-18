@@ -912,6 +912,12 @@ the R2 slice-4 fix, now proven in a real browser rather than argued from code.
 That is the shape worth repeating: an E2E spec earns its keep when it pins a
 behaviour a unit test structurally cannot reach.
 
+**The booking journey landed too** (`e2e/booking.spec.ts`): a genuine WRITE
+test that picks an open slot, submits, asserts the patient-facing confirmation,
+and leaves real `patient` + `appointment` rows behind — verified in the database
+afterwards. Plus the guard that submit stays disabled until a time is picked.
+E2E now stands at **18 specs, all green**.
+
 ### Deliverable 2 — the RDS restore drill · RUNBOOK WRITTEN, NOT YET RUN
 
 `docs/RESTORE-DRILL.md`. Part 1 lists the backup/restore drill as never

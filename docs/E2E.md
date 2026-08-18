@@ -82,14 +82,24 @@ Seed-free by design, so they run against a freshly migrated database:
   is operating but hasn't published was previously handing out portal links and
   QR codes that dead-ended on a page with no navigation.
 
+## The booking journey (`e2e/booking.spec.ts`)
+
+The product's top conversion path, and the one flow where a silent failure
+costs a practice a real patient. This is a genuine **write** test: it drives
+slot selection, fills the form, submits, and asserts the confirmation the
+patient sees — then leaves a real `patient` and `appointment` row behind. It
+exercises the server action, slot re-validation and the atomic claim, none of
+which happy-dom can reach.
+
+It also pins the guard that the submit button stays **disabled until a time is
+picked**, so a half-filled form can never post a booking with no slot.
+
 ## The next specs to write
 
 Each needs more fixture than the two clinics above (a patient, a session, an
 appointment):
 
-1. **Public booking, submitted** — pick a day/slot, post the form, land on the
-   confirmation screen. The highest-value conversion path in the product.
-2. **Portal** — magic-link sign-in → next visit → reschedule inside the notice
+1. **Portal** — magic-link sign-in → next visit → reschedule inside the notice
    window → cancel outside it.
 3. **Staff day** — confirm / complete / cancel from the appointments drawer.
 4. **Sign-here stack** — approve a proposal and see the artifact update.
