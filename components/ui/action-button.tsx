@@ -40,6 +40,7 @@ const SIZE_CLASSES = { sm: 'btn-sm', md: 'btn' } as const
 export function ActionButton({
   variant = 'secondary',
   size = 'md',
+  pending = false,
   href,
   target,
   rel,
@@ -50,6 +51,12 @@ export function ActionButton({
 }: {
   variant?: ActionButtonVariant
   size?: 'sm' | 'md'
+  /** Busy state: disables the button, announces aria-busy, and overlays a
+   *  small spinner while KEEPING the label (at opacity-0) so the button's
+   *  width never jumps mid-action. Prefer this over hand-rolled
+   *  `{pending ? 'Sending…' : …}` ternaries — the feedback belongs in the
+   *  primitive, and buttons whose authors forgot the ternary get it free. */
+  pending?: boolean
   href?: string
   /** Link-only: pass '_blank' for new-tab links (rel defaults safely). */
   target?: string
@@ -74,6 +81,26 @@ export function ActionButton({
       >
         {children}
       </Link>
+    )
+  }
+  if (pending) {
+    return (
+      <button
+        type="button"
+        {...rest}
+        disabled
+        aria-busy="true"
+        className={`relative ${classes}`}
+      >
+        {/* Label stays in the layout (invisible) so width doesn't jump. */}
+        <span className="opacity-0" aria-hidden>
+          {children}
+        </span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="btn-spinner" aria-hidden />
+          <span className="sr-only">Working…</span>
+        </span>
+      </button>
     )
   }
   return (

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { PendingVeil } from '@/components/ui/pending-veil'
 import Link from 'next/link'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { ActionButton } from '@/components/ui/action-button'
@@ -85,6 +86,8 @@ export default function ClinicThreadList({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
   const [showSnooze, setShowSnooze] = useState(false)
+  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
+  const [navPending, startNavTransition] = useTransition()
 
   const allSelected = rows.length > 0 && selected.size === rows.length
 
@@ -118,6 +121,8 @@ export default function ClinicThreadList({
 
   return (
     <>
+      {/* The click registered — results on the way (same veil as Patients). */}
+      {navPending && <PendingVeil />}
       {/* Select-all header — also the home for "N selected" while triaging. */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-2)] sticky top-0 z-[1]">
         <input
@@ -135,7 +140,7 @@ export default function ClinicThreadList({
       <ul className="py-1">
         {rows.map((t) => {
           const ch = channelMeta(t.lastMessageChannel)
-          const active = activeThreadId === t.id
+          const active = navPending && pendingThreadId ? pendingThreadId === t.id : activeThreadId === t.id
           const unread = t.unreadCount > 0
           const name = `${t.patientFirstName} ${t.patientLastName}`.trim()
           const tint = avatarTint(t.patientId || name)
@@ -163,6 +168,16 @@ export default function ClinicThreadList({
                 </label>
                 <Link
                   href={t.href}
+                  onClick={(e) => {
+                    // Plain left-click only — modified/middle clicks keep the
+                    // browser's own new-tab behavior via the href.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+                    e.preventDefault()
+                    setPendingThreadId(t.id)
+                    startNavTransition(() => {
+                      router.push(t.href)
+                    })
+                  }}
                   aria-current={active ? 'true' : undefined}
                   title={name}
                   className={`flex flex-1 min-w-0 items-start gap-3 px-2.5 py-2.5 mr-1 rounded-[var(--r-md)] transition-colors ${

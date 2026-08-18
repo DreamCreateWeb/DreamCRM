@@ -27,11 +27,15 @@ export function FlashToast({
   tone = 'ok',
   duration = 4000,
   onDone,
+  action,
 }: {
   message: string
   tone?: keyof typeof TONE_EDGE
   duration?: number
   onDone?: () => void
+  /** Optional inline action ("Undo") — clicking it runs the handler and
+   *  dismisses the toast. Keep the label to one word; a toast is not a menu. */
+  action?: { label: string; onClick: () => void }
 }) {
   useEffect(() => {
     if (!onDone) return
@@ -43,9 +47,21 @@ export function FlashToast({
     <div
       role="status"
       aria-live="polite"
-      className={`slide-up-fast fixed bottom-4 right-4 z-50 rounded-[var(--r-md)] border-l-4 bg-[color:var(--color-surface-2)] shadow-[var(--shadow-pop)] px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 ${TONE_EDGE[tone]}`}
+      className={`slide-up-fast fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-[var(--r-md)] border-l-4 bg-[color:var(--color-surface-2)] shadow-[var(--shadow-pop)] px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 ${TONE_EDGE[tone]}`}
     >
-      {message}
+      <span>{message}</span>
+      {action && (
+        <button
+          type="button"
+          onClick={() => {
+            action.onClick()
+            onDone?.()
+          }}
+          className="shrink-0 font-semibold text-teal-700 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 underline underline-offset-2"
+        >
+          {action.label}
+        </button>
+      )}
     </div>
   )
 }

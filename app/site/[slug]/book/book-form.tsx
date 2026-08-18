@@ -76,6 +76,9 @@ interface Props {
    *  server-side). When false, the form leads with a prominent "call us" card
    *  instead of an empty slot grid. */
   windowHasAvailability?: boolean
+  /** First day key in the window with an opening (server scan) — powers the
+   *  empty-day "See Thursday's openings →" jump. */
+  firstAvailableDayKey?: string | null
   /** Public-bookable visit types (resolved from the clinic's visit-type
    *  catalog, filtered to bookablePublic). The form always appends an
    *  "Other / not sure" fallback so patients can book even when their reason
@@ -325,6 +328,7 @@ export default function BookForm({
   clinicName,
   clinicPhone = null,
   windowHasAvailability = true,
+  firstAvailableDayKey = null,
   visitTypes,
 }: Props) {
   // Contrast-safe text fill for brand-colored eyebrows/links on the warm ground
@@ -604,12 +608,26 @@ export default function BookForm({
             {clinicPhone ? <> — or call us at {clinicPhone}</> : null}.
           </p>
         ) : !hasAnySlot ? (
-          <p
+          <div
             className="text-sm leading-relaxed rounded-xl px-4 py-6 text-center"
             style={{ backgroundColor: SURFACE, border: `1px dashed ${BORDER}`, color: INK_MUTED }}
           >
-            {emptySlotsCopy(slots, closedReason)}
-          </p>
+            <p>{emptySlotsCopy(slots, closedReason)}</p>
+            {/* The rescue: the server's window scan already knows the first
+                day with an opening — hand it over instead of leaving the
+                patient a 14-day fishing expedition (one tap + one fetch per
+                day is where this funnel dies). */}
+            {firstAvailableDayKey && firstAvailableDayKey !== selectedDate && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(firstAvailableDayKey)}
+                className="mt-3 inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold text-white transition active:scale-[0.98]"
+                style={{ backgroundColor: brand }}
+              >
+                See {fmtDayLabel(firstAvailableDayKey, timeZone)}’s openings →
+              </button>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {slots.map((s) => {

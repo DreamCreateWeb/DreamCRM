@@ -26,6 +26,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { PendingVeil } from '@/components/ui/pending-veil'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
 import {
   appointmentViewFiltersToQuery,
@@ -187,7 +188,7 @@ export default function AgendaView({
     EMPTY_CONFIRMED,
     (current, id) => new Set(current).add(id),
   )
-  const [_pending, startTransition] = useTransition()
+  const [navPending, startTransition] = useTransition()
   const [bulkPending, startBulk] = useTransition()
   const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'warn' | 'urgent' } | null>(null)
 
@@ -506,6 +507,9 @@ export default function AgendaView({
         </div>
       </BulkBar>
 
+      {/* Same feedback Patients gives: the click registered, results are
+          on their way (never a scrim; rows still snap). */}
+      {navPending && <PendingVeil />}
       {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
 
       {openDetail && (

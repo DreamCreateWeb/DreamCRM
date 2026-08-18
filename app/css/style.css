@@ -625,6 +625,24 @@
   }
 }
 
+/* Button busy spinner (ActionButton's `pending` prop): a small ring that
+   overlays the label while it stays in the layout at opacity-0, so width
+   never jumps mid-action. currentColor inherits each variant's ink.
+   Reduced-motion swaps the spin for a still, pulsing dot (see below). */
+.btn-spinner {
+  width: 1em;
+  height: 1em;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: v2-spin 0.7s linear infinite;
+}
+@keyframes v2-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Presenter panel: one quick fade+lift when a demo beat advances. Used via
    motion-safe: only; reduced-motion renders instantly. */
 @keyframes fadeSlideIn {
@@ -649,6 +667,11 @@
   }
   .breath {
     animation: none;
+  }
+  .btn-spinner {
+    animation: none;
+    border-top-color: currentColor;
+    opacity: 0.5;
   }
   .section-enter,
   .slide-up-fast,

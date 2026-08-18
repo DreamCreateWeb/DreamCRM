@@ -21,6 +21,7 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { PendingVeil } from '@/components/ui/pending-veil'
 import { TagChip } from '@/components/ui/tag-chip'
 import BulkMessageModal from './bulk-message-modal'
 import AddPatientModal from './add-patient-modal'
@@ -563,9 +564,7 @@ export default function PatientsList({
 
       {/* Loading overlay — a faint ink veil while a filter/sort navigation
           resolves (not a modal scrim). */}
-      {isPending && (
-        <div className="fixed inset-0 bg-[color:var(--color-ink-900)]/5 dark:bg-white/5 pointer-events-none z-20" />
-      )}
+      {isPending && <PendingVeil />}
 
       {bulkOpen && (
         <BulkMessageModal

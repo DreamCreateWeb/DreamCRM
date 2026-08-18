@@ -75,6 +75,13 @@ export default async function PortalHome() {
   // email surveys. Best-effort: a hiccup just means no card this load.
   const survey = await getOrCreatePortalSurvey(ctx.organizationId, ctx.patientId).catch(() => null)
 
+  // Balance task strip — paying is one of the three things patients actually
+  // come here to do, and the verbs grid shows no number and no urgency. The
+  // row states the fact + the easy path (anti-shame: never "overdue").
+  // Reads the balance off `me` (a full patient row) — zero extra queries.
+  const balanceDueCents = settings.features.billing ? (me?.pmsBalanceCents ?? 0) : 0
+  const showBalanceTask = balanceDueCents > 0
+
   const verbs: Array<{ href: string; label: string; sub: string; icon: PortalIconName; show: boolean }> = [
     { href: '/patient/book', label: bookLabel, sub: bookSub, icon: 'calendar', show: settings.features.booking },
     { href: '/patient/messages', label: 'Message us', sub: 'Reach the front desk', icon: 'chat', show: settings.features.messages },
@@ -88,6 +95,23 @@ export default async function PortalHome() {
       <p className="mt-1.5 text-[0.95rem]" style={{ color: PORTAL_MUTED }}>
         {settings.copy.welcomeMessage ?? `Welcome to your ${clinic?.displayName ?? ctx.organizationName} portal.`}
       </p>
+
+      {showBalanceTask && (
+        <Link
+          href="/patient/invoices"
+          className="mt-5 flex items-center gap-3 rounded-2xl px-4 py-3.5"
+          style={{ backgroundColor: PORTAL_WARN_BG, border: '1px solid #EBDCB8' }}
+        >
+          <PortalIcon name="card" className="h-5 w-5 shrink-0" />
+          <span className="flex-1 text-[0.9rem] font-medium" style={{ color: PORTAL_WARN_INK }}>
+            Your balance is {`$${(balanceDueCents / 100).toFixed(2)}`} — you can take care of it
+            online in about a minute.
+          </span>
+          <span className="text-[0.85rem] font-bold" style={{ color: PORTAL_WARN_INK }}>
+            →
+          </span>
+        </Link>
+      )}
 
       {showFormTask && pendingDefaultForm && (
         <Link

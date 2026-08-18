@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useState, useTransition } from 'react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { followupDueState, formatDueLabel, type FollowupDueState, type PatientFollowupView } from '@/lib/types/followups'
-import { completeFollowupAction, updateFollowupAction } from '../patients/actions'
+import { completeFollowupAction, reopenFollowupAction, updateFollowupAction } from '../patients/actions'
+import { FlashToast } from '@/components/ui/flash-toast'
 
 const DUE_TONE: Record<FollowupDueState, string> = {
   overdue: 'text-rose-600 dark:text-rose-400',
@@ -27,14 +28,45 @@ export default function MyDayFollowups({
 }) {
   const [items, setItems] = useState<PatientFollowupView[]>(initial)
   const [, startTransition] = useTransition()
+  const [toast, setToast] = useState<{
+    message: string
+    tone: 'ok' | 'urgent'
+    action?: { label: string; onClick: () => void }
+  } | null>(null)
 
   function complete(f: PatientFollowupView) {
     setItems((cur) => cur.filter((x) => x.id !== f.id))
     startTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
-      if (!res.ok) setItems(initial)
+      if (!res.ok) {
+        // Honest failure — the silent full-list reset looked like a glitch.
+        setItems((cur) => (cur.some((x) => x.id === f.id) ? cur : [f, ...cur]))
+        setToast({ message: "Couldn't mark that done — please try again.", tone: 'urgent' })
+        return
+      }
       // Drop the sidebar "Follow-ups due" badge immediately on a successful tick.
-      else if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+      // A mis-tap is one word away from undone (reopenFollowupAction existed;
+      // nothing offered it).
+      setToast({
+        message: 'Done — nice.',
+        tone: 'ok',
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            setItems((cur) => (cur.some((x) => x.id === f.id) ? cur : [f, ...cur]))
+            startTransition(async () => {
+              const undo = await reopenFollowupAction(f.id, f.patientId)
+              if (!undo.ok) {
+                setItems((cur) => cur.filter((x) => x.id !== f.id))
+                setToast({ message: "Couldn't undo that one — it stays done.", tone: 'urgent' })
+              } else if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
+              }
+            })
+          },
+        },
+      })
     })
   }
   function claim(f: PatientFollowupView) {
@@ -45,17 +77,31 @@ export default function MyDayFollowups({
     })
   }
 
+  const toastNode = toast ? (
+    <FlashToast
+      message={toast.message}
+      tone={toast.tone}
+      action={toast.action}
+      duration={6000}
+      onDone={() => setToast(null)}
+    />
+  ) : null
+
   if (items.length === 0) {
     return (
-      <EmptyState
-        icon="✅"
-        title="Nothing on your plate"
-        body="Follow-ups assigned to you (or left unclaimed) show up here. Add one from any patient."
-      />
+      <>
+        <EmptyState
+          icon="✅"
+          title="Nothing on your plate"
+          body="Follow-ups assigned to you (or left unclaimed) show up here. Add one from any patient."
+        />
+        {toastNode}
+      </>
     )
   }
 
   return (
+    <>
     <ul className="divide-y divide-[color:var(--color-hairline)]">
       {items.map((f) => {
         const due = followupDueState(f.dueDate)
@@ -90,5 +136,7 @@ export default function MyDayFollowups({
         )
       })}
     </ul>
+    {toastNode}
+    </>
   )
 }

@@ -1042,13 +1042,35 @@ status pill), so an "Unconfirmed" pill is one click from its remedy · My Day's
 unread badge joins Messages/sidebar at warn-amber (unread is "needs action",
 not "problem now").
 
-**Scout proposals deliberately not yet taken** (logged for the next polish
-batch): ActionButton `pending` prop (primitive spinner) · instant
-thread-switch feedback in Messages · the follow-up tick check+collapse+Undo ·
-shared SearchInput/PendingVeil primitives · the "?" shortcut sheet + G-M/G-D
-chords · balance-due task strip on the portal home · c/ add-to-calendar ·
-"jump to the first open day" on public booking · visible labels on the public
-booking inputs · empty states that hand over the action they name.
+**Batch 2 (same day):** `ActionButton` gains a `pending` prop — disables,
+announces `aria-busy`, and overlays a spinner while the label keeps its width
+(no more hand-rolled "Sending…" ternaries; buttons whose authors forgot one
+get feedback free); reduced-motion stills it to a dot · `PendingVeil` extracted
+as the one canonical filter-navigation veil (Patients' recipe), adopted on the
+agenda (whose `useTransition` pending flag was being DISCARDED) and the
+Messages thread list · **instant thread-switch feedback in Messages** — the
+highest-frequency navigation in the app gave zero response until the server
+render resolved; the clicked row now takes the active ring immediately
+(plain left-click intercepted; middle/cmd-click keep native behavior) ·
+**the follow-up tick earns its beat** — "Done — nice. Undo" (FlashToast grew
+an inline-action slot; `reopenFollowupAction` existed but nothing offered it),
+and a failed tick now says so instead of silently resetting the whole list ·
+**the portal home gets a balance task strip** — "Your balance is $142 — you
+can take care of it online in about a minute →" (reads the already-loaded
+patient row, zero extra queries; anti-shame: states the fact + the easy path,
+never "overdue") · **the public booking empty day gets a rescue** — the
+server's window scan now returns WHICH day first has an opening
+(`firstBookableDayInWindow`), and the "try another day" dead-end becomes a
+one-tap "See Thursday's openings →" (this was the funnel's most fragile
+moment: one tap + one fetch per day, 14 times).
+
+**Scout proposals still open for batch 3:** the shared `SearchInput`
+primitive (Messages' icon+clear recipe on agenda/patients) · the "?" shortcut
+sheet + `G-M`/`G-D` chords · c/ confirm-page add-to-calendar (prop plumb) ·
+visible labels on the public booking inputs (placeholder demotion) · empty
+states that hand over the action they name (recall campaign / share booking
+link) · the drawer's pending-prop adoption sweep (ActionButton `pending` now
+exists; old ternaries migrate opportunistically).
 
 ### Test-hygiene note (worth keeping)
 

@@ -19,7 +19,7 @@ import {
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
 import { readableInk } from '@/lib/clinic-site-theme'
-import { hasBookableSlotsInWindow } from '@/lib/services/booking'
+import { firstBookableDayInWindow } from '@/lib/services/booking'
 import {
   canTakeBookingDeposits,
   finalizeBookingDepositFromSession,
@@ -164,12 +164,15 @@ export default async function BookPage({ params, searchParams }: Props) {
   // When self-scheduling is OFF the page shows a request form (no slot grid), so
   // skip the 14-day availability scan entirely.
   const selfBooking = isSelfBookingEnabled(data.profile)
-  const [publishedPosts, membershipPlans, openJobs, windowHasAvailability] = await Promise.all([
+  const [publishedPosts, membershipPlans, openJobs, firstAvailableDayKey] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
     getOpenJobs(data.orgId),
-    selfBooking ? hasBookableSlotsInWindow(data.orgId, todayKey, 14) : Promise.resolve(true),
+    // The scan we already ran — but keeping WHICH day it found lets the form
+    // turn an empty day into a one-tap jump instead of a fishing expedition.
+    selfBooking ? firstBookableDayInWindow(data.orgId, todayKey, 14) : Promise.resolve(null),
   ])
+  const windowHasAvailability = selfBooking ? firstAvailableDayKey !== null : true
   // Deposits only surface when the clinic can actually charge (Connect active)
   // — otherwise the widget shows no deposit copy and booking stays free-flow.
   const anyDepositConfigured = publicVisitTypes(data.profile.visitTypeSettings).some(
@@ -384,6 +387,7 @@ export default async function BookPage({ params, searchParams }: Props) {
                           clinicName={name}
                           clinicPhone={data.profile.phone ?? null}
                           windowHasAvailability={windowHasAvailability}
+                          firstAvailableDayKey={firstAvailableDayKey}
                           visitTypes={publicTypes}
                         />
                       ) : (

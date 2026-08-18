@@ -265,7 +265,22 @@ export async function hasBookableSlotsInWindow(
   days = 14,
   durationMinutes?: number,
 ): Promise<boolean> {
-  if (!DATE_KEY_RE.test(fromDateKey)) return false
+  return (await firstBookableDayInWindow(organizationId, fromDateKey, days, durationMinutes)) !== null
+}
+
+/**
+ * The first day key in the window with an open slot, or null. The same scan
+ * hasBookableSlotsInWindow always ran — but keeping WHICH day it found lets
+ * the booking form turn its dead-end empty state ("try another day") into a
+ * one-tap "See Thursday's openings →" instead of a 14-day fishing expedition.
+ */
+export async function firstBookableDayInWindow(
+  organizationId: string,
+  fromDateKey: string,
+  days = 14,
+  durationMinutes?: number,
+): Promise<string | null> {
+  if (!DATE_KEY_RE.test(fromDateKey)) return null
   const [y, m, d] = fromDateKey.split('-').map((n) => parseInt(n, 10))
   // Step the calendar day via a UTC anchor (date-only math is zone-agnostic —
   // we only ever read Y-M-D back out, never an instant).
@@ -274,9 +289,9 @@ export async function hasBookableSlotsInWindow(
     const day = new Date(anchor + i * 86_400_000)
     const key = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, '0')}-${String(day.getUTCDate()).padStart(2, '0')}`
     const { slots } = await getSlotsForDay(organizationId, key, undefined, durationMinutes)
-    if (slots.some((s) => s.available)) return true
+    if (slots.some((s) => s.available)) return key
   }
-  return false
+  return null
 }
 
 /**
