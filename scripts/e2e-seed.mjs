@@ -18,14 +18,17 @@ if (!url) {
   process.exit(1)
 }
 
+// Three-letter keys — the shape lib/clinic-timezone.ts DAY_KEYS expects.
+// (Full day names silently read as "closed", which is exactly the kind of
+// fixture bug an E2E suite is supposed to surface loudly rather than hide.)
 const HOURS = {
-  monday: { open: '09:00', close: '17:00' },
-  tuesday: { open: '09:00', close: '17:00' },
-  wednesday: { open: '09:00', close: '17:00' },
-  thursday: { open: '09:00', close: '17:00' },
-  friday: { open: '09:00', close: '17:00' },
-  saturday: { closed: true },
-  sunday: { closed: true },
+  mon: { open: '09:00', close: '17:00' },
+  tue: { open: '09:00', close: '17:00' },
+  wed: { open: '09:00', close: '17:00' },
+  thu: { open: '09:00', close: '17:00' },
+  fri: { open: '09:00', close: '17:00' },
+  sat: { closed: true },
+  sun: { closed: true },
 }
 
 const CLINICS = [

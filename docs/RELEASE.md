@@ -912,6 +912,23 @@ the R2 slice-4 fix, now proven in a real browser rather than argued from code.
 That is the shape worth repeating: an E2E spec earns its keep when it pins a
 behaviour a unit test structurally cannot reach.
 
+### Deliverable 2 — the RDS restore drill · RUNBOOK WRITTEN, NOT YET RUN
+
+`docs/RESTORE-DRILL.md`. Part 1 lists the backup/restore drill as never
+exercised — "a backup nobody has restored is a hope, not a backup."
+
+The procedure is written end to end (pick snapshot → restore to a NEW scratch
+instance → verify row counts + the drizzle migration ledger → **boot the app
+against it** → time it → delete the instance). It never touches
+`dreamcrm-db`. The point is not "does a snapshot exist" but three things only a
+real restore answers: can it become a running database, does the app boot
+against it, and what is the true RTO.
+
+**It has NOT been executed** — it needs AWS credentials for account
+`952078552817`, deliberately unavailable to the development session. Running it
+is an owner action; a result table at the bottom of the runbook is waiting for
+the RTO/RPO numbers. · OPEN (owner).
+
 **Scars worth keeping:**
 - `@playwright/test` will not always match the pre-installed browser build, so
   the config points `executablePath` at the on-disk Chromium when present and
