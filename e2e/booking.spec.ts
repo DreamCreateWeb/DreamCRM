@@ -16,22 +16,18 @@ test.describe('public booking', () => {
   test('a patient can pick an open time and book it end to end', async ({ page }) => {
     await page.goto(BOOK)
 
-    // Walk forward through the day strip until a day offers an open slot.
-    // The seeded clinic is closed at weekends, so "today" is not always
-    // bookable — the test must behave like a patient, not assume a calendar.
+    // "Today" is not always bookable — evenings and weekends the day is
+    // honestly empty and the page offers the rescue button ("See Tuesday's
+    // openings →", the funnel fix that jumps to the first day WITH slots).
+    // Behave like a patient: take a slot if one is showing, otherwise take
+    // the rescue. This also gives the rescue feature real browser coverage.
     const slot = page.getByRole('button', { name: /— available$/ }).first()
-    let found = false
-    for (let attempt = 0; attempt < 10; attempt++) {
-      if (await slot.count()) {
-        found = true
-        break
-      }
-      const next = page.getByRole('button', { name: 'More days' })
-      if (!(await next.count())) break
-      await next.click()
-      await page.waitForTimeout(600)
-    }
-    expect(found, 'the seeded clinic should offer at least one open slot').toBe(true)
+    const rescue = page.getByRole('button', { name: /openings →/ }).first()
+    await expect(slot.or(rescue).first()).toBeVisible({ timeout: 20_000 })
+    if (!(await slot.count())) await rescue.click()
+    await expect(slot, 'the seeded clinic should offer at least one open slot').toBeVisible({
+      timeout: 20_000,
+    })
 
     await slot.click()
     await expect(slot).toHaveAttribute('aria-pressed', 'true')
