@@ -48,6 +48,9 @@ export CRON_SECRET="${CRON_SECRET:-e2e-cron}"
 echo "--- migrations (fresh database: also a deploy-path rehearsal) ---"
 node scripts/migrate.mjs
 
+echo "--- fixture ---"
+node scripts/e2e-seed.mjs
+
 if [[ "$SKIP_BUILD" == "0" ]]; then
   echo "--- build ---"
   pnpm build

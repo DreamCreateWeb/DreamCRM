@@ -22,8 +22,15 @@ exit, including failure):
    rehearsal of the deploy path, which auto-applies migrations on boot. A
    migration that cannot build a database from zero fails here instead of
    wedging a deploy. (This caught nothing on 0149/0150 — both verified clean.)
-3. **A production build + `next start`** on `:3100`, then a health poll.
-4. **Playwright** against that server.
+3. **The fixture** (`scripts/e2e-seed.mjs`) — two clinics, in SQL so it cannot
+   drift with service-layer refactors and stays readable as a description of
+   the world under test:
+   - `e2e-dental` — published (`site_live_at` set): the normal public journey.
+   - `e2e-prelive` — operating but NOT published: the go-live lever under test,
+     including the portal door it must *not* lock.
+   Idempotent, so re-running is safe.
+4. **A production build + `next start`** on `:3100`, then a health poll.
+5. **Playwright** against that server.
 
 Nothing here touches the real database, Stripe, Resend, or any vendor.
 
@@ -62,13 +69,26 @@ Seed-free by design, so they run against a freshly migrated database:
   hears the failure instead of the form appearing to do nothing.
 - **Unknown clinic slug** — 404s rather than crashing.
 
-## The next specs to write (seeded journeys)
+## Seeded specs (`e2e/clinic-site.spec.ts`)
 
-These need a seeded clinic, so they want a fixture that creates an org +
-public site + patient before the run:
+- **A published clinic** — the home page serves the clinic's own branding with
+  no error shell and no pre-live gate; the booking page renders; and the
+  booking fields are reachable **by name** (`Visit type`, `First name`,
+  `Last name`, `Phone number`), pinning the R2 accessibility fix that replaced
+  placeholder-only inputs.
+- **The go-live lever** — an unpublished clinic shows coming-soon on its
+  marketing pages, **but its portal door still opens** with a working sign-in
+  form. That is the R2 slice-4 fix verified in a real browser: a practice that
+  is operating but hasn't published was previously handing out portal links and
+  QR codes that dead-ended on a page with no navigation.
 
-1. **Public booking** — pick a day/slot, submit, land on the confirmation.
-   The highest-value conversion path in the product.
+## The next specs to write
+
+Each needs more fixture than the two clinics above (a patient, a session, an
+appointment):
+
+1. **Public booking, submitted** — pick a day/slot, post the form, land on the
+   confirmation screen. The highest-value conversion path in the product.
 2. **Portal** — magic-link sign-in → next visit → reschedule inside the notice
    window → cancel outside it.
 3. **Staff day** — confirm / complete / cancel from the appointments drawer.

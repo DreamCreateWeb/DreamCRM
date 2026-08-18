@@ -903,6 +903,15 @@ verified 0149 (`patient_org_first_seen_idx`) and 0150
 (`referral_payout.idempotency_key` + its unique constraint) land cleanly from
 zero — exactly the failure mode that would otherwise wedge a deploy.
 
+**Seeded journeys added the same day** (`scripts/e2e-seed.mjs` +
+`e2e/clinic-site.spec.ts`): two clinics in SQL — one published, one operating
+but unpublished. They verify the published site serves its own branding and a
+booking page whose fields are reachable BY NAME (the R2 a11y fix), and that the
+go-live lever gates marketing pages while **leaving the portal door open** —
+the R2 slice-4 fix, now proven in a real browser rather than argued from code.
+That is the shape worth repeating: an E2E spec earns its keep when it pins a
+behaviour a unit test structurally cannot reach.
+
 **Scars worth keeping:**
 - `@playwright/test` will not always match the pre-installed browser build, so
   the config points `executablePath` at the on-disk Chromium when present and
