@@ -285,7 +285,7 @@ export default function ClinicThreadList({
         <ActionButton
           size="sm"
           variant="secondary"
-          disabled={pending}
+          pending={pending}
           onClick={() => runBulk((ids) => bulkMarkReadThreadsAction(ids))}
         >
           Mark read
@@ -294,7 +294,7 @@ export default function ClinicThreadList({
           <ActionButton
             size="sm"
             variant="secondary"
-            disabled={pending}
+            pending={pending}
             aria-expanded={showSnooze}
             onClick={() => setShowSnooze((s) => !s)}
           >
@@ -318,7 +318,7 @@ export default function ClinicThreadList({
         <ActionButton
           size="sm"
           variant="primary"
-          disabled={pending}
+          pending={pending}
           onClick={() => runBulk((ids) => bulkArchiveThreadsAction(ids))}
         >
           Archive

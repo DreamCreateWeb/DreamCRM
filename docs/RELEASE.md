@@ -1096,6 +1096,20 @@ the appointment drawer swapped `disabled={pending}` → `pending={pending}`
 (spinner + `aria-busy` free from batch 2's prop; the one raw undo `<button>`
 stays plain-disabled). Subsets green (89 files / 712 tests) + full gate.
 
+**Batch 5 (same day):** the ActionButton `pending` adoption sweep finished
+app-wide — a brace-aware codemod swapped `disabled={<flag>}` →
+`pending={<flag>}` **only inside `<ActionButton>` tags** and only for simple
+boolean flags (pending/saving/deleting/…; compound `disabled={pending || x}`
+expressions deliberately untouched): **185 swaps across 78 files** — leads
+drawer, patients modals, growth (audiences/campaigns/reviews/social),
+settings (team/locations/billing/security/…), integrations, shop/payments/
+partners, website (blog/careers/domain), prospecting, onboarding, signup.
+Every one of those buttons now spins + announces `aria-busy` while its
+action runs instead of merely dimming. Scouted and *rejected* for this
+batch: a BrandButton pending twin for the portal — patient-facing forms
+already swap their labels honestly ("Booking…", "Opening secure
+checkout…"), so the prop would add machinery without adding feedback.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

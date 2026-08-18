@@ -104,7 +104,7 @@ export default function BulkMessageModal({
               )}
             </div>
             <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
                 Cancel
               </ActionButton>
               <ActionButton

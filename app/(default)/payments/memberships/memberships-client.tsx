@@ -174,7 +174,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                     <ActionButton
                       variant="secondary"
                       size="sm"
-                      disabled={isPending}
+                      pending={isPending}
                       onClick={() => run(() => setPlanStatusAction(p.id, 'archived'), `${p.name} unpublished.`)}
                     >
                       Unpublish
@@ -183,7 +183,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                     <ActionButton
                       variant="secondary"
                       size="sm"
-                      disabled={isPending}
+                      pending={isPending}
                       onClick={() => run(() => setPlanStatusAction(p.id, 'active'), `${p.name} is live.`)}
                     >
                       Publish
@@ -192,7 +192,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                   <ActionButton
                     variant="danger"
                     size="sm"
-                    disabled={isPending}
+                    pending={isPending}
                     onClick={async () => {
                       if (
                         await confirm({

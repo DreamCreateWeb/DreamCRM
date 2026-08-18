@@ -217,11 +217,11 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                     setDraft(row.replyComment ?? '')
                     setEditing(true)
                   }}
-                  disabled={pending}
+                  pending={pending}
                 >
                   Edit reply
                 </ActionButton>
-                <ActionButton variant="danger" size="sm" onClick={deleteReply} disabled={pending}>
+                <ActionButton variant="danger" size="sm" onClick={deleteReply} pending={pending}>
                   {pending ? 'Working…' : 'Delete reply'}
                 </ActionButton>
               </div>
@@ -249,7 +249,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                     setEditing(false)
                     setError(null)
                   }}
-                  disabled={pending}
+                  pending={pending}
                 >
                   Cancel
                 </ActionButton>
@@ -257,7 +257,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={() => setEditing(true)} pending={pending}>
                 Reply
               </ActionButton>
               <ActionButton variant="ghost" size="sm" onClick={aiDraft} disabled={pending || drafting}>
@@ -276,14 +276,14 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
           ) : row.hiddenFromSite ? (
             <>
               <StatusPill tone="neutral" label="Hidden from website" title="You hid this review from your public site" />
-              <ActionButton variant="secondary" size="sm" onClick={() => toggleHidden(false)} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={() => toggleHidden(false)} pending={pending}>
                 {pending ? 'Working…' : 'Show on website'}
               </ActionButton>
             </>
           ) : (
             <>
               <StatusPill tone="ok" label="Featured on website ✓" title="Auto-featured on your public site" />
-              <ActionButton variant="ghost" size="sm" onClick={() => toggleHidden(true)} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => toggleHidden(true)} pending={pending}>
                 {pending ? 'Working…' : 'Hide from website'}
               </ActionButton>
             </>

@@ -105,7 +105,7 @@ export default function PartnerPayout({
             You started setting up payouts but haven’t finished. Complete a few details with Stripe
             and you’ll be ready to withdraw.
           </p>
-          <ActionButton variant="primary" breath onClick={connect} disabled={pending}>
+          <ActionButton variant="primary" breath onClick={connect} pending={pending}>
             {pending ? 'Opening…' : 'Finish payout setup'}
           </ActionButton>
         </>
@@ -115,7 +115,7 @@ export default function PartnerPayout({
             Connect a bank account or debit card with Stripe to get paid. We never see or store your
             banking details — Stripe handles it securely.
           </p>
-          <ActionButton variant="primary" breath onClick={connect} disabled={pending}>
+          <ActionButton variant="primary" breath onClick={connect} pending={pending}>
             {pending ? 'Opening…' : 'Set up payouts'}
           </ActionButton>
         </>

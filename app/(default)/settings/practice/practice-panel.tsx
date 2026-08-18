@@ -563,7 +563,7 @@ function VisitTypesSection({
           )
         })}
       </ul>
-      <ActionButton variant="secondary" size="sm" onClick={add} disabled={pending}>+ Add visit type</ActionButton>
+      <ActionButton variant="secondary" size="sm" onClick={add} pending={pending}>+ Add visit type</ActionButton>
       {anyDeposit && !depositsAvailable && (
         <div className="mt-3 flex items-start gap-2 rounded-[var(--r-sm)] border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           <StatusPill tone="warn" label="Stripe needed" />

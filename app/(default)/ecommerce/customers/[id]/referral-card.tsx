@@ -187,13 +187,13 @@ export default function ReferralCard({
           {error && <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>}
           <div className="flex items-center justify-between">
             {current ? (
-              <ActionButton variant="ghost" size="sm" onClick={clear} disabled={pending}>Remove</ActionButton>
+              <ActionButton variant="ghost" size="sm" onClick={clear} pending={pending}>Remove</ActionButton>
             ) : (
               <span />
             )}
             <div className="flex gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={() => { setEditing(false); setError(null) }} disabled={pending}>Cancel</ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={save} disabled={pending}>Save</ActionButton>
+              <ActionButton variant="secondary" size="sm" onClick={() => { setEditing(false); setError(null) }} pending={pending}>Cancel</ActionButton>
+              <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>Save</ActionButton>
             </div>
           </div>
         </div>

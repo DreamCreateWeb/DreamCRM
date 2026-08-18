@@ -124,7 +124,7 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                   description="Every device currently signed in to your account. If any look unfamiliar, sign them out."
                   action={
                     otherCount > 0 ? (
-                      <ActionButton variant="danger" size="sm" onClick={handleRevokeOthers} disabled={pending}>
+                      <ActionButton variant="danger" size="sm" onClick={handleRevokeOthers} pending={pending}>
                         Sign out all other devices
                       </ActionButton>
                     ) : undefined
@@ -158,7 +158,7 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRevoke(s.id)}
-                            disabled={pending}
+                            pending={pending}
                             className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
                           >
                             Sign out

@@ -41,7 +41,7 @@ export default function DrawerActions({
           <ActionButton
             size="sm"
             variant="primary"
-            disabled={pending}
+            pending={pending}
             onClick={() =>
               startTransition(async () => {
                 setError(null)
@@ -62,7 +62,7 @@ export default function DrawerActions({
           <ActionButton
             size="sm"
             variant="secondary"
-            disabled={pending}
+            pending={pending}
             onClick={() => startTransition(() => stopEnrollmentAction(prospectId))}
           >
             ⏹ Stop sequence

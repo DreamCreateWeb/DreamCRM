@@ -127,7 +127,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
         </div>
       }
       actions={
-        <ActionButton variant="danger" size="sm" onClick={archive} disabled={pending}>
+        <ActionButton variant="danger" size="sm" onClick={archive} pending={pending}>
           Archive
         </ActionButton>
       }
@@ -141,11 +141,11 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
                 setDraft(lead)
                 setDirty(false)
               }}
-              disabled={pending}
+              pending={pending}
             >
               Revert
             </ActionButton>
-            <ActionButton variant="primary" size="sm" onClick={save} disabled={pending}>
+            <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
               {pending ? 'Saving…' : 'Save'}
             </ActionButton>
           </div>
@@ -255,7 +255,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
                 : 'This contact is included in campaign sends targeted at their stage.'}
             </p>
           </div>
-          <ActionButton variant="secondary" size="sm" onClick={toggleOptedOut} disabled={pending} className="shrink-0">
+          <ActionButton variant="secondary" size="sm" onClick={toggleOptedOut} pending={pending} className="shrink-0">
             {draft.optedOut ? 'Re-subscribe' : 'Opt out'}
           </ActionButton>
         </div>

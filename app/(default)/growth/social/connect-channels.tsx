@@ -314,7 +314,7 @@ function AtCapAction({ handlers }: { handlers: CardHandlers }) {
   const { addonAvailable, addonActive, addonConfigured, addonPriceDollars, pending, onBuyAddon } = handlers
   if (addonAvailable && !addonActive && addonConfigured && addonPriceDollars != null) {
     return (
-      <ActionButton variant="ghost" size="sm" onClick={onBuyAddon} disabled={pending} className="mt-1">
+      <ActionButton variant="ghost" size="sm" onClick={onBuyAddon} pending={pending} className="mt-1">
         {pending ? 'Working…' : `Add a slot — $${addonPriceDollars}/mo`}
       </ActionButton>
     )

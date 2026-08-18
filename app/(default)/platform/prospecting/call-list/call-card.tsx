@@ -219,7 +219,7 @@ function BookingLink({ prospectId }: { prospectId: string }) {
   }
   return (
     <>
-      <ActionButton size="sm" variant="secondary" disabled={pending} onClick={fetchLink}>
+      <ActionButton size="sm" variant="secondary" pending={pending} onClick={fetchLink}>
         📅 Booking link
       </ActionButton>
       {msg && <span className="text-xs text-amber-600 dark:text-amber-400">{msg}</span>}
@@ -315,7 +315,7 @@ export default function CallCard({ row }: { row: CallListRow }) {
             key={o.value}
             size="sm"
             variant={o.value === 'demo_booked' ? 'primary' : 'secondary'}
-            disabled={pending}
+            pending={pending}
             onClick={() => log(o.value)}
           >
             {o.label}
@@ -324,7 +324,7 @@ export default function CallCard({ row }: { row: CallListRow }) {
         <ActionButton
           size="sm"
           variant={losing ? 'ghost' : 'secondary'}
-          disabled={pending}
+          pending={pending}
           onClick={() => setLosing((v) => !v)}
         >
           {losing ? 'Cancel' : 'Not interested'}

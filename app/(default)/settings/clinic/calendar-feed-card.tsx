@@ -114,7 +114,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
               </ActionButton>
             )}
             {canManage && (
-              <ActionButton variant="ghost" size="sm" onClick={generate} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={generate} pending={pending}>
                 {pending ? 'Working…' : 'Regenerate link'}
               </ActionButton>
             )}
@@ -123,7 +123,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
                 variant="ghost"
                 size="sm"
                 onClick={disable}
-                disabled={pending}
+                pending={pending}
                 className="text-rose-600 hover:text-rose-700 dark:text-rose-400"
               >
                 Turn off
@@ -138,7 +138,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
         </div>
       ) : canManage ? (
         <div className="mt-3">
-          <ActionButton variant="primary" size="sm" onClick={generate} disabled={pending}>
+          <ActionButton variant="primary" size="sm" onClick={generate} pending={pending}>
             {pending ? 'Generating…' : 'Generate calendar link'}
           </ActionButton>
         </div>

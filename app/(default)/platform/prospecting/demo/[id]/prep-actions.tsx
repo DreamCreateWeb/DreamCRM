@@ -14,7 +14,7 @@ export default function PrepActions({ prospectId }: { prospectId: string }) {
       <ActionButton
         variant="primary"
         breath
-        disabled={pending}
+        pending={pending}
         onClick={() =>
           startTransition(async () => {
             // Pre-open the script window INSIDE the click gesture (popup
@@ -30,7 +30,7 @@ export default function PrepActions({ prospectId }: { prospectId: string }) {
       </ActionButton>
       <ActionButton
         variant="secondary"
-        disabled={pending}
+        pending={pending}
         title="Recrawl their site + refresh Google data + rescore"
         onClick={() =>
           startTransition(async () => {

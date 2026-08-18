@@ -142,8 +142,8 @@ export default function ReferredClinicsTable({
                   <div className="flex items-center justify-end gap-2">
                     {editing ? (
                       <>
-                        <ActionButton variant="ghost" size="sm" onClick={() => setEditId(null)} disabled={pending}>Cancel</ActionButton>
-                        <ActionButton variant="primary" size="sm" onClick={() => save(c)} disabled={pending}>Save</ActionButton>
+                        <ActionButton variant="ghost" size="sm" onClick={() => setEditId(null)} pending={pending}>Cancel</ActionButton>
+                        <ActionButton variant="primary" size="sm" onClick={() => save(c)} pending={pending}>Save</ActionButton>
                       </>
                     ) : (
                       <ActionButton variant="secondary" size="sm" onClick={() => startEdit(c)}>Edit rate</ActionButton>

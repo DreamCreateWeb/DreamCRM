@@ -314,7 +314,7 @@ function ProjectCard({ project }: { project: PipelineProject }) {
           variant="ghost"
           size="sm"
           onClick={handleDelete}
-          disabled={pending}
+          pending={pending}
           aria-label={`Delete ${project.title}`}
           className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 px-1"
           title="Delete"

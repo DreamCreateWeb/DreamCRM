@@ -43,7 +43,7 @@ export function SyncNowButton() {
 
   return (
     <>
-      <ActionButton variant="primary" size="sm" onClick={runSync} disabled={pending}>
+      <ActionButton variant="primary" size="sm" onClick={runSync} pending={pending}>
         <RefreshIcon spinning={pending} />
         <span className="ml-1.5">{pending ? 'Syncing…' : 'Sync now'}</span>
       </ActionButton>
@@ -109,17 +109,17 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
           variant="secondary"
           size="sm"
           onClick={toggleDirection}
-          disabled={pending}
+          pending={pending}
           title="Toggle whether DreamCRM also pushes its bookings into the PMS"
         >
           {syncDirection === 'two_way' ? 'Two-way sync' : 'Import only'}
         </ActionButton>
 
-        <ActionButton variant="secondary" size="sm" onClick={toggleAuto} disabled={pending}>
+        <ActionButton variant="secondary" size="sm" onClick={toggleAuto} pending={pending}>
           Auto-sync: {autoSyncEnabled ? 'On' : 'Off'}
         </ActionButton>
 
-        <ActionButton variant="danger" size="sm" onClick={disconnect} disabled={pending} className="ml-auto">
+        <ActionButton variant="danger" size="sm" onClick={disconnect} pending={pending} className="ml-auto">
           Disconnect
         </ActionButton>
       </div>

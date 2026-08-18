@@ -100,7 +100,7 @@ export default function EligibleList({ rows }: Props) {
                   variant="primary"
                   size="sm"
                   onClick={() => handleSend(r)}
-                  disabled={pending}
+                  pending={pending}
                   className="shrink-0"
                 >
                   {pending ? 'Sending…' : 'Send request'}

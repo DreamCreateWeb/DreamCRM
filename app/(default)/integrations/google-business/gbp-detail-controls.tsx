@@ -70,10 +70,10 @@ export default function GbpDetailControls({
       <div className="flex flex-wrap items-center gap-2">
         {connected ? (
           <>
-            <ActionButton variant="secondary" size="sm" onClick={refresh} disabled={pending}>
+            <ActionButton variant="secondary" size="sm" onClick={refresh} pending={pending}>
               {pending ? 'Refreshing…' : 'Refresh from Google'}
             </ActionButton>
-            <ActionButton variant="danger" size="sm" onClick={disconnect} disabled={pending} className="ml-auto">
+            <ActionButton variant="danger" size="sm" onClick={disconnect} pending={pending} className="ml-auto">
               Disconnect
             </ActionButton>
           </>
@@ -91,7 +91,7 @@ export default function GbpDetailControls({
             >
               Connect Google Business
             </ActionButton>
-            <ActionButton variant="ghost" size="sm" onClick={refresh} disabled={pending}>
+            <ActionButton variant="ghost" size="sm" onClick={refresh} pending={pending}>
               {pending ? 'Checking…' : 'I just connected — refresh'}
             </ActionButton>
           </>

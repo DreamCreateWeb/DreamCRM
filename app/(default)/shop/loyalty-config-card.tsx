@@ -86,7 +86,7 @@ export default function LoyaltyConfigCard({
 
       {canManage && (
         <div className="mt-4 flex items-center gap-3">
-          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending}>
+          <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
             {pending ? 'Saving…' : 'Save rewards settings'}
           </ActionButton>
           {saved && <span className="text-xs text-emerald-600 dark:text-emerald-400">Saved ✓</span>}

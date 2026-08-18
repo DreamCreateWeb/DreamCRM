@@ -294,7 +294,7 @@ function AccountRow({ integrationKey, account }: { integrationKey: string; accou
           variant="ghost"
           size="sm"
           onClick={handleDisconnect}
-          disabled={pending}
+          pending={pending}
           className="shrink-0 self-start text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
         >
           {pending ? 'Disconnecting…' : 'Disconnect'}

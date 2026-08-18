@@ -74,10 +74,10 @@ export default function FollowupQuickAdd({
           className="form-input text-xs py-1 flex-1"
           aria-label="Due date"
         />
-        <ActionButton variant="primary" size="sm" onClick={submit} disabled={pending}>
+        <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
           {pending ? 'Adding…' : 'Add'}
         </ActionButton>
-        <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
+        <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} pending={pending}>
           Cancel
         </ActionButton>
       </div>

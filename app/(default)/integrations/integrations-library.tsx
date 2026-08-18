@@ -900,7 +900,7 @@ function SocialAddonCard({
 
       <div className="shrink-0">
         {entitlement.addonActive ? (
-          <ActionButton variant="danger" size="sm" onClick={onCancel} disabled={pending}>
+          <ActionButton variant="danger" size="sm" onClick={onCancel} pending={pending}>
             {pending ? 'Working…' : 'Cancel add-on'}
           </ActionButton>
         ) : !entitlement.addonAvailable ? (
@@ -918,7 +918,7 @@ function SocialAddonCard({
             Add-on coming soon
           </ActionButton>
         ) : (
-          <ActionButton variant="primary" size="sm" onClick={onBuy} disabled={pending}>
+          <ActionButton variant="primary" size="sm" onClick={onBuy} pending={pending}>
             {pending ? 'Working…' : `Add more — $${entitlement.addonPriceDollars}/mo`}
           </ActionButton>
         )}

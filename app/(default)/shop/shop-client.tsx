@@ -240,7 +240,7 @@ export default function ShopClient({
               <ActionButton
                 variant="ghost"
                 size="sm"
-                disabled={isPending}
+                pending={isPending}
                 onClick={async () => {
                   if (
                     await confirm({
@@ -467,7 +467,7 @@ export default function ShopClient({
                   <ActionButton
                     variant="secondary"
                     size="sm"
-                    disabled={isPending}
+                    pending={isPending}
                     onClick={() => run(() => setProductStatusAction(p.id, 'archived'), `${p.name} unpublished.`)}
                   >
                     Unpublish
@@ -476,7 +476,7 @@ export default function ShopClient({
                   <ActionButton
                     variant="secondary"
                     size="sm"
-                    disabled={isPending}
+                    pending={isPending}
                     onClick={() => run(() => setProductStatusAction(p.id, 'active'), `${p.name} is live.`)}
                   >
                     Publish
@@ -485,7 +485,7 @@ export default function ShopClient({
                 <ActionButton
                   variant="danger"
                   size="sm"
-                  disabled={isPending}
+                  pending={isPending}
                   onClick={async () => {
                     if (await confirm({ title: `Delete “${p.name}”?`, confirmLabel: 'Delete', danger: true }))
                       run(() => deleteProductAction(p.id), `${p.name} deleted.`)

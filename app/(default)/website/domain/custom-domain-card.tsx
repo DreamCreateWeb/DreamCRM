@@ -320,10 +320,10 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
           )}
 
           <div className="flex flex-wrap items-center gap-3">
-            <ActionButton variant="secondary" onClick={check} disabled={pending}>
+            <ActionButton variant="secondary" onClick={check} pending={pending}>
               {pending ? 'Checking…' : 'Check now'}
             </ActionButton>
-            <ActionButton variant="danger" onClick={remove} disabled={pending}>
+            <ActionButton variant="danger" onClick={remove} pending={pending}>
               Remove
             </ActionButton>
             {status.lastCheckedAt && (

@@ -193,7 +193,7 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         {p.status === 'invited' && (
-                          <ActionButton variant="ghost" size="sm" onClick={() => resend(p.id)} disabled={busy}>
+                          <ActionButton variant="ghost" size="sm" onClick={() => resend(p.id)} pending={busy}>
                             {busy ? '…' : 'Resend'}
                           </ActionButton>
                         )}
@@ -202,13 +202,13 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
                             variant="ghost"
                             size="sm"
                             onClick={() => toggleSuspend(p.id, p.status)}
-                            disabled={busy}
+                            pending={busy}
                           >
                             {p.status === 'suspended' ? 'Reactivate' : 'Suspend'}
                           </ActionButton>
                         )}
                         {archived ? (
-                          <ActionButton variant="secondary" size="sm" onClick={() => reactivate(p.id)} disabled={busy}>
+                          <ActionButton variant="secondary" size="sm" onClick={() => reactivate(p.id)} pending={busy}>
                             {busy ? '…' : 'Reactivate'}
                           </ActionButton>
                         ) : (

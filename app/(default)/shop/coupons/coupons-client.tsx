@@ -130,7 +130,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
             <ActionButton
               variant="primary"
               size="sm"
-              disabled={isPending}
+              pending={isPending}
               onClick={() =>
                 run(() => createCouponAction({ code, discountType, value, expiresAt: expiresAt || null, singleUse }), {
                   after: () => {
@@ -213,7 +213,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
                   <ActionButton
                     variant="ghost"
                     size="sm"
-                    disabled={isPending}
+                    pending={isPending}
                     onClick={() => run(() => deactivateCouponAction(c.id), { done: `${c.code} deactivated.` })}
                   >
                     Deactivate

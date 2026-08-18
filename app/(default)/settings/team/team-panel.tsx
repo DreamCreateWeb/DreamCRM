@@ -265,7 +265,7 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleResend(inv.id, inv.email)}
-                                disabled={pending}
+                                pending={pending}
                                 className="text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200"
                               >
                                 Resend
@@ -274,7 +274,7 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleCancel(inv.id, inv.email)}
-                                disabled={pending}
+                                pending={pending}
                                 className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
                               >
                                 Cancel invite
@@ -334,7 +334,7 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRemove(m.userId, m.name ?? m.email)}
-                              disabled={pending}
+                              pending={pending}
                               className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
                             >
                               Remove

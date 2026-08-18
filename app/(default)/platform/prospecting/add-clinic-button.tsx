@@ -248,7 +248,7 @@ export default function AddClinicButton() {
                         <ActionButton variant="secondary" onClick={() => goTo(`/platform/prospecting?prospect=${duplicate.id}`)}>
                           Open it →
                         </ActionButton>
-                        <ActionButton variant="secondary" onClick={addAnyway} disabled={pending}>
+                        <ActionButton variant="secondary" onClick={addAnyway} pending={pending}>
                           Add anyway
                         </ActionButton>
                       </div>
@@ -258,10 +258,10 @@ export default function AddClinicButton() {
                   {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
 
                   <div className="flex items-center justify-end gap-2 pt-1">
-                    <ActionButton type="button" variant="secondary" onClick={close} disabled={pending}>
+                    <ActionButton type="button" variant="secondary" onClick={close} pending={pending}>
                       Cancel
                     </ActionButton>
-                    <ActionButton type="submit" variant="primary" disabled={pending}>
+                    <ActionButton type="submit" variant="primary" pending={pending}>
                       {pending ? 'Adding…' : bookedDemo ? 'Add + log demo' : 'Add clinic'}
                     </ActionButton>
                   </div>

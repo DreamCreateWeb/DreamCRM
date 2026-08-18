@@ -232,18 +232,18 @@ export default function DeletePartnerModal({
 
             {/* Actions. Danger/destructive separated to the right; never beside a primary. */}
             <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex items-center justify-between gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={close} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={close} pending={pending}>
                 Cancel
               </ActionButton>
 
               {!loading && disposition === 'clean' && (
-                <ActionButton variant="danger" size="sm" onClick={doDelete} disabled={pending}>
+                <ActionButton variant="danger" size="sm" onClick={doDelete} pending={pending}>
                   {pending ? 'Deleting…' : 'Permanently delete'}
                 </ActionButton>
               )}
 
               {!loading && disposition === 'archive' && (
-                <ActionButton variant="danger" size="sm" onClick={() => doArchive()} disabled={pending}>
+                <ActionButton variant="danger" size="sm" onClick={() => doArchive()} pending={pending}>
                   {pending ? 'Archiving…' : 'Archive partner'}
                 </ActionButton>
               )}
@@ -259,7 +259,7 @@ export default function DeletePartnerModal({
                   >
                     {pending ? 'Working…' : `Pay out ${moneyExact(accruedCents)} now, then archive`}
                   </ActionButton>
-                  <ActionButton variant="danger" size="sm" onClick={() => doArchive('void')} disabled={pending}>
+                  <ActionButton variant="danger" size="sm" onClick={() => doArchive('void')} pending={pending}>
                     {pending ? 'Working…' : `Void ${moneyExact(accruedCents)} and archive`}
                   </ActionButton>
                 </div>

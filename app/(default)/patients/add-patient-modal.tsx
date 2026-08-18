@@ -132,17 +132,17 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
                 >
                   Open their record
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={addAnyway} disabled={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={addAnyway} pending={pending}>
                   {pending ? 'Adding…' : 'Add anyway'}
                 </ActionButton>
               </div>
             </div>
           )}
           <div className="pt-2 flex justify-end gap-2">
-            <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
+            <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
               Cancel
             </ActionButton>
-            <ActionButton variant="primary" size="sm" type="submit" disabled={pending}>
+            <ActionButton variant="primary" size="sm" type="submit" pending={pending}>
               {pending ? 'Saving…' : 'Save & open'}
             </ActionButton>
           </div>

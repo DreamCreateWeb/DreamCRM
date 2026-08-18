@@ -447,7 +447,7 @@ function SendIntakeButton({ patientId, forms = [] }: { patientId: string; forms?
           ))}
         </select>
       )}
-      <ActionButton variant="secondary" size="sm" onClick={onClick} disabled={pending}>
+      <ActionButton variant="secondary" size="sm" onClick={onClick} pending={pending}>
         {pending ? 'Sending…' : 'Send intake'}
       </ActionButton>
       {feedback && (
@@ -477,7 +477,7 @@ function SendReviewRequestButton({ patientId }: { patientId: string }) {
 
   return (
     <div className="relative flex flex-col">
-      <ActionButton variant="secondary" size="sm" onClick={onClick} disabled={pending}>
+      <ActionButton variant="secondary" size="sm" onClick={onClick} pending={pending}>
         {pending ? 'Sending…' : 'Request review'}
       </ActionButton>
       {feedback && (

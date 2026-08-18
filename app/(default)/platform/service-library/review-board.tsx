@@ -317,13 +317,13 @@ function ActionRow({
       <div className="flex gap-2">
         {entry.status === 'pending' && (
           <>
-            <ActionButton variant="primary" size="sm" onClick={() => onApprove(note)} disabled={busy}>
+            <ActionButton variant="primary" size="sm" onClick={() => onApprove(note)} pending={busy}>
               {busy ? 'Working…' : 'Approve'}
             </ActionButton>
             <ActionButton
               variant="danger"
               size="sm"
-              disabled={busy}
+              pending={busy}
               onClick={() => {
                 if (!note.trim()) {
                   toast('Please add a reviewer note before rejecting.', { tone: 'urgent' })
@@ -340,7 +340,7 @@ function ActionRow({
           <ActionButton
             variant="danger"
             size="sm"
-            disabled={busy}
+            pending={busy}
             onClick={() => {
               if (!note.trim()) {
                 toast('Please add a note explaining why you are archiving this entry.', { tone: 'urgent' })

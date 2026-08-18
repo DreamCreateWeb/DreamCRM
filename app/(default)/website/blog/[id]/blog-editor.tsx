@@ -362,7 +362,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               </p>
             )}
             {published ? (
-              <ActionButton variant="secondary" onClick={unpublish} disabled={pending} className="w-full">
+              <ActionButton variant="secondary" onClick={unpublish} pending={pending} className="w-full">
                 Unpublish
               </ActionButton>
             ) : scheduled ? (
@@ -378,7 +378,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     })}
                   </p>
                 )}
-                <ActionButton variant="secondary" onClick={unschedule} disabled={pending} className="w-full">
+                <ActionButton variant="secondary" onClick={unschedule} pending={pending} className="w-full">
                   Unschedule
                 </ActionButton>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
@@ -386,7 +386,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 </p>
               </>
             ) : (
-              <ActionButton variant="primary" onClick={publish} disabled={pending} className="w-full">
+              <ActionButton variant="primary" onClick={publish} pending={pending} className="w-full">
                 Publish
               </ActionButton>
             )}

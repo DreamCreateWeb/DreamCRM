@@ -339,7 +339,7 @@ export default function SeoMetaForm({
       {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
       <div className="sticky bottom-0 flex items-center gap-3 bg-gray-50 py-3 dark:bg-gray-900/20">
-        <ActionButton variant="primary" onClick={save} disabled={pending}>
+        <ActionButton variant="primary" onClick={save} pending={pending}>
           {pending ? 'Saving…' : 'Save search appearance'}
         </ActionButton>
         {toast && <span className="text-xs text-emerald-600 dark:text-emerald-400">{toast}</span>}

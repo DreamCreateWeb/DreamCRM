@@ -453,7 +453,7 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
               {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
                 Cancel
               </ActionButton>
               <ActionButton variant="danger" size="sm" onClick={submit} disabled={pending || !matches}>
@@ -473,7 +473,7 @@ function ViewAsButton({ orgId }: { orgId: string }) {
     <ActionButton
       variant="primary"
       size="sm"
-      disabled={pending}
+      pending={pending}
       onClick={() => start(() => enterDemoMode({ orgId, role: 'owner' }))}
       title="Drop into this clinic's dashboard as their owner"
     >
@@ -488,7 +488,7 @@ function SeedDemoClinicButton() {
     <ActionButton
       variant="primary"
       size="sm"
-      disabled={pending}
+      pending={pending}
       onClick={() => start(() => seedAndEnterDemoClinic('owner'))}
     >
       {pending ? 'Seeding…' : 'Create demo clinic & view'}

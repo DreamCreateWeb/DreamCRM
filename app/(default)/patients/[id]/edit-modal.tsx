@@ -178,10 +178,10 @@ export default function EditPatientModal({
           {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
         </div>
         <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
-          <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
+          <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
             Cancel
           </ActionButton>
-          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending}>
+          <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
             {pending ? 'Saving…' : 'Save changes'}
           </ActionButton>
         </div>

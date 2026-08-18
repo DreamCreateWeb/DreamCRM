@@ -321,7 +321,7 @@ function SubscriptionRow({
                   variant="secondary"
                   size="sm"
                   onClick={handleToggleCancelAtPeriodEnd}
-                  disabled={pending}
+                  pending={pending}
                 >
                   {sub.cancelAtPeriodEnd ? 'Keep' : 'Cancel at period end'}
                 </ActionButton>
@@ -329,7 +329,7 @@ function SubscriptionRow({
                   variant="danger"
                   size="sm"
                   onClick={handleCancelNow}
-                  disabled={pending}
+                  pending={pending}
                 >
                   Cancel now
                 </ActionButton>

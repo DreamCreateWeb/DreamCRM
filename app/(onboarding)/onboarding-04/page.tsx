@@ -129,7 +129,7 @@ export default function Onboarding04() {
                     <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>
                   )}
 
-                  <ActionButton type="submit" variant="primary" disabled={pending} className="w-full">
+                  <ActionButton type="submit" variant="primary" pending={pending} className="w-full">
                     {pending ? 'Setting up your clinic…' : 'Start my free trial →'}
                   </ActionButton>
                   <p className="text-xs text-gray-500 dark:text-gray-400 text-center">

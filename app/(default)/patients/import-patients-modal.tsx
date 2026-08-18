@@ -265,7 +265,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
         <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
           {stage.type === 'upload' && (
             <>
-              <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={doPreview} disabled={pending || !file}>
@@ -275,10 +275,10 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
           )}
           {stage.type === 'mapping' && (
             <>
-              <ActionButton variant="secondary" size="sm" onClick={() => setStage({ type: 'upload' })} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={() => setStage({ type: 'upload' })} pending={pending}>
                 Back
               </ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={doImport} disabled={pending}>
+              <ActionButton variant="primary" size="sm" onClick={doImport} pending={pending}>
                 {pending ? 'Importing…' : `Import ${stage.preview.truncated ? '5,000' : stage.preview.totalRows.toLocaleString()} patients`}
               </ActionButton>
             </>

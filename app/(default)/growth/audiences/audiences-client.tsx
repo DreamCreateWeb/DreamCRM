@@ -145,7 +145,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
                   <ActionButton variant="ghost" size="sm" onClick={() => setEditing(a)}>
                     Edit
                   </ActionButton>
-                  <ActionButton variant="danger" size="sm" onClick={() => handleDelete(a.id)} disabled={pending}>
+                  <ActionButton variant="danger" size="sm" onClick={() => handleDelete(a.id)} pending={pending}>
                     Delete
                   </ActionButton>
                 </div>
@@ -413,7 +413,7 @@ function CustomerAudienceEditor({
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                 Preview
               </span>
-              <ActionButton variant="secondary" size="sm" onClick={refreshPreview} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={refreshPreview} pending={pending}>
                 Refresh
               </ActionButton>
             </div>
@@ -443,7 +443,7 @@ function CustomerAudienceEditor({
           </div>
         </div>
         <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex justify-end gap-2 sticky bottom-0 bg-[color:var(--color-surface-2)]">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
             Cancel
           </ActionButton>
           <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !name.trim()}>
@@ -704,7 +704,7 @@ function PatientAudienceEditor({
               <span className="text-xs font-semibold text-violet-800 dark:text-violet-300">
                 Live preview
               </span>
-              <ActionButton variant="secondary" size="sm" onClick={refreshPreview} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={refreshPreview} pending={pending}>
                 {pending ? 'Counting…' : 'Refresh'}
               </ActionButton>
             </div>
@@ -733,7 +733,7 @@ function PatientAudienceEditor({
         </div>
 
         <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex justify-end gap-2 sticky bottom-0 bg-[color:var(--color-surface-2)]">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
             Cancel
           </ActionButton>
           <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !name.trim()}>

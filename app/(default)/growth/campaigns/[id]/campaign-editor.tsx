@@ -707,7 +707,7 @@ function AiDraftModal({
           This replaces the current subject, preview text, and body.
         </p>
         <div className="flex justify-end gap-2 mt-4">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={busy}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={busy}>
             Cancel
           </ActionButton>
           <ActionButton variant="primary" size="sm" onClick={() => onApply(brief)} disabled={busy || !brief.trim()}>
@@ -766,7 +766,7 @@ function AiImproveModal({
           ))}
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={busy}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={busy}>
             Cancel
           </ActionButton>
           <ActionButton variant="primary" size="sm" onClick={onApply} disabled={busy || !instruction.trim()}>
@@ -989,10 +989,10 @@ function SendConfirmModal({
                 ' Patients who already got 2 marketing emails in the last 7 days are skipped automatically.'}
             </p>
             <div className="flex justify-end gap-2">
-              <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={send} disabled={pending}>
+              <ActionButton variant="primary" size="sm" onClick={send} pending={pending}>
                 {pending ? 'Sending…' : 'Send now'}
               </ActionButton>
             </div>
@@ -1030,7 +1030,7 @@ function ScheduledPanel({
       <p className="text-sm text-violet-800 dark:text-violet-200 mb-3">
         {when ? <>Queued to send <strong>{when}</strong>.</> : 'Queued to send.'}
       </p>
-      <ActionButton variant="secondary" size="sm" onClick={onCancel} disabled={pending} className="w-full justify-center">
+      <ActionButton variant="secondary" size="sm" onClick={onCancel} pending={pending} className="w-full justify-center">
         {pending ? 'Working…' : 'Cancel scheduled send'}
       </ActionButton>
     </div>
@@ -1118,7 +1118,7 @@ function ScheduleModal({
         </p>
         {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
         <div className="flex justify-end gap-2">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
             Cancel
           </ActionButton>
           <ActionButton variant="primary" size="sm" onClick={confirm} disabled={pending || !when}>

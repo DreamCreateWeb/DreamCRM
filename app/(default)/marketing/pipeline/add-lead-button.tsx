@@ -144,7 +144,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
               )}
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} pending={pending}>
                 Cancel
               </ActionButton>
               <ActionButton

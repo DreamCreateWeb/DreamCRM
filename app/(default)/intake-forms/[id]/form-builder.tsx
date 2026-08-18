@@ -407,7 +407,7 @@ export default function FormBuilder({ template }: Props) {
           >
             Archive
           </button>
-          <ActionButton type="button" variant="primary" onClick={handleSave} disabled={pending}>
+          <ActionButton type="button" variant="primary" onClick={handleSave} pending={pending}>
             {pending ? 'Saving…' : 'Save'}
           </ActionButton>
         </div>

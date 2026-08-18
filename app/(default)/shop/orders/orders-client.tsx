@@ -280,7 +280,7 @@ export default function OrdersClient({
                         key={s}
                         variant={i === 0 ? 'primary' : 'secondary'}
                         size="sm"
-                        disabled={isPending}
+                        pending={isPending}
                         onClick={() => changeFulfillment(o, s, statusLabel)}
                       >
                         Mark {statusLabel}
@@ -430,7 +430,7 @@ export default function OrdersClient({
                         key={s}
                         variant={i === 0 ? 'primary' : 'secondary'}
                         size="sm"
-                        disabled={isPending}
+                        pending={isPending}
                         onClick={() => changeFulfillment(selected, s, statusLabel)}
                       >
                         Mark {statusLabel}

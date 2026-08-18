@@ -116,7 +116,7 @@ export default function DemoFollowupDrafter({ prospectId }: { prospectId: string
           </div>
 
           <div className="flex items-center gap-2">
-            <ActionButton size="sm" variant="primary" disabled={pending} onClick={run}>
+            <ActionButton size="sm" variant="primary" pending={pending} onClick={run}>
               {pending ? 'Writing…' : draft ? 'Rewrite' : 'Draft it'}
             </ActionButton>
             {draft && (

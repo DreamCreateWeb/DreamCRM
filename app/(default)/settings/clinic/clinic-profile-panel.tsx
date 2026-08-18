@@ -264,7 +264,7 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
 
         {/* Sticky save bar — one Save for every section (all inputs stay mounted). */}
         <div className="sticky bottom-4 z-10 flex items-center gap-3 v2-card px-4 py-3 shadow-[var(--shadow-pop)]">
-          <ActionButton variant="primary" type="submit" disabled={saving}>
+          <ActionButton variant="primary" type="submit" pending={saving}>
             {saving ? 'Saving…' : 'Save changes'}
           </ActionButton>
           {saved && <span className="text-sm text-emerald-700 dark:text-emerald-300">Saved ✓</span>}

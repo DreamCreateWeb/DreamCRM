@@ -165,7 +165,7 @@ export default function SignUpForm() {
         </div>
       )}
       <div className="mt-6">
-        <ActionButton type="submit" variant="primary" disabled={loading} className="w-full">
+        <ActionButton type="submit" variant="primary" pending={loading} className="w-full">
           {loading ? 'Creating your account…' : 'Start free trial'}
         </ActionButton>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">

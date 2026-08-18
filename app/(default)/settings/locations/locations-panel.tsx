@@ -158,19 +158,19 @@ function LocationCard({
               variant="ghost"
               size="sm"
               onClick={() => start(() => setPrimaryLocation(loc.id))}
-              disabled={pending}
+              pending={pending}
             >
               Make primary
             </ActionButton>
           )}
-          <ActionButton variant="secondary" size="sm" onClick={onEdit} disabled={pending}>
+          <ActionButton variant="secondary" size="sm" onClick={onEdit} pending={pending}>
             Edit
           </ActionButton>
           <ActionButton
             variant="ghost"
             size="sm"
             onClick={handleDelete}
-            disabled={pending}
+            pending={pending}
             className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
           >
             Remove
@@ -315,10 +315,10 @@ function LocationForm({
       {error && <div className="text-sm text-rose-700 dark:text-rose-300">{error}</div>}
 
       <div className="flex items-center gap-2">
-        <ActionButton variant="primary" type="submit" disabled={pending}>
+        <ActionButton variant="primary" type="submit" pending={pending}>
           {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Save location'}
         </ActionButton>
-        <ActionButton variant="secondary" onClick={() => { onClose(); setError(null) }} disabled={pending}>
+        <ActionButton variant="secondary" onClick={() => { onClose(); setError(null) }} pending={pending}>
           Cancel
         </ActionButton>
       </div>

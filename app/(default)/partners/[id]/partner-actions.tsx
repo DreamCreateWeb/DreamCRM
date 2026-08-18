@@ -100,17 +100,17 @@ export default function PartnerActions({
   return (
     <>
       {status === 'invited' && (
-        <ActionButton variant="secondary" size="sm" onClick={resend} disabled={pending}>
+        <ActionButton variant="secondary" size="sm" onClick={resend} pending={pending}>
           Resend invite
         </ActionButton>
       )}
       {(status === 'active' || status === 'suspended') && (
-        <ActionButton variant="ghost" size="sm" onClick={toggleSuspend} disabled={pending}>
+        <ActionButton variant="ghost" size="sm" onClick={toggleSuspend} pending={pending}>
           {status === 'suspended' ? 'Reactivate' : 'Suspend'}
         </ActionButton>
       )}
       {status === 'archived' && (
-        <ActionButton variant="secondary" size="sm" onClick={reactivate} disabled={pending}>
+        <ActionButton variant="secondary" size="sm" onClick={reactivate} pending={pending}>
           Reactivate
         </ActionButton>
       )}

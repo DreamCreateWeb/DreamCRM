@@ -284,10 +284,10 @@ export default function BookFromPatientDrawer({
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
         </div>
         <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
-          <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
+          <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
             Cancel
           </ActionButton>
-          <ActionButton variant="primary" size="sm" onClick={submit} disabled={pending}>
+          <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
             {pending ? 'Saving…' : 'Book appointment'}
           </ActionButton>
         </div>

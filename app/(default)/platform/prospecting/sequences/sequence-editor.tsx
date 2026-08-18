@@ -117,7 +117,7 @@ function TouchCard({ touch }: { touch: SequenceWithTouches['touches'][number] })
               />
               AI-personalize with the prospect&apos;s gaps
             </label>
-            <ActionButton size="sm" variant="primary" disabled={pending} onClick={save}>
+            <ActionButton size="sm" variant="primary" pending={pending} onClick={save}>
               {pending ? 'Saving…' : 'Save touch'}
             </ActionButton>
           </div>
@@ -160,7 +160,7 @@ export default function SequenceEditor({ sequence }: { sequence: SequenceWithTou
         <ActionButton
           size="sm"
           variant="secondary"
-          disabled={pending}
+          pending={pending}
           onClick={() => {
             const next = status === 'active' ? 'paused' : 'active'
             setStatus(next)

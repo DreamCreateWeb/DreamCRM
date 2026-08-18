@@ -308,7 +308,7 @@ export default function SubscriptionPanel({
               </div>
             )}
           </div>
-          <ActionButton variant="secondary" size="sm" onClick={handlePortal} disabled={pending}>
+          <ActionButton variant="secondary" size="sm" onClick={handlePortal} pending={pending}>
             {pending ? 'Opening…' : 'Manage billing in Stripe →'}
           </ActionButton>
         </div>
@@ -319,7 +319,7 @@ export default function SubscriptionPanel({
           {hasSubscription &&
             !onTrial &&
             (cancelAtPeriodEnd ? (
-              <ActionButton variant="primary" size="sm" onClick={handleResume} disabled={pending}>
+              <ActionButton variant="primary" size="sm" onClick={handleResume} pending={pending}>
                 Resume subscription
               </ActionButton>
             ) : !billingBroken ? (
@@ -426,14 +426,14 @@ export default function SubscriptionPanel({
                       Current plan
                     </div>
                   ) : billingBroken ? (
-                    <ActionButton variant="primary" onClick={handlePortal} disabled={pending} className="mt-3 w-full justify-center">
+                    <ActionButton variant="primary" onClick={handlePortal} pending={pending} className="mt-3 w-full justify-center">
                       Fix billing to switch
                     </ActionButton>
                   ) : (
                     <ActionButton
                       variant="primary"
                       onClick={() => handleSelect(p.id)}
-                      disabled={pending}
+                      pending={pending}
                       className="mt-3 w-full justify-center"
                     >
                       {isPending ? 'Redirecting…' : onTrial ? `Choose ${p.name}` : `Switch to ${p.name}`}
@@ -467,7 +467,7 @@ export default function SubscriptionPanel({
             title="No invoices yet"
             body="Once your first payment clears, your receipts appear here. Your full history always lives in the Stripe portal."
             action={
-              <ActionButton variant="secondary" size="sm" onClick={handlePortal} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={handlePortal} pending={pending}>
                 Open billing portal →
               </ActionButton>
             }

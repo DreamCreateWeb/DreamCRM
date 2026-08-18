@@ -346,7 +346,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                         <ActionButton variant="secondary" onClick={() => setOpen(false)}>
                           Cancel
                         </ActionButton>
-                        <ActionButton type="submit" variant="primary" disabled={pending}>
+                        <ActionButton type="submit" variant="primary" pending={pending}>
                           {pending ? 'Creating…' : 'Create & send invite'}
                         </ActionButton>
                       </div>

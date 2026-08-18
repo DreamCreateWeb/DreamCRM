@@ -86,7 +86,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
           )}
           <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{product.id}</div>
         </div>
-        <ActionButton variant="danger" size="sm" disabled={pending} onClick={handleArchiveProduct}>
+        <ActionButton variant="danger" size="sm" pending={pending} onClick={handleArchiveProduct}>
           Archive product
         </ActionButton>
       </div>
@@ -116,7 +116,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
             <ActionButton
               variant="secondary"
               size="sm"
-              disabled={pending}
+              pending={pending}
               onClick={() => handleTogglePrice(pr.id, pr.active)}
             >
               {pr.active ? 'Archive' : 'Unarchive'}

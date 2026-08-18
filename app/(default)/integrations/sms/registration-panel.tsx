@@ -181,7 +181,7 @@ function RegistrationForm({ details, clinicName, state }: Props) {
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <ActionButton type="submit" disabled={pending}>
+      <ActionButton type="submit" pending={pending}>
         {pending ? 'Submitting…' : state === 'rejected' ? 'Re-apply' : 'Set up texting'}
       </ActionButton>
     </form>

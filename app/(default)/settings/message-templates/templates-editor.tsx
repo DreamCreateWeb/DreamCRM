@@ -353,7 +353,7 @@ function TemplateForm({
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-1">
-        <ActionButton variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+        <ActionButton variant="ghost" size="sm" onClick={onCancel} pending={pending}>
           Cancel
         </ActionButton>
         <ActionButton variant="primary" size="sm" onClick={submit} disabled={!canSave}>

@@ -79,8 +79,8 @@ export default function MergeDuplicate({
                   Merge <span className="font-semibold">{picked.name}</span> into <span className="font-semibold">{survivorName}</span>?
                 </p>
                 <div className="mt-3 flex items-center justify-end gap-2">
-                  <ActionButton variant="ghost" size="sm" onClick={() => setPicked(null)} disabled={pending}>Back</ActionButton>
-                  <ActionButton variant="danger" size="sm" onClick={() => doMerge(picked.id)} disabled={pending}>
+                  <ActionButton variant="ghost" size="sm" onClick={() => setPicked(null)} pending={pending}>Back</ActionButton>
+                  <ActionButton variant="danger" size="sm" onClick={() => doMerge(picked.id)} pending={pending}>
                     {pending ? 'Merging…' : 'Merge + archive'}
                   </ActionButton>
                 </div>

@@ -202,7 +202,7 @@ function ScheduleControl({ id, onDone }: { id: string; onDone: () => void }) {
         onChange={(e) => setValue(e.target.value)}
         className="text-xs px-2 py-1 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
       />
-      <ActionButton variant="primary" size="sm" onClick={schedule} disabled={pending}>
+      <ActionButton variant="primary" size="sm" onClick={schedule} pending={pending}>
         {pending ? 'Scheduling…' : 'Schedule'}
       </ActionButton>
       {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
@@ -216,7 +216,7 @@ function UnscheduleButton({ id, onDone }: { id: string; onDone: () => void }) {
     <ActionButton
       variant="ghost"
       size="sm"
-      disabled={pending}
+      pending={pending}
       onClick={() =>
         startTransition(async () => {
           await unscheduleBlogPostAction(id)
@@ -282,7 +282,7 @@ function GenerateIdeasModal({ onClose, onAdded, isPlatform = false }: { onClose:
         </p>
 
         {!generated ? (
-          <ActionButton variant="primary" onClick={generate} disabled={busy} className="w-full">
+          <ActionButton variant="primary" onClick={generate} pending={busy} className="w-full">
             {busy ? 'Thinking up ideas…' : 'Generate 6 ideas'}
           </ActionButton>
         ) : ideas && ideas.length > 0 ? (

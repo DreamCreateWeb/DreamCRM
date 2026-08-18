@@ -100,7 +100,7 @@ export default function Onboarding01() {
                     </div>
                   )}
                   <div className="flex items-center justify-end">
-                    <ActionButton type="submit" variant="primary" disabled={pending}>
+                    <ActionButton type="submit" variant="primary" pending={pending}>
                       {pending ? 'Saving…' : 'Next step →'}
                     </ActionButton>
                   </div>

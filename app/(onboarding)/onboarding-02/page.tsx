@@ -170,7 +170,7 @@ export default function Onboarding02() {
                     <Link className="text-sm underline hover:no-underline text-gray-600 dark:text-gray-400" href="/onboarding-01">
                       ← Back
                     </Link>
-                    <ActionButton type="submit" variant="primary" disabled={pending}>
+                    <ActionButton type="submit" variant="primary" pending={pending}>
                       {pending ? 'Saving…' : 'Next step →'}
                     </ActionButton>
                   </div>

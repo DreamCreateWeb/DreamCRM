@@ -82,7 +82,7 @@ export default function PartnerTermsEditor({
         </div>
         {error && <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>}
         <div className="flex justify-end">
-          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending}>
+          <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
             {pending ? 'Saving…' : 'Save terms'}
           </ActionButton>
         </div>

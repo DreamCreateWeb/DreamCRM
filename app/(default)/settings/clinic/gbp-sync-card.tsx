@@ -261,7 +261,7 @@ export default function GbpSyncCard({ state }: { state: GbpSyncState }) {
       {toast && <FlashToast tone={toast.tone} message={toast.message} onDone={() => setToast(null)} />}
       <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Sync from Google</h3>
-        <ActionButton variant="primary" size="sm" onClick={runSync} disabled={pending}>
+        <ActionButton variant="primary" size="sm" onClick={runSync} pending={pending}>
           {pending ? 'Syncing…' : 'Sync from Google'}
         </ActionButton>
       </div>

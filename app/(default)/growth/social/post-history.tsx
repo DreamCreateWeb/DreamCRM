@@ -137,15 +137,15 @@ function PostCard({ post }: { post: SocialPostView }) {
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             {confirming ? (
               <>
-                <ActionButton variant="danger" size="sm" onClick={remove} disabled={pending}>
+                <ActionButton variant="danger" size="sm" onClick={remove} pending={pending}>
                   {pending ? 'Deleting…' : 'Confirm delete'}
                 </ActionButton>
-                <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={pending}>
+                <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(false)} pending={pending}>
                   Keep
                 </ActionButton>
               </>
             ) : (
-              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(true)} pending={pending}>
                 Delete
               </ActionButton>
             )}

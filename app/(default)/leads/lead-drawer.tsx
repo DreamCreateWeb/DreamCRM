@@ -295,23 +295,23 @@ export default function LeadDrawer({
           <div className="flex flex-wrap gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
             {row.status === 'new' && (
               <>
-                <ActionButton variant="primary" size="sm" onClick={onMarkContacted} disabled={pending}>
+                <ActionButton variant="primary" size="sm" onClick={onMarkContacted} pending={pending}>
                   Mark contacted
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={onConvert} disabled={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={onConvert} pending={pending}>
                   Convert to patient
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} pending={pending}>
                   Archive
                 </ActionButton>
               </>
             )}
             {row.status === 'contacted' && (
               <>
-                <ActionButton variant="primary" size="sm" onClick={onConvert} disabled={pending}>
+                <ActionButton variant="primary" size="sm" onClick={onConvert} pending={pending}>
                   Convert to patient
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} pending={pending}>
                   Archive
                 </ActionButton>
               </>
@@ -322,7 +322,7 @@ export default function LeadDrawer({
               </ActionButton>
             )}
             {row.status === 'archived' && (
-              <ActionButton variant="secondary" size="sm" onClick={onReopen} disabled={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={onReopen} pending={pending}>
                 Reopen
               </ActionButton>
             )}
@@ -340,13 +340,13 @@ export default function LeadDrawer({
                 them, or create a separate patient (e.g. a family member on a shared number)?
               </p>
               <div className="flex flex-wrap gap-2">
-                <ActionButton variant="primary" size="sm" onClick={() => runConvert(false)} disabled={pending}>
+                <ActionButton variant="primary" size="sm" onClick={() => runConvert(false)} pending={pending}>
                   Link to {dedupeMatch.split(' ')[0]}
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={() => runConvert(true)} disabled={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={() => runConvert(true)} pending={pending}>
                   Create separate patient
                 </ActionButton>
-                <ActionButton variant="ghost" size="sm" onClick={() => setDedupeMatch(null)} disabled={pending}>
+                <ActionButton variant="ghost" size="sm" onClick={() => setDedupeMatch(null)} pending={pending}>
                   Cancel
                 </ActionButton>
               </div>
@@ -409,10 +409,10 @@ export default function LeadDrawer({
               </select>
             </div>
             <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
-              <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)} pending={pending}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={onArchive} disabled={pending}>
+              <ActionButton variant="primary" size="sm" onClick={onArchive} pending={pending}>
                 {pending ? 'Archiving…' : 'Confirm archive'}
               </ActionButton>
             </div>

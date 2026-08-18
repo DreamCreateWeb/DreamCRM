@@ -152,7 +152,7 @@ export default function BuyDomainCard({
                   variant={o.includedEligible ? 'primary' : 'secondary'}
                   size="sm"
                   onClick={() => setConfirming(o)}
-                  disabled={pending}
+                  pending={pending}
                 >
                   {o.includedEligible ? 'Claim' : 'Buy'}
                 </ActionButton>
@@ -227,10 +227,10 @@ export default function BuyDomainCard({
               set up. You can point it elsewhere or let it lapse anytime.
             </p>
             <div className="flex justify-end gap-2">
-              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(null)} disabled={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(null)} pending={pending}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={() => buy(confirming)} disabled={pending}>
+              <ActionButton variant="primary" size="sm" onClick={() => buy(confirming)} pending={pending}>
                 {pending
                   ? confirming.includedEligible ? 'Claiming…' : 'Buying…'
                   : confirming.includedEligible

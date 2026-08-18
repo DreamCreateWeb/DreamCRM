@@ -101,7 +101,7 @@ export default function PacketsManager({
           </div>
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
           <div className="flex items-center gap-2">
-            <ActionButton variant="primary" size="sm" onClick={create} disabled={pending}>
+            <ActionButton variant="primary" size="sm" onClick={create} pending={pending}>
               {pending ? 'Creating…' : 'Create packet'}
             </ActionButton>
             <button type="button" onClick={() => setCreating(false)} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
