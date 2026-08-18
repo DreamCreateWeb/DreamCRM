@@ -18,7 +18,8 @@ PGDIR="${E2E_PGDIR:-/tmp/e2e-pgdata}"
 DB="dreamcrm_e2e"
 PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)"
 SKIP_BUILD=0
-[[ "${1:-}" == "--skip-build" ]] && SKIP_BUILD=1
+# shift so "$@" passed to playwright below never carries our own flag
+[[ "${1:-}" == "--skip-build" ]] && { SKIP_BUILD=1; shift; }
 
 if [[ -z "$PGBIN" ]]; then
   echo "No local postgres found (expected /usr/lib/postgresql/*/bin)." >&2

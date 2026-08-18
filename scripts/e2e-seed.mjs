@@ -62,5 +62,42 @@ for (const c of CLINICS) {
   console.log(`seeded ${c.slug} (${c.live ? 'live' : 'pre-live'})`)
 }
 
+// --- Token-IS-auth journey fixtures (all on the live clinic) ---------------
+// These power e2e/token-journeys.spec.ts: the /c one-click confirm and the
+// /n post-visit survey — the two patient touches that need no login and no
+// Stripe, but ARE real DB writes. Each re-seed RESETS the answered state so
+// the journey can be driven again ("scheduled", score null): an E2E fixture
+// that can only be consumed once is a fixture that flakes on the second run.
+
+await pool.query(
+  `insert into patient (id, organization_id, first_name, last_name, email, phone)
+   values ('pat_e2e_confirm', 'org_e2e_live', 'Casey', 'Confirmable', 'casey.confirmable@example.com', '+15550100001')
+   on conflict (id) do update set first_name = excluded.first_name, last_name = excluded.last_name`,
+)
+
+// Next Wednesday 15:00 UTC (11am ET) — always in the future, always a weekday.
+const start = new Date()
+start.setUTCDate(start.getUTCDate() + ((3 - start.getUTCDay() + 7) % 7 || 7))
+start.setUTCHours(15, 0, 0, 0)
+
+await pool.query(
+  `insert into appointment (id, organization_id, patient_id, title, start_time, type, status, confirm_token)
+   values ('appt_e2e_confirm', 'org_e2e_live', 'pat_e2e_confirm', 'Checkup — Casey', $1, 'checkup', 'scheduled', 'e2e-confirm-token')
+   on conflict (id) do update set
+     start_time = excluded.start_time,
+     status = 'scheduled',
+     confirmed_at = null,
+     confirmed_via = null`,
+  [start],
+)
+console.log(`seeded confirmable visit at ${start.toISOString()}`)
+
+await pool.query(
+  `insert into nps_response (id, organization_id, patient_id, appointment_id, token)
+   values ('nps_e2e_1', 'org_e2e_live', 'pat_e2e_confirm', 'appt_e2e_confirm', 'e2e-nps-token')
+   on conflict (id) do update set score = null, comment = null, responded_at = null`,
+)
+console.log('seeded unanswered survey')
+
 await pool.end()
 console.log('e2e seed complete')

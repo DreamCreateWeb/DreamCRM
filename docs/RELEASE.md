@@ -1109,6 +1109,35 @@ action runs instead of merely dimming. Scouted and *rejected* for this
 batch: a BrandButton pending twin for the portal — patient-facing forms
 already swap their labels honestly ("Booking…", "Opening secure
 checkout…"), so the prop would add machinery without adding feedback.
+Also scouted clean: native `window.confirm`/`alert` (zero left — everything
+rides the styled ConfirmProvider/toast), route `loading.tsx` coverage (a
+group-level `PageSkeleton` fallback plus 16 tailored ones), and the
+error/404 boundaries (already in-shell and warm).
+
+**Batch 6 (same day) — R3 E2E expansion, the token journeys:** the two
+patient email touches that need no login and no Stripe are now driven in a
+real browser as real writes — `e2e/token-journeys.spec.ts` (4 specs; suite
+now 22): **/c one-click confirm** (a GET/reload must NOT confirm — the
+inbox-prefetcher guard — then the button confirms, the confirmed state
+offers Add-to-calendar (batch 3's feature, now browser-pinned), and a
+reload proves the write stuck) and **/n post-visit survey** (tap 9 → "Got
+it — 9/10" → reload lands on the already-answered thanks state), plus
+unknown-token 404s for both. Fixture: `e2e-seed.mjs` seeds a confirmable
+next-Wednesday visit + an unanswered survey and RESETS both on every
+re-seed (a one-shot fixture is a fixture that flakes on run two). The run
+also caught a real latent bug in the existing booking spec: it was
+**time-of-day dependent** — after the seeded clinic's 5pm close the day
+strip honestly shows the empty state + rescue button, and the old
+walk-the-days loop clicked "More days" (which extends the strip but never
+switches days) and found nothing; every prior green run had simply
+executed during business hours. The spec now behaves like a patient: take
+a visible slot, otherwise take the "See {day}'s openings →" rescue — which
+gives batch 2's funnel-rescue feature real browser coverage too. Harness
+fix: `--skip-build` was also being passed through to Playwright.
+
+**Deploy note (2026-08-18):** the batch-5 deploy (cf9ecc7) failed in
+CodeBuild ~2 min in (the same commit builds green locally); retried with
+an empty commit per the standing pattern.
 
 ### Test-hygiene note (worth keeping)
 
