@@ -935,6 +935,39 @@ against it, and what is the true RTO.
 is an owner action; a result table at the bottom of the runbook is waiting for
 the RTO/RPO numbers. · OPEN (owner).
 
+### Deliverable 3 — load sanity · BASELINE MEASURED
+
+`scripts/load-sanity.mjs` (no dependencies, read-only paths only — a load
+script must never be able to fabricate bookings or send email) +
+`docs/LOAD-SANITY.md` with the first real numbers this product has ever had.
+
+**No errors at any level** — the app degrades by getting slower, which is the
+good failure mode. But the finding is real: **the dynamic public pages are
+already saturated at concurrency 8.** Tripling concurrency bought NO extra
+throughput (clinic site 19.6 → 23.4 req/s) while p50 tripled (387ms →
+1054ms). Flat throughput with latency rising in proportion to concurrency is a
+queue, not capacity. `/pricing` is the control: it scaled cleanly (125 → 186
+req/s), so the ceiling is the per-request work of the clinic/marketing pages,
+not the HTTP layer.
+
+**The slowest tail is the page that sells** (`/site/[slug]`), which is exactly
+the surface a marketing push would hammer. Recommendation (not actioned —
+it is a design change, not a defect fix): cache the public clinic site, using
+the existing Draft→Publish flow as the natural invalidation point.
+
+Caveat written into the doc: these numbers are from the dev container and
+characterise the APPLICATION, not the prod t4g.micro's ceiling. A real ceiling
+needs a staging run on prod-shaped hardware before the marketing pivot. · OPEN
+(prod-shaped re-run).
+
+### Deliverable 4 — error aggregation · NOT BUILT (owner decision)
+
+Part 4 point 3 lists "Sentry-class SaaS vs CloudWatch-native" as an owner
+decision, and it is a real one: a third-party error tracker means a new vendor,
+a new data-processor relationship, and — per `docs/COMPLIANCE.md` — a new place
+PHI-adjacent stack traces can land. Deliberately not chosen unilaterally. · OPEN
+(owner).
+
 **Scars worth keeping:**
 - `@playwright/test` will not always match the pre-installed browser build, so
   the config points `executablePath` at the on-disk Chromium when present and

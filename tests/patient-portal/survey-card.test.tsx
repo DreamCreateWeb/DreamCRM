@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, configure } from '@testing-library/react'
+
+// This card drives a React transition around an async server action, and the
+// library's 1s default for findBy*/waitFor is tight enough that a full-suite
+// run under parallel load can time out on a phase change that is working fine.
+// A test that fails ~1 run in N is worse than no test: the next real
+// regression gets blamed on flakiness. Raise the async budget for this file
+// only — it does not mask a genuine failure, it just stops the clock winning
+// the race. (Recorded as an R3 suite-stability item in docs/RELEASE.md.)
+configure({ asyncUtilTimeout: 5_000 })
 
 const answerMock = vi.fn()
 const commentMock = vi.fn()
