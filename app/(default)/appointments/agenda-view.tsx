@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { PendingVeil } from '@/components/ui/pending-veil'
+import { SearchInput } from '@/components/ui/search-input'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
 import {
   appointmentViewFiltersToQuery,
@@ -456,12 +457,14 @@ export default function AgendaView({
             </select>
           )}
           <form onSubmit={submitSearch} className="flex-1 min-w-[200px] ml-auto">
-            <input
-              type="text"
-              placeholder="Search patient, email, phone, or notes"
+            <SearchInput
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="form-input w-full text-sm"
+              onChange={setSearchInput}
+              onClear={() => {
+                setSearchInput('')
+                setParam('q', null)
+              }}
+              placeholder="Search patient, email, phone, or notes"
             />
           </form>
         </div>

@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { PendingVeil } from '@/components/ui/pending-veil'
+import { SearchInput } from '@/components/ui/search-input'
 import { TagChip } from '@/components/ui/tag-chip'
 import BulkMessageModal from './bulk-message-modal'
 import AddPatientModal from './add-patient-modal'
@@ -334,12 +335,14 @@ export default function PatientsList({
       {/* ── Filter chips + search ────────────────────────────────────── */}
       <div className="v2-panel p-4 mb-4 flex flex-wrap gap-3 items-center">
         <form onSubmit={submitSearch} className="flex-1 min-w-[260px]">
-          <input
-            type="text"
-            placeholder="Search by name, email, or phone"
+          <SearchInput
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="form-input w-full text-sm"
+            onChange={setSearchInput}
+            onClear={() => {
+              setSearchInput('')
+              setParam('q', null)
+            }}
+            placeholder="Search by name, email, or phone"
           />
         </form>
         <div className="flex flex-wrap gap-2 items-center">

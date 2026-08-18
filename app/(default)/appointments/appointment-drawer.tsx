@@ -413,32 +413,32 @@ export default function AppointmentDrawer({
               {/* ── Action group — exactly one primary ───────────────── */}
               <div className="flex flex-wrap gap-2">
                 {isRecoverable ? (
-                  <ActionButton variant="primary" size="sm" onClick={() => setRebookOpen(true)} disabled={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={() => setRebookOpen(true)} pending={pending}>
                     Rebook patient
                   </ActionButton>
                 ) : isScheduled ? (
-                  <ActionButton variant="primary" size="sm" onClick={onConfirm} disabled={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={onConfirm} pending={pending}>
                     Mark confirmed
                   </ActionButton>
                 ) : detail.status === 'completed' ? (
                   // The visit's done — the natural next step is asking for a review.
-                  <ActionButton variant="primary" size="sm" onClick={onRequestReview} disabled={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={onRequestReview} pending={pending}>
                     Request review
                   </ActionButton>
                 ) : (
-                  <ActionButton variant="primary" size="sm" onClick={onSendReminder} disabled={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={onSendReminder} pending={pending}>
                     Send reminder email
                   </ActionButton>
                 )}
                 {/* When scheduled, "Send reminder" is a secondary verb (the
                     primary is "Mark confirmed"). */}
                 {isScheduled && (
-                  <ActionButton variant="secondary" size="sm" onClick={onSendReminder} disabled={pending}>
+                  <ActionButton variant="secondary" size="sm" onClick={onSendReminder} pending={pending}>
                     Send reminder email
                   </ActionButton>
                 )}
                 {detail.status !== 'completed' && detail.status !== 'cancelled' && (
-                  <ActionButton variant="secondary" size="sm" onClick={() => setReschedOpen(true)} disabled={pending}>
+                  <ActionButton variant="secondary" size="sm" onClick={() => setReschedOpen(true)} pending={pending}>
                     Reschedule
                   </ActionButton>
                 )}
@@ -447,12 +447,12 @@ export default function AppointmentDrawer({
                     offers them the slot by one-click email. */}
                 {(detail.status === 'scheduled' || detail.status === 'confirmed') &&
                   new Date(detail.startTime).getTime() > Date.now() && (
-                    <ActionButton variant="secondary" size="sm" onClick={onFastPass} disabled={pending}>
+                    <ActionButton variant="secondary" size="sm" onClick={onFastPass} pending={pending}>
                       Wants earlier · fast-pass
                     </ActionButton>
                   )}
                 {isPastOpen && (
-                  <ActionButton variant="secondary" size="sm" onClick={onComplete} disabled={pending}>
+                  <ActionButton variant="secondary" size="sm" onClick={onComplete} pending={pending}>
                     Mark completed
                   </ActionButton>
                 )}
@@ -474,12 +474,12 @@ export default function AppointmentDrawer({
                         <span className="text-xs font-medium text-sky-700 dark:text-sky-300">
                           🚪 In the waiting room
                         </span>
-                        <ActionButton variant="secondary" size="sm" onClick={() => onArrival('seated')} disabled={pending}>
+                        <ActionButton variant="secondary" size="sm" onClick={() => onArrival('seated')} pending={pending}>
                           Seat patient
                         </ActionButton>
                       </>
                     ) : (
-                      <ActionButton variant="secondary" size="sm" onClick={() => onArrival('arrived')} disabled={pending}>
+                      <ActionButton variant="secondary" size="sm" onClick={() => onArrival('arrived')} pending={pending}>
                         Patient arrived
                       </ActionButton>
                     )}
@@ -500,11 +500,11 @@ export default function AppointmentDrawer({
               {isOpenState && (
                 <div className="flex flex-wrap gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
                   {isPastOpen && (
-                    <ActionButton variant="danger" size="sm" onClick={onNoShow} disabled={pending}>
+                    <ActionButton variant="danger" size="sm" onClick={onNoShow} pending={pending}>
                       Mark no-show
                     </ActionButton>
                   )}
-                  <ActionButton variant="danger" size="sm" onClick={onCancel} disabled={pending}>
+                  <ActionButton variant="danger" size="sm" onClick={onCancel} pending={pending}>
                     Cancel appointment
                   </ActionButton>
                 </div>
@@ -696,10 +696,10 @@ function RescheduleSubDrawer({
         {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       </div>
       <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
-        <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
+        <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
           Cancel
         </ActionButton>
-        <ActionButton variant="primary" size="sm" onClick={submit} disabled={pending}>
+        <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
           {pending ? 'Rescheduling…' : 'Confirm reschedule'}
         </ActionButton>
       </div>

@@ -1079,10 +1079,22 @@ campaign* primary (→ `/growth/outreach?new=1`) and the quiet-today state ships
 *Share your booking link* (→ `/website/share`), with + New booking one tier
 down (still exactly one primary).
 
-**Scout proposals still open for batch 4:** the shared `SearchInput` primitive
-(Messages' icon+clear recipe on agenda/patients) · the "?" shortcut sheet +
-`G-M`/`G-D` chords · the ActionButton `pending` adoption sweep (the prop now
-exists; old ternaries + no-signal buttons migrate opportunistically).
+**Batch 4 (2026-08-18):** all three open scout proposals shipped. **The
+shared `SearchInput` primitive** (`components/ui/search-input.tsx`) — the
+Messages icon+clear recipe extracted once and adopted on the agenda, the
+Patients list, and the thread search itself (which keeps its debounce and
+just renders the primitive); the clear ✕ on the two form-submit surfaces
+also clears the *active* query (`setParam('q', null)`), so a stale filter
+can't outlive its visible text. **The "?" shortcut sheet + the full G-chord
+map** — `keyboard-shortcuts.tsx` rebuilt on two registries (`GO_CHORDS`,
+`SINGLE_KEYS`) so the help sheet renders from the same table the handler
+reads and can never drift; chords grew `G-M`/`G-D`/`G-F` (Messages / My Day /
+Follow-ups); the sheet is deliberately NOT `aria-modal` — the modal-open
+guard would silence the very handler that closes it — closes on Esc, "?",
+scrim tap, and ✕. **The drawer pending sweep** — all 14 `ActionButton`s in
+the appointment drawer swapped `disabled={pending}` → `pending={pending}`
+(spinner + `aria-busy` free from batch 2's prop; the one raw undo `<button>`
+stays plain-disabled). Subsets green (89 files / 712 tests) + full gate.
 
 ### Test-hygiene note (worth keeping)
 

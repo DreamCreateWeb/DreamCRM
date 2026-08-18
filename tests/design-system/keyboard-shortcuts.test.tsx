@@ -93,6 +93,20 @@ describe('KeyboardShortcuts — G→P/A/L chord', () => {
     expect(push).toHaveBeenCalledWith('/patients')
   })
 
+  it('G then M/D/F → Messages / My Day / Follow-ups (the daily surfaces)', () => {
+    mount()
+    for (const [key, dest] of [
+      ['m', '/messages'],
+      ['d', '/my-day'],
+      ['f', '/followups'],
+    ] as const) {
+      push.mockReset()
+      fireEvent.keyDown(window, { key: 'g' })
+      fireEvent.keyDown(window, { key })
+      expect(push).toHaveBeenCalledWith(dest)
+    }
+  })
+
   it('G then A → /appointments, G then L → /leads', () => {
     mount()
     fireEvent.keyDown(window, { key: 'g' })
@@ -166,5 +180,30 @@ describe('KeyboardShortcuts — input + modal guards', () => {
     expect(toggleRail).not.toHaveBeenCalled()
     expect(push).not.toHaveBeenCalled()
     modal.remove()
+  })
+})
+
+
+describe('KeyboardShortcuts — the ? sheet', () => {
+  it('? opens the sheet listing the map; Esc closes it', () => {
+    mount()
+    fireEvent.keyDown(window, { key: '?', shiftKey: true })
+    const dialog = document.querySelector('[role="dialog"][aria-label="Keyboard shortcuts"]')
+    expect(dialog).not.toBeNull()
+    // One registry drives handler + sheet — the chords must be listed.
+    expect(dialog!.textContent).toContain('Messages')
+    expect(dialog!.textContent).toContain('My Day')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(document.querySelector('[role="dialog"][aria-label="Keyboard shortcuts"]')).toBeNull()
+  })
+
+  it('? does not open while typing in an input', () => {
+    mount()
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    input.focus()
+    fireEvent.keyDown(window, { key: '?', shiftKey: true })
+    expect(document.querySelector('[role="dialog"][aria-label="Keyboard shortcuts"]')).toBeNull()
+    input.remove()
   })
 })
