@@ -144,11 +144,13 @@ export default function SlotPicker({
           })}
         </div>
         <div className="mt-2 flex justify-end gap-1.5">
+          {/* 44px round targets — these arrows serve the oldest-skewing hands
+              in the product; ~28px pills were under every touch floor. */}
           <button
             type="button"
             aria-label="Earlier days"
             onClick={() => scrollStrip(-1)}
-            className="rounded-full bg-white px-2.5 py-1 text-sm"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-base transition active:scale-[0.95]"
             style={{ border: `1px solid ${BORDER}`, color: MUTED }}
           >
             ←
@@ -157,7 +159,7 @@ export default function SlotPicker({
             type="button"
             aria-label="Later days"
             onClick={() => scrollStrip(1)}
-            className="rounded-full bg-white px-2.5 py-1 text-sm"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-base transition active:scale-[0.95]"
             style={{ border: `1px solid ${BORDER}`, color: MUTED }}
           >
             →
@@ -167,12 +169,19 @@ export default function SlotPicker({
 
       <div className="mt-3 min-h-[5rem]">
         {pending ? (
-          <p className="py-6 text-center text-[0.88rem]" style={{ color: MUTED }}>
-            Checking openings…
-          </p>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" aria-hidden>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <span key={i} className="h-10 animate-pulse rounded-xl" style={{ backgroundColor: '#F3EEE7' }} />
+            ))}
+            <span className="sr-only">Checking openings…</span>
+          </div>
         ) : visibleSlots.filter((s) => s.available).length === 0 ? (
           <p className="py-6 text-center text-[0.88rem]" style={{ color: MUTED }}>
-            {emptySlotsCopy(visibleSlots, closedReason)}
+            {slots.length > 0 && !closedReason && visibleSlots.length === 0
+              ? // The day HAD openings — they were all inside the notice window.
+                // "We're closed" would be untrue; say what's actually going on.
+                'Times this soon need a quick call — try tomorrow, or ring us.'
+              : emptySlotsCopy(visibleSlots, closedReason)}
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">

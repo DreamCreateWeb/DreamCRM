@@ -205,7 +205,10 @@ export function BrandButton({
   disabled?: boolean
   className?: string
 }) {
-  const cls = `inline-flex items-center justify-center rounded-full font-semibold text-white transition disabled:opacity-50 ${
+  // active: = the tap registering. Hover doesn't exist on touch, and a slow
+  // connection between tap and transition otherwise gives zero feedback —
+  // exactly when an older patient re-taps.
+  const cls = `inline-flex items-center justify-center rounded-full font-semibold text-white transition active:scale-[0.98] active:opacity-90 disabled:opacity-50 ${
     small ? 'px-4 py-2 text-[0.82rem]' : 'px-5 py-2.5 text-[0.9rem]'
   } ${className}`
   if (href) {
@@ -309,7 +312,7 @@ export function QuietButton({
   type?: 'button' | 'submit'
   small?: boolean
 }) {
-  const cls = `inline-flex items-center justify-center rounded-full bg-white font-semibold ${
+  const cls = `inline-flex items-center justify-center rounded-full bg-white font-semibold transition active:scale-[0.98] active:opacity-80 ${
     small ? 'px-4 py-2 text-[0.82rem]' : 'px-5 py-2.5 text-[0.9rem]'
   }`
   const style = { border: `1px solid ${PORTAL_BORDER}`, color: PORTAL_INK }

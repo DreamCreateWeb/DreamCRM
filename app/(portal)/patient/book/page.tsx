@@ -15,7 +15,11 @@ import { resolveClinicTimeZone } from '@/lib/clinic-timezone'
 import PortalBookForm from './book-form'
 import PortalRequestForm from './request-form'
 
-export default async function PortalBookPage() {
+export default async function PortalBookPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ for?: string }>
+}) {
   const pc = await getPortalPageContext()
   requirePortalFeature(pc, 'booking')
   const { ctx, settings, clinic, brand, selfBookingEnabled } = pc
@@ -45,6 +49,13 @@ export default async function PortalBookPage() {
   const self = { id: ctx.patientId, firstName: me?.firstName ?? 'Me' }
   const dependents = pc.dependents.map((d) => ({ id: d.id, firstName: d.firstName }))
 
+  // "Book for Timmy" on the Family page carries ?for=<dependentId> — honor it
+  // as the initial selection so the label keeps its promise. Only ids that
+  // name a person this guardian can actually book for are accepted.
+  const sp = (await searchParams) ?? {}
+  const initialForPatientId =
+    sp.for && (sp.for === self.id || dependents.some((d) => d.id === sp.for)) ? sp.for : undefined
+
   return (
     <div className="mx-auto max-w-2xl">
       <PortalHeading color={brand}>{selfBookingEnabled ? 'Book a visit' : 'Request a visit'}</PortalHeading>
@@ -65,6 +76,7 @@ export default async function PortalBookPage() {
             self={self}
             dependents={dependents}
             clinicPhone={clinic?.phone ?? null}
+            initialForPatientId={initialForPatientId}
           />
         ) : (
           <PortalRequestForm
@@ -73,6 +85,7 @@ export default async function PortalBookPage() {
             typeLabels={typeLabels}
             self={self}
             dependents={dependents}
+            initialForPatientId={initialForPatientId}
             clinicPhone={clinic?.phone ?? null}
           />
         )}

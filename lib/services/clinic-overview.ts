@@ -5,6 +5,7 @@ import { getReadinessReport } from '@/lib/services/readiness'
 import type { ReadinessFact } from '@/lib/readiness'
 import { getReviewStats } from '@/lib/services/reviews'
 import { getInboxStats } from '@/lib/services/patient-messaging'
+import { getClinicSmsIdentity } from '@/lib/sms'
 import { getFollowupSummary, type FollowupSummary } from '@/lib/services/patient-followups'
 import { getTagsForPatients } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
@@ -84,6 +85,10 @@ export interface ClinicOverviewData {
     completed30d: number
     sent30d: number
   }
+  /** This clinic's two-way texting is live (A2P approved + number provisioned).
+   *  Drives the Overview's SMS tile: "coming soon" only while it's TRUE that
+   *  it's coming — the tile self-retires the day texting turns on. */
+  smsLive: boolean
   trends: {
     bookingsToday: number
     newPatientsMTD: number
@@ -605,7 +610,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
   const recentActivity = activity.slice(0, 10)
 
   // ── Extra attention signals (reuse existing services) ───────────────
-  const [readinessReport, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState] = await Promise.all([
+  const [readinessReport, paidUnfulfilledRow, reviewStats, inboxStats, followups, siteTraffic, leads14d, domainState, smsIdentity] = await Promise.all([
     getReadinessReport(organizationId).catch(() => null),
     // Paid shop orders still awaiting fulfillment (our move).
     db
@@ -645,6 +650,8 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
         return state === 'pending_dns' || state === 'active' || state === 'failed' ? state : null
       })
       .catch(() => null),
+    // Texting-live gate for the SMS tile — best-effort, never fails the huddle.
+    getClinicSmsIdentity(organizationId).catch(() => ({ ok: false as const, reason: 'driver_off' as const })),
   ])
 
   return {
@@ -659,6 +666,7 @@ export async function getClinicOverview(organizationId: string): Promise<ClinicO
     paidOrdersUnfulfilled: Number(paidUnfulfilledRow[0]?.count ?? 0),
     unreadMessages: inboxStats.unread,
     reviewsReceived: { completed30d: reviewStats.completed30d, sent30d: reviewStats.sent30d },
+    smsLive: smsIdentity.ok,
     trends,
     recentActivity,
     readinessAttention: readinessReport?.attention ?? [],

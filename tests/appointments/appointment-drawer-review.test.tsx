@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { ToastProvider } from '@/components/ui/toast'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 vi.mock('@/components/followups/followup-quick-add', () => ({ default: () => <div data-testid="followup" /> }))
@@ -68,7 +69,7 @@ beforeEach(() => {
 describe('AppointmentDrawer — Request review', () => {
   it('a completed visit leads with Request review and sends it', async () => {
     mockFetch('completed')
-    render(<AppointmentDrawer appointmentId="a1" onClose={vi.fn()} />)
+    render(<ToastProvider><AppointmentDrawer appointmentId="a1" onClose={vi.fn()} /></ToastProvider>)
     await screen.findByText('Mia Hayes')
 
     expect(screen.getByRole('button', { name: 'Request review' })).toBeTruthy()
@@ -83,7 +84,7 @@ describe('AppointmentDrawer — Request review', () => {
   it('surfaces the guard message when the request can’t be sent', async () => {
     sendReviewRequestForPatientAction.mockResolvedValue({ ok: false, error: 'Patient has opted out of marketing email' })
     mockFetch('completed')
-    render(<AppointmentDrawer appointmentId="a1" onClose={vi.fn()} />)
+    render(<ToastProvider><AppointmentDrawer appointmentId="a1" onClose={vi.fn()} /></ToastProvider>)
     await screen.findByText('Mia Hayes')
     fireEvent.click(screen.getByRole('button', { name: 'Request review' }))
     await waitFor(() => expect(screen.getByText(/opted out/)).toBeTruthy())
@@ -91,7 +92,7 @@ describe('AppointmentDrawer — Request review', () => {
 
   it('does NOT show Request review on a still-open (confirmed) visit', async () => {
     mockFetch('confirmed')
-    render(<AppointmentDrawer appointmentId="a1" onClose={vi.fn()} />)
+    render(<ToastProvider><AppointmentDrawer appointmentId="a1" onClose={vi.fn()} /></ToastProvider>)
     await screen.findByText('Mia Hayes')
     expect(screen.queryByRole('button', { name: 'Request review' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Send reminder email' })).toBeTruthy()

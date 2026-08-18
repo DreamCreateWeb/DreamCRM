@@ -76,7 +76,10 @@ function ActionPill({
   variant?: 'brand' | 'quiet' | 'danger'
   disabled?: boolean
 }) {
-  const cls = 'inline-flex items-center justify-center rounded-full px-3.5 py-2 text-[0.8rem] font-semibold transition-opacity disabled:opacity-50'
+  // 44px tap floor + pressed feedback: these pills carry the portal's
+  // highest-stakes taps (Confirm/Reschedule/Cancel) for the oldest-skewing
+  // audience — same law the public form states for its own targets.
+  const cls = 'inline-flex min-h-[44px] items-center justify-center rounded-full px-3.5 py-2 text-[0.8rem] font-semibold transition active:scale-[0.98] active:opacity-85 disabled:opacity-50'
   const style =
     variant === 'brand'
       ? { backgroundColor: brand, color: '#FFFFFF' }
@@ -223,8 +226,15 @@ export default function VisitCard({
             </ActionPill>
           </>
         )}
-        {canModify && withinNotice && clinicPhone && (
-          <ActionPill href={`tel:${clinicPhone}`}>Need to change it? Call us</ActionPill>
+        {canModify && withinNotice && (
+          // Inside the notice window self-serve changes are off — but the card
+          // must still offer a way to change the visit. No phone on file must
+          // never mean no affordance at all: fall back to messaging the office.
+          clinicPhone ? (
+            <ActionPill href={`tel:${clinicPhone}`}>Need to change it? Call us</ActionPill>
+          ) : (
+            <ActionPill href="/patient/messages">Need to change it? Message us</ActionPill>
+          )
         )}
         {/* Fast-pass waitlist self-enroll — the same list the front desk works
             from, so a freed slot reaches this patient like any other. Only

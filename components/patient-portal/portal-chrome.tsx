@@ -115,6 +115,7 @@ export function PortalDesktopNav({
           <Link
             key={item.href}
             href={item.href}
+            aria-current={active ? 'page' : undefined}
             className="px-3.5 py-2 rounded-full text-[0.92rem] font-medium transition-colors"
             style={
               active

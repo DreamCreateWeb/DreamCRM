@@ -138,7 +138,7 @@ export default function PatientsList({
   const [addOpen, setAddOpen] = useState(() => params.get('new') === '1')
   const [importOpen, setImportOpen] = useState(false)
   const [searchInput, setSearchInput] = useState(filters.search ?? '')
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'warn' | 'urgent' } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [inviting, startInvite] = useTransition()
 
@@ -150,7 +150,7 @@ export default function PatientsList({
     startInvite(async () => {
       const r = await bulkInvitePatientsToPortalAction(ids)
       if ('error' in r) {
-        setToast(r.error)
+        setToast({ message: r.error, tone: 'urgent' })
         return
       }
       const parts: string[] = [`Invited ${r.invited}`]
@@ -158,7 +158,7 @@ export default function PatientsList({
       if (r.noEmail) parts.push(`${r.noEmail} no email`)
       if (r.archived) parts.push(`${r.archived} archived`)
       if (r.errors) parts.push(`${r.errors} failed`)
-      setToast(parts.join(' · '))
+      setToast({ message: parts.join(' · '), tone: 'ok' })
       setSelected(new Set())
     })
   }
@@ -171,11 +171,11 @@ export default function PatientsList({
     startTagging(async () => {
       const r = await bulkAssignPatientTagAction(ids, tagId)
       if (!r.ok) {
-        setToast(r.error)
+        setToast({ message: r.error, tone: 'urgent' })
         return
       }
       const tag = meta.tags.find((t) => t.id === tagId)
-      setToast(`Tagged ${r.assigned} ${r.assigned === 1 ? 'patient' : 'patients'}${tag ? ` · ${tag.name}` : ''}`)
+      setToast({ message: `Tagged ${r.assigned} ${r.assigned === 1 ? 'patient' : 'patients'}${tag ? ` · ${tag.name}` : ''}`, tone: 'ok' })
       setSelected(new Set())
       router.refresh()
     })
@@ -198,13 +198,13 @@ export default function PatientsList({
     startPayLinks(async () => {
       const r = await bulkSendPayLinksAction(ids)
       if (!r.ok) {
-        setToast(r.error)
+        setToast({ message: r.error, tone: 'urgent' })
         return
       }
       const parts: string[] = [`Sent ${r.sent} pay ${r.sent === 1 ? 'link' : 'links'}`]
       if (r.skipped) parts.push(`${r.skipped} skipped (no balance / no email / just sent)`)
       if (r.failed) parts.push(`${r.failed} failed`)
-      setToast(parts.join(' · '))
+      setToast({ message: parts.join(' · '), tone: 'ok' })
       setSelected(new Set())
     })
   }
@@ -574,13 +574,13 @@ export default function PatientsList({
           onSent={(count) => {
             setBulkOpen(false)
             setSelected(new Set())
-            setToast(count === 1 ? 'Email sent to 1 patient' : `Email sent to ${count} patients`)
+            setToast({ message: count === 1 ? 'Email sent to 1 patient' : `Email sent to ${count} patients`, tone: 'ok' })
           }}
         />
       )}
       {addOpen && <AddPatientModal onClose={() => setAddOpen(false)} />}
       {importOpen && <ImportPatientsModal onClose={() => setImportOpen(false)} />}
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+      {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>
   )
 }

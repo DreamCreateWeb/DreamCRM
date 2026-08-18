@@ -189,7 +189,7 @@ export default function AgendaView({
   )
   const [_pending, startTransition] = useTransition()
   const [bulkPending, startBulk] = useTransition()
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'warn' | 'urgent' } | null>(null)
 
   // Consume the ?new=1 / ?appt= deep-links once: drop them from the URL
   // (replace, no history entry) so each drawer's open state is owned by React
@@ -249,7 +249,7 @@ export default function AgendaView({
       } catch {
         // The optimistic confirm reverts when the transition ends; tell the
         // user why instead of letting the pill silently snap back.
-        setToast("Couldn't confirm that visit — please try again.")
+        setToast({ message: "Couldn't confirm that visit — please try again.", tone: 'urgent' })
       }
     })
   }
@@ -262,9 +262,9 @@ export default function AgendaView({
         const r = await markCompletedAction(id)
         // Completing a visit auto-sends the review request (Google-first) — tell
         // the front desk it went out so the loop feels real.
-        setToast(r.reviewSent ? 'Marked done — review request sent.' : 'Marked done.')
+        setToast({ message: r.reviewSent ? 'Marked done — review request sent.' : 'Marked done.', tone: 'ok' })
       } catch {
-        setToast("Couldn't mark that visit done — please try again.")
+        setToast({ message: "Couldn't mark that visit done — please try again.", tone: 'urgent' })
       }
     })
   }
@@ -276,7 +276,7 @@ export default function AgendaView({
     if (ids.length === 0) return
     startBulk(async () => {
       const r = await bulkSendRemindersAction(ids, 'email')
-      setToast(`Sent ${r.sent} reminder${r.sent === 1 ? '' : 's'}${r.skipped ? ` · skipped ${r.skipped}` : ''}${r.errors.length ? ` · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}` : ''}`)
+      setToast({ message: `Sent ${r.sent} reminder${r.sent === 1 ? '' : 's'}${r.skipped ? ` · skipped ${r.skipped}` : ''}${r.errors.length ? ` · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}` : ''}`, tone: r.errors.length ? 'warn' : 'ok' })
       setSelected(new Set())
     })
   }
@@ -288,7 +288,7 @@ export default function AgendaView({
     if (ids.length === 0) return
     startBulk(async () => {
       const r = await bulkSetAppointmentStatusAction(ids, status)
-      setToast(`Marked ${r.updated} ${verb}${r.skipped ? ` · skipped ${r.skipped}` : ''}`)
+      setToast({ message: `Marked ${r.updated} ${verb}${r.skipped ? ` · skipped ${r.skipped}` : ''}`, tone: r.skipped ? 'warn' : 'ok' })
       setSelected(new Set())
     })
   }
@@ -311,12 +311,12 @@ export default function AgendaView({
     startBulk(async () => {
       const r = await bulkCreateFollowupsForPatientsAction(selectedPatientIds, { title, dueDate: dueDate || null })
       if (r.ok) {
-        setToast(`Added ${r.created} follow-up${r.created === 1 ? '' : 's'}`)
+        setToast({ message: `Added ${r.created} follow-up${r.created === 1 ? '' : 's'}`, tone: 'ok' })
         setSelected(new Set())
         setFollowupOpen(false)
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('nav-badges:refresh'))
       } else {
-        setToast(r.error)
+        setToast({ message: r.error, tone: 'urgent' })
       }
     })
   }
@@ -506,7 +506,7 @@ export default function AgendaView({
         </div>
       </BulkBar>
 
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+      {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
 
       {openDetail && (
         <AppointmentDrawer

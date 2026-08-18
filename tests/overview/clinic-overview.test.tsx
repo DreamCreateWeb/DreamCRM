@@ -146,6 +146,7 @@ function makeData(overrides: Partial<ClinicOverviewData> = {}): ClinicOverviewDa
     siteTraffic: null,
     siteHealth: null,
     reviewsReceived: { completed30d: 0, sent30d: 0 },
+  smsLive: false,
     trends: {
       bookingsToday: 0,
       newPatientsMTD: 0,

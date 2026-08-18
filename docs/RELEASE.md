@@ -991,6 +991,65 @@ that will eventually be blamed on a real change. Fix shape: raise the
 `findBy*` timeout in that file (or drive the phase change with an explicit
 `waitFor`) as part of R3's suite-stability work. · OPEN.
 
+---
+
+## THE POLISH PASS (opened 2026-08-18, owner directive: "polish, not bug
+fixing — upgrading UI components, UX and journeys")
+
+Two design scouts proposed ranked UX upgrades against DESIGN-SYSTEM.md (one on
+the staff daily journey, one on patient-facing surfaces); the audited S3/S7
+polish tail was folded in. Implemented batch 1:
+
+**The audited tail (all 9 closed):** visit-card offers "Message us" when the
+clinic has no phone inside the notice window · the Family page's "Book for
+{name}" now pre-selects that dependent (`?for=`) · the Overview's SMS
+coming-soon tile is gated on the clinic's real texting state (self-retires on
+approval) · `/growth/audiences` uses the canonical `‹ Growth` /`‹ Marketing`
+eyebrow · the dead `?upgrade` param is gone from the plans redirect · the
+partner button no longer reads "Withdraw $0.00" ("Nothing to withdraw yet" /
+"$X accrued") · the seo page's unreachable tenant branch removed · the Drawer
+gets a real `DialogTitle` + labelled close · portal desktop nav gets
+`aria-current`.
+
+**Patient-facing upgrades:** pressed states (`active:scale`) baked into the
+portal button primitives + visit-card pills (hover doesn't exist on touch —
+a tap must visibly register) + 44px pill/arrow tap floors · the portal booking
+success screen now echoes the chosen time/type back and offers Add-to-calendar
+(the moment trust is minted; it previously never repeated the time) · the
+disabled book button says "Pick a time to continue" · the slot grid shows a
+shaped pulse skeleton instead of a sentence, and a day whose openings were all
+inside the notice window says so honestly instead of "we're closed" · the
+public booking form carries the patient forward to "Your info" on first slot
+pick (its submit button lives ~2 screens below on mobile) and remembers
+already-fetched days (mirroring the server's own 2-min cache) · the n/ survey
+landing converges on the warm token palette (it was the one off-brand token
+page) and a failed score-tap now says so instead of silently reverting · the
+b/ pay page grows Full/Half quick-amount chips + the "processed securely by
+Stripe" line its portal sibling already had.
+
+**Staff daily-journey upgrades:** the two stale v2-teal literals in Messages
+(active-thread ring, search focus) re-pointed at tokens — the last
+un-reskinned pixels on the busiest surface · toast TONES threaded through
+agenda/patients/follow-ups so a failure no longer slides up wearing the
+success green · the appointment drawer's feedback moved to the app-shell
+ToastProvider (its local toast died unmounted the moment the drawer closed —
+confirming from the drawer gave zero visible feedback) · the drawer opens onto
+a payload-shaped skeleton and REFETCHES WITHOUT BLANKING (sending a reminder
+used to blank the whole populated drawer) · My Day gets a layout-true
+loading.tsx (its morning arrival visibly reshuffled) · today's-chair rows on
+Overview + My Day now open the VISIT via the `?appt=` drawer deep-link (time +
+status pill), so an "Unconfirmed" pill is one click from its remedy · My Day's
+unread badge joins Messages/sidebar at warn-amber (unread is "needs action",
+not "problem now").
+
+**Scout proposals deliberately not yet taken** (logged for the next polish
+batch): ActionButton `pending` prop (primitive spinner) · instant
+thread-switch feedback in Messages · the follow-up tick check+collapse+Undo ·
+shared SearchInput/PendingVeil primitives · the "?" shortcut sheet + G-M/G-D
+chords · balance-due task strip on the portal home · c/ add-to-calendar ·
+"jump to the first open day" on public booking · visible labels on the public
+booking inputs · empty states that hand over the action they name.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

@@ -31,6 +31,7 @@ export default function PortalRequestForm({
   self,
   dependents,
   clinicPhone,
+  initialForPatientId,
 }: {
   brand: string
   allowedTypes: string[]
@@ -38,8 +39,10 @@ export default function PortalRequestForm({
   self: PersonOpt
   dependents: PersonOpt[]
   clinicPhone: string | null
+  /** Pre-selected person (the Family page's "Request for {name}" link). */
+  initialForPatientId?: string
 }) {
-  const [forPatientId, setForPatientId] = useState(self.id)
+  const [forPatientId, setForPatientId] = useState(initialForPatientId ?? self.id)
   // The picker submits the human LABEL as the free-text reason; '' = unspecified.
   const [reason, setReason] = useState('')
   const [preferred, setPreferred] = useState('')

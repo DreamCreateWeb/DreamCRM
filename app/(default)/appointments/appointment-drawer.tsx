@@ -10,7 +10,8 @@ import { useDrawerExit } from '@/components/ui/use-drawer-exit'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { GlyphCluster } from '@/components/ui/glyph-cluster'
-import { FlashToast } from '@/components/ui/flash-toast'
+import { useToast } from '@/components/ui/toast'
+import { Skeleton } from '@/components/ui/skeleton'
 import FollowupQuickAdd from '@/components/followups/followup-quick-add'
 import PatientTagControl from '@/components/tags/patient-tag-control'
 import SendIntakeInline from '../patients/send-intake-inline'
@@ -95,7 +96,7 @@ export default function AppointmentDrawer({
   const [pending, startTransition] = useTransition()
   const [reschedOpen, setReschedOpen] = useState(false)
   const [rebookOpen, setRebookOpen] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const toast = useToast()
   // Trap focus in the drawer (it's a hand-rolled role="dialog"). Gated off while
   // a sub-drawer is open — those own their focus trap, so only the top layer
   // captures Tab. Esc stays on the drawer's own handler below.
@@ -106,7 +107,9 @@ export default function AppointmentDrawer({
   const { closing, requestClose } = useDrawerExit(onClose)
 
   async function loadDetail() {
-    setLoading(true)
+    // Only a first load shows the skeleton — a refetch (after Send reminder
+    // etc.) keeps the populated drawer on screen and swaps data underneath.
+    setLoading(detail == null)
     try {
       const res = await fetch(`/api/appointments/${appointmentId}`, { cache: 'no-store' })
       if (!res.ok) throw new Error(`Failed to load (${res.status})`)
@@ -161,8 +164,10 @@ export default function AppointmentDrawer({
     onClose()
   }
 
-  function flash(msg: string) {
-    setToast(msg)
+  // Routed to the app-shell ToastProvider (components/ui/toast.tsx): it
+  // survives the drawer unmounting, which is exactly when most of these fire.
+  function flash(msg: string, tone: 'ok' | 'urgent' = 'ok') {
+    toast(msg, { tone })
   }
 
   function onConfirm() {
@@ -224,6 +229,7 @@ export default function AppointmentDrawer({
               ? 'Seated.'
               : 'Check-in cleared.'
           : r.error,
+        r.ok ? 'ok' : 'urgent',
       )
       refresh()
     })
@@ -236,6 +242,7 @@ export default function AppointmentDrawer({
         r.ok
           ? 'On the fast-pass list — they’ll get first dibs when an earlier slot frees up.'
           : (r.error ?? 'Could not add to the fast-pass list.'),
+        r.ok ? 'ok' : 'urgent',
       )
       router.refresh()
     })
@@ -248,14 +255,17 @@ export default function AppointmentDrawer({
       const r = await sendReviewRequestForPatientAction(patientId)
       // The service enforces every guard (no email, opted out, no platforms
       // configured, within the rate-limit window) — surface its message verbatim.
-      flash(r.ok ? 'Review request sent.' : r.error)
+      flash(r.ok ? 'Review request sent.' : r.error, r.ok ? 'ok' : 'urgent')
     })
   }
 
   function onSendReminder() {
     startTransition(async () => {
       const r = await sendReminderAction(appointmentId, 'email')
-      flash('ok' in r && r.ok === true ? 'Reminder sent.' : 'error' in r ? r.error : 'Failed')
+      flash(
+        'ok' in r && r.ok === true ? 'Reminder sent.' : 'error' in r ? r.error : 'Failed',
+        'ok' in r && r.ok === true ? 'ok' : 'urgent',
+      )
       router.refresh()
       // Re-fetch the drawer payload so the new reminder log entry shows
       // up in the activity stripe without a close+reopen cycle.
@@ -296,8 +306,30 @@ export default function AppointmentDrawer({
           </button>
         </div>
 
-        {loading ? (
-          <div className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">Loading…</div>
+        {loading && !detail ? (
+          // Shaped like the payload (identity, pill row, 2x2 stat well,
+          // action row) so the drawer doesn't pop from a string to a page.
+          <div className="px-5 py-5 space-y-4" aria-busy="true" aria-label="Loading visit">
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3.5 w-56" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Skeleton className="h-14" />
+              <Skeleton className="h-14" />
+              <Skeleton className="h-14" />
+              <Skeleton className="h-14" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-28 rounded-[var(--r-sm)]" />
+              <Skeleton className="h-9 w-24 rounded-[var(--r-sm)]" />
+              <Skeleton className="h-9 w-24 rounded-[var(--r-sm)]" />
+            </div>
+          </div>
         ) : error ? (
           <div className="px-5 py-10 text-center text-sm text-rose-600 dark:text-rose-400">{error}</div>
         ) : detail ? (
@@ -375,7 +407,7 @@ export default function AppointmentDrawer({
               <FollowupQuickAdd
                 patientId={detail.patient.id}
                 patientFirstName={detail.patient.fullName.split(' ')[0] ?? 'this patient'}
-                onDone={(msg) => setToast(msg)}
+                onDone={(msg) => flash(msg)}
               />
 
               {/* ── Action group — exactly one primary ───────────────── */}
@@ -564,7 +596,6 @@ export default function AppointmentDrawer({
           />
         )}
 
-        {toast && <FlashToast message={toast} onDone={() => setToast(null)} duration={3000} />}
       </div>
     </div>
   )

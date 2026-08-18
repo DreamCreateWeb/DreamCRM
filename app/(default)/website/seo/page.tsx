@@ -213,11 +213,11 @@ export default async function SeoPage({ searchParams }: Props) {
             <AttrTile label="Bookings from organic" value={attr.organicBookings} total={attr.totalBookings} />
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">
+            {/* This whole block renders only when !isManage (the gate above),
+                so the copy needs no tenant branch here. */}
             {perf
               ? 'Search Console clicks → the leads + bookings our forms attribute to organic search. The whole funnel, one screen.'
-              : isManage
-                ? 'We attribute every contact + booking back to its traffic source. Connect Search Console below to add clicks + queries on top.'
-                : 'We attribute every contact + booking back to its traffic source. Search Console clicks appear here automatically once your pages start ranking.'}
+              : 'We attribute every contact + booking back to its traffic source. Search Console clicks appear here automatically once your pages start ranking.'}
           </p>
         </section>
       </div>

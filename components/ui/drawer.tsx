@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, type ReactNode } from 'react'
-import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
+import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -80,9 +80,12 @@ export default function Drawer({
             >
               {(title || actions) && (
                 <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur border-b border-[color:var(--color-hairline)] px-5 py-3 flex items-center gap-3">
-                  <div className="min-w-0 grow text-[14px] font-medium text-gray-900 dark:text-gray-100 truncate">
+                  <DialogTitle
+                    as="div"
+                    className="min-w-0 grow text-[14px] font-medium text-gray-900 dark:text-gray-100 truncate"
+                  >
                     {title}
-                  </div>
+                  </DialogTitle>
                   <div className="shrink-0 flex items-center gap-1">
                     {actions}
                     <button
@@ -90,6 +93,7 @@ export default function Drawer({
                       onClick={onClose}
                       className="p-1.5 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
                       title="Close (Esc)"
+                      aria-label="Close"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                         <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />

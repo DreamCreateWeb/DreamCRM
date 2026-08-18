@@ -151,7 +151,7 @@ export default async function MyDayPage() {
                         )}
                       </span>
                       {t.unreadCount > 0 && (
-                        <span className="shrink-0 text-xs font-semibold text-white bg-rose-500 rounded-full px-1.5 py-0.5 tabular-nums">
+                        <span className="shrink-0 text-xs font-semibold text-white bg-amber-500 rounded-full px-1.5 py-0.5 tabular-nums">
                           {t.unreadCount}
                         </span>
                       )}
@@ -176,9 +176,15 @@ export default async function MyDayPage() {
               <ul className="divide-y divide-[color:var(--color-hairline)]">
                 {data.todaysAppointments.slice(0, 8).map((a) => (
                   <li key={a.id} className="py-2 flex items-center gap-3">
-                    <span className="shrink-0 w-14 text-xs font-mono-num text-gray-500 dark:text-gray-400 tabular-nums">
+                    {/* Time opens the VISIT (drawer deep-link); the name keeps
+                        opening the patient — the agenda's two-target pattern. */}
+                    <Link
+                      href={`/appointments?appt=${a.id}`}
+                      className="shrink-0 w-14 text-xs font-mono-num text-gray-500 dark:text-gray-400 tabular-nums hover:underline"
+                      aria-label="Open this visit"
+                    >
                       {formatClinicTime(a.startTime, timeZone)}
-                    </span>
+                    </Link>
                     <Link href={`/patients/${a.patientId}`} className="text-sm text-gray-700 dark:text-gray-200 hover:underline truncate flex-1">
                       {a.patientName}
                     </Link>

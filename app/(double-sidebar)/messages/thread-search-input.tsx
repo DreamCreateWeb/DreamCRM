@@ -58,7 +58,7 @@ export default function ThreadSearchInput({
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search patients…"
         aria-label="Search patient conversations"
-        className="w-full rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] py-1.5 pl-8 pr-7 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition-shadow focus:outline-none focus:shadow-[inset_0_0_0_1px_rgb(40_179_173/0.5)]"
+        className="w-full rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] py-1.5 pl-8 pr-7 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition-shadow focus:outline-none focus:shadow-[inset_0_0_0_1px_theme(colors.teal.500/50%)]"
       />
       {value && (
         <button

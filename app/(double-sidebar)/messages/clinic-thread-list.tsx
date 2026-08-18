@@ -167,7 +167,7 @@ export default function ClinicThreadList({
                   title={name}
                   className={`flex flex-1 min-w-0 items-start gap-3 px-2.5 py-2.5 mr-1 rounded-[var(--r-md)] transition-colors ${
                     active
-                      ? 'bg-teal-500/5 shadow-[inset_0_0_0_1px_rgb(40_179_173/0.4)]'
+                      ? 'bg-teal-500/5 shadow-[inset_0_0_0_1px_theme(colors.teal.500/40%)]'
                       : 'hover:bg-gray-500/[0.06]'
                   }`}
                 >

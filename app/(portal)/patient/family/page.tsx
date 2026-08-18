@@ -84,7 +84,7 @@ export default async function PortalFamilyPage() {
                   </p>
                   {settings.features.booking && (
                     <Link
-                      href="/patient/book"
+                      href={`/patient/book?for=${encodeURIComponent(dep.id)}`}
                       className="rounded-full px-4 py-2 text-[0.82rem] font-semibold text-white"
                       style={{ backgroundColor: brand }}
                     >

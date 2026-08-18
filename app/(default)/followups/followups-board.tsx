@@ -73,7 +73,7 @@ export default function FollowupsBoard({
   const router = useRouter()
   const params = useSearchParams()
   const [items, setItems] = useState<PatientFollowupView[]>(rows)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
   const [pending, startTransition] = useTransition()
 
   function setParam(key: string, value: string | null) {
@@ -89,15 +89,15 @@ export default function FollowupsBoard({
     )
     startTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
-      if (!res.ok) { setItems(rows); setToast(res.error) }
-      else { setToast('Nice — one less thing.'); pingNavBadges() }
+      if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
+      else { setToast({ message: 'Nice — one less thing.', tone: 'ok' }); pingNavBadges() }
     })
   }
   function reopen(f: PatientFollowupView) {
     setItems((cur) => cur.map((x) => (x.id === f.id ? { ...x, status: 'open' } : x)))
     startTransition(async () => {
       const res = await reopenFollowupAction(f.id, f.patientId)
-      if (!res.ok) { setItems(rows); setToast(res.error) }
+      if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
       else pingNavBadges()
     })
   }
@@ -115,7 +115,7 @@ export default function FollowupsBoard({
     })
     startTransition(async () => {
       const res = await updateFollowupAction(f.id, f.patientId, { assignedUserId: userId })
-      if (!res.ok) { setItems(rows); setToast(res.error) }
+      if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
     })
   }
 
@@ -246,7 +246,7 @@ export default function FollowupsBoard({
         </div>
       )}
 
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+      {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>
   )
 }

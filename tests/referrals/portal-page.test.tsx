@@ -101,8 +101,19 @@ describe('partner portal dashboard', () => {
     svc.getPartnerBalance.mockResolvedValue({ accruedCents: 1000, lifetimePaidCents: 0 }) // $10 < $25
     const ui = await PartnerDashboard({ searchParams: Promise.resolve({}) })
     render(ui)
-    const withdraw = screen.getByRole('button', { name: /Withdraw/ })
+    // Under the minimum the button no longer promises a withdrawal — it shows
+    // the honest accrued figure ("$10.00 accrued"), disabled.
+    const withdraw = screen.getByRole('button', { name: /accrued/ })
     expect(withdraw).toBeDisabled()
+  })
+
+  it('zero balance → the button says so instead of "Withdraw $0.00"', async () => {
+    svc.getPartnerByUserId.mockResolvedValue({ ...basePartner, payoutsEnabled: 1, stripeConnectAccountId: 'acct_1' })
+    svc.getPartnerBalance.mockResolvedValue({ accruedCents: 0, lifetimePaidCents: 0 })
+    const ui = await PartnerDashboard({ searchParams: Promise.resolve({}) })
+    render(ui)
+    const btn = screen.getByRole('button', { name: /Nothing to withdraw yet/ })
+    expect(btn).toBeDisabled()
   })
 
   it('payout-method active + over minimum → withdraw enabled with the amount', async () => {

@@ -366,6 +366,10 @@ export default function BookForm({
   const dayStripRef = useRef<HTMLDivElement | null>(null)
   // Scroll target for the "pick a time" validation error.
   const timeSectionRef = useRef<HTMLElement | null>(null)
+  const contactSectionRef = useRef<HTMLElement | null>(null)
+  // Scroll forward only on the FIRST pick — changing your mind mid-form must
+  // not yank the page around.
+  const hasScrolledToContact = useRef(false)
   const scrollDays = useCallback((dir: 1 | -1) => {
     const el = dayStripRef.current
     if (!el) return
@@ -374,12 +378,29 @@ export default function BookForm({
     el.scrollBy({ left: dir * step, behavior: 'smooth' })
   }, [])
 
+  // Session cache keyed by day+duration — mirrors the server's own 2-minute
+  // slot cache, so toggling between Tuesday and Thursday feels instant instead
+  // of re-flashing the skeleton for data the server would replay anyway.
+  const daySlotsCache = useRef(new Map<string, { slots: BookingSlot[]; closedReason: SlotsClosedReason | null }>())
+
   useEffect(() => {
+    const cacheKey = `${selectedDate}:${selectedDuration}`
+    const cached = daySlotsCache.current.get(cacheKey)
+    if (cached) {
+      setSlots(cached.slots)
+      setClosedReason(cached.closedReason)
+      setSlotsError(false)
+      setSelectedSlotIso((cur) =>
+        cur && cached.slots.some((s) => s.startIso === cur && s.available) ? cur : null,
+      )
+      return
+    }
     startSlotsTransition(() => {
       // Pass the selected visit's duration so a longer appointment only shows
       // start times where the whole window is free across the clinic's chairs.
       listBookingSlots(orgId, selectedDate, selectedDuration)
         .then(({ slots: next, closedReason: reason }) => {
+          daySlotsCache.current.set(cacheKey, { slots: next, closedReason: reason })
           setSlots(next)
           setClosedReason(reason)
           setSlotsError(false)
@@ -598,7 +619,17 @@ export default function BookForm({
                   key={s.startIso}
                   type="button"
                   disabled={!s.available}
-                  onClick={() => setSelectedSlotIso(s.startIso)}
+                  onClick={() => {
+                    setSelectedSlotIso(s.startIso)
+                    // The submit button lives ~2 screens below on mobile; the
+                    // tap otherwise appears to do nothing near the thumb.
+                    // (Deliberately NOT focusing an input — a keyboard popping
+                    // unbidden is worse than the problem.)
+                    if (!hasScrolledToContact.current) {
+                      hasScrolledToContact.current = true
+                      contactSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                  }}
                   className="h-11 rounded-xl text-sm font-semibold transition disabled:cursor-not-allowed disabled:line-through"
                   style={{
                     backgroundColor: isSelected
@@ -630,7 +661,7 @@ export default function BookForm({
       </section>
 
       {/* ── 3. Contact info ────────────────────────────────────────────── */}
-      <section>
+      <section ref={contactSectionRef} style={{ scrollMarginTop: 'calc(var(--site-header-h, 64px) + 12px)' }}>
         <p
           className="text-xs font-semibold uppercase tracking-[0.16em] mb-3"
           style={{ color: brandInk }}

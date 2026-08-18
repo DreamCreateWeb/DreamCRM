@@ -8,6 +8,13 @@ import { submitNpsScoreAction, submitNpsCommentAction } from './actions'
  * Already-answered tokens land on the thanks state (re-opening the email
  * link later never re-asks).
  */
+// The sibling token pages' warm constants (c/, b/) — this page was the one
+// off-brand landing, in cool Tailwind grays.
+const INK = '#1C1A17'
+const MUTED = '#6B635A'
+const BORDER = '#E8E2D9'
+const ERROR = '#B4231F'
+
 export default function SurveyForm({
   token,
   brand,
@@ -27,6 +34,7 @@ export default function SurveyForm({
     initialScore != null ? 'done' : 'ask',
   )
   const [pending, setPending] = useState(false)
+  const [error, setError] = useState('')
 
   async function pick(n: number) {
     if (pending) return
@@ -34,7 +42,15 @@ export default function SurveyForm({
     setScore(n)
     const r = await submitNpsScoreAction(token, n)
     setPending(false)
-    setStage(r.ok ? 'comment' : 'ask')
+    if (r.ok) {
+      setError('')
+      setStage('comment')
+    } else {
+      // Was a silent revert to the ask stage — the tap just seemed to vanish.
+      setError('That didn’t go through — mind tapping your number again?')
+      setScore(null)
+      setStage('ask')
+    }
   }
 
   async function sendComment() {
@@ -50,16 +66,16 @@ export default function SurveyForm({
   }
 
   const card = (children: React.ReactNode) => (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8">{children}</div>
+    <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8" style={{ border: `1px solid ${BORDER}` }}>{children}</div>
   )
 
   if (stage === 'done') {
     return card(
       <>
-        <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)' }}>
+        <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: INK }}>
           Thank you, {patientFirstName} 💛
         </h1>
-        <p className="mt-2 text-[0.95rem] text-gray-600">
+        <p className="mt-2 text-[0.95rem]" style={{ color: MUTED }}>
           Your answer went straight to the {clinicName} team — it genuinely helps us get better.
         </p>
       </>,
@@ -69,16 +85,17 @@ export default function SurveyForm({
   if (stage === 'comment') {
     return card(
       <>
-        <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)' }}>
+        <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: INK }}>
           Got it — {score}/10
         </h1>
-        <p className="mt-2 text-[0.95rem] text-gray-600">
+        <p className="mt-2 text-[0.95rem]" style={{ color: MUTED }}>
           {score != null && score <= 6
             ? 'We’d love to make it right. What happened?'
             : 'Anything we could do even better? (Totally optional.)'}
         </p>
         <textarea
-          className="mt-4 w-full rounded-xl border border-gray-300 px-3 py-2.5 text-[0.95rem] focus:outline-none focus:ring-2"
+          className="mt-4 w-full rounded-xl px-3 py-2.5 text-[0.95rem] focus:outline-none focus:ring-2"
+          style={{ border: `1px solid ${BORDER}`, color: INK }}
           rows={4}
           maxLength={2000}
           value={comment}
@@ -100,12 +117,17 @@ export default function SurveyForm({
 
   return card(
     <>
-      <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)' }}>
+      <h1 className="text-2xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: INK }}>
         Hi {patientFirstName} — one quick question
       </h1>
-      <p className="mt-2 text-[0.95rem] text-gray-600">
+      <p className="mt-2 text-[0.95rem]" style={{ color: MUTED }}>
         How likely are you to recommend {clinicName} to a friend?
       </p>
+      {error && (
+        <p role="alert" className="mt-3 text-[0.85rem] font-medium" style={{ color: ERROR }}>
+          {error}
+        </p>
+      )}
       <div className="mt-5 grid grid-cols-6 sm:grid-cols-11 gap-1.5" role="radiogroup" aria-label="0 to 10">
         {Array.from({ length: 11 }, (_, n) => (
           <button
@@ -127,11 +149,11 @@ export default function SurveyForm({
           </button>
         ))}
       </div>
-      <div className="mt-2 flex justify-between text-[0.75rem] text-gray-400">
+      <div className="mt-2 flex justify-between text-[0.75rem]" style={{ color: MUTED }}>
         <span>Not likely</span>
         <span>Absolutely</span>
       </div>
-      <p className="mt-5 text-[0.8rem] text-gray-400">
+      <p className="mt-5 text-[0.8rem]" style={{ color: MUTED }}>
         Goes straight to the team — nothing is posted anywhere public.
       </p>
     </>,

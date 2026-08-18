@@ -159,6 +159,33 @@ export default function PayForm({
         {asOf ? ` (as of ${asOf})` : ''}. No rush and no judgment — pay all of it or part of it,
         whatever works today.
       </p>
+      {/* Quick amounts: the copy invites paying "all of it or part of it" —
+          acting on that shouldn't require editing a raw number field (the
+          least friendly control for the audience this page serves most). */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-3" role="group" aria-label="Quick amounts">
+        {[
+          { label: `Full · ${fmt(balanceCents)}`, cents: balanceCents },
+          ...(balanceCents >= 2000 ? [{ label: `Half · ${fmt(Math.round(balanceCents / 2))}`, cents: Math.round(balanceCents / 2) }] : []),
+        ].map((opt) => {
+          const active = amount === (opt.cents / 100).toFixed(2)
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              onClick={() => setAmount((opt.cents / 100).toFixed(2))}
+              aria-pressed={active}
+              className="rounded-full px-4 py-2 text-[0.88rem] font-semibold transition active:scale-[0.98]"
+              style={
+                active
+                  ? { backgroundColor: brand, color: '#FFFFFF' }
+                  : { backgroundColor: '#FFFFFF', border: `1px solid ${BORDER}`, color: INK }
+              }
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
       <div className="flex items-center justify-center gap-2 mb-4">
         <span className="text-lg font-semibold" style={{ color: INK }}>$</span>
         <input
@@ -177,7 +204,7 @@ export default function PayForm({
         type="button"
         onClick={pay}
         disabled={pending}
-        className="w-full sm:w-auto rounded-xl px-8 py-3.5 text-base font-semibold text-white disabled:opacity-60"
+        className="w-full sm:w-auto rounded-xl px-8 py-3.5 text-base font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
         style={{ backgroundColor: brand }}
       >
         {pending ? 'Opening secure checkout…' : 'Pay securely'}
@@ -187,6 +214,9 @@ export default function PayForm({
           {error}
         </p>
       )}
+      <p className="mt-3 text-[0.8rem]" style={{ color: MUTED }}>
+        Card payments are processed securely by Stripe — we never see your card number.
+      </p>
       {callLine}
     </>,
   )

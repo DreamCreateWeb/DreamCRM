@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
 import type { AudienceFilterT, PatientAudienceFilterT } from '@/lib/services/marketing'
@@ -70,7 +71,19 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
   return (
     <>
       <PageHeader
-        eyebrow={`Growth · ${orgName}`}
+        eyebrow={
+          // Workspace sub-page orientation convention: a clickable ‹ Workspace
+          // link back to the hub, matching reviews/social/analytics siblings.
+          tenantType === 'clinic' ? (
+            <Link href="/growth" className="hover:underline underline-offset-4">
+              ‹ Growth
+            </Link>
+          ) : (
+            <Link href="/marketing" className="hover:underline underline-offset-4">
+              ‹ Marketing
+            </Link>
+          )
+        }
         title="Audiences"
         subtitle={`Saved groups of ${leadsLabel} you can send a campaign to.`}
         actions={

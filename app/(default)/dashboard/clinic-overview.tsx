@@ -804,10 +804,16 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             completed={data.reviewsReceived.completed30d}
             sent={data.reviewsReceived.sent30d}
           />
-          <ComingSoonCard
-            title="SMS replies"
-            blurb="Two-way patient text. Replies land in your inbox."
-          />
+          {/* Honest by construction: "coming soon" renders only while it IS
+              coming — the moment this clinic's texting goes live (A2P approved
+              + number provisioned) the tile retires itself; the honesty flip
+              owns any live SMS surface. */}
+          {!data.smsLive && (
+            <ComingSoonCard
+              title="SMS replies"
+              blurb="Two-way patient text. Replies land in your inbox."
+            />
+          )}
         </div>
       </section>
     </div>
@@ -884,9 +890,16 @@ function TodayChairRow({ appt, timeZone }: { appt: TodayAppointmentRow; timeZone
 
   return (
     <li className="px-5 py-3 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-900/30">
-      <div className="shrink-0 w-16 text-sm font-mono-num font-medium text-gray-600 dark:text-gray-300 tabular-nums">
+      {/* Two-target row (the agenda's own pattern): the NAME opens the
+          patient; time + status open the VISIT via the drawer deep-link —
+          so an "Unconfirmed" pill is one click from its remedy. */}
+      <Link
+        href={`/appointments?appt=${appt.id}`}
+        className="shrink-0 w-16 text-sm font-mono-num font-medium text-gray-600 dark:text-gray-300 tabular-nums hover:underline"
+        aria-label={`Open this visit`}
+      >
         {formatClinicTime(appt.startTime, timeZone)}
-      </div>
+      </Link>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <Link
@@ -902,7 +915,9 @@ function TodayChairRow({ appt, timeZone }: { appt: TodayAppointmentRow; timeZone
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{typeLabel}</div>
       </div>
-      <StatusPill tone={tone} label={statusLabel} title={statusTitle} className="shrink-0" />
+      <Link href={`/appointments?appt=${appt.id}`} className="shrink-0" aria-label="Open this visit">
+        <StatusPill tone={tone} label={statusLabel} title={statusTitle} />
+      </Link>
     </li>
   )
 }
