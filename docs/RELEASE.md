@@ -1188,6 +1188,21 @@ and the prospecting product knowledge. The OD-direct provider ENGINE
 the SES-driver pattern — so a future vendor approval is an ops option,
 not a customer door.
 
+**Batch 9 (2026-08-19) — the portal persona joins the browser suite:**
+`e2e/portal.spec.ts` (suite now 25) walks the patient portal as a REAL
+signed-in patient — no magic-link email round-trip: the seed creates
+Casey's auth user + a live session row, and the spec mints the signed
+session cookie exactly the way better-auth does (token + HMAC-SHA256 with
+the harness's BETTER_AUTH_SECRET). Covers the auth wall (no cookie →
+bounced off /patient/dashboard), the branded portal home ("Your next
+visit" + the patient's name), and a real write: confirming a seeded
+cleaning from the visits page, persisted across reload (`confirmed_via
+'portal'`). The portal spec owns its own appointment row — sharing one
+with the /c token spec would make each flaky in the other's parallel
+shadow. All four personas' core journeys now run in a real browser:
+stranger→clinic staff (signup/onboarding/patients), patient signed-in
+(portal), patient tokenized (/c, /n), public visitor (site + booking).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
