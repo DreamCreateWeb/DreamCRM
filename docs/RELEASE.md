@@ -1156,6 +1156,12 @@ page now says "your site is ready!", explains only-you-can-see-it-until-
 you-publish, and the link's green live-dot became an amber preview-dot;
 the spec pins the honest copy.
 
+**Batch 8 (same day):** the stranger journey grew its FIRST DAY OF WORK
+tail — after the tenant-wall check, the spec adds the clinic's first
+patient through the real Add-patient modal ("Save & open") and lands on
+their chart: staff CRUD in the same browser session the signup minted.
+E2E 23/23 green.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
