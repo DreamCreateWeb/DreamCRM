@@ -12,7 +12,7 @@ import { render, screen, within, fireEvent } from '@testing-library/react'
  *   - member connect cards inside each bundle (with REAL brand logos),
  *   - connected members stay in-bundle with the "Active" framing + "In your
  *     dashboard" value links,
- *   - the Open Dental + GBP cards linking to their detail pages,
+ *   - the PMS bridge + GBP cards linking to their detail pages,
  *   - plan-locked bundles showing a single upgrade prompt (not per-card CTAs),
  *   - the social cap meter + consolidated add-on states,
  *   - search across member cards, flashes, not-configured.
@@ -155,7 +155,7 @@ describe('IntegrationsLibrary — overview header', () => {
   it('shows the connected count when tools are connected (in their bundles)', () => {
     const state = liveState({
       connections: {
-        open_dental: fact(true, { isDemo: true, title: 'Open Dental (Sandbox)' }),
+        nexhealth: fact(true, { isDemo: true, title: 'Open Dental (Sandbox)' }),
         googlebusiness: fact(true, { title: 'Dream Dental', handle: 'dream-dental' }),
         instagram: fact(true, { title: 'Dream Dental', handle: '@dreamdental' }),
       },
@@ -210,22 +210,22 @@ describe('IntegrationsLibrary — search across member cards', () => {
 })
 
 describe('IntegrationsLibrary — Practice Management bundle', () => {
-  it('Premium + not connected → a Connect button linking to the detail page', () => {
+  it('not connected → the bridge card doors to the detail page (guided install, no key form)', () => {
     render(<IntegrationsLibrary {...props()} />)
     const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
-    const connect = within(section).getByRole('link', { name: /^Connect$/i }) as HTMLAnchorElement
-    expect(connect.getAttribute('href')).toBe('/integrations/open-dental')
+    const door = within(section).getByRole('link', { name: /How connecting works/i }) as HTMLAnchorElement
+    expect(door.getAttribute('href')).toBe('/integrations/pms')
   })
 
-  it('Premium + connected → the bundle is Active; the OD card shows Manage + Connected', () => {
+  it('connected → the bundle is Active; the bridge card shows Manage + Connected', () => {
     const state = liveState({
-      connections: { open_dental: fact(true, { isDemo: true, title: 'Open Dental (Sandbox)' }) },
+      connections: { nexhealth: fact(true, { isDemo: true, title: 'Open Dental (Sandbox)' }) },
     })
     render(<IntegrationsLibrary {...props({}, state)} />)
     const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
     expect(within(section).getByText('Active')).toBeTruthy()
     const manage = within(section).getByRole('link', { name: /^Manage$/i }) as HTMLAnchorElement
-    expect(manage.getAttribute('href')).toBe('/integrations/open-dental')
+    expect(manage.getAttribute('href')).toBe('/integrations/pms')
     expect(within(section).getByText('Connected')).toBeTruthy()
     // "Feels built-in" — the bundle header points at where its data lives.
     expect((within(section).getByRole('link', { name: /Patients/i }) as HTMLAnchorElement).getAttribute('href')).toBe(
@@ -234,7 +234,7 @@ describe('IntegrationsLibrary — Practice Management bundle', () => {
   })
 
   it('connected + last run errored → a "Needs attention" pill', () => {
-    const state = liveState({ connections: { open_dental: fact(true, { errored: true, title: 'Open Dental' }) } })
+    const state = liveState({ connections: { nexhealth: fact(true, { errored: true, title: 'Open Dental' }) } })
     render(<IntegrationsLibrary {...props({}, state)} />)
     const section = screen.getByRole('heading', { name: 'Practice Management' }).closest('section')!
     expect(within(section).getAllByText('Needs attention').length).toBeGreaterThan(0)

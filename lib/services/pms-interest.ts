@@ -15,7 +15,7 @@ import { newId } from '@/lib/utils'
  * prioritized pipeline. All server-only.
  */
 
-/** The roadmap providers a clinic can register interest in (never open_dental
+/** The roadmap providers a clinic can register interest in (never the bridge
  *  — that's live — or demo). Kept in sync with the catalog `pms` entries. */
 export const REQUESTABLE_PMS = ['dentrix_ascend', 'dentrix_desktop', 'eaglesoft', 'curve'] as const
 export type RequestablePmsId = (typeof REQUESTABLE_PMS)[number]

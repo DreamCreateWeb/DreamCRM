@@ -57,7 +57,7 @@ describe('bundle ↔ catalog mapping', () => {
     expect(bundleForCategory('payments')).toBe('payments')
     // A taxonomy category with no catalog entries + no bundle → null.
     expect(bundleForCategory('scheduling')).toBeNull()
-    expect(bundleForIntegration(INTEGRATIONS_CATALOG.find((d) => d.id === 'open_dental')!)).toBe('pms')
+    expect(bundleForIntegration(INTEGRATIONS_CATALOG.find((d) => d.id === 'nexhealth')!)).toBe('pms')
     expect(bundleForIntegration(INTEGRATIONS_CATALOG.find((d) => d.id === 'instagram')!)).toBe('social')
     expect(bundleForIntegration(INTEGRATIONS_CATALOG.find((d) => d.id === 'stripe_connect')!)).toBe('payments')
   })
@@ -67,7 +67,7 @@ describe('bundle ↔ catalog mapping', () => {
     const ids = bundleMembers(social).map((d) => d.id).sort()
     expect(ids).toEqual(['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube'])
     // PMS bundle includes the live OD + the roadmap PMSs.
-    expect(bundleMembers(BUNDLE_BY_ID.pms).map((d) => d.id)).toContain('open_dental')
+    expect(bundleMembers(BUNDLE_BY_ID.pms).map((d) => d.id)).toContain('nexhealth')
     expect(bundleMembers(BUNDLE_BY_ID.pms).map((d) => d.id)).toContain('dentrix_ascend')
   })
 

@@ -116,9 +116,9 @@ describe('comparison pages', () => {
 
 describe('docs pages', () => {
   it('renders an article with numbered steps and related links', async () => {
-    render(await DocArticlePage({ params: Promise.resolve({ slug: 'connecting-open-dental' }) }))
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Connecting Open Dental')
-    expect(screen.getByText(/official API/i)).toBeInTheDocument()
+    render(await DocArticlePage({ params: Promise.resolve({ slug: 'connecting-your-pms' }) }))
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Connecting your PMS')
+    expect(screen.getByText(/official, sanctioned paths/i)).toBeInTheDocument()
     expect(screen.getByText(/What never syncs/i)).toBeInTheDocument()
   })
 

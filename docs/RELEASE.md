@@ -1162,6 +1162,32 @@ patient through the real Add-patient modal ("Save & open") and lands on
 their chart: staff CRUD in the same browser session the signup minted.
 E2E 23/23 green.
 
+### Owner scope correction — ONE PMS door (2026-08-19)
+
+Owner ruling: "since NexHealth syncs with Open Dental, I don't want two
+separate connector paths — remove the Open Dental path and stick to
+NexHealth's." An approved scope change, not a freeze violation. Shipped:
+the self-serve Open Dental catalog card (Customer-Key connect, gated on
+OD vendor-portal approval that never came) is GONE; the NexHealth bridge
+card is THE one PMS door, renamed "Open Dental, Dentrix + more" and given
+the detail door it never had (`/integrations/pms` — the old OD detail page
+made provider-neutral; `/integrations/open-dental` 308s there; the
+Customer-Key ConnectPanel + `connectOpenDentalAction` deleted). The
+marketplace now lights ONE card for whatever provider the connection row
+carries, titled by the actual system. Connected-bridge cards also gained
+the Manage door they LACKED (the old ConnectedActions keyed on
+`connectKind === 'pms'`, which the bridge isn't — a connected NexHealth
+clinic had no path to its own sync dashboard from the marketplace).
+Marketing/docs/AI-knowledge reworded end to end ("Open Dental sync" →
+"PMS sync — Open Dental, Dentrix + more through one bridge, official
+paths only"): nav + footer, the docs article (now `connecting-your-pms`,
+rewritten for the guided install — no more Customer-Key steps), product
+page, home tile, comparison pages, the seeded blog post, the demo script,
+and the prospecting product knowledge. The OD-direct provider ENGINE
+(`lib/services/pms/open-dental.ts`, `connectOpenDental`) stays INERT —
+the SES-driver pattern — so a future vendor approval is an ops option,
+not a customer door.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

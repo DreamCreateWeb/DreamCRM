@@ -98,6 +98,13 @@ const BINDING = {
 // offsets (Eastern practice) — 10:00 ET = 09:00 CT, still Wednesday.
 const DAY = '2026-08-19'
 
+// FREEZE Date only (timers/promises stay real): the engine drops slots in the
+// past against the REAL clock, so the fixture's hardcoded morning went stale
+// the day the wall clock caught up to it — a date-bomb, first detonated
+// 2026-08-19 ~14:00 UTC. Pinning "now" to early that morning makes the
+// fixture eternal.
+vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-08-19T08:00:00Z') })
+
 beforeEach(() => {
   // The slot cache is module state keyed by org — a fresh org per test is
   // the isolation (and mirrors production: one cache, many clinics).

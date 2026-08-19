@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireTenant } from '@/lib/auth/context'
 import type { PlanTier } from '@/lib/modules'
-import { connectOpenDental, disconnectPms, runImport, setAutoSync, setSyncDirection } from '@/lib/services/pms'
+import { disconnectPms, runImport, setAutoSync, setSyncDirection } from '@/lib/services/pms'
 import type { SyncDirection } from '@/lib/types/pms'
 import { isConnectablePlatform, type ZernioPlatform } from '@/lib/types/zernio'
 
@@ -61,34 +61,10 @@ export async function requestPmsAccessAction(provider: string): Promise<RequestP
   }
 }
 
-export interface ConnectResult {
-  ok: boolean
-  error?: string
-  practiceTitle?: string
-}
-
-export async function connectOpenDentalAction(formData: FormData): Promise<ConnectResult> {
-  const ctx = await requireTenant()
-  ensureClinicAdmin(ctx)
-  const customerKey = formData.get('customerKey')?.toString() ?? ''
-  try {
-    const test = await connectOpenDental(ctx.organizationId, ctx.userId, customerKey)
-    // Kick off the FIRST import immediately, best-effort + detached — so a freshly
-    // connected office sees its patients/schedule land without having to find and
-    // click "Sync now". We do NOT await it: a large first import (budgeted +
-    // resumable inside runImport) can take a while, and the connect action should
-    // return right away so the UI lands on the status card showing progress. The
-    // hourly cron continues any budget-capped first pass. Errors here never fail
-    // the connect (the connection is already saved; a manual sync can retry).
-    void runImport(ctx.organizationId, { trigger: 'initial', triggeredByUserId: ctx.userId }).catch((err) => {
-      console.warn('[integrations] initial import kickoff failed', err)
-    })
-    revalidatePath('/integrations')
-    return { ok: true, practiceTitle: test.practiceTitle }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-}
+// connectOpenDentalAction (the self-serve Customer-Key connect) was removed
+// 2026-08-19 with the separate Open Dental connector path — Open Dental
+// practices ride the NexHealth bridge like every other PMS. The engine-side
+// connectOpenDental service remains available to platform ops.
 
 export interface SyncResultView {
   ok: boolean

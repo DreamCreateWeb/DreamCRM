@@ -100,7 +100,7 @@ describe('catalog — category taxonomy', () => {
 
 describe('catalog — the REAL integrations are present (honest, no fake bulk)', () => {
   const expectIds = [
-    'open_dental',
+    'nexhealth',
     'dentrix_ascend',
     'dentrix_desktop',
     'eaglesoft',
@@ -120,11 +120,15 @@ describe('catalog — the REAL integrations are present (honest, no fake bulk)',
     expect(integrationById(id), id).toBeTruthy()
   })
 
-  it('Open Dental is live + Premium + PMS-kind with a detail page', () => {
-    const od = integrationById('open_dental')!
-    expect(od.availability).toBe('live')
-    expect(od.connectKind).toBe('pms')
-    expect(od.detailHref).toBe('/integrations/open-dental')
+  it('the PMS bridge is THE one PMS door — request-access, detail page, OD named', () => {
+    // Owner ruling 2026-08-19: one connector path. The old self-serve
+    // open_dental card must not come back.
+    expect(integrationById('open_dental')).toBeUndefined()
+    const bridge = integrationById('nexhealth')!
+    expect(bridge.availability).toBe('request_access')
+    expect(bridge.connectKind).toBe('none')
+    expect(bridge.detailHref).toBe('/integrations/pms')
+    expect(bridge.name).toContain('Open Dental')
   })
 
   it('Google Business is live + free (no minPlan) + zernio-kind, never counts toward the cap', () => {
@@ -177,8 +181,9 @@ describe('catalog — searchableText', () => {
     expect(text).toBe(text.toLowerCase())
   })
 
-  it('lets "practice management" match Open Dental via its category label', () => {
-    const od = integrationById('open_dental')!
-    expect(searchableText(od)).toContain('practice management')
+  it('lets "practice management" and "open dental" match the PMS bridge', () => {
+    const bridge = integrationById('nexhealth')!
+    expect(searchableText(bridge)).toContain('practice management')
+    expect(searchableText(bridge)).toContain('open dental')
   })
 })

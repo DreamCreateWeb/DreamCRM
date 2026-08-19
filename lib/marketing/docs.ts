@@ -73,9 +73,9 @@ export const DOCS: DocArticle[] = [
         ],
       },
       {
-        heading: 'If you run Open Dental',
+        heading: 'If you run Open Dental, Dentrix, or another PMS',
         paragraphs: [
-          'Connect it early (Business → Integrations) — patients, visits, and balances sync in, so you skip manual patient entry entirely. See "Connecting Open Dental" for the key exchange.',
+          'Connect it early (Business → Integrations) — patients, visits, and balances sync in, so you skip manual patient entry entirely. See "Connecting your PMS" — it’s a short install we do with you.',
         ],
       },
     ],
@@ -171,7 +171,7 @@ export const DOCS: DocArticle[] = [
       {
         heading: 'Where bookings come from',
         paragraphs: [
-          'Every visit carries its source — your public site’s booking page, the patient portal, or the front desk — so you can see which channels actually fill chairs. If Open Dental is connected, bookings push into it automatically and cancellations clear the old slot there too.',
+          'Every visit carries its source — your public site’s booking page, the patient portal, or the front desk — so you can see which channels actually fill chairs. If your PMS is connected, bookings push into it automatically and cancellations clear the old slot there too.',
         ],
       },
     ],
@@ -287,7 +287,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'Recall & Outreach turns your patient data into audiences that stay current on their own: due or overdue for a cleaning, lapsed, new patients, birthdays this month. If Open Dental is connected, its recall due dates drive the "due" status directly.',
+          'Recall & Outreach turns your patient data into audiences that stay current on their own: due or overdue for a cleaning, lapsed, new patients, birthdays this month. If your PMS is connected, its recall due dates drive the "due" status directly.',
         ],
         steps: [
           'Pick an audience (or define one with the patient filters).',
@@ -301,21 +301,21 @@ export const DOCS: DocArticle[] = [
 
   /* ── Money & integrations ───────────────────────────────────────── */
   {
-    slug: 'connecting-open-dental',
-    title: 'Connecting Open Dental',
-    summary: 'The official-API sync: what you need, what syncs, and what never moves.',
+    slug: 'connecting-your-pms',
+    title: 'Connecting your PMS',
+    summary: 'One bridge reaches Open Dental, Dentrix, Eaglesoft + more — we set it up with you.',
     category: 'Money & integrations',
-    minutes: 5,
+    minutes: 4,
     sections: [
       {
         paragraphs: [
-          'DreamCRM talks to Open Dental through its official API — every write lands in your OD audit trail. You’ll need OD’s eConnector running (their standard remote-access service) and a Customer API key for your office.',
+          'DreamCRM connects to your practice-management system — Open Dental, Dentrix, Eaglesoft, and most others — through one bridge, always via official, sanctioned paths: we never write into your database behind your PMS’s back. Connecting is a short server install we do together, at no cost to your practice.',
         ],
         steps: [
-          'In Open Dental: Setup → Advanced Setup → API → Add Key to create your office’s Customer Key (OD bills API access ~$30/mo).',
-          'In DreamCRM: Business → Integrations → Open Dental, paste the key, choose one-way (import) or two-way.',
-          'Run the first sync. Patients, appointments, providers, balances, and recall due dates come in; the field map on the page shows exactly what reads and writes.',
-          'With two-way on: bookings made on your site or portal push into OD, cancellations clear the OD slot, and our confirmations/reminders mirror into each patient’s CommLog.',
+          'Reach Support (Settings → Feedback) and we’ll schedule the install — your machine, your IT’s, or a quick remote session.',
+          'The bridge installs on the server that runs your PMS; the whole visit is usually under half an hour.',
+          'The first sync runs on its own. Patients, appointments, providers, insurance, and family links come in; the sync page shows exactly what reads and writes.',
+          'With write-back on: bookings made on your site or portal push into your PMS and cancellations clear the slot there too.',
         ],
       },
       {
@@ -355,7 +355,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the Open Dental sync. $200/mo at the founding practice rate (regularly $500); annual billing gives you two months free.',
+          'One plan, everything included: the website and edit-in-place studio, AI copy help, lead capture, patients, agenda, leads queue, messages, intake forms, reviews, the patient portal, blog and SEO, recall campaigns, analytics, the shop and memberships, careers, and the PMS sync. $200/mo at the founding practice rate (regularly $500); annual billing gives you two months free.',
           'Switch tiers any time under Settings → Plan; changes prorate through Stripe. Cancelling stops the next renewal — there is no term contract, and your website content exports with you.',
         ],
       },
@@ -452,7 +452,7 @@ export const DOCS: DocArticle[] = [
       {
         heading: 'Where the answers go',
         paragraphs: [
-          'Each submission attaches to the patient with an AI summary of what matters for the visit, offered in Spanish when needed. If Open Dental is connected, a copy of the completed form is mirrored into the patient’s chart as an honest text note — never a fabricated structured-field sync.',
+          'Each submission attaches to the patient with an AI summary of what matters for the visit, offered in Spanish when needed. If your PMS is connected, a copy of the completed form is mirrored into the patient’s chart as an honest text note — never a fabricated structured-field sync.',
         ],
       },
     ],
@@ -625,7 +625,7 @@ export const DOCS: DocArticle[] = [
     sections: [
       {
         paragraphs: [
-          'Open Dental syncs today, two-way, through its official API. The other major PMSs — Dentrix Ascend, Dentrix desktop, Eaglesoft, Curve — are on the roadmap, and each depends on a vendor partnership or approval we pursue based on real demand. We won’t claim a sync works before it does.',
+          'Open Dental, Dentrix, Eaglesoft, and most other systems connect today through one bridge — a short server install we do with you. A few cloud PMSs are still on the roadmap; we won’t claim a sync works before it does.',
         ],
         steps: [
           'Open Business → Integrations and find your PMS in the Practice Management group.',
@@ -636,7 +636,7 @@ export const DOCS: DocArticle[] = [
       {
         heading: 'Why not just "turn it on"?',
         paragraphs: [
-          'Because a real integration goes through the vendor’s sanctioned path (the Henry Schein One API Exchange for Dentrix Ascend, Patterson Innovation Connection for Eaglesoft, and so on), not a database scraper. That’s slower to enable, but it’s the only way every write lands in your audit trail — the same standard we hold for Open Dental.',
+          'Because a real integration goes through the vendor’s sanctioned path (the Henry Schein One API Exchange for Dentrix Ascend, Patterson Innovation Connection for Eaglesoft, and so on), not a database scraper. That’s slower to enable, but it’s the only way every write lands in your audit trail — the same standard we hold everywhere.',
         ],
       },
     ],

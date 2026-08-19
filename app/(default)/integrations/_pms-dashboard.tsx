@@ -22,9 +22,9 @@ import { KpiStat } from '@/components/ui/kpi-stat'
 import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
 
 /**
- * The Open Dental deep-management dashboard, extracted from the old inline
+ * The PMS deep-management dashboard, extracted from the old inline
  * /integrations page so it can live on its own detail route
- * (`/integrations/open-dental`). Pure server-rendered presentation over a
+ * (`/integrations/pms`). Pure server-rendered presentation over a
  * resolved dashboard + health snapshot — the page does the auth/load, this
  * renders. Reuses the existing `SyncControls` (direction · auto-sync ·
  * disconnect) and the v2 primitives.
@@ -119,7 +119,7 @@ export function PmsConnectedDashboard({
     PROVIDER_LABELS[connection!.provider as keyof typeof PROVIDER_LABELS] ?? connection!.provider
 
   return (
-    <section id="open-dental-detail" className="scroll-mt-20">
+    <section id="pms-detail" className="scroll-mt-20">
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">Connection details</h2>
         <EncodingLegend pills={PILL_LEGEND} />
@@ -133,8 +133,8 @@ export function PmsConnectedDashboard({
         <div>
           <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Sanctioned &amp; audit-clean</p>
           <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">
-            Every read and write goes through Open Dental&apos;s official API, so each change is recorded in your Open
-            Dental Audit Trail. We never write directly to your database — the practice Open Dental itself warns against.
+            Every read and write goes through your PMS&apos;s official, sanctioned path — never by writing into your
+            database behind its back — so each change lands in your PMS&apos;s own audit trail.
             You can see every record we created in your PMS in the write-back log below.
           </p>
         </div>
@@ -341,8 +341,8 @@ export function PmsConnectedDashboard({
         <div className="v2-well p-5">
           <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Coming next</p>
           <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-            <li>· Near-real-time sync via Open Dental webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
-            <li>· Configurable field mapping (today the Open Dental mapping is fixed + shown in full above)</li>
+            <li>· Near-real-time sync via PMS webhook subscriptions (today auto-sync runs on a schedule + you can “Sync now” any time)</li>
+            <li>· Configurable field mapping (today the mapping is fixed + shown in full above)</li>
           </ul>
         </div>
       </section>
@@ -369,7 +369,7 @@ export function ScopeSection() {
           ))}
         </ul>
         <p className="mt-3 pt-3 border-t border-[color:var(--color-hairline)] text-xs text-gray-500 dark:text-gray-400">
-          Records deleted in Open Dental are kept here — we never auto-delete a patient or appointment from DreamCRM, so
+          Records deleted in your PMS are kept here — we never auto-delete a patient or appointment from DreamCRM, so
           your history and notes stay intact.
         </p>
       </div>
@@ -395,7 +395,7 @@ function FieldMapSection() {
     <section className="mb-8">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Field mapping</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">How Open Dental fields map to DreamCRM</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">How your PMS fields map to DreamCRM</p>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {OPEN_DENTAL_FIELD_MAP.map((em) => (

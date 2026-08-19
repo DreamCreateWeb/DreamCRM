@@ -44,7 +44,7 @@ import {
  * PRESERVED connect plumbing: GBP/social connect via Zernio hosted OAuth in a
  * NEW TAB + re-sync on window focus + Refresh; disconnect; the social cap meter +
  * at-cap upgrade/add-on CTA; the add-on management; the ?connected / ?atLimit /
- * error flashes; the Open Dental + GBP detail-page links; the Gmail + Stripe
+ * error flashes; the PMS + GBP detail-page links; the Gmail + Stripe
  * Connect link-outs to their existing flows. Demo connections never network.
  */
 
@@ -703,8 +703,10 @@ function ConnectedActions({
   runtime: ResolvedIntegration['runtime']
   handlers: CardHandlers
 }) {
-  if (def.connectKind === 'pms') {
-    // Open Dental — connected management lives on the detail page.
+  if (def.category === 'pms') {
+    // PMS — connected management lives on the detail page. Keyed on the
+    // CATEGORY (the bridge card's connectKind is 'none' — connecting is a
+    // guided install, not a form — but once bound it still manages there).
     return def.detailHref ? (
       <ActionButton variant="secondary" size="sm" href={def.detailHref}>
         Manage
@@ -766,13 +768,20 @@ function DisconnectedActions({
     return (
       <div className="space-y-2">
         {def.note && <p className="text-xs text-gray-400 dark:text-gray-500">{def.note}</p>}
-        {def.category === 'pms' && (
+        {def.detailHref ? (
+          // The LIVE bridge (request-access because connecting is a guided
+          // install, not because it doesn't exist) — door to the detail page.
+          <ActionButton variant="secondary" size="sm" href={def.detailHref}>
+            How connecting works
+          </ActionButton>
+        ) : def.category === 'pms' ? (
+          // Roadmap PMS tiles — honest demand capture, never a fake connect.
           <PmsRequestButton
             provider={def.id}
             alreadyRequested={handlers.requestedPms.has(def.id)}
             canManage={handlers.canManage}
           />
-        )}
+        ) : null}
       </div>
     )
   }

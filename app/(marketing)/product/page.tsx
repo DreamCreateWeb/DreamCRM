@@ -22,7 +22,7 @@ export const metadata = {
   title: 'Platform tour — DreamCRM',
   alternates: { canonical: '/product' },
   description:
-    'A deep dive through every module: the front-desk daily-ops layer, website studio, online booking, patient portal, unified messages, reviews & surveys, recall & loyalty, shop & memberships, and the official-API Open Dental sync.',
+    'A deep dive through every module: the front-desk daily-ops layer, website studio, online booking, patient portal, unified messages, reviews & surveys, recall & loyalty, shop & memberships, and the PMS sync.',
 }
 
 interface ModuleSection {
@@ -79,7 +79,7 @@ const SECTIONS: ModuleSection[] = [
       'After-hours capture — bookings happen when your phones are off',
       'Confirmation emails carry your intake form automatically',
       'Every booking tagged with its source: website, portal, or front desk',
-      'With Open Dental connected, bookings push into the PMS and cancellations clear the slot',
+      'With your PMS connected, bookings push into it and cancellations clear the slot',
     ],
     docHref: '/docs/online-booking-rules',
     visual: 'booking',
@@ -150,7 +150,7 @@ const SECTIONS: ModuleSection[] = [
     id: 'recall',
     eyebrow: 'Reactivation',
     title: 'Recall that fills chairs, measured honestly',
-    body: 'Audiences build themselves from live patient data — due, overdue, lapsed, birthdays — and stay current without list maintenance. Warm templates go out by email with booking links, and the funnel reports what matters: not opens, but visits actually booked. If Open Dental is connected, its recall engine drives the due dates.',
+    body: 'Audiences build themselves from live patient data — due, overdue, lapsed, birthdays — and stay current without list maintenance. Warm templates go out by email with booking links, and the funnel reports what matters: not opens, but visits actually booked. If your PMS is connected, its recall engine drives the due dates.',
     bullets: [
       'Self-maintaining audiences from lifecycle + recall status',
       'System templates with your voice: reactivation, birthday, welcome',
@@ -180,17 +180,17 @@ const SECTIONS: ModuleSection[] = [
   {
     id: 'integrations',
     eyebrow: 'The foundation',
-    title: 'Open Dental sync through the official API — only',
-    body: 'DreamCRM wraps your PMS; it never replaces it and never sneaks behind it. The Open Dental sync is two-way through OD’s sanctioned API: patients, appointments, providers, balances, and recall due dates flow in; bookings, cancellations, and a CommLog mirror of every message we send flow back — all visible in your OD audit trail. Open Dental has publicly cautioned its customers about vendors writing directly into its database; we built the integration they recommend instead.',
+    title: 'PMS sync through official, sanctioned paths — only',
+    body: 'DreamCRM wraps your PMS; it never replaces it and never sneaks behind it. One bridge reaches Open Dental, Dentrix, Eaglesoft, and most other systems — we set it up with you in a short server install. Patients, appointments, providers, insurance, and family links flow in; bookings and cancellations flow back; everything moves through official, sanctioned paths. Open Dental has publicly cautioned its customers about vendors writing directly into its database; we built the kind of integration they recommend instead.',
     bullets: [
-      'Two-way: imports patients/visits/balances/recall, pushes bookings + cancellations',
-      'CommLog mirroring — our sends appear in each patient’s OD chart',
+      'One bridge for Open Dental, Dentrix, Eaglesoft + more — set up with you, free',
+      'Two-way: imports patients/visits/insurance/family, pushes bookings + cancellations',
       'Transparent field map on the integration page: exactly what reads and writes',
       'Sync-health monitoring with proactive alerts — never silent failure',
       'Charts, procedures, and claims never move; clinical data stays in the PMS',
-      'Dentrix Ascend next (partner approval in progress)',
+      'Online booking offers your real open times, straight from the PMS schedule',
     ],
-    docHref: '/docs/connecting-open-dental',
+    docHref: '/docs/connecting-your-pms',
     visual: 'dashboard',
   },
 ]

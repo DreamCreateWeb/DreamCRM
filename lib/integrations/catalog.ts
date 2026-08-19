@@ -215,39 +215,30 @@ export interface IntegrationDef {
 export const INTEGRATIONS_CATALOG: IntegrationDef[] = [
   // ── Practice management ────────────────────────────────────────────────────
   {
-    id: 'open_dental',
-    name: 'Open Dental',
+    // THE one PMS door (owner ruling 2026-08-19: one connector path, not
+    // two). The old self-serve Open Dental Customer-Key card is GONE — Open
+    // Dental practices connect through the same NexHealth Synchronizer as
+    // everyone else, which was already the live universal bridge and never
+    // needed OD's vendor-portal approval. Clinics can't self-serve this one —
+    // a small Synchronizer service gets installed on the practice's server
+    // (we handle it), so the card is request-access and the copy says so
+    // plainly. Once bound (platform-ops side) the connected state takes over.
+    id: 'nexhealth',
+    name: 'Open Dental, Dentrix + more',
     category: 'pms',
     logo: 'open_dental',
-    tagline: 'Two-way PMS sync in minutes with a Customer Key. Audit-clean.',
+    tagline: 'Your practice-management system, through one bridge — we set it up with you.',
     description:
-      "The most open PMS API in dentistry. Patients, appointments, providers, and balances sync both directions through Open Dental's official API, so every change lands in your Audit Trail — the opposite of the direct-database scrapers Open Dental warns against.",
-    keywords: ['pms', 'practice management', 'open dental', 'sync', 'patients', 'appointments', 'sandbox', 'two-way'],
-    availability: 'live',
-    connectKind: 'pms',
-    detailHref: '/integrations/open-dental',
+      'One connection that reaches Open Dental, Dentrix, Eaglesoft, and most other practice-management systems. A short install on your server (we handle it — yours, your IT’s, or our remote session), then your patients and appointments sync in automatically, with online booking offering your real open times.',
+    keywords: ['pms', 'practice management', 'open dental', 'dentrix', 'eaglesoft', 'nexhealth', 'synchronizer', 'bridge', 'sync', 'patients', 'appointments', 'two-way'],
+    availability: 'request_access',
+    connectKind: 'none',
+    detailHref: '/integrations/pms',
+    note: 'We set this up with you — Reach Support and we’ll schedule the short server install. No cost to your practice.',
     valueLinks: [
       { href: '/patients', label: 'Patients' },
       { href: '/appointments', label: 'Appointments' },
     ],
-  },
-  {
-    // The universal PMS bridge (onboarding overhaul §2.6). Clinics can't
-    // self-serve this one — a small Synchronizer service gets installed on
-    // the practice's server (we handle it), so the card is request-access
-    // and the copy says so plainly. Once bound (platform-ops side) the
-    // connected state takes over.
-    id: 'nexhealth',
-    name: 'Dentrix, Eaglesoft + more',
-    category: 'pms',
-    logo: 'open_dental',
-    tagline: 'Most practice-management systems, through one bridge — we set it up with you.',
-    description:
-      'One connection that reaches Dentrix, Eaglesoft, and most other practice-management systems through the NexHealth Synchronizer. A short install on your server (we handle it — yours, your IT’s, or our remote session), then your patients and appointments sync in automatically. Read-only for now: nothing writes back to your system.',
-    keywords: ['pms', 'practice management', 'dentrix', 'eaglesoft', 'nexhealth', 'synchronizer', 'bridge', 'sync'],
-    availability: 'request_access',
-    connectKind: 'none',
-    note: 'We set this up with you — Reach Support and we’ll schedule the short server install. No cost to your practice.',
   },
   {
     id: 'dentrix_ascend',
