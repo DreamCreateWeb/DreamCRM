@@ -40,13 +40,20 @@ export default async function OnboardingComplete() {
                       d="M37.22 26.375a1 1 0 1 1 1.56 1.25l-8 10a1 1 0 0 1-1.487.082l-4-4a1 1 0 0 1 1.414-1.414l3.21 3.21 7.302-9.128Z"
                     />
                   </svg>
+                  {/* HONEST STATE (the 0147 go-live lever): a new clinic's
+                      site starts PRIVATE — the world sees "coming soon" until
+                      the deliberate publish from the Website hub. The owner
+                      sees the real site at this link (editors bypass the
+                      gate), which is exactly why the old "your site is live!"
+                      heading was a trap: it showed them a page only they
+                      could see and called it live. */}
                   <h1 className="text-3xl text-gray-800 dark:text-gray-100 font-bold mb-3">
-                    {orgName ? `${orgName} — your site is live!` : 'Your site is live!'}
+                    {orgName ? `${orgName} — your site is ready!` : 'Your site is ready!'}
                   </h1>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">
-                    Your website is already on the internet with starter content, and every page
-                    updates live as you customize it. Next: answer a few quick questions and
-                    we&apos;ll write the whole site for you.
+                    Your website is built and waiting with starter content — only you can see
+                    it until you publish, so take your time making it yours. Next: answer a few
+                    quick questions and we&apos;ll write the whole site for you.
                   </p>
 
                   {siteUrl && (
@@ -55,9 +62,9 @@ export default async function OnboardingComplete() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="group inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2.5 mb-6 text-sm font-medium text-gray-800 dark:text-gray-100 hover:border-gray-300 dark:hover:border-gray-600"
-                      title="Open your live site in a new tab"
+                      title="Preview your site in a new tab (visible only to you until you go live)"
                     >
-                      <span className="inline-block h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
+                      <span className="inline-block h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
                       {siteHost}
                       <span className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" aria-hidden="true">↗</span>
                     </a>
