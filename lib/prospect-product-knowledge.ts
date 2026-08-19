@@ -25,7 +25,7 @@ PRICING (7-day free trial, no credit card; annual billing = 2 months free)
 
 DIFFERENTIATORS
 - Dental-only specialization — not a generic website/CRM tool.
-- Wrap, don't replace — keep your PMS; we're the relationship layer on top, with two-way Open Dental sync and embed slots for tools you won't switch.
+- Wrap, don't replace — keep your PMS; we're the relationship layer on top, with two-way PMS sync (Open Dental, Dentrix + more) and embed slots for tools you won't switch.
 - The website is the trunk — booking, forms, shop, portal, and reviews all live on the clinic's OWN branded site, not a third-party destination.
 - Google-first reviews auto-loop — a completed visit auto-sends a review request and new Google reviews auto-feature on the site.
 - Done-for-you — we build the site and stand up the system; it stays editable in place any time.

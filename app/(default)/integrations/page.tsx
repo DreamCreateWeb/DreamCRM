@@ -40,10 +40,10 @@ export const dynamic = 'force-dynamic'
  *
  * The former /channels surface (social + GBP connect) folds in here, so this is
  * the single place a clinic plugs things in. Deep PMS management lives on its
- * own detail route (`/integrations/open-dental`); GBP has a light detail route
+ * own detail route (`/integrations/pms`); GBP has a light detail route
  * too (`/integrations/google-business`).
  *
- * Gating: Open Dental is Premium-tier; GBP + social are usable on every plan
+ * Gating: the PMS bridge is Premium-tier; GBP + social are usable on every plan
  * (Basic included; social bounded by the per-plan cap; owner/admin to mutate) —
  * so we never redirect a below-Premium clinic away. Gmail + Stripe are surfaced
  * with their REAL connection status and link out to their existing flows (we
@@ -99,16 +99,17 @@ export default async function IntegrationsPage({
   // ── Assemble the per-integration live connection facts ────────────────────
   const connections: Record<string, IntegrationConnectionFact | undefined> = {}
 
-  // PMS: the connection row lights the card for ITS provider — a NexHealth
-  // bridge must never render as a connected Open Dental (and vice versa).
+  // PMS: ONE card (the bridge) since 2026-08-19 — whatever provider the
+  // connection row carries (nexhealth, a legacy open_dental bind, the demo)
+  // lights it, and the title names the actual system so the card stays honest.
   if (connection?.status === 'connected') {
-    const cardId = connection.provider === 'nexhealth' ? 'nexhealth' : 'open_dental'
+    const cardId = 'nexhealth'
     connections[cardId] = {
       connected: true,
       errored: connection.lastSyncStatus === 'error',
       isDemo: connection.provider === 'demo',
       title:
-        PROVIDER_LABELS[connection.provider as keyof typeof PROVIDER_LABELS] ?? connection.provider ?? 'Open Dental',
+        PROVIDER_LABELS[connection.provider as keyof typeof PROVIDER_LABELS] ?? connection.provider ?? 'Your PMS',
     }
   }
 

@@ -112,7 +112,7 @@ describe('middleware auth gate', () => {
   })
 
   it('allows the marketing subpages without auth', async () => {
-    for (const path of ['/product', '/pricing', '/compare/weave', '/docs/connecting-open-dental', '/blog', '/sitemap.xml', '/robots.txt', '/opengraph-image', '/icon', '/manifest.webmanifest', '/api/blog/post_1/view']) {
+    for (const path of ['/product', '/pricing', '/compare/weave', '/docs/connecting-your-pms', '/blog', '/sitemap.xml', '/robots.txt', '/opengraph-image', '/icon', '/manifest.webmanifest', '/api/blog/post_1/view']) {
       const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
       const res = (await middleware(req)) as NextResponse
       expect(res.headers.get('location'), path).toBeNull()

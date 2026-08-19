@@ -6,7 +6,7 @@ export const metadata = {
   title: 'Help docs — DreamCRM',
   alternates: { canonical: '/docs' },
   description:
-    'Setup guides and how-tos for every part of DreamCRM: website, booking, patient portal, reviews, recall, shop, and the Open Dental sync.',
+    'Setup guides and how-tos for every part of DreamCRM: website, booking, patient portal, reviews, recall, shop, and the PMS sync.',
 }
 
 export default function DocsIndexPage() {

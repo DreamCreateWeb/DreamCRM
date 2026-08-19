@@ -170,7 +170,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
       COMPARE,
       ANALYTICS,
       moreBeat(
-        'Open Dental sync, memberships, payment plans, a careers page, a patient portal — {clinicName} gets the whole engine. Premium is $500 a month, no contracts.',
+        'PMS sync, memberships, payment plans, a careers page, a patient portal — {clinicName} gets the whole engine. Premium is $500 a month, no contracts.',
       ),
     ],
   },

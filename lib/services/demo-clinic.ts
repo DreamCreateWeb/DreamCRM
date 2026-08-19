@@ -3198,7 +3198,7 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   // review — so /blog + the public blog index both show real content.
   await seedBlogPostsForOrg(orgId, now, new Set())
 
-  // ── PMS Integrations — sandbox Open Dental connection ───────────────
+  // ── PMS Integrations — sandbox PMS connection (provider 'demo') ─────
   // Seeded last so every provider/patient/appointment exists to map. Builds
   // the connection + entity maps + sync history + write-back log (every state)
   // so /integrations showcases two-way sync without a live PMS.

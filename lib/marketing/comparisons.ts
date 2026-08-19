@@ -112,8 +112,8 @@ export const COMPARISONS: VendorComparison[] = [
     summary:
       'NexHealth built an impressive real-time synchronizer across many PMSs and sells booking, forms, reminders, and payments on top of it. Its breadth of PMS coverage is real, and the sync infrastructure is genuinely strong engineering. The trade-offs are scope and terms: no practice website, no clinic-branded portal, no shop or memberships, and custom pricing. DreamCRM is the whole patient-facing stack — website through recall — on one published price.',
     theirStrengths: [
-      { title: 'PMS breadth', body: 'NexHealth syncs many PMSs today — Dentrix, Eaglesoft, and more. DreamCRM ships Open Dental now, with Dentrix Ascend in approval; if you run another PMS, NexHealth covers it sooner.' },
-      { title: 'Real-time sync', body: 'Their synchronizer pushes changes near-instantly. Our Open Dental sync is scheduled polling plus instant write-backs — honest minutes, not seconds.' },
+      { title: 'PMS breadth', body: 'NexHealth built the synchronizer that reaches Dentrix, Eaglesoft, and most other PMSs — genuinely strong engineering. DreamCRM connects through that same class of bridge, so the practical coverage overlaps.' },
+      { title: 'Real-time sync', body: 'Their first-party product surfaces changes near-instantly. Our PMS sync is scheduled polling plus instant write-backs — honest minutes, not seconds.' },
       { title: 'Developer API', body: 'A public API product lets DSOs build custom tooling on the sync layer.' },
     ],
     ourStrengths: [
@@ -227,7 +227,7 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { title: 'The patient-facing half', body: 'A real website product with edit-in-place studio, a clinic-branded portal, online store, memberships, careers — none of which Adit ships as product.' },
       { title: 'Self-serve everything', body: 'Sign up, your site and dashboard exist in minutes, and every word of your site is yours to edit — no agency queue.' },
-      { title: 'Official-API Open Dental sync', body: 'Two-way through OD’s sanctioned API with every write in your audit trail.' },
+      { title: 'Official-path PMS sync', body: 'Open Dental, Dentrix + more through one bridge — sanctioned paths, every write in your audit trail.' },
       { title: 'Lower flat price', body: '$200/mo versus reported ~$399 bundles — because we don’t carry a phone network.' },
     ],
     matrix: baseMatrix({
@@ -326,7 +326,7 @@ export const COMPARISONS: VendorComparison[] = [
     category: 'Healthcare practice-growth: websites, SEO & reputation',
     reportedPricing: 'Reported ~$300–$700+/mo, typically annual, per the practice-growth suite (third-party reviews, 2025–2026)',
     summary:
-      'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite. It’s a capable, established product across medical and dental. The differences are focus and terms: PatientPop is a multi-specialty healthcare tool (not dental-native), its sites and portal run more as a managed service on annual contracts, and it has no online store, memberships, or official-API Open Dental sync. DreamCRM is dental-native, self-serve, edit-it-yourself, and month-to-month.',
+      'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite. It’s a capable, established product across medical and dental. The differences are focus and terms: PatientPop is a multi-specialty healthcare tool (not dental-native), its sites and portal run more as a managed service on annual contracts, and it has no online store, memberships, or official-path PMS sync. DreamCRM is dental-native, self-serve, edit-it-yourself, and month-to-month.',
     theirStrengths: [
       { title: 'Established healthcare SEO', body: 'Years of medical + dental SEO and directory-listing management across specialties — broad and proven.' },
       { title: 'Reputation + scheduling suite', body: 'Reviews, online scheduling, and provider profiles bundled with the site.' },
@@ -335,7 +335,7 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { title: 'Dental-native, not multi-specialty', body: 'A curated dental services library, visit-type booking rules, dental intake, and PMS recall — versus a generic healthcare template.' },
       { title: 'Edit it yourself, no agency queue', body: 'The Website Studio changes your live site by clicking it; PatientPop sites lean on managed changes.' },
-      { title: 'Store, memberships, and official-API sync', body: 'An online shop, in-house membership plans, and two-way Open Dental sync through the sanctioned API — none of which PatientPop ships.' },
+      { title: 'Store, memberships, and official-path sync', body: 'An online shop, in-house membership plans, and two-way PMS sync through sanctioned paths — none of which PatientPop ships.' },
       { title: 'Month-to-month, published price', body: '$200/mo on the page with no annual contract, versus reported annual growth-suite agreements.' },
     ],
     matrix: baseMatrix({
@@ -354,7 +354,7 @@ export const COMPARISONS: VendorComparison[] = [
       contract: ['no', 'Reported annual contracts'],
     }),
     bottomLine:
-      'If you want an established multi-specialty growth suite and don’t mind an annual contract and managed changes, PatientPop is credible. If you want a dental-native platform you edit yourself, with a store, memberships, and official-API Open Dental sync, month-to-month — that’s DreamCRM.',
+      'If you want an established multi-specialty growth suite and don’t mind an annual contract and managed changes, PatientPop is credible. If you want a dental-native platform you edit yourself, with a store, memberships, and official-path PMS sync, month-to-month — that’s DreamCRM.',
   },
 ]
 

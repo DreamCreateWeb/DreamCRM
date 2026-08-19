@@ -80,8 +80,8 @@ const PILLARS: Array<{ title: string; body: string; href: string; glyph: React.R
     glyph: <><path d="M5 8h14l-1 12a1.5 1.5 0 0 1-1.5 1.3h-9A1.5 1.5 0 0 1 6 20L5 8Z" /><path d="M9 10.5V6a3 3 0 0 1 6 0v4.5" /></>,
   },
   {
-    title: 'Open Dental sync',
-    body: 'Two-way through the official API — every write lands in your audit trail.',
+    title: 'PMS sync',
+    body: 'Open Dental, Dentrix + more through one bridge — official paths only.',
     href: '/product#integrations',
     glyph: <path d="M9 7h6a4 4 0 0 1 0 8h-2m-4 2H5a4 4 0 0 1 0-8h2m1 4h8" />,
   },

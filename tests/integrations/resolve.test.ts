@@ -22,7 +22,7 @@ function state(overrides: Partial<LiveIntegrationState> = {}): LiveIntegrationSt
   }
 }
 
-const OD = integrationById('open_dental')!
+const OD = integrationById('nexhealth')!
 const GBP = integrationById('googlebusiness')!
 const IG = integrationById('instagram')!
 const GMAIL = integrationById('gmail')!
@@ -44,7 +44,7 @@ describe('resolveIntegration — connected states win', () => {
   it('connected + errored → needs_attention', () => {
     const r = resolveIntegration(
       OD,
-      state({ connections: { open_dental: { connected: true, errored: true, title: 'Open Dental' } } }),
+      state({ connections: { nexhealth: { connected: true, errored: true, title: 'Open Dental' } } }),
     )
     expect(r.runtime.status).toBe('needs_attention')
     expect(r.runtime.connected).toBe(true)
@@ -54,7 +54,7 @@ describe('resolveIntegration — connected states win', () => {
     // A live connection always wins.
     const r = resolveIntegration(
       OD,
-      state({connections: { open_dental: { connected: true, title: 'OD' } } }),
+      state({connections: { nexhealth: { connected: true, title: 'OD' } } }),
     )
     expect(r.runtime.status).toBe('connected')
   })
@@ -68,7 +68,7 @@ describe('resolveIntegration — connected states win', () => {
   it('carries isDemo through', () => {
     const r = resolveIntegration(
       OD,
-      state({ connections: { open_dental: { connected: true, isDemo: true, title: 'Sandbox' } } }),
+      state({ connections: { nexhealth: { connected: true, isDemo: true, title: 'Sandbox' } } }),
     )
     expect(r.runtime.isDemo).toBe(true)
   })
@@ -85,8 +85,8 @@ describe('resolveIntegration — lifecycle (not connectable)', () => {
 })
 
 describe('resolveIntegration — no plan gating (single-plan reality)', () => {
-  it('PMS-kind + not connected → available (no tier can lock it)', () => {
-    expect(resolveIntegration(OD, state()).runtime.status).toBe('available')
+  it('the PMS bridge + not connected → request_access (a guided install, never tier-locked)', () => {
+    expect(resolveIntegration(OD, state()).runtime.status).toBe('request_access')
   })
 
   it('an oauth def + not connected → available', () => {
@@ -137,7 +137,7 @@ describe('resolveCatalog + connectedCount', () => {
     const all = resolveCatalog(
       state({
         connections: {
-          open_dental: { connected: true },
+          nexhealth: { connected: true },
           googlebusiness: { connected: true },
           instagram: { connected: true },
           facebook: { connected: false, errored: true }, // not connected
@@ -147,10 +147,10 @@ describe('resolveCatalog + connectedCount', () => {
     expect(connectedCount(all)).toBe(3)
   })
 
-  it('every clinic sees Open Dental, GBP + Gmail available (no tiers)', () => {
+  it('every clinic sees the PMS bridge, GBP + Gmail reachable (no tiers)', () => {
     const all = resolveCatalog(state({}))
     const byId = Object.fromEntries(all.map((r) => [r.def.id, r.runtime.status]))
-    expect(byId.open_dental).toBe('available')
+    expect(byId.nexhealth).toBe('request_access')
     expect(byId.googlebusiness).toBe('available')
     expect(byId.gmail).toBe('available')
   })

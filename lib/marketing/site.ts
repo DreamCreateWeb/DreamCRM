@@ -47,7 +47,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
       { label: 'Google Business & social', href: '/product#gbp', description: 'Sync reviews, post everywhere' },
       { label: 'Recall & outreach', href: '/product#recall', description: 'Measured in booked visits' },
       { label: 'Shop & memberships', href: '/product#shop', description: 'Payouts to your own bank' },
-      { label: 'Open Dental sync', href: '/product#integrations', description: 'Two-way, official API only' },
+      { label: 'PMS sync', href: '/product#integrations', description: 'Open Dental, Dentrix + more — official paths only' },
     ],
   },
   {
@@ -70,7 +70,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
       { label: 'Help docs', href: '/docs', description: 'Setup guides in front-desk language' },
       { label: 'Blog', href: '/blog', description: 'Announcements & essays from the team' },
       { label: 'Your first 30 minutes', href: '/docs/your-first-30-minutes', description: 'The setup order that works' },
-      { label: 'Connect Open Dental', href: '/docs/connecting-open-dental', description: 'The official-API sync, step by step' },
+      { label: 'Connect your PMS', href: '/docs/connecting-your-pms', description: 'One bridge, set up with you' },
       { label: 'Live demo practice', href: DEMO_URL, description: 'Browse a fully-populated clinic', external: true },
     ],
   },
@@ -85,7 +85,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
   { label: 'Pricing', href: '/pricing' },
       { label: 'Live demo practice', href: DEMO_URL, external: true },
       { label: 'Patient portal', href: '/product#portal' },
-      { label: 'Open Dental sync', href: '/product#integrations' },
+      { label: 'PMS sync', href: '/product#integrations' },
     ],
   },
   {
@@ -104,7 +104,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
       { label: 'Help docs', href: '/docs' },
       { label: 'Blog', href: '/blog' },
       { label: 'Getting started guide', href: '/docs/your-first-30-minutes' },
-      { label: 'Connect Open Dental', href: '/docs/connecting-open-dental' },
+      { label: 'Connect your PMS', href: '/docs/connecting-your-pms' },
     ],
   },
   {
