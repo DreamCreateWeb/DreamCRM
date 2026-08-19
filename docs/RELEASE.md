@@ -1139,6 +1139,23 @@ fix: `--skip-build` was also being passed through to Playwright.
 CodeBuild ~2 min in (the same commit builds green locally); retried with
 an empty commit per the standing pattern.
 
+**Batch 7 (2026-08-18) — the stranger test in CI + an honest completion
+page:** `e2e/stranger.spec.ts` (suite now 23) drives the ENTIRE acquisition
+path as one real browser journey with nothing seeded on the stranger's
+side: signup → the four onboarding steps (practice → address → the slug
+availability check → the no-card trial) → the completion page → the
+dashboard wearing the new clinic's name → **the tenant wall** (the new
+clinic's Patients page must not contain the other seeded clinic's patient
+— the multi-tenancy check this program exists for, finally asserted in a
+real browser). Writing the spec surfaced a real R2 casualty: since the
+0147 go-live lever, a new clinic's site starts PRIVATE, but
+`/onboarding-complete` still crowned it "**your site is live!**" — and
+because editors bypass the coming-soon gate, the owner clicking the link
+SAW their site and believed it, while the world saw "coming soon". The
+page now says "your site is ready!", explains only-you-can-see-it-until-
+you-publish, and the link's green live-dot became an amber preview-dot;
+the spec pins the honest copy.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
