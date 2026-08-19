@@ -68,5 +68,17 @@ test.describe('the stranger journey', () => {
     await page.goto('/patients')
     await expect(page.locator('body')).not.toContainText('Casey Confirmable')
     await expect(page.locator('body')).not.toContainText('E2E Dental')
+
+    // FIRST DAY OF WORK: add the clinic's first patient through the real
+    // modal and land on their chart — staff CRUD, in a browser, same session.
+    await page.getByRole('button', { name: /Add patient/ }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Add patient' })
+    await dialog.getByLabel('First name').fill('Pat')
+    await dialog.getByLabel('Last name').fill('First')
+    await dialog.getByLabel('Email').fill('pat.first@example.com')
+    await dialog.getByLabel('Phone').fill('5550100300')
+    await dialog.getByRole('button', { name: 'Save & open' }).click()
+    await page.waitForURL('**/patients/*', { timeout: 30_000 })
+    await expect(page.getByText('Pat First').first()).toBeVisible()
   })
 })
