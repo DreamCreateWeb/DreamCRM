@@ -99,5 +99,44 @@ await pool.query(
 )
 console.log('seeded unanswered survey')
 
+// --- The signed-in patient (portal journeys) --------------------------------
+// Casey gets a linked auth user + a live session row, so e2e/portal.spec.ts
+// can mint the signed session cookie (it knows BETTER_AUTH_SECRET) and walk
+// the portal as a real signed-in patient — no magic-link email round-trip.
+// The session expires far in the future; the DB is rebuilt every run anyway.
+await pool.query(
+  `insert into "user" (id, name, email, email_verified)
+   values ('user_e2e_patient', 'Casey Confirmable', 'casey.confirmable@example.com', true)
+   on conflict (id) do nothing`,
+)
+await pool.query(
+  `insert into member (id, organization_id, user_id, role)
+   values ('mem_e2e_patient', 'org_e2e_live', 'user_e2e_patient', 'patient')
+   on conflict (id) do nothing`,
+)
+await pool.query(`update patient set user_id = 'user_e2e_patient' where id = 'pat_e2e_confirm'`)
+await pool.query(
+  `insert into session (id, token, user_id, active_organization_id, expires_at)
+   values ('sess_e2e_patient', 'e2e-patient-session-token', 'user_e2e_patient', 'org_e2e_live', now() + interval '7 days')
+   on conflict (id) do update set expires_at = now() + interval '7 days'`,
+)
+// The PORTAL's own visit (a cleaning, two Wednesdays out) — deliberately a
+// different row from appt_e2e_confirm: the /c token spec and the portal spec
+// run in parallel workers, and sharing one appointment would make each flaky
+// in the other's shadow. Reset to unconfirmed on every seed.
+const portalStart = new Date(start)
+portalStart.setUTCDate(portalStart.getUTCDate() + 7)
+await pool.query(
+  `insert into appointment (id, organization_id, patient_id, title, start_time, type, status)
+   values ('appt_e2e_portal', 'org_e2e_live', 'pat_e2e_confirm', 'Cleaning — Casey', $1, 'cleaning', 'scheduled')
+   on conflict (id) do update set
+     start_time = excluded.start_time,
+     status = 'scheduled',
+     confirmed_at = null,
+     confirmed_via = null`,
+  [portalStart],
+)
+console.log('seeded signed-in patient session + portal visit')
+
 await pool.end()
 console.log('e2e seed complete')
