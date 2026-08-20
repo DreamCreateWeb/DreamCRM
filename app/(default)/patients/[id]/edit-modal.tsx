@@ -97,6 +97,9 @@ export default function EditPatientModal({
           </button>
         </div>
         <div className="px-6 py-5 space-y-3 overflow-y-auto">
+          {/* Fourteen fields need a map: each group leads with a quiet heading
+              so "where's the policy number?" is a glance, not a scroll-hunt. */}
+          <SectionHeading first>Contact</SectionHeading>
           <div className="grid grid-cols-2 gap-3">
             <Field label="First name" value={firstName} onChange={setFirstName} error={fieldErrors.firstName} />
             <Field label="Last name" value={lastName} onChange={setLastName} error={fieldErrors.lastName} />
@@ -104,7 +107,8 @@ export default function EditPatientModal({
           <Field label="Email" value={email} onChange={setEmail} type="email" error={fieldErrors.email} />
           <Field label="Phone" value={phone} onChange={setPhone} type="tel" error={fieldErrors.phone} />
           <Field label="Date of birth" value={dob} onChange={setDob} type="date" />
-          <div className="grid grid-cols-1 gap-3 pt-2">
+          <SectionHeading>Address</SectionHeading>
+          <div className="grid grid-cols-1 gap-3">
             <Field label="Street address" value={address} onChange={setAddress} />
             <div className="grid grid-cols-3 gap-3">
               <Field label="City" value={city} onChange={setCity} />
@@ -112,14 +116,16 @@ export default function EditPatientModal({
               <Field label="Postal" value={postal} onChange={setPostal} />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[color:var(--color-hairline)]">
+          <SectionHeading>Insurance</SectionHeading>
+          <div className="grid grid-cols-1 gap-3">
             <Field label="Insurance provider" value={insProvider} onChange={setInsProvider} />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Policy #" value={insPolicy} onChange={setInsPolicy} />
               <Field label="Group #" value={insGroup} onChange={setInsGroup} />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[color:var(--color-hairline)]">
+          <SectionHeading>Care preferences</SectionHeading>
+          <div className="grid grid-cols-1 gap-3">
             <label className="block">
               <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
                 Recall interval
@@ -160,7 +166,8 @@ export default function EditPatientModal({
               </span>
             </label>
           </div>
-          <div className="grid grid-cols-1 gap-3 pt-2 border-t border-[color:var(--color-hairline)]">
+          <SectionHeading>Family access</SectionHeading>
+          <div className="grid grid-cols-1 gap-3">
             <label className="block">
               <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
                 Family portal access (guardian)
@@ -197,6 +204,19 @@ export default function EditPatientModal({
         </div>
       </div>
     </div>
+  )
+}
+
+/** Quiet group heading — a hairline rule above every section but the first. */
+function SectionHeading({ first = false, children }: { first?: boolean; children: React.ReactNode }) {
+  return (
+    <h3
+      className={`text-sm font-semibold text-gray-800 dark:text-gray-100 ${
+        first ? '' : 'pt-3 border-t border-[color:var(--color-hairline)]'
+      }`}
+    >
+      {children}
+    </h3>
   )
 }
 

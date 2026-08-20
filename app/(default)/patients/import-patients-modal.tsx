@@ -110,12 +110,15 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
     <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Import patients" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
       <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl flex flex-col max-h-[90vh]">
         <div className="px-6 py-5 border-b border-[color:var(--color-hairline)] flex items-start justify-between">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Import patients</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Upload a CSV from your old system or a spreadsheet. We&apos;ll skip anyone who already
               has the same email or phone on file.
             </p>
+            <StepRail
+              current={stage.type === 'upload' ? 0 : stage.type === 'mapping' ? 1 : 2}
+            />
           </div>
 <button
             type="button"
@@ -133,21 +136,55 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
           {/* ── Stage: upload ─────────────────────────────────────── */}
           {stage.type === 'upload' && (
             <div className="space-y-4">
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  CSV file
-                </span>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={(e) => {
-                    setFile(e.target.files?.[0] ?? null)
-                    setError(null)
-                  }}
-                  className="form-input w-full mt-1 text-sm"
-                />
-              </label>
+              {/* A real drop well instead of the browser's bare file input —
+                  click to browse, or drop the CSV straight on it; the chosen
+                  file echoes back by name so "did it take?" never comes up. */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const dropped = e.dataTransfer.files?.[0]
+                  if (!dropped) return
+                  if (!/\.csv$/i.test(dropped.name) && dropped.type !== 'text/csv') {
+                    setError('That file isn’t a CSV — export one from your old system or spreadsheet first.')
+                    return
+                  }
+                  setFile(dropped)
+                  setError(null)
+                }}
+                className="w-full rounded-[var(--r-md)] border border-dashed border-[color:var(--color-hairline-strong)] bg-[color:var(--color-surface-sunk)] px-6 py-8 text-center transition-colors hover:border-teal-500/60"
+              >
+                {file ? (
+                  <>
+                    <span className="block text-sm font-medium text-gray-800 dark:text-gray-100 break-all">
+                      {file.name}
+                    </span>
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {(file.size / 1024).toFixed(0)} KB · click to choose a different file
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span aria-hidden="true" className="block text-2xl mb-1">📄</span>
+                    <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+                      Drop your CSV here, or click to browse
+                    </span>
+                  </>
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] ?? null)
+                  setError(null)
+                }}
+                className="hidden"
+                aria-label="CSV file"
+              />
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 The first row should be column headers (e.g. First Name, Last Name, Email, Phone,
                 Date of Birth). Up to 5,000 patients per file.
@@ -300,6 +337,46 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
         </div>
       </div>
     </div>
+  )
+}
+
+const STEPS = ['Upload', 'Match columns', 'Done'] as const
+
+/** The wizard's map: three fixed steps, the current one ringed teal, finished
+ *  ones ticked emerald — so "where am I / what's left" is always answered. */
+function StepRail({ current }: { current: number }) {
+  return (
+    <ol aria-label="Import steps" className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {STEPS.map((label, i) => (
+        <li key={label} className="flex items-center gap-2">
+          {i > 0 && <span aria-hidden="true" className="h-px w-4 bg-[color:var(--color-hairline-strong)]" />}
+          <span
+            aria-current={i === current ? 'step' : undefined}
+            className={`inline-flex items-center gap-1.5 font-medium ${
+              i === current
+                ? 'text-teal-700 dark:text-teal-300'
+                : i < current
+                  ? 'text-emerald-700 dark:text-emerald-300'
+                  : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`grid h-4 w-4 place-items-center rounded-full text-xs leading-none ${
+                i === current
+                  ? 'ring-1 ring-inset ring-teal-500/60 bg-teal-500/10'
+                  : i < current
+                    ? 'bg-emerald-500/15'
+                    : 'ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
+              }`}
+            >
+              {i < current ? '✓' : i + 1}
+            </span>
+            {label}
+          </span>
+        </li>
+      ))}
+    </ol>
   )
 }
 
