@@ -1281,6 +1281,21 @@ hero, Delete demotes to a ghost with rose hover and only the clicked
 card spins, the empty state hands over "+ New audience" · Shop's
 duplicate Connect-Stripe primary demotes to secondary.
 
+**Batch 14 — dismissal contracts + the builder's hands:** the new
+`usePopoverDismiss` hook (Esc + outside-click, mousedown-phase so it
+feels native) retires five popovers that could only be closed by
+re-clicking their trigger — assign, snooze, templates, and schedule in
+the Messages thread detail, plus the thread list's bulk snooze · the
+intake form builder's reorder controls grow from ~10px text glyphs to
+28px icon buttons with hover surfaces (sections and fields), "Remove
+section" now CONFIRMS while naming how many questions die with it (the
+more destructive click had no dialog while archiving the whole form
+did), and Archive moves out of the sticky save bar into a quiet footer —
+destructive never rides beside the primary · the Pages manager stops
+rendering an invisible-but-focusable chevron on rows with nothing to
+disclose (plain text, no dead tab stop) and "N text edits" explains
+itself on hover.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

@@ -37,6 +37,7 @@ import {
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 import { MAX_MESSAGE_ATTACHMENTS } from '@/lib/types/messaging'
 import BookFromPatientDrawer from '@/app/(default)/appointments/book-from-patient-drawer'
+import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
 
 type Channel = 'in_app' | 'email' | 'sms'
 
@@ -409,6 +410,17 @@ export default function ThreadDetailPanel({
   const [showTemplates, setShowTemplates] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
+  // Every popover honors the dismiss contract (Esc + outside click) — each
+  // ref wraps the trigger AND the panel, so clicking the trigger still
+  // toggles rather than close-then-reopen.
+  const assignPopRef = useRef<HTMLDivElement | null>(null)
+  const snoozePopRef = useRef<HTMLDivElement | null>(null)
+  const templatesPopRef = useRef<HTMLDivElement | null>(null)
+  const schedulePopRef = useRef<HTMLDivElement | null>(null)
+  usePopoverDismiss(showAssign, assignPopRef, () => setShowAssign(false))
+  usePopoverDismiss(showSnooze, snoozePopRef, () => setShowSnooze(false))
+  usePopoverDismiss(showTemplates, templatesPopRef, () => setShowTemplates(false))
+  usePopoverDismiss(showSchedule, schedulePopRef, () => setShowSchedule(false))
   const [scheduleAt, setScheduleAt] = useState('')
   const [scheduling, setScheduling] = useState(false)
   const [starred, setStarred] = useState(!!thread.starred)
@@ -777,7 +789,7 @@ export default function ThreadDetailPanel({
               control so they read as a designed unit — not buttons sprinkled
               in a row. Assign first; snooze/archive/reopen follow by status. */}
           <div className="flex items-center gap-0.5 rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] p-0.5 shadow-[inset_0_0_0_1px_var(--color-hairline)]">
-          <div className="relative">
+          <div ref={assignPopRef} className="relative">
             <ToolButton
               icon={<IconAssign />}
               onClick={() => setShowAssign(!showAssign)}
@@ -853,7 +865,7 @@ export default function ThreadDetailPanel({
             </ToolButton>
           ) : (
             <>
-              <div className="relative">
+              <div ref={snoozePopRef} className="relative">
                 <ToolButton
                   icon={<IconSnooze />}
                   onClick={() => setShowSnooze(!showSnooze)}
@@ -1296,7 +1308,7 @@ export default function ThreadDetailPanel({
                 </button>
 
                 {templates.length > 0 && (
-                  <div className="relative">
+                  <div ref={templatesPopRef} className="relative">
                     <button
                       type="button"
                       onClick={() => setShowTemplates((s) => !s)}
@@ -1388,7 +1400,7 @@ export default function ThreadDetailPanel({
                 {/* Schedule (send later) — a quiet clock toggle beside Send; opens
                     a popover with a date+time picker. Never competes with Send. */}
                 {channel !== 'sms' && (
-                  <div className="relative">
+                  <div ref={schedulePopRef} className="relative">
                     <button
                       type="button"
                       onClick={() => {

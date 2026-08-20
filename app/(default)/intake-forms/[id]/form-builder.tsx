@@ -305,7 +305,7 @@ export default function FormBuilder({ template }: Props) {
                 type="button"
                 onClick={() => moveSection(si, -1)}
                 disabled={si === 0}
-                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
+                className="grid h-7 w-7 place-items-center rounded-[var(--r-sm)] text-sm leading-none text-gray-500 hover:text-gray-800 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-100 disabled:opacity-30 transition-colors"
                 aria-label="Move section up"
               >
                 ▲
@@ -314,7 +314,7 @@ export default function FormBuilder({ template }: Props) {
                 type="button"
                 onClick={() => moveSection(si, 1)}
                 disabled={si === sections.length - 1}
-                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
+                className="grid h-7 w-7 place-items-center rounded-[var(--r-sm)] text-sm leading-none text-gray-500 hover:text-gray-800 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-100 disabled:opacity-30 transition-colors"
                 aria-label="Move section down"
               >
                 ▼
@@ -338,7 +338,21 @@ export default function FormBuilder({ template }: Props) {
             </div>
             <button
               type="button"
-              onClick={() => removeSection(si)}
+              onClick={async () => {
+                // One click used to delete every question inside — archiving
+                // the whole FORM confirmed, but this more destructive act
+                // didn't.
+                if (
+                  section.fields.length === 0 ||
+                  (await confirm({
+                    title: `Remove “${section.title || 'this section'}”?`,
+                    message: `Its ${section.fields.length} question${section.fields.length === 1 ? '' : 's'} will be deleted with it.`,
+                    confirmLabel: 'Remove section',
+                    danger: true,
+                  }))
+                )
+                  removeSection(si)
+              }}
               className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 mt-2"
             >
               Remove section
@@ -376,6 +390,20 @@ export default function FormBuilder({ template }: Props) {
         + Add Section
       </button>
 
+      {/* Archive lives HERE — a quiet footer, never shoulder-to-shoulder
+          with Save in the sticky bar (destructive is never adjacent to the
+          primary). handleArchive already confirms. */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={handleArchive}
+          disabled={pending}
+          className="text-xs text-gray-500 hover:text-rose-700 dark:text-gray-400 dark:hover:text-rose-300 disabled:opacity-50 transition-colors"
+        >
+          Archive this form
+        </button>
+      </div>
+
       {/* Save bar */}
       <div className="sticky bottom-4 bg-[color:var(--color-surface-2)] shadow-[var(--shadow-pop)] rounded-[var(--r-lg)] px-5 py-4 flex items-center justify-between">
         <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -398,14 +426,6 @@ export default function FormBuilder({ template }: Props) {
             className="text-sm font-medium text-violet-700 hover:underline disabled:opacity-50 dark:text-violet-300"
           >
             {translating ? 'Translating…' : hasSpanish ? '✨ Update Spanish' : '✨ Add Spanish'}
-          </button>
-          <button
-            type="button"
-            onClick={handleArchive}
-            disabled={pending}
-            className="text-sm text-rose-600 hover:text-rose-700 dark:text-rose-400 disabled:opacity-50"
-          >
-            Archive
           </button>
           <ActionButton type="button" variant="primary" onClick={handleSave} pending={pending}>
             {pending ? 'Saving…' : 'Save'}
@@ -447,7 +467,7 @@ function FieldRow({
             type="button"
             onClick={onMoveUp}
             disabled={!onMoveUp}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
+            className="grid h-7 w-7 place-items-center rounded-[var(--r-sm)] text-sm leading-none text-gray-500 hover:text-gray-800 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-100 disabled:opacity-30 transition-colors"
             aria-label="Move field up"
           >
             ▲
@@ -456,7 +476,7 @@ function FieldRow({
             type="button"
             onClick={onMoveDown}
             disabled={!onMoveDown}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 text-xs leading-none transition-colors"
+            className="grid h-7 w-7 place-items-center rounded-[var(--r-sm)] text-sm leading-none text-gray-500 hover:text-gray-800 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-100 disabled:opacity-30 transition-colors"
             aria-label="Move field down"
           >
             ▼
