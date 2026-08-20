@@ -20,6 +20,7 @@ import ClosedHeartbeat from './closed-heartbeat'
 import DigestToggle from './digest-toggle'
 import { formatClinicTime, formatClinicDayHeader } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { StatusPill } from '@/components/ui/status-pill'
 
 export default async function MyDayPage() {
   const ctx = await requireTenant()
@@ -151,9 +152,11 @@ export default async function MyDayPage() {
                         )}
                       </span>
                       {t.unreadCount > 0 && (
-                        <span className="shrink-0 text-xs font-semibold text-white bg-amber-500 rounded-full px-1.5 py-0.5 tabular-nums">
-                          {t.unreadCount}
-                        </span>
+                        <StatusPill
+                          tone="warn"
+                          label={String(t.unreadCount)}
+                          title={`${t.unreadCount} unread message${t.unreadCount === 1 ? '' : 's'} — needs a reply`}
+                        />
                       )}
                     </Link>
                   </li>
@@ -243,10 +246,10 @@ export default async function MyDayPage() {
                       {it.providerName ? ` · ${it.providerName}` : ''}
                     </span>
                   </div>
-                  <ul className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                  <ul className="mt-1 flex flex-wrap gap-1.5">
                     {it.flags.map((f) => (
-                      <li key={f.key} className="text-xs text-amber-700 dark:text-amber-300">
-                        {f.label}
+                      <li key={f.key}>
+                        <StatusPill tone="warn" label={f.label} />
                       </li>
                     ))}
                   </ul>

@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { followupDueState, formatDueLabel, type FollowupDueState, type PatientFollowupView } from '@/lib/types/followups'
 import { completeFollowupAction, reopenFollowupAction, updateFollowupAction } from '../patients/actions'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { ActionButton } from '@/components/ui/action-button'
 
 const DUE_TONE: Record<FollowupDueState, string> = {
   overdue: 'text-rose-600 dark:text-rose-400',
@@ -135,13 +136,11 @@ export default function MyDayFollowups({
               </p>
             </div>
             {!f.assignedUserId && (
-              <button
-                type="button"
-                onClick={() => claim(f)}
-                className="shrink-0 self-center rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-300"
-              >
-                Claim
-              </button>
+              <span className="shrink-0 self-center">
+                <ActionButton variant="secondary" size="sm" onClick={() => claim(f)} pending={pending}>
+                  Claim
+                </ActionButton>
+              </span>
             )}
           </li>
         )

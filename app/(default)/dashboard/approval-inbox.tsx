@@ -420,7 +420,7 @@ function QueueRail({
                   : decided
                     ? 'bg-[color:var(--color-surface-sunk)] opacity-50'
                     : machine
-                      ? 'bg-sky-50 dark:bg-sky-500/10 hover:scale-105'
+                      ? 'bg-violet-500/10 hover:scale-105'
                       : 'bg-[color:var(--color-surface-sunk)] hover:scale-105',
               ].join(' ')}
             >
@@ -772,10 +772,10 @@ function ProposalCard({
   }
 
   return (
-    <div className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4 flex flex-col">
+    <div className="v2-card p-4 flex flex-col">
       <div className="flex items-start gap-3">
         <div
-          className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base bg-[color:var(--color-brand-50,theme(colors.sky.50))] dark:bg-sky-500/10"
+          className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base bg-[color:var(--color-surface-sunk)]"
           aria-hidden="true"
         >
           {CAPABILITY_ICON[proposal.capability] ?? '✨'}
@@ -794,7 +794,7 @@ function ProposalCard({
                 titles are correct for the ask-first majority, so the card
                 carries the fact instead of rewriting generated prose. */}
             {alreadyGranted && (
-              <span className="shrink-0 rounded-full bg-sky-50 dark:bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-300">
+              <span className="shrink-0 rounded-full bg-violet-500/15 px-2 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-300" data-tone="info">
                 {/* ONE label everywhere: the header names this exact phrase,
                     so a demo-only variant sent the reader looking for a mark
                     that did not exist (verification round 3). The demo's
