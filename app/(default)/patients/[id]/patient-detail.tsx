@@ -15,6 +15,7 @@ import { GlyphCluster } from '@/components/ui/glyph-cluster'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { useToast } from '@/components/ui/toast'
 import EditPatientModal from './edit-modal'
 import NotesPanel from './notes-panel'
 import TagsPanel from './tags-panel'
@@ -417,16 +418,17 @@ export default function PatientDetail({
 
 function SendIntakeButton({ patientId, forms = [] }: { patientId: string; forms?: IntakeFormOption[] }) {
   const [pending, startTransition] = useTransition()
-  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  // Feedback lands in the ONE corner every action reports to (the global
+  // toast) — the old absolutely-positioned span overlapped the layout and
+  // vanished on a timer.
+  const toast = useToast()
   const [formId, setFormId] = useState<string>(forms[0]?.id ?? '')
 
   function onClick() {
-    setFeedback(null)
     startTransition(async () => {
       const r = await sendIntakeRequestAction(patientId, formId || undefined)
-      if (r.ok) setFeedback({ kind: 'ok', msg: `"${r.formTitle}" sent to ${r.sentTo}` })
-      else setFeedback({ kind: 'err', msg: r.error })
-      setTimeout(() => setFeedback(null), 4000)
+      if (r.ok) toast(`"${r.formTitle}" sent to ${r.sentTo}`)
+      else toast(r.error, { tone: 'urgent' })
     })
   }
 
@@ -450,28 +452,19 @@ function SendIntakeButton({ patientId, forms = [] }: { patientId: string; forms?
       <ActionButton variant="secondary" size="sm" onClick={onClick} pending={pending}>
         {pending ? 'Sending…' : 'Send intake'}
       </ActionButton>
-      {feedback && (
-        <span
-          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-xs leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}
-        >
-          {feedback.msg}
-        </span>
-      )}
     </div>
   )
 }
 
 function SendReviewRequestButton({ patientId }: { patientId: string }) {
   const [pending, startTransition] = useTransition()
-  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const toast = useToast()
 
   function onClick() {
-    setFeedback(null)
     startTransition(async () => {
       const r = await sendReviewRequestForPatientAction(patientId)
-      if (r.ok) setFeedback({ kind: 'ok', msg: 'Review request sent' })
-      else setFeedback({ kind: 'err', msg: r.error })
-      setTimeout(() => setFeedback(null), 6000)
+      if (r.ok) toast('Review request sent')
+      else toast(r.error, { tone: 'urgent' })
     })
   }
 
@@ -480,13 +473,6 @@ function SendReviewRequestButton({ patientId }: { patientId: string }) {
       <ActionButton variant="secondary" size="sm" onClick={onClick} pending={pending}>
         {pending ? 'Sending…' : 'Request review'}
       </ActionButton>
-      {feedback && (
-        <span
-          className={`absolute top-full left-0 mt-1 w-max max-w-[16rem] text-xs leading-snug z-10 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}
-        >
-          {feedback.msg}
-        </span>
-      )}
     </div>
   )
 }
@@ -524,14 +510,13 @@ function Stat({
 
 function SendPortalInviteButton({ patientId }: { patientId: string }) {
   const [pending, startTransition] = useTransition()
-  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null)
+  const toast = useToast()
 
   function onClick() {
-    setFeedback(null)
     startTransition(async () => {
       const r = await sendPatientPortalInviteAction(patientId)
-      setFeedback(r.ok ? { kind: 'ok', msg: `Invite sent to ${r.sentTo}` } : { kind: 'err', msg: r.error })
-      setTimeout(() => setFeedback(null), 5000)
+      if (r.ok) toast(`Invite sent to ${r.sentTo}`)
+      else toast(r.error, { tone: 'urgent' })
     })
   }
 
@@ -545,11 +530,6 @@ function SendPortalInviteButton({ patientId }: { patientId: string }) {
       >
         {pending ? 'Sending…' : 'Send portal invite →'}
       </button>
-      {feedback && (
-        <p className={`text-xs mt-0.5 ${feedback.kind === 'ok' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
-          {feedback.msg}
-        </p>
-      )}
     </div>
   )
 }

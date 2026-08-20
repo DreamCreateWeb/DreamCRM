@@ -61,7 +61,13 @@ export default function BookFromPatientDrawer({
   const [slots, setSlots] = useState<BookingSlot[]>([])
   const [slotsPending, startSlots] = useTransition()
   const [selectedTime, setSelectedTime] = useState<string>('') // ISO of chosen slot, or MANUAL_TIME
-  const [manualTime, setManualTime] = useState('09:00')
+  // Default the manual time to NOW rounded up to the next quarter hour —
+  // "walk-in" means the patient is standing at the desk, not at 9 AM.
+  const [manualTime, setManualTime] = useState(() => {
+    const d = new Date()
+    d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  })
   const [walkIn, setWalkIn] = useState(false)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)

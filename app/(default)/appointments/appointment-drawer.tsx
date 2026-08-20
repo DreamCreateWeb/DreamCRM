@@ -94,6 +94,20 @@ export default function AppointmentDrawer({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  // WHICH action is running — the shared `pending` still disables everything
+  // (a safety), but only the CLICKED button gets the spinner; five buttons
+  // spinning at once told the user nothing about what they pressed.
+  const [activeAction, setActiveAction] = useState<string | null>(null)
+  function act(key: string, fn: () => Promise<void>) {
+    setActiveAction(key)
+    startTransition(async () => {
+      try {
+        await fn()
+      } finally {
+        setActiveAction(null)
+      }
+    })
+  }
   const [reschedOpen, setReschedOpen] = useState(false)
   const [rebookOpen, setRebookOpen] = useState(false)
   const toast = useToast()
@@ -171,7 +185,7 @@ export default function AppointmentDrawer({
   }
 
   function onConfirm() {
-    startTransition(async () => {
+    act('confirm', async () => {
       await confirmAppointmentAction(appointmentId)
       flash('Confirmed.')
       router.refresh()
@@ -189,7 +203,7 @@ export default function AppointmentDrawer({
       }))
     )
       return
-    startTransition(async () => {
+    act('cancel', async () => {
       // Optimistic FIRST — the row flips before the network round-trip.
       onCancelled?.(appointmentId)
       await cancelAppointmentAction(appointmentId)
@@ -203,7 +217,7 @@ export default function AppointmentDrawer({
 
   async function onNoShow() {
     if (!(await confirm({ title: 'Mark as no-show?', confirmLabel: 'Mark no-show', danger: true }))) return
-    startTransition(async () => {
+    act('noshow', async () => {
       await markNoShowAction(appointmentId)
       flash('Marked no-show.')
       refresh()
@@ -211,7 +225,7 @@ export default function AppointmentDrawer({
   }
 
   function onComplete() {
-    startTransition(async () => {
+    act('complete', async () => {
       await markCompletedAction(appointmentId)
       flash('Marked completed.')
       refresh()
@@ -219,7 +233,7 @@ export default function AppointmentDrawer({
   }
 
   function onArrival(state: 'arrived' | 'seated' | 'reset') {
-    startTransition(async () => {
+    act(`arrival-${state}`, async () => {
       const r = await setArrivalStateAction(appointmentId, state)
       flash(
         r.ok
@@ -236,7 +250,7 @@ export default function AppointmentDrawer({
   }
 
   function onFastPass() {
-    startTransition(async () => {
+    act('fastpass', async () => {
       const r = await addToWaitlistAction(appointmentId)
       flash(
         r.ok
@@ -251,7 +265,7 @@ export default function AppointmentDrawer({
   function onRequestReview() {
     if (!detail) return
     const patientId = detail.patient.id
-    startTransition(async () => {
+    act('review', async () => {
       const r = await sendReviewRequestForPatientAction(patientId)
       // The service enforces every guard (no email, opted out, no platforms
       // configured, within the rate-limit window) — surface its message verbatim.
@@ -260,7 +274,7 @@ export default function AppointmentDrawer({
   }
 
   function onSendReminder() {
-    startTransition(async () => {
+    act('reminder', async () => {
       const r = await sendReminderAction(appointmentId, 'email')
       flash(
         'ok' in r && r.ok === true ? 'Reminder sent.' : 'error' in r ? r.error : 'Failed',
@@ -413,32 +427,32 @@ export default function AppointmentDrawer({
               {/* ── Action group — exactly one primary ───────────────── */}
               <div className="flex flex-wrap gap-2">
                 {isRecoverable ? (
-                  <ActionButton variant="primary" size="sm" onClick={() => setRebookOpen(true)} pending={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={() => setRebookOpen(true)} disabled={pending}>
                     Rebook patient
                   </ActionButton>
                 ) : isScheduled ? (
-                  <ActionButton variant="primary" size="sm" onClick={onConfirm} pending={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={onConfirm} pending={activeAction === 'confirm'} disabled={pending}>
                     Mark confirmed
                   </ActionButton>
                 ) : detail.status === 'completed' ? (
                   // The visit's done — the natural next step is asking for a review.
-                  <ActionButton variant="primary" size="sm" onClick={onRequestReview} pending={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={onRequestReview} pending={activeAction === 'review'} disabled={pending}>
                     Request review
                   </ActionButton>
                 ) : (
-                  <ActionButton variant="primary" size="sm" onClick={onSendReminder} pending={pending}>
+                  <ActionButton variant="primary" size="sm" onClick={onSendReminder} pending={activeAction === 'reminder'} disabled={pending}>
                     Send reminder email
                   </ActionButton>
                 )}
                 {/* When scheduled, "Send reminder" is a secondary verb (the
                     primary is "Mark confirmed"). */}
                 {isScheduled && (
-                  <ActionButton variant="secondary" size="sm" onClick={onSendReminder} pending={pending}>
+                  <ActionButton variant="secondary" size="sm" onClick={onSendReminder} pending={activeAction === 'reminder'} disabled={pending}>
                     Send reminder email
                   </ActionButton>
                 )}
                 {detail.status !== 'completed' && detail.status !== 'cancelled' && (
-                  <ActionButton variant="secondary" size="sm" onClick={() => setReschedOpen(true)} pending={pending}>
+                  <ActionButton variant="secondary" size="sm" onClick={() => setReschedOpen(true)} disabled={pending}>
                     Reschedule
                   </ActionButton>
                 )}
@@ -447,12 +461,12 @@ export default function AppointmentDrawer({
                     offers them the slot by one-click email. */}
                 {(detail.status === 'scheduled' || detail.status === 'confirmed') &&
                   new Date(detail.startTime).getTime() > Date.now() && (
-                    <ActionButton variant="secondary" size="sm" onClick={onFastPass} pending={pending}>
+                    <ActionButton variant="secondary" size="sm" onClick={onFastPass} pending={activeAction === 'fastpass'} disabled={pending}>
                       Wants earlier · fast-pass
                     </ActionButton>
                   )}
                 {isPastOpen && (
-                  <ActionButton variant="secondary" size="sm" onClick={onComplete} pending={pending}>
+                  <ActionButton variant="secondary" size="sm" onClick={onComplete} pending={activeAction === 'complete'} disabled={pending}>
                     Mark completed
                   </ActionButton>
                 )}
@@ -474,12 +488,12 @@ export default function AppointmentDrawer({
                         <span className="text-xs font-medium text-sky-700 dark:text-sky-300">
                           🚪 In the waiting room
                         </span>
-                        <ActionButton variant="secondary" size="sm" onClick={() => onArrival('seated')} pending={pending}>
+                        <ActionButton variant="secondary" size="sm" onClick={() => onArrival('seated')} pending={activeAction === 'arrival-seated'} disabled={pending}>
                           Seat patient
                         </ActionButton>
                       </>
                     ) : (
-                      <ActionButton variant="secondary" size="sm" onClick={() => onArrival('arrived')} pending={pending}>
+                      <ActionButton variant="secondary" size="sm" onClick={() => onArrival('arrived')} pending={activeAction === 'arrival-arrived'} disabled={pending}>
                         Patient arrived
                       </ActionButton>
                     )}
@@ -500,11 +514,11 @@ export default function AppointmentDrawer({
               {isOpenState && (
                 <div className="flex flex-wrap gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
                   {isPastOpen && (
-                    <ActionButton variant="danger" size="sm" onClick={onNoShow} pending={pending}>
+                    <ActionButton variant="danger" size="sm" onClick={onNoShow} pending={activeAction === 'noshow'} disabled={pending}>
                       Mark no-show
                     </ActionButton>
                   )}
-                  <ActionButton variant="danger" size="sm" onClick={onCancel} pending={pending}>
+                  <ActionButton variant="danger" size="sm" onClick={onCancel} pending={activeAction === 'cancel'} disabled={pending}>
                     Cancel appointment
                   </ActionButton>
                 </div>
@@ -635,12 +649,22 @@ function RescheduleSubDrawer({
 }) {
   const subRef = useRef<HTMLDivElement>(null)
   useFocusTrap(true, subRef, { onEscape: onClose })
+  // Seed from the visit being MOVED (its own local date + time) — every
+  // reschedule used to start at tomorrow-09:00 and make the user undo a
+  // wrong default. A visit already in the past falls back to tomorrow.
   const [dateStr, setDateStr] = useState(() => {
-    const d = new Date()
-    d.setDate(d.getDate() + 1)
-    return d.toISOString().slice(0, 10)
+    const start = new Date(detail.startTime)
+    const base = start.getTime() > Date.now() ? start : (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d })()
+    const y = base.getFullYear()
+    const m = String(base.getMonth() + 1).padStart(2, '0')
+    const day = String(base.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
   })
-  const [timeStr, setTimeStr] = useState('09:00')
+  const [timeStr, setTimeStr] = useState(() => {
+    const start = new Date(detail.startTime)
+    if (start.getTime() <= Date.now()) return '09:00'
+    return `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
+  })
   const [notify, setNotify] = useState(true)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
