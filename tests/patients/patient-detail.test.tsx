@@ -18,6 +18,10 @@ vi.mock('@/app/(default)/patients/actions', () => ({
 // archive-confirm path, so pass useConfirm() through.
 vi.mock('@/components/ui/confirm-dialog', () => ({ useConfirm: () => async () => true }))
 
+// The detail page's send buttons report through the global toast; the shell
+// provides it in production — a no-op here keeps these render tests focused.
+vi.mock('@/components/ui/toast', () => ({ useToast: () => () => {} }))
+
 import PatientDetail from '@/app/(default)/patients/[id]/patient-detail'
 import type { PatientHeader } from '@/lib/services/patients'
 import type { TimelineEvent, TimelineCounts } from '@/lib/services/patient-timeline'

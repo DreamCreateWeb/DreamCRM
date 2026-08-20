@@ -1250,6 +1250,22 @@ got its own busy flag — it no longer announces "Sending…" while an
 unrelated assign/snooze runs · patients bulk-bar Invite/Pay-link join the
 pending prop.
 
+**Batch 12 — same cluster, the safety + defaults tier:** the
+merge-duplicate modal (an IRREVERSIBLE merge) gets the sibling modals'
+full shell — role=dialog, aria-modal, focus trap, Esc — and scrim-click
+deliberately no longer dismisses it: leaving an irreversible flow is an
+explicit act, never a stray click · the appointment drawer's fourteen
+buttons stop spinning in unison — an `activeAction` key means only the
+button you pressed shows the spinner while the rest quietly disable · the
+reschedule panel opens on the visit's OWN date and time instead of
+tomorrow-09:00 (every reschedule used to start by undoing a wrong
+default), and the walk-in booking time defaults to now rounded to the
+next quarter hour — a walk-in is standing at the desk, not arriving at
+9 AM · patient-detail's three send buttons (intake, review request,
+portal invite) report through the one global toast corner instead of
+absolutely-positioned spans that overlapped the layout and vanished on
+timers.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

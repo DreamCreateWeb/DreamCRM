@@ -97,7 +97,7 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 
 ### Patient detail
 1. Six same-weight header actions — collapse to primary + More ▾ (patient-detail.tsx:255).
-2. Absolutely-positioned vanishing feedback spans ×4 → FlashToast (:453,:483,:548,:663).
+2. ~~Vanishing feedback spans~~ [BATCH 12: Send-intake/review/portal-invite report through the global toast; the pay-link nudge keeps its persistent inline confirmation by design].
 3. Timeline filter is component-local → ?tab= param (:165).
 4. Timeline empty state actionless (:360).
 5. Needs-attention hand-rolled box → v2-card + StatusPill + ActionButton (:590).
@@ -109,7 +109,7 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 11. Note delete bare × no confirm (~16px) (notes-panel.tsx:65); doc upload no progress (documents-panel.tsx:105).
 
 ### Patients modals
-1. merge-duplicate: no role=dialog, no focus trap, no Esc, click-outside dismisses an IRREVERSIBLE merge (merge-duplicate.tsx:64).
+1. ~~merge-duplicate unsafe shell~~ [BATCH 12: role=dialog + aria-modal + focus trap + Esc; scrim-click deliberately does NOT dismiss an irreversible flow].
 2. Import wizard has no step indicator (import-patients-modal.tsx:132,157,231).
 3. Import file picker raw input → v2-well drop target + filename echo (:138).
 4. Edit modal: 14 fields, no section headings, no ✕ (edit-modal.tsx:88).
@@ -128,13 +128,13 @@ Already best-version: emptyCopy() engine.
 6. Bulk follow-up composer: no focus trap/outside-click (:799).
 
 ### Appointment drawer + booking
-1. One useTransition spins five buttons at once → per-action pending keys (appointment-drawer.tsx:96).
+1. ~~One useTransition spins five buttons at once~~ [BATCH 12: activeAction keys — only the clicked button spins, the rest disable].
 2. No sticky footer action row — Drawer has the slot (:293 vs drawer.tsx:113).
-3. Reschedule always opens tomorrow 09:00 → seed from detail.startTime (:638).
+3. ~~Reschedule always opens tomorrow 09:00~~ [BATCH 12: seeds from the visit's own local date+time; past visits fall back].
 4. In-office undo is text-gray-400 micro-text (:487).
 5. Reminder activity all text-xs incl. patient replies (:528).
 6. Booking drawer slot grid collapses to text while loading → skeleton chips (book-from-patient-drawer.tsx:230).
-7. Walk-in defaults 09:00; should be now (:64).
+7. ~~Walk-in defaults 09:00~~ [BATCH 12: now, rounded up to the next quarter hour].
 8. Fast-pass summary tiny; Remove no confirm (waitlist-panel.tsx:52,:79).
 
 ### Messages (list + detail)

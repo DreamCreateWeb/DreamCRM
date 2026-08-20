@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { mergePatientsAction } from '../actions'
 
 type Candidate = { id: string; name: string; email: string | null; phone: string | null; reason: string }
@@ -27,11 +28,13 @@ export default function MergeDuplicate({
   allPatients: Option[]
 }) {
   const router = useRouter()
+  const dialogRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [picked, setPicked] = useState<Option | null>(null)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  useFocusTrap(open, dialogRef, { onEscape: () => { if (!pending) setOpen(false) } })
 
   const others = useMemo(() => allPatients.filter((p) => p.id !== survivorId), [allPatients, survivorId])
   const matches = useMemo(() => {
@@ -65,8 +68,17 @@ export default function MergeDuplicate({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => !pending && setOpen(false)}>
-          <div className="w-full max-w-md rounded-[var(--r-lg)] bg-white dark:bg-gray-800 shadow-xl p-5" onClick={(e) => e.stopPropagation()}>
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Merge a duplicate"
+          className="fixed inset-0 z-50 grid place-items-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] p-4"
+        >
+          {/* No scrim-click dismiss ON PURPOSE: this flow ends in an
+              irreversible merge, so leaving it is an explicit act (Esc or
+              Cancel), never a stray click. */}
+          <div className="section-enter w-full max-w-md rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] shadow-[var(--shadow-modal)] p-5">
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Merge a duplicate</h3>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Pick the duplicate record. Its appointments, messages, documents, tags, follow-ups, and history move onto{' '}
