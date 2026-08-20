@@ -1,11 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { PatientHeader } from '@/lib/services/patients'
 import type { TimelineEvent, TimelineCounts, TimelineKind } from '@/lib/services/patient-timeline'
 import type { PatientNoteRow } from '@/lib/services/patient-notes'
-import { patientFlagGlyphs, type Tone } from '@/lib/ui/encodings'
+import { agingBorderClass, patientFlagGlyphs, type AgingTierId, type Tone } from '@/lib/ui/encodings'
+import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
+import { MiniTrend } from '@/components/ui/charts'
 import { useTrailLabel } from '@/app/trail-context'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -122,6 +125,11 @@ const FILTER_KEYS: Array<{ key: FilterTab; label: string; countKey: keyof Timeli
   { key: 'note', label: 'Notes', countKey: 'notes' },
 ]
 
+/** How many timeline rows render before the "Show older" break — a long-tenured
+ *  patient can carry hundreds of entries, and painting them all at once buries
+ *  the recent story the front desk actually came for. */
+const TIMELINE_PAGE = 40
+
 export default function PatientDetail({
   header,
   timeline,
@@ -163,7 +171,15 @@ export default function PatientDetail({
   loyalty?: LoyaltyPanelData | null
   canAdjustLoyalty?: boolean
 }) {
-  const [filter, setFilter] = useState<FilterTab>('all')
+  // Timeline filter lives in the URL (?tab=) so a refresh, a shared link, or
+  // a back-button return lands on the same slice. Chip clicks update via
+  // history.replaceState — no server round-trip for a client-side filter.
+  const searchParams = useSearchParams()
+  const urlTab = searchParams.get('tab')
+  const [filter, setFilterState] = useState<FilterTab>(
+    FILTER_KEYS.some((f) => f.key === urlTab) ? (urlTab as FilterTab) : 'all',
+  )
+  const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE)
   const confirm = useConfirm()
   const [editOpen, setEditOpen] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
@@ -177,10 +193,39 @@ export default function PatientDetail({
   // they don't.)
   useTrailLabel(header.fullName)
 
+  function setFilter(next: FilterTab) {
+    setFilterState(next)
+    setVisibleCount(TIMELINE_PAGE)
+    const url = new URL(window.location.href)
+    if (next === 'all') url.searchParams.delete('tab')
+    else url.searchParams.set('tab', next)
+    window.history.replaceState(null, '', url.toString())
+  }
+
   const filtered = useMemo(
     () => filter === 'all' ? timeline : timeline.filter((e) => matchesTab(filter, e.kind)),
     [filter, timeline],
   )
+
+  // Completed visits per calendar quarter over the trailing two years — the
+  // header strip's heartbeat, derived from the timeline already in hand.
+  const visitTrend = useMemo(() => {
+    const now = new Date()
+    const nowQ = now.getFullYear() * 4 + Math.floor(now.getMonth() / 3)
+    const buckets = Array.from({ length: 8 }, (_, i) => {
+      const q = nowQ - 7 + i
+      const year = Math.floor(q / 4)
+      return { bucket: `Q${(q % 4) + 1} ’${String(year).slice(2)}`, value: 0 }
+    })
+    for (const e of timeline) {
+      if (e.kind !== 'appointment' || e.status !== 'completed') continue
+      const q = e.occurredAt.getFullYear() * 4 + Math.floor(e.occurredAt.getMonth() / 3)
+      const idx = q - (nowQ - 7)
+      if (idx >= 0 && idx < 8) buckets[idx].value += 1
+    }
+    return buckets
+  }, [timeline])
+  const visitTrendTotal = visitTrend.reduce((sum, b) => sum + b.value, 0)
 
   const lifecycle = LIFECYCLE[header.lifecycle] ?? { tone: 'ok' as Tone, label: header.lifecycle }
 
@@ -264,29 +309,18 @@ export default function PatientDetail({
             <ActionButton variant="secondary" size="sm" onClick={() => setBookOpen(true)}>
               Book appointment
             </ActionButton>
-            <SendIntakeButton patientId={header.id} forms={intakeForms} />
-            <SendReviewRequestButton patientId={header.id} />
-            {isPlatformAdmin && (
-              <form action={viewAsPatientAction}>
-                <input type="hidden" name="patientId" value={header.id} />
-                <ActionButton
-                  variant="secondary"
-                  size="sm"
-                  type="submit"
-                  title="Preview the patient portal as this patient (platform admin)"
-                  className="border-dashed border-violet-300 dark:border-violet-500/50 text-violet-700 dark:text-violet-300"
-                >
-                  View as patient
-                </ActionButton>
-              </form>
-            )}
             <ActionButton variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
               Edit
             </ActionButton>
+            <MoreActionsMenu
+              patientId={header.id}
+              forms={intakeForms}
+              isPlatformAdmin={isPlatformAdmin}
+            />
           </div>
         </div>
         {/* Header stat strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-[color:var(--color-hairline)]">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-3 border-t border-[color:var(--color-hairline)]">
           <Stat label="Last visit" value={fmtFullDate(header.lastVisitAt)} hint={fmtRelative(header.lastVisitAt)} />
           <Stat
             label="Next visit"
@@ -315,6 +349,22 @@ export default function PatientDetail({
             }
           />
           <Stat label="Shop purchases" mono value={money(header.shopSpendCents)} hint="paid in your store" />
+          {/* The strip's heartbeat: completed visits per quarter, trailing 2y. */}
+          <div>
+            <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">
+              Visit rhythm
+            </p>
+            {visitTrendTotal > 0 ? (
+              <>
+                <div className="mt-1">
+                  <MiniTrend data={visitTrend} variant="bar" width={104} height={26} />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">completed per quarter</p>
+              </>
+            ) : (
+              <p className="text-sm font-semibold mt-0.5 text-gray-800 dark:text-gray-100">—</p>
+            )}
+          </div>
         </div>
         {/* Jump straight to this patient's visits in the schedule. */}
         <div className="pt-2">
@@ -362,14 +412,50 @@ export default function PatientDetail({
               <EmptyState
                 icon="🌱"
                 title={filter === 'all' ? 'No activity yet' : `No ${filter.replace('_', ' ')} entries`}
-                body="Bookings, messages, form submissions and invoices will appear here as they happen."
+                body={
+                  filter === 'all'
+                    ? 'Bookings, messages, form submissions and invoices will appear here as they happen.'
+                    : 'Nothing of this kind on the record yet — the other tabs may still have activity.'
+                }
+                action={
+                  filter === 'all' || filter === 'appointment' ? (
+                    <ActionButton variant="secondary" size="sm" onClick={() => setBookOpen(true)}>
+                      Book an appointment
+                    </ActionButton>
+                  ) : filter === 'message' ? (
+                    <form action={openPatientThreadAction}>
+                      <input type="hidden" name="patientId" value={header.id} />
+                      <ActionButton variant="secondary" size="sm" type="submit">
+                        Send a message
+                      </ActionButton>
+                    </form>
+                  ) : filter === 'form_submission' && intakeForms.length > 0 ? (
+                    <SendIntakeInline
+                      patientId={header.id}
+                      forms={intakeForms}
+                      label="Send an intake form →"
+                      className="text-sm font-medium text-teal-700 dark:text-teal-400 hover:underline disabled:opacity-50"
+                    />
+                  ) : undefined
+                }
               />
             ) : (
-              <ul className="divide-y divide-[color:var(--color-hairline)]">
-                {filtered.map((e) => (
-                  <TimelineRow key={e.id} event={e} />
-                ))}
-              </ul>
+              <>
+                <ul className="divide-y divide-[color:var(--color-hairline)]">
+                  {filtered.slice(0, visibleCount).map((e) => (
+                    <TimelineRow key={e.id} event={e} />
+                  ))}
+                </ul>
+                {filtered.length > visibleCount && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((c) => c + TIMELINE_PAGE)}
+                    className="w-full border-t border-[color:var(--color-hairline)] px-4 py-3 text-center text-sm font-medium text-teal-700 dark:text-teal-400 hover:bg-gray-50 dark:hover:bg-gray-900/30"
+                  >
+                    Show older ({filtered.length - visibleCount} more)
+                  </button>
+                )}
+              </>
             )}
           </div>
         </section>
@@ -416,63 +502,125 @@ export default function PatientDetail({
   )
 }
 
-function SendIntakeButton({ patientId, forms = [] }: { patientId: string; forms?: IntakeFormOption[] }) {
-  const [pending, startTransition] = useTransition()
-  // Feedback lands in the ONE corner every action reports to (the global
-  // toast) — the old absolutely-positioned span overlapped the layout and
-  // vanished on a timer.
+/**
+ * The header's overflow: occasional relationship actions (intake, review
+ * request, the admin-only portal preview) fold behind ONE More ▾ so the
+ * daily three — message, book, edit — read at a glance. Feedback still
+ * lands in the global toast; only the pressed row shows the busy mark.
+ */
+function MoreActionsMenu({
+  patientId,
+  forms = [],
+  isPlatformAdmin = false,
+}: {
+  patientId: string
+  forms?: IntakeFormOption[]
+  isPlatformAdmin?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  usePopoverDismiss(open, wrapRef, () => setOpen(false))
   const toast = useToast()
+  const [pending, startTransition] = useTransition()
+  const [active, setActive] = useState<string | null>(null)
   const [formId, setFormId] = useState<string>(forms[0]?.id ?? '')
 
-  function onClick() {
+  function run(key: string, fn: () => Promise<void>) {
+    setActive(key)
     startTransition(async () => {
-      const r = await sendIntakeRequestAction(patientId, formId || undefined)
-      if (r.ok) toast(`"${r.formTitle}" sent to ${r.sentTo}`)
-      else toast(r.error, { tone: 'urgent' })
+      try {
+        await fn()
+      } finally {
+        setActive(null)
+        setOpen(false)
+      }
     })
   }
 
+  const rowClass =
+    'w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/40 disabled:opacity-50'
+
   return (
-    <div className="relative flex items-center gap-1">
-      {forms.length > 1 && (
-        <select
-          value={formId}
-          onChange={(e) => setFormId(e.target.value)}
-          disabled={pending}
-          aria-label="Choose intake form"
-          className="text-xs rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-1.5 py-1 max-w-[9rem]"
+    <div ref={wrapRef} className="relative">
+      <ActionButton
+        variant="secondary"
+        size="sm"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        More ▾
+      </ActionButton>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-20 mt-1 w-60 rounded-[var(--r-md)] border border-[color:var(--color-hairline-strong)] bg-white dark:bg-gray-800 py-1 shadow-lg"
         >
-          {forms.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.title}
-            </option>
-          ))}
-        </select>
+          {forms.length > 1 && (
+            <div className="px-3 pt-2 pb-1">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Intake form
+              </label>
+              <select
+                value={formId}
+                onChange={(e) => setFormId(e.target.value)}
+                disabled={pending}
+                className="form-select w-full text-xs py-1"
+              >
+                {forms.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={pending}
+            className={rowClass}
+            onClick={() =>
+              run('intake', async () => {
+                const r = await sendIntakeRequestAction(patientId, formId || undefined)
+                if (r.ok) toast(`"${r.formTitle}" sent to ${r.sentTo}`)
+                else toast(r.error, { tone: 'urgent' })
+              })
+            }
+          >
+            {active === 'intake' ? 'Sending intake…' : 'Send intake'}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={pending}
+            className={rowClass}
+            onClick={() =>
+              run('review', async () => {
+                const r = await sendReviewRequestForPatientAction(patientId)
+                if (r.ok) toast('Review request sent')
+                else toast(r.error, { tone: 'urgent' })
+              })
+            }
+          >
+            {active === 'review' ? 'Sending request…' : 'Request review'}
+          </button>
+          {isPlatformAdmin && (
+            <form action={viewAsPatientAction}>
+              <input type="hidden" name="patientId" value={patientId} />
+              <button
+                type="submit"
+                role="menuitem"
+                disabled={pending}
+                title="Preview the patient portal as this patient (platform admin)"
+                className={`${rowClass} text-violet-700 dark:text-violet-300`}
+              >
+                View as patient
+              </button>
+            </form>
+          )}
+        </div>
       )}
-      <ActionButton variant="secondary" size="sm" onClick={onClick} pending={pending}>
-        {pending ? 'Sending…' : 'Send intake'}
-      </ActionButton>
-    </div>
-  )
-}
-
-function SendReviewRequestButton({ patientId }: { patientId: string }) {
-  const [pending, startTransition] = useTransition()
-  const toast = useToast()
-
-  function onClick() {
-    startTransition(async () => {
-      const r = await sendReviewRequestForPatientAction(patientId)
-      if (r.ok) toast('Review request sent')
-      else toast(r.error, { tone: 'urgent' })
-    })
-  }
-
-  return (
-    <div className="relative flex flex-col">
-      <ActionButton variant="secondary" size="sm" onClick={onClick} pending={pending}>
-        {pending ? 'Sending…' : 'Request review'}
-      </ActionButton>
     </div>
   )
 }
@@ -569,22 +717,18 @@ function NeedsAttention({ header, forms = [] }: { header: PatientHeader; forms?:
   }
   if (items.length === 0) {
     return (
-      <div className="bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/20 rounded-lg px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-1">
-          Nothing pending
-        </p>
-        <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80">
+      <div className="v2-card px-4 py-3">
+        <StatusPill tone="ok" label="Nothing pending" />
+        <p className="text-xs text-gray-600 dark:text-gray-300 mt-2">
           This patient is in good shape. Nothing for you to action right now.
         </p>
       </div>
     )
   }
   return (
-    <div className="bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 rounded-lg px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">
-        Needs attention
-      </p>
-      <ul className="space-y-2">
+    <div className="v2-card px-4 py-3">
+      <StatusPill tone="warn" label="Needs attention" />
+      <ul className="space-y-2 mt-2">
         {items.map((it, i) => (
           <li key={i} className="text-xs text-gray-800 dark:text-gray-100">
             <p>{it.copy}</p>
@@ -816,8 +960,19 @@ const COMMERCE_STATUS: Record<string, { tone: Tone; label: string }> = {
   refunded: { tone: 'neutral', label: 'Refunded' },
 }
 
+/** Days a timeline entry has been waiting → the shared aging-border tier.
+ *  (agingDays is only set on entries that NEED action: an aging unconfirmed
+ *  visit, an overdue invoice.) */
+function timelineAgingTier(days: number | null): AgingTierId | null {
+  if (days == null) return null
+  if (days <= 2) return 'aging'
+  if (days <= 7) return 'late'
+  return 'overdue'
+}
+
 function TimelineRow({ event }: { event: TimelineEvent }) {
   const ago = fmtRelative(event.occurredAt)
+  const agingTier = timelineAgingTier(event.agingDays)
   const pill = (() => {
     if (event.kind === 'appointment' && event.status) {
       const s = APPT_STATUS[event.status] ?? APPT_STATUS.scheduled
@@ -849,7 +1004,7 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
 
   const inner = (
     <div className="flex items-start gap-3">
-      <div className={`text-xl leading-none shrink-0 w-8 text-center ${event.agingDays !== null ? 'text-amber-500' : ''}`} aria-hidden="true">
+      <div className="text-xl leading-none shrink-0 w-8 text-center" aria-hidden="true">
         {KIND_ICON[event.kind]}
       </div>
       <div className="flex-1 min-w-0">
@@ -877,7 +1032,9 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
   // patient page stays put; internal routes use the SPA Link.
   const external = !!event.href && /^https?:\/\//i.test(event.href)
   return (
-    <li className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+    <li
+      className={`border-l-2 ${agingBorderClass(agingTier)} px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30`}
+    >
       {event.href ? (
         external ? (
           <a href={event.href} target="_blank" rel="noopener noreferrer" className="block">{inner}</a>
