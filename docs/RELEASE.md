@@ -1415,6 +1415,23 @@ the search box joins the enterHint contract · the agenda row's
 right-side pill cluster now wraps onto a second row (capped at 45%
 width) instead of crushing the patient's name on narrow panes.
 
+**Batch 23 — the Inbox tier:** the Gmail-shaped inbox joins the design
+system's grammar. Unread goes AMBER (dot + count pill) matching the
+Messages contract — emerald read as good news instead of waiting; the
+emerald patient-link chip stays, since that encodes identity. Archive
+and trash finally answer through the global toast (no confirm on
+purpose — both are reversible). Row checkboxes are always visible at
+half strength (touch has no hover); Refresh/Syncing… get their casing;
+the filtered empty state hands over Clear filters. The reading pane's
+arbitrary px type moves onto the standard scale, the pane and sidebar
+surfaces ride tokens, the view-toggle chips ride the shared FilterChip
+(intent chips keep their tone colors on purpose), and ToolbarButton's
+dead primary variant is deleted — Reply is the pane's one primary by
+construction. The route gets an inbox-shaped loading skeleton (list
+pane beside reading pane). Deferred with reason: moving the first-paint
+sync+classify off the request path is a data-path change, not
+presentation — logged for post-1.0.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

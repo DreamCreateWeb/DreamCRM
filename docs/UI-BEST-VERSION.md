@@ -154,15 +154,15 @@ Already best-version: the message stream + receipts; per-row optimistic nav.
 13. ~~Receipts/footnotes at text-gray-400~~ [BATCH 21: gray-500 floor; the activity-marker lines stay deliberately quiet per the markers law].
 
 ### Inbox
-1. Route blocks first paint on sync+classify; generic skeleton (inbox/page.tsx:93; loading.tsx).
-2. Arbitrary px type in reading pane (thread-view.tsx:191 etc.).
-3. Raw surface colors → tokens (mailbox-sidebar.tsx:163, thread-view.tsx:134).
-4. FilterChips hand-rolls FilterChip (filter-chips.tsx:111).
+1. ~~Generic skeleton~~ [BATCH 23: inbox-shaped loading.tsx — list pane beside reading pane]. Moving sync+classify off first paint DEFERRED: a behavior change to the mailbox data path, not presentation — post-1.0 candidate.
+2. ~~Arbitrary px type in reading pane~~ [BATCH 23: text-[20px]/[13px]/[12px]/[14px] + 15px icons onto the standard scale].
+3. ~~Raw surface colors~~ [BATCH 23: sidebar → surface-1 token, reading pane → canvas token; the two translucent backdrop-blur strips keep alpha whites by necessity].
+4. ~~FilterChips hand-rolls FilterChip~~ [BATCH 23: view toggles ride the shared FilterChip href mode; intent chips keep their tone colors on purpose].
 5. BulkActionBar swaps header in place; no toasts (mailbox-sidebar.tsx:164).
-6. Trash/Archive: no confirm, no feedback (thread-view.tsx:106).
-7. Unread emerald here vs amber in Messages — contract conflict (mailbox-sidebar.tsx:241).
-8. Hover-revealed checkboxes; prose empty state; lowercase refresh (:253,:211,:377).
-9. ToolbarButton re-implements primary (thread-view.tsx:348).
+6. ~~Trash/Archive: no feedback~~ [BATCH 23: global toast ('Conversation archived' / 'Moved to trash'). No confirm on purpose — both are reversible, Gmail grammar].
+7. ~~Unread emerald vs amber contract conflict~~ [BATCH 23: unread dot + count pill go amber; the emerald patient-link chip stays (identity, not unread)].
+8. ~~Hover-revealed checkboxes; lowercase refresh~~ [BATCH 23: checkboxes always visible at half strength (touch has no hover); Refresh/Syncing… cased; the empty state was already EmptyState and now hands over Clear filters].
+9. ~~ToolbarButton re-implements primary~~ [BATCH 23: the dead primary variant removed — Reply (ActionButton) is the pane's one primary by construction].
 
 ### Intake forms + builder
 Already best-version: CompletedHeartbeat.
