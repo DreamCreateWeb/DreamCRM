@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useEffect, useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PendingVeil } from '@/components/ui/pending-veil'
 import Link from 'next/link'
@@ -95,6 +95,35 @@ export default function ClinicThreadList({
 
   const allSelected = rows.length > 0 && selected.size === rows.length
 
+  // j/k walks the thread list from the keyboard — the same triage rhythm the
+  // Gmail-shaped /inbox already has. Skipped while typing anywhere.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key !== 'j' && e.key !== 'k') return
+      const el = e.target as HTMLElement | null
+      if (el?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (rows.length === 0) return
+      const currentId = pendingThreadId ?? activeThreadId
+      const idx = rows.findIndex((r) => r.id === currentId)
+      const nextIdx =
+        idx === -1
+          ? e.key === 'j'
+            ? 0
+            : rows.length - 1
+          : e.key === 'j'
+            ? Math.min(rows.length - 1, idx + 1)
+            : Math.max(0, idx - 1)
+      const target = rows[nextIdx]
+      if (!target || target.id === currentId) return
+      e.preventDefault()
+      setPendingThreadId(target.id)
+      startNavTransition(() => router.push(target.href))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [rows, activeThreadId, pendingThreadId, router, startNavTransition])
+
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev)
@@ -134,7 +163,7 @@ export default function ClinicThreadList({
           checked={allSelected}
           onChange={toggleAll}
           aria-label="Select all conversations"
-          className="h-3.5 w-3.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500/40 cursor-pointer"
+          className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500/40 cursor-pointer"
         />
         <span className="text-xs text-gray-500 dark:text-gray-400">
           {selected.size > 0 ? `${selected.size} selected` : 'Select'}
@@ -167,7 +196,7 @@ export default function ClinicThreadList({
                     checked={isSel}
                     onChange={() => toggle(t.id)}
                     aria-label={`Select conversation with ${name}`}
-                    className="h-3.5 w-3.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500/40 cursor-pointer"
+                    className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500/40 cursor-pointer"
                   />
                 </label>
                 <Link

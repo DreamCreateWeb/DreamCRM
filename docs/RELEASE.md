@@ -1386,6 +1386,23 @@ modal finally shows WHO gets it — "To:" with the first three names and
 a +N-more disclosure over the full list — and its Send button trades
 the label ternary for the pending prop.
 
+**Batch 21 — the Messages tier:** j/k now walks the thread list from
+the keyboard (the same triage rhythm /inbox already had — skipped
+while typing, riding the same optimistic navigation and veil) · the
+batch-surface checkboxes rise to 16px · both empty states hand over an
+action (Clear filters when filters exclude everything; "Message a
+patient from their chart" when the inbox is genuinely new) · the
+schedule popover's confirm trades its raw violet button for
+ActionButton with the pending spinner (violet stays a tone, never a
+button skin) and Cancel goes ghost · the pending-attachment remove ✕
+is always visible instead of hover-only (touch had no way in) ·
+receipt rows and composer footnotes rise to the gray-500 contrast
+floor (the thread's activity-marker lines stay deliberately quiet per
+the markers law) · the 14-day pulse spark swaps the Sparkline compat
+wrapper for MiniTrend proper. Also verified: the four detail-panel
+popovers and the bulk snooze already ride the batch-14 dismiss
+contract — struck in the backlog.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
