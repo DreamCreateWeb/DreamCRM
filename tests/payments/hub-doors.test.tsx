@@ -30,21 +30,21 @@ describe('Payments hub doors', () => {
     }
   })
 
-  it('Collections door shows the open-balance count + total, warn-toned', () => {
+  // Batch 28: the KPI band directly above the doors carries the numbers, so
+  // the doors deliberately do NOT restate them — pinning the absence keeps
+  // the duplication from creeping back.
+  it('Collections door does not restate the KPI band (no stat line)', () => {
     renderDoors({ collections: { patientCount: 3, totalOutstandingCents: 42500 } })
     const d = within(door('/payments/collections'))
     expect(d.getByText('Collections')).toBeInTheDocument()
-    expect(d.getByText(/3 open balances · \$425/)).toBeInTheDocument()
+    expect(d.queryByText(/open balance/)).not.toBeInTheDocument()
   })
 
-  it('says so plainly when nothing is outstanding', () => {
-    renderDoors()
-    expect(within(door('/payments/collections')).getByText('Nothing outstanding')).toBeInTheDocument()
-  })
-
-  it('Online payments door surfaces the reconcile count when connected', () => {
+  it('Online payments door keeps its connect STATE (a door fact, not a KPI)', () => {
     renderDoors({ toReconcile: 2 })
-    expect(within(door('/payments/online')).getByText('2 to reconcile')).toBeInTheDocument()
+    const d = within(door('/payments/online'))
+    expect(d.getByText('Connected')).toBeInTheDocument()
+    expect(d.queryByText(/to reconcile/)).not.toBeInTheDocument()
   })
 
   it('Online payments door reads "Not connected" without Stripe', () => {
@@ -54,15 +54,10 @@ describe('Payments hub doors', () => {
     expect(d.getByText(/Connect Stripe/)).toBeInTheDocument()
   })
 
-  it('Memberships door shows members + MRR (and a calm zero state)', () => {
+  it('Memberships door does not restate members/MRR', () => {
     renderDoors({ membershipStats: { activeMembers: 12, mrrCents: 39900 } })
     const d = within(door('/payments/memberships'))
-    expect(d.getByText(/12 active/)).toBeInTheDocument()
-    expect(d.getByText(/\$399\.00\/mo/)).toBeInTheDocument()
-  })
-
-  it('Memberships door zero state', () => {
-    renderDoors()
-    expect(within(door('/payments/memberships')).getByText('No members yet')).toBeInTheDocument()
+    expect(d.getByText('Memberships')).toBeInTheDocument()
+    expect(d.queryByText(/active/)).not.toBeInTheDocument()
   })
 })

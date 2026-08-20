@@ -166,14 +166,16 @@ export default function ShopClient({
       )}
 
       {config.storefrontEnabled ? (
-        <div className="mb-6 text-sm px-4 py-2.5 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 flex items-center justify-between gap-3">
-          <span>Your storefront is live.</span>
+        /* Steady-state good news is a quiet line, not a standing banner —
+           the hub was stacking up to four tinted strips before any data. */
+        <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
+          <span className="font-medium text-emerald-700 dark:text-emerald-300">Storefront live.</span>{' '}
           {publicBase && (
-            <a href={publicBase} target="_blank" rel="noopener noreferrer" className="font-semibold underline shrink-0">
+            <a href={publicBase} target="_blank" rel="noopener noreferrer" className="font-medium text-teal-700 dark:text-teal-400 hover:underline">
               View storefront →
             </a>
           )}
-        </div>
+        </p>
       ) : (
         <div className="mb-6 text-sm px-4 py-2.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300">
           Your storefront is off — turn on &ldquo;Publish storefront&rdquo; below once you&apos;ve added products and
@@ -263,7 +265,6 @@ export default function ShopClient({
         </div>
       )}
 
-      <LowStockPanel products={products} />
 
       {/* Sales overview — the hub used to be analytically hollow (doorway cards
           only). Lead with the money: real revenue / orders / fulfillment / MRR
@@ -351,6 +352,9 @@ export default function ShopClient({
           )}
         </section>
       )}
+
+      {/* Restock is housekeeping — it reads AFTER the money story, not above it. */}
+      <LowStockPanel products={products} />
 
       {/* Section navigation — the front desk's doorways into each shop area.
           Prominent etched, drillable cards (NOT tiny text links). */}

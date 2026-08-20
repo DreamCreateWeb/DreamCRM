@@ -322,18 +322,18 @@ Already best-version: CompletedHeartbeat.
 4. Tabs never write the URL → ?tab= (settings-tabs.tsx:91).
 
 ### Billing panel
-1. Four money facts as prose → label/value grid w/ mono numerals (subscription-panel.tsx:263).
-2. One pending covers checkout/portal/cancel/resume (:112; pendingPlan :126 models the fix).
-3. Upgrade nudge hand-rolled violet (:227).
+1. Four money facts as prose. DEFERRED: the facts read as warm sentences (the product's voice) with mono values already — a grid trades voice for scan speed on a rarely-visited page.
+2. ~~One pending covers checkout/portal/cancel/resume~~ [BATCH 28: activeAction keys — portal/cancel/resume each spin alone; plan buttons ride their own pendingPlan].
+3. ~~Upgrade nudge hand-rolled violet~~ — already the standard info recipe (violet-500/10 + inset ring); scout stale.
 
 ### Payments hub
-1. Doors restate the KPI band verbatim (hub-doors.tsx:31 vs page:73).
-2. Only one of four KPIs has a heartbeat; "Outstanding" has none (:88).
-3. Doors bespoke hover ≠ v2-card-interactive (:67).
-4. Stripe notice hand-rolled violet (:62).
+1. ~~Doors restate the KPI band verbatim~~ [BATCH 28: doors drop the duplicated stats — only Online payments keeps its connect STATE (a door fact); tests pin the absence].
+2. Outstanding heartbeat. DEFERRED: needs a balance-history series the services don't keep — post-1.0 candidate.
+3. ~~Doors bespoke hover~~ [BATCH 28: v2-card-interactive].
+4. ~~Stripe notice hand-rolled violet~~ — already the standard info recipe; scout stale.
 
 ### Shop hub
 1. ~~TWO "Connect Stripe" primaries~~ [BATCH 13: panel copy demoted to secondary].
-2. Up to four stacked notices before data; raw ramps (:148-172).
-3. Sales band can vanish entirely → EmptyState holds the layout (:263).
-4. LowStockPanel outranks the Sales band (:260).
+2. ~~Up to four stacked notices before data~~ [BATCH 28: the steady-state "storefront live" band demotes to a quiet one-line status — good news is not a standing banner; the off-state and transient connect banners stay actionable].
+3. Sales band vanish. DEFERRED: hiding the $0 band during setup is a documented deliberate decision in the code (nobody stares at a $0 band while onboarding).
+4. ~~LowStockPanel outranks the Sales band~~ [BATCH 28: restock is housekeeping — it now reads AFTER the money story].
