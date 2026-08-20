@@ -350,6 +350,7 @@ function LeadRowCard({
       // own stopPropagation.
       role="button"
       tabIndex={0}
+      aria-label={`Open ${row.name}'s inquiry`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()

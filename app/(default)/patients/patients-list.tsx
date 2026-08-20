@@ -244,10 +244,34 @@ export default function PatientsList({
     setParam('sort', `${field}:${nextDir}`)
   }
 
-  const sortArrow = (field: PatientListSort['field']) => {
-    if (sort.field !== field) return ''
-    return sort.direction === 'asc' ? ' ▲' : ' ▼'
-  }
+  /** Sortable header cell: a real <button> (keyboard + AT reachable), aria-sort
+   *  on the th, and a fixed-width arrow slot so sorting never reflows the
+   *  header. */
+  const SortableTh = ({
+    field,
+    align = 'left',
+    children,
+  }: {
+    field: PatientListSort['field']
+    align?: 'left' | 'right'
+    children: React.ReactNode
+  }) => (
+    <th
+      className={`px-4 py-3 text-${align}`}
+      aria-sort={sort.field === field ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button
+        type="button"
+        onClick={() => cycleSortFor(field)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wider font-inherit hover:text-gray-700 dark:hover:text-gray-200 ${align === 'right' ? 'justify-end' : ''}`}
+      >
+        {children}
+        <span aria-hidden="true" className="inline-block w-3 text-center">
+          {sort.field === field ? (sort.direction === 'asc' ? '▲' : '▼') : ''}
+        </span>
+      </button>
+    </th>
+  )
 
   const selectedRows = useMemo(
     () => rows.filter((r) => selected.has(r.id)),
@@ -467,7 +491,7 @@ export default function PatientsList({
         ) : (
           <div className="overflow-x-auto">
             <table className="table-auto w-full text-sm">
-              <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
+              <thead className="sticky top-0 z-10 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-[color:var(--color-surface-sunk)] border-b border-[color:var(--color-hairline)]">
                 <tr>
                   <th className="px-4 py-3 w-8">
                     <input
@@ -478,23 +502,13 @@ export default function PatientsList({
                       aria-label="Select all"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left cursor-pointer" onClick={() => cycleSortFor('name')}>
-                    Patient{sortArrow('name')}
-                  </th>
-                  <th className="px-4 py-3 text-left cursor-pointer" onClick={() => cycleSortFor('lastVisit')}>
-                    Last visit{sortArrow('lastVisit')}
-                  </th>
-                  <th className="px-4 py-3 text-left cursor-pointer" onClick={() => cycleSortFor('nextVisit')}>
-                    Next visit{sortArrow('nextVisit')}
-                  </th>
+                  <SortableTh field="name">Patient</SortableTh>
+                  <SortableTh field="lastVisit">Last visit</SortableTh>
+                  <SortableTh field="nextVisit">Next visit</SortableTh>
                   <th className="px-4 py-3 text-left">Recall</th>
-                  <th className="px-4 py-3 text-right cursor-pointer" onClick={() => cycleSortFor('balance')}>
-                    Balance{sortArrow('balance')}
-                  </th>
+                  <SortableTh field="balance" align="right">Balance</SortableTh>
                   <th className="px-4 py-3 text-left">Source</th>
-                  <th className="px-4 py-3 text-left cursor-pointer" onClick={() => cycleSortFor('lastActivity')}>
-                    Last contact{sortArrow('lastActivity')}
-                  </th>
+                  <SortableTh field="lastActivity">Last contact</SortableTh>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[color:var(--color-hairline)]">
@@ -546,10 +560,11 @@ export default function PatientsList({
             variant="secondary"
             size="sm"
             onClick={bulkInvite}
-            disabled={invitableCount === 0 || inviting}
+            pending={inviting}
+            disabled={invitableCount === 0}
             title={invitableCount === 0 ? 'None of the selected patients have an email on file' : undefined}
           >
-            {inviting ? 'Inviting…' : `Invite to portal (${invitableCount})`}
+            {`Invite to portal (${invitableCount})`}
           </ActionButton>
         )}
         {payableCount > 0 && (
@@ -557,10 +572,10 @@ export default function PatientsList({
             variant="secondary"
             size="sm"
             onClick={bulkPayLinks}
-            disabled={payLinking}
+            pending={payLinking}
             title="Email each selected patient their balance with a secure pay link (patients without a balance are skipped)"
           >
-            {payLinking ? 'Sending…' : `Email pay link (${payableCount})`}
+            {`Email pay link (${payableCount})`}
           </ActionButton>
         )}
       </BulkBar>

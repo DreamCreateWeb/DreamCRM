@@ -577,7 +577,7 @@ function DaySection({
   ).length
   return (
     <section>
-      <div className="sticky top-0 z-10 bg-[color:var(--color-surface-sunk)]/95 backdrop-blur px-4 py-2 mb-2 rounded-[var(--r-md)] ring-1 ring-inset ring-[color:var(--color-hairline)] flex items-center gap-3">
+      <div className="sticky top-16 z-10 bg-[color:var(--color-surface-sunk)]/95 backdrop-blur px-4 py-2 mb-2 rounded-[var(--r-md)] ring-1 ring-inset ring-[color:var(--color-hairline)] flex items-center gap-3">
         <input
           type="checkbox"
           checked={allSelected}
@@ -650,7 +650,24 @@ function AppointmentRowCard({
   return (
     <li
       onClick={onOpen}
-      className={`v2-card px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/30 border-l-4 ${agingBorderClass(APPOINTMENT_AGING_TIER[row.agingLevel])} ${
+      // The row IS a button (it opens the visit drawer) — the highest-
+      // frequency interaction on the page must work from the keyboard too.
+      // Enter/Space open; the checkbox and inline chips keep their own
+      // stopPropagation.
+      role="button"
+      tabIndex={0}
+      // Named explicitly: without aria-label a role=button's accessible name
+      // concatenates every child (pills, inline buttons), which both confuses
+      // AT and collides with the inner controls' own names.
+      aria-label={`Open ${row.patientName}'s visit`}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className={`v2-card px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/30 border-l-4 focus-visible:outline-2 focus-visible:outline-offset-2 ${agingBorderClass(APPOINTMENT_AGING_TIER[row.agingLevel])} ${
         // Selected row = teal inner ring + faint teal wash (selection ≠ status).
         selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
       }`}

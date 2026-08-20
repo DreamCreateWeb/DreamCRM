@@ -1229,6 +1229,27 @@ longer escapes the drawer to cover the whole viewport (missing `relative`)
 · My Day's skeleton now matches the page width (no more arrival reflow)
 and the tick-off circle is double-tap-proof with a hover check preview.
 
+**Batch 11 — Records + Comms top findings (owner: "work through the clinic
+side, every component"):** the six modals whose CANCEL button spun during a
+save (batch 5's codemod had put the shared pending on the escape hatch)
+now disable instead — Cancel never claims to be doing the work · the
+Patients table's sort headers became real `<button>`s with `aria-sort` and
+a fixed-width arrow slot (keyboard-sortable, no header reflow), and the
+`<thead>` is sticky · agenda rows are keyboard-operable (role=button,
+Enter/Space, explicit aria-label so the row's name doesn't swallow its
+inner controls' — a collision our own tests caught) and the sticky day
+header pins below the 56px chrome instead of tucking under it · **the new
+`CopyChip` primitive** (six surfaces had each hand-rolled clipboard code;
+now one home) makes the intake fill URLs and packet links one-tap-copyable
+instead of un-selectable gray mono text · Messages: the thread list's
+timestamp/You:/assignee metadata rises to the gray-500 contrast floor, the
+urgency badge rides `StatusPill tone=urgent` (the tone contract + legend
+now cover the most important triage mark), the composer **auto-grows** to
+280px instead of a fixed two-line slit (collapsing back on send), and Send
+got its own busy flag — it no longer announces "Sending…" while an
+unrelated assign/snooze runs · patients bulk-bar Invite/Pay-link join the
+pending prop.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { createPacketAction, deletePacketAction } from './actions'
+import { CopyChip } from '@/components/ui/copy-chip'
 
 export interface PacketView {
   id: string
@@ -112,7 +113,7 @@ export default function PacketsManager({
       )}
 
       {packets.length === 0 ? (
-        <p className="text-sm italic text-gray-400 dark:text-gray-500">
+        <p className="text-sm italic text-gray-500 dark:text-gray-400">
           {forms.length < 2 ? 'Create at least two forms to bundle into a packet.' : 'No packets yet.'}
         </p>
       ) : (
@@ -121,17 +122,20 @@ export default function PacketsManager({
             <li key={p.id} className="v2-card flex items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
                 <p className="font-medium text-gray-800 dark:text-gray-100">{p.title}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {p.formCount} forms
-                  {p.url && (
-                    <>
-                      {' · '}
-                      <a href={p.url} target="_blank" rel="noopener noreferrer" className="font-mono text-teal-700 dark:text-teal-300 hover:underline">
-                        {p.url.replace(/^https?:\/\//, '')}
-                      </a>
-                    </>
-                  )}
-                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{p.formCount} forms</p>
+                {p.url && (
+                  <div className="mt-1 flex items-center gap-2 max-w-[44ch]">
+                    <CopyChip value={p.url} label="Copy the packet link" />
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs text-teal-700 dark:text-teal-300 hover:underline"
+                    >
+                      Open ↗
+                    </a>
+                  </div>
+                )}
               </div>
               <button type="button" onClick={() => remove(p.id)} className="shrink-0 text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400">
                 Delete

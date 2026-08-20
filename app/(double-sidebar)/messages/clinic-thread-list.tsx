@@ -9,6 +9,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
 import { channelMeta } from './channel-meta'
 import { avatarTint, messageInitials } from './message-grouping'
+import { StatusPill } from '@/components/ui/status-pill'
 import {
   bulkArchiveThreadsAction,
   bulkMarkReadThreadsAction,
@@ -215,7 +216,7 @@ export default function ClinicThreadList({
                         )}
                         {name}
                       </p>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums shrink-0">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums shrink-0">
                         {fmtRelative(t.lastMessageAt)}
                       </span>
                     </div>
@@ -225,18 +226,17 @@ export default function ClinicThreadList({
                       }`}
                     >
                       {t.lastMessageDirection === 'outbound' ? (
-                        <span className="text-gray-400 dark:text-gray-500">You: </span>
+                        <span className="text-gray-500 dark:text-gray-400">You: </span>
                       ) : null}
                       {t.lastMessagePreview ?? <span className="italic">No messages yet</span>}
                     </p>
                     <div className="mt-1.5 flex items-center gap-1.5">
                       {t.urgency === 'urgent' && (
-                        <span
-                          className="inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-rose-500/15 text-rose-700 dark:text-rose-300"
+                        <StatusPill
+                          tone="urgent"
+                          label="Urgent"
                           title={t.urgencyReason ? `Reads urgent: ${t.urgencyReason}` : 'Reads urgent'}
-                        >
-                          🚨 Urgent
-                        </span>
+                        />
                       )}
                       <span
                         className={`inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-[var(--r-xs)] ${ch.pill}`}
@@ -262,7 +262,7 @@ export default function ClinicThreadList({
                         </span>
                       ) : t.assignedUserName ? (
                         <span
-                          className="text-xs text-gray-400 dark:text-gray-500 truncate"
+                          className="text-xs text-gray-500 dark:text-gray-400 truncate"
                           title={`Assigned to ${t.assignedUserName}`}
                         >
                           · {t.assignedUserName.split(' ')[0]}

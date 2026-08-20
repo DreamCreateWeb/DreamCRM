@@ -12,6 +12,7 @@ import {
 } from '@/lib/services/forms'
 import PacketsManager, { type PacketView } from './packets-manager'
 import CompletedHeartbeat from './completed-heartbeat'
+import { CopyChip } from '@/components/ui/copy-chip'
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import { db } from '@/lib/db'
 import { eq } from 'drizzle-orm'
@@ -153,11 +154,13 @@ export default async function IntakeFormsListPage() {
                           )}
                         </Link>
                       ) : (
-                        <span className="text-gray-400 dark:text-gray-500">No submissions yet</span>
+                        <span className="text-gray-500 dark:text-gray-400">No submissions yet</span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono truncate max-w-[40ch]">
-                      {fillUrl}
+                    <div className="mt-1 max-w-[44ch]">
+                      {/* The single thing the front desk needs from this row —
+                          one tap to the clipboard, not a manual text select. */}
+                      <CopyChip value={fillUrl} label="Copy the form link" />
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
