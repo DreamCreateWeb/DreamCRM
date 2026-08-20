@@ -114,28 +114,28 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 3. Import file picker raw input → v2-well drop target + filename echo (:138).
 4. Edit modal: 14 fields, no section headings, no ✕ (edit-modal.tsx:88).
 5. Bulk message: no recipient visibility; ternary send (:57,:110).
-6. Add-patient doesn't autofocus first field (:76). (Duplicate card already best-version.)
-7. Import close is text × → icon button (:120).
+6. ~~Add-patient doesn't autofocus~~ [BATCH 17].
+7. ~~Import close is text ×~~ [BATCH 17: the standard icon button; Edit modal gains a ✕ too].
 8. ~~SIX modals spin their Cancel~~ [BATCH 11: disabled, never pending, on every onClose].
 
 ### Agenda
 Already best-version: emptyCopy() engine.
 1. ~~Row is li onClick — mouse-only drawer~~ [BATCH 11: role=button + Enter/Space + aria-label].
 2. Nine chips + two selects + search in one unlabeled row (:422).
-3. Bulk bar ternaries; siblings show nothing (:511).
+3. ~~Bulk bar ternaries~~ [BATCH 17: activeBulk key — only the pressed bulk button spins].
 4. Right cluster shrink-0 squeezes patient name (:703).
 5. ~~Sticky day header top-0 tucks under chrome~~ [BATCH 11: top-16].
-6. Bulk follow-up composer: no focus trap/outside-click (:799).
+6. ~~Bulk composer no dismiss contract~~ [BATCH 17: usePopoverDismiss on the trigger+panel wrapper].
 
 ### Appointment drawer + booking
 1. ~~One useTransition spins five buttons at once~~ [BATCH 12: activeAction keys — only the clicked button spins, the rest disable].
 2. No sticky footer action row — Drawer has the slot (:293 vs drawer.tsx:113).
 3. ~~Reschedule always opens tomorrow 09:00~~ [BATCH 12: seeds from the visit's own local date+time; past visits fall back].
-4. In-office undo is text-gray-400 micro-text (:487).
-5. Reminder activity all text-xs incl. patient replies (:528).
-6. Booking drawer slot grid collapses to text while loading → skeleton chips (book-from-patient-drawer.tsx:230).
+4. ~~In-office undo micro-text~~ [BATCH 17: gray-500 floor + underline].
+5. ~~Patient replies at text-xs~~ [BATCH 17: reply bodies at text-sm full ink; metadata stays xs].
+6. ~~Slot grid collapses to text while loading~~ [BATCH 17: six skeleton chips in the grid's shape].
 7. ~~Walk-in defaults 09:00~~ [BATCH 12: now, rounded up to the next quarter hour].
-8. Fast-pass summary tiny; Remove no confirm (waitlist-panel.tsx:52,:79).
+8. Fast-pass: ~~Remove no confirm + sub-floor contrast~~ [BATCH 17]; the collapsed-by-default summary stays (a deliberate quiet panel).
 
 ### Messages (list + detail)
 Already best-version: the message stream + receipts; per-row optimistic nav.

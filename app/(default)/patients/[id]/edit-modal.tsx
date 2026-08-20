@@ -83,8 +83,18 @@ export default function EditPatientModal({
   return (
     <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Edit patient" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/30 backdrop-blur-[2px] px-2 sm:px-4">
       <div className="section-enter bg-[color:var(--color-surface-2)] rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div className="px-6 py-5 border-b border-[color:var(--color-hairline)]">
+        <div className="px-6 py-5 border-b border-[color:var(--color-hairline)] flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit {header.fullName}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1 rounded-[var(--r-sm)] text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-gray-200 dark:hover:bg-gray-800 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
         <div className="px-6 py-5 space-y-3 overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">

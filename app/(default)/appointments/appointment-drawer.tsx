@@ -502,7 +502,7 @@ export default function AppointmentDrawer({
                         type="button"
                         onClick={() => onArrival('reset')}
                         disabled={pending}
-                        className="text-xs text-gray-400 hover:underline disabled:opacity-50"
+                        className="text-xs font-medium text-gray-500 dark:text-gray-400 underline underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-50"
                       >
                         undo
                       </button>
@@ -550,7 +550,7 @@ export default function AppointmentDrawer({
                         {r.repliedAt && (
                           <span className="text-emerald-700 dark:text-emerald-300"> · patient replied {fmtRelative(r.repliedAt)}</span>
                         )}
-                        {r.replyBody && <p className="ml-4 mt-0.5 text-xs italic">&ldquo;{r.replyBody}&rdquo;</p>}
+                        {r.replyBody && <p className="ml-4 mt-0.5 text-sm italic text-gray-800 dark:text-gray-100">&ldquo;{r.replyBody}&rdquo;</p>}
                       </li>
                     ))}
                   </ul>

@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { removeFromWaitlistAction } from './actions'
 
 /** Serializable entry shape (page.tsx maps service Dates → ISO strings). */
@@ -31,7 +32,11 @@ export default function WaitlistPanel({ entries }: { entries: WaitlistPanelEntry
 
   if (entries.length === 0) return null
 
-  function remove(id: string, name: string) {
+  const confirm = useConfirm()
+  async function remove(id: string, name: string) {
+    // Removing discards the patient's standing "call me if something opens"
+    // request — worth one confirm.
+    if (!(await confirm({ title: `Take ${name} off the fast-pass list?`, message: 'They won’t be offered earlier openings anymore.', confirmLabel: 'Remove', danger: true }))) return
     startTransition(async () => {
       await removeFromWaitlistAction(id)
       setToast(`${name} removed from the fast-pass list.`)
@@ -84,7 +89,7 @@ export default function WaitlistPanel({ entries }: { entries: WaitlistPanelEntry
                 type="button"
                 onClick={() => remove(e.id, e.patientName)}
                 disabled={pending}
-                className="text-xs font-medium text-gray-400 hover:text-rose-600 dark:text-gray-500 dark:hover:text-rose-400 rounded px-2 py-1 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
+                className="text-xs font-medium text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400 rounded px-2 py-1 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
               >
                 Remove
               </button>
