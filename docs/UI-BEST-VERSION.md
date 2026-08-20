@@ -57,12 +57,12 @@ Already best-version: due-state grouping, optimistic complete with honest revert
 1. [BATCH 10] No PendingVeil on filter nav (followups-board.tsx:79).
 2. [BATCH 10] One useTransition freezes rows during nav — split navPending/rowPending (:77,:226,:279,:309).
 3. Settings card between filters and the work → one-line summary + disclosure (:191).
-4. No tailored loading.tsx.
+4. ~~No tailored loading.tsx~~ [BATCH 16: chip row + rules line + grouped tick rows].
 5. Empty states hand over no action — pass EmptyState action (:196).
-6. "N due now" hand-rolled pill in the primary slot → StatusPill in subtitle (:150).
-7. Tick circle drifted from My Day's → one shared TickButton.
+6. ~~"N due now" in the primary slot~~ [BATCH 16: StatusPill warn in the legend zone].
+7. ~~Tick circle drifted~~ [BATCH 16: components/ui/tick-button.tsx, both boards adopted].
 8. Bordered select on every row → text that becomes select on hover/focus (:306).
-9. Heartbeat hidden lg:flex — gone on tablets (:176).
+9. ~~Heartbeat gone on tablets~~ [BATCH 16: label always shows; the spark stays desktop].
 10. Sparkline → MiniTrend (:10).
 
 ### Leads
@@ -71,11 +71,11 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 2. [BATCH 10] Rows mouse-only — role/tabIndex/Enter (leads-view.tsx:341).
 3. [BATCH 10] Hand-rolled search → SearchInput (leads-view.tsx:249).
 4. [BATCH 10] Discarded pending flag → PendingVeil (:106,:173).
-5. Empty states actionless (:411).
+5. ~~Empty states actionless~~ [BATCH 16: Share-your-website / Clear-filters handed over].
 6. Drawer timeline uses browser-local time → formatClinicDayTime (lead-drawer.tsx:45).
 7. leads/loading.tsx isn't the aging-card-stack shape.
-8. Select-all orphaned between blocks (:279).
-9. Two styles for the archive step's two exits (lead-drawer.tsx:391 vs :412).
+8. ~~Select-all orphaned~~ [BATCH 16: a label-clickable list header].
+9. ~~Two styles for the archive exits~~ [BATCH 16: both ghost ActionButtons].
 10. Spark desktop-only + compat import (:258).
 
 ---
@@ -91,9 +91,9 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 6. ~~No sticky thead~~ [BATCH 11].
 7. Heartbeat hidden lg:flex (:426).
 8. saved-views-bar re-implements FilterChip ×4 (:121,:175,:201,:228).
-9. Saved-view delete hover-only, no confirm (:147).
-10. window.prompt() for audience naming (:106).
-11. text-gray-400 on meaningful labels (:119,:188).
+9. ~~Saved-view delete hover-only, no confirm~~ [BATCH 16: always visible at reduced contrast + useConfirm].
+10. ~~window.prompt() for audience naming~~ [BATCH 16: the inline-naming recipe, Enter/Esc].
+11. ~~text-gray-400 on meaningful labels~~ [BATCH 16: gray-500 floor].
 
 ### Patient detail
 1. Six same-weight header actions — collapse to primary + More ▾ (patient-detail.tsx:255).

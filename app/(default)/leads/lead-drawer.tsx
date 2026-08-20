@@ -388,7 +388,9 @@ export default function LeadDrawer({
           <div className="section-enter absolute inset-0 bg-[color:var(--color-surface-2)] rounded-l-[var(--r-lg)] flex flex-col">
             <div className="px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Archive inquiry</h3>
-              <button onClick={() => setArchiveOpen(false)} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700">← Back</button>
+              <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)}>
+                ← Back
+              </ActionButton>
             </div>
             <div className="px-5 py-5 space-y-3 flex-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">

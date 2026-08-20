@@ -1309,6 +1309,21 @@ My Day: tomorrow's prep flags and the unread badge ride StatusPill
 (hoverable meaning, tone contract), Claim joins ActionButton with the
 pending spinner, and the digest toggle acknowledges its click.
 
+**Batch 16 — Follow-ups, Leads, and the saved-views bar:** the shared
+`TickButton` primitive ends the tick-circle drift between the Follow-ups
+board and My Day (one recipe: hover previews the check, done fills
+emerald, always double-tap-proof) · the board gets its own skeleton
+(chip row → rules line → grouped tick rows), its "N due now" pill moves
+out of the header's one-primary slot into the legend zone, and the
+8-week completion label survives on tablets · Leads' empty states hand
+over Share-your-website / Clear-filters, select-all became a
+label-clickable list header, and the archive step's two exits finally
+match · the saved-views bar loses `window.prompt` (audience naming is
+now the same inline recipe as + Save view), the view-delete ✕ is always
+visible and CONFIRMS (hover-only didn't exist on touch and an
+irreversible-feeling delete had no dialog), and the Views/matches
+labels rise to the contrast floor.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
