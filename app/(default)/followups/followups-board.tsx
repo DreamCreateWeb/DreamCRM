@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
+import { TickButton } from '@/components/ui/tick-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { PendingVeil } from '@/components/ui/pending-veil'
@@ -152,12 +154,12 @@ export default function FollowupsBoard({
         eyebrow={`Daily · ${orgName}`}
         title="Follow-ups"
         subtitle="Reminders to call, rebook, or check in — attached to the patient and ticked off when done."
-        actions={
+        legend={
           dueNowCount > 0 ? (
             // The sidebar badge's number, spelled out — board and badge agree.
-            <span className="inline-flex items-center gap-1.5 rounded-[var(--r-pill)] bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-300 tabular-nums">
-              🔔 {dueNowCount} due now
-            </span>
+            // Lives in the legend zone: it's a FACT, not an action, so it
+            // stays out of the header's one-primary slot.
+            <StatusPill tone="warn" label={`${dueNowCount} due now`} title="Overdue + due today — the sidebar badge's number" />
           ) : undefined
         }
       />
@@ -181,13 +183,15 @@ export default function FollowupsBoard({
         </FilterChip>
         {showFlow && (
           <div
-            className="hidden lg:flex items-center gap-2 shrink-0 ml-auto"
+            className="flex items-center gap-2 shrink-0 ml-auto"
             title="Follow-ups your team finished each week over the last 8 weeks"
           >
             <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
               Completed · 8 weeks
             </span>
-            <span aria-hidden="true">
+            {/* The spark itself stays desktop-only; the label carries the
+                meaning on the tablet the front desk actually holds. */}
+            <span aria-hidden="true" className="hidden lg:inline">
               <Sparkline data={completedPerWeek8} width={104} height={26} />
             </span>
           </div>
@@ -290,21 +294,7 @@ function Row({
   const due = followupDueState(f.dueDate)
   return (
     <li className="flex items-center gap-3 px-4 py-2.5">
-      <button
-        type="button"
-        onClick={done ? onReopen : onComplete}
-        disabled={pending}
-        aria-label={done ? 'Reopen' : 'Mark done'}
-        className={`h-5 w-5 shrink-0 rounded-full border grid place-items-center ${
-          done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600 hover:border-teal-500'
-        }`}
-      >
-        {done && (
-          <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M2 6l2.5 2.5L10 3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
+      <TickButton done={done} pending={pending} onToggle={() => (done ? onReopen?.() : onComplete?.())} />
       <div className="min-w-0 flex-1">
         <p className={`text-sm ${done ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-800 dark:text-gray-100'}`}>
           {f.title}

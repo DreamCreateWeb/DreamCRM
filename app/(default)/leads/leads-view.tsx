@@ -278,11 +278,17 @@ export default function LeadsView({
 
       {/* ── List ─────────────────────────────────────────────────────── */}
       {visibleRows.length === 0 ? (
-        <LeadsEmpty status={status} />
+        <LeadsEmpty
+          status={status}
+          onClear={() => {
+            setSearchInput('')
+            startTransition(() => router.push('/leads'))
+          }}
+        />
       ) : (
         <div className="relative">
           {isPending && <PendingVeil />}
-          <div className="flex items-center gap-2 mb-2 px-1">
+          <label className="flex w-fit cursor-pointer items-center gap-2 mb-2 px-1 py-1">
             <input
               type="checkbox"
               checked={allSelected}
@@ -290,10 +296,10 @@ export default function LeadsView({
               className="form-checkbox"
               aria-label="Select all inquiries"
             />
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-gray-500 dark:text-gray-400 select-none">
               {allSelected ? 'Deselect all' : `Select all ${visibleRows.length}`}
             </span>
-          </div>
+          </label>
           <ul className="space-y-2">
             {visibleRows.map((r) => (
               <LeadRowCard
@@ -426,7 +432,19 @@ function LeadRowCard({
   )
 }
 
-function LeadsEmpty({ status }: { status: LeadStatus | 'all' }) {
+function LeadsEmpty({ status, onClear }: { status: LeadStatus | 'all'; onClear?: () => void }) {
   const c = emptyCopy(status)
-  return <EmptyState icon={c.icon} title={c.title} body={c.body} />
+  // The 'new' and catch-all states name a next act — hand it over instead of
+  // describing it. Other queues' emptiness is good news; no forced CTA.
+  const action =
+    status === 'new' || status === 'all' ? (
+      <ActionButton variant="secondary" href="/website/share">
+        Share your website
+      </ActionButton>
+    ) : onClear ? (
+      <ActionButton variant="ghost" onClick={onClear}>
+        Clear filters
+      </ActionButton>
+    ) : undefined
+  return <EmptyState icon={c.icon} title={c.title} body={c.body} action={action} />
 }

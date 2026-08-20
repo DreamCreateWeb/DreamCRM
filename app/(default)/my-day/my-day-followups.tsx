@@ -7,6 +7,7 @@ import { followupDueState, formatDueLabel, type FollowupDueState, type PatientFo
 import { completeFollowupAction, reopenFollowupAction, updateFollowupAction } from '../patients/actions'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { ActionButton } from '@/components/ui/action-button'
+import { TickButton } from '@/components/ui/tick-button'
 
 const DUE_TONE: Record<FollowupDueState, string> = {
   overdue: 'text-rose-600 dark:text-rose-400',
@@ -108,23 +109,7 @@ export default function MyDayFollowups({
         const due = followupDueState(f.dueDate)
         return (
           <li key={f.id} className="flex items-start gap-3 py-2.5">
-            <button
-              type="button"
-              onClick={() => complete(f)}
-              disabled={pending}
-              aria-label="Mark done"
-              // Hover previews the tick so the circle reads as a checkbox
-              // before you commit; disabled during the transition so a
-              // double-tap can't fire the action twice.
-              className="group mt-0.5 h-5 w-5 shrink-0 rounded-full border border-gray-300 dark:border-gray-600 hover:border-teal-500 grid place-items-center disabled:opacity-50"
-            >
-              <span
-                aria-hidden="true"
-                className="text-xs leading-none text-teal-600 opacity-0 group-hover:opacity-60 transition-opacity"
-              >
-                ✓
-              </span>
-            </button>
+            <TickButton pending={pending} onToggle={() => complete(f)} className="mt-0.5" />
             <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-800 dark:text-gray-100">{f.title}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">

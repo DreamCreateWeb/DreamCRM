@@ -14,6 +14,7 @@ import {
 } from '@/lib/types/patient-views'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
 import type { PatientTagView } from '@/lib/types/patient-tags'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import {
   createPatientViewAction,
   deletePatientViewAction,
@@ -93,7 +94,9 @@ export default function SavedViewsBar({
     })
   }
 
-  function remove(v: PatientViewRow) {
+  const confirm = useConfirm()
+  async function remove(v: PatientViewRow) {
+    if (!(await confirm({ title: `Delete the “${v.name}” view?`, message: 'The patients stay — only the saved filter goes.', confirmLabel: 'Delete view', danger: true }))) return
     setList((cur) => cur.filter((x) => x.id !== v.id))
     startTransition(async () => {
       const res = await deletePatientViewAction(v.id)
@@ -101,12 +104,20 @@ export default function SavedViewsBar({
     })
   }
 
+  // Inline naming (the same recipe as + Save view) — window.prompt() dropped
+  // the user out of the design system into browser chrome.
+  const [audienceNaming, setAudienceNaming] = useState(false)
+  const [audienceName, setAudienceName] = useState('')
+  function startPromote() {
+    setAudienceName((activeView?.name ?? describeViewFilters(current, tagMap)).slice(0, MAX_VIEW_NAME_LEN))
+    setAudienceNaming(true)
+  }
   function promote() {
-    const suggested = activeView?.name ?? describeViewFilters(current, tagMap)
-    const audienceName = window.prompt('Name this audience', suggested)?.trim()
-    if (!audienceName) return
+    const trimmed = audienceName.trim()
+    if (!trimmed) return
+    setAudienceNaming(false)
     startTransition(async () => {
-      const res = await promoteFiltersToAudienceAction(audienceName, current)
+      const res = await promoteFiltersToAudienceAction(trimmed, current)
       if (!res.ok) { setToast(res.error); return }
       const note = res.dropped.length ? ` (${res.dropped.join(' + ')} not applied)` : ''
       setToast(`Audience created${note} — opening composer…`)
@@ -116,7 +127,7 @@ export default function SavedViewsBar({
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-1.5">
-      <span className="text-xs font-medium text-gray-400 dark:text-gray-500 mr-0.5">Views:</span>
+      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-0.5">Views:</span>
 
       <Link
         href="/patients"
@@ -148,7 +159,7 @@ export default function SavedViewsBar({
               type="button"
               onClick={() => remove(v)}
               aria-label={`Delete view ${v.name}`}
-              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-rose-600 dark:text-gray-600 dark:hover:text-rose-400"
+              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-600 focus-visible:opacity-100 dark:text-gray-500 dark:hover:text-rose-400"
             >
               <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" /></svg>
             </button>
@@ -185,7 +196,7 @@ export default function SavedViewsBar({
       {/* ── Launchpad: act on everyone matching the current view ──────── */}
       {!empty && matchCount > 0 && (
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-gray-400 dark:text-gray-500">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
             {matchCount} {matchCount === 1 ? 'match' : 'matches'} ·
           </span>
 
@@ -224,17 +235,34 @@ export default function SavedViewsBar({
             </select>
           )}
 
-          {/* Promote into a sendable audience (premium) */}
+          {/* Promote into a sendable audience (premium) — names inline, the
+              same recipe as + Save view. */}
           {canMarket && !followingUp && (
-            <button
-              type="button"
-              onClick={promote}
-              disabled={pending}
-              title="Create a marketing audience from these filters and open the campaign composer"
-              className="rounded-full px-2.5 py-1 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-400/50 hover:bg-violet-500/10 dark:text-violet-300"
-            >
-              ✦ Send a campaign
-            </button>
+            audienceNaming ? (
+              <span className="inline-flex items-center gap-1">
+                <input
+                  autoFocus
+                  value={audienceName}
+                  onChange={(e) => setAudienceName(e.target.value.slice(0, MAX_VIEW_NAME_LEN))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') promote(); if (e.key === 'Escape') setAudienceNaming(false) }}
+                  placeholder="Name this audience"
+                  aria-label="Audience name"
+                  className="form-input text-xs py-0.5 w-40"
+                />
+                <button type="button" onClick={promote} disabled={pending} className="text-xs font-medium text-violet-700 dark:text-violet-300">Create</button>
+                <button type="button" onClick={() => setAudienceNaming(false)} className="text-xs text-gray-500 dark:text-gray-400">Cancel</button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={startPromote}
+                disabled={pending}
+                title="Create a marketing audience from these filters and open the campaign composer"
+                className="rounded-full px-2.5 py-1 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-400/50 hover:bg-violet-500/10 dark:text-violet-300"
+              >
+                ✦ Send a campaign
+              </button>
+            )
           )}
         </div>
       )}
