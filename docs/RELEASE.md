@@ -1324,6 +1324,19 @@ visible and CONFIRMS (hover-only didn't exist on touch and an
 irreversible-feeling delete had no dialog), and the Views/matches
 labels rise to the contrast floor.
 
+**Batch 17 — the agenda/drawer/modal tail:** the agenda bulk bar gets
+per-action pending (only the pressed bulk button spins; the others
+disable), and the bulk follow-up composer joins the dismiss contract
+(Esc + outside-click on the trigger+panel wrapper, so the trigger still
+toggles) · in the visit drawer, the in-office "undo" rises from
+invisible micro-gray to a legible underlined control, and a patient's
+reply BODY renders at text-sm full ink — their actual words are content,
+not metadata · the staff booking drawer's slot grid shows six skeleton
+chips in its own shape instead of a text line that made the panel jump
+twice per date change · the fast-pass Remove now CONFIRMS (it discards
+the patient's standing request) · Add-patient autofocuses its first
+field; the import and edit modals wear the standard icon close.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

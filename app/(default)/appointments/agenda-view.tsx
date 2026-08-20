@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useMemo, useOptimistic, useState, useTransition } from 'react'
+import { useEffect, useMemo, useOptimistic, useState, useTransition, useRef } from 'react'
 import type {
   AppointmentRow,
   AppointmentDayGroup,
@@ -27,6 +27,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { BulkBar } from '@/components/ui/bulk-bar'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { PendingVeil } from '@/components/ui/pending-veil'
+import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
 import { SearchInput } from '@/components/ui/search-input'
 import { addDaysYmd, todayYmd, MAX_FOLLOWUP_TITLE_LEN } from '@/lib/types/followups'
 import {
@@ -294,14 +295,26 @@ export default function AgendaView({
   }
 
   const [followupOpen, setFollowupOpen] = useState(false)
+  // Dismiss contract for the follow-up composer: Esc + outside-click. The ref
+  // wraps trigger AND panel so the trigger still toggles.
+  const followupPopRef = useRef<HTMLDivElement | null>(null)
+  usePopoverDismiss(followupOpen, followupPopRef, () => setFollowupOpen(false))
+  // Which bulk action is running — the shared bulkPending still disables the
+  // bar, but only the pressed button shows the spinner.
+  const [activeBulk, setActiveBulk] = useState<string | null>(null)
 
   function onBulkSend() {
     const ids = Array.from(selected)
     if (ids.length === 0) return
+    setActiveBulk('send')
     startBulk(async () => {
+      try {
       const r = await bulkSendRemindersAction(ids, 'email')
       setToast({ message: `Sent ${r.sent} reminder${r.sent === 1 ? '' : 's'}${r.skipped ? ` · skipped ${r.skipped}` : ''}${r.errors.length ? ` · ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}` : ''}`, tone: r.errors.length ? 'warn' : 'ok' })
       setSelected(new Set())
+      } finally {
+        setActiveBulk(null)
+      }
     })
   }
 
@@ -310,10 +323,15 @@ export default function AgendaView({
   function onBulkStatus(status: 'completed' | 'no_show', verb: string) {
     const ids = Array.from(selected)
     if (ids.length === 0) return
+    setActiveBulk(`status-${status}`)
     startBulk(async () => {
+      try {
       const r = await bulkSetAppointmentStatusAction(ids, status)
       setToast({ message: `Marked ${r.updated} ${verb}${r.skipped ? ` · skipped ${r.skipped}` : ''}`, tone: r.skipped ? 'warn' : 'ok' })
       setSelected(new Set())
+      } finally {
+        setActiveBulk(null)
+      }
     })
   }
 
@@ -508,16 +526,16 @@ export default function AgendaView({
 
       {/* ── Sticky bulk action bar ───────────────────────────────────── */}
       <BulkBar count={selected.size} onClear={() => setSelected(new Set())}>
-        <ActionButton variant="primary" size="sm" onClick={onBulkSend} disabled={bulkPending}>
-          {bulkPending ? 'Sending…' : `Send ${selected.size} reminder${selected.size === 1 ? '' : 's'}`}
+        <ActionButton variant="primary" size="sm" onClick={onBulkSend} pending={activeBulk === 'send'} disabled={bulkPending}>
+          {`Send ${selected.size} reminder${selected.size === 1 ? '' : 's'}`}
         </ActionButton>
-        <ActionButton variant="secondary" size="sm" onClick={() => onBulkStatus('completed', 'completed')} disabled={bulkPending}>
+        <ActionButton variant="secondary" size="sm" onClick={() => onBulkStatus('completed', 'completed')} pending={activeBulk === 'status-completed'} disabled={bulkPending}>
           Mark completed
         </ActionButton>
-        <ActionButton variant="secondary" size="sm" onClick={() => onBulkStatus('no_show', 'as no-show')} disabled={bulkPending}>
+        <ActionButton variant="secondary" size="sm" onClick={() => onBulkStatus('no_show', 'as no-show')} pending={activeBulk === 'status-no_show'} disabled={bulkPending}>
           Mark no-show
         </ActionButton>
-        <div className="relative">
+        <div ref={followupPopRef} className="relative">
           <ActionButton variant="secondary" size="sm" onClick={() => setFollowupOpen((o) => !o)} disabled={bulkPending}>
             Add follow-up
           </ActionButton>

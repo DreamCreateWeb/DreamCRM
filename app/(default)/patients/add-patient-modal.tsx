@@ -73,6 +73,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">First name</span>
               <input
+                autoFocus
                 name="firstName"
                 aria-invalid={!!fieldErrors.firstName}
                 aria-describedby={fieldErrors.firstName ? 'err-firstName' : undefined}

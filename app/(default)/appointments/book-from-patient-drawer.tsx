@@ -245,7 +245,13 @@ export default function BookFromPatientDrawer({
             <div>
               <span className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">Time</span>
               {slotsPending ? (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Loading openings…</p>
+                <div className="mt-2 grid grid-cols-3 gap-1.5" aria-hidden="true">
+                  {/* Skeleton chips in the grid's own shape — the text line
+                      made the panel height jump twice per date change. */}
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <span key={i} className="skeleton h-8 rounded-[var(--r-sm)]" />
+                  ))}
+                </div>
               ) : availableSlots.length === 0 && selectedTime !== MANUAL_TIME ? (
                 <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
                   No open times for this date and length.{' '}
