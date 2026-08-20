@@ -252,16 +252,16 @@ Already best-version: CompletedHeartbeat.
 6. family-link-request placeholders-as-labels (:76).
 
 ### Growth hub
-1. Hero KPI + FunnelStat hand-rolled → KpiStat (growth/page.tsx:129,:490).
-2. NewsCard duplicated verbatim across two hubs → hoist (growth:522, website:581).
-3. Funnel numbers lack heartbeats; "due & reachable" + "booked back" deserve MiniTrend.
-4. Utility footer links ~20px hit height (:400).
+1. Hero KPI + FunnelStat → KpiStat. DEFERRED: the v3 hub's hero scoreboard and inline funnel row are deliberate owner-approved layouts (2026-07-26) — KpiStat's tile chrome would box what was designed to flow.
+2. ~~NewsCard duplicated verbatim across two hubs~~ [BATCH 24: hoisted to components/ui/news-card.tsx (valueSuffix kept); both hubs import the one recipe].
+3. Funnel heartbeats. DEFERRED: getRecallStats carries no weekly history — a new data series is server work beyond presentation; post-1.0 candidate.
+4. ~~Utility footer links ~20px hit height~~ [BATCH 24: py-2 tap height on all three].
 
 ### Reviews
-1. Sixteen KPIs, zero heartbeats (:180-296).
-2. Four identical bands → v2-well differentiation.
-3. Google-link gate hand-rolled amber panel (:165).
-4. Secondary competes with breath primary in header (:150).
+1. Sixteen KPIs, zero heartbeats. DEFERRED: every tile already rides KpiStat; sparks need per-metric history series the services don't keep — post-1.0 candidate.
+2. ~~Four identical bands~~ [BATCH 24: each band now leads with its own header — the ask→review funnel · On Google right now · Where they reviewed · Patient pulse].
+3. ~~Google-link gate hand-rolled amber panel~~ [BATCH 24: the standard warn recipe (amber-500/10 + inset ring)].
+4. ~~Secondary competes with breath primary~~ [BATCH 24: Edit-request-email demotes to ghost].
 
 ### Audiences
 1. ~~Full danger Delete on every card~~ [BATCH 13: ghost w/ rose hover].

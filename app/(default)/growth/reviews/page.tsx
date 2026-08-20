@@ -149,7 +149,8 @@ export default async function ReviewsPage() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <ActionButton variant="secondary" size="sm" href="/settings/automations/emails?email=review_request">
+            {/* Quiet beside the page's one breath primary. */}
+            <ActionButton variant="ghost" size="sm" href="/settings/automations/emails?email=review_request">
               Edit request email
             </ActionButton>
             {stats.completed30d > 0 && (
@@ -163,8 +164,8 @@ export default async function ReviewsPage() {
 
       {/* ── Setup gate — the Google review link is the hero ─────────── */}
       {!hasGoogleLink && (
-        <div className="mb-6 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-[var(--r-lg)] p-5">
-          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">
+        <div className="mb-6 bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 rounded-[var(--r-lg)] p-5">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">
             Set your Google review link to turn the whole thing on
           </p>
           <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mb-3">
@@ -179,6 +180,9 @@ export default async function ReviewsPage() {
       )}
 
       {/* ── Funnel KPIs ───────────────────────────────────────────── */}
+      <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+        The ask → review funnel · last 30 days
+      </h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         <KpiStat
           label="Sent · 30 days"
@@ -207,7 +211,11 @@ export default async function ReviewsPage() {
 
       {/* ── Google reviews (real, synced via the GBP connection) ───── */}
       {googleConnected && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
+            On Google right now
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiStat
             label="Google rating"
             value={googleStats.averageRating != null ? `${googleStats.averageRating.toFixed(1)}★` : '—'}
@@ -234,7 +242,8 @@ export default async function ReviewsPage() {
             tone={googleStats.needsReply > 0 ? 'warn' : undefined}
             href={googleStats.needsReply > 0 ? '/growth/reviews/received' : undefined}
           />
-        </div>
+          </div>
+        </section>
       )}
 
       {/* ── Platform mix ──────────────────────────────────────────── */}
@@ -268,7 +277,7 @@ export default async function ReviewsPage() {
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
               Patient pulse · last 90 days
             </h2>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               Private post-visit surveys — never posted anywhere public
             </span>
           </div>

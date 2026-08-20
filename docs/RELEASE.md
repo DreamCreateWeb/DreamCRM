@@ -1432,6 +1432,21 @@ pane beside reading pane). Deferred with reason: moving the first-paint
 sync+classify off the request path is a data-path change, not
 presentation — logged for post-1.0.
 
+**Batch 24 — Growth hub + Reviews:** NewsCard — byte-identical local
+copies in the Growth and Website hubs, exactly how recipes drift — is
+hoisted to `components/ui/news-card.tsx` and both hubs import the one
+recipe · the Growth utility footer's three links get a real tap height
+(py-2) · on Reviews, each of the four look-alike KPI bands now leads
+with its own header (the ask→review funnel · On Google right now ·
+Where they reviewed · Patient pulse), the Google-link setup gate joins
+the standard warn recipe, the survey footnote rises to the contrast
+floor, and Edit-request-email demotes to ghost beside the page's one
+breath primary. Deferred with reasons: the Growth hero/funnel stay
+hand-shaped (deliberate owner-approved v3 layouts — KpiStat's tile
+chrome would box what was designed to flow), and the funnel/review
+heartbeats need per-metric history series the services don't keep
+(post-1.0 candidates).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

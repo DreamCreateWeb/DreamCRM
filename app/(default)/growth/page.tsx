@@ -15,6 +15,7 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import { NewsCard } from '@/components/ui/news-card'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 import { TrendChart } from '@/components/ui/charts'
 
@@ -399,7 +400,7 @@ export default async function GrowthHubPage() {
       <div className="pt-5 border-t border-[color:var(--color-hairline)] flex flex-wrap items-center gap-x-8 gap-y-3">
         <Link
           href="/growth/audiences"
-          className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+          className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
         >
           <span aria-hidden="true">👥</span>
           <span className="font-semibold">Audiences</span>
@@ -409,7 +410,7 @@ export default async function GrowthHubPage() {
         </Link>
         <Link
           href="/growth/outreach/queue"
-          className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+          className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
         >
           <span aria-hidden="true">📬</span>
           <span className="font-semibold">Outreach queue</span>
@@ -421,7 +422,7 @@ export default async function GrowthHubPage() {
         </Link>
         <Link
           href="/growth/analytics"
-          className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+          className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
         >
           <span aria-hidden="true">📈</span>
           <span className="font-semibold">Analytics</span>
@@ -516,44 +517,3 @@ function FunnelStat({
   )
 }
 
-/** A "what's happening" card — a door that earns its card space by carrying
- *  news. The NUMBER is the hero (mono, tone-colored when it's a signal);
- *  the label whispers; there is no brochure copy. Mirrors the Website hub. */
-function NewsCard({
-  href,
-  value,
-  label,
-  tone,
-  aria,
-}: {
-  href: string
-  value: string
-  label: string
-  tone?: Tone
-  aria: string
-}) {
-  return (
-    <Link href={href} aria-label={aria} className="block h-full group">
-      <div className="v2-card-interactive p-4 sm:p-5 h-full flex flex-col">
-        <div
-          className={`text-3xl font-bold tabular-nums font-mono-num leading-none ${
-            tone ? TONE_TEXT[tone] : 'text-gray-900 dark:text-gray-100'
-          }`}
-        >
-          {value}
-        </div>
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 leading-snug">
-            {label}
-          </span>
-          <span
-            className="text-gray-300 dark:text-gray-600 group-hover:text-teal-700 dark:group-hover:text-teal-300 group-hover:translate-x-0.5 transition-all shrink-0"
-            aria-hidden
-          >
-            →
-          </span>
-        </div>
-      </div>
-    </Link>
-  )
-}
