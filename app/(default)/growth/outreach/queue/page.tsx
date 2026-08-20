@@ -8,7 +8,6 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
-import { EmptyState } from '@/components/ui/empty-state'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
 
 export const metadata = {
@@ -37,11 +36,14 @@ interface SP {
   tier?: string
 }
 
+/** Tier headers ride the STANDARD tone surface recipe (tone-500/10 tint +
+ *  inset ring) so the band colors mean exactly what the legend's pills mean —
+ *  the old *-50 backgrounds were a second dialect of the same tones. */
 const TIER_ACCENT_BG: Record<'amber' | 'rose' | 'emerald' | 'violet', string> = {
-  amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-500/30',
-  rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-500/30',
-  emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
-  violet: 'bg-violet-50 dark:bg-violet-500/10 text-violet-800 dark:text-violet-300 border-violet-200 dark:border-violet-500/30',
+  amber: 'bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 text-amber-800 dark:text-amber-300',
+  rose: 'bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 text-rose-800 dark:text-rose-300',
+  emerald: 'bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/20 text-emerald-800 dark:text-emerald-300',
+  violet: 'bg-violet-500/10 ring-1 ring-inset ring-violet-500/20 text-violet-800 dark:text-violet-300',
 }
 
 export default async function OutreachQueuePage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -75,6 +77,14 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
   const totalCount = sections.reduce((sum, s) => sum + s.recipients.length, 0)
 
   const activeTierCount = sections.filter((s) => s.recipients.length > 0).length
+
+  // One primary per surface: the LARGEST tier's Send is the primary; the
+  // other tiers' Sends demote to secondary so four teal buttons don't
+  // compete for "start here".
+  const largestTierKey = sections.reduce(
+    (best, s) => (s.recipients.length > (sections.find((x) => x.tier.key === best)?.recipients.length ?? 0) ? s.tier.key : best),
+    sections[0]?.tier.key ?? '',
+  )
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -142,7 +152,7 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
           : '/growth/outreach'
         return (
           <section key={tier.key} className="mb-6">
-            <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-t-[var(--r-lg)] border ${TIER_ACCENT_BG[tier.accent]}`}>
+            <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-t-[var(--r-lg)] ${TIER_ACCENT_BG[tier.accent]}`}>
               <div>
                 <h2 className="text-sm font-semibold flex items-center gap-2">
                   {tier.label}
@@ -153,19 +163,23 @@ export default async function OutreachQueuePage({ searchParams }: { searchParams
                 <p className="text-xs opacity-80 mt-0.5">{tier.description}</p>
               </div>
               {recipients.length > 0 && (
-                <ActionButton variant="primary" size="sm" href={sendHref} className="shrink-0">
+                <ActionButton
+                  variant={tier.key === largestTierKey ? 'primary' : 'secondary'}
+                  size="sm"
+                  href={sendHref}
+                  className="shrink-0"
+                >
                   Send {tier.label.toLowerCase()}
                 </ActionButton>
               )}
             </div>
             {recipients.length === 0 ? (
-              <div className="border border-t-0 border-[color:var(--color-hairline)] rounded-b-[var(--r-lg)] bg-[color:var(--color-surface-2)]">
-                <EmptyState
-                  icon="✅"
-                  title="No patients in this tier right now."
-                  body="When someone falls into this group, they'll appear here ready to message."
-                />
-              </div>
+              // An empty tier is good news that has earned exactly one quiet
+              // line — a full-height well would make "nothing to do" the
+              // biggest thing on the page.
+              <p className="border border-t-0 border-[color:var(--color-hairline)] rounded-b-[var(--r-lg)] bg-[color:var(--color-surface-2)] px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400">
+                ✓ Nobody in this tier right now — they&apos;ll appear here when someone falls in.
+              </p>
             ) : (
               <div className="border border-t-0 border-[color:var(--color-hairline)] rounded-b-[var(--r-lg)] bg-[color:var(--color-surface-2)] overflow-hidden">
                 <ul className="divide-y divide-[color:var(--color-hairline)]">
