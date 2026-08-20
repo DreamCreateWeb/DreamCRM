@@ -191,40 +191,68 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
     <div className="p-6 space-y-6">
       <SettingsTabs
         tabs={[
-          ...(canManage
-            ? [
-                {
-                  id: 'invite',
-                  label: 'Invite',
-                  content: (
-                    <SettingsSection
-                      title="Invite a teammate"
-                      description="They'll get an email with a link to set up their account and pick a password."
-                    >
-                      <form onSubmit={onInvite} className="flex flex-col gap-3 max-w-2xl">
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-2">
-                          <input
-                            type="email"
-                            required
-                            placeholder="teammate@example.com"
-                            className="form-input flex-1"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                          />
-                          <RolePicker value={role} onChange={setRole} disabled={pending} ariaLabel="Role for the new teammate" />
-                          <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !email}>
-                            {pending ? 'Sending…' : 'Send invite'}
-                          </ActionButton>
+          {
+            id: 'members',
+            label: 'Members',
+            content: (
+              <SettingsSection
+                title={
+                  <>
+                    Team members{' '}
+                    <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({members.length})</span>
+                  </>
+                }
+                description={canManage ? ROLE_HELP : undefined}
+              >
+                <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 rounded-[var(--r-sm)] overflow-hidden border border-gray-100 dark:border-gray-700/60">
+                  {members.map((m) => {
+                    // The owner's role is immutable here; you can't change your own.
+                    const editable = canManage && m.role !== 'owner' && !m.isCurrent
+                    return (
+                      <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            {m.name ?? m.email}
+                            {m.isCurrent && <StatusPill tone="special" label="You" />}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {m.email} · {m.role} · joined {formatShortDate(m.joinedAt as unknown as string)}
+                          </div>
                         </div>
-                      </form>
-                    </SettingsSection>
-                  ),
-                },
-              ]
-            : []),
+                        <div className="flex items-center gap-2">
+                          {editable ? (
+                            <RolePicker
+                              value={m.role === 'admin' ? 'admin' : 'member'}
+                              onChange={(next) => handleRoleChange(m.userId, m.name ?? m.email, next)}
+                              disabled={pending}
+                              ariaLabel={`Role for ${m.name ?? m.email}`}
+                              compact
+                            />
+                          ) : (
+                            <StatusPill tone="neutral" label={m.role} className="capitalize" />
+                          )}
+                          {editable && (
+                            <ActionButton
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemove(m.userId, m.name ?? m.email)}
+                              pending={pending}
+                              className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
+                            >
+                              Remove
+                            </ActionButton>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </SettingsSection>
+            ),
+          },
           {
             id: 'pending',
-            label: 'Pending',
+            label: invitations.length > 0 ? `Pending (${invitations.length})` : 'Pending',
             content: (
               <SettingsSection
                 title={
@@ -289,65 +317,37 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
               </SettingsSection>
             ),
           },
-          {
-            id: 'members',
-            label: 'Members',
-            content: (
-              <SettingsSection
-                title={
-                  <>
-                    Team members{' '}
-                    <span className="text-gray-500 dark:text-gray-400 font-medium tabular-nums">({members.length})</span>
-                  </>
-                }
-                description={canManage ? ROLE_HELP : undefined}
-              >
-                <ul className="divide-y divide-gray-100 dark:divide-gray-700/60 rounded-[var(--r-sm)] overflow-hidden border border-gray-100 dark:border-gray-700/60">
-                  {members.map((m) => {
-                    // The owner's role is immutable here; you can't change your own.
-                    const editable = canManage && m.role !== 'owner' && !m.isCurrent
-                    return (
-                      <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                        <div className="min-w-0">
-                          <div className="font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                            {m.name ?? m.email}
-                            {m.isCurrent && <StatusPill tone="special" label="You" />}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {m.email} · {m.role} · joined {formatShortDate(m.joinedAt as unknown as string)}
-                          </div>
+          ...(canManage
+            ? [
+                {
+                  id: 'invite',
+                  label: 'Invite',
+                  content: (
+                    <SettingsSection
+                      title="Invite a teammate"
+                      description="They'll get an email with a link to set up their account and pick a password."
+                    >
+                      <form onSubmit={onInvite} className="flex flex-col gap-3 max-w-2xl">
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                          <input
+                            type="email"
+                            required
+                            placeholder="teammate@example.com"
+                            className="form-input flex-1"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                          />
+                          <RolePicker value={role} onChange={setRole} disabled={pending} ariaLabel="Role for the new teammate" />
+                          <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !email}>
+                            {pending ? 'Sending…' : 'Send invite'}
+                          </ActionButton>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {editable ? (
-                            <RolePicker
-                              value={m.role === 'admin' ? 'admin' : 'member'}
-                              onChange={(next) => handleRoleChange(m.userId, m.name ?? m.email, next)}
-                              disabled={pending}
-                              ariaLabel={`Role for ${m.name ?? m.email}`}
-                              compact
-                            />
-                          ) : (
-                            <StatusPill tone="neutral" label={m.role} className="capitalize" />
-                          )}
-                          {editable && (
-                            <ActionButton
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemove(m.userId, m.name ?? m.email)}
-                              pending={pending}
-                              className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
-                            >
-                              Remove
-                            </ActionButton>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </SettingsSection>
-            ),
-          },
+                      </form>
+                    </SettingsSection>
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
 

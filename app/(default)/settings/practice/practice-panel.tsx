@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { StatusPill } from '@/components/ui/status-pill'
+import { SaveBar } from '@/components/ui/save-bar'
 import { Toggle } from '@/components/ui/toggle'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { SettingsTabs } from '../settings-tabs'
@@ -87,37 +88,6 @@ function SectionHeading({ title, hint }: { title: string; hint: string }) {
  *  an "Unsaved changes" badge when dirty, a "Saved ✓" tick right after a save,
  *  and a Save button that only enables when there's something to persist. This
  *  is what makes the four tabs feel coherent — same dirty→save→confirm loop. */
-function SaveBar({
-  dirty,
-  saved,
-  pending,
-  onSave,
-  saveLabel = 'Save changes',
-}: {
-  dirty: boolean
-  saved: boolean
-  pending: boolean
-  onSave: () => void
-  saveLabel?: string
-}) {
-  return (
-    <div className="mt-4 flex items-center gap-3">
-      <ActionButton variant="primary" size="sm" onClick={onSave} disabled={pending || !dirty}>
-        {pending ? 'Saving…' : saveLabel}
-      </ActionButton>
-      {dirty && !pending && <StatusPill tone="warn" label="Unsaved changes" />}
-      {!dirty && saved && !pending && (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
-            <path d="M13.4 4.2a1 1 0 0 1 0 1.4l-6 6a1 1 0 0 1-1.4 0l-3-3a1 1 0 0 1 1.4-1.4L6.7 9.5l5.3-5.3a1 1 0 0 1 1.4 0Z" />
-          </svg>
-          Saved
-        </span>
-      )}
-    </div>
-  )
-}
-
 // ───────────────────────── Patient self-scheduling ─────────────────────────
 
 function SelfBookingSection({ enabled, flash }: { enabled: boolean; flash: (m: string) => void }) {

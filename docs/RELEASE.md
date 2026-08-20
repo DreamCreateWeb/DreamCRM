@@ -1266,6 +1266,21 @@ portal invite) report through the one global toast corner instead of
 absolutely-positioned spans that overlapped the layout and vanished on
 timers.
 
+**Batch 13 — hubs + settings tier:** the Website hub's trust bug closed —
+"Your site is live" was printing in the same viewport where GoLiveCard
+asked the clinic to go live; the sentence now tells the truth per
+`siteLiveAt` · **`SaveBar` hoisted to `components/ui`**: the Design
+panel's four competing raw-teal primaries become one save language —
+dirty → Save → a "Saved" that PERSISTS until the next edit (no more 2.5s
+self-destructing confirmations, no more no-op saves that still staged a
+draft), "publish makes it live" said once at panel level · Quick edits'
+save joins ActionButton with role=alert errors · Team panel opens on
+MEMBERS (Invite is a tool, not a landing) and the Pending tab carries
+its count · Audiences: the recipient count is the card's mono-numeral
+hero, Delete demotes to a ghost with rose hover and only the clicked
+card spins, the empty state hands over "+ New audience" · Shop's
+duplicate Connect-Stripe primary demotes to secondary.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

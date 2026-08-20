@@ -49,6 +49,8 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
   const confirm = useConfirm()
   const [editing, setEditing] = useState<AudienceRow | 'new' | null>(null)
   const [pending, startTransition] = useTransition()
+  // Which card's delete is running — one shared flag used to spin EVERY card.
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   async function handleDelete(id: number) {
@@ -61,10 +63,15 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
       }))
     )
       return
+    setDeletingId(id)
     startTransition(async () => {
-      await deleteAudienceAction(id)
-      setToast('Audience deleted.')
-      router.refresh()
+      try {
+        await deleteAudienceAction(id)
+        setToast('Audience deleted.')
+        router.refresh()
+      } finally {
+        setDeletingId(null)
+      }
     })
   }
 
@@ -102,7 +109,12 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
         <EmptyState
           icon="🎯"
           title="No saved segments yet."
-          body={`Use "+ New audience" above to turn your ${leadsLabel} list into a reusable group you can send a campaign to.`}
+          body={`Turn your ${leadsLabel} list into a reusable group you can send a campaign to.`}
+          action={
+            <ActionButton variant="primary" onClick={() => setEditing('new')}>
+              + New audience
+            </ActionButton>
+          }
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -115,8 +127,15 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
                 <h3 className="font-semibold text-sm text-gray-800 dark:text-gray-100">
                   {a.name}
                 </h3>
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0 tabular-nums font-mono-num">
-                  {a.recipientCount} {a.recipientCount === 1 ? 'recipient' : 'recipients'}
+                {/* How many people this reaches IS the audience — the card's
+                    one number, mono + full contrast, not a whispered corner. */}
+                <span className="shrink-0 text-right">
+                  <span className="block text-xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
+                    {a.recipientCount}
+                  </span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400">
+                    {a.recipientCount === 1 ? 'recipient' : 'recipients'}
+                  </span>
                 </span>
               </div>
               {a.description && (
@@ -145,9 +164,16 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
                   <ActionButton variant="ghost" size="sm" onClick={() => setEditing(a)}>
                     Edit
                   </ActionButton>
-                  <ActionButton variant="danger" size="sm" onClick={() => handleDelete(a.id)} pending={pending}>
-                    Delete
-                  </ActionButton>
+                  {/* Destructive never sits full-weight beside the card's
+                      action — ghost until hovered, and only THIS card spins. */}
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(a.id)}
+                    disabled={pending}
+                    className="px-2 py-1 rounded-[var(--r-sm)] text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:text-rose-300 dark:hover:bg-rose-500/10 disabled:opacity-50 transition-colors"
+                  >
+                    {deletingId === a.id ? 'Deleting…' : 'Delete'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -271,6 +297,8 @@ function CustomerAudienceEditor({
   const [filter, setFilter] = useState<AudienceFilterT>(audience?.filter ?? {})
   const [preview, setPreview] = useState<{ count: number; sample: { name: string; email: string }[] } | null>(null)
   const [pending, startTransition] = useTransition()
+  // Which card's delete is running — one shared flag used to spin EVERY card.
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   function refreshPreview() {
     startTransition(async () => {
@@ -519,6 +547,8 @@ function PatientAudienceEditor({
   )
   const [preview, setPreview] = useState<{ count: number; sample: { name: string; email: string }[] } | null>(null)
   const [pending, startTransition] = useTransition()
+  // Which card's delete is running — one shared flag used to spin EVERY card.
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   function refreshPreview() {
     startTransition(async () => {
