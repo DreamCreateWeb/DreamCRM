@@ -1503,6 +1503,17 @@ reasons: the billing money-facts grid (voice over scan speed on a
 rare page), the Outstanding heartbeat (no history series), and the
 $0-sales band (documented deliberate hide during setup).
 
+- **2026-08-20 — UI best-version batch 29 (the Overview tail).** Approval
+  Inbox raw fields moved onto form-input/form-textarea/form-select (the
+  off-system sky focus rings are gone); the three amber notice dialects
+  (readiness banner, site-health banner, guardian note) unified onto the
+  standard warn recipe; the sign-here stack gained a keyboard path (→/n
+  next, ←/p previous, guarded against typing targets and view-all); the
+  permanent ComingSoonCard chrome was deleted in favor of a one-line
+  texting footnote inside the live Reviews card, gated on !smsLive.
+  Deferred with reason: two trend tiles without sparks (no per-day history
+  series in getOverview — data-path work).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

@@ -33,11 +33,11 @@ Already best-version: TodayChairRow, MorningReveal, ring+text pairing, GrantsStr
 5. ~~Machine-handled sky pill~~ [BATCH 15: violet info tone on card + rail; the icon well drops its phantom brand-50 token too].
 6. ~~Morning skeleton wrong shape~~ [BATCH 15: sign-here card + 4-card grid + 5 KPIs + feed].
 7. ~~Feed rows hover where they can't click~~ [BATCH 15: hover gated on href]; MorningReveal on the feed left open (motion budget judgment).
-8. Raw inputs/selects in the inbox → .form-input/.form-select (approval-inbox.tsx:835-1045).
-9. Three amber notice dialects stacked (clinic-overview.tsx:377,418 + guardian-note-card.tsx:53) → one local AttentionBanner.
-10. Sign-here stack keyboard path: →/n skip, ←/p previous.
-11. Two of five trend tiles have no spark/delta (:719, :726).
-12. ComingSoonCard = permanent dead chrome (:811,925) → footnote in Reviews tile.
+8. ~~Raw inputs/selects in the inbox~~ [BATCH 29: form-input/form-textarea/form-select — the sky focus rings are gone].
+9. ~~Three amber notice dialects stacked~~ [BATCH 29: readiness banner, site-health banner and guardian note all on the standard warn recipe bg-amber-500/10 + ring-inset].
+10. ~~Sign-here stack keyboard path~~ [BATCH 29: →/n next, ←/p previous; guarded against typing targets and view-all].
+11. Two of five trend tiles have no spark/delta (:719, :726). DEFERRED — those metrics have no per-day history series in getOverview; same reason class as the heartbeat deferrals (data-path work, not UI polish).
+12. ~~ComingSoonCard permanent dead chrome~~ [BATCH 29: component deleted; a one-line texting footnote inside the Reviews card, gated on !smsLive].
 
 ### My Day
 Already best-version: ClosedHeartbeat, undo-toast on tick-off.

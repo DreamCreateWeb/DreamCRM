@@ -50,7 +50,7 @@ export default function GuardianNoteCard({ note }: { note: ActiveGuardianNote | 
 
   return (
     <section className="mb-6" aria-label="Heads up">
-      <div className="rounded-[var(--r-lg)] border border-amber-300/60 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 p-4">
+      <div className="rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4">
         <div className="flex items-start gap-3">
           <span className="text-base shrink-0" aria-hidden="true">
             💬
