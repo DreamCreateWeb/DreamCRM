@@ -798,7 +798,12 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
                   </div>
                 )
                 return (
-                  <li key={a.id} className="px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                  // Hover only where a click actually lands — a lit row with
+                  // no destination is a false affordance.
+                  <li
+                    key={a.id}
+                    className={`px-5 py-3 ${a.href ? 'hover:bg-gray-50 dark:hover:bg-gray-900/30' : ''}`}
+                  >
                     {a.href ? (
                       <Link href={a.href} className="block">{inner}</Link>
                     ) : (

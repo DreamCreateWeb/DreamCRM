@@ -29,10 +29,10 @@ Already best-version: TodayChairRow, MorningReveal, ring+text pairing, GrantsStr
 1. [BATCH 10] Approve button → ActionButton primary + pending (approval-inbox.tsx:1155); Edit-first → ghost.
 2. [BATCH 10] AttentionCard headline number → the link its subtitle promises (clinic-overview.tsx:849; recipe kpi-stat.tsx:107).
 3. [BATCH 10] Dead preview rows → deep links: Unconfirmed (:472), Unmarked (:502) → `?appt=`; New inquiries (:571), Follow-ups due (:613) → their filtered lists.
-4. Proposal + standup cards still on the retired etched-card recipe → `.v2-card` (approval-inbox.tsx:774, standup-card.tsx:52,91).
-5. "I'm handling this one" sky pill → StatusPill info/violet (approval-inbox.tsx:796, :422).
-6. dashboard/loading.tsx isn't the page's real shape (banner → stack → 8-card grid → KPIs → feed).
-7. Feed rows hover where they can't click (gate on href, clinic-overview.tsx:785); first ≤6 rows deserve MorningReveal.
+4. ~~Proposal + standup cards on the retired etched recipe~~ [BATCH 15: .v2-card].
+5. ~~Machine-handled sky pill~~ [BATCH 15: violet info tone on card + rail; the icon well drops its phantom brand-50 token too].
+6. ~~Morning skeleton wrong shape~~ [BATCH 15: sign-here card + 4-card grid + 5 KPIs + feed].
+7. ~~Feed rows hover where they can't click~~ [BATCH 15: hover gated on href]; MorningReveal on the feed left open (motion budget judgment).
 8. Raw inputs/selects in the inbox → .form-input/.form-select (approval-inbox.tsx:835-1045).
 9. Three amber notice dialects stacked (clinic-overview.tsx:377,418 + guardian-note-card.tsx:53) → one local AttentionBanner.
 10. Sign-here stack keyboard path: →/n skip, ←/p previous.
@@ -43,13 +43,13 @@ Already best-version: TodayChairRow, MorningReveal, ring+text pairing, GrantsStr
 Already best-version: ClosedHeartbeat, undo-toast on tick-off.
 1. [BATCH 10] loading.tsx max-w-6xl vs page max-w-[96rem] — guaranteed reflow (my-day/loading.tsx:11).
 2. Tick-off circle not disabled during transition — double-fire (my-day-followups.tsx:110).
-3. Prep flags bare amber text → StatusPill warn (page.tsx:246).
+3. ~~Prep flags bare amber text~~ [BATCH 15: StatusPill warn].
 4. Raw 🪑/🚪 emoji, no legend → GlyphCluster + EncodingLegend (page.tsx:192).
-5. Unread badge hand-rolled → StatusPill (page.tsx:154).
-6. "Claim" raw chip → ActionButton secondary sm (my-day-followups.tsx:127).
+5. ~~Unread badge hand-rolled~~ [BATCH 15: StatusPill warn + hover meaning].
+6. ~~"Claim" raw chip~~ [BATCH 15: ActionButton secondary sm + pending].
 7. 7 KPI tiles in 3-col grid orphan the North-Star tile (page.tsx:55).
 8. No primary action; "All my follow-ups" should be it (page.tsx:47).
-9. digest-toggle raw ring-button, no pending, orphaned (digest-toggle.tsx:48).
+9. digest-toggle: ~~no pending acknowledgment~~ [BATCH 15]; the orphaned placement stays (a deliberate quiet footnote).
 10. Sparkline compat import → MiniTrend (closed-heartbeat.tsx:2).
 
 ### Follow-ups board

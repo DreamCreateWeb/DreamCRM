@@ -51,7 +51,7 @@ export default function DigestToggle({
         disabled={pending}
         className="rounded-md px-2 py-0.5 text-xs font-medium text-teal-700 ring-1 ring-inset ring-teal-500/40 hover:bg-teal-500/10 disabled:opacity-50 dark:text-teal-300"
       >
-        {optedOut ? 'Turn on' : 'Turn off'}
+        {pending ? '…' : optedOut ? 'Turn on' : 'Turn off'}
       </button>
       {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
     </div>

@@ -49,7 +49,7 @@ export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
     }
     return (
       <section className="mb-8" aria-label="Your week in review">
-        <div className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
+        <div className="v2-card p-4">
           <div className="flex items-baseline justify-between gap-3 flex-wrap">
             <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
               Last week
@@ -88,7 +88,7 @@ export default function StandupCard({ standup }: { standup: WeeklyStandup }) {
 
   return (
     <section className="mb-8" aria-label="Your week in review">
-      <div className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
+      <div className="v2-card p-4">
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
             What I got done last week

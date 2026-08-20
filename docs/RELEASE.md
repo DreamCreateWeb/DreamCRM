@@ -1296,6 +1296,19 @@ rendering an invisible-but-focusable chevron on rows with nothing to
 disclose (plain text, no dead tab stop) and "N text edits" explains
 itself on hover.
 
+**Batch 15 — the Overview's last visual debts:** the Approval Inbox and
+Standup cards leave the retired v1 etched-card recipe for `.v2-card`
+(the top of the morning page finally matches the bottom) · the
+"machine handles this" pill and its rail-chip tint move from sky — which
+is not a tone — onto v3's violet `info`, and the capability icon chip
+drops a second never-defined brand token for the sunk surface · the
+morning skeleton is now shaped like the morning page (sign-here card →
+attention grid → five KPIs → feed) instead of a generic three-card
+guess · feed rows only light on hover where a click actually lands ·
+My Day: tomorrow's prep flags and the unread badge ride StatusPill
+(hoverable meaning, tone contract), Claim joins ActionButton with the
+pending spinner, and the digest toggle acknowledges its click.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
