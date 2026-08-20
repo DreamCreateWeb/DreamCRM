@@ -264,10 +264,10 @@ Already best-version: CompletedHeartbeat.
 4. Secondary competes with breath primary in header (:150).
 
 ### Audiences
-1. Full danger Delete on every card → ghost w/ rose hover (audiences-client.tsx:145).
-2. Recipient count 12px gray → mono-numeral hero (:117).
-3. Empty state actionless (:102).
-4. Shared pending spins all Deletes (:52).
+1. ~~Full danger Delete on every card~~ [BATCH 13: ghost w/ rose hover].
+2. ~~Recipient count whispered~~ [BATCH 13: mono-numeral hero].
+3. ~~Empty state actionless~~ [BATCH 13: + New audience in the well].
+4. ~~Shared pending spins all Deletes~~ [BATCH 13: per-card deletingId].
 5. Per-audience counts resolved before first paint → stream w/ Suspense (page.tsx:28).
 
 ### Outreach queue
@@ -276,22 +276,22 @@ Already best-version: CompletedHeartbeat.
 3. Four primary Sends at once → largest tier primary, rest secondary (:157).
 
 ### Website hub
-1. "Your site is live" prints even when NOT live, beside GoLiveCard (website/page.tsx:282). [trust bug]
+1. ~~"Your site is live" prints even when NOT live~~ [BATCH 13: gated on siteLiveAt].
 2. 30-day KPI trio hand-rolled; delta detached from its tile (:399,:383).
 3. Go-live checklist fake radio circles (:307).
 4. Utility footer repeats hero facts (:541).
 
 ### Quick edits
-1. Save = raw bg-teal-500 → ActionButton gradient (quick-edits.tsx:290).
-2. Errors text-rose-600, no live region (:298).
+1. ~~Save = raw bg-teal-500~~ [BATCH 13: ActionButton primary + pending].
+2. ~~Errors, no live region~~ [BATCH 13: role=alert].
 3. No focus trap in the modal (:209).
 4. Services modal saves silently (:151).
 
 ### Design panel
-1. Four identical primaries on one surface → SaveBar pattern (design-panel.tsx:143,:213,:264,:97).
-2. Saved ✓ self-destructs 2.5s, no live region (:124,:183,:245).
-3. Two cards allow no-op saves (:143,:264).
-4. "Publish to go live" ×3 → once at panel level.
+1. ~~Four identical primaries on one surface~~ [BATCH 13: the hoisted SaveBar on all three cards; Browse-designs demoted to secondary].
+2. ~~Saved ✓ self-destructs 2.5s~~ [BATCH 13: persists until next edit, role=status].
+3. ~~Two cards allow no-op saves~~ [BATCH 13: dirty tracking everywhere].
+4. ~~"Publish to go live" ×3~~ [BATCH 13: once at panel level].
 
 ### Pages manager
 1. Three same-weight 12px links/row → one primary (pages-manager.tsx:87).
@@ -310,13 +310,13 @@ Already best-version: CompletedHeartbeat.
 4. No-match bare sentence (:86).
 
 ### Team
-1. Default tab = Invite, not Members → reorder (settings-tabs.tsx:47; team-panel.tsx:196).
-2. Pending count invisible until click → count in tab label (:226).
+1. ~~Default tab = Invite~~ [BATCH 13: Members → Pending → Invite].
+2. ~~Pending count invisible~~ [BATCH 13: "Pending (N)" in the tab label].
 3. Shared pending spins every row (:108,:264,:333).
 4. Raw amber vs TONE_TEXT.warn (:255).
 
 ### Practice — the SaveBar is the model.
-1. Hoist SaveBar to components/ui (practice-panel.tsx:96) and adopt in Design/Quick-edits/portal Profile.
+1. ~~Hoist SaveBar~~ [BATCH 13: components/ui/save-bar.tsx; practice + design adopted; portal Profile still open].
 2. View-only banner hand-rolled amber (:56).
 3. Raw emerald tick vs TONE_TEXT.ok (:113).
 4. Tabs never write the URL → ?tab= (settings-tabs.tsx:91).
@@ -333,7 +333,7 @@ Already best-version: CompletedHeartbeat.
 4. Stripe notice hand-rolled violet (:62).
 
 ### Shop hub
-1. TWO "Connect Stripe" primaries at once (shop-client.tsx:104,:195).
+1. ~~TWO "Connect Stripe" primaries~~ [BATCH 13: panel copy demoted to secondary].
 2. Up to four stacked notices before data; raw ramps (:148-172).
 3. Sales band can vanish entirely → EmptyState holds the layout (:263).
 4. LowStockPanel outranks the Sales band (:260).

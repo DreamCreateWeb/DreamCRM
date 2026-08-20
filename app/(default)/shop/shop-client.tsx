@@ -195,7 +195,10 @@ export default function ShopClient({
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-xl">
             Connect your Stripe account to start accepting payments. Payouts land in your bank, not ours.
           </p>
-          <ActionButton variant="primary" size="sm" href="/api/connect/shop/start" className="mt-3">
+          {/* The header already carries THE primary for this state — the
+              panel's copy of the same action demotes to secondary (one
+              primary per surface). */}
+          <ActionButton variant="secondary" size="sm" href="/api/connect/shop/start" className="mt-3">
             {config.stripeAccountStatus === 'pending' ? 'Finish Stripe setup' : 'Connect Stripe'}
           </ActionButton>
         </div>

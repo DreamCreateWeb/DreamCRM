@@ -280,7 +280,11 @@ export default async function WebsiteHubPage() {
               <StatusPill tone={domainPill.tone} label={domainPill.label} />
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Your site is live — edits save to a draft, and Publish updates it when you’re ready.
+              {/* Gated on the LEVER: this sentence used to claim "live" in the
+                  same viewport where GoLiveCard asked the clinic to go live. */}
+              {liveProfile.siteLiveAt
+                ? 'Your site is live — edits save to a draft, and Publish updates it when you’re ready.'
+                : 'Only you can see your site until you go live — edits save to a draft in the meantime.'}
               {lastEdit?.label ? <> Last edit: {lastEdit.label}.</> : null}
             </p>
 

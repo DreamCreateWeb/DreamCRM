@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useTransition, type FormEvent } from 'react'
+import { useRef, useState, useTransition, type FormEvent } from 'react'
 import Link from 'next/link'
 import { SITE_TEMPLATE_CATALOG } from '@/lib/site-templates/catalog'
 import BrandColorField from '../../settings/clinic/brand-color-field'
 import DifferenceVideoField from '../../settings/clinic/difference-video-field'
 import ImageUploader from '@/components/ui/image-uploader'
 import { StatusPill } from '@/components/ui/status-pill'
+import { SaveBar } from '@/components/ui/save-bar'
+import { ActionButton } from '@/components/ui/action-button'
 import { isValidVideoUrl } from '@/lib/website-url'
 import {
   saveBrandColor,
@@ -19,6 +21,12 @@ import {
  * hero media, intro video. Every save rides the Studio's scoped actions, so
  * everything here lands in the undo history and stages to the website draft
  * (Publish makes it live).
+ *
+ * ONE save language (the shared SaveBar): each card's Save disables until
+ * something changed (no more no-op saves that still staged a draft), "Saved"
+ * persists until the next edit instead of self-destructing on a timer, and
+ * "publish makes it live" is said ONCE at panel level — it's a property of
+ * the whole page, not of each card.
  */
 
 interface Props {
@@ -40,6 +48,9 @@ export default function DesignPanel({
 }: Props) {
   return (
     <div className="space-y-6">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Everything here saves to your draft — Publish (top of the Website hub) makes it live.
+      </p>
       <TemplatesCard currentTemplate={currentTemplate} />
       <BrandColorCard brandColor={brandColor} />
       <HeroImageCard
@@ -92,12 +103,10 @@ function TemplatesCard({ currentTemplate }: { currentTemplate: string }) {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-prose">{current.description}</p>
           )}
         </div>
-        <Link
-          href="/website/templates"
-          className="shrink-0 text-xs font-semibold px-3 py-2 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors"
-        >
+        {/* A navigation door, not this page's save — secondary weight. */}
+        <ActionButton variant="secondary" size="sm" href="/website/templates">
           Browse all designs →
-        </Link>
+        </ActionButton>
       </div>
       <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
         Every design previews live on your own content — nothing migrates, nothing breaks, and you
@@ -108,6 +117,8 @@ function TemplatesCard({ currentTemplate }: { currentTemplate: string }) {
 }
 
 function BrandColorCard({ brandColor }: { brandColor: string | null }) {
+  const formRef = useRef<HTMLFormElement | null>(null)
+  const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -120,8 +131,8 @@ function BrandColorCard({ brandColor }: { brandColor: string | null }) {
     startTransition(async () => {
       const res = await saveBrandColor(hex)
       if (res.ok) {
+        setDirty(false)
         setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
       } else {
         setError(res.error)
       }
@@ -134,19 +145,20 @@ function BrandColorCard({ brandColor }: { brandColor: string | null }) {
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
         The one color your whole site derives its palette from — every page repaints when you change it.
       </p>
-      <form onSubmit={onSubmit} className="space-y-4 max-w-md">
+      <form ref={formRef} onSubmit={onSubmit} onInput={() => setDirty(true)} className="max-w-md">
         <BrandColorField name="brandColor" defaultValue={brandColor} />
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={pending}
-            className="inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60"
-          >
-            {pending ? 'Saving…' : 'Save brand color'}
-          </button>
-          {saved && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved ✓ — publish to go live</span>}
-          {error && <span className="text-sm text-rose-600 dark:text-rose-400">{error}</span>}
-        </div>
+        <SaveBar
+          dirty={dirty}
+          saved={saved}
+          pending={pending}
+          onSave={() => formRef.current?.requestSubmit()}
+          saveLabel="Save brand color"
+        />
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+            {error}
+          </p>
+        )}
       </form>
     </section>
   )
@@ -180,7 +192,6 @@ function HeroImageCard({
       if (res.ok) {
         setDirty(false)
         setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
       } else {
         setError(res.error)
       }
@@ -193,7 +204,7 @@ function HeroImageCard({
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
         {hint} Fine-tune the focus point in the editor.
       </p>
-      <div className="max-w-md space-y-4">
+      <div className="max-w-md">
         <ImageUploader
           name={field}
           defaultValue={initialUrl}
@@ -205,25 +216,21 @@ function HeroImageCard({
             setDirty(true)
           }}
         />
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={pending || !dirty}
-            className="inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60"
-          >
-            {pending ? 'Saving…' : 'Save image'}
-          </button>
-          {saved && !dirty && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved ✓ — publish to go live</span>}
-          {error && <span className="text-sm text-rose-600 dark:text-rose-400">{error}</span>}
-        </div>
+        <SaveBar dirty={dirty} saved={saved} pending={pending} onSave={onSave} saveLabel="Save image" />
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+            {error}
+          </p>
+        )}
       </div>
     </section>
   )
 }
 
 function IntroVideoCard({ initialUrl }: { initialUrl: string | null }) {
+  const formRef = useRef<HTMLFormElement | null>(null)
   const [url, setUrl] = useState(initialUrl ?? '')
+  const [dirty, setDirty] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -241,8 +248,8 @@ function IntroVideoCard({ initialUrl }: { initialUrl: string | null }) {
       const res = await saveDifferenceVideo(next)
       if (res.ok) {
         setUrl(next)
+        setDirty(false)
         setSaved(true)
-        setTimeout(() => setSaved(false), 2500)
       } else {
         setError(res.error)
       }
@@ -255,19 +262,20 @@ function IntroVideoCard({ initialUrl }: { initialUrl: string | null }) {
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
         The short ambient clip behind your “why us” section — leave blank to skip it.
       </p>
-      <form onSubmit={onSubmit} className="space-y-4 max-w-md" key={url}>
+      <form ref={formRef} onSubmit={onSubmit} onInput={() => setDirty(true)} className="max-w-md" key={url}>
         <DifferenceVideoField name="differenceVideoUrl" defaultValue={url || null} />
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={pending}
-            className="inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60"
-          >
-            {pending ? 'Saving…' : 'Save video'}
-          </button>
-          {saved && <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved ✓ — publish to go live</span>}
-          {error && <span className="text-sm text-rose-600 dark:text-rose-400">{error}</span>}
-        </div>
+        <SaveBar
+          dirty={dirty}
+          saved={saved}
+          pending={pending}
+          onSave={() => formRef.current?.requestSubmit()}
+          saveLabel="Save video"
+        />
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+            {error}
+          </p>
+        )}
       </form>
     </section>
   )

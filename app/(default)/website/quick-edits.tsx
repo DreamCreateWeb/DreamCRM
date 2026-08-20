@@ -10,6 +10,7 @@ import ServicesLibraryPicker from '../settings/clinic/services-library-picker'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import type { ClinicService, ClinicStaff, ClinicOfficePhoto, ClinicAnnouncement } from '@/lib/types/clinic-content'
 import { saveHours, saveStaff, saveOfficePhotos, saveAnnouncement, type SectionResult } from './editor/website-actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 /**
  * The hub's Quick edits — the things a front desk actually changes (hours,
@@ -287,15 +288,15 @@ function SaveForm({
     <form onSubmit={onSubmit} className="space-y-5">
       {children}
       <div className="flex flex-wrap items-center gap-3 pt-1">
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60"
-        >
-          {pending ? 'Saving…' : saveLabel}
-        </button>
+        <ActionButton variant="primary" size="sm" type="submit" pending={pending}>
+          {saveLabel}
+        </ActionButton>
         <span className="text-xs text-gray-500 dark:text-gray-400">{liveNote}</span>
-        {error && <span className="text-sm text-rose-600 dark:text-rose-400 w-full">{error}</span>}
+        {error && (
+          <span role="alert" className="text-sm text-rose-600 dark:text-rose-400 w-full">
+            {error}
+          </span>
+        )}
       </div>
     </form>
   )
