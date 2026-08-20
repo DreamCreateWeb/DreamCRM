@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { PendingVeil } from '@/components/ui/pending-veil'
 import Link from 'next/link'
@@ -10,6 +10,7 @@ import { agingBorderClass, messageRotTier } from '@/lib/ui/encodings'
 import { channelMeta } from './channel-meta'
 import { avatarTint, messageInitials } from './message-grouping'
 import { StatusPill } from '@/components/ui/status-pill'
+import { usePopoverDismiss } from '@/components/ui/use-popover-dismiss'
 import {
   bulkArchiveThreadsAction,
   bulkMarkReadThreadsAction,
@@ -87,6 +88,8 @@ export default function ClinicThreadList({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
   const [showSnooze, setShowSnooze] = useState(false)
+  const snoozePopRef = useRef<HTMLDivElement | null>(null)
+  usePopoverDismiss(showSnooze, snoozePopRef, () => setShowSnooze(false))
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
   const [navPending, startNavTransition] = useTransition()
 
@@ -290,7 +293,7 @@ export default function ClinicThreadList({
         >
           Mark read
         </ActionButton>
-        <div className="relative">
+        <div ref={snoozePopRef} className="relative">
           <ActionButton
             size="sm"
             variant="secondary"

@@ -296,7 +296,7 @@ Already best-version: CompletedHeartbeat.
 ### Pages manager
 1. Three same-weight 12px links/row → one primary (pages-manager.tsx:87).
 2. invisible-but-focusable chevron (:69).
-3. "N text edits" unexplorable → title attr (:79).
+3. ~~"N text edits" unexplained~~ [BATCH 14: title explains + points at the disclosure].
 
 ### Website forms
 1. Submission rows not links (forms-panel.tsx:81).

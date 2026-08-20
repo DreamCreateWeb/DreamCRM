@@ -55,27 +55,36 @@ export default function PagesManager({
           return (
             <li key={p.key} className="py-2.5">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <button
-                  type="button"
-                  onClick={() => setOpen(isOpen ? null : p.key)}
-                  disabled={!hasCopy}
-                  aria-expanded={isOpen}
-                  className={`flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100 ${
-                    hasCopy ? 'hover:underline underline-offset-4' : 'cursor-default'
-                  }`}
-                >
-                  <span aria-hidden="true" className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''} ${hasCopy ? '' : 'invisible'}`}>
-                    ›
+                {hasCopy ? (
+                  <button
+                    type="button"
+                    onClick={() => setOpen(isOpen ? null : p.key)}
+                    aria-expanded={isOpen}
+                    className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100 hover:underline underline-offset-4"
+                  >
+                    <span aria-hidden="true" className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>
+                      ›
+                    </span>
+                    {p.label}
+                  </button>
+                ) : (
+                  /* Nothing to disclose — plain text, no dead tab stop, the
+                     chevron simply absent (a reserved invisible control was
+                     focusable-disabled noise for keyboard users). */
+                  <span className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100 pl-[1.1rem]">
+                    {p.label}
                   </span>
-                  {p.label}
-                </button>
+                )}
                 {p.live ? (
                   <StatusPill tone="ok" label="Live" />
                 ) : (
                   <StatusPill tone="neutral" label="Not published yet" title={p.needs ?? undefined} />
                 )}
                 {editCount > 0 && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                  <span
+                    className="text-xs text-gray-500 dark:text-gray-400 tabular-nums"
+                    title="Copy on this page that differs from the template default — expand the row to see and edit each one"
+                  >
                     {editCount} text edit{editCount === 1 ? '' : 's'}
                   </span>
                 )}
