@@ -123,6 +123,9 @@ export default function SubscriptionPanel({
     [pathname, router, searchParams],
   )
   const [pendingPlan, setPendingPlan] = useState<PlanId | null>(null)
+  // Which subscription-card action is in flight (portal / cancel / resume) —
+  // the shared transition disables all, but only the pressed one spins.
+  const [activeAction, setActiveAction] = useState<'portal' | 'cancel' | 'resume' | null>(null)
   const [feedback, setFeedback] = useState<{ ok?: string; error?: string } | null>(null)
   // Separate channel for the subscription-card actions (cancel / resume) so
   // their result shows next to the card, not down in the plan-grid error slot.
@@ -167,11 +170,14 @@ export default function SubscriptionPanel({
 
   function handlePortal() {
     setFeedback(null)
+    setActiveAction('portal')
     startTransition(async () => {
       try {
         await openBillingPortal()
       } catch (err) {
         setFeedback({ error: (err as Error).message })
+      } finally {
+        setActiveAction(null)
       }
     })
   }
@@ -187,6 +193,7 @@ export default function SubscriptionPanel({
         danger: true,
       })
       if (!ok) return
+      setActiveAction('cancel')
       startTransition(async () => {
         const r = await cancelSubscriptionAction()
         if (r.ok) {
@@ -195,12 +202,14 @@ export default function SubscriptionPanel({
         } else {
           setSubFeedback({ error: r.error })
         }
+        setActiveAction(null)
       })
     })()
   }
 
   function handleResume() {
     setSubFeedback(null)
+    setActiveAction('resume')
     startTransition(async () => {
       const r = await reactivateSubscriptionAction()
       if (r.ok) {
@@ -209,6 +218,7 @@ export default function SubscriptionPanel({
       } else {
         setSubFeedback({ error: r.error })
       }
+      setActiveAction(null)
     })
   }
 
@@ -308,8 +318,14 @@ export default function SubscriptionPanel({
               </div>
             )}
           </div>
-          <ActionButton variant="secondary" size="sm" onClick={handlePortal} pending={pending}>
-            {pending ? 'Opening…' : 'Manage billing in Stripe →'}
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            onClick={handlePortal}
+            pending={activeAction === 'portal'}
+            disabled={pending}
+          >
+            Manage billing in Stripe →
           </ActionButton>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -319,7 +335,13 @@ export default function SubscriptionPanel({
           {hasSubscription &&
             !onTrial &&
             (cancelAtPeriodEnd ? (
-              <ActionButton variant="primary" size="sm" onClick={handleResume} pending={pending}>
+              <ActionButton
+                variant="primary"
+                size="sm"
+                onClick={handleResume}
+                pending={activeAction === 'resume'}
+                disabled={pending}
+              >
                 Resume subscription
               </ActionButton>
             ) : !billingBroken ? (
@@ -426,14 +448,15 @@ export default function SubscriptionPanel({
                       Current plan
                     </div>
                   ) : billingBroken ? (
-                    <ActionButton variant="primary" onClick={handlePortal} pending={pending} className="mt-3 w-full justify-center">
+                    <ActionButton variant="primary" onClick={handlePortal} pending={activeAction === 'portal'} disabled={pending} className="mt-3 w-full justify-center">
                       Fix billing to switch
                     </ActionButton>
                   ) : (
                     <ActionButton
                       variant="primary"
                       onClick={() => handleSelect(p.id)}
-                      pending={pending}
+                      pending={isPending}
+                      disabled={pending}
                       className="mt-3 w-full justify-center"
                     >
                       {isPending ? 'Redirecting…' : onTrial ? `Choose ${p.name}` : `Switch to ${p.name}`}
@@ -467,7 +490,7 @@ export default function SubscriptionPanel({
             title="No invoices yet"
             body="Once your first payment clears, your receipts appear here. Your full history always lives in the Stripe portal."
             action={
-              <ActionButton variant="secondary" size="sm" onClick={handlePortal} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={handlePortal} pending={activeAction === 'portal'} disabled={pending}>
                 Open billing portal →
               </ActionButton>
             }

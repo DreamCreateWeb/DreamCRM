@@ -1487,6 +1487,22 @@ Remove/Resend/Cancel gets its own key so only the pressed button spins
 while the rest disable — and the invite-expiring-soon text rides
 TONE_TEXT.warn instead of a hand-mixed amber.
 
+**Batch 28 — the money tier (Billing · Payments · Shop):** the billing
+panel's one shared pending stops covering four different actions —
+portal/cancel/resume each get their own key and the plan buttons ride
+pendingPlan, so only the pressed thing spins · the Payments hub doors
+stop restating the KPI band sitting directly above them (only Online
+payments keeps its connect STATE — a fact about the door, not a KPI;
+tests now pin the absence) and adopt v2-card-interactive · on Shop,
+the steady-state "storefront live" band demotes to a quiet one-line
+status (good news is not a standing banner) and the LowStock panel
+moves BELOW the Sales band — restock is housekeeping, not the lead
+story. Scout-stale items struck: the billing upsell and Payments
+Stripe notices already ride the standard info recipe. Deferred with
+reasons: the billing money-facts grid (voice over scan speed on a
+rare page), the Outstanding heartbeat (no history series), and the
+$0-sales band (documented deliberate hide during setup).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

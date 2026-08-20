@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { NavIcon } from '@/components/ui/nav-icons'
-import { formatCents } from '@/lib/types/shop'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 
 /** The Payments workspace doors — same door pattern as the Growth/Website
- *  hubs (icon + live stat + one-line description, hover-lift). */
+ *  hubs. The KPI band directly above carries the numbers (Outstanding /
+ *  To reconcile / Plans / MRR), so the doors deliberately do NOT restate
+ *  them — only Online payments keeps its connect STATE, which is a fact
+ *  about the door itself, not a KPI. */
 export default function PaymentsHubDoors({
   collections,
   toReconcile,
@@ -28,19 +30,14 @@ export default function PaymentsHubDoors({
       href: '/payments/collections',
       icon: 'flag',
       title: 'Collections',
-      stat:
-        collections.patientCount > 0
-          ? `${collections.patientCount} open balance${collections.patientCount === 1 ? '' : 's'} · ${formatCents(collections.totalOutstandingCents)}`
-          : 'Nothing outstanding',
-      statTone: collections.patientCount > 0 ? 'warn' : 'ok',
       description: 'Every open PMS balance with its dunning state — send pay links, propose plans.',
     },
     {
       href: '/payments/online',
       icon: 'wallet',
       title: 'Online payments',
-      stat: connectReady ? (toReconcile > 0 ? `${toReconcile} to reconcile` : 'Connected') : 'Not connected',
-      statTone: connectReady ? (toReconcile > 0 ? 'warn' : 'ok') : 'warn',
+      stat: connectReady ? 'Connected' : 'Not connected',
+      statTone: connectReady ? 'ok' : 'warn',
       description: connectReady
         ? 'Balance payments and booking deposits to post to your PMS.'
         : 'Connect Stripe to take online payments.',
@@ -49,11 +46,6 @@ export default function PaymentsHubDoors({
       href: '/payments/memberships',
       icon: 'star',
       title: 'Memberships',
-      stat:
-        membershipStats.activeMembers > 0
-          ? `${membershipStats.activeMembers} active · ${formatCents(membershipStats.mrrCents)}/mo`
-          : 'No members yet',
-      statTone: membershipStats.activeMembers > 0 ? 'ok' : undefined,
       description: 'In-house dental plans with recurring billing.',
     },
   ]
@@ -64,7 +56,7 @@ export default function PaymentsHubDoors({
         <Link
           key={d.href}
           href={d.href}
-          className="v2-card p-4 sm:p-5 block group hover:shadow-[var(--shadow-pop)] transition-shadow"
+          className="v2-card-interactive p-4 sm:p-5 block group"
         >
           <div className="flex items-center gap-2.5 mb-1.5">
             <span className="inline-flex items-center justify-center w-8 h-8 rounded-[var(--r-sm)] bg-teal-500/10 text-teal-700 dark:text-teal-300">
