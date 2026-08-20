@@ -1142,7 +1142,7 @@ export default function ThreadDetailPanel({
                               Resend webhook — and a red "Not delivered" when
                               the email bounced, so staff re-reach the patient
                               another way instead of assuming it landed. */}
-                          <span className="flex items-center gap-1 px-0.5 text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                          <span className="flex items-center gap-1 px-0.5 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                             {fmtClock(last.sentAt)}
                             {outbound && last.deliveryFailed ? (
                               <span
@@ -1267,7 +1267,7 @@ export default function ThreadDetailPanel({
                         type="button"
                         onClick={() => removeAttachment(a.url)}
                         title="Remove"
-                        className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                        className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white opacity-80 transition-opacity hover:opacity-100 focus:opacity-100"
                       >
                         ×
                       </button>
@@ -1430,21 +1430,18 @@ export default function ThreadDetailPanel({
                           aria-label="Send date and time"
                         />
                         <div className="mt-2 flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setShowSchedule(false)}
-                            className="rounded-[var(--r-sm)] px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400"
-                          >
+                          <ActionButton variant="ghost" size="sm" onClick={() => setShowSchedule(false)}>
                             Cancel
-                          </button>
-                          <button
-                            type="button"
+                          </ActionButton>
+                          <ActionButton
+                            variant="secondary"
+                            size="sm"
                             onClick={handleSchedule}
-                            disabled={scheduling || uploading > 0 || (!body.trim() && attachments.length === 0)}
-                            className="rounded-[var(--r-sm)] bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                            pending={scheduling}
+                            disabled={uploading > 0 || (!body.trim() && attachments.length === 0)}
                           >
-                            {scheduling ? 'Scheduling…' : 'Schedule'}
-                          </button>
+                            Schedule
+                          </ActionButton>
                         </div>
                       </div>
                     )}
@@ -1478,7 +1475,7 @@ export default function ThreadDetailPanel({
             </div>
 
             {/* Quiet footnotes under the card — hint, not chrome. */}
-            <div className="mt-1.5 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               {preferred && (
                 // A derived metadata hint, not a status — quiet ink text so it
                 // never reads as an encoded tone.

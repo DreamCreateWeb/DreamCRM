@@ -139,19 +139,19 @@ Already best-version: emptyCopy() engine.
 
 ### Messages (list + detail)
 Already best-version: the message stream + receipts; per-row optimistic nav.
-1. No keyboard nav while /inbox has j/k — reuse handler shape (clinic-thread-list.tsx).
+1. ~~No keyboard nav while /inbox has j/k~~ [BATCH 21: j/k walks the list (skips while typing; rides the same optimistic nav + veil)].
 2. ~~Metadata at text-gray-400: timestamp, You:, assignee~~ [BATCH 11: gray-500 floor]; read preview weight kept (unread bolding is the signal).
 3. ~~Urgency badge hand-rolled rose~~ [BATCH 11: StatusPill tone=urgent].
-4. 14px checkboxes on a batch surface (:128,:161).
-5. Snooze popover: no Esc/outside-click (:303).
-6. Empty states actionless (clinic-messages-view.tsx:270,:352).
+4. ~~14px checkboxes on a batch surface~~ [BATCH 21: 16px].
+5. ~~Snooze popover: no Esc/outside-click~~ [BATCH 14: usePopoverDismiss on the wrapper — verified wired].
+6. ~~Empty states actionless~~ [BATCH 21: Clear filters / Message-a-patient-from-their-chart handed over on both panes].
 7. ~~Composer rows=2 no auto-grow~~ [BATCH 11: grows to 280px, collapses on send].
 8. ~~Send mislabels during unrelated actions~~ [BATCH 11: dedicated sending flag + pending prop].
 9. Header stacks six blocks before the stream (:694-1012) — fold tags/follow-up behind a disclosure.
-10. Four popovers, zero Esc (:779,:855,:1298,:1390).
-11. Schedule confirm raw violet button (:1409).
-12. Attachment remove opacity-0 hover-only (:1235).
-13. Receipts/footnotes at text-gray-400 (:1121,:1449).
+10. ~~Four popovers, zero Esc~~ [BATCH 14: assign/snooze/templates/schedule all on usePopoverDismiss — verified wired].
+11. ~~Schedule confirm raw violet button~~ [BATCH 21: ActionButton secondary + pending; Cancel goes ghost — violet stays a tone, never a button skin].
+12. ~~Attachment remove opacity-0 hover-only~~ [BATCH 21: always visible at opacity-80 (touch had no way in)].
+13. ~~Receipts/footnotes at text-gray-400~~ [BATCH 21: gray-500 floor; the activity-marker lines stay deliberately quiet per the markers law].
 
 ### Inbox
 1. Route blocks first paint on sync+classify; generic skeleton (inbox/page.tsx:93; loading.tsx).

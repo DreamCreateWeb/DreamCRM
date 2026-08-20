@@ -20,7 +20,8 @@ import { listAssignableStaff } from '@/lib/services/patient-followups'
 import { listScheduledForPatient, type ScheduledMessageView } from '@/lib/services/scheduled-messages'
 import { listThreadActivity, type ActivityMarker } from '@/lib/services/thread-activity'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
-import Sparkline from '@/components/ui/sparkline'
+import { MiniTrend } from '@/components/ui/charts'
+import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { CHANNEL_LEGEND } from './channel-meta'
@@ -261,7 +262,7 @@ export default async function ClinicMessagesView({
               >
                 <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">14-day pulse</span>
                 <span aria-hidden="true">
-                  <Sparkline data={perDay14} color="var(--color-teal-500)" width={120} height={28} labels={false} />
+                  <MiniTrend data={perDay14} color="var(--color-teal-500)" width={120} height={28} />
                 </span>
               </div>
             )}
@@ -276,6 +277,17 @@ export default async function ClinicMessagesView({
                     filterEmpty
                       ? 'Try a different status or search term, or clear the filters to see more.'
                       : 'When a patient messages you — in-app or by email — the thread shows up right here, one row per patient.'
+                  }
+                  action={
+                    filterEmpty ? (
+                      <ActionButton variant="secondary" size="sm" href="/messages">
+                        Clear filters
+                      </ActionButton>
+                    ) : (
+                      <ActionButton variant="secondary" size="sm" href="/patients">
+                        Message a patient from their chart
+                      </ActionButton>
+                    )
                   }
                 />
               </div>
@@ -359,6 +371,13 @@ export default async function ClinicMessagesView({
                   threads.length === 0
                     ? 'Every patient who messages you — in-app or by email — lands here, threaded by patient. One row per relationship, across every channel.'
                     : 'Pick a patient from the list to see the full thread and reply. Conversations waiting on you have a colored edge so nothing slips.'
+                }
+                action={
+                  threads.length === 0 ? (
+                    <ActionButton variant="secondary" size="sm" href="/patients">
+                      Message a patient from their chart
+                    </ActionButton>
+                  ) : undefined
                 }
               />
             </div>
