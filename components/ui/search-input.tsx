@@ -17,6 +17,7 @@ export function SearchInput({
   onClear,
   placeholder,
   ariaLabel,
+  enterHint = false,
   className = '',
 }: {
   value: string
@@ -25,6 +26,10 @@ export function SearchInput({
   onClear: () => void
   placeholder: string
   ariaLabel?: string
+  /** Enter-to-search surfaces only: shows a quiet ↵ hint while text is typed
+   *  but not yet submitted, so the "press Enter" contract is visible. Leave
+   *  off for search-as-you-type callers (Messages). */
+  enterHint?: boolean
   className?: string
 }) {
   return (
@@ -41,8 +46,17 @@ export function SearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={ariaLabel ?? placeholder}
-        className="w-full rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] py-1.5 pl-8 pr-7 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition-shadow focus:outline-none focus:shadow-[inset_0_0_0_1px_theme(colors.teal.500/50%)]"
+        className={`w-full rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] py-1.5 pl-8 ${enterHint && value ? 'pr-14' : 'pr-7'} text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 shadow-[inset_0_0_0_1px_var(--color-hairline)] transition-shadow focus:outline-none focus:shadow-[inset_0_0_0_1px_theme(colors.teal.500/50%)]`}
       />
+      {enterHint && value && (
+        <kbd
+          aria-hidden="true"
+          className="pointer-events-none absolute right-8 top-1/2 -translate-y-1/2 rounded border border-[color:var(--color-hairline-strong)] bg-white dark:bg-gray-800 px-1 text-xs leading-4 text-gray-500 dark:text-gray-400"
+          title="Press Enter to search"
+        >
+          ↵
+        </kbd>
+      )}
       {value && (
         <button
           type="button"

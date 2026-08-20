@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { FlashToast } from '@/components/ui/flash-toast'
 import {
   viewFiltersToQuery,
@@ -129,32 +129,24 @@ export default function SavedViewsBar({
     <div className="mb-3 flex flex-wrap items-center gap-1.5">
       <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-0.5">Views:</span>
 
-      <Link
-        href="/patients"
-        className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-          empty
-            ? 'bg-teal-500/10 text-teal-700 ring-1 ring-inset ring-teal-500/40 dark:text-teal-300'
-            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-        }`}
-      >
+      {/* The view chips ride the shared FilterChip (href mode) — the bar had
+          hand-rolled the same pill recipe with a drifted radius + tint. */}
+      <FilterChip href="/patients" active={empty}>
         All patients
-      </Link>
+      </FilterChip>
 
       {list.map((v) => {
         const active = activeView?.id === v.id
         return (
           <span key={v.id} className="group relative inline-flex items-center">
-            <Link
+            <FilterChip
               href={`/patients?${viewFiltersToQuery(v.filters)}`}
+              active={active}
               title={describeViewFilters(v.filters, tagMap)}
-              className={`rounded-full pl-2.5 pr-5 py-1 text-xs font-medium transition-colors ${
-                active
-                  ? 'bg-teal-500/10 text-teal-700 ring-1 ring-inset ring-teal-500/40 dark:text-teal-300'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-              }`}
+              className="pr-6"
             >
               {v.name}
-            </Link>
+            </FilterChip>
             <button
               type="button"
               onClick={() => remove(v)}
