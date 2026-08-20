@@ -193,7 +193,7 @@ export default function LeadDrawer({
         aria-modal="true"
         aria-label="Inquiry"
         onClick={(e) => e.stopPropagation()}
-        className={`drawer-enter-right ${closing ? 'is-closing' : ''} bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col`}
+        className={`drawer-enter-right relative ${closing ? 'is-closing' : ''} bg-[color:var(--color-surface-2)] w-full sm:w-[480px] h-full overflow-y-auto rounded-l-[var(--r-lg)] shadow-[var(--shadow-modal)] flex flex-col`}
       >
         <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur px-5 py-4 border-b border-[color:var(--color-hairline)] flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Inquiry</h2>

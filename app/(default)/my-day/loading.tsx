@@ -8,7 +8,7 @@ import { Skeleton, SkeletonPageHeader } from '@/components/ui/skeleton'
  */
 export default function Loading() {
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-6xl mx-auto" aria-busy="true">
+    <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto" aria-busy="true">
       <SkeletonPageHeader />
       {/* The 6-tile KPI band (grid-cols-2 lg:grid-cols-3). */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">

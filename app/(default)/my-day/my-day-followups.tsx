@@ -27,7 +27,7 @@ export default function MyDayFollowups({
   currentUserId: string
 }) {
   const [items, setItems] = useState<PatientFollowupView[]>(initial)
-  const [, startTransition] = useTransition()
+  const [pending, startTransition] = useTransition()
   const [toast, setToast] = useState<{
     message: string
     tone: 'ok' | 'urgent'
@@ -110,9 +110,20 @@ export default function MyDayFollowups({
             <button
               type="button"
               onClick={() => complete(f)}
+              disabled={pending}
               aria-label="Mark done"
-              className="mt-0.5 h-5 w-5 shrink-0 rounded-full border border-gray-300 dark:border-gray-600 hover:border-teal-500 grid place-items-center"
-            />
+              // Hover previews the tick so the circle reads as a checkbox
+              // before you commit; disabled during the transition so a
+              // double-tap can't fire the action twice.
+              className="group mt-0.5 h-5 w-5 shrink-0 rounded-full border border-gray-300 dark:border-gray-600 hover:border-teal-500 grid place-items-center disabled:opacity-50"
+            >
+              <span
+                aria-hidden="true"
+                className="text-xs leading-none text-teal-600 opacity-0 group-hover:opacity-60 transition-opacity"
+              >
+                ✓
+              </span>
+            </button>
             <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-800 dark:text-gray-100">{f.title}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">

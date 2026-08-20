@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { PendingVeil } from '@/components/ui/pending-veil'
 import Sparkline from '@/components/ui/sparkline'
 import type { FollowupsCompletedPerWeekPoint } from '@/lib/services/patient-followups'
 import {
@@ -74,20 +76,24 @@ export default function FollowupsBoard({
   const params = useSearchParams()
   const [items, setItems] = useState<PatientFollowupView[]>(rows)
   const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
-  const [pending, startTransition] = useTransition()
+  // Two transitions on purpose: filter NAVIGATION must not freeze the rows
+  // (one shared flag disabled every tick-box while a chip click resolved),
+  // and row ACTIONS must not veil the board.
+  const [rowPending, startRowTransition] = useTransition()
+  const [navPending, startNavTransition] = useTransition()
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString())
     if (value === null) next.delete(key)
     else next.set(key, value)
-    startTransition(() => router.push(`/followups?${next.toString()}`))
+    startNavTransition(() => router.push(`/followups?${next.toString()}`))
   }
 
   function complete(f: PatientFollowupView) {
     setItems((cur) =>
       filters.includeDone ? cur.map((x) => (x.id === f.id ? { ...x, status: 'done' } : x)) : cur.filter((x) => x.id !== f.id),
     )
-    startTransition(async () => {
+    startRowTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
       if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
       else { setToast({ message: 'Nice — one less thing.', tone: 'ok' }); pingNavBadges() }
@@ -95,7 +101,7 @@ export default function FollowupsBoard({
   }
   function reopen(f: PatientFollowupView) {
     setItems((cur) => cur.map((x) => (x.id === f.id ? { ...x, status: 'open' } : x)))
-    startTransition(async () => {
+    startRowTransition(async () => {
       const res = await reopenFollowupAction(f.id, f.patientId)
       if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
       else pingNavBadges()
@@ -113,7 +119,7 @@ export default function FollowupsBoard({
       if (filters.mine && userId !== currentUserId) return mapped.filter((x) => x.id !== f.id)
       return mapped
     })
-    startTransition(async () => {
+    startRowTransition(async () => {
       const res = await updateFollowupAction(f.id, f.patientId, { assignedUserId: userId })
       if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
     })
@@ -199,13 +205,24 @@ export default function FollowupsBoard({
             title={filters.mine || filters.due || filters.closedByMe ? 'Nothing here' : "You're all caught up"}
             body={
               filters.mine || filters.due || filters.closedByMe
-                ? 'No follow-ups match these filters. Try clearing one.'
+                ? 'No follow-ups match these filters.'
                 : 'Add a follow-up from any patient — a reminder to call, rebook, or check in — and it lands here until it’s done.'
+            }
+            action={
+              filters.mine || filters.due || filters.closedByMe ? (
+                <ActionButton
+                  variant="secondary"
+                  onClick={() => startNavTransition(() => router.push('/followups'))}
+                >
+                  Clear filters
+                </ActionButton>
+              ) : undefined
             }
           />
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="relative space-y-6">
+          {navPending && <PendingVeil />}
           {GROUP_ORDER.map((g) => {
             const list = grouped.get(g)
             if (!list || list.length === 0) return null
@@ -223,7 +240,7 @@ export default function FollowupsBoard({
                       onReassign={(u) => reassign(f, u)}
                       staff={staff}
                       currentUserId={currentUserId}
-                      pending={pending}
+                      pending={rowPending}
                     />
                   ))}
                 </ul>
@@ -238,7 +255,7 @@ export default function FollowupsBoard({
               </h2>
               <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
                 {doneItems.map((f) => (
-                  <Row key={f.id} f={f} onReopen={() => reopen(f)} pending={pending} done />
+                  <Row key={f.id} f={f} onReopen={() => reopen(f)} pending={rowPending} done />
                 ))}
               </ul>
             </section>
