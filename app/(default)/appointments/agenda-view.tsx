@@ -426,6 +426,7 @@ export default function AgendaView({
       <div className="v2-panel p-4 mb-4 space-y-3">
         {/* Date window row */}
         <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-0.5">When:</span>
           {WINDOW_LABELS.map((w) => (
             <FilterChip
               key={w.key}
@@ -436,8 +437,11 @@ export default function AgendaView({
             </FilterChip>
           ))}
         </div>
-        {/* Needs-attention row + search */}
+        {/* Needs-attention row + the staff/source pickers + search — each
+            group labeled or divided so eleven controls don't read as one
+            undifferentiated strip. */}
         <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-0.5">Show:</span>
           {ATTENTION_LABELS.map((a) => (
             <FilterChip
               key={a.key}
@@ -448,6 +452,9 @@ export default function AgendaView({
               {a.label}
             </FilterChip>
           ))}
+          {(meta.providers.length > 0 || meta.sources.length > 0) && (
+            <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[color:var(--color-hairline-strong)]" />
+          )}
           {meta.providers.length > 0 && (
             <select
               value={filters.providerId ?? ''}
@@ -483,6 +490,7 @@ export default function AgendaView({
                 setParam('q', null)
               }}
               placeholder="Search patient, email, phone, or notes"
+              enterHint
             />
           </form>
         </div>
@@ -735,7 +743,9 @@ function AppointmentRowCard({
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1 italic">&ldquo;{row.notes}&rdquo;</p>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Wraps instead of squeezing: the pill cluster stacks onto a second
+            row on narrow panes rather than crushing the patient name. */}
+        <div className="flex max-w-[45%] flex-wrap items-center justify-end gap-x-2 gap-y-1 shrink-0">
           {isPastOpen && (
             <ActionButton
               variant="secondary"

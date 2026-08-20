@@ -410,6 +410,10 @@ export default function ThreadDetailPanel({
   const [showTemplates, setShowTemplates] = useState(false)
   const [bookOpen, setBookOpen] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
+  // Tags + quick-follow-up fold behind one quiet disclosure (the header was
+  // stacking six blocks before the first message). Hidden with CSS, never
+  // unmounted, so a half-typed follow-up survives collapsing (tabs law).
+  const [showTools, setShowTools] = useState(false)
   // Every popover honors the dismiss contract (Esc + outside click) — each
   // ref wraps the trigger AND the panel, so clicking the trigger still
   // toggles rather than close-then-reopen.
@@ -1017,21 +1021,34 @@ export default function ThreadDetailPanel({
           </div>
         )}
 
-        {/* Tags — group this patient (VIP / anxious / recare) right from the
-            conversation; flows into the targeting loop (view → audience). */}
+        {/* Tags + quick follow-up — grouped behind ONE quiet disclosure so
+            the stream starts sooner. The toggle names what's inside (and how
+            many tags) so nothing is hidden blind; the controls stay MOUNTED
+            while collapsed so in-progress edits survive. */}
         <div className="mt-2.5">
-          <PatientTagControl patientId={thread.patientId} initialTags={patientTags} />
-        </div>
-
-        {/* Quick follow-up — jot "chase this next week" without leaving the
-            conversation. It flows into My Day, the morning digest, the
-            follow-ups board, and the patient's timeline. */}
-        <div className="mt-2">
-          <FollowupQuickAdd
-            patientId={thread.patientId}
-            patientFirstName={thread.patientFirstName}
-            onDone={(msg) => setToast(msg)}
-          />
+          <button
+            type="button"
+            onClick={() => setShowTools((s) => !s)}
+            aria-expanded={showTools}
+            className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          >
+            <span aria-hidden="true" className={`inline-block transition-transform ${showTools ? 'rotate-90' : ''}`}>
+              ▸
+            </span>
+            {patientTags.length > 0 ? `Tags (${patientTags.length}) & follow-up` : 'Tags & follow-up'}
+          </button>
+          <div className={showTools ? '' : 'hidden'}>
+            <div className="mt-2">
+              <PatientTagControl patientId={thread.patientId} initialTags={patientTags} />
+            </div>
+            <div className="mt-2">
+              <FollowupQuickAdd
+                patientId={thread.patientId}
+                patientFirstName={thread.patientFirstName}
+                onDone={(msg) => setToast(msg)}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

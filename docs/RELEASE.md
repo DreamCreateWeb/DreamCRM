@@ -1403,6 +1403,18 @@ wrapper for MiniTrend proper. Also verified: the four detail-panel
 popovers and the bulk snooze already ride the batch-14 dismiss
 contract — struck in the backlog.
 
+**Batch 22 — the thread header fold + the agenda filter grammar:** the
+Messages thread header stops stacking six blocks before the first
+message — tags and the quick-follow-up fold behind ONE named
+disclosure ("Tags (N) & follow-up"), and the controls stay mounted
+while collapsed (the settings-tabs law) so a half-typed follow-up
+survives collapsing · the agenda's eleven-control filter strip gains
+its grammar: a "When:" label on the window row, a "Show:" label on the
+attention row, a hairline divider before the staff/source pickers, and
+the search box joins the enterHint contract · the agenda row's
+right-side pill cluster now wraps onto a second row (capped at 45%
+width) instead of crushing the patient's name on narrow panes.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

@@ -121,9 +121,9 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 ### Agenda
 Already best-version: emptyCopy() engine.
 1. ~~Row is li onClick — mouse-only drawer~~ [BATCH 11: role=button + Enter/Space + aria-label].
-2. Nine chips + two selects + search in one unlabeled row (:422).
+2. ~~Nine chips + two selects + search in one unlabeled row~~ [BATCH 22: When:/Show: group labels + a hairline divider before the pickers; search gains the enterHint ↵].
 3. ~~Bulk bar ternaries~~ [BATCH 17: activeBulk key — only the pressed bulk button spins].
-4. Right cluster shrink-0 squeezes patient name (:703).
+4. ~~Right cluster shrink-0 squeezes patient name~~ [BATCH 22: the pill cluster wraps onto a second row (max 45% width) instead of crushing the name].
 5. ~~Sticky day header top-0 tucks under chrome~~ [BATCH 11: top-16].
 6. ~~Bulk composer no dismiss contract~~ [BATCH 17: usePopoverDismiss on the trigger+panel wrapper].
 
@@ -147,7 +147,7 @@ Already best-version: the message stream + receipts; per-row optimistic nav.
 6. ~~Empty states actionless~~ [BATCH 21: Clear filters / Message-a-patient-from-their-chart handed over on both panes].
 7. ~~Composer rows=2 no auto-grow~~ [BATCH 11: grows to 280px, collapses on send].
 8. ~~Send mislabels during unrelated actions~~ [BATCH 11: dedicated sending flag + pending prop].
-9. Header stacks six blocks before the stream (:694-1012) — fold tags/follow-up behind a disclosure.
+9. ~~Header stacks six blocks before the stream~~ [BATCH 22: tags + quick-follow-up fold behind one named disclosure ("Tags (N) & follow-up"); controls stay MOUNTED while collapsed (tabs law) so a half-typed follow-up survives].
 10. ~~Four popovers, zero Esc~~ [BATCH 14: assign/snooze/templates/schedule all on usePopoverDismiss — verified wired].
 11. ~~Schedule confirm raw violet button~~ [BATCH 21: ActionButton secondary + pending; Cancel goes ghost — violet stays a tone, never a button skin].
 12. ~~Attachment remove opacity-0 hover-only~~ [BATCH 21: always visible at opacity-80 (touch had no way in)].
