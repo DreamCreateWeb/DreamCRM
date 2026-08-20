@@ -271,15 +271,15 @@ Already best-version: CompletedHeartbeat.
 5. Per-audience counts resolved before first paint → stream w/ Suspense (page.tsx:28).
 
 ### Outreach queue
-1. TIER_ACCENT_BG contradicts the tone contract (queue:39 vs legend :96).
-2. Empty tiers render full-height → collapse to a line (:139).
-3. Four primary Sends at once → largest tier primary, rest secondary (:157).
+1. ~~TIER_ACCENT_BG contradicts the tone contract~~ [BATCH 25: tier headers ride the standard tone surface recipe (tone-500/10 + inset ring) — the *-50 dialect retired].
+2. ~~Empty tiers render full-height~~ [BATCH 25: one quiet ✓ line — good news doesn't get the biggest box on the page].
+3. ~~Four primary Sends at once~~ [BATCH 25: the largest tier's Send is the one primary; the rest demote to secondary].
 
 ### Website hub
 1. ~~"Your site is live" prints even when NOT live~~ [BATCH 13: gated on siteLiveAt].
-2. 30-day KPI trio hand-rolled; delta detached from its tile (:399,:383).
-3. Go-live checklist fake radio circles (:307).
-4. Utility footer repeats hero facts (:541).
+2. ~~Delta detached from its tile~~ [BATCH 25: the ▲/▼ moves under the visits number it describes]. The trio stays hand-shaped like the Growth hero (deliberate hub layout).
+3. ~~Go-live checklist fake radio circles~~ [BATCH 25: the circle stays a to-do marker but hovers an → inside — the row navigates, it doesn't tick].
+4. ~~Utility footer repeats hero facts~~ [BATCH 25: Design/Pages footer doors drop their fact echoes (the hero carries them); Domain keeps its address (its only editable home); all four links get py-2 tap height].
 
 ### Quick edits
 1. ~~Save = raw bg-teal-500~~ [BATCH 13: ActionButton primary + pending].

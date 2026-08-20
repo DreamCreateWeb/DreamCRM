@@ -1447,6 +1447,20 @@ chrome would box what was designed to flow), and the funnel/review
 heartbeats need per-metric history series the services don't keep
 (post-1.0 candidates).
 
+**Batch 25 — the outreach queue + the Website hub:** the queue's tier
+headers move onto the standard tone surface recipe (tone-500/10 tint +
+inset ring — the *-50 backgrounds were a second dialect of the same
+tones), an empty tier collapses to one quiet ✓ line instead of a
+full-height well, and only the LARGEST tier's Send stays primary — the
+rest demote to secondary so four teal buttons stop competing for
+"start here" · on the Website hub, the 30-day visits delta moves under
+the number it describes instead of floating in the band header, the
+go-live checklist circles hover an → inside (the row navigates, it
+doesn't tick), and the utility footer's Design/Pages doors drop the
+fact echoes the hero already carries (Domain keeps its address — the
+footer is its only editable home) while all four links gain real tap
+height.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

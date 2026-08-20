@@ -315,10 +315,18 @@ export default async function WebsiteHubPage() {
                         href={c.href}
                         className="group flex items-start gap-2.5 rounded-[var(--r-xs)] px-2 py-1.5 -mx-2 hover:bg-teal-500/5 transition-colors"
                       >
+                        {/* A to-do marker, not a radio: the circle says "not
+                            done yet"; the hover arrow inside says "this row
+                            takes you there" (clicking navigates, it doesn't
+                            tick). */}
                         <span
                           aria-hidden="true"
-                          className="mt-0.5 inline-flex w-4.5 h-4.5 rounded-full border-2 border-gray-300 dark:border-gray-600 group-hover:border-teal-500 shrink-0 transition-colors"
-                        />
+                          className="mt-0.5 grid w-4.5 h-4.5 place-items-center rounded-full border-2 border-gray-300 dark:border-gray-600 group-hover:border-teal-500 shrink-0 transition-colors"
+                        >
+                          <span className="text-xs leading-none text-teal-600 opacity-0 group-hover:opacity-70 transition-opacity">
+                            →
+                          </span>
+                        </span>
                         <span className="min-w-0 flex-1">
                           <span className="text-sm font-medium text-gray-800 dark:text-gray-100 group-hover:text-teal-700 dark:group-hover:text-teal-300">
                             {c.label}
@@ -384,29 +392,30 @@ export default async function WebsiteHubPage() {
         <div className="v2-card p-5 sm:p-6 mb-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Last 30 days</h2>
-            <div className="flex items-center gap-3">
-              {delta != null && (
-                <span
-                  className={`text-xs tabular-nums font-semibold ${delta >= 0 ? TONE_TEXT.ok : TONE_TEXT.warn}`}
-                  title={`Site visits vs the prior 30 days`}
-                >
-                  {delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}% vs prior 30
-                </span>
-              )}
-              <Link
-                href="/growth/analytics"
-                className="text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline underline-offset-4"
-              >
-                Full analytics →
-              </Link>
-            </div>
+            <Link
+              href="/growth/analytics"
+              className="text-xs font-semibold text-teal-700 dark:text-teal-300 hover:underline underline-offset-4"
+            >
+              Full analytics →
+            </Link>
           </div>
           <div className="mt-4 grid grid-cols-3 gap-4 sm:max-w-md">
             <div>
               <div className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
                 {performance.traffic.total.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">visits</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                visits
+                {/* The delta lives WITH its subject, not orphaned in the header. */}
+                {delta != null && (
+                  <span
+                    className={`ml-1.5 tabular-nums font-semibold ${delta >= 0 ? TONE_TEXT.ok : TONE_TEXT.warn}`}
+                    title="Site visits vs the prior 30 days"
+                  >
+                    {delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}%
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <div className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
@@ -533,7 +542,7 @@ export default async function WebsiteHubPage() {
         {canEdit && (
           <Link
             href="/website/domain"
-            className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+            className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
           >
             <span aria-hidden="true">🌐</span>
             <span className="font-semibold">Domain</span>
@@ -546,26 +555,24 @@ export default async function WebsiteHubPage() {
         {canEdit && (
           <Link
             href="/website/design"
-            className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+            className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
           >
             <span aria-hidden="true">🎨</span>
             <span className="font-semibold">Design</span>
-            <span className="text-gray-500 dark:text-gray-400">{templateDef.label}</span>
           </Link>
         )}
         {canEdit && (
           <Link
             href="/website/pages"
-            className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+            className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
           >
             <span aria-hidden="true">📑</span>
             <span className="font-semibold">Pages</span>
-            <span className="text-gray-500 dark:text-gray-400 tabular-nums">{livePages} live</span>
           </Link>
         )}
         <Link
           href="/website/share"
-          className="group inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
+          className="group inline-flex items-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-teal-700 dark:hover:text-teal-300"
         >
           <span aria-hidden="true">📇</span>
           <span className="font-semibold">Share & QR cards</span>
