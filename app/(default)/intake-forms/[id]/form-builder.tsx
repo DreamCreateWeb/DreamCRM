@@ -86,6 +86,16 @@ export default function FormBuilder({ template }: Props) {
   const [hasSpanish, setHasSpanish] = useState(!!(template.translations as FormTranslations | null)?.es)
   const confirm = useConfirm()
 
+  // Dirty tracking: the save bar's status line says "Unsaved changes" the
+  // moment anything differs from the last-saved shape, so closing the tab
+  // mid-edit is a known risk instead of a silent one. Baseline resets on a
+  // successful save.
+  const [baseline, setBaseline] = useState(() =>
+    JSON.stringify({ title, description, isDefault, autoSendAudience, sections }),
+  )
+  const dirty =
+    JSON.stringify({ title, description, isDefault, autoSendAudience, sections }) !== baseline
+
   function handleTranslate() {
     if (translating) return
     setTranslating(true)
@@ -181,6 +191,7 @@ export default function FormBuilder({ template }: Props) {
           isDefault,
           autoSendAudience,
         })
+        setBaseline(JSON.stringify({ title, description, isDefault, autoSendAudience, sections }))
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
       } catch (err) {
@@ -411,6 +422,11 @@ export default function FormBuilder({ template }: Props) {
           {saved && <span className="text-emerald-600">Saved ✓</span>}
           {!error && !saved && (
             <span>
+              {dirty && (
+                <span className="mr-2 font-medium text-amber-700 dark:text-amber-300">
+                  Unsaved changes ·
+                </span>
+              )}
               {sections.length} section{sections.length === 1 ? '' : 's'} ·{' '}
               {sections.reduce((n, s) => n + s.fields.length, 0)} field
               {sections.reduce((n, s) => n + s.fields.length, 0) === 1 ? '' : 's'}

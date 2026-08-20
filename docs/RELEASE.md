@@ -1461,6 +1461,21 @@ fact echoes the hero already carries (Domain keeps its address — the
 footer is its only editable home) while all four links gain real tap
 height.
 
+**Batch 26 — the intake tail:** the form-builder finally says
+"Unsaved changes" (amber, in the save bar's status line) whenever
+anything differs from the last-saved shape — the baseline resets on
+save, so closing the tab mid-edit is a known risk instead of a silent
+one · on the forms index, Edit leads each row at secondary weight
+(it's the daily action) with Preview/Kiosk demoted to ghost · the
+packets Delete joins the quiet-until-hover rose recipe · the
+cross-template submissions list discloses its 50-row cap and points at
+each form's full history. Verified already-done in batch 14 and
+struck: reorder targets, Archive's footer placement, the
+remove-section confirm; the add-field menu was already a labeled grid.
+Deferred with reasons: a stacked mobile preview (desk task), TrailBack
+in the back-link slot (context-bound), and submissions filters (glance
+surface; per-form pages carry the full lists).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
