@@ -390,6 +390,9 @@ export default function ThreadDetailPanel({
   const [translating, setTranslating] = useState(false)
   const [attachments, setAttachments] = useState<MessageAttachment[]>([])
   const [uploading, setUploading] = useState(0)
+  // Send's OWN busy flag — the shared `pending` also covers assign/snooze/
+  // tags, and the Send button must never claim a send that isn't happening.
+  const [sending, setSending] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const replyRef = useRef<HTMLTextAreaElement | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -446,11 +449,20 @@ export default function ThreadDetailPanel({
     if (!body.trim() && attachments.length === 0) return
     if (uploading > 0) return
     const sent = attachments
+    setSending(true)
     runAction(
-      () => sendMessageAction({ patientId: thread.patientId, body, channel, attachments: sent }),
+      async () => {
+        try {
+          await sendMessageAction({ patientId: thread.patientId, body, channel, attachments: sent })
+        } finally {
+          setSending(false)
+        }
+      },
       () => {
         setBody('')
         setAttachments([])
+        // Collapse the auto-grown box back to its resting two lines.
+        if (replyRef.current) replyRef.current.style.height = ''
         setToast(`Sent to ${thread.patientFirstName}`)
         router.refresh()
       },
@@ -1212,7 +1224,14 @@ export default function ThreadDetailPanel({
                 id="reply-body"
                 ref={replyRef}
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={(e) => {
+                  setBody(e.target.value)
+                  // Auto-grow (the /inbox QuickReply recipe): anything past two
+                  // lines used to be composed through a fixed slit.
+                  const ta = e.currentTarget
+                  ta.style.height = 'auto'
+                  ta.style.height = Math.min(280, Math.max(56, ta.scrollHeight)) + 'px'
+                }}
                 onKeyDown={(e) => {
                   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSend()
                 }}
@@ -1425,9 +1444,10 @@ export default function ThreadDetailPanel({
                   variant="primary"
                   size="sm"
                   onClick={handleSend}
-                  disabled={pending || uploading > 0 || (!body.trim() && attachments.length === 0)}
+                  pending={sending}
+                  disabled={uploading > 0 || (!body.trim() && attachments.length === 0)}
                 >
-                  {pending ? 'Sending…' : `Send ${channel === 'email' ? 'email' : channel === 'sms' ? 'SMS' : 'message'}`}
+                  {`Send ${channel === 'email' ? 'email' : channel === 'sms' ? 'SMS' : 'message'}`}
                 </ActionButton>
               </div>
 

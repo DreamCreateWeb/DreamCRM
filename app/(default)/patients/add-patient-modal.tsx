@@ -139,7 +139,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
           <div className="pt-2 flex justify-end gap-2">
-            <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
+            <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
               Cancel
             </ActionButton>
             <ActionButton variant="primary" size="sm" type="submit" pending={pending}>

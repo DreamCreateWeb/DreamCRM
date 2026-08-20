@@ -83,12 +83,12 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 ## Cluster 2 — Records + Comms (Patients · Appointments · Messages · Inbox · Intake)
 
 ### Patients list
-1. Sort headers unfocusable, no aria-sort, arrow shifts width (patients-list.tsx:481).
+1. ~~Sort headers unfocusable, no aria-sort, arrow shifts width~~ [BATCH 11: SortableTh — real buttons, aria-sort, fixed arrow slot].
 2. Row dead outside the name cell — whole-row nav + name stays a real link (:649 vs :625).
 3. Search needs Enter but never says so (:337) — inline ↵ hint.
 4. Two raw selects amid FilterChips (source/tag, :397).
-5. Bulk bar: three feedback idioms; "Tagging…" placeholder-spinner (:538,:552,:563).
-6. No sticky thead (:468).
+5. Bulk bar: ~~Invite/Pay-link ternaries~~ [BATCH 11: pending prop]; the "Tagging…" placeholder-select spinner remains (popover-menu candidate).
+6. ~~No sticky thead~~ [BATCH 11].
 7. Heartbeat hidden lg:flex (:426).
 8. saved-views-bar re-implements FilterChip ×4 (:121,:175,:201,:228).
 9. Saved-view delete hover-only, no confirm (:147).
@@ -116,15 +116,15 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 5. Bulk message: no recipient visibility; ternary send (:57,:110).
 6. Add-patient doesn't autofocus first field (:76). (Duplicate card already best-version.)
 7. Import close is text × → icon button (:120).
-8. SIX modals spin their Cancel (shared pending) — un-spin.
+8. ~~SIX modals spin their Cancel~~ [BATCH 11: disabled, never pending, on every onClose].
 
 ### Agenda
 Already best-version: emptyCopy() engine.
-1. Row is li onClick — mouse-only drawer (agenda-view.tsx:651).
+1. ~~Row is li onClick — mouse-only drawer~~ [BATCH 11: role=button + Enter/Space + aria-label].
 2. Nine chips + two selects + search in one unlabeled row (:422).
 3. Bulk bar ternaries; siblings show nothing (:511).
 4. Right cluster shrink-0 squeezes patient name (:703).
-5. Sticky day header top-0 tucks under chrome → top-16 (:580).
+5. ~~Sticky day header top-0 tucks under chrome~~ [BATCH 11: top-16].
 6. Bulk follow-up composer: no focus trap/outside-click (:799).
 
 ### Appointment drawer + booking
@@ -140,13 +140,13 @@ Already best-version: emptyCopy() engine.
 ### Messages (list + detail)
 Already best-version: the message stream + receipts; per-row optimistic nav.
 1. No keyboard nav while /inbox has j/k — reuse handler shape (clinic-thread-list.tsx).
-2. Metadata at text-gray-400: timestamp, You:, assignee, read preview (:218,:228,:265).
-3. Urgency badge hand-rolled rose → StatusPill urgent (:233).
+2. ~~Metadata at text-gray-400: timestamp, You:, assignee~~ [BATCH 11: gray-500 floor]; read preview weight kept (unread bolding is the signal).
+3. ~~Urgency badge hand-rolled rose~~ [BATCH 11: StatusPill tone=urgent].
 4. 14px checkboxes on a batch surface (:128,:161).
 5. Snooze popover: no Esc/outside-click (:303).
 6. Empty states actionless (clinic-messages-view.tsx:270,:352).
-7. Composer rows=2 no auto-grow — lift quick-reply.tsx:36 recipe (clinic-thread-detail-panel.tsx:1211).
-8. Send mislabels during unrelated actions — shared pending (:1424).
+7. ~~Composer rows=2 no auto-grow~~ [BATCH 11: grows to 280px, collapses on send].
+8. ~~Send mislabels during unrelated actions~~ [BATCH 11: dedicated sending flag + pending prop].
 9. Header stacks six blocks before the stream (:694-1012) — fold tags/follow-up behind a disclosure.
 10. Four popovers, zero Esc (:779,:855,:1298,:1390).
 11. Schedule confirm raw violet button (:1409).
@@ -166,10 +166,10 @@ Already best-version: the message stream + receipts; per-row optimistic nav.
 
 ### Intake forms + builder
 Already best-version: CompletedHeartbeat.
-1. Fill URL un-copyable gray mono → copy chip + toast (intake-forms/page.tsx:159). Highest value-per-risk.
-2. "No submissions yet" dimmed below floor (:156).
+1. ~~Fill URL un-copyable gray mono~~ [BATCH 11: the new shared CopyChip primitive].
+2. ~~"No submissions yet" dimmed below floor~~ [BATCH 11].
 3. Three equal row buttons; Edit is the daily one (:163).
-4. Packets: bare empty state, raw rose Delete, uncopyable URLs (packets-manager.tsx:113,:137,:127).
+4. Packets: ~~uncopyable URLs + dim empty state~~ [BATCH 11: CopyChip + contrast]; raw rose Delete remains.
 5. Submissions index actionless, unfiltered, silent 50-cap (submissions/page.tsx:42).
 6. Builder reorder = 10px ▲▼ text glyphs (form-builder.tsx:303,:441).
 7. Archive adjacent to Save in the sticky bar (:402).

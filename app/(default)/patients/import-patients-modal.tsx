@@ -265,7 +265,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
         <div className="px-6 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
           {stage.type === 'upload' && (
             <>
-              <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={doPreview} disabled={pending || !file}>
