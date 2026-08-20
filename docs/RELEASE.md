@@ -1357,6 +1357,22 @@ instead of only a dimmed button. Deferred with reasons: TrailBack in
 the back-link slot (trail-context/header-slot-bound) and EmptyState
 inside the 240px rail cards (the well is main-column-sized).
 
+**Batch 19 — the patients-list tail:** the whole row now opens the
+patient (mouse click anywhere that isn't the row's own controls, riding
+the same PendingVeil transition as filter navs; the name Link stays the
+keyboard/AT path) · SearchInput grows an opt-in `enterHint` — a quiet ↵
+kbd appears while typed text awaits submit, so the Enter-to-search
+contract is finally visible (Messages' live search opts out) · an
+ACTIVE source/tag filter now presents as the shared active FilterChip
+with one-click clear (the select stays for picking — chips can't hold a
+12-option enumeration) · the 12-week new-patients heartbeat label
+survives on tablets (spark stays desktop) and the old Sparkline compat
+wrapper is swapped for MiniTrend proper · the saved-views bar's
+All-patients + view chips ride FilterChip's href mode instead of a
+hand-rolled pill recipe with a drifted radius. Kept deliberate: the
+bar's action pills (+ Save view / Follow-up all / Send a campaign) stay
+custom — chips filter, they never act.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

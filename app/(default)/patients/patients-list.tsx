@@ -10,7 +10,7 @@ import type {
   PatientFilterMeta,
   NewPatientsPerWeekPoint,
 } from '@/lib/services/patients'
-import Sparkline from '@/components/ui/sparkline'
+import { MiniTrend } from '@/components/ui/charts'
 import { patientFlagGlyphs, type PillLegendRow } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -367,6 +367,7 @@ export default function PatientsList({
               setParam('q', null)
             }}
             placeholder="Search by name, email, or phone"
+            enterHint
           />
         </form>
         <div className="flex flex-wrap gap-2 items-center">
@@ -418,45 +419,67 @@ export default function PatientsList({
           >
             🎂 Birthday this month
           </FilterChip>
-          {meta.sources.length > 0 && (
-            <select
-              value={(filters.sources?.[0]) ?? ''}
-              onChange={(e) => setParam('source', e.target.value || null)}
-              className="form-select text-xs py-1"
-              aria-label="Filter by source"
-            >
-              <option value="">Any source</option>
-              {meta.sources.map((s) => (
-                <option key={s} value={s}>{SOURCE_LABEL[s] ?? s}</option>
-              ))}
-            </select>
-          )}
-          {meta.tags.length > 0 && (
-            <select
-              value={(filters.tagIds?.[0]) ?? ''}
-              onChange={(e) => setParam('tags', e.target.value || null)}
-              className="form-select text-xs py-1"
-              aria-label="Filter by tag"
-            >
-              <option value="">Any tag</option>
-              {meta.tags.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.patientCount ? ` (${t.patientCount})` : ''}
-                </option>
-              ))}
-            </select>
-          )}
+          {/* Source/tag: the picker is a select (long enumerations), but an
+              ACTIVE choice presents as the same active chip as its neighbors —
+              one click clears it, matching the chip row's grammar. */}
+          {meta.sources.length > 0 &&
+            (filters.sources?.length ? (
+              <FilterChip
+                active
+                onClick={() => setParam('source', null)}
+                title="Clear the source filter"
+              >
+                Source: {SOURCE_LABEL[filters.sources[0]] ?? filters.sources[0]} ✕
+              </FilterChip>
+            ) : (
+              <select
+                value=""
+                onChange={(e) => setParam('source', e.target.value || null)}
+                className="form-select text-xs py-1"
+                aria-label="Filter by source"
+              >
+                <option value="">Any source</option>
+                {meta.sources.map((s) => (
+                  <option key={s} value={s}>{SOURCE_LABEL[s] ?? s}</option>
+                ))}
+              </select>
+            ))}
+          {meta.tags.length > 0 &&
+            (filters.tagIds?.length ? (
+              <FilterChip
+                active
+                onClick={() => setParam('tags', null)}
+                title="Clear the tag filter"
+              >
+                Tag: {meta.tags.find((t) => t.id === filters.tagIds?.[0])?.name ?? 'selected'} ✕
+              </FilterChip>
+            ) : (
+              <select
+                value=""
+                onChange={(e) => setParam('tags', e.target.value || null)}
+                className="form-select text-xs py-1"
+                aria-label="Filter by tag"
+              >
+                <option value="">Any tag</option>
+                {meta.tags.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}{t.patientCount ? ` (${t.patientCount})` : ''}
+                  </option>
+                ))}
+              </select>
+            ))}
         </div>
         {showFlow && (
           <div
-            className="hidden lg:flex items-center gap-2 shrink-0 ml-auto"
+            className="hidden sm:flex items-center gap-2 shrink-0 ml-auto"
             title="New patients per week over the last 12 weeks"
           >
             <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
               New patients · 12 weeks
             </span>
-            <span aria-hidden="true">
-              <Sparkline data={perWeek12} width={104} height={26} />
+            {/* The spark itself stays desktop-only; the label survives on tablets. */}
+            <span aria-hidden="true" className="hidden lg:inline">
+              <MiniTrend data={perWeek12} width={104} height={26} />
             </span>
           </div>
         )}
@@ -518,6 +541,7 @@ export default function PatientsList({
                     row={r}
                     selected={selected.has(r.id)}
                     onToggle={() => toggleOne(r.id)}
+                    onOpen={() => startTransition(() => router.push(`/patients/${r.id}`))}
                   />
                 ))}
               </tbody>
@@ -606,10 +630,14 @@ function PatientRow({
   row,
   selected,
   onToggle,
+  onOpen,
 }: {
   row: PatientListRow
   selected: boolean
   onToggle: () => void
+  /** Whole-row mouse navigation to the detail — the name Link stays the
+   *  keyboard/AT path (and keeps middle/cmd-click native). */
+  onOpen: () => void
 }) {
   const recall = RECALL[row.recallStatus]
   // Balance is the PMS-synced figure; NULL = none on file (render "—").
@@ -620,7 +648,13 @@ function PatientRow({
   const lastVisitDays = daysSince(row.lastVisitAt)
   return (
     <tr
-      className={`hover:bg-gray-50 dark:hover:bg-gray-900/30 ${
+      onClick={(e) => {
+        // Clicks on the row's own controls (checkbox, name link, tag chips)
+        // keep their native behavior; anywhere else opens the detail.
+        if ((e.target as HTMLElement).closest('a,button,input,select,label')) return
+        onOpen()
+      }}
+      className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/30 ${
         // Selected row = teal inner ring + faint teal wash (selection ≠ status,
         // per DESIGN-SYSTEM Part 5).
         selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''

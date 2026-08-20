@@ -84,13 +84,13 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 
 ### Patients list
 1. ~~Sort headers unfocusable, no aria-sort, arrow shifts width~~ [BATCH 11: SortableTh — real buttons, aria-sort, fixed arrow slot].
-2. Row dead outside the name cell — whole-row nav + name stays a real link (:649 vs :625).
-3. Search needs Enter but never says so (:337) — inline ↵ hint.
-4. Two raw selects amid FilterChips (source/tag, :397).
+2. ~~Row dead outside the name cell~~ [BATCH 19: whole-row mouse nav (cursor-pointer, own controls excluded, rides the PendingVeil transition); the name Link stays the keyboard/AT path].
+3. ~~Search needs Enter but never says so~~ [BATCH 19: SearchInput grows an opt-in `enterHint` ↵ kbd — shown only while typed text awaits submit; Messages' live search unaffected].
+4. ~~Two raw selects amid FilterChips~~ [BATCH 19: the picker stays a select (long enumerations), but an ACTIVE source/tag presents as the shared active FilterChip with one-click clear].
 5. Bulk bar: ~~Invite/Pay-link ternaries~~ [BATCH 11: pending prop]; the "Tagging…" placeholder-select spinner remains (popover-menu candidate).
 6. ~~No sticky thead~~ [BATCH 11].
-7. Heartbeat hidden lg:flex (:426).
-8. saved-views-bar re-implements FilterChip ×4 (:121,:175,:201,:228).
+7. ~~Heartbeat hidden lg:flex~~ [BATCH 19: label survives from sm up; the spark stays desktop — the followups precedent].
+8. ~~saved-views-bar re-implements FilterChip~~ [BATCH 19: All-patients + view chips ride FilterChip href-mode; the action pills (+ Save view / Follow-up all / Send a campaign) stay deliberate — chips filter, they never act].
 9. ~~Saved-view delete hover-only, no confirm~~ [BATCH 16: always visible at reduced contrast + useConfirm].
 10. ~~window.prompt() for audience naming~~ [BATCH 16: the inline-naming recipe, Enter/Esc].
 11. ~~text-gray-400 on meaningful labels~~ [BATCH 16: gray-500 floor].
