@@ -110,10 +110,10 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 
 ### Patients modals
 1. ~~merge-duplicate unsafe shell~~ [BATCH 12: role=dialog + aria-modal + focus trap + Esc; scrim-click deliberately does NOT dismiss an irreversible flow].
-2. Import wizard has no step indicator (import-patients-modal.tsx:132,157,231).
-3. Import file picker raw input → v2-well drop target + filename echo (:138).
-4. Edit modal: 14 fields, no section headings, no ✕ (edit-modal.tsx:88).
-5. Bulk message: no recipient visibility; ternary send (:57,:110).
+2. ~~Import wizard has no step indicator~~ [BATCH 20: StepRail — Upload → Match columns → Done; current ringed teal, finished ticked emerald, aria-current=step].
+3. ~~Import file picker raw input~~ [BATCH 20: dashed drop well — click to browse or drop the CSV; filename + size echo back; non-CSV drops refused with a plain sentence].
+4. ~~Edit modal: 14 fields, no section headings~~ [BATCH 20: Contact / Address / Insurance / Care preferences / Family access headings; the ✕ landed in batch 17].
+5. ~~Bulk message: no recipient visibility; ternary send~~ [BATCH 20: "To: first three names +N more" with a full-list disclosure; Send rides the pending prop].
 6. ~~Add-patient doesn't autofocus~~ [BATCH 17].
 7. ~~Import close is text ×~~ [BATCH 17: the standard icon button; Edit modal gains a ✕ too].
 8. ~~SIX modals spin their Cancel~~ [BATCH 11: disabled, never pending, on every onClose].

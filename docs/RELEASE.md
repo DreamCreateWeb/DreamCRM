@@ -1373,6 +1373,19 @@ hand-rolled pill recipe with a drifted radius. Kept deliberate: the
 bar's action pills (+ Save view / Follow-up all / Send a campaign) stay
 custom — chips filter, they never act.
 
+**Batch 20 — the patients modals:** the CSV import wizard gets its map
+(a three-step rail — Upload → Match columns → Done — current step
+ringed teal, finished steps ticked emerald, announced via
+aria-current) and a real drop well in place of the browser's bare file
+input: click to browse or drop the CSV on it, the chosen file echoes
+back by name + size, and a non-CSV drop is refused with a plain
+sentence · the edit-patient modal's fourteen fields gain their
+headings (Contact / Address / Insurance / Care preferences / Family
+access) so "where's the policy number" is a glance · the bulk-email
+modal finally shows WHO gets it — "To:" with the first three names and
+a +N-more disclosure over the full list — and its Send button trades
+the label ternary for the pending prop.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

@@ -24,8 +24,14 @@ export default function BulkMessageModal({
   const dialogRef = useRef<HTMLDivElement>(null)
   useFocusTrap(true, dialogRef, { onEscape: onClose })
 
-  const reachable = patients.filter((p) => p.email).length
+  const reachableRows = patients.filter((p) => p.email)
+  const reachable = reachableRows.length
   const skipped = patients.length - reachable
+  // "Who exactly gets this?" — the first three names inline, the rest behind
+  // a disclosure, so a 40-patient send is checkable before the button.
+  const [showAll, setShowAll] = useState(false)
+  const namePreview = reachableRows.slice(0, 3).map((p) => p.fullName).join(', ')
+  const moreCount = reachable - Math.min(reachable, 3)
 
   function submit() {
     setError(null)
@@ -54,6 +60,27 @@ export default function BulkMessageModal({
             <span className="tabular-nums">{reachable}</span> {reachable === 1 ? 'patient' : 'patients'} will receive this
             {skipped > 0 && <> · <span className="tabular-nums">{skipped}</span> skipped (no email on file)</>}
           </p>
+          {reachable > 0 && (
+            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+              To: {namePreview}
+              {moreCount > 0 && !showAll && (
+                <button
+                  type="button"
+                  onClick={() => setShowAll(true)}
+                  className="ml-1 font-medium text-teal-700 dark:text-teal-400 hover:underline"
+                >
+                  +{moreCount} more
+                </button>
+              )}
+            </p>
+          )}
+          {showAll && (
+            <ul className="mt-1.5 max-h-24 overflow-y-auto rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] px-2.5 py-1.5 text-xs text-gray-600 dark:text-gray-300 columns-2 gap-4">
+              {reachableRows.map((p) => (
+                <li key={p.id} className="truncate">{p.fullName}</li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {result ? (
@@ -111,9 +138,10 @@ export default function BulkMessageModal({
                 variant="primary"
                 size="sm"
                 onClick={submit}
-                disabled={pending || reachable === 0}
+                pending={pending}
+                disabled={reachable === 0}
               >
-                {pending ? 'Sending…' : `Send to ${reachable}`}
+                Send to {reachable}
               </ActionButton>
             </div>
           </>
