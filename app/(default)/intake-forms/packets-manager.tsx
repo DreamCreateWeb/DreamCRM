@@ -137,7 +137,11 @@ export default function PacketsManager({
                   </div>
                 )}
               </div>
-              <button type="button" onClick={() => remove(p.id)} className="shrink-0 text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400">
+              <button
+                type="button"
+                onClick={() => remove(p.id)}
+                className="shrink-0 rounded-[var(--r-sm)] px-2 py-1 text-xs font-medium text-gray-500 hover:bg-rose-500/10 hover:text-rose-700 dark:text-gray-400 dark:hover:text-rose-300 transition-colors"
+              >
                 Delete
               </button>
             </li>

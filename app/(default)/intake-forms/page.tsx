@@ -163,8 +163,13 @@ export default async function IntakeFormsListPage() {
                       <CopyChip value={fillUrl} label="Copy the form link" />
                     </div>
                   </div>
+                  {/* Edit is the daily action, so it leads at secondary weight;
+                      the occasional preview/kiosk hops demote to ghost. */}
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <ActionButton variant="secondary" size="sm" href={fillUrl} target="_blank">
+                    <ActionButton variant="secondary" size="sm" href={`/intake-forms/${t.id}`}>
+                      Edit
+                    </ActionButton>
+                    <ActionButton variant="ghost" size="sm" href={fillUrl} target="_blank">
                       Preview ↗
                     </ActionButton>
                     <ActionButton
@@ -175,9 +180,6 @@ export default async function IntakeFormsListPage() {
                       title="Fill-at-the-desk tablet mode — locked chrome, auto-resets for the next patient after each submission"
                     >
                       Kiosk ↗
-                    </ActionButton>
-                    <ActionButton variant="ghost" size="sm" href={`/intake-forms/${t.id}`}>
-                      Edit
                     </ActionButton>
                   </div>
                 </li>

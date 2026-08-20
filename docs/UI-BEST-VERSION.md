@@ -168,16 +168,16 @@ Already best-version: the message stream + receipts; per-row optimistic nav.
 Already best-version: CompletedHeartbeat.
 1. ~~Fill URL un-copyable gray mono~~ [BATCH 11: the new shared CopyChip primitive].
 2. ~~"No submissions yet" dimmed below floor~~ [BATCH 11].
-3. Three equal row buttons; Edit is the daily one (:163).
-4. Packets: ~~uncopyable URLs + dim empty state~~ [BATCH 11: CopyChip + contrast]; raw rose Delete remains.
-5. Submissions index actionless, unfiltered, silent 50-cap (submissions/page.tsx:42).
-6. Builder reorder = 10px ▲▼ text glyphs (form-builder.tsx:303,:441).
-7. Archive adjacent to Save in the sticky bar (:402).
-8. Remove-section deletes questions with no confirm (:338).
-9. No dirty-state indicator (:381).
-10. Preview hidden under lg (:415).
-11. Add-field native details dump, ungrouped (:723).
-12. Raw back link where TrailBack exists (:227).
+3. ~~Three equal row buttons~~ [BATCH 26: Edit leads at secondary weight; Preview/Kiosk demote to ghost].
+4. Packets: ~~uncopyable URLs + dim empty state~~ [BATCH 11: CopyChip + contrast]; ~~raw rose Delete~~ [BATCH 26: quiet-until-hover rose, the audiences recipe — the confirm was already there].
+5. ~~Silent 50-cap~~ [BATCH 26: honest footer line pointing at each form's full history]. Filters DEFERRED: the index is a glance surface; per-form pages carry the full lists.
+6. ~~Builder reorder = 10px ▲▼ text glyphs~~ [BATCH 14: 28px grid targets — verified wired].
+7. ~~Archive adjacent to Save~~ [BATCH 14: moved to a quiet footer above the bar — verified wired].
+8. ~~Remove-section no confirm~~ [BATCH 14: confirms with the question count; empty sections skip the dialog — verified wired].
+9. ~~No dirty-state indicator~~ [BATCH 26: the save bar says "Unsaved changes" (amber) whenever state differs from the last-saved shape; baseline resets on save].
+10. Preview hidden under lg. DEFERRED: the builder is a desk task — a stacked live preview on phones would double the scroll for a surface nobody edits there.
+11. ~~Add-field native details dump~~ — already a labeled button GRID behind a styled disclosure (scout stale); category grouping adds little at ten types.
+12. Raw back link where TrailBack exists. DEFERRED: TrailBack is trail-context/header-slot-bound (the form-builder lesson) — the plain link is the honest fit.
 
 ---
 

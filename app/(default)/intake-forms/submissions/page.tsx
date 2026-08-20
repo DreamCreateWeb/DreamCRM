@@ -85,6 +85,12 @@ export default async function RecentSubmissionsPage() {
               </li>
             ))}
           </ul>
+          {/* The list caps at 50 — say so instead of silently trimming. */}
+          {submissions.length >= 50 && (
+            <p className="border-t border-[color:var(--color-hairline)] px-5 py-2.5 text-xs text-gray-500 dark:text-gray-400">
+              Showing the latest 50 — each form&apos;s own page keeps its full history.
+            </p>
+          )}
         </div>
       )}
     </div>
