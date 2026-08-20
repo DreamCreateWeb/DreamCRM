@@ -8,6 +8,7 @@ import type { InboxPatientContext } from '@/lib/types/patient-context'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useToast } from '@/components/ui/toast'
 import {
   archiveThreadAction,
   markThreadAction,
@@ -34,6 +35,9 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
   const sp = useSearchParams()
   const [pendingAction, startTransition] = useTransition()
   const [replyOpenSignal, setReplyOpenSignal] = useState(0)
+  // Archive/trash close the pane immediately — the global toast is the
+  // only place the outcome can still be seen.
+  const toast = useToast()
 
   // Mark the whole thread as read on open. Fire-and-forget so it doesn't
   // block the render.
@@ -106,6 +110,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
   function handleArchive() {
     startTransition(async () => {
       await archiveThreadAction(t.threadId)
+      toast('Conversation archived')
       nav({ m: null })
       router.refresh()
     })
@@ -113,6 +118,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
   function handleTrash() {
     startTransition(async () => {
       await trashThreadAction(t.threadId)
+      toast('Moved to trash')
       nav({ m: null })
       router.refresh()
     })
@@ -131,7 +137,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
   }
 
   return (
-    <div className="grow overflow-y-auto bg-gray-50/40 dark:bg-gray-900/20">
+    <div className="grow overflow-y-auto bg-[color:var(--color-canvas)]">
       {/* Sticky toolbar — operates on the whole thread */}
       <div className="sticky top-0 z-10 bg-white/85 dark:bg-gray-900/85 backdrop-blur border-b border-gray-200 dark:border-gray-700/60">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-1.5">
@@ -144,26 +150,26 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
           </ActionButton>
           <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" aria-hidden="true" />
           <ToolbarButton onClick={handleStar} active={anyStarred} shortcut="S" pending={pendingAction}>
-            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill={anyStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill={anyStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
               <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" strokeLinejoin="round" />
             </svg>
             {anyStarred ? 'Starred' : 'Star'}
           </ToolbarButton>
           <ToolbarButton onClick={handleArchive} shortcut="E" pending={pendingAction}>
-            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="4" width="18" height="4" rx="1" />
               <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
             </svg>
             Archive
           </ToolbarButton>
           <ToolbarButton onClick={handleTrash} shortcut="#" pending={pendingAction}>
-            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M6 7l1 13a2 2 0 002 2h6a2 2 0 002-2l1-13" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Trash
           </ToolbarButton>
           <ToolbarButton onClick={handleToggleRead} shortcut="U" pending={pendingAction}>
-            <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               {anyUnread ? (
                 <>
                   <circle cx="12" cy="12" r="3.5" />
@@ -188,7 +194,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
           <div className="min-w-0">
             {/* Subject + intent */}
             <div className="flex items-start gap-2.5 mb-4">
-              <h1 className="text-[20px] leading-snug font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
+              <h1 className="text-xl leading-snug font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
                 {t.subject ?? '(no subject)'}
               </h1>
               <div className="pt-1"><IntentBadge intent={t.intent} /></div>
@@ -284,7 +290,7 @@ function MessageCard({
         <Avatar name={senderName} />
         <div className="min-w-0 grow">
           <div className="flex items-baseline gap-1.5 min-w-0">
-            <span className="text-[13px] font-medium text-gray-900 dark:text-gray-100 truncate">
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
               {senderName}
             </span>
             {message.fromName && (
@@ -302,7 +308,7 @@ function MessageCard({
               {message.ccEmails.length > 0 && <> · cc {message.ccEmails.join(', ')}</>}
             </div>
           ) : (
-            <div className="text-[12px] text-gray-500 dark:text-gray-400 truncate">
+            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
               {message.snippet ?? message.bodyText?.slice(0, 140) ?? ''}
             </div>
           )}
@@ -313,7 +319,7 @@ function MessageCard({
           {bodyHtml ? (
             <EmailIframe html={bodyHtml} />
           ) : (
-            <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-gray-800 dark:text-gray-100">
+            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-gray-800 dark:text-gray-100">
               {message.bodyText ?? '(empty body)'}
             </pre>
           )}
@@ -323,19 +329,20 @@ function MessageCard({
   )
 }
 
+/** Quiet toolbar action. The pane's ONE primary is the Reply ActionButton —
+ *  this deliberately has no primary skin, so a second teal button can't
+ *  creep into the toolbar. */
 function ToolbarButton({
   children,
   onClick,
   active,
   pending,
-  variant = 'default',
   shortcut,
 }: {
   children: React.ReactNode
   onClick: () => void
   active?: boolean
   pending?: boolean
-  variant?: 'default' | 'primary'
   shortcut?: string
 }) {
   return (
@@ -344,12 +351,10 @@ function ToolbarButton({
       disabled={pending}
       title={shortcut ? `Shortcut: ${shortcut}` : undefined}
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors',
-        variant === 'primary'
-          ? 'bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300'
-          : active
-            ? 'text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10'
-            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800',
+        'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',
+        active
+          ? 'text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10'
+          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-gray-100 dark:hover:bg-gray-800',
         pending && 'opacity-50 cursor-wait',
       )}
     >
@@ -370,7 +375,7 @@ function Avatar({ name }: { name: string }) {
     'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
   ]
   return (
-    <div className={cn('w-9 h-9 rounded-full flex items-center justify-center font-semibold text-[13px] shrink-0', colors[hue])}>
+    <div className={cn('w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm shrink-0', colors[hue])}>
       {initial}
     </div>
   )

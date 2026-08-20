@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { TONE_PILL } from '@/lib/ui/encodings'
 import type { InboxTerminology } from '@/lib/inbox-terminology'
 import { INTENT_COLORS, INTENT_TONE } from './intent-badge'
@@ -57,30 +58,30 @@ export default function FilterChips({
 
   return (
     <div className="px-4 pt-3 pb-2 border-b border-gray-100 dark:border-gray-700/40 space-y-2">
-      {/* View toggles row */}
+      {/* View toggles row — the shared FilterChip (href mode), not a local
+          pill recipe. The intent row below keeps its tone-colored chips on
+          purpose (they encode the tone contract, not selection). */}
       <div className="flex items-center gap-1.5 text-xs">
-        <Chip
-          label="All"
-          count={totalCount}
+        <FilterChip
           active={!unreadOnly && !starredOnly && !patientsOnly}
           href={href({ view: null, patients: null })}
-        />
-        <Chip
-          label="Unread"
-          count={unreadCount}
+          count={totalCount}
+        >
+          All
+        </FilterChip>
+        <FilterChip
           active={unreadOnly}
           href={href({ view: unreadOnly ? null : 'unread', patients: null })}
-        />
-        <Chip
-          label="Starred"
-          active={starredOnly}
-          href={href({ view: starredOnly ? null : 'starred', patients: null })}
-        />
-        <Chip
-          label={terminology.Contacts}
-          active={patientsOnly}
-          href={href({ patients: patientsOnly ? null : '1', view: null })}
-        />
+          count={unreadCount}
+        >
+          Unread
+        </FilterChip>
+        <FilterChip active={starredOnly} href={href({ view: starredOnly ? null : 'starred', patients: null })}>
+          Starred
+        </FilterChip>
+        <FilterChip active={patientsOnly} href={href({ patients: patientsOnly ? null : '1', view: null })}>
+          {terminology.Contacts}
+        </FilterChip>
       </div>
 
       {/* Intent row — categories sourced from the tone contract */}
@@ -115,22 +116,3 @@ export default function FilterChips({
   )
 }
 
-function Chip({ label, count, active, href }: { label: string; count?: number; active: boolean; href: string }) {
-  return (
-    <Link
-      href={href}
-      aria-pressed={active}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium transition-colors',
-        active
-          ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
-          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
-      )}
-    >
-      {label}
-      {typeof count === 'number' && (
-        <span className={cn('tabular-nums', active ? 'opacity-80' : 'opacity-60')}>{count}</span>
-      )}
-    </Link>
-  )
-}

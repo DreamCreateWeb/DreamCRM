@@ -160,7 +160,7 @@ export default function MailboxSidebar({
         flyoutOpen ? 'translate-x-0' : '-translate-x-full',
       )}
     >
-      <div className="sticky top-16 bg-white dark:bg-gray-900 overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-gray-200 dark:border-gray-700/60 md:w-[22rem] xl:w-[24rem] h-[calc(100dvh-64px)]">
+      <div className="sticky top-16 bg-[color:var(--color-surface-1)] overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-gray-200 dark:border-gray-700/60 md:w-[22rem] xl:w-[24rem] h-[calc(100dvh-64px)]">
         {selection.count > 0 ? (
           <BulkActionBar visibleIds={visibleThreadIds} activeThreadId={activeThreadId} />
         ) : (
@@ -217,6 +217,13 @@ export default function MailboxSidebar({
                 ? 'Try clearing the filters to see the rest of your inbox.'
                 : 'New email lands here the moment it arrives.'
             }
+            action={
+              unreadOnly || starredOnly || patientsOnly ? (
+                <ActionButton variant="secondary" size="sm" href={pathname}>
+                  Clear filters
+                </ActionButton>
+              ) : undefined
+            }
           />
         ) : (
           <ul>
@@ -237,8 +244,10 @@ export default function MailboxSidebar({
                         {isActive && (
                           <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-teal-500 z-10" />
                         )}
+                        {/* Unread is amber everywhere (the Messages contract) —
+                            emerald here read as "good news" instead of "waiting". */}
                         {!t.isRead && !isActive && (
-                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-500 z-10" />
+                          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-amber-500 z-10" />
                         )}
                         <div
                           className={cn(
@@ -250,12 +259,14 @@ export default function MailboxSidebar({
                                 : 'hover:bg-gray-500/[0.06]',
                           )}
                         >
+                          {/* Always visible (touch has no hover) — quiet until
+                              a selection starts, then full strength. */}
                           <div
                             className={cn(
                               'shrink-0 self-center transition-opacity',
                               selection.count > 0 || isChecked
                                 ? 'opacity-100'
-                                : 'opacity-0 group-hover:opacity-100',
+                                : 'opacity-50 group-hover:opacity-100',
                             )}
                           >
                             <Checkbox
@@ -287,7 +298,7 @@ export default function MailboxSidebar({
                                     className={cn(
                                       'text-xs tabular-nums rounded-full px-1.5 py-0.5 leading-none shrink-0',
                                       t.unreadCount > 0
-                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-medium'
+                                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-medium'
                                         : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
                                     )}
                                     title={`${t.totalCount} messages${t.unreadCount > 0 ? `, ${t.unreadCount} unread` : ''}`}
@@ -382,7 +393,7 @@ function SidebarHeader({
           className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-60"
           title="Check for new mail"
         >
-          {syncing ? 'syncing…' : 'refresh'}
+          {syncing ? 'Syncing…' : 'Refresh'}
         </button>
         <div className="ml-auto">
           {/* The sidebar's single primary action. */}
