@@ -13,6 +13,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 import { SettingsSection } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
 
@@ -106,6 +107,9 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<Role>('member')
   const [pending, startTransition] = useTransition()
+  // Which row's action is in flight — shared pending disables everything,
+  // but only the pressed button should spin.
+  const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const confirm = useConfirm()
 
@@ -131,17 +135,21 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
 
   async function handleCancel(id: string, addr: string) {
     if (!(await confirm({ title: `Cancel invitation for ${addr}?`, confirmLabel: 'Cancel invitation', danger: true }))) return
+    setActive(`cancel-${id}`)
     startTransition(async () => {
       try {
         await cancelTeamInvitation(id)
         setToast({ tone: 'ok', message: `Invitation to ${addr} cancelled.` })
       } catch (err) {
         setToast({ tone: 'urgent', message: (err as Error).message })
+      } finally {
+        setActive(null)
       }
     })
   }
 
   async function handleResend(id: string, addr: string) {
+    setActive(`resend-${id}`)
     startTransition(async () => {
       try {
         const res = await resendTeamInvitation(id)
@@ -152,6 +160,8 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
         )
       } catch (err) {
         setToast({ tone: 'urgent', message: (err as Error).message })
+      } finally {
+        setActive(null)
       }
     })
   }
@@ -166,12 +176,15 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
       }))
     )
       return
+    setActive(`remove-${userId}`)
     startTransition(async () => {
       try {
         await removeTeamMember(userId)
         setToast({ tone: 'ok', message: `${name} removed from the team.` })
       } catch (err) {
         setToast({ tone: 'urgent', message: (err as Error).message })
+      } finally {
+        setActive(null)
       }
     })
   }
@@ -236,7 +249,8 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRemove(m.userId, m.name ?? m.email)}
-                              pending={pending}
+                              pending={active === `remove-${m.userId}`}
+                              disabled={pending}
                               className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
                             >
                               Remove
@@ -280,7 +294,7 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                               <span aria-hidden>·</span>
                               <span
                                 className={`font-mono-num tabular-nums ${
-                                  exp.soon ? 'text-amber-700 dark:text-amber-400 font-medium' : ''
+                                  exp.soon ? `${TONE_TEXT.warn} font-medium` : ''
                                 }`}
                               >
                                 {exp.text}
@@ -293,7 +307,8 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleResend(inv.id, inv.email)}
-                                pending={pending}
+                                pending={active === `resend-${inv.id}`}
+                                disabled={pending}
                                 className="text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200"
                               >
                                 Resend
@@ -302,7 +317,8 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleCancel(inv.id, inv.email)}
-                                pending={pending}
+                                pending={active === `cancel-${inv.id}`}
+                                disabled={pending}
                                 className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
                               >
                                 Cancel invite

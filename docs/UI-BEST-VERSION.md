@@ -304,16 +304,16 @@ Already best-version: CompletedHeartbeat.
 3. count7d whispers at 12px (:69).
 
 ### Settings home
-1. No tile carries state (Team invites, Billing trial…) (settings-home.tsx:106).
-2. Search results unannounced/uncounted (:72).
-3. Clear-search 20px target (:58).
-4. No-match bare sentence (:86).
+1. ~~No tile carries state~~ [BATCH 27: server-fetched TileBadge map — Team shows "N invites pending", Billing shows "Trial — N days left"; best-effort, quiet when nothing's live].
+2. ~~Search results unannounced/uncounted~~ [BATCH 27: role=status "N matches" line above the grid].
+3. ~~Clear-search 20px target~~ [BATCH 27: 28px].
+4. ~~No-match bare sentence~~ [BATCH 27: names the query + an inline clear-the-search action].
 
 ### Team
 1. ~~Default tab = Invite~~ [BATCH 13: Members → Pending → Invite].
 2. ~~Pending count invisible~~ [BATCH 13: "Pending (N)" in the tab label].
-3. Shared pending spins every row (:108,:264,:333).
-4. Raw amber vs TONE_TEXT.warn (:255).
+3. ~~Shared pending spins every row~~ [BATCH 27: per-action keys (remove-/resend-/cancel-id) — only the pressed button spins, the rest disable].
+4. ~~Raw amber vs TONE_TEXT.warn~~ [BATCH 27: the expiry-soon text rides the token].
 
 ### Practice — the SaveBar is the model.
 1. ~~Hoist SaveBar~~ [BATCH 13: components/ui/save-bar.tsx; practice + design adopted; portal Profile still open].

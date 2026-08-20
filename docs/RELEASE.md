@@ -1476,6 +1476,17 @@ Deferred with reasons: a stacked mobile preview (desk task), TrailBack
 in the back-link slot (context-bound), and submissions filters (glance
 surface; per-form pages carry the full lists).
 
+**Batch 27 — Settings home + Team:** the settings tiles finally carry
+their live state — a server-fetched badge map puts "N invites pending"
+on Team and "Trial — N days left" on Billing (best-effort, quiet when
+nothing's live) · settings search announces its result count
+(role=status), the clear-✕ rises to a 28px target, and the no-match
+state names the query and hands over an inline clear-the-search
+action · on Team, the shared pending stops spinning every row — each
+Remove/Resend/Cancel gets its own key so only the pressed button spins
+while the rest disable — and the invite-expiring-soon text rides
+TONE_TEXT.warn instead of a hand-mixed amber.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

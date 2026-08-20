@@ -4,7 +4,15 @@ import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { searchSettings, settingsEntryHref } from './search-index'
 import { settingsNavGroups, iconForHref, type SettingsTenant } from './settings-nav'
+import { StatusPill } from '@/components/ui/status-pill'
+import type { Tone } from '@/lib/ui/encodings'
 import type { ReactNode } from 'react'
+
+/** Live state a tile can carry (an invite waiting, a trial running). */
+export interface TileBadge {
+  tone: Tone
+  label: string
+}
 
 /**
  * The Settings home — a calm, grouped card grid that IS the navigation. Landing
@@ -12,7 +20,14 @@ import type { ReactNode } from 'react'
  * as tiles you click into. One subtle aura header up top is the single brand
  * moment; the tiles are etched `.v2-card-interactive` surfaces.
  */
-export default function SettingsHome({ tenantType }: { tenantType: SettingsTenant }) {
+export default function SettingsHome({
+  tenantType,
+  badges = {},
+}: {
+  tenantType: SettingsTenant
+  /** Per-tile live state, keyed by href (server-fetched, best-effort). */
+  badges?: Record<string, TileBadge>
+}) {
   const groups = settingsNavGroups(tenantType)
   const [query, setQuery] = useState('')
   const searching = query.trim().length > 0
@@ -59,7 +74,7 @@ export default function SettingsHome({ tenantType }: { tenantType: SettingsTenan
               type="button"
               onClick={() => { setQuery(''); searchRef.current?.focus() }}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              className="absolute right-1 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
               <svg className="h-3 w-3 fill-current" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M9.4 8l4.3-4.3a1 1 0 1 0-1.4-1.4L8 6.6 3.7 2.3a1 1 0 0 0-1.4 1.4L6.6 8l-4.3 4.3a1 1 0 1 0 1.4 1.4L8 9.4l4.3 4.3a1 1 0 0 0 1.4-1.4L9.4 8Z" />
@@ -70,21 +85,39 @@ export default function SettingsHome({ tenantType }: { tenantType: SettingsTenan
       </div>
 
       {searching ? (
-        results.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {results.map((e) => (
-              <Tile
-                key={`${settingsEntryHref(e)}-${e.label}`}
-                href={settingsEntryHref(e)}
-                icon={iconForHref(e.href)}
-                label={e.label}
-                desc={e.page}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 dark:text-gray-400">No settings match “{query}”.</p>
-        )
+        <>
+          {/* Announced count so keyboard/AT users hear the results change. */}
+          <p role="status" className="mb-3 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+            {results.length === 0
+              ? `No settings match “${query}”`
+              : `${results.length} match${results.length === 1 ? '' : 'es'}`}
+          </p>
+          {results.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {results.map((e) => (
+                <Tile
+                  key={`${settingsEntryHref(e)}-${e.label}`}
+                  href={settingsEntryHref(e)}
+                  icon={iconForHref(e.href)}
+                  label={e.label}
+                  desc={e.page}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Try a different word — or{' '}
+              <button
+                type="button"
+                onClick={() => { setQuery(''); searchRef.current?.focus() }}
+                className="font-medium text-teal-700 dark:text-teal-400 hover:underline"
+              >
+                clear the search
+              </button>{' '}
+              to browse every area.
+            </p>
+          )}
+        </>
       ) : (
         groups.map((group) => (
           <section key={group.title} className="mb-8">
@@ -93,7 +126,14 @@ export default function SettingsHome({ tenantType }: { tenantType: SettingsTenan
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {group.items.map((item) => (
-                <Tile key={item.href} href={item.href} icon={item.icon} label={item.label} desc={item.desc} />
+                <Tile
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                  desc={item.desc}
+                  badge={badges[item.href]}
+                />
               ))}
             </div>
           </section>
@@ -103,7 +143,19 @@ export default function SettingsHome({ tenantType }: { tenantType: SettingsTenan
   )
 }
 
-function Tile({ href, icon, label, desc }: { href: string; icon: ReactNode; label: string; desc: string }) {
+function Tile({
+  href,
+  icon,
+  label,
+  desc,
+  badge,
+}: {
+  href: string
+  icon: ReactNode
+  label: string
+  desc: string
+  badge?: TileBadge
+}) {
   return (
     <Link href={href} className="v2-card-interactive flex items-start gap-3 p-4">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--r-md)] bg-teal-500/10 text-teal-700 dark:text-teal-300">
@@ -112,7 +164,10 @@ function Tile({ href, icon, label, desc }: { href: string; icon: ReactNode; labe
         </svg>
       </span>
       <span className="min-w-0">
-        <span className="block text-sm font-semibold text-gray-800 dark:text-gray-100">{label}</span>
+        <span className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+          {label}
+          {badge && <StatusPill tone={badge.tone} label={badge.label} />}
+        </span>
         <span className="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">{desc}</span>
       </span>
     </Link>
