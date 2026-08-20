@@ -1203,6 +1203,32 @@ shadow. All four personas' core journeys now run in a real browser:
 stranger→clinic staff (signup/onboarding/patients), patient signed-in
 (portal), patient tokenized (/c, /n), public visitor (site + booking).
 
+### The UI Best-Version program (2026-08-19, owner directive)
+
+Owner: *"look through the UI, piece by piece, component by component, page
+by page — what is this now, what's the best version of this?"* Three scouts
+walked every surface cluster against DESIGN-SYSTEM v3 + the doctrine; the
+full ranked backlog (~150 findings incl. two system-level ones: the
+never-defined `--color-brand-600` token and the ~35 hand-rolled pending
+ternaries) lives in **`docs/UI-BEST-VERSION.md`** — the standing program
+doc. Batches take the top of that list every turn.
+
+**Batch 10 — the Daily cluster's top findings:** the Approve button (the
+product's most-pressed control) was a raw `<button>` painting a fallback
+sky because its brand token never existed — now `ActionButton primary`
+with the dream gradient + width-stable spinner (Edit-first → ghost) · the
+Overview attention cards' headline numbers are now the links their own
+subtitle promises, and all four dead preview lists (unconfirmed, unmarked,
+inquiries, follow-ups due) open the visit drawer / their lists · the
+Follow-ups board split its one shared transition (a filter click no longer
+freezes every tick-box), gained the PendingVeil, and its filtered empty
+state hands over a real "Clear filters" button · Leads gained SearchInput
+(clear-✕ clears the live query), the PendingVeil, and keyboard-openable
+rows (role=button + Enter/Space); the lead drawer's archive sub-panel no
+longer escapes the drawer to cover the whole viewport (missing `relative`)
+· My Day's skeleton now matches the page width (no more arrival reflow)
+and the tick-off circle is double-tap-proof with a hover check preview.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

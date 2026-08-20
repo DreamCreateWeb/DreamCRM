@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FlashToast } from '@/components/ui/flash-toast'
+import { ActionButton } from '@/components/ui/action-button'
 import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
 import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
 import { SMS_ENTITY_TYPES } from '@/lib/sms-registration'
@@ -1152,24 +1153,21 @@ function ProposalCard({
       )}
 
       <div className="mt-3 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => decide('approve')}
-          disabled={pending}
-          className="px-4 py-2 rounded-lg text-sm font-semibold bg-[color:var(--color-brand-600,theme(colors.sky.600))] text-white hover:opacity-90 disabled:opacity-50"
-        >
-          {pending
-            ? 'On it…'
-            : proposal.capability === 'setup_hours'
-              ? 'Yes — that’s my week'
-              : proposal.capability === 'setup_chairs'
-                ? 'Save'
-                : proposal.capability === 'setup_booking_mode'
-                  ? 'Save my choice'
-                  : proposal.capability === 'setup_texting'
-                    ? 'Start my registration'
-                    : 'Approve — send it'}
-        </button>
+        {/* The product's most-pressed button, on the primitive it deserves:
+            the old raw <button> painted var(--color-brand-600) — a token that
+            doesn't exist — so it silently rendered the fallback sky, and its
+            'On it…' ternary jumped the width mid-press. */}
+        <ActionButton variant="primary" onClick={() => decide('approve')} pending={pending}>
+          {proposal.capability === 'setup_hours'
+            ? 'Yes — that’s my week'
+            : proposal.capability === 'setup_chairs'
+              ? 'Save'
+              : proposal.capability === 'setup_booking_mode'
+                ? 'Save my choice'
+                : proposal.capability === 'setup_texting'
+                  ? 'Start my registration'
+                  : 'Approve — send it'}
+        </ActionButton>
         {proposal.capability === 'setup_hours' && (
           <a
             href="/settings/clinic"
@@ -1179,14 +1177,9 @@ function ProposalCard({
           </a>
         )}
         {!isSetup && (
-          <button
-            type="button"
-            onClick={() => setEditing((v) => !v)}
-            disabled={pending}
-            className="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60 disabled:opacity-50"
-          >
+          <ActionButton variant="ghost" onClick={() => setEditing((v) => !v)} pending={pending}>
             {editing ? 'Done editing' : 'Edit first'}
-          </button>
+          </ActionButton>
         )}
         <button
           type="button"

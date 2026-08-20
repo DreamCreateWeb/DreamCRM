@@ -470,16 +470,23 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             emptyCopy="Every booking in the next 48h is confirmed. Nice."
           >
             {data.unconfirmed.preview.map((r) => (
-              <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
-                <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
-                  {r.startTime.toLocaleString('en-US', {
-                    weekday: 'short',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    timeZone: data.timeZone,
-                  })}
-                </span>
+              <li key={r.id} className="py-1.5">
+                {/* A name is a door everywhere else on this page — this one
+                    opens the visit's own drawer, where the remedy lives. */}
+                <Link
+                  href={`/appointments?appt=${r.id}`}
+                  className="flex items-center justify-between text-sm hover:underline"
+                >
+                  <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
+                    {r.startTime.toLocaleString('en-US', {
+                      weekday: 'short',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      timeZone: data.timeZone,
+                    })}
+                  </span>
+                </Link>
               </li>
             ))}
           </AttentionCard>
@@ -500,13 +507,18 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               emptyCopy=""
             >
               {data.unmarkedPastVisits.preview.map((r) => (
-                <li key={r.id} className="flex items-center justify-between text-sm py-1.5">
-                  <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
-                    {/* Month + day, not bare weekday — this card spans 30 days,
-                        so "Tue 2:00 PM" is ambiguous across four Tuesdays. */}
-                    {formatClinicDayTime(r.startTime, data.timeZone)}
-                  </span>
+                <li key={r.id} className="py-1.5">
+                  <Link
+                    href={`/appointments?appt=${r.id}`}
+                    className="flex items-center justify-between text-sm hover:underline"
+                  >
+                    <span className="truncate text-gray-700 dark:text-gray-200">{r.patientName}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
+                      {/* Month + day, not bare weekday — this card spans 30 days,
+                          so "Tue 2:00 PM" is ambiguous across four Tuesdays. */}
+                      {formatClinicDayTime(r.startTime, data.timeZone)}
+                    </span>
+                  </Link>
                 </li>
               ))}
             </AttentionCard>
@@ -569,11 +581,13 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             emptyCopy="No new inquiries waiting. Anyone who fills out your contact form lands here."
           >
             {data.newLeads.preview.map((l) => (
-              <li key={l.id} className="flex items-center justify-between text-sm py-1.5">
-                <span className="truncate text-gray-700 dark:text-gray-200">{l.name}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
-                  {leadAgeLabel(l.ageHours)}
-                </span>
+              <li key={l.id} className="py-1.5">
+                <Link href="/leads?status=new" className="flex items-center justify-between text-sm hover:underline">
+                  <span className="truncate text-gray-700 dark:text-gray-200">{l.name}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 tabular-nums">
+                    {leadAgeLabel(l.ageHours)}
+                  </span>
+                </Link>
               </li>
             ))}
           </AttentionCard>
@@ -611,11 +625,13 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
               emptyCopy="Nothing due today. Add a follow-up from any patient to never drop a callback again."
             >
               {data.followups.preview.map((f) => (
-                <li key={f.id} className="flex items-center justify-between text-sm py-1.5">
-                  <span className="truncate text-gray-700 dark:text-gray-200">{f.title}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 truncate max-w-[40%]">
-                    {f.patientName}
-                  </span>
+                <li key={f.id} className="py-1.5">
+                  <Link href="/followups" className="flex items-center justify-between text-sm hover:underline">
+                    <span className="truncate text-gray-700 dark:text-gray-200">{f.title}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0 ml-3 truncate max-w-[40%]">
+                      {f.patientName}
+                    </span>
+                  </Link>
                 </li>
               ))}
             </AttentionCard>
@@ -845,10 +861,23 @@ function AttentionCard({
         {title}
       </p>
       <div className="flex items-baseline gap-2 mb-2">
-        {/* Zero keeps full contrast — an empty queue is information, not decoration. */}
-        <span className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">
-          {count}
-        </span>
+        {/* Zero keeps full contrast — an empty queue is information, not decoration.
+            The page's own subtitle promises "every number opens the list behind
+            it", so when a CTA exists the NUMBER is the link, not just the small
+            ghost line below (the KpiStat recipe). */}
+        {cta ? (
+          <Link
+            href={cta.href}
+            className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 rounded-sm hover:text-teal-700 dark:hover:text-teal-300 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+            aria-label={`${count} ${countSuffix}`}
+          >
+            {count}
+          </Link>
+        ) : (
+          <span className="text-3xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100">
+            {count}
+          </span>
+        )}
         <span className="text-xs text-gray-500 dark:text-gray-400">{countSuffix}</span>
       </div>
       {count === 0 ? (

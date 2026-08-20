@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useOptimistic, useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus, LeadCounts, LeadsPerDayPoint } from '@/lib/services/leads'
 import Sparkline from '@/components/ui/sparkline'
+import { SearchInput } from '@/components/ui/search-input'
+import { PendingVeil } from '@/components/ui/pending-veil'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EncodingLegend } from '@/components/ui/encoding-legend'
@@ -103,7 +105,7 @@ export default function LeadsView({
   const [openId, setOpenId] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState(search)
   const [toast, setToast] = useState<string | null>(null)
-  const [_pending, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
 
   // Optimistic status flips: the row updates the instant you act in the drawer,
   // then the action + revalidation reconcile (or revert, with a toast). In a
@@ -247,12 +249,15 @@ export default function LeadsView({
             )
           })}
           <form onSubmit={submitSearch} className="flex-1 min-w-[200px] ml-auto">
-            <input
-              type="text"
-              placeholder="Search name, email, phone, message"
+            <SearchInput
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="form-input w-full text-sm"
+              onChange={setSearchInput}
+              onClear={() => {
+                setSearchInput('')
+                setParam('q', null)
+              }}
+              placeholder="Search name, email, phone, message"
+              ariaLabel="Search inquiries"
             />
           </form>
           {showFlow && (
@@ -275,7 +280,8 @@ export default function LeadsView({
       {visibleRows.length === 0 ? (
         <LeadsEmpty status={status} />
       ) : (
-        <>
+        <div className="relative">
+          {isPending && <PendingVeil />}
           <div className="flex items-center gap-2 mb-2 px-1">
             <input
               type="checkbox"
@@ -299,7 +305,7 @@ export default function LeadsView({
               />
             ))}
           </ul>
-        </>
+        </div>
       )}
 
       {/* ── Sticky bulk triage bar ───────────────────────────────────── */}
@@ -339,7 +345,18 @@ function LeadRowCard({
   return (
     <li
       onClick={onOpen}
-      className={`v2-card-interactive px-4 py-3 cursor-pointer border-l-4 ${agingBorderClass(tier)} ${
+      // A row IS a button (it opens the drawer) — say so to the keyboard and
+      // to assistive tech; Enter/Space both open, and the checkbox keeps its
+      // own stopPropagation.
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className={`v2-card-interactive px-4 py-3 cursor-pointer border-l-4 focus-visible:outline-2 focus-visible:outline-offset-2 ${agingBorderClass(tier)} ${
         selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
       }`}
     >
