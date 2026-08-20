@@ -376,16 +376,16 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           hours — not just the PMS like the old banner. */}
       {data.readinessAttention.length > 0 && (
         <section className="mb-6">
-          <div className="rounded-[var(--r-lg)] border p-4 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30">
+          <div className="rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4">
             <div className="flex items-start gap-3">
               <div
-                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300"
                 aria-hidden="true"
               >
                 !
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                   {data.readinessAttention.length === 1
                     ? data.readinessAttention[0].label
                     : `${data.readinessAttention.length} things need your attention`}
@@ -417,15 +417,15 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           themselves. Same banner language as the sync-health notice above. */}
       {data.siteHealth && (
         <section className="mb-6">
-          <div className="rounded-[var(--r-lg)] border p-4 flex items-start gap-3 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30">
+          <div className="rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4 flex items-start gap-3">
             <div
-              className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base bg-amber-100 dark:bg-amber-500/20"
+              className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base bg-amber-500/15"
               aria-hidden="true"
             >
               🌐
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                 {data.siteHealth.title}
               </p>
               <p className="text-xs mt-0.5 text-amber-800/90 dark:text-amber-300/90">
@@ -434,7 +434,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
             </div>
             <Link
               href={data.siteHealth.href}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0 self-center bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:hover:bg-amber-500/30"
+              className="text-xs font-medium px-3 py-1.5 rounded-lg shrink-0 self-center bg-amber-500/15 text-amber-800 hover:bg-amber-500/25 dark:text-amber-200"
             >
               {data.siteHealth.linkLabel}
             </Link>
@@ -817,24 +817,18 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
         </div>
       </section>
 
-      {/* ── Bottom — reviews (live) + the one honest coming-soon ─────────── */}
+      {/* ── Bottom — reviews (live). The old SMS "coming soon" card was
+          permanent dead chrome holding half the row; the promise demotes to a
+          one-line footnote inside the Reviews tile and still retires itself
+          the moment this clinic's texting goes live (the honesty flip owns
+          any live SMS surface). */}
       <section>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Reviews is LIVE — a real 30-day count, not a placeholder. */}
           <ReviewsReceivedCard
             completed={data.reviewsReceived.completed30d}
             sent={data.reviewsReceived.sent30d}
+            smsComingSoon={!data.smsLive}
           />
-          {/* Honest by construction: "coming soon" renders only while it IS
-              coming — the moment this clinic's texting goes live (A2P approved
-              + number provisioned) the tile retires itself; the honesty flip
-              owns any live SMS surface. */}
-          {!data.smsLive && (
-            <ComingSoonCard
-              title="SMS replies"
-              blurb="Two-way patient text. Replies land in your inbox."
-            />
-          )}
         </div>
       </section>
     </div>
@@ -956,26 +950,21 @@ function TodayChairRow({ appt, timeZone }: { appt: TodayAppointmentRow; timeZone
   )
 }
 
-function ComingSoonCard({ title, blurb }: { title: string; blurb: string }) {
-  return (
-    <div className="v2-well border border-dashed border-[color:var(--color-hairline-strong)] p-4">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          {title}
-        </span>
-        <span className="text-xs font-bold uppercase tracking-wider bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
-          Coming soon
-        </span>
-      </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{blurb}</p>
-    </div>
-  )
-}
 
 // Reviews is LIVE — a real 30-day count off the review funnel, with a link
 // into the received-reviews surface. Replaces the old "coming soon" Reviews
 // placeholder (Reviews & Reputation v2 shipped).
-function ReviewsReceivedCard({ completed, sent }: { completed: number; sent: number }) {
+function ReviewsReceivedCard({
+  completed,
+  sent,
+  smsComingSoon = false,
+}: {
+  completed: number
+  sent: number
+  /** True until this clinic's texting goes live — a one-line footnote, not a
+   *  card of permanent dead chrome. */
+  smsComingSoon?: boolean
+}) {
   return (
     <div className="v2-card p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
@@ -993,6 +982,11 @@ function ReviewsReceivedCard({ completed, sent }: { completed: number; sent: num
       >
         {completed > 0 ? 'Read reviews & feature them' : 'Open Reviews'} →
       </Link>
+      {smsComingSoon && (
+        <p className="mt-3 border-t border-[color:var(--color-hairline)] pt-2 text-xs text-gray-500 dark:text-gray-400">
+          Two-way patient texting is coming — replies will land in your inbox.
+        </p>
+      )}
     </div>
   )
 }

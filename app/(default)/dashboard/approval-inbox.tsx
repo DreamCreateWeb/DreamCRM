@@ -230,6 +230,40 @@ export default function ApprovalInbox({
     return null
   }
 
+  /** The previous undecided card — the same cycle walked backwards. */
+  function prevUndecidedBefore(id: string): string | null {
+    const i = proposals.findIndex((p) => p.id === id)
+    for (let k = 1; k <= proposals.length; k++) {
+      const p = proposals[(i - k + proposals.length * k) % proposals.length]
+      if (!gone.has(p.id)) return p.id
+    }
+    return null
+  }
+
+  // Keyboard path through the stack: →/n skip forward, ←/p go back — the
+  // same provably-never-a-decline cycling as the Skip button. Silent while
+  // typing (the cards carry editable drafts) and in the see-all grid.
+  useEffect(() => {
+    if (viewAll || proposals.length < 2) return
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      if (el?.closest('input, textarea, select, [contenteditable="true"]')) return
+      const cur = visible.find((p) => p.id === focusId) ?? visible[0] ?? null
+      if (!cur) return
+      if (e.key === 'ArrowRight' || e.key === 'n') {
+        e.preventDefault()
+        setFocusId(nextUndecidedAfter(cur.id))
+      } else if (e.key === 'ArrowLeft' || e.key === 'p') {
+        e.preventDefault()
+        setFocusId(prevUndecidedBefore(cur.id))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewAll, proposals, gone, focusId])
+
   if (visible.length === 0) {
     // The strip stays even with no cards — a granted capability produces
     // no cards, and the way back to asking must never disappear with them.
@@ -838,7 +872,7 @@ function ProposalCard({
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               maxLength={200}
-              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              className="form-input w-full text-sm"
               aria-label="Edit the email subject"
             />
           ) : (
@@ -857,7 +891,7 @@ function ProposalCard({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={Math.min(10, Math.max(4, body.split('\n').length + 1))}
-              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 p-3 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              className="form-textarea w-full text-sm"
               aria-label="Edit the drafted text"
             />
             {tokens && (
@@ -975,7 +1009,7 @@ function ProposalCard({
             value={chairsAnswer}
             onChange={(e) => setChairsAnswer(e.target.value)}
             disabled={pending}
-            className="w-20 text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+            className="form-input w-20 text-sm"
           />
         </div>
       )}
@@ -993,7 +1027,7 @@ function ProposalCard({
               value={texting.ein}
               onChange={(e) => setTexting((t) => ({ ...t, ein: e.target.value }))}
               disabled={pending}
-              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              className="form-input w-full text-sm"
             />
           </div>
           <div>
@@ -1005,7 +1039,7 @@ function ProposalCard({
               value={texting.entityType}
               onChange={(e) => setTexting((t) => ({ ...t, entityType: e.target.value }))}
               disabled={pending}
-              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              className="form-select w-full text-sm"
             >
               <option value="" disabled>
                 Pick one…
@@ -1028,7 +1062,7 @@ function ProposalCard({
               value={texting.brandContactName}
               onChange={(e) => setTexting((t) => ({ ...t, brandContactName: e.target.value }))}
               disabled={pending}
-              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              className="form-input w-full text-sm"
             />
           </div>
           <div>
@@ -1042,7 +1076,7 @@ function ProposalCard({
               value={texting.brandContactEmail}
               onChange={(e) => setTexting((t) => ({ ...t, brandContactEmail: e.target.value }))}
               disabled={pending}
-              className="w-full text-sm rounded-lg border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-900/40 px-3 py-2 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-sky-700"
+              className="form-input w-full text-sm"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               The carriers email this person a verification link — it needs to be an address at your practice, not ours.

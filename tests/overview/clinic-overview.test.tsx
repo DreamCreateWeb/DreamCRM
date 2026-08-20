@@ -684,8 +684,10 @@ describe('Bottom strip — Reviews (live) + the honest coming-soon', () => {
     expect(screen.getByText(/from 7 requests sent/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Read reviews & feature them/i })).toBeInTheDocument()
     expect(screen.queryByText('Reviews & reputation')).not.toBeInTheDocument()
-    // SMS stays an honest coming-soon (not wired yet).
-    expect(screen.getByText('SMS replies')).toBeInTheDocument()
+    // SMS coming-soon demoted to a one-line footnote inside the Reviews card
+    // (batch 29) — no more permanent dead ComingSoonCard chrome.
+    expect(screen.queryByText('SMS replies')).not.toBeInTheDocument()
+    expect(screen.getByText(/Two-way patient texting is coming/)).toBeInTheDocument()
   })
 })
 
