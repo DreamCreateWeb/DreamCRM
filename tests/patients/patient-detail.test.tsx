@@ -90,12 +90,13 @@ describe('PatientDetail header', () => {
     expect(screen.getByRole('button', { name: /Send message/i })).toBeInTheDocument()
     // "Book appointment" opens an in-place drawer (not a navigation link).
     expect(screen.getByRole('button', { name: /Book appointment/i })).toBeInTheDocument()
-    // "Send intake" is now a button that fires the send-intake server action
-    // (was a dead link to /intake-forms that didn't send anything).
-    expect(screen.getByRole('button', { name: /Send intake/i })).toBeInTheDocument()
-    // "Request review" fires the review-send server action — previously the
-    // only entry point was the /reviews dashboard's Ready-to-ask list.
-    expect(screen.getByRole('button', { name: /Request review/i })).toBeInTheDocument()
+    // The occasional actions fold behind ONE More ▾ so the daily three read
+    // at a glance — Send intake / Request review live inside the menu.
+    const more = screen.getByRole('button', { name: /More/i })
+    expect(screen.queryByRole('button', { name: /Send intake/i })).not.toBeInTheDocument()
+    fireEvent.click(more)
+    expect(screen.getByRole('menuitem', { name: /Send intake/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Request review/i })).toBeInTheDocument()
   })
 
   it('shows shop-purchase spend and next-visit stats', () => {

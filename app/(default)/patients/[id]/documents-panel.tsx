@@ -34,6 +34,9 @@ export default function DocumentsPanel({
   const [label, setLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  // The file mid-flight — renders a visible in-progress row at the top of the
+  // list so a 15MB upload isn't just a dimmed button with no story.
+  const [uploadingName, setUploadingName] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Live: another tab or teammate shared/removed a file for THIS patient →
@@ -59,6 +62,7 @@ export default function DocumentsPanel({
     fd.set('patientId', patientId)
     fd.set('file', file)
     if (label.trim()) fd.set('label', label.trim())
+    setUploadingName(file.name)
     startTransition(async () => {
       const res = await uploadPatientDocumentAction(fd)
       if (res.ok) {
@@ -67,6 +71,7 @@ export default function DocumentsPanel({
       } else {
         setError(res.error)
       }
+      setUploadingName(null)
       if (fileRef.current) fileRef.current.value = ''
     })
   }
@@ -123,7 +128,18 @@ export default function DocumentsPanel({
         {error && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       </div>
 
-      {docs.length === 0 ? (
+      {uploadingName && (
+        <div
+          role="status"
+          className="mb-2 flex items-center gap-2 rounded-[var(--r-sm)] bg-[color:var(--color-surface-sunk)] px-2.5 py-2"
+        >
+          <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" aria-hidden="true" />
+          <span className="min-w-0 truncate text-xs text-gray-600 dark:text-gray-300">
+            Uploading {uploadingName}…
+          </span>
+        </div>
+      )}
+      {docs.length === 0 && !uploadingName ? (
         <p className="text-xs text-gray-500 dark:text-gray-400">
           No documents yet. Attach referral letters, x-rays, signed forms, or an insurance card.
         </p>

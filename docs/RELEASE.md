@@ -1337,6 +1337,26 @@ twice per date change · the fast-pass Remove now CONFIRMS (it discards
 the patient's standing request) · Add-patient autofocuses its first
 field; the import and edit modals wear the standard icon close.
 
+**Batch 18 — the patient-detail tier:** the six same-weight header
+actions collapse to the daily three (Send message primary · Book ·
+Edit) plus ONE More ▾ menu carrying intake/review/view-as-patient on
+the shared dismiss contract, with only the pressed row showing busy ·
+the timeline filter moves into the URL (`?tab=` via
+history.replaceState) so refresh and shared links land on the same
+slice · the timeline paginates at 40 rows with "Show older (N more)"
+and its empty states hand over the action they name (book / send a
+message / send an intake form) · rows that need action wear the
+app-wide aging left border (agingBorderClass) instead of a
+tinted-amber emoji no legend explained · the needs-attention box joins
+v2-card + StatusPill · the header strip gains its heartbeat: a
+Visit-rhythm MiniTrend of completed visits per quarter (trailing two
+years, derived from the timeline already in hand) · notes read at
+text-sm, note delete CONFIRMS behind a real 24px target, and a
+document upload shows a live in-progress row (spinner + filename)
+instead of only a dimmed button. Deferred with reasons: TrailBack in
+the back-link slot (trail-context/header-slot-bound) and EmptyState
+inside the 240px rail cards (the well is main-column-sized).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

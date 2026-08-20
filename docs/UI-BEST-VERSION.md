@@ -96,17 +96,17 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 11. ~~text-gray-400 on meaningful labels~~ [BATCH 16: gray-500 floor].
 
 ### Patient detail
-1. Six same-weight header actions — collapse to primary + More ▾ (patient-detail.tsx:255).
+1. ~~Six same-weight header actions~~ [BATCH 18: Send message · Book · Edit + ONE More ▾ menu (intake/review/view-as) on the shared dismiss contract].
 2. ~~Vanishing feedback spans~~ [BATCH 12: Send-intake/review/portal-invite report through the global toast; the pay-link nudge keeps its persistent inline confirmation by design].
-3. Timeline filter is component-local → ?tab= param (:165).
-4. Timeline empty state actionless (:360).
-5. Needs-attention hand-rolled box → v2-card + StatusPill + ActionButton (:590).
-6. Amber-emoji aging encoding not in any legend → agingBorderClass on the li (:872).
-7. Raw back link where TrailBack exists (:205).
-8. Header stat strip has no heartbeat — MiniTrend of visits/quarter (:288).
-9. Timeline unbounded — "show older" break (:367).
-10. Rail panels' empty prose ≠ EmptyState; note bodies at text-xs (notes-panel.tsx:51,:60; tags:103; documents:125; followups:107).
-11. Note delete bare × no confirm (~16px) (notes-panel.tsx:65); doc upload no progress (documents-panel.tsx:105).
+3. ~~Timeline filter is component-local~~ [BATCH 18: ?tab= via history.replaceState — refresh/share lands on the same slice].
+4. ~~Timeline empty state actionless~~ [BATCH 18: per-tab action — book / send message / send intake].
+5. ~~Needs-attention hand-rolled box~~ [BATCH 18: v2-card + StatusPill warn/ok header].
+6. ~~Amber-emoji aging encoding not in any legend~~ [BATCH 18: agingBorderClass left border on the li; icon tint dropped].
+7. Raw back link where TrailBack exists (:205). DEFERRED: TrailBack is trail-context/header-slot-bound (the form-builder lesson) — the plain link is the honest fit here.
+8. ~~Header stat strip has no heartbeat~~ [BATCH 18: Visit-rhythm MiniTrend bar — completed visits/quarter, trailing 2y, derived from the timeline already in hand].
+9. ~~Timeline unbounded~~ [BATCH 18: 40-row pages + "Show older (N more)"].
+10. ~~Note bodies at text-xs~~ [BATCH 18: text-sm; empty prose de-italicized]. EmptyState adoption in the rail DEFERRED: the py-12 well is sized for main-column lists — inside a 240px rail card it would be mostly chrome.
+11. ~~Note delete bare × no confirm; doc upload no progress~~ [BATCH 18: useConfirm + 24px icon target; a live in-progress row with spinner + filename during upload].
 
 ### Patients modals
 1. ~~merge-duplicate unsafe shell~~ [BATCH 12: role=dialog + aria-modal + focus trap + Esc; scrim-click deliberately does NOT dismiss an irreversible flow].

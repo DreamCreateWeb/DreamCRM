@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import type { PatientNoteRow } from '@/lib/services/patient-notes'
 import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { addPatientNoteAction, deletePatientNoteAction } from '../actions'
 
 function fmtRel(d: Date): string {
@@ -24,6 +25,7 @@ export default function NotesPanel({
   const [body, setBody] = useState('')
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const confirm = useConfirm()
 
   function add() {
     if (!body.trim()) return
@@ -36,7 +38,16 @@ export default function NotesPanel({
     })
   }
 
-  function remove(noteId: string) {
+  async function remove(noteId: string) {
+    if (
+      !(await confirm({
+        title: 'Delete this note?',
+        message: "It comes off the record for everyone — there's no undo.",
+        confirmLabel: 'Delete',
+        danger: true,
+      }))
+    )
+      return
     startTransition(async () => { await deletePatientNoteAction(patientId, noteId) })
   }
 
@@ -47,14 +58,14 @@ export default function NotesPanel({
       </p>
       <div className="space-y-3 mb-3 max-h-[240px] overflow-y-auto">
         {notes.length === 0 ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             No notes yet. Use this space for relationship notes (&ldquo;prefers
             morning&rdquo;, &ldquo;anxious&rdquo;) — never clinical notes.
           </p>
         ) : (
           notes.map((n) => (
-            <div key={n.id} className="text-xs">
-              <p className="text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-snug">
+            <div key={n.id}>
+              <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-snug">
                 {n.body}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
@@ -64,10 +75,13 @@ export default function NotesPanel({
                 <button
                   type="button"
                   onClick={() => remove(n.id)}
-                  className="ml-auto text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400"
+                  disabled={pending}
+                  className="ml-auto grid h-6 w-6 place-items-center rounded-[var(--r-sm)] text-gray-500 dark:text-gray-400 hover:text-rose-600 hover:bg-rose-500/10 dark:hover:text-rose-400 disabled:opacity-50"
                   aria-label="Delete note"
                 >
-                  ×
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />
+                  </svg>
                 </button>
               </p>
             </div>
