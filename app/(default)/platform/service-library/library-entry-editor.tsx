@@ -1,8 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ServiceLibraryEntryWithStatus } from '@/lib/services/service-library'
 import type { ServiceCategory, ServiceFaqItem, ServiceProcessStep } from '@/lib/types/clinic-content'
+import { ActionButton } from '@/components/ui/action-button'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
 import { updateLibraryEntryAction } from './admin-actions'
 import {
   AddButton,
@@ -50,6 +54,53 @@ export default function LibraryEntryEditor({
   const [related, setRelated] = useState((entry.relatedSlugs ?? []).join(', '))
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const confirm = useConfirm()
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // Dirty = any field differs from what the entry opened with.
+  const initial = useRef(
+    JSON.stringify([
+      entry.name,
+      entry.category,
+      entry.icon ?? '',
+      entry.shortDescription ?? '',
+      entry.heroBullets ?? [],
+      entry.body ?? '',
+      entry.processSteps ?? [],
+      entry.faq ?? [],
+      (entry.relatedSlugs ?? []).join(', '),
+    ]),
+  )
+  const dirty = useMemo(
+    () =>
+      JSON.stringify([name, category, icon, shortDescription, bullets, body, steps, faq, related]) !==
+      initial.current,
+    [name, category, icon, shortDescription, bullets, body, steps, faq, related],
+  )
+  useUnsavedChanges(dirty, () =>
+    confirm({
+      title: 'Discard unsaved changes?',
+      message: 'Your edits to this default will be lost.',
+      confirmLabel: 'Discard',
+      danger: true,
+    }),
+  )
+
+  async function requestClose() {
+    if (saving) return
+    if (
+      dirty &&
+      !(await confirm({
+        title: 'Discard unsaved changes?',
+        message: 'Your edits to this default will be lost.',
+        confirmLabel: 'Discard',
+        danger: true,
+      }))
+    )
+      return
+    onClose()
+  }
+  useFocusTrap(true, panelRef, { onEscape: () => void requestClose() })
 
   async function save() {
     setErr('')
@@ -93,15 +144,24 @@ export default function LibraryEntryEditor({
     <div
       className="fixed inset-0 z-[80] flex items-stretch justify-end bg-black/40 backdrop-blur-sm"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) void requestClose()
       }}
     >
-      <div className="w-full max-w-2xl bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto rounded-l-2xl">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="library-entry-title"
+        className="w-full max-w-2xl bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto rounded-l-2xl"
+      >
         <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between gap-3 sticky -top-px -mt-1 pt-1 bg-white dark:bg-gray-900 z-10">
             <div className="min-w-0">
-              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 truncate">
+              <h2
+                id="library-entry-title"
+                className="text-xl font-semibold text-gray-800 dark:text-gray-100 truncate"
+              >
                 Edit default · {entry.name}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -112,16 +172,19 @@ export default function LibraryEntryEditor({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               className="-mr-1.5 w-8 h-8 inline-flex shrink-0 items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-              aria-label="Close"
+              aria-label="Close (Esc)"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round"><path d="M6 6l8 8M14 6l-8 8" /></svg>
             </button>
           </div>
 
           {err && (
-            <p className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-lg px-3 py-2">
+            <p
+              role="alert"
+              className="text-xs text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 rounded-lg px-3 py-2"
+            >
               {err}
             </p>
           )}
@@ -180,7 +243,7 @@ export default function LibraryEntryEditor({
           <section>
             <SectionHead title="Description" hint="The main paragraph patients read." />
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} maxLength={2000} className={textareaCls} />
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">{body.length} / 2000</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 tabular-nums">{body.length} / 2000</div>
           </section>
 
           {/* What to expect */}
@@ -249,21 +312,17 @@ export default function LibraryEntryEditor({
 
           {/* Footer */}
           <div className="flex gap-2 pt-4 border-t border-gray-200/70 dark:border-gray-700/50 sticky bottom-0 -mb-6 pb-6 bg-white dark:bg-gray-900">
-            <button
-              type="button"
+            <ActionButton
+              variant="primary"
+              pending={saving}
               disabled={saving || !name.trim() || !body.trim()}
               onClick={save}
-              className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 transition disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'Save default'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition"
-            >
+              Save default
+            </ActionButton>
+            <ActionButton variant="secondary" disabled={saving} onClick={() => void requestClose()}>
               Cancel
-            </button>
+            </ActionButton>
           </div>
         </div>
       </div>
@@ -301,9 +360,9 @@ function RowBtn({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className={`w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md transition disabled:opacity-25 ${
+      className={`w-8 h-8 shrink-0 inline-flex items-center justify-center rounded-md transition disabled:opacity-25 ${
         danger
-          ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/25'
+          ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-500/10'
           : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60'
       }`}
     >

@@ -16,12 +16,12 @@ import {
  * remove controls, dashed add buttons, and friendly empty states.
  */
 
-/** Standard input class strings — keep every editor's fields visually identical. */
-export const inputCls =
-  'w-full rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-900 dark:text-stone-100 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-900/15 dark:focus:ring-stone-100/20 focus:border-stone-400 transition'
-export const textareaCls = `${inputCls} resize-y leading-relaxed`
-export const selectCls =
-  'rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-stone-900/15 focus:border-stone-400 transition'
+/** Standard input class strings — the app-wide form recipes (brand focus
+ *  ring), not a private stone dialect. Kept as exported strings because a
+ *  dozen editors interpolate them. */
+export const inputCls = 'form-input w-full text-sm'
+export const textareaCls = 'form-textarea w-full text-sm resize-y leading-relaxed'
+export const selectCls = 'form-select text-sm'
 
 /** A labelled field wrapper. */
 export function Field({
@@ -83,9 +83,9 @@ function Ctrl({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className={`w-7 h-7 inline-flex items-center justify-center rounded-md transition disabled:opacity-25 disabled:cursor-default ${
+      className={`w-8 h-8 inline-flex items-center justify-center rounded-md transition disabled:opacity-25 disabled:cursor-default ${
         danger
-          ? 'text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/25'
+          ? 'text-stone-400 hover:text-rose-600 hover:bg-rose-500/10'
           : 'text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
       }`}
     >
@@ -241,7 +241,7 @@ export function TagListEditor({
   return (
     <div>
       <input type="hidden" name={name} value={items.join('\n')} />
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 p-2 focus-within:ring-2 focus-within:ring-stone-900/15 dark:focus-within:ring-stone-100/20 focus-within:border-stone-400 transition">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 p-2 focus-within:ring-2 focus-within:ring-teal-500/40 focus-within:border-teal-500 transition">
         {items.map((it, i) => (
           <span
             key={`${it}-${i}`}
