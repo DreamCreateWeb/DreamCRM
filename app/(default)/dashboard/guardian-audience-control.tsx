@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { ActionButton } from '@/components/ui/action-button'
 import type { GuardianAudience } from '@/lib/guardian'
 import { setGuardianAudienceAction } from './admin-actions'
 
@@ -87,22 +88,15 @@ export default function GuardianAudienceControl({
                     wouldHear === 1 ? 'practice has' : 'practices have'
                   } something they'd be told, as each one's weekly cadence comes round.`}
           </span>
-          <button
-            type="button"
-            onClick={() => apply('clinic')}
-            disabled={pending}
-            className="rounded-full bg-[color:var(--color-brand)] px-3 py-1 text-xs font-medium text-white disabled:opacity-60"
-          >
-            {pending ? 'Saving…' : 'Yes, tell them'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            disabled={pending}
-            className="text-gray-500 dark:text-gray-400 hover:underline"
-          >
+          {/* The inline decision (not useConfirm) is the audited Phase-4
+              design — a modal would detach the would-hear count from the
+              choice. Only the mechanics upgrade: real buttons, real targets. */}
+          <ActionButton size="sm" variant="primary" onClick={() => apply('clinic')} pending={pending}>
+            Yes, tell them
+          </ActionButton>
+          <ActionButton size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>
             Not yet
-          </button>
+          </ActionButton>
         </div>
       ) : (
         // WHEN THE STATE IS UNKNOWN, OFFER ONLY THE SAFE DIRECTION
@@ -114,22 +108,28 @@ export default function GuardianAudienceControl({
         // could not tell whether the lock was open. Closing the lock is
         // idempotent and safe whatever the true value is; opening it while
         // blind is the one thing that must not be possible.
-        <button
-          type="button"
-          onClick={() => (open || unreadable ? apply('platform') : setConfirming(true))}
-          disabled={pending}
-          className="mt-0.5 text-gray-600 dark:text-gray-300 hover:underline disabled:opacity-60"
-        >
-          {pending
-            ? 'Saving…'
-            : open || unreadable
-              ? 'Keep it to me instead'
-              : 'Let practices hear it too'}
-        </button>
+        <span className="mt-0.5 inline-block">
+          <ActionButton
+            size="sm"
+            variant="ghost"
+            onClick={() => (open || unreadable ? apply('platform') : setConfirming(true))}
+            pending={pending}
+          >
+            {open || unreadable ? 'Keep it to me instead' : 'Let practices hear it too'}
+          </ActionButton>
+        </span>
       )}
 
-      {note && <p className="mt-1 max-w-xs text-gray-500 dark:text-gray-400">{note}</p>}
-      {error && <p className="mt-1 text-rose-600 dark:text-rose-400">{error}</p>}
+      {note && (
+        <p role="status" className="mt-1 max-w-xs text-gray-500 dark:text-gray-400">
+          {note}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="mt-1 text-rose-600 dark:text-rose-400">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

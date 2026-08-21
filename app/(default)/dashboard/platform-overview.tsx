@@ -122,8 +122,9 @@ export default async function PlatformOverview() {
             <ActionButton href="/dashboard/analytics" variant="secondary">
               Platform Metrics →
             </ActionButton>
-            <ActionButton href="/dashboard/fintech" variant="secondary">
-              Revenue →
+            {/* The page's one primary: growing the clinic roster is the job. */}
+            <ActionButton href="/ecommerce/customers?add=1" variant="primary">
+              + Add clinic
             </ActionButton>
           </>
         }
@@ -178,7 +179,10 @@ export default async function PlatformOverview() {
       </div>
 
       {attention.stripeUnavailable && (
-        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
+        <div
+          role="status"
+          className="mb-6 px-4 py-3 rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 text-sm text-amber-700 dark:text-amber-300"
+        >
           Stripe couldn't be reached — past-due invoice checks skipped this load.
         </div>
       )}
@@ -214,13 +218,14 @@ export default async function PlatformOverview() {
                   </summary>
                   <div className="border-t border-[color:var(--color-hairline)] px-4 py-2">
                     <p className="flex flex-wrap gap-1.5">
-                      {d.clinics.map((name, i) => (
-                        <span
-                          key={`${name}-${i}`}
-                          className="rounded-full bg-[color:var(--color-surface-sunk)] px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300"
+                      {d.clinics.map((c, i) => (
+                        <Link
+                          key={`${c.organizationId}-${i}`}
+                          href={`/ecommerce/customers/${c.organizationId}`}
+                          className="rounded-full bg-[color:var(--color-surface-sunk)] px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:ring-1 hover:ring-inset hover:ring-[color:var(--color-hairline-strong)] hover:text-gray-900 dark:hover:text-gray-100"
                         >
-                          {name}
-                        </span>
+                          {c.name}
+                        </Link>
                       ))}
                     </p>
                   </div>
@@ -322,44 +327,52 @@ export default async function PlatformOverview() {
           />
         ) : (
           <ul className="divide-y divide-[color:var(--color-hairline)]">
-            {activity.rows.map((row) => (
-              <li key={row.id} className="flex items-center gap-4 py-3">
-                <span
-                  className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700/60 text-sm"
-                  aria-hidden
-                >
-                  {KIND_ICONS[row.kind] ?? '•'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  {/* v3 action-links law: a feed row opens the surface behind it. */}
-                  {row.href ? (
-                    <Link
-                      href={row.href}
-                      className="font-medium text-gray-800 dark:text-gray-100 truncate block hover:text-teal-700 dark:hover:text-teal-300"
-                    >
-                      {row.title}
-                    </Link>
-                  ) : (
+            {activity.rows.map((row) => {
+              const inner = (
+                <>
+                  <span
+                    className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-700/60 text-sm"
+                    aria-hidden
+                  >
+                    {KIND_ICONS[row.kind] ?? '•'}
+                  </span>
+                  <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
                       {row.title}
                     </div>
+                    {row.subtitle && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {row.subtitle}
+                      </div>
+                    )}
+                  </div>
+                  {row.amountCents != null && (
+                    <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums font-mono-num">
+                      +{moneyFull(row.amountCents)}
+                    </span>
                   )}
-                  {row.subtitle && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {row.subtitle}
-                    </div>
-                  )}
-                </div>
-                {row.amountCents != null && (
-                  <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums font-mono-num">
-                    +{moneyFull(row.amountCents)}
+                  <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 hidden sm:inline tabular-nums" suppressHydrationWarning>
+                    {formatRelativeDate(row.ts)}
                   </span>
-                )}
-                <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400 hidden sm:inline tabular-nums" suppressHydrationWarning>
-                  {formatRelativeDate(row.ts)}
-                </span>
-              </li>
-            ))}
+                </>
+              )
+              return (
+                <li key={row.id}>
+                  {/* v3 action-links law — and the WHOLE row is the target,
+                      not just the title text. */}
+                  {row.href ? (
+                    <Link
+                      href={row.href}
+                      className="flex items-center gap-4 py-3 -mx-2 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-900/30"
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-4 py-3">{inner}</div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

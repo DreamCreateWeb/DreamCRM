@@ -1,4 +1,7 @@
 import Link from 'next/link'
+import { StatusPill } from '@/components/ui/status-pill'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
+import type { Tone } from '@/lib/ui/encodings'
 import type { ClinicEngineReport, GuardianSweep } from '@/lib/services/guardian'
 import {
   clinicActionable,
@@ -28,33 +31,19 @@ import GuardianAudienceControl from './guardian-audience-control'
 
 /** Tone carries meaning here, but never alone: every row is fully labelled
  *  with its own sentence, and the glyph repeats the state in text form. */
-const STATE_STYLE: Record<EngineState, { glyph: string; chip: string; label: string }> = {
-  silent: {
-    glyph: '🔇',
-    chip: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-    label: 'Nothing running',
-  },
-  blocked: {
-    glyph: '⛔',
-    chip: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-    label: 'Blocked',
-  },
-  stalled: {
-    glyph: '📉',
-    chip: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-    label: 'Growth stalled',
-  },
-  quiet: {
-    glyph: '🌙',
-    chip: 'bg-gray-500/15 text-gray-700 dark:text-gray-300',
-    label: 'Quiet',
-  },
-  healthy: {
-    glyph: '✅',
-    chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-    label: 'Running',
-  },
+const STATE_STYLE: Record<EngineState, { glyph: string; tone: Tone; label: string }> = {
+  silent: { glyph: '🔇', tone: 'urgent', label: 'Nothing running' },
+  blocked: { glyph: '⛔', tone: 'urgent', label: 'Blocked' },
+  stalled: { glyph: '📉', tone: 'warn', label: 'Growth stalled' },
+  quiet: { glyph: '🌙', tone: 'neutral', label: 'Quiet' },
+  healthy: { glyph: '✅', tone: 'ok', label: 'Running' },
 }
+
+/** Legend rows for the pill meanings — rendered by <EncodingLegend>, so the
+ *  key can never drift from the pills. */
+const STATE_LEGEND = (Object.values(STATE_STYLE) as Array<{ glyph: string; tone: Tone; label: string }>).map(
+  (s) => ({ tone: s.tone, label: s.label, meaning: `${s.glyph} engine state` }),
+)
 
 function ReportRow({
   report,
@@ -92,7 +81,7 @@ function ReportRow({
       ? clinicNote(report.verdict.state, report.signals)
       : null
   return (
-    <li className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
+    <li className="v2-card p-4">
       <div className="flex items-start gap-3">
         <span className="text-base shrink-0" aria-hidden="true">
           {style.glyph}
@@ -113,9 +102,7 @@ function ReportRow({
             >
               {report.clinicName}
             </Link>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.chip}`}>
-              {style.label}
-            </span>
+            <StatusPill tone={style.tone} label={style.label} />
           </div>
           <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
             {report.verdict.headline}
@@ -313,25 +300,28 @@ export default function GuardianPanel({
             <HeartbeatLine beat={heartbeat} unreadable={heartbeatUnreadable} />
           </span>
         </h2>
-        <GuardianAudienceControl
-          audience={audience}
-          wouldHear={sweep.blind ? null : wouldHear}
-          unreadable={heartbeatUnreadable}
-        />
+        <span className="flex items-center gap-3">
+          <EncodingLegend pills={STATE_LEGEND} />
+          <GuardianAudienceControl
+            audience={audience}
+            wouldHear={sweep.blind ? null : wouldHear}
+            unreadable={heartbeatUnreadable}
+          />
+        </span>
       </div>
 
       {sweep.blind ? (
-        <p className="rounded-[var(--r-lg)] border border-amber-300/60 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
+        <p className="rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4 text-sm text-amber-800 dark:text-amber-200">
           I couldn&rsquo;t look just now — the activity log didn&rsquo;t come back. This is about
           me, not about them; nothing here means a practice is fine or isn&rsquo;t.
         </p>
       ) : nothingToReport ? (
-        <p className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4 text-sm text-gray-600 dark:text-gray-300">
+        <p className="v2-card p-4 text-sm text-gray-600 dark:text-gray-300">
           No practices to watch yet.
         </p>
       ) : sweep.flagged.length === 0 ? (
         // ALL CLEAR is news, not emptiness — it is the guarantee holding.
-        <p className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4 text-sm text-gray-600 dark:text-gray-300">
+        <p className="v2-card p-4 text-sm text-gray-600 dark:text-gray-300">
           Every practice&rsquo;s machine is running. Nothing needs you today.
         </p>
       ) : (
