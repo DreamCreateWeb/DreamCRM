@@ -252,6 +252,8 @@ describe('ClientMessagingSidebar', () => {
       />,
     )
     await user.click(screen.getByRole('button', { name: /^Team \(0\)/ }))
-    expect(screen.getByText(/Invite a teammate from \/settings\/team/i)).toBeInTheDocument()
+    // Batch 39: the path-as-prose became a handed-over action button.
+    expect(screen.getByText(/Invite a teammate, then start a thread/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Invite a teammate/i })).toHaveAttribute('href', '/settings/team')
   })
 })

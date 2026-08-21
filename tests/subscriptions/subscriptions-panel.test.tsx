@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { ToastProvider } from '@/components/ui/toast'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AdminSubscription, AdminProduct } from '@/lib/services/stripe-admin'
@@ -41,12 +42,13 @@ const PRODUCTS: AdminProduct[] = []
 
 describe('SubscriptionsPanel', () => {
   it('renders the empty state when no subscriptions exist', () => {
-    render(<SubscriptionsPanel subscriptions={[]} products={PRODUCTS} />)
+    render(<ToastProvider><SubscriptionsPanel subscriptions={[]} products={PRODUCTS} /></ToastProvider>)
     expect(screen.getByText(/No subscriptions yet/i)).toBeInTheDocument()
   })
 
   it('shows status filter chips with live counts', () => {
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[
           sub({ id: 'a', status: 'active' }),
@@ -56,7 +58,8 @@ describe('SubscriptionsPanel', () => {
           sub({ id: 'e', status: 'canceled' }),
         ]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     // FilterChip renders the count as a separate span next to the label, so the
     // accessible name is "<label> <count>" (no parens).
@@ -70,13 +73,15 @@ describe('SubscriptionsPanel', () => {
   it('filters subscriptions when a status chip is clicked', async () => {
     const user = userEvent.setup()
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[
           sub({ id: 'a', clinicName: 'Active Clinic', status: 'active' }),
           sub({ id: 'b', clinicName: 'Trial Clinic', status: 'trialing' }),
         ]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     await user.click(screen.getByRole('button', { name: /^Trialing/ }))
     expect(screen.queryByText('Active Clinic')).not.toBeInTheDocument()
@@ -86,13 +91,15 @@ describe('SubscriptionsPanel', () => {
   it('searches by clinic name, email, and sub id', async () => {
     const user = userEvent.setup()
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[
           sub({ id: 'sub_aaa', clinicName: 'Acme Dental', customerEmail: 'a@acme.com' }),
           sub({ id: 'sub_bbb', clinicName: 'Bright Smiles', customerEmail: 'b@bright.com' }),
         ]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     const search = screen.getByPlaceholderText(/Search clinic, email, or sub ID/)
     await user.type(search, 'bright')
@@ -102,10 +109,12 @@ describe('SubscriptionsPanel', () => {
 
   it('links clinic name to the clinic detail page when an org is linked', () => {
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[sub({ clinicOrgId: 'org_abc', clinicName: 'Linked Clinic' })]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     const link = screen.getByText('Linked Clinic').closest('a')
     expect(link).toBeTruthy()
@@ -114,10 +123,12 @@ describe('SubscriptionsPanel', () => {
 
   it('falls back to plain text when there is no clinic org linked', () => {
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[sub({ clinicOrgId: null, clinicName: null, customerName: 'Solo Buyer' })]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     expect(screen.getByText('Solo Buyer').tagName).toBe('DIV')
   })
@@ -125,13 +136,15 @@ describe('SubscriptionsPanel', () => {
   it('filters by product when the plan select changes', async () => {
     const user = userEvent.setup()
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[
           sub({ id: 'a', clinicName: 'Pro Customer', productId: 'prod_pro', productName: 'Pro' }),
           sub({ id: 'b', clinicName: 'Premium Customer', productId: 'prod_prem', productName: 'Premium' }),
         ]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     await user.selectOptions(screen.getByLabelText('Filter by plan'), 'prod_prem')
     expect(screen.queryByText('Pro Customer')).not.toBeInTheDocument()
@@ -140,10 +153,12 @@ describe('SubscriptionsPanel', () => {
 
   it('shows "cancels at period end" hint when scheduled', () => {
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[sub({ cancelAtPeriodEnd: true })]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     expect(screen.getByText(/cancels at period end/)).toBeInTheDocument()
   })
@@ -151,10 +166,12 @@ describe('SubscriptionsPanel', () => {
   it('shows a no-match message when filters exclude every sub', async () => {
     const user = userEvent.setup()
     render(
+      <ToastProvider>
       <SubscriptionsPanel
         subscriptions={[sub({ clinicName: 'Only One' })]}
         products={PRODUCTS}
-      />,
+      />
+      </ToastProvider>,
     )
     const search = screen.getByPlaceholderText(/Search clinic, email, or sub ID/)
     await user.type(search, 'zzznotreal')

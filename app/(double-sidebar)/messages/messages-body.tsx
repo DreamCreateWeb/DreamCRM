@@ -56,7 +56,9 @@ export default function MessagesBody({
           />
         ) : (
           <>
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-3">{title}</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              {title}
+            </h2>
             <div className="space-y-3">
               {messages.length === 0 ? (
                 <div className="text-sm text-gray-500 dark:text-gray-400 italic">No messages yet — say hi.</div>
@@ -109,10 +111,11 @@ export default function MessagesBody({
             <ActionButton
               variant="primary"
               type="submit"
-              disabled={!conversationId || pending || !body.trim()}
+              pending={pending}
+              disabled={!conversationId || !body.trim()}
               className="whitespace-nowrap"
             >
-              {pending ? 'Sending…' : 'Send →'}
+              Send →
             </ActionButton>
           </form>
         </div>

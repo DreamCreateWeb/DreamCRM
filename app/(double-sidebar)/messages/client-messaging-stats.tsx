@@ -14,11 +14,11 @@ interface Props {
  */
 export default function ClientMessagingStats({ stats }: Props) {
   return (
-    <div className="grid grid-cols-3 gap-3 px-5 py-3 border-b border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800">
+    <div className="grid grid-cols-3 gap-3 px-5 py-3 border-b border-[color:var(--color-hairline)] bg-[color:var(--color-surface-1)]">
       <Stat
         label="Active conversations"
         value={formatNumberShort(stats.activeConversations)}
-        tone="special"
+        tone="neutral"
       />
       <Stat
         label="Unread"
@@ -43,7 +43,7 @@ export default function ClientMessagingStats({ stats }: Props) {
 function Stat({
   label,
   value,
-  tone = 'special',
+  tone = 'neutral',
   active = true,
 }: {
   label: string
@@ -51,11 +51,11 @@ function Stat({
   tone?: Tone
   active?: boolean
 }) {
-  const valueClass = active ? TONE_TEXT[tone] : 'text-gray-800 dark:text-gray-100'
+  const valueClass = active && tone !== 'neutral' ? TONE_TEXT[tone] : 'text-gray-800 dark:text-gray-100'
   return (
     <div>
       <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold">{label}</p>
-      <p className={`text-xl font-bold leading-tight tabular-nums ${valueClass}`}>{value}</p>
+      <p className={`text-xl font-bold leading-tight tabular-nums font-mono-num ${valueClass}`}>{value}</p>
     </div>
   )
 }

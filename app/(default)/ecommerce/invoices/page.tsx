@@ -73,7 +73,7 @@ export default async function InvoicesOrSubscriptions({
         />
 
         {stripeError && (
-          <div className="mb-5 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 border border-rose-500/30 px-4 py-3 rounded-lg">
+          <div role="alert" className="mb-5 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-4 py-3 rounded-[var(--r-lg)]">
             Couldn&apos;t reach Stripe: {stripeError}
           </div>
         )}

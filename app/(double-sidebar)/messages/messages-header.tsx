@@ -5,13 +5,13 @@ export default function MessagesHeader() {
 
   return (
     <div className="sticky top-16">
-      <div className="flex items-center justify-between before:absolute before:inset-0 before:backdrop-blur-md before:bg-gray-50/90 dark:before:bg-[#151D2C]/90 before:-z-10 border-b border-gray-200 dark:border-gray-700/60 px-4 sm:px-6 md:px-5 h-16">
+      <div className="flex items-center justify-between before:absolute before:inset-0 before:backdrop-blur-md before:bg-gray-50/90 dark:before:bg-gray-900/90 before:-z-10 border-b border-gray-200 dark:border-gray-700/60 px-4 sm:px-6 md:px-5 h-16">
         {/* Mobile: toggle the conversation list (flyout) — the header's one
             functional control. The Mosaic stock avatar links + decorative
             info/check buttons that used to sit here went nowhere (href="#0",
             no onClick), so they were removed rather than left as dead UI. */}
         <button
-          className="md:hidden text-gray-400 hover:text-gray-500"
+          className="md:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           onClick={() => setFlyoutOpen(!flyoutOpen)}
           aria-controls="messages-sidebar"
           aria-expanded={flyoutOpen}
