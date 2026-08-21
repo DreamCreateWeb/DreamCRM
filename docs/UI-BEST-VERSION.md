@@ -479,10 +479,10 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 ~~ESCALATED primitive~~ [BATCH 46: editor-kit's inputCls/textareaCls/selectCls now ride the app-wide form-input/form-textarea/form-select recipes (brand focus ring) — every Website Studio editor inherits; the TagListEditor's focus-within ring moves to teal].
 
 ### Platform blog (blog-editor + list)
-1. One transition ×8 actions incl. autosave (:74 etc.) → per-action.
-2. Publish-nudge teal-50 + raw teal button = second primary (:400-416); publishError no role (:394); autosave state gray-400 no role=status (:263-265).
-3. gray-400 helper copy ×8; raw buttons ×5 → ActionButton; excerpt → form-textarea (:321).
-4. List: gray-400 No-author (page.tsx:212); rows only title-linked (:188-199); no loading.tsx.
+1. ~~One transition ×8~~ [BATCH 47: autosave gets its OWN transition so a background save never spins the sidebar; explicit actions carry per-action keys (publish/unpublish/unschedule/preview/email/archive) with live labels — only the pressed control shows progress].
+2. ~~Publish nudge + roles~~ [BATCH 47: the nudge moves onto the teal ring recipe with role=status and its button becomes a secondary ActionButton (no second primary); publishError carries role=alert; the autosave line gains role=status at gray-500].
+3. ~~Helpers + inputs~~ [BATCH 47: helper copy lifts to gray-500; every hand-rolled sidebar input/select/textarea (excerpt, byline, author, reviewer, category, tags, alt, SEO) moves onto form-input/form-select/form-textarea]. The two violet AI chips stay raw-button chips DELIBERATELY — the violet chip is the app's recognized AI affordance; the Tools email/archive buttons keep their quiet list-button shape but gain live per-action labels.
+4. ~~List~~ [BATCH 47: "No author" lifts to gray-500; the read-count cell links into the post; /website/blog gains a loading.tsx]. Whole-row anchors stay off — the title is the row's one clear target and the row also carries an external View link.
 
 ### Platform settings
 1. Settings home hand-rolled search/hero — VERIFY vs batch-27 state first (settings-home.tsx:54-84/:42-52).
