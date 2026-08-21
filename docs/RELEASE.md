@@ -1602,6 +1602,21 @@ $0-sales band (documented deliberate hide during setup).
   docs/UI-BEST-VERSION.md — clinic portal AND patient portal — is now
   done or explicitly deferred with a reason.**
 
+- **2026-08-21 — UI best-version batch 36 (the platform program opens:
+  scout + the feedback-mechanics sweep).** Three scouts walked every
+  platform-tenant surface against the design system; their ~90 ranked
+  findings are now Cluster 4 of docs/UI-BEST-VERSION.md. First batch
+  ships the two highest-leverage mechanical fixes: (1) the FlashToast
+  primitive now announces urgent toasts as role=alert/assertive — an
+  error toast no longer reads to a screen reader as a success — and the
+  partner tables pass urgent tones on every failure path (validation and
+  catches alike); (2) the Cancel-spin/shared-pending sweep across the
+  core platform files — clinics delete-modal Cancel no longer spins,
+  "View as" demotes from a per-row primary, a failed resend-invite says
+  so instead of being swallowed, and partner/subscription/plan actions
+  each spin alone (per-action keys) instead of lighting up every button
+  on the row.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

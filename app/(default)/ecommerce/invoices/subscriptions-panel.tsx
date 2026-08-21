@@ -206,6 +206,8 @@ function SubscriptionRow({
 }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  // Which act is in flight — only the pressed control shows work.
+  const [active, setActive] = useState<'cancel-now' | 'toggle-end' | 'plan' | null>(null)
   const confirm = useConfirm()
 
   async function handleCancelNow() {
@@ -219,22 +221,28 @@ function SubscriptionRow({
     )
       return
     setError(null)
+    setActive('cancel-now')
     startTransition(async () => {
       try {
         await cancelSubscription(sub.id)
       } catch (err) {
         setError((err as Error).message)
+      } finally {
+        setActive(null)
       }
     })
   }
 
   function handleToggleCancelAtPeriodEnd() {
     setError(null)
+    setActive('toggle-end')
     startTransition(async () => {
       try {
         await toggleCancelAtPeriodEnd(sub.id, !sub.cancelAtPeriodEnd)
       } catch (err) {
         setError((err as Error).message)
+      } finally {
+        setActive(null)
       }
     })
   }
@@ -242,11 +250,14 @@ function SubscriptionRow({
   function handleChangePlan(newPriceId: string) {
     if (!newPriceId || newPriceId === sub.priceId) return
     setError(null)
+    setActive('plan')
     startTransition(async () => {
       try {
         await changePlan(sub.id, newPriceId)
       } catch (err) {
         setError((err as Error).message)
+      } finally {
+        setActive(null)
       }
     })
   }
@@ -321,7 +332,8 @@ function SubscriptionRow({
                   variant="secondary"
                   size="sm"
                   onClick={handleToggleCancelAtPeriodEnd}
-                  pending={pending}
+                  pending={pending && active === 'toggle-end'}
+                  disabled={pending}
                 >
                   {sub.cancelAtPeriodEnd ? 'Keep' : 'Cancel at period end'}
                 </ActionButton>
@@ -329,7 +341,8 @@ function SubscriptionRow({
                   variant="danger"
                   size="sm"
                   onClick={handleCancelNow}
-                  pending={pending}
+                  pending={pending && active === 'cancel-now'}
+                  disabled={pending}
                 >
                   Cancel now
                 </ActionButton>

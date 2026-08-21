@@ -232,7 +232,7 @@ export default function DeletePartnerModal({
 
             {/* Actions. Danger/destructive separated to the right; never beside a primary. */}
             <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex items-center justify-between gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={close} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={close} disabled={pending}>
                 Cancel
               </ActionButton>
 

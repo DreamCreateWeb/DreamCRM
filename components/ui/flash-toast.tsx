@@ -45,8 +45,11 @@ export function FlashToast({
 
   return (
     <div
-      role="status"
-      aria-live="polite"
+      // An urgent toast is an ERROR being reported — role="status" announced
+      // it politely as if the action had succeeded. Assertive alert for
+      // urgent; polite status for everything else.
+      role={tone === 'urgent' ? 'alert' : 'status'}
+      aria-live={tone === 'urgent' ? 'assertive' : 'polite'}
       className={`slide-up-fast fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-[var(--r-md)] border-l-4 bg-[color:var(--color-surface-2)] shadow-[var(--shadow-pop)] px-4 py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 ${TONE_EDGE[tone]}`}
     >
       <span>{message}</span>

@@ -39,7 +39,7 @@ export interface PartnerTableRow {
 type StatusFilter = 'all' | 'active' | 'invited' | 'suspended' | 'archived'
 
 export default function PartnersTable({ partners }: { partners: PartnerTableRow[] }) {
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ msg: string; tone: 'ok' | 'urgent' } | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('active')
   const [, startTransition] = useTransition()
@@ -74,9 +74,9 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
     startTransition(async () => {
       try {
         const r = await resendPartnerInviteAction(id)
-        setToast(`Invite re-sent to ${r.email}`)
+        setToast({ msg: `Invite re-sent to ${r.email}`, tone: 'ok' })
       } catch (err) {
-        setToast((err as Error).message)
+        setToast({ msg: (err as Error).message, tone: 'urgent' })
       } finally {
         setPendingId(null)
       }
@@ -89,9 +89,9 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
     startTransition(async () => {
       try {
         await setPartnerStatusAction(id, next)
-        setToast(next === 'suspended' ? 'Partner suspended' : 'Partner reactivated')
+        setToast({ msg: next === 'suspended' ? 'Partner suspended' : 'Partner reactivated', tone: 'ok' })
       } catch (err) {
-        setToast((err as Error).message)
+        setToast({ msg: (err as Error).message, tone: 'urgent' })
       } finally {
         setPendingId(null)
       }
@@ -103,9 +103,9 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
     startTransition(async () => {
       try {
         const r = await reactivatePartnerAction(id)
-        setToast(r.ok ? 'Partner reactivated' : r.error ?? 'Could not reactivate')
+        setToast({ msg: r.ok ? 'Partner reactivated' : r.error ?? 'Could not reactivate', tone: r.ok ? 'ok' : 'urgent' })
       } catch (err) {
-        setToast((err as Error).message)
+        setToast({ msg: (err as Error).message, tone: 'urgent' })
       } finally {
         setPendingId(null)
       }
@@ -238,7 +238,7 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
           </tbody>
         </table>
       </div>
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+      {toast && <FlashToast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>
   )
 }

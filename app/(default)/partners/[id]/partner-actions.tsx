@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { PAYOUT_MIN_CENTS, moneyExact, type PartnerStatus } from '@/lib/types/referrals'
@@ -39,12 +39,21 @@ export default function PartnerActions({
   const [toast, setToast] = useState<string | null>(null)
   const [toastTone, setToastTone] = useState<'ok' | 'urgent'>('ok')
   const [pending, startTransition] = useTransition()
+  // Which action is in flight — the shared flag disables everything, but only
+  // the pressed button should spin.
+  const [active, setActive] = useState<'pay' | 'suspend' | 'resend' | 'reactivate' | null>(null)
+
+  // Clear the active key once the transition settles.
+  useEffect(() => {
+    if (!pending) setActive(null)
+  }, [pending])
 
   // Admin pay-now: allowed while active OR suspended (settling up); never for
   // archived (closed) or invited (no account yet).
   const canPay = (status === 'active' || status === 'suspended') && payoutReady && accruedCents >= PAYOUT_MIN_CENTS
 
   function pay() {
+    setActive('pay')
     startTransition(async () => {
       const r = await payoutPartnerAction(partnerId)
       if (r.ok) {
@@ -59,6 +68,7 @@ export default function PartnerActions({
 
   function toggleSuspend() {
     const next = status === 'suspended' ? 'active' : 'suspended'
+    setActive('suspend')
     startTransition(async () => {
       try {
         await setPartnerStatusAction(partnerId, next)
@@ -72,6 +82,7 @@ export default function PartnerActions({
   }
 
   function reactivate() {
+    setActive('reactivate')
     startTransition(async () => {
       try {
         const r = await reactivatePartnerAction(partnerId)
@@ -85,6 +96,7 @@ export default function PartnerActions({
   }
 
   function resend() {
+    setActive('resend')
     startTransition(async () => {
       try {
         const r = await resendPartnerInviteAction(partnerId)
@@ -100,17 +112,17 @@ export default function PartnerActions({
   return (
     <>
       {status === 'invited' && (
-        <ActionButton variant="secondary" size="sm" onClick={resend} pending={pending}>
+        <ActionButton variant="secondary" size="sm" onClick={resend} pending={pending && active === 'resend'} disabled={pending}>
           Resend invite
         </ActionButton>
       )}
       {(status === 'active' || status === 'suspended') && (
-        <ActionButton variant="ghost" size="sm" onClick={toggleSuspend} pending={pending}>
+        <ActionButton variant="ghost" size="sm" onClick={toggleSuspend} pending={pending && active === 'suspend'} disabled={pending}>
           {status === 'suspended' ? 'Reactivate' : 'Suspend'}
         </ActionButton>
       )}
       {status === 'archived' && (
-        <ActionButton variant="secondary" size="sm" onClick={reactivate} pending={pending}>
+        <ActionButton variant="secondary" size="sm" onClick={reactivate} pending={pending && active === 'reactivate'} disabled={pending}>
           Reactivate
         </ActionButton>
       )}
@@ -128,7 +140,7 @@ export default function PartnerActions({
                 : undefined
           }
         >
-          {pending ? 'Paying…' : `Pay now (${moneyExact(accruedCents)})`}
+          {pending && active === 'pay' ? 'Paying…' : `Pay now (${moneyExact(accruedCents)})`}
         </ActionButton>
       )}
       {/* Destructive — kept apart from the primary by a hairline divider. */}

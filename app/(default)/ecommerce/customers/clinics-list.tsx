@@ -322,6 +322,7 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
 function ResendInviteButton({ orgId }: { orgId: string }) {
   const [pending, startTransition] = useTransition()
   const [sent, setSent] = useState(false)
+  const [failed, setFailed] = useState(false)
   return (
     <ActionButton
       variant="ghost"
@@ -335,12 +336,15 @@ function ResendInviteButton({ orgId }: { orgId: string }) {
             setSent(true)
             setTimeout(() => setSent(false), 4000)
           } catch {
-            /* surfaced by the disabled state resetting; keep quiet */
+            // An invite the owner believes went out but didn't is the worst
+            // kind of quiet — say so.
+            setFailed(true)
+            setTimeout(() => setFailed(false), 5000)
           }
         })
       }
     >
-      {sent ? 'Invite sent ✓' : pending ? 'Sending…' : 'Resend invite'}
+      {sent ? 'Invite sent ✓' : failed ? 'Failed — try again' : pending ? 'Sending…' : 'Resend invite'}
     </ActionButton>
   )
 }
@@ -453,11 +457,11 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
               {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={onClose} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="danger" size="sm" onClick={submit} disabled={pending || !matches}>
-                {pending ? 'Deleting…' : 'Delete forever'}
+              <ActionButton variant="danger" size="sm" onClick={submit} pending={pending} disabled={!matches}>
+                Delete forever
               </ActionButton>
             </div>
           </>
@@ -471,13 +475,13 @@ function ViewAsButton({ orgId }: { orgId: string }) {
   const [pending, start] = useTransition()
   return (
     <ActionButton
-      variant="primary"
+      variant="secondary"
       size="sm"
       pending={pending}
       onClick={() => start(() => enterDemoMode({ orgId, role: 'owner' }))}
       title="Drop into this clinic's dashboard as their owner"
     >
-      {pending ? 'Switching…' : 'View as'}
+      View as
     </ActionButton>
   )
 }
@@ -491,7 +495,7 @@ function SeedDemoClinicButton() {
       pending={pending}
       onClick={() => start(() => seedAndEnterDemoClinic('owner'))}
     >
-      {pending ? 'Seeding…' : 'Create demo clinic & view'}
+      Create demo clinic & view
     </ActionButton>
   )
 }

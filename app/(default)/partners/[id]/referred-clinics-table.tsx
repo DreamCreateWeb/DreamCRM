@@ -49,7 +49,7 @@ export default function ReferredClinicsTable({
   const [editId, setEditId] = useState<string | null>(null)
   const [percent, setPercent] = useState('')
   const [term, setTerm] = useState('')
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ msg: string; tone: 'ok' | 'urgent' } | null>(null)
   const [pending, startTransition] = useTransition()
 
   function startEdit(c: ClinicRow) {
@@ -61,12 +61,12 @@ export default function ReferredClinicsTable({
   function save(c: ClinicRow) {
     const pct = Number(percent)
     if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-      setToast('Percentage must be 0–100')
+      setToast({ msg: 'Percentage must be 0–100', tone: 'urgent' })
       return
     }
     const months = term.trim() === '' ? null : Number(term)
     if (months != null && (!Number.isInteger(months) || months < 1)) {
-      setToast('Term must be whole months or blank')
+      setToast({ msg: 'Term must be whole months or blank', tone: 'urgent' })
       return
     }
     startTransition(async () => {
@@ -77,10 +77,10 @@ export default function ReferredClinicsTable({
           percentBps: Math.round(pct * 100),
           termMonths: months,
         })
-        setToast(`Updated ${c.name}`)
+        setToast({ msg: `Updated ${c.name}`, tone: 'ok' })
         setEditId(null)
       } catch (err) {
-        setToast((err as Error).message)
+        setToast({ msg: (err as Error).message, tone: 'urgent' })
       }
     })
   }
@@ -142,7 +142,7 @@ export default function ReferredClinicsTable({
                   <div className="flex items-center justify-end gap-2">
                     {editing ? (
                       <>
-                        <ActionButton variant="ghost" size="sm" onClick={() => setEditId(null)} pending={pending}>Cancel</ActionButton>
+                        <ActionButton variant="ghost" size="sm" onClick={() => setEditId(null)} disabled={pending}>Cancel</ActionButton>
                         <ActionButton variant="primary" size="sm" onClick={() => save(c)} pending={pending}>Save</ActionButton>
                       </>
                     ) : (
@@ -155,7 +155,7 @@ export default function ReferredClinicsTable({
           })}
         </tbody>
       </table>
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
+      {toast && <FlashToast message={toast.msg} tone={toast.tone} onDone={() => setToast(null)} />}
     </div>
   )
 }
