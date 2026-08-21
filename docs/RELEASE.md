@@ -1649,6 +1649,21 @@ $0-sales band (documented deliberate hide during setup).
   header stays custom (PageHeader has no avatar slot), and project rows
   stay unlinked (no per-project destination exists yet).
 
+- **2026-08-21 — UI best-version batch 39 (Client messaging + MRR).**
+  Messaging: the conversation title reads at real heading size (it was a
+  12px whisper), Send rides the pending prop, the new-conversation
+  trigger reaches 40px, the team empty state hands over an
+  Invite-a-teammate button instead of a path typed in prose, the sidebar
+  adopts SearchInput + aria-pressed tabs + surface tokens, and /messages
+  gains a three-pane loading skeleton. Subscriptions: the local tone map
+  drops sky (info=violet) and churn-risk reads warn instead of
+  celebration-pink; every mutation now toasts its outcome; row errors
+  announce beside the buttons that caused them; each attention bucket's
+  "+N more" deep-links to the matching table slice (?status=); the
+  Stripe-error banner announces; PlanMix rides EmptyState + chart
+  tokens; the route gains a loading skeleton. Deferred: + New plan stays
+  with its card (a rare act shouldn't be the page primary).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

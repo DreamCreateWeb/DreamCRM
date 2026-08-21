@@ -389,19 +389,19 @@ reads clinic-voiced copy.
 7. Server dates — N/A BY DESIGN: this is a platform-global surface with no clinic tz to anchor to (the tz law binds clinic-facing renders); dates are day-granular. ~~Modal success not live region / gray scrim~~ [BATCH 38: role=status + ink-token scrim]. Hardcoded domain string stays (display copy mirroring the SITE_DOMAIN default).
 
 ### Client messaging (double-sidebar platform branch)
-1. No thread-header identity — name is 12px uppercase in body (messages-body.tsx:59, messages-header.tsx:3-27) → real thread header.
-2. Send never spins (disabled+ternary, messages-body.tsx:109-116) → pending prop.
-3. New-conversation trigger 20px raw SVG (new-conversation-button.tsx:39-49).
-4. Raw hex #151D2C + gray-400 flyout toggle (messages-header.tsx:8/14).
-5. Stat strip hand-rolled + special misuse (client-messaging-stats.tsx:15-60) → KpiStat.
-6. Empty states dead-end; /settings/team as prose (client-messaging-sidebar.tsx:212-231); raw search (:174-181); hand-rolled tab strip no aria (:158-173/:250-284); etched sidebar chrome (:141, stats :17).
+1. ~~No thread-header identity~~ [BATCH 39: the conversation title renders at real heading size/ink in the pane; the sticky chrome keeps its one mobile control].
+2. ~~Send never spins~~ [BATCH 39: pending prop].
+3. ~~New-conversation trigger 20px~~ [BATCH 39: 40px circular hit area with hover wash].
+4. ~~Raw hex + gray-400 toggle~~ [BATCH 39: gray-900 token + gray-500 floor].
+5. ~~Stat strip special misuse~~ [BATCH 39: active-count goes neutral ink (a count is not a celebration), numerals ride font-mono-num, strip chrome on surface tokens. The compact 3-up strip layout stays — KpiStat tiles are too heavy for a 20rem rail].
+6. ~~Sidebar gaps~~ [BATCH 39: team empty state hands over an Invite-a-teammate button; SearchInput with clear; tab strip gains aria-pressed; chrome on surface/hairline tokens].
 
 ### MRR / Subscriptions (ecommerce/invoices/**)
 1. Local tone map w/ sky (subscriptions-attention.tsx:66-73) → TONE_* import; scheduled-to-cancel=special (:52) → warn.
-2. Row actions share one transition; errors render in the Customer cell no role=alert (subscriptions-panel.tsx:300-335, :277).
-3. All mutations silent on success (subscriptions-panel.tsx:231-252, plans-panel.tsx:47-77/140-161) → toast.
-4. Header lacks primary while + New plan buried (plans-panel.tsx:165, invoices/page.tsx:63-71).
-5. "+ N more" dead text (subscriptions-attention.tsx:137-141) → filter link; Stripe-error banner no role=alert (invoices/page.tsx:75-79).
+2. ~~Shared row transition + orphaned errors~~ [BATCH 36 split the pending; BATCH 39 moves the error beside the buttons that caused it, role=alert].
+3. ~~Mutations silent on success~~ [BATCH 39: cancel/keep/plan-change/archive/price-toggle/create-plan all toast].
+4. + New plan placement — DEFERRED as deliberate: creating a Stripe plan is a rare act; promoting it to the page primary would out-shout the daily job (managing subscriptions). The button stays with the Plans card it creates into.
+5. ~~"+N more" dead + silent banner~~ [BATCH 39: each bucket's +N-more deep-links ?status= (the table now reads it); the Stripe banner announces role=alert on the urgent recipe].
 6. Raw search + raw plan select (subscriptions-panel.tsx:117-139); PlanMixCard empty bare div (subscriptions-stats.tsx:41-47).
 
 ### Partners

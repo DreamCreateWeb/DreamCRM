@@ -82,7 +82,9 @@ describe('SubscriptionsAttention', () => {
     expect(screen.getByText('Clinic 0')).toBeInTheDocument()
     expect(screen.getByText('Clinic 5')).toBeInTheDocument()
     expect(screen.queryByText('Clinic 6')).not.toBeInTheDocument()
-    expect(screen.getByText('+ 3 more')).toBeInTheDocument()
+    // Batch 39: the footer became a deep link into the filtered table.
+    const more = screen.getByRole('link', { name: /\+ 3 more/ })
+    expect(more).toHaveAttribute('href', expect.stringContaining('/ecommerce/invoices?status='))
   })
 
   it('shows per-bucket empty messages when only one bucket has items', () => {

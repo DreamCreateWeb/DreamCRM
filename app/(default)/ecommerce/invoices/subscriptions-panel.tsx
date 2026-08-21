@@ -1,7 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { SearchInput } from '@/components/ui/search-input'
 import { useMemo, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useToast } from '@/components/ui/toast'
 import { formatMoney, relativeTime } from '@/lib/utils'
 import {
   cancelSubscription,
@@ -57,7 +60,13 @@ export default function SubscriptionsPanel({ subscriptions, products }: Props) {
     [products],
   )
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  // ?status= deep link — the attention buckets' "+N more" lands on the
+  // matching slice of this table.
+  const params = useSearchParams()
+  const urlStatus = params?.get('status') ?? null
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(
+    STATUS_FILTERS.some((f) => f.id === urlStatus) ? (urlStatus as StatusFilter) : 'all',
+  )
   const [productFilter, setProductFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
 
@@ -114,14 +123,15 @@ export default function SubscriptionsPanel({ subscriptions, products }: Props) {
             </span>
           </h2>
           <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search clinic, email, or sub ID…"
-              aria-label="Search subscriptions"
-              className="form-input text-sm py-1.5 w-56"
-            />
+            <div className="w-56">
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                onClear={() => setSearch('')}
+                placeholder="Search clinic, email, or sub ID…"
+                ariaLabel="Search subscriptions"
+              />
+            </div>
             {productOptions.length > 0 && (
               <select
                 aria-label="Filter by plan"
@@ -209,6 +219,7 @@ function SubscriptionRow({
   // Which act is in flight — only the pressed control shows work.
   const [active, setActive] = useState<'cancel-now' | 'toggle-end' | 'plan' | null>(null)
   const confirm = useConfirm()
+  const toast = useToast()
 
   async function handleCancelNow() {
     if (
@@ -225,6 +236,7 @@ function SubscriptionRow({
     startTransition(async () => {
       try {
         await cancelSubscription(sub.id)
+        toast('Subscription canceled')
       } catch (err) {
         setError((err as Error).message)
       } finally {
@@ -239,6 +251,7 @@ function SubscriptionRow({
     startTransition(async () => {
       try {
         await toggleCancelAtPeriodEnd(sub.id, !sub.cancelAtPeriodEnd)
+        toast(sub.cancelAtPeriodEnd ? 'Cancellation removed — the plan continues' : 'Will cancel at period end')
       } catch (err) {
         setError((err as Error).message)
       } finally {
@@ -254,6 +267,7 @@ function SubscriptionRow({
     startTransition(async () => {
       try {
         await changePlan(sub.id, newPriceId)
+        toast('Plan changed')
       } catch (err) {
         setError((err as Error).message)
       } finally {
@@ -276,7 +290,7 @@ function SubscriptionRow({
         {sub.clinicOrgId ? (
           <Link
             href={`/ecommerce/customers/${sub.clinicOrgId}`}
-            className="font-medium text-gray-800 dark:text-gray-100 hover:text-violet-600 dark:hover:text-violet-400"
+            className="font-medium text-gray-800 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-400"
           >
             {displayName}
           </Link>
@@ -285,7 +299,6 @@ function SubscriptionRow({
         )}
         <div className="text-xs text-gray-500 dark:text-gray-400">{sub.customerEmail ?? '—'}</div>
         <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{sub.id}</div>
-        {error && <div className="text-xs text-rose-700 dark:text-rose-300 mt-1">{error}</div>}
       </td>
       <td className="px-2 py-3">
         <div className="font-medium">
@@ -347,6 +360,12 @@ function SubscriptionRow({
                   Cancel now
                 </ActionButton>
               </div>
+              {/* The failure reads beside the button that caused it, announced. */}
+              {error && (
+                <div role="alert" className="text-xs text-rose-700 dark:text-rose-300 text-right max-w-[16rem]">
+                  {error}
+                </div>
+              )}
             </>
           )}
         </div>

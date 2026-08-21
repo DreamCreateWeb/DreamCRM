@@ -1,4 +1,5 @@
 import type { SubscriptionStats } from '@/lib/services/stripe-admin'
+import { EmptyState } from '@/components/ui/empty-state'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
 import { KpiStat } from '@/components/ui/kpi-stat'
 
@@ -40,8 +41,11 @@ export default function SubscriptionsStats({ stats }: Props) {
 export function PlanMixCard({ stats }: { stats: SubscriptionStats }) {
   if (stats.planMix.length === 0) {
     return (
-      <div className="v2-card px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-        No paying subscribers yet. Plan distribution will show up here.
+      <div className="v2-card">
+        <EmptyState
+          title="No paying subscribers yet"
+          body="Plan distribution will show up here once the first subscription starts."
+        />
       </div>
     )
   }
@@ -68,8 +72,8 @@ export function PlanMixCard({ stats }: { stats: SubscriptionStats }) {
               </div>
               <div className="h-1.5 bg-gray-100 dark:bg-gray-700/60 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-violet-500 dark:bg-violet-400 rounded-full"
-                  style={{ width: `${sharePct}%` }}
+                  className="h-full rounded-full"
+                  style={{ width: `${sharePct}%`, backgroundColor: 'var(--color-chart-1)' }}
                 />
               </div>
             </li>

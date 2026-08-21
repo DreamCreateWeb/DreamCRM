@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
+import { useToast } from '@/components/ui/toast'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { formatMoney } from '@/lib/utils'
 import {
@@ -45,6 +46,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
   // 'product' or a price id — only the pressed button spins.
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const confirm = useConfirm()
+  const toast = useToast()
 
   async function handleArchiveProduct() {
     if (
@@ -61,6 +63,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
     startTransition(async () => {
       try {
         await archivePlanProduct(product.id)
+        toast(`Archived ${product.name}`)
       } catch (err) {
         setError((err as Error).message)
       } finally {
@@ -76,6 +79,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
       try {
         if (active) await archivePlanPrice(priceId)
         else await unarchivePlanPrice(priceId)
+        toast(active ? 'Price archived' : 'Price unarchived')
       } catch (err) {
         setError((err as Error).message)
       } finally {
@@ -98,7 +102,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
           Archive product
         </ActionButton>
       </div>
-      {error && <div className="text-xs text-rose-700 dark:text-rose-300 mt-2">{error}</div>}
+      {error && <div role="alert" className="text-xs text-rose-700 dark:text-rose-300 mt-2">{error}</div>}
       <ul className="mt-3 space-y-1">
         {product.prices.map((pr) => (
           <li
@@ -145,6 +149,7 @@ function NewPlanButton() {
   const [annual, setAnnual] = useState('')
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -163,6 +168,7 @@ function NewPlanButton() {
         setDescription('')
         setMonthly('')
         setAnnual('')
+        toast(`Plan created — ${name}`)
       } catch (err) {
         setError((err as Error).message)
       }
@@ -209,7 +215,7 @@ function NewPlanButton() {
                       </div>
                     </div>
                     {error && (
-                      <div className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 px-3 py-2 rounded">{error}</div>
+                      <div role="alert" className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-3 py-2 rounded-[var(--r-sm)]">{error}</div>
                     )}
                   </div>
                   <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end gap-2">

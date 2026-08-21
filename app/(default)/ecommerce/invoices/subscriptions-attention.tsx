@@ -28,6 +28,7 @@ export default function SubscriptionsAttention({ attention }: Props) {
       <AttentionBucket
         title="Trial ending soon"
         tone="warn"
+        statusParam="trialing"
         subs={trialEndingSoon}
         emptyMessage="No trials wrapping up."
         labelFor={(s) =>
@@ -39,6 +40,7 @@ export default function SubscriptionsAttention({ attention }: Props) {
       <AttentionBucket
         title="Past due"
         tone="urgent"
+        statusParam="past_due"
         subs={pastDue}
         emptyMessage="No failed payments."
         labelFor={(s) =>
@@ -49,7 +51,8 @@ export default function SubscriptionsAttention({ attention }: Props) {
       />
       <AttentionBucket
         title="Scheduled to cancel"
-        tone="special"
+        tone="warn"
+        statusParam="active"
         subs={scheduledCancel}
         emptyMessage="No churn risk flagged."
         labelFor={(s) =>
@@ -66,21 +69,24 @@ export default function SubscriptionsAttention({ attention }: Props) {
 const HEADER_ACCENT: Record<Tone, string> = {
   warn: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   urgent: 'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  special: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
+  special: 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300',
   ok: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  info: 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  info: 'border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300',
   neutral: 'border-gray-500/40 bg-gray-500/10 text-gray-600 dark:text-gray-300',
 }
 
 function AttentionBucket({
   title,
   tone,
+  statusParam,
   subs,
   emptyMessage,
   labelFor,
 }: {
   title: string
   tone: Tone
+  /** The table's StatusFilter id the "+N more" link applies. */
+  statusParam: string
   subs: AdminSubscription[]
   emptyMessage: string
   labelFor: (s: AdminSubscription) => string
@@ -104,7 +110,7 @@ function AttentionBucket({
                   {s.clinicOrgId ? (
                     <Link
                       href={`/ecommerce/customers/${s.clinicOrgId}`}
-                      className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:text-violet-600 dark:hover:text-violet-400 truncate block"
+                      className="text-sm font-medium text-gray-800 dark:text-gray-100 hover:text-teal-700 dark:hover:text-teal-400 truncate block"
                     >
                       {s.clinicName ?? s.customerName ?? s.customerEmail ?? '—'}
                     </Link>
@@ -135,8 +141,13 @@ function AttentionBucket({
         )}
       </ul>
       {subs.length > 6 && (
-        <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 text-right border-t border-gray-100 dark:border-gray-700/60 tabular-nums">
-          + {subs.length - 6} more
+        <div className="px-4 py-2 text-xs text-right border-t border-gray-100 dark:border-gray-700/60 tabular-nums">
+          <Link
+            href={`/ecommerce/invoices?status=${statusParam}`}
+            className="font-medium text-teal-700 dark:text-teal-400 hover:underline"
+          >
+            + {subs.length - 6} more →
+          </Link>
         </div>
       )}
     </div>

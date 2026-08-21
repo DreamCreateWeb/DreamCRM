@@ -1,6 +1,8 @@
 'use client'
 
 import Link from 'next/link'
+import { SearchInput } from '@/components/ui/search-input'
+import { ActionButton } from '@/components/ui/action-button'
 import { useMemo, useState } from 'react'
 import { useFlyoutContext } from '@/app/flyout-context'
 import { relativeTime } from '@/lib/utils'
@@ -138,7 +140,7 @@ export default function ClientMessagingSidebar({
         flyoutOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
-      <div className="sticky top-16 bg-white dark:bg-gray-900 overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-gray-200 dark:border-gray-700/60 md:w-[20rem] xl:w-[22rem] h-[calc(100dvh-64px)]">
+      <div className="sticky top-16 bg-[color:var(--color-surface-1)] overflow-x-hidden overflow-y-auto no-scrollbar shrink-0 border-r border-[color:var(--color-hairline)] md:w-[20rem] xl:w-[22rem] h-[calc(100dvh-64px)]">
         <ClientMessagingStatsCard stats={stats} />
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60">
           <header className="flex items-center justify-between mb-3">
@@ -171,14 +173,15 @@ export default function ClientMessagingSidebar({
               onClick={() => setTab('team')}
             />
           </div>
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={tab === 'team' ? 'Search teammate or message…' : 'Search clinic, name, or message…'}
-            aria-label="Search conversations"
-            className="form-input text-sm py-1.5 w-full mb-2"
-          />
+          <div className="mb-2">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              onClear={() => setSearch('')}
+              placeholder={tab === 'team' ? 'Search teammate or message…' : 'Search clinic, name, or message…'}
+              ariaLabel="Search conversations"
+            />
+          </div>
           <div className="flex gap-1.5">
             <FilterChip
               active={filter === 'all'}
@@ -213,7 +216,12 @@ export default function ClientMessagingSidebar({
                 <EmptyState
                   icon="👋"
                   title="No team conversations yet"
-                  body="Invite a teammate from /settings/team, then start a thread."
+                  body="Invite a teammate, then start a thread."
+                  action={
+                    <ActionButton variant="secondary" size="sm" href="/settings/team">
+                      Invite a teammate
+                    </ActionButton>
+                  }
                 />
               ) : (
                 <EmptyState
@@ -264,6 +272,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`relative text-sm font-medium py-1.5 rounded-[var(--r-sm)] transition-colors ${
         active
           ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
