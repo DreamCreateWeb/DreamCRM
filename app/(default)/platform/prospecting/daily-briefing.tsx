@@ -38,10 +38,13 @@ export default function DailyBriefing({ briefing }: { briefing: DailyBriefing })
 
       {/* Follow-ups you committed to — surfaced prominently so nothing drops */}
       {briefing.dueFollowUpTotal > 0 && (
-        <div className="v2-card p-4 mb-3 border-l-4 border-amber-400">
+        <div className="rounded-[var(--r-md)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4 mb-3">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              ⏰ Follow-ups due <span className="text-gray-400">· {briefing.dueFollowUpTotal}</span>
+              ⏰ Follow-ups due{' '}
+              <span className="font-mono-num text-gray-500 dark:text-gray-400">
+                · {briefing.dueFollowUpTotal}
+              </span>
             </span>
             <Link href="/platform/prospecting/call-list" className="text-xs text-teal-600 dark:text-teal-400 hover:underline">
               Open call list →
@@ -71,7 +74,9 @@ export default function DailyBriefing({ briefing }: { briefing: DailyBriefing })
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <BriefColumn title="📅 Demos today" count={todaysDemos.length} href="/platform/prospecting/call-list">
           {todaysDemos.length === 0 ? (
-            <Empty>Nothing booked today.</Empty>
+            <Empty cta={{ href: '/platform/prospecting/demos', label: 'See upcoming demos' }}>
+              Nothing booked today.
+            </Empty>
           ) : (
             todaysDemos.map((d) => (
               <Row key={d.prospectId} href={`/platform/prospecting?prospect=${d.prospectId}`} name={d.name} meta={d.when} />
@@ -81,7 +86,9 @@ export default function DailyBriefing({ briefing }: { briefing: DailyBriefing })
 
         <BriefColumn title="🔥 Call first" count={briefing.callListTotal} href="/platform/prospecting/call-list">
           {callFirst.length === 0 ? (
-            <Empty>No hand-raisers yet.</Empty>
+            <Empty cta={{ href: '/platform/prospecting', label: 'Browse prospects' }}>
+              No hand-raisers yet.
+            </Empty>
           ) : (
             callFirst.map((c) => (
               <Row
@@ -105,6 +112,7 @@ export default function DailyBriefing({ briefing }: { briefing: DailyBriefing })
           {phoneQueueTop.length === 0 ? (
             <Empty>None right now.</Empty>
           ) : (
+            /* no CTA: the phone-first queue fills itself from enrichment */
             phoneQueueTop.map((p) => (
               <Row
                 key={p.id}
@@ -118,12 +126,17 @@ export default function DailyBriefing({ briefing }: { briefing: DailyBriefing })
 
         <BriefColumn title="🎯 New overnight" count={overnightHot.count} href="/platform/prospecting?band=hot">
           {overnightHot.count === 0 ? (
-            <Empty>No new hot prospects.</Empty>
+            <Empty cta={{ href: '/platform/prospecting?band=hot', label: 'See all hot prospects' }}>
+              No new hot prospects.
+            </Empty>
           ) : (
-            overnightHot.names.map((n, i) => (
-              <div key={i} className="truncate py-1 text-sm text-gray-700 dark:text-gray-300">
-                {n}
-              </div>
+            overnightHot.arrivals.map((a) => (
+              <Row
+                key={a.id}
+                href={`/platform/prospecting?prospect=${a.id}`}
+                name={a.name}
+                meta=""
+              />
             ))
           )}
         </BriefColumn>
@@ -167,6 +180,24 @@ function Row({ href, name, meta }: { href: string; name: string; meta: string })
   )
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="py-1 text-sm text-gray-400">{children}</div>
+function Empty({
+  children,
+  cta,
+}: {
+  children: React.ReactNode
+  cta?: { href: string; label: string }
+}) {
+  return (
+    <div className="py-1 text-sm text-gray-500 dark:text-gray-400">
+      {children}
+      {cta && (
+        <Link
+          href={cta.href}
+          className="mt-0.5 block text-xs font-medium text-teal-600 dark:text-teal-400 hover:underline"
+        >
+          {cta.label} →
+        </Link>
+      )}
+    </div>
+  )
 }

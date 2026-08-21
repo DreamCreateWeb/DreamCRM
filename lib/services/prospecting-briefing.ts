@@ -36,7 +36,7 @@ export interface DailyBriefing {
   callListTotal: number
   phoneQueueTop: PhoneQueueRow[]
   phoneQueueTotal: number
-  overnightHot: { count: number; names: string[] }
+  overnightHot: { count: number; arrivals: { id: string; name: string }[] }
   engine: { killSwitch: boolean; dryRun: boolean; autoEnroll: boolean; live: boolean }
 }
 

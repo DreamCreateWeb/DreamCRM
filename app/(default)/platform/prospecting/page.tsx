@@ -45,6 +45,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import AddClinicButton from './add-clinic-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 
 // Status → tone: the pill carries state, not urgency. call_list is the
@@ -160,32 +161,20 @@ export default async function ProspectingPage({
         }
       />
 
-      {/* View tabs — the board is the hero; everything heavy lives behind a tab. */}
-      <div className="mb-6 flex flex-wrap items-center gap-1 border-b border-[color:var(--color-hairline)]">
+      {/* View switcher — chips, so it can't be mistaken for the workspace's
+          underline sub-nav a row above. The board is the hero; everything
+          heavy lives behind a chip. */}
+      <div className="mb-6 flex flex-wrap items-center gap-1.5">
         {TABS.map((t) => (
-          <Link
+          <FilterChip
             key={t.v}
             href={t.v === 'pipeline' ? '/platform/prospecting' : `/platform/prospecting?view=${t.v}`}
-            className={`-mb-px flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-sm transition ${
-              view === t.v
-                ? 'border-teal-500 font-semibold text-teal-600 dark:text-teal-400'
-                : 'border-transparent font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
+            active={view === t.v}
+            count={t.count}
+            title={t.label}
           >
-            <span aria-hidden="true">{t.icon}</span>
-            {t.label}
-            {typeof t.count === 'number' && (
-              <span
-                className={`rounded-full px-1.5 py-0.5 font-mono-num text-xs font-bold ${
-                  view === t.v
-                    ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400'
-                    : 'bg-[color:var(--color-surface-sunk)] text-gray-500 dark:text-gray-400'
-                }`}
-              >
-                {t.count.toLocaleString()}
-              </span>
-            )}
-          </Link>
+            <span aria-hidden="true">{t.icon}</span> {t.label}
+          </FilterChip>
         ))}
       </div>
 
@@ -283,6 +272,15 @@ export default async function ProspectingPage({
             ))}
           </>
         )}
+        <EncodingLegend
+          pills={[
+            { tone: 'urgent', label: 'Hot', meaning: 'Scores highest — needs us most; rose avatar tile.' },
+            { tone: 'warn', label: 'Warm', meaning: 'Good fit, some presence already; amber avatar tile.' },
+            { tone: 'info', label: 'Cool', meaning: 'Covered for now — low urgency; violet avatar tile.' },
+            { tone: 'neutral', label: 'Low', meaning: 'Weak fit or unscored; gray avatar tile.' },
+          ]}
+          className="ml-1"
+        />
         <form action="/platform/prospecting" method="get" className="ml-auto">
           {filters.state && <input type="hidden" name="state" value={filters.state} />}
           <ProspectSearch initial={filters.search ?? ''} />
@@ -332,7 +330,11 @@ export default async function ProspectingPage({
                   className="border-b border-[color:var(--color-hairline)] last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/40"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                    <div className="flex items-center gap-2.5">
+                    <Link
+                      href={`${buildQuery(params, {})}${buildQuery(params, {}).includes('?') ? '&' : '?'}prospect=${p.id}`}
+                      scroll={false}
+                      className="group flex items-center gap-2.5"
+                    >
                       <span
                         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-xs font-bold text-white ${
                           BAND_AVATAR[p.scoreBand ?? ''] ?? 'bg-gray-300 dark:bg-gray-600'
@@ -342,20 +344,16 @@ export default async function ProspectingPage({
                         {prospectInitials(p.name)}
                       </span>
                       <div className="min-w-0">
-                        <Link
-                          href={`${buildQuery(params, {})}${buildQuery(params, {}).includes('?') ? '&' : '?'}prospect=${p.id}`}
-                          scroll={false}
-                          className="hover:text-teal-600 dark:hover:text-teal-400"
-                        >
+                        <span className="group-hover:text-teal-600 dark:group-hover:text-teal-400">
                           {p.name}
-                        </Link>
+                        </span>
                         {p.phone && (
                           <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                             ({p.phone.slice(0, 3)}) {p.phone.slice(3, 6)}-{p.phone.slice(6)}
                           </div>
                         )}
                       </div>
-                    </div>
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                     {[p.city, p.state].filter(Boolean).join(', ') || '—'}
@@ -374,7 +372,7 @@ export default async function ProspectingPage({
                         {p.websiteUrl.replace(/^https?:\/\/(www\.)?/, '').slice(0, 32)}
                       </a>
                     ) : p.status === 'discovered' || p.status === 'enriching' ? (
-                      <span className="text-gray-400 dark:text-gray-500 text-xs">not checked yet</span>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">not checked yet</span>
                     ) : (
                       <StatusPill tone="urgent" label="No website" title="No website found — the hottest kind of prospect" />
                     )}

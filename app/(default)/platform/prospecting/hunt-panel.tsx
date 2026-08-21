@@ -3,7 +3,16 @@ import type { HuntStats } from '@/lib/services/prospecting'
 import type { ProspectingConfig } from '@/lib/types/prospecting'
 import { INTENT_SIGNAL_LABELS, type ProspectIntentSignal } from '@/lib/types/prospecting'
 import { StatusPill } from '@/components/ui/status-pill'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
 import type { Tone } from '@/lib/ui/encodings'
+
+const ENGINE_PILL_LEGEND = [
+  { tone: 'ok' as Tone, label: 'Engine on / LIVE', meaning: 'The hunter is discovering and sending for real.' },
+  { tone: 'info' as Tone, label: 'Dry-run', meaning: 'Everything drafts but nothing sends.' },
+  { tone: 'urgent' as Tone, label: 'Watchdog TRIPPED', meaning: 'Bounces/complaints spiked — sending auto-paused to dry-run.' },
+  { tone: 'warn' as Tone, label: 'Sender: not set', meaning: 'No sending identity configured — outreach can’t go out.' },
+  { tone: 'special' as Tone, label: '🤖 Hunter on', meaning: 'Auto-enrollment is filling sequences on its own.' },
+]
 
 /**
  * The hunt cockpit — last-24h activity + live engine status + who's hottest
@@ -27,7 +36,7 @@ export default function HuntPanel({
       <div className={`mt-0.5 text-xl font-bold tabular-nums ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100'}`}>
         {value.toLocaleString()}
       </div>
-      {sub && <div className="text-xs text-gray-400">{sub}</div>}
+      {sub && <div className="text-xs text-gray-500 dark:text-gray-400">{sub}</div>}
     </div>
   )
 
@@ -54,6 +63,7 @@ export default function HuntPanel({
             }
           />
           {config.autoEnroll.enabled && <StatusPill tone="special" label="🤖 Hunter on" />}
+          <EncodingLegend pills={ENGINE_PILL_LEGEND} />
         </div>
       </div>
 

@@ -56,7 +56,13 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
                     label={`${r.scoreBand === 'hot' ? 'Hot' : 'Warm'} · ${r.opportunityScore ?? ''}`}
                   />
                 )}
-                {!r.websiteUrl && <StatusPill tone="special" label="No website" />}
+                {!r.websiteUrl && (
+                  <StatusPill
+                    tone="urgent"
+                    label="No website"
+                    title="No website found — the hottest kind of prospect"
+                  />
+                )}
               </div>
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 {[r.authorizedOfficialName, [r.city, r.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
@@ -78,10 +84,12 @@ export default function PhoneQueue({ rows }: { rows: PhoneQueueRow[] }) {
               )}
               </div>
             </div>
+            {/* tel: can't ride ActionButton/Link — a plain anchor in the
+                secondary recipe, so a queue of rows isn't a queue of primaries. */}
             {r.phone && (
               <a
                 href={`tel:${r.phone}`}
-                className="shrink-0 rounded-[var(--r-xs)] bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+                className="shrink-0 rounded-[var(--r-xs)] border border-[color:var(--color-hairline-strong)] px-3 py-1.5 text-sm font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-500/10"
               >
                 📞 ({r.phone.slice(0, 3)}) {r.phone.slice(3, 6)}-{r.phone.slice(6)}
               </a>

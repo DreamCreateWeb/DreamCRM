@@ -17,7 +17,7 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
       <section className="v2-card p-5 mb-6">
         <div className="flex items-baseline justify-between mb-1">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Win / loss</h2>
-          <span className="text-xs text-gray-400">last {report.windowDays} days</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">last {report.windowDays} days</span>
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           No decided prospects yet. As you convert wins and mark losses, this fills in with your
@@ -32,7 +32,7 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
     <section className="v2-card p-5 mb-6">
       <div className="flex items-baseline justify-between mb-4">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Win / loss</h2>
-        <span className="text-xs text-gray-400">last {report.windowDays} days</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">last {report.windowDays} days</span>
       </div>
 
       {/* Headline numbers */}
@@ -62,7 +62,7 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
         <div>
           <div className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">Why we lose</div>
           {report.lossReasons.length === 0 ? (
-            <p className="text-xs text-gray-400">No losses recorded.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">No losses recorded.</p>
           ) : (
             <ul className="space-y-1.5">
               {report.lossReasons.slice(0, 6).map((r) => (
@@ -70,11 +70,11 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
                   <div className="flex-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-gray-700 dark:text-gray-300">{r.label}</span>
-                      <span className="tabular-nums text-gray-400">{r.count}</span>
+                      <span className="tabular-nums text-gray-500 dark:text-gray-400">{r.count}</span>
                     </div>
-                    <div className="mt-1 h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                    <div aria-hidden="true" className="mt-1 h-1.5 rounded-full bg-[color:var(--color-surface-sunk)] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-rose-400/70"
+                        className="h-full rounded-full bg-rose-500/70"
                         style={{ width: `${Math.round((r.count / Math.max(1, maxLoss)) * 100)}%` }}
                       />
                     </div>
@@ -91,7 +91,7 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
             Win rate by profile
           </div>
           {report.segments.length === 0 ? (
-            <p className="text-xs text-gray-400">No attributed prospects yet.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">No attributed prospects yet.</p>
           ) : (
             <ul className="space-y-1.5">
               {report.segments.map((s) => (
@@ -99,7 +99,7 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
                   <span className="text-gray-700 dark:text-gray-300">{s.label}</span>
                   <span className="tabular-nums text-gray-500 dark:text-gray-400">
                     {s.winRatePct != null ? `${s.winRatePct}%` : '—'}{' '}
-                    <span className="text-gray-400">
+                    <span className="text-gray-500 dark:text-gray-400">
                       ({s.won}W · {s.lost}L)
                     </span>
                   </span>
@@ -134,7 +134,7 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
           </ul>
         </div>
       ) : (
-        <p className="mt-5 text-xs text-gray-400 dark:text-gray-500">
+        <p className="mt-5 text-xs text-gray-500 dark:text-gray-400">
           {decided} of {LEARNINGS_MIN_SAMPLE} decided prospects — a few more wins and losses and the
           learning loop kicks in, sharpening the outreach copy automatically.
         </p>
