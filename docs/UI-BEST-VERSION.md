@@ -421,16 +421,16 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 
 ### Prospecting workspace (page.tsx)
 1. ~~Two header primaries~~ [BATCH 41: Call Mode is the one primary with breath; Add-a-clinic demotes to secondary].
-2. Two stacked underline tab rows → view switcher becomes FilterChips (page.tsx:163-189).
+2. ~~Two stacked underline tab rows~~ [BATCH 43: the page's view switcher becomes FilterChips (href mode, counts inside) — no longer confusable with the workspace's underline sub-nav].
 3. ~~Raw search + hand-rolled kill-switch banner~~ [BATCH 41: SearchInput (a small client wrapper keeps the plain GET form) with ↵ hint + clear; the banner rides the warn recipe + role=status].
-4. Only name deep-links; row otherwise dead (:332-401) → whole-row ?prospect= target; warmth avatars no legend (:72-77/:338-345) → EncodingLegend.
-5. gray-400 "not checked yet" (:379); hand-rolled pagination + no PendingVeil on filter nav (:410-436).
+4. ~~Name-only deep link + no warmth legend~~ [BATCH 43: the whole practice cell (avatar + name + phone) is one deep-link target — a literal anchor-spanning-a-<tr> isn't valid HTML, so the cell is the honest maximum; the filter row gains an EncodingLegend for the four warmth tiles].
+5. ~~gray-400 "not checked yet"~~ [BATCH 43: gray-500]. Pagination already rides ActionButtons; PendingVeil on filter nav DEFERRED — the page is server-rendered (chips are plain GETs) and batch 41's loading.tsx covers the transition.
 
 ### Daily briefing / hunt panel / focus banner
-1. Briefing Empty helper gray-400 dead-end (:170-172) → inline column CTA; follow-ups amber card hand-rolled (:41), count gray-400 (:44).
-2. Hero CTA raw Link-pill (:31-36) → ActionButton; overnightHot names not links (:123-127).
-3. Hunt panel six KPI tiles hand-rolled, zero heartbeats (hunt-panel.tsx:24-32) → KpiStat + MiniTrend; sub gray-400 (:30); five coded pills no legend (:41-56).
-4. Focus banner raw ~28px controls + silent clear (focus-banner.tsx:24-42) → ActionButton sm + toast.
+1. ~~Briefing empties + amber card~~ [BATCH 43: Empty lifts to gray-500 and grows per-column CTAs (see demos / browse prospects / see hot); the follow-ups card moves onto the standard amber recipe; the count onto font-mono-num gray-500].
+2. Hero CTA + overnight rows. PARTIAL [BATCH 43: 🎯 New-overnight arrivals now carry ids from the service and deep-link to their deal rooms]. The hero's white-on-teal pill DELIBERATELY stays a styled Link — no ActionButton variant expresses white-fill-on-brand-gradient, and matching Call Mode's dial-block language is the point.
+3. Hunt panel. PARTIAL [BATCH 43: the five engine pills gain an EncodingLegend; tile subs lift to gray-500]. KpiStat+MiniTrend heartbeats DEFERRED — HuntStats stores 24h totals only; sparks need a new hourly aggregate (post-program depth item).
+4. ~~Focus banner~~ [BATCH 43: both controls become ActionButtons (view=secondary, clear=ghost w/ pending); clearing announces via toast; banner onto the ring recipe].
 
 ### Copilot bar
 1. ~~Hand-rolled modal no trap/role/aria-modal~~ [BATCH 42: useFocusTrap + role=dialog/aria-modal/aria-label on the ⌘J panel; Esc moves off the global listener into the trap].
@@ -448,7 +448,7 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 2. ~~Errors/pickers/skip/practice modal~~ [BATCH 42: role=alert on call-session + practice-panel errors; both pickers' Cancels become ghost ActionButtons; pass chips show live "Logging…" labels; Skip lifts to a legible gray-500 underline; practice-panel gains scrim-click + Esc + focus trap + role=dialog + a 32px ✕]. Session-strip color-only markers ride the next batch.
 3. ~~call-card one pending / all-primary / vanishing success~~ [BATCH 42: per-outcome keys incl. per-loss-reason; ALL outcome buttons go secondary (no per-card primary in a list of cards); the 2.5s flash becomes a global toast; Not-interested toggle never spins].
 4. ConvertForm + loss chips. PARTIAL [BATCH 42: submit gains the pending prop + role=alert error + a success toast; loss chips move to rose-500/10 with a live label]. Remainder (SaveBar/modal shape, shared loss-reason constants, reply aria-expanded) deliberately deferred: the inline form is 4 visible fields in practice and works; constants + disclosure ride the next batch.
-5. call-list ring + queue. PARTIAL [BATCH 42: the demo-accent ring's raw #f59e0b fallback → var(--color-amber-500)]. phone-queue "No website" stays a special pill DELIBERATELY — in a sales queue "no website" is the noteworthy opportunity, not an error; dial CTA rides the next batch.
+5. ~~call-list ring + queue~~ [BATCH 42: raw #f59e0b fallback → var(--color-amber-500)] [BATCH 43: phone-queue's "No website" flips to urgent to match the prospects table (same fact, same tone) + hover title; the dial CTA moves onto the secondary recipe so a queue of rows isn't a queue of primaries (tel: can't ride Link/ActionButton)].
 
 ### Demo prep (demo/[id])
 1. ~~THREE primaries~~ [BATCH 42: prep-actions' pair and the brief's Generate demote to secondary — the track-picker launcher is the page's one breathing primary].
@@ -461,10 +461,10 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 1. ~~Add-a-clinic modal~~ [BATCH 41: Cancel no longer spins; trigger demoted to secondary] [BATCH 42: focus trap + Esc (guarded while pending) + aria-labelledby onto the dialog; success panel + duplicate warning gain role=status (the warning also drops a broken dark-mode class for the standard amber recipe); submit ternary removed under the pending prop; footer Cancel disabled-only; ✕ grows a 32px target. The success panel's two buttons were already one-primary-at-a-time by condition].
 
 ### Pipeline board / momentum / win-loss / territory (prospecting)
-1. pipeline-panel. PARTIAL [BATCH 42: tiles onto surface-sunk; Won reads emerald not brand teal]. Remainder (gray-400 floors, KpiStat shape, EmptyState) rides the next batch.
-2. Hand-rolled meters no aria (loss bars :75-79, warmth :132-136 bg-slate-400, territory worked-% :154-159) → tokened + labeled.
-3. Board inert numbers + hints. PARTIAL [BATCH 42: violet-50 soon card → violet-500/10 tokens]. Remainder (deep-links, EmptyHint dead-ends, momentum flat deltas) rides the next batch.
-4. Territory. PARTIAL [BATCH 42: Won column → emerald; sunk surfaces tokened]. Remainder (per-row pending, toggle targets, gray-400s, empty dead end, button→Link) rides the next batch.
+1. ~~pipeline-panel~~ [BATCH 42: tiles onto surface-sunk; Won → emerald] [BATCH 43: all seven gray-400 floors → gray-500; loss meters tokened (surface-sunk track, rose-500 fill) + aria-hidden since counts sit beside them]. KpiStat adoption DEFERRED — the tiles already match the token recipe and have no spark data; the zero-state prose card stays (in-card precedent).
+2. ~~Hand-rolled meters~~ [BATCH 43: loss/worked-% bars tokened + aria-hidden (their numbers are textual siblings); the warmth bar's cool segment moves off bg-slate-400 onto violet to match the cool band everywhere else].
+3. ~~Board inert numbers + hints~~ [BATCH 42: violet-50 soon card → tokens] [BATCH 43: column count pills and the 4xl Prospects headline deep-link to their lists; EmptyHints lift to gray-500 (their copy explains how a column fills — kept); momentum flat/zero deltas lift to gray-500].
+4. ~~Territory~~ [BATCH 42: Won → emerald; sunk surfaces tokened] [BATCH 43: per-row pending keys (only the tapped Focus toggle reads Saving…) + aria-pressed + 32px targets; the suggested-focus CTA becomes an ActionButton; state cells become real Links; banners onto ring recipes; gray-400 floors → gray-500; the empty row links straight to settings → state rollout; Won stat tile → emerald].
 
 ### Marketing home + legacy pipeline (/marketing)
 1. Stage accents sky + -50 + stone (terminology.ts:91-101 + consumers) → tone contract.

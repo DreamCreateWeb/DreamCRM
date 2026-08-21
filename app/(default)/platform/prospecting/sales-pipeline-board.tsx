@@ -104,9 +104,12 @@ function Column({
           </span>
           <h3 className="text-sm font-bold text-gray-700 dark:text-gray-200">{label}</h3>
         </div>
-        <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-0.5 text-xs font-bold tabular-nums text-gray-600 ring-1 ring-[color:var(--color-hairline)] dark:text-gray-300">
+        <Link
+          href={viewAllHref}
+          className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-0.5 text-xs font-bold tabular-nums text-gray-600 ring-1 ring-[color:var(--color-hairline)] hover:text-teal-600 dark:text-gray-300 dark:hover:text-teal-400"
+        >
           {count.toLocaleString()}
-        </span>
+        </Link>
       </div>
       <div className="flex flex-1 flex-col gap-2 px-3.5">{children}</div>
       <div className="px-3.5 py-3">
@@ -119,7 +122,7 @@ function Column({
 }
 
 function EmptyHint({ text }: { text: string }) {
-  return <p className="px-1 py-6 text-center text-xs text-gray-400 dark:text-gray-500">{text}</p>
+  return <p className="px-1 py-6 text-center text-xs text-gray-500 dark:text-gray-400">{text}</p>
 }
 
 /** The waiting-pool warmth bar + legend on the Prospects headline. */
@@ -129,10 +132,10 @@ function WarmthBar({ hot, warm, cool }: { hot: number; warm: number; cool: numbe
   const pct = (n: number) => `${(n / total) * 100}%`
   return (
     <div className="mt-3.5 w-full">
-      <div className="flex h-1.5 w-full overflow-hidden rounded-full">
+      <div aria-hidden="true" className="flex h-1.5 w-full overflow-hidden rounded-full">
         {hot > 0 && <div className="bg-rose-500" style={{ width: pct(hot) }} />}
         {warm > 0 && <div className="bg-amber-500" style={{ width: pct(warm) }} />}
-        {cool > 0 && <div className="bg-slate-400" style={{ width: pct(cool) }} />}
+        {cool > 0 && <div className="bg-violet-500" style={{ width: pct(cool) }} />}
       </div>
       <div className="mt-2 flex justify-center gap-3 text-xs text-gray-500 dark:text-gray-400">
         <span>
@@ -155,13 +158,16 @@ export default function SalesPipelineBoard({ board }: { board: PipelineBoard }) 
       {/* Prospects — a headline count (there can be thousands) + warmth bar. */}
       <Column stage="prospects" label="Prospects" count={board.prospects.count} viewAllHref="/platform/prospecting?view=prospects" viewAllLabel="Browse the full list">
         <div className="flex h-full flex-col items-center justify-center rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] px-3 py-6 text-center ring-1 ring-[color:var(--color-hairline)]">
-          <p className="font-mono-num text-4xl font-bold leading-none text-gray-800 dark:text-gray-100">
+          <Link
+            href="/platform/prospecting?view=prospects"
+            className="font-mono-num text-4xl font-bold leading-none text-gray-800 hover:text-teal-600 dark:text-gray-100 dark:hover:text-teal-400"
+          >
             {board.prospects.count.toLocaleString()}
-          </p>
+          </Link>
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             waiting to be worked
           </p>
-          <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             {board.prospects.tracked.toLocaleString()} tracked in all
           </p>
           <WarmthBar hot={board.prospects.hot} warm={board.prospects.warm} cool={board.prospects.cool} />

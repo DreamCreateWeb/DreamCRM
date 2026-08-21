@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { TerritoryRow } from '@/lib/types/prospecting'
@@ -11,6 +11,7 @@ import {
   summarizeTerritories,
   type TerritoryStage,
 } from '@/lib/prospect-territory'
+import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
 import { setFocusStateAction } from '../admin-actions'
@@ -32,14 +33,18 @@ export default function TerritoryTable({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [active, setActive] = useState<string | null>(null)
   const ranked = rankTerritories(rows)
   const insights = summarizeTerritories(rows, focusState)
 
-  const setFocus = (state: string | null) =>
+  const setFocus = (state: string | null, key: string) => {
+    setActive(key)
     startTransition(async () => {
       await setFocusStateAction(state)
       router.refresh()
+      setActive(null)
     })
+  }
 
   return (
     <div>
@@ -48,11 +53,11 @@ export default function TerritoryTable({
         <Stat label="States in play" value={insights.totalStates} />
         <Stat label="Enabled" value={insights.enabledStates} />
         <Stat label="Prospects found" value={insights.totalProspects.toLocaleString()} />
-        <Stat label="Won" value={insights.totalWon} tone="teal" />
+        <Stat label="Won" value={insights.totalWon} tone="ok" />
       </div>
 
       {insights.suggestedFocus && (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-sm)] border border-teal-500/25 bg-teal-500/5 px-4 py-3">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-sm)] bg-teal-500/5 ring-1 ring-inset ring-teal-500/20 px-4 py-3">
           <div className="text-sm text-gray-800 dark:text-gray-100">
             <span aria-hidden="true">✨</span> <span className="font-semibold">
               {insights.suggestedFocus.hot} hot
@@ -60,19 +65,20 @@ export default function TerritoryTable({
             {insights.suggestedFocus.hot === 1 ? 'practice is' : 'practices are'} waiting in{' '}
             {insights.suggestedFocus.stateName} — the fastest path to booked demos.
           </div>
-          <button
-            type="button"
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            pending={pending && active === 'suggest'}
             disabled={pending}
-            onClick={() => setFocus(insights.suggestedFocus!.state)}
-            className="rounded-[var(--r-xs)] bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60"
+            onClick={() => setFocus(insights.suggestedFocus!.state, 'suggest')}
           >
             Focus {insights.suggestedFocus.state}
-          </button>
+          </ActionButton>
         </div>
       )}
 
       {insights.underworked.length > 0 && (
-        <div className="mb-5 rounded-[var(--r-sm)] border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+        <div className="mb-5 rounded-[var(--r-sm)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-4 py-3">
           <div className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
             Room to work
           </div>
@@ -123,16 +129,15 @@ export default function TerritoryTable({
                   } ${r.enabled ? '' : 'opacity-60'}`}
                 >
                   <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/platform/prospecting?state=${r.state}`)}
+                    <Link
+                      href={`/platform/prospecting?state=${r.state}`}
                       className="font-medium text-gray-900 dark:text-gray-100 hover:text-teal-600 dark:hover:text-teal-400"
                     >
                       {r.state}
-                    </button>
-                    <span className="ml-2 text-xs text-gray-400">{r.stateName}</span>
+                    </Link>
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{r.stateName}</span>
                     {!r.enabled && (
-                      <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">
+                      <span className="ml-2 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                         off
                       </span>
                     )}
@@ -140,7 +145,7 @@ export default function TerritoryTable({
                   <td className="px-3 py-2">
                     <StatusPill tone={STAGE_TONE[stage]} label={TERRITORY_STAGE_LABELS[stage]} />
                     {r.tasksPending > 0 && (
-                      <span className="ml-2 text-xs text-gray-400 tabular-nums">
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                         {r.tasksPending} sweeping
                       </span>
                     )}
@@ -151,7 +156,7 @@ export default function TerritoryTable({
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">
                     {r.total > 0 ? (
                       <span className="inline-flex items-center justify-end gap-1.5">
-                        <span className="h-1.5 w-12 overflow-hidden rounded-full bg-[color:var(--color-surface-sunk)]">
+                        <span aria-hidden="true" className="h-1.5 w-12 overflow-hidden rounded-full bg-[color:var(--color-surface-sunk)]">
                           <span
                             className="block h-full rounded-full bg-teal-500"
                             style={{ width: `${Math.min(100, r.workedPct)}%` }}
@@ -179,14 +184,15 @@ export default function TerritoryTable({
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() => setFocus(isFocus ? null : r.state)}
-                      className={`rounded-[var(--r-xs)] px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60 ${
+                      aria-pressed={isFocus}
+                      onClick={() => setFocus(isFocus ? null : r.state, r.state)}
+                      className={`min-h-8 rounded-[var(--r-xs)] px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${
                         isFocus
                           ? 'bg-teal-600 text-white hover:bg-teal-700'
                           : 'border border-[color:var(--color-hairline-strong)] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                       }`}
                     >
-                      {isFocus ? '★ Focused' : 'Focus'}
+                      {pending && active === r.state ? 'Saving…' : isFocus ? '★ Focused' : 'Focus'}
                     </button>
                   </td>
                 </tr>
@@ -194,8 +200,15 @@ export default function TerritoryTable({
             })}
             {ranked.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-sm text-gray-400">
-                  No territory yet — enable a state in settings to start the discovery grid.
+                <td colSpan={9} className="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  No territory yet —{' '}
+                  <Link
+                    href="/platform/prospecting/settings"
+                    className="font-medium text-teal-600 dark:text-teal-400 hover:underline"
+                  >
+                    enable a state in settings
+                  </Link>{' '}
+                  to start the discovery grid.
                 </td>
               </tr>
             )}
@@ -206,14 +219,14 @@ export default function TerritoryTable({
   )
 }
 
-function Stat({ label, value, tone }: { label: string; value: string | number; tone?: 'teal' }) {
+function Stat({ label, value, tone }: { label: string; value: string | number; tone?: 'ok' }) {
   return (
     <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
       <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
       <div
         className={`mt-0.5 text-lg font-semibold tabular-nums ${
-          tone === 'teal'
-            ? 'text-teal-700 dark:text-teal-300'
+          tone === 'ok'
+            ? 'text-emerald-700 dark:text-emerald-300'
             : 'text-gray-900 dark:text-gray-100'
         }`}
       >

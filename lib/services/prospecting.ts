@@ -1451,7 +1451,7 @@ export async function getCallQueue(opts?: { now?: Date; limit?: number }): Promi
  *  "entered overnight" line in the daily briefing. */
 export async function getRecentHotArrivals(
   opts?: { now?: Date; sinceHours?: number; limit?: number },
-): Promise<{ count: number; names: string[] }> {
+): Promise<{ count: number; arrivals: { id: string; name: string }[] }> {
   const now = opts?.now ?? new Date()
   const since = new Date(now.getTime() - (opts?.sinceHours ?? 24) * 60 * 60 * 1000)
   const where = and(
@@ -1463,13 +1463,13 @@ export async function getRecentHotArrivals(
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.prospect)
     .where(where)
-  const names = await db
-    .select({ name: schema.prospect.name })
+  const arrivals = await db
+    .select({ id: schema.prospect.id, name: schema.prospect.name })
     .from(schema.prospect)
     .where(where)
     .orderBy(desc(schema.prospect.opportunityScore))
     .limit(opts?.limit ?? 5)
-  return { count: countRow?.n ?? 0, names: names.map((r) => r.name) }
+  return { count: countRow?.n ?? 0, arrivals }
 }
 
 /**
