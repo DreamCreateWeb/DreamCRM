@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendPortalMessageAction } from '../actions'
-import { PortalHeading, PORTAL_SUCCESS_INK, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
+import {
+  PortalHeading,
+  PORTAL_SUCCESS_INK,
+  PORTAL_DANGER_INK,
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+} from '@/components/patient-portal/ui'
+import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
 import { MAX_MESSAGE_ATTACHMENTS, isImageAttachment, type MessageAttachment } from '@/lib/types/messaging'
 
@@ -26,9 +34,6 @@ interface SerializedMessage {
   attachments: MessageAttachment[]
 }
 
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 const CHANNEL_LABEL: Record<string, string> = {
   in_app: 'portal',
@@ -81,6 +86,8 @@ export default function PortalMessagesView({
     endRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
   }, [messages.length])
 
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+
   function onSend(e: React.FormEvent) {
     e.preventDefault()
     if ((!draft.trim() && attachments.length === 0) || uploading > 0) return
@@ -92,9 +99,11 @@ export default function PortalMessagesView({
       if (r.ok) {
         setDraft('')
         setAttachments([])
+        if (composerRef.current) composerRef.current.style.height = 'auto'
         setFeedback({ kind: 'ok', msg: 'Sent — the front desk will reply during office hours.' })
+        // (persists until the next action — a vanishing confirmation is one a
+        // patient looking away for two seconds never sees)
         router.refresh()
-        setTimeout(() => setFeedback(null), 5000)
       } else {
         setFeedback({ kind: 'err', msg: r.error })
       }
@@ -256,7 +265,7 @@ export default function PortalMessagesView({
                     type="button"
                     onClick={() => setAttachments((prev) => prev.filter((x) => x.url !== a.url))}
                     title="Remove"
-                    className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+                    className="absolute right-0.5 top-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-sm text-white"
                     style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
                   >
                     ×
@@ -292,19 +301,27 @@ export default function PortalMessagesView({
               disabled={pending || attachments.length >= MAX_MESSAGE_ATTACHMENTS}
               title="Attach a photo"
               aria-label="Attach a photo"
-              className="shrink-0 rounded-full px-3 py-3 text-[1rem] disabled:cursor-not-allowed disabled:opacity-40"
+              className="shrink-0 rounded-full p-3 disabled:cursor-not-allowed disabled:opacity-40"
               style={{ border: `1px solid ${BORDER}`, color: MUTED, backgroundColor: '#FAF7F2' }}
             >
-              📎
+              <PortalIcon name="clip" className="h-[1.15rem] w-[1.15rem]" />
             </button>
             <textarea
+              ref={composerRef}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                // Auto-grow: one line at rest, expands with content to ~5
+                // lines — a fixed 2-row block collided with the tab bar on
+                // short phones while wasting height when empty.
+                e.currentTarget.style.height = 'auto'
+                e.currentTarget.style.height = `${Math.min(e.currentTarget.scrollHeight, 132)}px`
+              }}
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') onSend(e as unknown as React.FormEvent)
               }}
               placeholder="Write to the front desk…"
-              rows={2}
+              rows={1}
               disabled={pending}
               className="flex-1 resize-none rounded-2xl px-4 py-3 text-[0.92rem] outline-none disabled:opacity-50"
               style={{ border: `1px solid ${BORDER}`, color: INK, backgroundColor: '#FAF7F2' }}
@@ -320,7 +337,8 @@ export default function PortalMessagesView({
           </div>
           {feedback && (
             <p
-              className="mt-1.5 text-[0.78rem] font-medium"
+              role={feedback.kind === 'ok' ? 'status' : 'alert'}
+              className="mt-1.5 text-[0.85rem] font-medium"
               style={{ color: feedback.kind === 'ok' ? PORTAL_SUCCESS_INK : PORTAL_DANGER_INK }}
             >
               {feedback.msg}

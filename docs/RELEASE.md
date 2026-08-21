@@ -1575,6 +1575,21 @@ $0-sales band (documented deliberate hide during setup).
   error hex → PortalErrorText, success announces, "Not on file" reads at
   PORTAL_MUTED.
 
+- **2026-08-21 — UI best-version batch 34 (portal messages, profile,
+  family, intake).** Messages: send feedback is legible, announced
+  (role=status/alert) and persists until the next action; the composer
+  starts at one line and auto-grows (collapsing after send) so it stops
+  colliding with the tab bar on short phones; the attachment remove hits
+  24px; the paperclip emoji became a real stroke icon in the PortalIcon
+  set. Profile: all 11 fields ride PortalInput with real focus rings
+  (the WCAG item), the Saved note persists in a live region, Sign out
+  gets a pending state, and the marketing toggle says so when a failed
+  save reverts it. Family: Book-for pills ride BrandButton small, the
+  no-dependents state now renders the self-serve FamilyLinkRequest, and
+  ages read "age 8". Intake: Fill-it-out rides BrandButton, the raw
+  green hex joined the palette, and the empty state is PortalEmptyState
+  with a next step.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

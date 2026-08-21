@@ -4,12 +4,12 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-import Link from 'next/link'
 import { getUpcomingVisits } from '@/lib/services/patient-portal'
 import { getPortalPageContext, requirePortalFeature, toVisitCardData, mapsQueryFor } from '../portal-data'
 import VisitCard from '@/components/patient-portal/visit-card'
 import FamilyLinkRequest from '@/components/patient-portal/family-link-request'
 import {
+  BrandButton,
   PortalCard,
   PortalHeading,
   PortalSectionLabel,
@@ -51,6 +51,11 @@ export default async function PortalFamilyPage() {
             </a>
           )}
         </PortalCard>
+        {/* The self-serve ask — the exact flow this empty state describes was
+            built and then hidden from the one person who needs it. */}
+        <section className="mt-6">
+          <FamilyLinkRequest brand={brand} />
+        </section>
       </div>
     )
   }
@@ -74,7 +79,7 @@ export default async function PortalFamilyPage() {
           <section key={dep.id} className="mt-7">
             <PortalSectionLabel>
               {dep.firstName} {dep.lastName}
-              {age != null ? ` · ${age}` : ''}
+              {age != null ? ` · age ${age}` : ''}
             </PortalSectionLabel>
             {visits.length === 0 ? (
               <PortalCard>
@@ -83,13 +88,9 @@ export default async function PortalFamilyPage() {
                     No upcoming visits for {dep.firstName}.
                   </p>
                   {settings.features.booking && (
-                    <Link
-                      href={`/patient/book?for=${encodeURIComponent(dep.id)}`}
-                      className="rounded-full px-4 py-2 text-[0.82rem] font-semibold text-white"
-                      style={{ backgroundColor: brand }}
-                    >
+                    <BrandButton brand={brand} href={`/patient/book?for=${encodeURIComponent(dep.id)}`} small>
                       {selfBookingEnabled ? `Book for ${dep.firstName}` : `Request for ${dep.firstName}`}
-                    </Link>
+                    </BrandButton>
                   )}
                 </div>
               </PortalCard>

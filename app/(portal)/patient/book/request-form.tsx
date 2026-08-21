@@ -187,7 +187,7 @@ export default function PortalRequestForm({
           onChange={(e) => setPreferred(e.target.value)}
           maxLength={200}
           placeholder="e.g. weekday mornings, after 4pm…"
-          className="px-4 py-3"
+          style={{ padding: '12px 16px' }}
         />
       </section>
 
@@ -205,7 +205,7 @@ export default function PortalRequestForm({
           rows={3}
           maxLength={1000}
           placeholder="A bit about what you need, or anything that would make your visit easier."
-          className="px-4 py-3"
+          style={{ padding: '12px 16px' }}
         />
       </section>
 

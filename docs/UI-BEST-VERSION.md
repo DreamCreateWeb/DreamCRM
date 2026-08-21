@@ -222,26 +222,26 @@ Already best-version: CompletedHeartbeat.
 3. ~~"Not on file" dimmed below palette~~ [BATCH 33: PORTAL_MUTED].
 
 ### Portal messages
-1. Send feedback 0.78rem, unannounced, self-clears (messages-view.tsx:321).
-2. Composer vs tab bar on short phones; rows=2 fixed (:144; layout pb-28).
-3. Attachment remove 20px target (:255).
-4. 📎 emoji icon → PortalIcon stroke (:289).
+1. ~~Send feedback tiny, unannounced, self-clears~~ [BATCH 34: 0.85rem, role=status/alert, persists until the next action — no more 5s vanish].
+2. ~~Composer vs tab bar on short phones~~ [BATCH 34: one line at rest, auto-grows with content to ~5 lines, collapses after send].
+3. ~~Attachment remove 20px target~~ [BATCH 34: 24px].
+4. ~~📎 emoji icon~~ [BATCH 34: new 'clip' stroke in the PortalIcon set].
 
 ### Profile
-1. outline-none, NO focus ring on 11 fields → PortalInput (profile-form.tsx:57). [WCAG-level]
-2. Save confirmation vanishing whisper, no live region (:150).
-3. Sign out no pending state (:196).
-4. Opt-in toggle reverts silently on failure (:98).
+1. ~~No focus ring on 11 fields~~ [BATCH 34: every field rides PortalInput (real focus-visible ring); size overrides via inline style so utility conflicts can't regress it]. [was WCAG-level]
+2. ~~Save confirmation vanishing whisper~~ [BATCH 34: role=status, persists until the next edit/submit].
+3. ~~Sign out no pending state~~ [BATCH 34: 'Signing out…' + disabled].
+4. ~~Opt-in toggle reverts silently~~ [BATCH 34: the revert now says so (role=alert line)].
 
 ### Family
-1. "Book for {name}" ~32px → BrandButton small (family/page.tsx:88).
-2. No-dependents state hides FamilyLinkRequest — render it (:32).
-3. "· 8" age without unit (:75).
+1. ~~"Book for {name}" ~32px~~ [BATCH 34: BrandButton small — tap feedback + honest size].
+2. ~~No-dependents state hides FamilyLinkRequest~~ [BATCH 34: the self-serve link-request card renders under the explainer — the exact flow the empty state describes].
+3. ~~"· 8" age without unit~~ [BATCH 34: "· age 8"].
 
 ### Intake (portal)
-1. "Fill it out" ~32px pill (intake/page.tsx:110).
-2. Raw #7BA37E green → PORTAL_SUCCESS_INK (:138).
-3. Empty to-fill state not PortalEmptyState, no next step (:89).
+1. ~~"Fill it out" ~32px pill~~ [BATCH 34: BrandButton small].
+2. ~~Raw #7BA37E green~~ [BATCH 34: PORTAL_SUCCESS_INK].
+3. ~~Empty to-fill state bare~~ [BATCH 34: PortalEmptyState + See-your-visits next step].
 
 ### Portal primitives + shared cards
 1. NPS row 36px circles + hover:scale on touch (survey-card.tsx:74).
