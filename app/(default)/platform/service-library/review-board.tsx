@@ -10,10 +10,10 @@ import {
 import LibraryEntryEditor from './library-entry-editor'
 import { type Tone } from '@/lib/ui/encodings'
 import { FilterChip } from '@/components/ui/filter-chip'
+import { SearchInput } from '@/components/ui/search-input'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
-import { FlashToast } from '@/components/ui/flash-toast'
 import { useToast } from '@/components/ui/toast'
 
 /**
@@ -44,11 +44,12 @@ const TAB_LABELS: Record<Tab, string> = {
 
 export default function ReviewBoard({ entries, orgNames }: Props) {
   const [tab, setTab] = useState<Tab>('pending')
+  const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [editing, setEditing] = useState<ServiceLibraryEntryWithStatus | null>(null)
-  const [toast, setToast] = useState<{ kind: 'ok' | 'urgent'; msg: string } | null>(null)
+  const toast = useToast()
   const [, startTransition] = useTransition()
-  const [busySlug, setBusySlug] = useState<string | null>(null)
+  const [busy, setBusy] = useState<{ slug: string; act: 'approve' | 'reject' | 'archive' } | null>(null)
 
   const counts = useMemo(
     () => ({
@@ -59,23 +60,50 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
     [entries],
   )
 
-  const filtered = useMemo(
-    () => entries.filter((e) => e.status === tab),
-    [entries, tab],
-  )
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return entries.filter(
+      (e) =>
+        e.status === tab &&
+        (q === '' ||
+          e.name.toLowerCase().includes(q) ||
+          e.slug.includes(q) ||
+          (e.submittedByOrgId ? (orgNames[e.submittedByOrgId] ?? '').toLowerCase().includes(q) : false)),
+    )
+  }, [entries, tab, query, orgNames])
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-5">
         {(['pending', 'active', 'archived'] as Tab[]).map((t) => (
           <FilterChip key={t} active={tab === t} onClick={() => setTab(t)} count={counts[t]}>
             {TAB_LABELS[t]}
           </FilterChip>
         ))}
+        <div className="ml-auto w-56">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            onClear={() => setQuery('')}
+            placeholder="Search name, slug, clinic…"
+            ariaLabel="Search library entries"
+          />
+        </div>
       </div>
 
       {filtered.length === 0 ? (
-        tab === 'pending' ? (
+        query.trim() !== '' ? (
+          <EmptyState
+            icon="🔍"
+            title="Nothing matches that search"
+            body="The entries are still here — clear the search to see them."
+            action={
+              <ActionButton variant="secondary" size="sm" onClick={() => setQuery('')}>
+                Clear search
+              </ActionButton>
+            }
+          />
+        ) : tab === 'pending' ? (
           <EmptyState
             icon="✨"
             title="No pending submissions"
@@ -101,13 +129,9 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
               ? 'Platform-seeded'
               : 'Unknown'
             const isExpanded = expanded === entry.slug
-            const isBusy = busySlug === entry.slug
 
             return (
-              <div
-                key={entry.slug}
-                className="border border-gray-200 dark:border-gray-700/60 rounded-lg bg-white dark:bg-gray-800"
-              >
+              <div key={entry.slug} className="v2-card">
                 <button
                   type="button"
                   onClick={() => setExpanded(isExpanded ? null : entry.slug)}
@@ -126,11 +150,14 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
                         {entry.category}
                       </span>
                       <StatusPill tone={STATUS_TONE[entry.status]} label={entry.status} />
-                      <span className="text-xs uppercase tracking-wide bg-gray-50 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded px-1.5 py-0.5">
-                        origin: {entry.origin}
+                      <span className="text-xs uppercase tracking-wide bg-[color:var(--color-surface-sunk)] text-gray-600 dark:text-gray-300 rounded px-1.5 py-0.5">
+                        {entry.origin === 'platform' ? 'Platform-seeded' : 'Clinic-submitted'}
                       </span>
                       {entry.editedByAdmin && (
-                        <span className="text-xs uppercase tracking-wide bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 rounded px-1.5 py-0.5">
+                        <span
+                          className="text-xs uppercase tracking-wide bg-violet-500/10 text-violet-700 dark:text-violet-300 rounded px-1.5 py-0.5"
+                          title="A platform admin has hand-edited this default"
+                        >
                           Edited ✨
                         </span>
                       )}
@@ -162,38 +189,38 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
                     <EntryPreview entry={entry} />
                     <ActionRow
                       entry={entry}
-                      busy={isBusy}
+                      busyAction={busy?.slug === entry.slug ? busy.act : null}
                       onApprove={(note) =>
                         startTransition(() => {
-                          setBusySlug(entry.slug)
+                          setBusy({ slug: entry.slug, act: 'approve' })
                           void approveLibraryEntryAction(entry.slug, note)
                             .then((out) => {
-                              if (!out.ok) setToast({ kind: 'urgent', msg: out.error })
-                              else setToast({ kind: 'ok', msg: 'Approved' })
+                              if (!out.ok) toast(out.error, { tone: 'urgent' })
+                              else toast('Approved — available to every clinic.')
                             })
-                            .finally(() => setBusySlug(null))
+                            .finally(() => setBusy(null))
                         })
                       }
                       onReject={(note) =>
                         startTransition(() => {
-                          setBusySlug(entry.slug)
+                          setBusy({ slug: entry.slug, act: 'reject' })
                           void rejectLibraryEntryAction(entry.slug, note)
                             .then((out) => {
-                              if (!out.ok) setToast({ kind: 'urgent', msg: out.error })
-                              else setToast({ kind: 'ok', msg: 'Rejected' })
+                              if (!out.ok) toast(out.error, { tone: 'urgent' })
+                              else toast('Rejected — the submitter keeps their own copy.')
                             })
-                            .finally(() => setBusySlug(null))
+                            .finally(() => setBusy(null))
                         })
                       }
                       onArchive={(note) =>
                         startTransition(() => {
-                          setBusySlug(entry.slug)
+                          setBusy({ slug: entry.slug, act: 'archive' })
                           void archiveLibraryEntryAction(entry.slug, note)
                             .then((out) => {
-                              if (!out.ok) setToast({ kind: 'urgent', msg: out.error })
-                              else setToast({ kind: 'ok', msg: 'Archived' })
+                              if (!out.ok) toast(out.error, { tone: 'urgent' })
+                              else toast('Archived.')
                             })
-                            .finally(() => setBusySlug(null))
+                            .finally(() => setBusy(null))
                         })
                       }
                     />
@@ -212,16 +239,8 @@ export default function ReviewBoard({ entries, orgNames }: Props) {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
-            setToast({ kind: 'ok', msg: 'Default updated — every clinic starts from this now.' })
+            toast('Default updated — every clinic starts from this now.')
           }}
-        />
-      )}
-
-      {toast && (
-        <FlashToast
-          message={toast.msg}
-          tone={toast.kind === 'ok' ? 'ok' : 'urgent'}
-          onDone={() => setToast(null)}
         />
       )}
     </div>
@@ -288,45 +307,62 @@ function EntryPreview({ entry }: { entry: ServiceLibraryEntryWithStatus }) {
 
 function ActionRow({
   entry,
-  busy,
+  busyAction,
   onApprove,
   onReject,
   onArchive,
 }: {
   entry: ServiceLibraryEntryWithStatus
-  busy: boolean
+  busyAction: 'approve' | 'reject' | 'archive' | null
   onApprove: (note: string) => void
   onReject: (note: string) => void
   onArchive: (note: string) => void
 }) {
   const [note, setNote] = useState('')
-  const toast = useToast()
+  const [noteError, setNoteError] = useState<string | null>(null)
+  const busy = busyAction !== null
   return (
     <div className="flex flex-col gap-2 pt-2 border-t border-gray-200 dark:border-gray-700/60">
       <textarea
         rows={2}
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={(e) => {
+          setNote(e.target.value)
+          if (noteError) setNoteError(null)
+        }}
         placeholder={
           entry.status === 'pending'
             ? 'Reviewer note (required for reject)'
             : 'Archive note (required)'
         }
+        aria-invalid={noteError ? true : undefined}
         className="form-textarea w-full text-sm"
       />
+      {noteError && (
+        <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+          {noteError}
+        </p>
+      )}
       <div className="flex gap-2">
         {entry.status === 'pending' && (
           <>
-            <ActionButton variant="primary" size="sm" onClick={() => onApprove(note)} pending={busy}>
-              {busy ? 'Working…' : 'Approve'}
+            <ActionButton
+              variant="primary"
+              size="sm"
+              onClick={() => onApprove(note)}
+              pending={busyAction === 'approve'}
+              disabled={busy}
+            >
+              Approve
             </ActionButton>
             <ActionButton
               variant="danger"
               size="sm"
-              pending={busy}
+              pending={busyAction === 'reject'}
+              disabled={busy}
               onClick={() => {
                 if (!note.trim()) {
-                  toast('Please add a reviewer note before rejecting.', { tone: 'urgent' })
+                  setNoteError('Add a reviewer note before rejecting — the submitter sees it.')
                   return
                 }
                 onReject(note)
@@ -340,10 +376,11 @@ function ActionRow({
           <ActionButton
             variant="danger"
             size="sm"
-            pending={busy}
+            pending={busyAction === 'archive'}
+            disabled={busy}
             onClick={() => {
               if (!note.trim()) {
-                toast('Please add a note explaining why you are archiving this entry.', { tone: 'urgent' })
+                setNoteError('Add a note explaining why you are archiving this entry.')
                 return
               }
               onArchive(note)
