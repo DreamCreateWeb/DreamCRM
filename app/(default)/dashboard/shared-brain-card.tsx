@@ -1,4 +1,5 @@
 import type { BrainRun } from '@/lib/shared-brain'
+import { StatusPill } from '@/components/ui/status-pill'
 import {
   brainStale,
   BRAIN_STALE_DAYS,
@@ -46,7 +47,7 @@ export default function SharedBrainCard({
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
           What the platform has learned
         </h2>
-        <p className="rounded-[var(--r-lg)] border border-amber-300/60 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
+        <p className="rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 p-4 text-sm text-amber-800 dark:text-amber-200">
           I couldn&rsquo;t read what I&rsquo;ve learned just now. Clinics keep sending at whatever
           was already worked out &mdash; this is only the readout being down.
         </p>
@@ -58,7 +59,7 @@ export default function SharedBrainCard({
       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">
         What the platform has learned
       </h2>
-      <div className="rounded-[var(--r-lg)] border border-[color:var(--color-hairline)] bg-white dark:bg-gray-800 p-4">
+      <div className="v2-card p-4">
         <div className="flex items-start gap-3">
           <span className="text-base shrink-0" aria-hidden="true">
             {brain.sendHourLearned ? '🧠' : '🌱'}
@@ -68,15 +69,10 @@ export default function SharedBrainCard({
               <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">
                 Best hour to send
               </span>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                  brain.sendHourLearned
-                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-gray-500/15 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {brain.sendHourLearned ? 'Learned' : 'Still learning'}
-              </span>
+              <StatusPill
+                tone={brain.sendHourLearned ? 'ok' : 'neutral'}
+                label={brain.sendHourLearned ? 'Learned' : 'Still learning'}
+              />
             </div>
             <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{brain.sendHourWhy}</p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">

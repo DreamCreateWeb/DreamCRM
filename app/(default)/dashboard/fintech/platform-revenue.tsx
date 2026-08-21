@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import {
   getStripeRevenueWindow,
   getProjectRevenueWindow,
@@ -58,7 +59,7 @@ export default async function PlatformRevenue() {
       />
 
       {(stripeWindow.stripeUnavailable || outstanding.stripeUnavailable || recent.stripeUnavailable) && (
-        <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-300">
+        <div role="status" className="mb-6 px-4 py-3 rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 text-sm text-amber-700 dark:text-amber-300">
           Stripe couldn&apos;t be reached, so subscription revenue numbers are
           incomplete. Check the <code>STRIPE_SECRET_KEY</code> env var.
         </div>
@@ -70,6 +71,7 @@ export default async function PlatformRevenue() {
           label="Total (12 weeks)"
           value={formatMoneyShort(totalRevenue12w)}
           sub={`${stripeWindow.paidInvoiceCount} invoices · ${projectWindow.completedCount} projects`}
+          spark={combinedBuckets}
         />
         <KpiStat
           label="MRR"
@@ -80,6 +82,7 @@ export default async function PlatformRevenue() {
           label="Project Revenue (12w)"
           value={formatMoneyShort(projectWindow.totalCents)}
           sub={`${projectWindow.completedCount} completed`}
+          spark={projectWindow.buckets}
         />
         <KpiStat
           label="Outstanding"
@@ -101,9 +104,9 @@ export default async function PlatformRevenue() {
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs">
-            <LegendDot color={CHART_SERIES[3]} label="Subscriptions" />
-            <LegendDot color={CHART_SERIES[2]} label="Projects" />
             <LegendDot color={CHART_SERIES[0]} label="Combined" />
+            <LegendDot color={CHART_SERIES[1]} label="Subscriptions" />
+            <LegendDot color={CHART_SERIES[2]} label="Projects" />
           </div>
         </div>
         <div className="space-y-4">
@@ -144,25 +147,33 @@ export default async function PlatformRevenue() {
               {top.rows.map((r) => (
                 <li key={r.clinicId ?? r.clinicName} className="">
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="font-medium text-gray-800 dark:text-gray-100">
-                      {r.clinicName}
-                    </span>
+                    {/* The five clinics that matter most — each opens its page. */}
+                    {r.clinicId ? (
+                      <Link
+                        href={`/ecommerce/customers/${r.clinicId}`}
+                        className="font-medium text-gray-800 dark:text-gray-100 hover:underline"
+                      >
+                        {r.clinicName}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-gray-800 dark:text-gray-100">{r.clinicName}</span>
+                    )}
                     <span className="font-semibold text-gray-800 dark:text-gray-100 tabular-nums">
                       {moneyFull(r.total)}
                     </span>
                   </div>
                   <div className="flex h-2 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/60">
+                    {/* Series colors, not semantic tones — violet/emerald read
+                        as info/ok, which these are not. */}
                     {r.subscriptionCents > 0 && (
                       <div
-                        className="bg-violet-500"
-                        style={{ width: `${(r.subscriptionCents / r.total) * 100}%` }}
+                        style={{ width: `${(r.subscriptionCents / r.total) * 100}%`, backgroundColor: CHART_SERIES[1] }}
                         title={`Subs: ${moneyFull(r.subscriptionCents)}`}
                       />
                     )}
                     {r.projectCents > 0 && (
                       <div
-                        className="bg-emerald-500"
-                        style={{ width: `${(r.projectCents / r.total) * 100}%` }}
+                        style={{ width: `${(r.projectCents / r.total) * 100}%`, backgroundColor: CHART_SERIES[2] }}
                         title={`Projects: ${moneyFull(r.projectCents)}`}
                       />
                     )}
@@ -248,11 +259,7 @@ export default async function PlatformRevenue() {
             {recent.rows.map((tx) => (
               <li key={tx.id} className="flex items-center gap-4 px-6 py-3">
                 <span
-                  className={`shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full text-sm ${
-                    tx.source === 'subscription'
-                      ? 'bg-violet-500/15 text-violet-700 dark:text-violet-400'
-                      : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                  }`}
+                  className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full text-sm bg-[color:var(--color-surface-sunk)] text-gray-600 dark:text-gray-300"
                   aria-hidden
                 >
                   {tx.source === 'subscription' ? '↻' : '✓'}
@@ -262,7 +269,14 @@ export default async function PlatformRevenue() {
                     {tx.description}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 truncate" suppressHydrationWarning>
-                    {tx.clinicName ?? 'Unknown clinic'} · {formatRelativeDate(tx.occurredAt)}
+                    {tx.clinicId ? (
+                      <Link href={`/ecommerce/customers/${tx.clinicId}`} className="hover:underline">
+                        {tx.clinicName ?? 'Unknown clinic'}
+                      </Link>
+                    ) : (
+                      tx.clinicName ?? 'Unknown clinic'
+                    )}{' '}
+                    · {formatRelativeDate(tx.occurredAt)}
                   </div>
                 </div>
                 <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
@@ -308,7 +322,9 @@ function TrendRow({
           data={data}
           variant="line"
           color={color}
-          width={760}
+          // Not 760 hardcoded: cap at the card's content width and let the
+          // flex column own the box; the chart draws inside it.
+          width={720}
           height={40}
           valueFormatter={(cents) => `$${Math.round(cents / 100).toLocaleString('en-US')}`}
         />

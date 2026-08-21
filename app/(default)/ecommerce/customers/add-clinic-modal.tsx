@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react'
 import { createManagedClinicAction } from './admin-actions'
 import { checkClinicSlug } from '@/app/(onboarding)/actions'
@@ -33,7 +34,9 @@ interface Created {
  * owner their invite. Optionally attributes the clinic to a referral partner.
  */
 export default function AddClinicModal({ partners = [] }: { partners?: PartnerOption[] }) {
-  const [open, setOpen] = useState(false)
+  // ?add=1 (the Overview's + Add clinic primary) opens the modal on arrival.
+  const params = useSearchParams()
+  const [open, setOpen] = useState(() => params.get('add') === '1')
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)

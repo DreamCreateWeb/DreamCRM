@@ -352,25 +352,25 @@ reads clinic-voiced copy.
 2. ~~FlashToast announces errors as success~~ [BATCH 36: role=alert + assertive when tone==='urgent'; partners-table and referred-clinics-table now pass urgent tones on every failure path (validation + catches). pipeline-board's silent move failure rides the /marketing batch].
 3. Tone sweep: sky-as-info (subscriptions-attention.tsx:66-73, prospecting page.tsx:75, sales-pipeline-board.tsx:27, momentum-strip.tsx:24, communications/page.tsx:19, marketing terminology.ts:91-101) → violet; special misuse (subscriptions-attention.tsx:52 churn, client-messaging-stats count, [id]/page.tsx:39-47 in_progress, phone-queue.tsx:59) → warn/info; brand-teal-as-status (pipeline-panel.tsx:42, territory-table.tsx:172, sales-pipeline-board.tsx:36, deal-room :314-335, copilot done-line) → emerald/violet; violet-as-link (clinics-list.tsx:254, subscriptions-panel.tsx:268, subscriptions-attention.tsx:107, [id]/page.tsx:129) → teal.
 4. Retired *-50 dialect sweep (~25 sites, both scouts' lists) → tone-500/10 + inset ring, or surface-sunk for neutral wells.
-5. Missing loading.tsx: /ecommerce/customers, /ecommerce/invoices, /messages, /partners(+/[id]), /platform/prospecting, /platform/prospecting/call-mode, /call-list, /demo/[id], /website/blog, /platform/service-library; dashboard/loading.tsx is clinic-shaped for the platform tenant → branch by shape.
+5. Missing loading.tsx: /ecommerce/customers, /ecommerce/invoices, /messages, /partners(+/[id]), /platform/prospecting, /platform/prospecting/call-mode, /call-list, /demo/[id], /website/blog, /platform/service-library; dashboard/loading.tsx is clinic-shaped for the platform tenant — DEFERRED: loading.tsx is static and tenant-blind; branching would need the skeleton moved into the page or a cookie-reading client shim, disproportionate for the one-user platform surface.
 6. role=alert/status adoption: prospecting module has ZERO live regions (33 files); 9+ bare error divs on core surfaces; silent successes everywhere (subscriptions plan change/cancel, plans archive, drawer actions, resend-invite swallows failure clinics-list.tsx:322-346) → global useToast + role=alert.
 
 ### Platform Overview
-1. No primary action in the header (platform-overview.tsx:120-129) → one primary, demote rest.
-2. Guardian audience control: raw brand button + inline text confirm + Saving… ternary + sub-40px (guardian-audience-control.tsx:90-128) → ActionButton pending + useConfirm(danger) for opening the lock; note/error get toast/role=alert (:131-132).
-3. Honesty banners amber-50 (guardian-panel.tsx:324, shared-brain-card.tsx:49) → warn recipe.
-4. Etched card recipe in guardian/brain panels (guardian-panel.tsx:95/329/334, shared-brain-card.tsx:61) → .v2-card.
-5. Engine/brain state chips hand-rolled + NO legend (guardian-panel.tsx:31-57/116, shared-brain-card.tsx:71-79) → StatusPill + EncodingLegend.
-6. 3 of 4 KPIs no heartbeat — MRR spark from getMrrSnapshot, Needs-Attention delta (platform-overview.tsx:155-177).
-7. Stripe-unavailable banner raw + silent (platform-overview.tsx:180-184; platform-revenue.tsx:60-65) → recipe + role=status.
-8. PMS-demand clinic chips dead (platform-overview.tsx:216-224) → deep-link clinic pages.
-9. Activity/attention hit target title-only (:326-346); QuickLink cards duplicate header links (:368-384).
+1. ~~No primary action in the header~~ [BATCH 37: + Add clinic is the one primary (lands on /ecommerce/customers?add=1, which now opens the modal on arrival); Revenue's header slot moved to the quick-link grid].
+2. ~~Guardian audience control raw mechanics~~ [BATCH 37: ActionButtons with pending + real targets; note role=status, error role=alert. The INLINE confirm stays deliberately — the audited Phase-4 design keeps the would-hear count beside the decision; a modal would detach it].
+3. ~~Honesty banners amber-50~~ [BATCH 37: standard warn recipe on both].
+4. ~~Etched card recipe in guardian/brain panels~~ [BATCH 37: .v2-card everywhere].
+5. ~~Engine/brain state chips hand-rolled + no legend~~ [BATCH 37: StatusPill tones (urgent/warn/neutral/ok) + an EncodingLegend in the panel header rendered FROM the same table].
+6. KPI heartbeats. PARTIAL [BATCH 37: Revenue page's Total + Project KPIs gained sparks from their existing weekly buckets]. Overview MRR/Needs-Attention DEFERRED — getMrrSnapshot is a point-in-time tier count with no stored monthly series; a spark needs new history bookkeeping (post-1.0 data-path).
+7. ~~Stripe-unavailable banner raw + silent~~ [BATCH 37: standard warn recipe + role=status on both pages].
+8. ~~PMS-demand clinic chips dead~~ [BATCH 37: each chip opens its clinic page (service now carries the org id)].
+9. ~~Activity rows title-only targets~~ [BATCH 37: the whole row is the link]. QuickLink duplication resolved by the header restructure — Revenue's only top door is now the quick-link grid.
 
 ### Platform Revenue (fintech/platform-revenue.tsx)
-1. Contributor bars use semantic tones as series colors (:154-169; subscriptions-stats.tsx:71) → CHART_SERIES tokens.
-2. Top-contributor + transaction rows dead-end (:145-178, :248-271) → deep-link clinics.
-3. No primary (:48-57); KPIs no heartbeats though buckets computed (:69-89).
-4. MiniTrend width={760} hardcoded in fluid column (:310); legend order off + local LegendDot (:104-106, :280-287).
+1. ~~Contributor bars use semantic tones as series~~ [BATCH 37: CHART_SERIES tokens on the split bars + the transaction source dot goes neutral. subscriptions-stats' PlanMixCard rides the MRR batch].
+2. ~~Top-contributor + transaction rows dead-end~~ [BATCH 37: contributor names and transaction clinic names deep-link (RevenueTransaction now carries clinicId)].
+3. ~~KPIs no heartbeats~~ [BATCH 37: Total rides the combined buckets, Project Revenue its own]. The page keeps two quiet secondaries by design — Revenue is a REPORT; its jobs live on the pages it links.
+4. ~~Legend order off~~ [BATCH 37: fixed 1..3 order; the trend width stays a bounded constant (the card is max-width-capped) and LegendDot stays local — a one-page helper].
 
 ### Clinics list (clinics-list.tsx)
 1. Delete modal hand-rolled (no trap/Esc/scrim-click, raw scrim) + Cancel spins (:394-467, :456) → delete-partner-modal pattern.

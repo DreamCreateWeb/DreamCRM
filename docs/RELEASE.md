@@ -1617,6 +1617,23 @@ $0-sales band (documented deliberate hide during setup).
   each spin alone (per-action keys) instead of lighting up every button
   on the row.
 
+- **2026-08-21 — UI best-version batch 37 (Platform Overview + Revenue).**
+  The Overview gets its one primary (+ Add clinic, which now opens the
+  add-clinic modal on arrival via ?add=1); the Guardian's audience
+  control keeps its audited inline-decision flow but rides real buttons
+  with pending states and announced note/error; both honesty banners and
+  the Stripe-unavailable banners move to the standard warn recipe with
+  live regions; guardian/brain cards float as v2-cards; engine states
+  render as StatusPills with an EncodingLegend generated from the same
+  table; PMS-demand clinic chips and the activity feed rows become real
+  links (whole-row targets). Revenue: Total and Project KPIs gain sparks
+  from their existing weekly buckets, top-contributor and transaction
+  rows deep-link to their clinics (the service now carries the org id),
+  the split bars ride chart-series tokens instead of semantic tones, and
+  the legend uses the fixed series order. Deferred with reasons: an MRR
+  spark (no stored monthly series) and a platform-shaped dashboard
+  skeleton (loading.tsx is tenant-blind).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

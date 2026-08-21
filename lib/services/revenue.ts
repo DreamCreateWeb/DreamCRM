@@ -327,6 +327,8 @@ export interface RevenueTransaction {
   source: 'subscription' | 'project'
   description: string
   clinicName: string | null
+  /** Org id when the transaction resolves to a clinic — powers the deep link. */
+  clinicId: string | null
   amountCents: number
   occurredAt: Date
   status: string
@@ -337,7 +339,7 @@ export async function getRecentRevenueTransactions(limit = 15): Promise<{ rows: 
   let stripeUnavailable = false
 
   // Stripe paid invoices
-  let customerMap = new Map<string, string>()
+  let customerMap = new Map<string, { name: string; orgId: string }>()
   try {
     const stripeInvs = await stripe.invoices.list({ status: 'paid', limit: 25 })
     // Resolve customer → clinic name in one DB hop
@@ -354,13 +356,14 @@ export async function getRecentRevenueTransactions(limit = 15): Promise<{ rows: 
           custId: clinicProfile.stripeCustomerId,
           name: clinicProfile.displayName,
           orgName: organization.name,
+          orgId: clinicProfile.organizationId,
         })
         .from(clinicProfile)
         .leftJoin(organization, eq(organization.id, clinicProfile.organizationId))
       customerMap = new Map(
         rows
           .filter((r) => r.custId)
-          .map((r) => [r.custId!, (r.name ?? r.orgName ?? '') as string]),
+          .map((r) => [r.custId!, { name: (r.name ?? r.orgName ?? '') as string, orgId: r.orgId }]),
       )
     }
     for (const inv of stripeInvs.data) {
@@ -369,7 +372,8 @@ export async function getRecentRevenueTransactions(limit = 15): Promise<{ rows: 
         id: inv.id ?? `inv_${inv.created}`,
         source: 'subscription',
         description: inv.lines.data[0]?.description ?? 'Subscription payment',
-        clinicName: cust ? customerMap.get(cust) ?? null : null,
+        clinicName: cust ? customerMap.get(cust)?.name ?? null : null,
+        clinicId: cust ? customerMap.get(cust)?.orgId ?? null : null,
         amountCents: inv.amount_paid,
         occurredAt: new Date((inv.status_transitions?.paid_at ?? inv.created) * 1000),
         status: 'paid',
@@ -390,6 +394,7 @@ export async function getRecentRevenueTransactions(limit = 15): Promise<{ rows: 
         budget: agencyProject.budgetCents,
         completedAt: agencyProject.completedAt,
         clinicName: organization.name,
+        clinicId: agencyProject.organizationId,
       })
       .from(agencyProject)
       .leftJoin(organization, eq(organization.id, agencyProject.organizationId))
@@ -404,6 +409,7 @@ export async function getRecentRevenueTransactions(limit = 15): Promise<{ rows: 
         source: 'project',
         description: `${p.title} (${AGENCY_PROJECT_TYPE_LABELS[p.type as AgencyProjectType]})`,
         clinicName: p.clinicName ?? null,
+        clinicId: p.clinicId ?? null,
         amountCents: p.budget,
         occurredAt: p.completedAt,
         status: 'completed',

@@ -81,7 +81,7 @@ export interface PmsDemandRow {
   pending: number
   /** WHICH clinics are waiting (pending first) — the drill-down behind the
    *  count (v3 action-links law: a number you can't open is a dead end). */
-  clinics: string[]
+  clinics: Array<{ name: string; organizationId: string }>
 }
 
 /** Platform-admin view: demand per roadmap PMS, most-wanted first. Drives the
@@ -101,17 +101,18 @@ export async function getPmsDemand(): Promise<PmsDemandRow[]> {
       .select({
         provider: schema.pmsInterest.provider,
         clinicName: schema.organization.name,
+        organizationId: schema.organization.id,
         notifiedAt: schema.pmsInterest.notifiedAt,
       })
       .from(schema.pmsInterest)
       .innerJoin(schema.organization, eq(schema.organization.id, schema.pmsInterest.organizationId))
       .orderBy(desc(schema.pmsInterest.createdAt)),
   ])
-  const byProvider = new Map<string, string[]>()
+  const byProvider = new Map<string, Array<{ name: string; organizationId: string }>>()
   // Pending (un-notified) clinics list first — they're the actionable ones.
   for (const w of [...who.filter((r) => r.notifiedAt == null), ...who.filter((r) => r.notifiedAt != null)]) {
     const list = byProvider.get(w.provider) ?? []
-    list.push(w.clinicName)
+    list.push({ name: w.clinicName, organizationId: w.organizationId })
     byProvider.set(w.provider, list)
   }
   return rows.map((r) => ({
