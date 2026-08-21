@@ -14,8 +14,9 @@ export interface PipelineStage {
   key: string
   /** display label */
   label: string
-  /** stone-palette accent for chips/columns */
-  accent: 'stone' | 'sky' | 'amber' | 'emerald' | 'violet' | 'rose'
+  /** Semantic-tone accent for chips/columns (DESIGN-SYSTEM tones — sky/stone
+   *  are retired dialects; gray = neutral, fuchsia = special). */
+  accent: 'gray' | 'fuchsia' | 'amber' | 'emerald' | 'violet' | 'rose'
   /** Is this a "won" terminal state? (excluded from open-pipeline counts) */
   terminal?: 'won' | 'lost'
 }
@@ -40,16 +41,20 @@ export interface MarketingTerminology {
 }
 
 const PLATFORM_STAGES: PipelineStage[] = [
-  { key: 'new', label: 'New', accent: 'stone' },
-  { key: 'contacted', label: 'Contacted', accent: 'sky' },
-  { key: 'demo', label: 'Demo Scheduled', accent: 'amber' },
-  { key: 'trial', label: 'Trialing', accent: 'violet' },
+  { key: 'new', label: 'New', accent: 'gray' },
+  // Contacted = a human conversation opened — the same fuchsia the
+  // prospecting board uses for its Communicated stage.
+  { key: 'contacted', label: 'Contacted', accent: 'fuchsia' },
+  // Demos are violet everywhere (prospecting board, demos page, Call Mode).
+  { key: 'demo', label: 'Demo Scheduled', accent: 'violet' },
+  // Trialing is a countdown — warn amber.
+  { key: 'trial', label: 'Trialing', accent: 'amber' },
   { key: 'customer', label: 'Customer', accent: 'emerald', terminal: 'won' },
   { key: 'lost', label: 'Lost', accent: 'rose', terminal: 'lost' },
 ]
 
 const CLINIC_STAGES: PipelineStage[] = [
-  { key: 'new', label: 'New', accent: 'stone' },
+  { key: 'new', label: 'New', accent: 'gray' },
   { key: 'active', label: 'Active', accent: 'emerald' },
   { key: 'inactive', label: 'Inactive', accent: 'amber' },
   { key: 'lapsed', label: 'Lapsed', accent: 'rose', terminal: 'lost' },
@@ -87,17 +92,17 @@ export function stageAccentClasses(accent: PipelineStage['accent']): {
   dot: string
 } {
   switch (accent) {
-    case 'sky':
-      return { bg: 'bg-sky-50 dark:bg-sky-500/10', text: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500' }
+    case 'fuchsia':
+      return { bg: 'bg-fuchsia-500/10', text: 'text-fuchsia-700 dark:text-fuchsia-300', dot: 'bg-fuchsia-500' }
     case 'amber':
-      return { bg: 'bg-amber-50 dark:bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' }
+      return { bg: 'bg-amber-500/10', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' }
     case 'emerald':
-      return { bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' }
+      return { bg: 'bg-emerald-500/10', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' }
     case 'violet':
-      return { bg: 'bg-violet-50 dark:bg-violet-500/10', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' }
+      return { bg: 'bg-violet-500/10', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-500' }
     case 'rose':
-      return { bg: 'bg-rose-50 dark:bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' }
+      return { bg: 'bg-rose-500/10', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' }
     default:
-      return { bg: 'bg-stone-100 dark:bg-stone-800', text: 'text-stone-700 dark:text-stone-300', dot: 'bg-stone-500' }
+      return { bg: 'bg-gray-500/10', text: 'text-gray-700 dark:text-gray-300', dot: 'bg-gray-400' }
   }
 }

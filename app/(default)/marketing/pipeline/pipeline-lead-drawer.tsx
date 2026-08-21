@@ -7,7 +7,7 @@ import { stageAccentClasses, type PipelineStage } from '@/lib/marketing/terminol
 import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useUnsavedChanges } from '@/components/ui/use-unsaved-changes'
-import { FlashToast } from '@/components/ui/flash-toast'
+import { useToast } from '@/components/ui/toast'
 import {
   archiveLeadAction,
   setOptedOutAction,
@@ -40,10 +40,15 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
   const confirm = useConfirm()
   const pathname = usePathname()
   const sp = useSearchParams()
+  const toast = useToast()
   const [pending, startTransition] = useTransition()
+  const [active, setActive] = useState<'save' | 'archive' | 'optout' | null>(null)
   const [draft, setDraft] = useState<PipelineLeadDetail | null>(lead)
   const [dirty, setDirty] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!pending) setActive(null)
+  }, [pending])
   useUnsavedChanges(dirty, () =>
     confirm({ title: 'Discard unsaved changes?', message: 'Your unsaved edits to this lead will be lost.', confirmLabel: 'Discard', danger: true }),
   )
@@ -62,19 +67,24 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
 
   function save() {
     if (!draft || !lead) return
+    setActive('save')
     startTransition(async () => {
-      await updateLeadAction(lead.id, {
-        name: draft.name,
-        email: draft.email,
-        phone: draft.phone,
-        location: draft.location,
-        pipelineStage: draft.pipelineStage,
-        leadSource: draft.leadSource,
-        notes: draft.notes,
-      })
-      setDirty(false)
-      setToast('Lead saved.')
-      router.refresh()
+      try {
+        await updateLeadAction(lead.id, {
+          name: draft.name,
+          email: draft.email,
+          phone: draft.phone,
+          location: draft.location,
+          pipelineStage: draft.pipelineStage,
+          leadSource: draft.leadSource,
+          notes: draft.notes,
+        })
+        setDirty(false)
+        toast('Lead saved.')
+        router.refresh()
+      } catch {
+        toast("Couldn't save — try again.", { tone: 'urgent' })
+      }
     })
   }
 
@@ -89,10 +99,16 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
       }))
     )
       return
+    setActive('archive')
     startTransition(async () => {
-      await archiveLeadAction(lead.id)
-      close()
-      router.refresh()
+      try {
+        await archiveLeadAction(lead.id)
+        close()
+        toast('Lead archived.')
+        router.refresh()
+      } catch {
+        toast("Couldn't archive — try again.", { tone: 'urgent' })
+      }
     })
   }
 
@@ -100,10 +116,16 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
     if (!lead || !draft) return
     const next = !draft.optedOut
     setDraft((d) => (d ? { ...d, optedOut: next } : d))
+    setActive('optout')
     startTransition(async () => {
-      await setOptedOutAction(lead.id, next)
-      setToast(next ? 'Opted out of marketing.' : 'Re-subscribed to marketing.')
-      router.refresh()
+      try {
+        await setOptedOutAction(lead.id, next)
+        toast(next ? 'Opted out of marketing.' : 'Re-subscribed to marketing.')
+        router.refresh()
+      } catch {
+        setDraft((d) => (d ? { ...d, optedOut: !next } : d))
+        toast("Couldn't update the opt-out — try again.", { tone: 'urgent' })
+      }
     })
   }
 
@@ -112,7 +134,7 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
   }
 
   const stage = stages.find((s) => s.key === draft.pipelineStage)
-  const accent = stageAccentClasses(stage?.accent ?? 'stone')
+  const accent = stageAccentClasses(stage?.accent ?? 'gray')
 
   return (
     <>
@@ -127,7 +149,13 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
         </div>
       }
       actions={
-        <ActionButton variant="danger" size="sm" onClick={archive} pending={pending}>
+        <ActionButton
+          variant="danger"
+          size="sm"
+          onClick={archive}
+          pending={pending && active === 'archive'}
+          disabled={pending}
+        >
           Archive
         </ActionButton>
       }
@@ -141,12 +169,18 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
                 setDraft(lead)
                 setDirty(false)
               }}
-              pending={pending}
+              disabled={pending}
             >
               Revert
             </ActionButton>
-            <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
-              {pending ? 'Saving…' : 'Save'}
+            <ActionButton
+              variant="primary"
+              size="sm"
+              onClick={save}
+              pending={pending && active === 'save'}
+              disabled={pending}
+            >
+              Save
             </ActionButton>
           </div>
         ) : null
@@ -255,7 +289,14 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
                 : 'This contact is included in campaign sends targeted at their stage.'}
             </p>
           </div>
-          <ActionButton variant="secondary" size="sm" onClick={toggleOptedOut} pending={pending} className="shrink-0">
+          <ActionButton
+            variant="secondary"
+            size="sm"
+            onClick={toggleOptedOut}
+            pending={pending && active === 'optout'}
+            disabled={pending}
+            className="shrink-0"
+          >
             {draft.optedOut ? 'Re-subscribe' : 'Opt out'}
           </ActionButton>
         </div>
@@ -266,7 +307,6 @@ export default function PipelineLeadDrawer({ lead, stages, sources }: Props) {
         </div>
       </div>
     </Drawer>
-    {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </>
   )
 }

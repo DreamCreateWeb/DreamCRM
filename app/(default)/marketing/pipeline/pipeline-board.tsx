@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { cn, relativeTime } from '@/lib/utils'
 import { stageAccentClasses, type PipelineStage } from '@/lib/marketing/terminology'
 import { StatusPill } from '@/components/ui/status-pill'
+import { useToast } from '@/components/ui/toast'
 import { moveLeadAction } from '../actions'
 
 export interface PipelineLead {
@@ -51,6 +52,7 @@ interface Props {
  */
 export default function PipelineBoard({ initialByStage, stages }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [byStage, setByStage] = useState(initialByStage)
   const [activeLead, setActiveLead] = useState<PipelineLead | null>(null)
   const [, startTransition] = useTransition()
@@ -115,8 +117,10 @@ export default function PipelineBoard({ initialByStage, stages }: Props) {
       try {
         await moveLeadAction(activeId, destStage)
         router.refresh()
-      } catch (err) {
-        console.warn('[pipeline] move failed', err)
+      } catch {
+        // The refresh below re-reads the server's truth, reverting the
+        // optimistic move — say so instead of silently snapping back.
+        toast("Couldn't move the card — it snapped back.", { tone: 'urgent' })
         router.refresh()
       }
     })
@@ -197,7 +201,10 @@ function SortableLeadCard({ lead }: { lead: PipelineLead }) {
     opacity: isDragging ? 0 : 1,
   }
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    // dnd-kit's attributes add role="button" + tabIndex — but the card inside
+    // is already a Link, so the wrapper would be a second, inert tab stop.
+    // Keyboard users change stages through the drawer's Stage select instead.
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} role={undefined} tabIndex={-1}>
       <LeadCard lead={lead} />
     </div>
   )
