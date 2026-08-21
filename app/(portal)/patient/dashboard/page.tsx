@@ -21,7 +21,7 @@ import LoyaltyCard from '@/components/patient-portal/loyalty-card'
 import SurveyCard from '@/components/patient-portal/survey-card'
 import { getOrCreatePortalSurvey } from '@/lib/services/nps'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
-import { PortalCard, PortalHeading, PortalSectionLabel, PortalEmptyState, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER, PORTAL_WARN_BG, PORTAL_WARN_INK } from '@/components/patient-portal/ui'
+import { PortalCard, PortalHeading, PortalSectionLabel, PortalEmptyState, PortalNotice, PORTAL_INK, PORTAL_MUTED, PORTAL_BORDER } from '@/components/patient-portal/ui'
 import { greetingFor } from '@/components/patient-portal/format'
 import { todaysHoursLabel } from '@/lib/clinic-site-helpers'
 import type { PortalIconName } from '@/components/patient-portal/nav'
@@ -96,36 +96,31 @@ export default async function PortalHome() {
         {settings.copy.welcomeMessage ?? `Welcome to your ${clinic?.displayName ?? ctx.organizationName} portal.`}
       </p>
 
+      {/* Both task strips ride PortalNotice (the one-off #EBDCB8 border is
+          gone), and the balance strip leads with the number — the fact the
+          patient came to check shouldn't hide mid-sentence. */}
       {showBalanceTask && (
-        <Link
-          href="/patient/invoices"
-          className="mt-5 flex items-center gap-3 rounded-2xl px-4 py-3.5"
-          style={{ backgroundColor: PORTAL_WARN_BG, border: '1px solid #EBDCB8' }}
-        >
-          <PortalIcon name="card" className="h-5 w-5 shrink-0" />
-          <span className="flex-1 text-[0.9rem] font-medium" style={{ color: PORTAL_WARN_INK }}>
-            Your balance is {`$${(balanceDueCents / 100).toFixed(2)}`} — you can take care of it
-            online in about a minute.
-          </span>
-          <span className="text-[0.85rem] font-bold" style={{ color: PORTAL_WARN_INK }}>
-            →
-          </span>
+        <Link href="/patient/invoices" className="mt-5 block">
+          <PortalNotice tone="warn" className="flex items-center gap-3">
+            <PortalIcon name="card" className="h-5 w-5 shrink-0" />
+            <span className="flex-1">
+              <strong className="font-bold">{`$${(balanceDueCents / 100).toFixed(2)}`} balance</strong>{' '}
+              — you can take care of it online in about a minute.
+            </span>
+            <span className="text-[0.85rem] font-bold">→</span>
+          </PortalNotice>
         </Link>
       )}
 
       {showFormTask && pendingDefaultForm && (
-        <Link
-          href="/patient/intake"
-          className="mt-5 flex items-center gap-3 rounded-2xl px-4 py-3.5"
-          style={{ backgroundColor: PORTAL_WARN_BG, border: '1px solid #EBDCB8' }}
-        >
-          <PortalIcon name="doc" className="h-5 w-5 shrink-0" />
-          <span className="flex-1 text-[0.9rem] font-medium" style={{ color: PORTAL_WARN_INK }}>
-            A few questions before your visit — it takes about 5 minutes and saves you the clipboard.
-          </span>
-          <span className="text-[0.85rem] font-bold" style={{ color: PORTAL_WARN_INK }}>
-            →
-          </span>
+        <Link href="/patient/intake" className="mt-5 block">
+          <PortalNotice tone="warn" className="flex items-center gap-3">
+            <PortalIcon name="doc" className="h-5 w-5 shrink-0" />
+            <span className="flex-1">
+              A few questions before your visit — it takes about 5 minutes and saves you the clipboard.
+            </span>
+            <span className="text-[0.85rem] font-bold">→</span>
+          </PortalNotice>
         </Link>
       )}
 
@@ -191,7 +186,9 @@ export default async function PortalHome() {
             ))}
           </div>
         )}
-        {upcoming.length > 3 && (
+        {/* The visits page also holds history — the door shouldn't wait for
+            a 4th upcoming visit to appear. */}
+        {upcoming.length > 0 && (
           <Link href="/patient/appointments" className="mt-3 inline-block text-[0.88rem] font-semibold" style={{ color: brand }}>
             See all visits →
           </Link>
@@ -231,7 +228,7 @@ export default async function PortalHome() {
               <Link
                 key={v.href}
                 href={v.href}
-                className="group rounded-2xl bg-white p-4"
+                className="group rounded-2xl bg-white p-4 transition-transform active:scale-[0.98]"
                 style={{ border: `1px solid ${PORTAL_BORDER}` }}
               >
                 <span

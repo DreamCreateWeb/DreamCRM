@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { getVisitForPatients, getMyPendingForms, getVisitPrep } from '@/lib/services/patient-portal'
 import { getPortalPageContext, toVisitCardData, mapsQueryFor } from '../../portal-data'
 import VisitCard from '@/components/patient-portal/visit-card'
-import { PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_WARN_BG, PORTAL_WARN_INK, PortalBackLink } from '@/components/patient-portal/ui'
+import { PortalCard, PortalHeading, PortalSectionLabel, PortalNotice, PORTAL_INK, PORTAL_MUTED, PortalBackLink } from '@/components/patient-portal/ui'
 import { fmtVisitDayShort, fmtVisitTime } from '@/components/patient-portal/format'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
 
@@ -84,23 +84,16 @@ export default async function VisitDetailPage({
           <PortalSectionLabel>Get ready</PortalSectionLabel>
           <PortalCard>
             {pendingForms.length > 0 && (
-              <div
-                className="mb-4 rounded-2xl p-3.5"
-                style={{ backgroundColor: PORTAL_WARN_BG }}
-              >
-                <p className="text-[0.9rem] font-semibold" style={{ color: PORTAL_WARN_INK }}>
+              <PortalNotice tone="warn" className="mb-4">
+                <p className="font-semibold">
                   {pendingForms.length === 1
                     ? '1 form to fill out before you arrive'
                     : `${pendingForms.length} forms to fill out before you arrive`}
                 </p>
-                <Link
-                  href="/patient/intake"
-                  className="mt-1 inline-block text-[0.85rem] font-semibold"
-                  style={{ color: PORTAL_WARN_INK }}
-                >
+                <Link href="/patient/intake" className="mt-1 inline-block text-[0.85rem] font-semibold">
                   Do it from the couch →
                 </Link>
-              </div>
+              </PortalNotice>
             )}
             {prep && (
               <p
@@ -112,15 +105,15 @@ export default async function VisitDetailPage({
             )}
             <ul className="space-y-2 text-[0.9rem]" style={{ color: PORTAL_INK }}>
               <li className="flex items-start gap-2.5">
-                <span aria-hidden="true">🪪</span>
+                <span aria-hidden="true" className="text-[0.85rem] opacity-60">🪪</span>
                 <span>Bring a photo ID and your insurance card, if you have one.</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <span aria-hidden="true">💊</span>
+                <span aria-hidden="true" className="text-[0.85rem] opacity-60">💊</span>
                 <span>Know your medications — a list on your phone works great.</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <span aria-hidden="true">🕐</span>
+                <span aria-hidden="true" className="text-[0.85rem] opacity-60">🕐</span>
                 <span>Arriving a few minutes early keeps everything relaxed.</span>
               </li>
             </ul>
