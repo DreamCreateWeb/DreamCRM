@@ -9,6 +9,7 @@ import { useDrawerExit } from '@/components/ui/use-drawer-exit'
 import { StatusPill } from '@/components/ui/status-pill'
 import { FlashToast } from '@/components/ui/flash-toast'
 import type { Tone } from '@/lib/ui/encodings'
+import { formatClinicDayTime } from '@/lib/format-datetime'
 import {
   markLeadContactedAction,
   archiveLeadAction,
@@ -42,16 +43,18 @@ const STATUS_PILL_MEANING: Record<LeadStatus, string> = {
 
 const LABEL_CLASS = 'text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-semibold'
 
-function fmtFull(d: Date): string {
-  return d.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+
 
 export default function LeadDrawer({
   row,
+  timeZone,
   onClose,
   onStatusChange,
 }: {
   row: LeadRow
+  /** Clinic IANA tz — timeline stamps read clinic wall-clock, not the
+   *  viewer's browser (a remote manager saw shifted times). */
+  timeZone: string
   onClose: () => void
   /** Lifts a status flip to the list so it updates optimistically + the drawer
    *  closes immediately; the parent owns the transition + the action call. */
@@ -371,12 +374,12 @@ export default function LeadDrawer({
           <div className="pt-3 border-t border-[color:var(--color-hairline)]">
             <p className={`${LABEL_CLASS} mb-1`}>Timeline</p>
             <ul className="space-y-0.5 text-xs text-gray-700 dark:text-gray-300">
-              <li>Landed · {fmtFull(row.createdAt)}</li>
-              {row.contactedAt && <li>Contacted · {fmtFull(row.contactedAt)}</li>}
-              {row.convertedAt && <li>Converted · {fmtFull(row.convertedAt)}</li>}
+              <li>Landed · {formatClinicDayTime(row.createdAt, timeZone)}</li>
+              {row.contactedAt && <li>Contacted · {formatClinicDayTime(row.contactedAt, timeZone)}</li>}
+              {row.convertedAt && <li>Converted · {formatClinicDayTime(row.convertedAt, timeZone)}</li>}
               {row.archivedAt && (
                 <li>
-                  Archived · {fmtFull(row.archivedAt)}
+                  Archived · {formatClinicDayTime(row.archivedAt, timeZone)}
                   {row.archivedReason && <span className="text-gray-500 dark:text-gray-400"> · {row.archivedReason}</span>}
                 </li>
               )}

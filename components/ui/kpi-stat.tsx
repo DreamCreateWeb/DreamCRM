@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import Sparkline from '@/components/ui/sparkline'
+import MiniTrend from '@/components/ui/charts/mini-trend'
 import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 
 /** sessionStorage flag — count-up runs once per session entry, never on
@@ -116,7 +116,7 @@ export function KpiStat({
         // spark is a visual supplement — but it now answers HOVER (the chart
         // kit tooltip reads out bucket + value), so pointer events stay on.
         <div className="absolute bottom-3 right-3 hidden xs:block" aria-hidden="true">
-          <Sparkline data={spark} width={88} height={30} />
+          <MiniTrend data={spark} width={88} height={30} />
         </div>
       )}
     </div>

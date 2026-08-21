@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useOptimistic, useState, useTransition } from 'react'
 import type { LeadRow, LeadStatus, LeadCounts, LeadsPerDayPoint } from '@/lib/services/leads'
-import Sparkline from '@/components/ui/sparkline'
+import { MiniTrend } from '@/components/ui/charts'
 import { SearchInput } from '@/components/ui/search-input'
 import { PendingVeil } from '@/components/ui/pending-veil'
 import { PageHeader } from '@/components/ui/page-header'
@@ -91,6 +91,7 @@ export default function LeadsView({
   status,
   search,
   orgName = 'Your clinic',
+  timeZone = 'America/New_York',
 }: {
   rows: LeadRow[]
   counts: LeadCounts
@@ -99,6 +100,8 @@ export default function LeadsView({
   status: LeadStatus | 'all'
   search: string
   orgName?: string
+  /** Clinic IANA tz — the drawer timeline stamps clinic wall-clock times. */
+  timeZone?: string
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -269,7 +272,7 @@ export default function LeadsView({
                 Last 14 days
               </span>
               <span aria-hidden="true">
-                <Sparkline data={perDay14} width={104} height={26} />
+                <MiniTrend data={perDay14} width={104} height={26} />
               </span>
             </div>
           )}
@@ -327,6 +330,7 @@ export default function LeadsView({
       {openRow && (
         <LeadDrawer
           row={openRow}
+          timeZone={timeZone}
           onClose={() => setOpenId(null)}
           onStatusChange={runLeadStatus}
         />

@@ -22,7 +22,14 @@ export default function FollowupRulesCard({
   const [config, setConfig] = useState<FollowupRuleConfig>(initial)
   const [digest, setDigest] = useState(digestEnabled)
   const [error, setError] = useState<string | null>(null)
+  // Collapsed by default: rules are set-and-forget config, and the open card
+  // sat between the filters and the day's actual work. The summary line keeps
+  // the state legible; the body stays MOUNTED while hidden (settings-tabs law)
+  // so an in-flight toggle isn't lost to a collapse.
+  const [open, setOpen] = useState(false)
   const [, startTransition] = useTransition()
+
+  const onCount = FOLLOWUP_RULE_META.filter((r) => config[r.id]).length
 
   function toggle(rule: FollowupRuleId, next: boolean) {
     if (!canManage) return
@@ -50,13 +57,36 @@ export default function FollowupRulesCard({
   }
 
   return (
-    <div className="v2-card p-5">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Auto-add rules</h2>
-        <span className="text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 rounded-full px-2 py-0.5">
-          Builds your list for you
+    <div className="v2-card px-5 py-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-3 text-left"
+      >
+        <span className="min-w-0 flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">Auto-add rules</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {onCount} of {FOLLOWUP_RULE_META.length} on · morning digest {digest ? 'on' : 'off'}
+          </span>
         </span>
-      </div>
+        <span className="shrink-0 flex items-center gap-2">
+          <span className="hidden sm:inline text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 rounded-full px-2 py-0.5">
+            Builds your list for you
+          </span>
+          <svg
+            viewBox="0 0 12 12"
+            className={`h-3 w-3 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <path d="M2 4.5 6 8.5l4-4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+      <div className={open ? 'block pt-2' : 'hidden'}>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
         Turn these on and the system adds the follow-up for you — no more remembering who to chase.
       </p>
@@ -98,6 +128,7 @@ export default function FollowupRulesCard({
           Only an owner or admin can change rules.
         </p>
       )}
+      </div>
     </div>
   )
 }

@@ -11,7 +11,7 @@ import { TickButton } from '@/components/ui/tick-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { PendingVeil } from '@/components/ui/pending-veil'
-import Sparkline from '@/components/ui/sparkline'
+import { MiniTrend } from '@/components/ui/charts'
 import type { FollowupsCompletedPerWeekPoint } from '@/lib/services/patient-followups'
 import {
   followupDueState,
@@ -192,7 +192,7 @@ export default function FollowupsBoard({
             {/* The spark itself stays desktop-only; the label carries the
                 meaning on the tablet the front desk actually holds. */}
             <span aria-hidden="true" className="hidden lg:inline">
-              <Sparkline data={completedPerWeek8} width={104} height={26} />
+              <MiniTrend data={completedPerWeek8} width={104} height={26} />
             </span>
           </div>
         )}
@@ -220,7 +220,13 @@ export default function FollowupsBoard({
                 >
                   Clear filters
                 </ActionButton>
-              ) : undefined
+              ) : (
+                // The body says "add one from any patient" — hand over the door
+                // it names instead of leaving the sentence to do the work.
+                <ActionButton variant="secondary" href="/patients">
+                  Open patients
+                </ActionButton>
+              )
             }
           />
         </div>
@@ -316,7 +322,10 @@ function Row({
           disabled={pending}
           aria-label="Assign follow-up"
           title="Assign this follow-up"
-          className="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:border-teal-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          // Quiet until you reach for it: the assignee reads as text in a list
+          // of many rows; hover/focus reveals the control chrome (a bordered
+          // select on every row shouted louder than the work itself).
+          className="shrink-0 cursor-pointer rounded-md border border-transparent bg-transparent px-2 py-1 text-xs text-gray-500 hover:border-gray-200 hover:bg-white hover:text-gray-700 focus:border-teal-400 focus:bg-white dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus:border-teal-500 dark:focus:bg-gray-800"
         >
           <option value="">Unassigned</option>
           {staff.map((s) => (
