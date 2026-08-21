@@ -184,24 +184,24 @@ Already best-version: CompletedHeartbeat.
 ## Cluster 3 — Portal + Hubs + Settings
 
 ### Portal chrome & shell
-1. Runtime Google-Fonts fetch for Fraunces → FOUT on cell data; self-host woff2 (app/(portal)/layout.tsx:151).
-2. portal loading.tsx is cool-gray dashboard shimmer on the warm canvas (loading.tsx:9).
-3. Header "Book a visit" stays primary ON /patient/book (self-link) (layout.tsx:210).
+1. ~~Runtime Google-Fonts fetch for Fraunces~~ [BATCH 32: self-hosted variable woff2 (latin + latin-ext) in public/fonts on the Nunito pattern, preloaded — the third-party round trip and the Georgia flash are gone].
+2. ~~portal loading.tsx cool-gray shimmer~~ [BATCH 32: warm sand-tone shimmer blocks on the portal's own cream palette].
+3. ~~Header "Book a visit" self-link~~ [BATCH 32: on /patient/book the pill goes quiet-outline + aria-current instead of a primary that reloads the page you're on].
 
 ### Patient dashboard
-1. Two hand-rolled amber strips → PortalNotice warn (+ one-off #EBDCB8 hex) (dashboard/page.tsx:99,116).
-2. Balance amount buried mid-sentence → bold leading fragment (:107).
-3. Verbs grid tiles: no active:scale pressed state (:231).
-4. "See all visits" only shows >3 upcoming → show when >0 (:194).
+1. ~~Two hand-rolled amber strips~~ [BATCH 32: both task strips ride PortalNotice warn; the one-off #EBDCB8 border retired].
+2. ~~Balance amount buried mid-sentence~~ [BATCH 32: "$42.50 balance" leads in bold — the fact the patient came for doesn't hide].
+3. ~~Verbs grid no pressed state~~ [BATCH 32: active:scale-[0.98] press feedback].
+4. ~~"See all visits" gated on >3~~ [BATCH 32: shows whenever any visit is upcoming — the page also holds history].
 
 ### Appointments (portal)
-1. Past-visit rows not tappable though [id] handles them (appointments/page.tsx:78).
-2. Past list uncapped → ~10 + "Show older" (:78).
-3. Empty Past section silently omitted → one quiet line (:73).
+1. ~~Past-visit rows not tappable~~ [BATCH 32: every row links to its visit page, with a › affordance + warm hover].
+2. ~~Past list uncapped~~ [BATCH 32: latest 10 + "Show older visits (N more)" via ?all=1].
+3. ~~Empty Past silently omitted~~ [BATCH 32: one quiet "No past visits with us yet" line].
 
 ### Visit detail — mostly already best-version.
-1. Pending-forms callout re-implements PortalNotice ([id]/page.tsx:86).
-2. Bring-list emoji as bullets — quiet them (:115).
+1. ~~Pending-forms callout re-implements PortalNotice~~ [BATCH 32: rides the primitive].
+2. ~~Bring-list emoji bullets~~ [BATCH 32: quieted to 0.85rem at 60% — markers, not headlines].
 
 ### Book / Request / Slot picker
 1. Slot buttons ~36px — UNDER the tap floor on the most-tapped control (slot-picker.tsx:213). 

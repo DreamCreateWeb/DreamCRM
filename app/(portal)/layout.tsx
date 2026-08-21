@@ -14,6 +14,7 @@ import {
 } from '@/lib/services/patient-portal'
 import { getShopConfig } from '@/lib/services/shop'
 import { buildPortalNav } from '@/components/patient-portal/nav'
+import HeaderBookButton from '@/components/patient-portal/header-book-button'
 import { getMyUnreadMessageCount } from '@/lib/services/patient-messaging'
 import {
   PortalDesktopNav,
@@ -148,13 +149,36 @@ export default async function PortalLayout({ children }: { children: React.React
       {/* Live updates for the patient — their messages + shared files appear on
           their own. The stream is patient-scoped server-side (own record only). */}
       <PortalLiveRefresh />
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      {/* Fraunces self-hosted (the Nunito pattern in app/css/style.css): the
+          old runtime Google-Fonts stylesheet cost a third-party DNS+TLS round
+          trip and flashed Georgia over every heading on cell connections. One
+          variable woff2 covers the 500–700 range; latin + latin-ext subsets. */}
       <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap"
+        rel="preload"
+        href="/fonts/fraunces-latin.woff2"
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
       />
-      <style>{`:root { --font-display: 'Fraunces', Georgia, serif; }`}</style>
+      <style>{`
+        @font-face {
+          font-family: 'Fraunces';
+          font-style: normal;
+          font-weight: 500 700;
+          font-display: swap;
+          src: url('/fonts/fraunces-latin.woff2') format('woff2');
+          unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+        }
+        @font-face {
+          font-family: 'Fraunces';
+          font-style: normal;
+          font-weight: 500 700;
+          font-display: swap;
+          src: url('/fonts/fraunces-latin-ext.woff2') format('woff2');
+          unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+        }
+        :root { --font-display: 'Fraunces', Georgia, serif; }
+      `}</style>
 
       <div
         className="min-h-screen flex flex-col"
@@ -208,13 +232,7 @@ export default async function PortalLayout({ children }: { children: React.React
                 </a>
               )}
               {settings.features.booking && (
-                <Link
-                  href="/patient/book"
-                  className="rounded-full px-4 py-2 text-[0.85rem] font-semibold text-white"
-                  style={{ backgroundColor: brand }}
-                >
-                  {portalBookLabel}
-                </Link>
+                <HeaderBookButton brand={brand} label={portalBookLabel} />
               )}
             </div>
           </div>

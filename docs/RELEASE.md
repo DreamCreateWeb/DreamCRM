@@ -1548,6 +1548,20 @@ $0-sales band (documented deliberate hide during setup).
   the remaining unstruck items are the patient-portal cluster, outside
   this program's scope.**
 
+- **2026-08-21 — UI best-version batch 32 (portal chrome + dashboard +
+  visits; the portal program opens).** Fraunces is self-hosted (variable
+  woff2, latin + latin-ext, preloaded — no more third-party font round
+  trip or Georgia flash on cell connections); the portal loading shimmer
+  went warm to match the cream canvas; the header "Book a visit" pill
+  demotes to a quiet aria-current outline ON the booking page. Dashboard:
+  both amber task strips ride PortalNotice, the balance strip leads with
+  the bolded amount, verb tiles get a pressed state, and "See all visits"
+  shows whenever anything is upcoming. Visits: past rows link to their
+  detail pages (› affordance), the list caps at 10 with "Show older (N
+  more)", and an empty history says so instead of vanishing. Visit
+  detail: the pending-forms callout rides PortalNotice; the bring-list
+  emoji quiet down to markers.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
