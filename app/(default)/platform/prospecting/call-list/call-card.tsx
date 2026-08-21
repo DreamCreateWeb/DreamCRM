@@ -143,6 +143,7 @@ function SuggestedReply({ draft }: { draft: string }) {
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="text-sm font-medium text-teal-600 dark:text-teal-400"
       >
         {open ? '▾' : '▸'} ✉️ Suggested reply
@@ -164,9 +165,9 @@ function SuggestedReply({ draft }: { draft: string }) {
               }}
               className="rounded-md bg-teal-500/10 px-2.5 py-1 text-xs font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-500/20"
             >
-              {copied ? 'Copied ✓' : 'Copy to clipboard'}
+              <span aria-live="polite">{copied ? 'Copied ✓' : 'Copy to clipboard'}</span>
             </button>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               You send this from your own inbox — we never auto-send.
             </span>
           </div>

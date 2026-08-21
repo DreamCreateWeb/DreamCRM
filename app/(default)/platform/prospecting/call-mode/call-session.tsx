@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { CallQueueItem } from '@/lib/services/prospecting'
+import { MANUAL_LOSS_REASONS, LOSS_REASON_LABELS } from '@/lib/types/prospecting'
 import type { CallScript } from '@/lib/types/call-script'
 import { prospectInitials } from '@/lib/prospect-when'
 import { Stage } from '../stage'
@@ -41,15 +42,15 @@ const SEGMENT_COLOR: Record<string, string> = {
   not_interested: 'bg-rose-400',
   skipped: 'bg-[color:var(--color-surface-sunk)]',
 }
-
-const LOST_REASONS: Array<[string, string]> = [
-  ['price', 'Price'],
-  ['using_competitor', 'Has a vendor'],
-  ['no_need', 'No need'],
-  ['bad_timing', 'Bad timing'],
-  ['not_decision_maker', 'Not the decision-maker'],
-  ['other', 'Other'],
-]
+/** Text twin of the segment colors — hover/AT never has to read a hue. */
+const OUTCOME_LABELS: Record<string, string> = {
+  demo_booked: 'Demo booked',
+  callback: 'Callback',
+  voicemail: 'Voicemail',
+  no_answer: 'No answer',
+  not_interested: 'Not interested',
+  skipped: 'Skipped',
+}
 
 function fmtPhone(digits: string): string {
   return digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : digits
@@ -215,6 +216,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           {results.map((r, i) => (
             <span
               key={i}
+              title={`Call ${i + 1} — ${r ? OUTCOME_LABELS[r] ?? r : 'not logged'}`}
               className={`h-2 flex-1 rounded-full ${r ? SEGMENT_COLOR[r] ?? 'bg-gray-300' : 'bg-[color:var(--color-surface-sunk)]'}`}
             />
           ))}
@@ -275,6 +277,9 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           {items.map((_, i) => (
             <span
               key={i}
+              title={`Call ${i + 1} — ${
+                i === idx ? 'current call' : results[i] ? OUTCOME_LABELS[results[i]!] ?? results[i] : 'up next'
+              }`}
               className={`h-2 flex-1 rounded-full transition-colors ${
                 i === idx
                   ? 'bg-[color:var(--color-surface-2)] ring-2 ring-teal-500'
@@ -503,7 +508,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           <div className="rounded-[var(--r-md)] bg-[color:var(--color-surface-sunk)] p-3">
             <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">Why'd they pass?</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {LOST_REASONS.map(([key, label]) => (
+              {MANUAL_LOSS_REASONS.map((key) => (
                 <button
                   key={key}
                   type="button"
@@ -511,7 +516,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
                   onClick={() => log('not_interested', key)}
                   className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-xs font-medium text-gray-700 ring-1 ring-[color:var(--color-hairline)] hover:ring-gray-400 disabled:opacity-60 dark:text-gray-200"
                 >
-                  {pending && activeOutcome === `lost-${key}` ? 'Logging…' : label}
+                  {pending && activeOutcome === `lost-${key}` ? 'Logging…' : LOSS_REASON_LABELS[key]}
                 </button>
               ))}
               <ActionButton size="sm" variant="ghost" disabled={pending} onClick={() => setPassPicker(false)}>
