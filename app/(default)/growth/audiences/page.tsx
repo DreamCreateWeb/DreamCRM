@@ -24,7 +24,10 @@ export default async function AudiencesPage() {
 
   const audiences = await listAudiences(ctx.organizationId)
   const tags = ctx.tenantType === 'clinic' ? await listPatientTags(ctx.organizationId) : []
-  const counts = await Promise.all(
+  // NOT awaited: resolveAudience runs a full segment query per audience, and
+  // awaiting all of them held the whole page hostage to the slowest one. The
+  // cards paint immediately; each count streams in via use() + Suspense.
+  const countsPromise = Promise.all(
     audiences.map(async (a) => {
       const rows = await resolveAudience(ctx.organizationId, {
         recipientSource: (a.recipientSource ?? 'customers') as 'customers' | 'patients',
@@ -38,15 +41,15 @@ export default async function AudiencesPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <AudiencesClient
-        initial={audiences.map((a, i) => ({
+        initial={audiences.map((a) => ({
           id: a.id,
           name: a.name,
           description: a.description,
           recipientSource: (a.recipientSource ?? 'customers') as 'customers' | 'patients',
           filter: (a.filter ?? {}) as AudienceFilterT,
           patientFilter: (a.patientFilter ?? {}) as PatientAudienceFilterT,
-          recipientCount: counts[i],
         }))}
+        countsPromise={countsPromise}
         tenantType={ctx.tenantType === 'platform' ? 'platform' : 'clinic'}
         stages={t.stages}
         sources={t.sources}

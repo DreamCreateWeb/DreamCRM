@@ -8,6 +8,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { SaveBar } from '@/components/ui/save-bar'
 import { Toggle } from '@/components/ui/toggle'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { TONE_TEXT } from '@/lib/ui/encodings'
 import { SettingsTabs } from '../settings-tabs'
 import { OTHER_VISIT_TYPE_ID, type VisitType } from '@/lib/types/visit-types'
 import type { PracticeSettingsData } from './actions'
@@ -54,8 +55,9 @@ export default function PracticePanel({ initial }: { initial: PracticeSettingsDa
 
   return (
     <div className="flex-1 p-6">
+      {/* Standard warn recipe — the hand-rolled amber-50/200 dialect retired. */}
       {!initial.canEdit && (
-        <div className="mb-6 flex items-start gap-2 rounded-[var(--r-sm)] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+        <div className="mb-6 flex items-start gap-2 rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
           <StatusPill tone="warn" label="View only" />
           <span>You can view these settings. Only clinic owners and admins can make changes.</span>
         </div>
@@ -382,7 +384,7 @@ function ProviderRowEditor({
             <ActionButton variant="secondary" size="sm" onClick={save} disabled={disabled || !canSave}>Save</ActionButton>
           )}
           {!dirty && saved && (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <span className={`inline-flex items-center gap-1 text-xs font-medium ${TONE_TEXT.ok}`} role="status">
               <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-current" aria-hidden="true">
                 <path d="M13.4 4.2a1 1 0 0 1 0 1.4l-6 6a1 1 0 0 1-1.4 0l-3-3a1 1 0 0 1 1.4-1.4L6.7 9.5l5.3-5.3a1 1 0 0 1 1.4 0Z" />
               </svg>

@@ -105,7 +105,10 @@ export default function LeadsView({
 }) {
   const router = useRouter()
   const params = useSearchParams()
-  const [openId, setOpenId] = useState<string | null>(null)
+  // ?lead= deep link (the Website forms panel's submission rows land here
+  // with the drawer already open). Initial-state only — closing the drawer
+  // is local, no URL churn.
+  const [openId, setOpenId] = useState<string | null>(() => params.get('lead'))
   const [searchInput, setSearchInput] = useState(search)
   const [toast, setToast] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()

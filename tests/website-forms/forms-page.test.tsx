@@ -80,7 +80,10 @@ describe('WebsiteFormsPage', () => {
     expect(screen.getByText('Insurance check form')).toBeTruthy()
     expect(screen.getByText('Customized')).toBeTruthy()
     expect(screen.getByText('Using the standard fields')).toBeTruthy()
-    expect(screen.getByText('4 in the last 7 days')).toBeTruthy()
+    // Batch 31: the number leads at full weight, the label stays quiet —
+    // the string is split across two elements now.
+    expect(screen.getByText('4')).toBeTruthy()
+    expect(screen.getByText(/in the last 7 days/)).toBeTruthy()
     expect(screen.getByText('Sam W.')).toBeTruthy()
     // Stored custom field pre-filled in the builder.
     expect(screen.getByDisplayValue('How did you hear about us?')).toBeTruthy()

@@ -8,6 +8,8 @@ import LeadFormBuilder from '../editor/lead-form-builder'
 import { saveLeadForm, type SectionResult } from '../editor/website-actions'
 import { saveChatWidgetAction } from './actions'
 import { StatusPill } from '@/components/ui/status-pill'
+import { EmptyState } from '@/components/ui/empty-state'
+import { ActionButton } from '@/components/ui/action-button'
 import { Toggle } from '@/components/ui/toggle'
 import type { Tone } from '@/lib/ui/encodings'
 
@@ -69,8 +71,11 @@ export default function FormsPanel({
       <section className="v2-card p-4 sm:p-5">
         <div className="flex items-baseline justify-between gap-3 mb-1">
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Submissions</h2>
-          <span className="text-xs tabular-nums font-mono-num text-gray-500 dark:text-gray-400">
-            {count7d} in the last 7 days
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-sm font-semibold tabular-nums font-mono-num text-gray-800 dark:text-gray-100">
+              {count7d}
+            </span>{' '}
+            in the last 7 days
           </span>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -79,24 +84,38 @@ export default function FormsPanel({
         {recent.length > 0 ? (
           <ul className="divide-y divide-[color:var(--color-hairline)]">
             {recent.map((l) => (
-              <li key={l.id} className="py-2 flex items-center justify-between gap-3">
-                <span className="text-sm text-gray-800 dark:text-gray-100 truncate">{l.name}</span>
-                <span className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                    {l.ageHours < 24 ? `${l.ageHours}h ago` : `${Math.round(l.ageHours / 24)}d ago`}
+              <li key={l.id}>
+                {/* The row opens THIS inquiry's drawer in Leads (?lead= deep
+                    link; status=all so a converted/archived one still loads). */}
+                <Link
+                  href={`/leads?status=all&lead=${l.id}`}
+                  className="py-2 flex items-center justify-between gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/30 -mx-2 px-2 rounded"
+                >
+                  <span className="text-sm text-gray-800 dark:text-gray-100 truncate">{l.name}</span>
+                  <span className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                      {l.ageHours < 24 ? `${l.ageHours}h ago` : `${Math.round(l.ageHours / 24)}d ago`}
+                    </span>
+                    <StatusPill
+                      tone={STATUS_TONE[l.status] ?? 'neutral'}
+                      label={STATUS_LABEL[l.status] ?? l.status}
+                    />
                   </span>
-                  <StatusPill
-                    tone={STATUS_TONE[l.status] ?? 'neutral'}
-                    label={STATUS_LABEL[l.status] ?? l.status}
-                  />
-                </span>
+                </Link>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No submissions yet — they’ll appear here the moment someone reaches out.
-          </p>
+          <EmptyState
+            icon="📥"
+            title="No submissions yet"
+            body="They’ll appear here the moment someone reaches out."
+            action={
+              <ActionButton variant="secondary" size="sm" href="/website/share">
+                Share your website
+              </ActionButton>
+            }
+          />
         )}
         <Link
           href="/leads"

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useTransition, type ReactNode } from 'react'
+import { useRef, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { FlashToast } from '@/components/ui/flash-toast'
 import HoursGrid, { type HoursGridEntry } from '../settings/clinic/hours-grid'
 import StaffEditor from '../settings/clinic/staff-editor'
@@ -218,13 +219,11 @@ function QuickEditModal({
   wide?: boolean
   children: ReactNode
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  // Tab stays inside the dialog, focus moves in on open and restores on
+  // close, Escape dismisses — the shared trap the app's other hand-rolled
+  // overlays already ride (replaces the bare window Escape listener).
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, panelRef, { onEscape: onClose })
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
@@ -234,6 +233,7 @@ function QuickEditModal({
         onClick={onClose}
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}

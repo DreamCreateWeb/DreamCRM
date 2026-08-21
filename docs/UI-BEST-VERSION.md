@@ -129,7 +129,7 @@ Already best-version: emptyCopy() engine.
 
 ### Appointment drawer + booking
 1. ~~One useTransition spins five buttons at once~~ [BATCH 12: activeAction keys — only the clicked button spins, the rest disable].
-2. No sticky footer action row — Drawer has the slot (:293 vs drawer.tsx:113).
+2. ~~No sticky footer action row~~ [BATCH 31: the one-primary ladder moved to a sticky bottom footer (the shared Drawer's slot recipe); in-office + destructive rows stay in-flow — destructive never sits beside the primary].
 3. ~~Reschedule always opens tomorrow 09:00~~ [BATCH 12: seeds from the visit's own local date+time; past visits fall back].
 4. ~~In-office undo micro-text~~ [BATCH 17: gray-500 floor + underline].
 5. ~~Patient replies at text-xs~~ [BATCH 17: reply bodies at text-sm full ink; metadata stays xs].
@@ -158,7 +158,7 @@ Already best-version: the message stream + receipts; per-row optimistic nav.
 2. ~~Arbitrary px type in reading pane~~ [BATCH 23: text-[20px]/[13px]/[12px]/[14px] + 15px icons onto the standard scale].
 3. ~~Raw surface colors~~ [BATCH 23: sidebar → surface-1 token, reading pane → canvas token; the two translucent backdrop-blur strips keep alpha whites by necessity].
 4. ~~FilterChips hand-rolls FilterChip~~ [BATCH 23: view toggles ride the shared FilterChip href mode; intent chips keep their tone colors on purpose].
-5. BulkActionBar swaps header in place; no toasts (mailbox-sidebar.tsx:164).
+5. ~~BulkActionBar: no toasts~~ [BATCH 31: every bulk act toasts its count ('3 conversations archived'), failures toast urgent. The header swap stays — selection swapping the toolbar is the Gmail grammar].
 6. ~~Trash/Archive: no feedback~~ [BATCH 23: global toast ('Conversation archived' / 'Moved to trash'). No confirm on purpose — both are reversible, Gmail grammar].
 7. ~~Unread emerald vs amber contract conflict~~ [BATCH 23: unread dot + count pill go amber; the emerald patient-link chip stays (identity, not unread)].
 8. ~~Hover-revealed checkboxes; lowercase refresh~~ [BATCH 23: checkboxes always visible at half strength (touch has no hover); Refresh/Syncing… cased; the empty state was already EmptyState and now hands over Clear filters].
@@ -268,7 +268,7 @@ Already best-version: CompletedHeartbeat.
 2. ~~Recipient count whispered~~ [BATCH 13: mono-numeral hero].
 3. ~~Empty state actionless~~ [BATCH 13: + New audience in the well].
 4. ~~Shared pending spins all Deletes~~ [BATCH 13: per-card deletingId].
-5. Per-audience counts resolved before first paint → stream w/ Suspense (page.tsx:28).
+5. ~~Per-audience counts before first paint~~ [BATCH 31: countsPromise unawaited server-side; cards paint immediately, each number streams in via use() + Suspense with a quiet – fallback].
 
 ### Outreach queue
 1. ~~TIER_ACCENT_BG contradicts the tone contract~~ [BATCH 25: tier headers ride the standard tone surface recipe (tone-500/10 + inset ring) — the *-50 dialect retired].
@@ -284,8 +284,8 @@ Already best-version: CompletedHeartbeat.
 ### Quick edits
 1. ~~Save = raw bg-teal-500~~ [BATCH 13: ActionButton primary + pending].
 2. ~~Errors, no live region~~ [BATCH 13: role=alert].
-3. No focus trap in the modal (:209).
-4. Services modal saves silently (:151).
+3. ~~No focus trap in the modal~~ [BATCH 31: the shared useFocusTrap (Tab cycle, initial focus, restore-on-close, Esc) replaces the bare window Escape listener].
+4. ~~Services modal saves silently~~ [BATCH 31: reorder + remove now toast success in the picker (add + errors already did) — the auto-save is audible everywhere].
 
 ### Design panel
 1. ~~Four identical primaries on one surface~~ [BATCH 13: the hoisted SaveBar on all three cards; Browse-designs demoted to secondary].
@@ -294,14 +294,14 @@ Already best-version: CompletedHeartbeat.
 4. ~~"Publish to go live" ×3~~ [BATCH 13: once at panel level].
 
 ### Pages manager
-1. Three same-weight 12px links/row → one primary (pages-manager.tsx:87).
-2. invisible-but-focusable chevron (:69).
+1. ~~Three same-weight 12px links/row~~ [BATCH 31: verified already fixed in place — Open in editor leads (teal, font-medium), View live + manager sit quiet gray; a per-row button would out-shout a 12-row list].
+2. ~~invisible-but-focusable chevron~~ [BATCH 31: verified already fixed — no-copy rows render plain text with the chevron simply absent, no dead tab stop].
 3. ~~"N text edits" unexplained~~ [BATCH 14: title explains + points at the disclosure].
 
 ### Website forms
-1. Submission rows not links (forms-panel.tsx:81).
-2. Empty state plain sentence (:98).
-3. count7d whispers at 12px (:69).
+1. ~~Submission rows not links~~ [BATCH 31: each row deep-links to its own inquiry (/leads?status=all&lead=… — LeadsView opens the drawer from the param)].
+2. ~~Empty state plain sentence~~ [BATCH 31: EmptyState + Share-your-website action].
+3. ~~count7d whispers~~ [BATCH 31: the number leads at text-sm semibold mono; the label stays quiet].
 
 ### Settings home
 1. ~~No tile carries state~~ [BATCH 27: server-fetched TileBadge map — Team shows "N invites pending", Billing shows "Trial — N days left"; best-effort, quiet when nothing's live].
@@ -317,9 +317,9 @@ Already best-version: CompletedHeartbeat.
 
 ### Practice — the SaveBar is the model.
 1. ~~Hoist SaveBar~~ [BATCH 13: components/ui/save-bar.tsx; practice + design adopted; portal Profile still open].
-2. View-only banner hand-rolled amber (:56).
-3. Raw emerald tick vs TONE_TEXT.ok (:113).
-4. Tabs never write the URL → ?tab= (settings-tabs.tsx:91).
+2. ~~View-only banner hand-rolled amber~~ [BATCH 31: standard warn recipe bg-amber-500/10 + inset ring].
+3. ~~Raw emerald tick~~ [BATCH 31: TONE_TEXT.ok + role=status].
+4. ~~Tabs never write the URL~~ [BATCH 31: tab + subtab clicks history.replaceState ?tab=&sub= (the patient-detail precedent) — refresh/share lands on the same tab; deep-link reads already existed].
 
 ### Billing panel
 1. Four money facts as prose. DEFERRED: the facts read as warm sentences (the product's voice) with mono values already — a grid trades voice for scan speed on a rarely-visited page.
