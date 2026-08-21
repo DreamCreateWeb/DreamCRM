@@ -4,14 +4,13 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-import Link from 'next/link'
 import { getMyPendingForms, getMyRecords } from '@/lib/services/patient-portal'
 import { getFormTemplate, getReturnVisitPrefill } from '@/lib/services/forms'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import IntakeFormRunner from '@/app/site/[slug]/intake/[formSlug]/intake-form-runner'
 import { submitPatientIntakeAction, readPatientInsuranceCardAction } from './actions'
-import {
+import { PortalEmptyState, BrandButton, PORTAL_SUCCESS_INK,
   PortalCard,
   PortalHeading,
   PortalSectionLabel,
@@ -88,9 +87,13 @@ export default async function PortalFormsPage({
         <PortalSectionLabel>To fill out</PortalSectionLabel>
         {pending.length === 0 ? (
           <PortalCard>
-            <p className="py-3 text-center text-[0.9rem]" style={{ color: PORTAL_MUTED }}>
-              Nothing waiting on you — we’ll let you know if a visit needs paperwork.
-            </p>
+            <PortalEmptyState
+              title="Nothing waiting on you"
+              body="We’ll let you know here (and by email) if a visit needs paperwork."
+              ctaHref="/patient/appointments"
+              ctaLabel="See your visits"
+              brand={brand}
+            />
           </PortalCard>
         ) : (
           <div className="space-y-3">
@@ -107,13 +110,9 @@ export default async function PortalFormsPage({
                       </p>
                     )}
                   </div>
-                  <Link
-                    href={`/patient/intake?form=${f.templateId}`}
-                    className="shrink-0 rounded-full px-4 py-2 text-[0.82rem] font-semibold text-white"
-                    style={{ backgroundColor: brand }}
-                  >
+                  <BrandButton brand={brand} href={`/patient/intake?form=${f.templateId}`} small className="shrink-0">
                     Fill it out
-                  </Link>
+                  </BrandButton>
                 </div>
               </PortalCard>
             ))}
@@ -135,7 +134,7 @@ export default async function PortalFormsPage({
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-bold text-white"
-                      style={{ backgroundColor: '#7BA37E' }}
+                      style={{ backgroundColor: PORTAL_SUCCESS_INK }}
                     >
                       ✓
                     </span>

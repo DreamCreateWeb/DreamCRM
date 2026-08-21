@@ -27,6 +27,7 @@ export type PortalIconName =
   | 'bag'
   | 'user'
   | 'dots'
+  | 'clip'
 
 export function buildPortalNav(opts: {
   settings: PortalSettings

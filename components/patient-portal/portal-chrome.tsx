@@ -62,6 +62,9 @@ const STROKE: Record<PortalIconName, React.ReactNode> = {
       <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
     </>
   ),
+  clip: (
+    <path d="M20 11.5 12.6 19a5 5 0 0 1-7.1-7.1l7.8-7.8a3.4 3.4 0 0 1 4.8 4.8l-7.8 7.8a1.8 1.8 0 0 1-2.5-2.5l7-7" />
+  ),
   dots: (
     <>
       <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />

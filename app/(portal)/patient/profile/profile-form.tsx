@@ -9,6 +9,7 @@ import {
   PORTAL_INK as INK,
   PORTAL_MUTED as MUTED,
   PORTAL_BORDER as BORDER,
+  PortalInput,
 } from '@/components/patient-portal/ui'
 
 /**
@@ -52,13 +53,15 @@ function Field({
       <span className="mb-1.5 block text-[0.82rem] font-semibold" style={{ color: INK }}>
         {label}
       </span>
-      <input
+      <PortalInput
         type={type}
         name={name}
         defaultValue={defaultValue}
         autoComplete={autoComplete}
-        className="h-[52px] w-full rounded-2xl bg-white px-4 text-[0.95rem] outline-none"
-        style={{ border: `1px solid ${BORDER}`, color: INK }}
+        // Inline style (not className) — utility-class conflicts against the
+        // primitive's own px/py/text classes resolve by stylesheet order,
+        // which is not a contract.
+        style={{ height: 52, paddingTop: 0, paddingBottom: 0, paddingLeft: 16, paddingRight: 16, fontSize: '0.95rem' }}
       />
     </label>
   )
@@ -78,6 +81,7 @@ export default function ProfileForm({
   const [optIn, setOptIn] = useState(marketingEmailOptIn)
   const [pending, startTransition] = useTransition()
   const [prefPending, startPrefTransition] = useTransition()
+  const [signingOut, setSigningOut] = useState(false)
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -87,18 +91,27 @@ export default function ProfileForm({
     startTransition(async () => {
       const res = await updateMyProfileAction(fd)
       if (res.ok) {
+        // Persists until the next edit/submit — a 4s vanish was gone before
+        // a patient who glanced away ever saw it.
         setSaved(true)
-        setTimeout(() => setSaved(false), 4000)
       } else setError(res.error)
     })
   }
 
+  const [prefError, setPrefError] = useState('')
+
   const togglePref = () => {
     const next = !optIn
     setOptIn(next)
+    setPrefError('')
     startPrefTransition(async () => {
       const res = await setMarketingEmailOptInAction(next)
-      if (!res.ok) setOptIn(!next) // revert on failure
+      if (!res.ok) {
+        // Revert AND say so — a switch that silently snaps back reads as
+        // "I already did that" to the patient.
+        setOptIn(!next)
+        setPrefError('That didn’t save — try again in a moment.')
+      }
     })
   }
 
@@ -151,12 +164,12 @@ export default function ProfileForm({
               {pending ? 'Saving…' : 'Save changes'}
             </button>
             {saved && (
-              <span className="text-[0.85rem] font-medium" style={{ color: PORTAL_SUCCESS_INK }}>
+              <span role="status" className="text-[0.85rem] font-medium" style={{ color: PORTAL_SUCCESS_INK }}>
                 Saved — thanks for keeping us current.
               </span>
             )}
             {error && (
-              <span className="text-[0.85rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>
+              <span role="alert" className="text-[0.85rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>
                 {error}
               </span>
             )}
@@ -193,19 +206,26 @@ export default function ProfileForm({
             />
           </button>
         </div>
+        {prefError && (
+          <p role="alert" className="mt-2 text-[0.82rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>
+            {prefError}
+          </p>
+        )}
       </div>
 
       <div className="text-center">
         <button
           type="button"
+          disabled={signingOut}
           onClick={async () => {
+            setSigningOut(true)
             await signOut()
             window.location.assign('/signin')
           }}
-          className="rounded-full bg-white px-6 py-2.5 text-[0.88rem] font-semibold"
+          className="rounded-full bg-white px-6 py-2.5 text-[0.88rem] font-semibold disabled:opacity-60"
           style={{ border: `1px solid ${BORDER}`, color: MUTED }}
         >
-          Sign out
+          {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
     </div>
