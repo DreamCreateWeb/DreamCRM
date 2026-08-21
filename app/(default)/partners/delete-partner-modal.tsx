@@ -167,7 +167,7 @@ export default function DeletePartnerModal({
               <button
                 type="button"
                 onClick={close}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] text-gray-500 hover:text-gray-700 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-200 text-lg leading-none"
                 aria-label="Close"
               >
                 ✕
@@ -224,7 +224,7 @@ export default function DeletePartnerModal({
               ) : null}
 
               {error && (
-                <div className="mt-3 text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">
+                <div role="alert" className="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-3 py-2 rounded-[var(--r-sm)]">
                   {error}
                 </div>
               )}

@@ -144,7 +144,7 @@ export default function AddPartnerModal() {
                       </div>
 
                       {error && (
-                        <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>
+                        <div role="alert" className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-3 py-2 rounded-[var(--r-sm)]">{error}</div>
                       )}
 
                       <div className="flex items-center justify-end gap-2 pt-1">

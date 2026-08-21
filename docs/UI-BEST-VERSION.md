@@ -405,13 +405,13 @@ reads clinic-voiced copy.
 6. Raw search + raw plan select (subscriptions-panel.tsx:117-139); PlanMixCard empty bare div (subscriptions-stats.tsx:41-47).
 
 ### Partners
-1. Errors as success toasts (FlashToast) — see cross-cutting 2 (partners-table.tsx:78/93-108, referred-clinics-table.tsx:63-83).
-2. Suspend + Pay-now share one transition (partner-actions.tsx:108/118); Cancels spin ×2 (referred-clinics-table.tsx:145, delete-partner-modal.tsx:235).
-3. Filtered-empty dead end (partners-table.tsx:151-156); ledger/payout empties bare <p> ([id]/page.tsx:179/:204).
-4. gray-400 on term/%/✕ (partners-table.tsx:183, referred-clinics-table.tsx:118/133, delete-partner-modal.tsx:170).
-5. rose-50 errors no role=alert ×3 (partner-terms-editor.tsx:83, delete-partner-modal.tsx:227, add-partner-modal).
-6. Terms editor no dirty contract (SaveBar) (partner-terms-editor.tsx:31-56/:84-88); two primaries on detail (Pay-now breath + Save terms).
-7. Hand-rolled back link + server dates ([id]/page.tsx:71-73/:42-45); effectiveFilter silently re-points chip (partners-table.tsx:61-62).
+1. ~~Errors as success toasts~~ [BATCH 36: FlashToast announces urgent as alert; both tables pass urgent tones].
+2. ~~Shared transitions + spinning Cancels~~ [BATCH 36: per-action keys everywhere; Cancels disabled-not-spinning].
+3. ~~Filtered-empty dead end~~ [BATCH 40: EmptyState + Show-all-partners action]. Ledger/payout empties stay quiet one-liners DELIBERATELY — the in-card quiet-line precedent (portal batch 32; EmptyState wells inside side-by-side cards are mostly chrome).
+4. ~~gray-400 on meaningful text~~ [BATCH 40: gray-500 floor on the term, the % unit, and the ✕ (which also grew a 32px hit area)].
+5. ~~rose-50 errors, no role=alert~~ [BATCH 40: urgent recipe + role=alert in all three].
+6. ~~Terms editor no dirty contract + two primaries~~ [BATCH 40: Save lights only when something changed ('Unsaved changes' hint), the baseline moves on save, and Save demotes to secondary — Pay-now keeps the page's one primary. A floating SaveBar would be heavy for a one-card form].
+7. Back link stays a plain link (the TrailBack context-bound precedent). Server dates N/A — platform-global surface, day-granular. ~~effectiveFilter silent re-point~~ [BATCH 40: the fallback writes the state, so the chip row always shows the truth].
 Already best-version reference: delete-partner-modal, tone-aware toasts, per-row pendingId, legends, mono money columns.
 
 ### Prospecting — module-wide

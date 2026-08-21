@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useTransition } from 'react'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -57,9 +58,15 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
   }, [partners])
 
   // Default to 'active', but if there are no active partners and there is other
-  // content, fall back to 'all' so the table isn't confusingly empty.
+  // content, fall back to 'all' so the table isn't confusingly empty. The
+  // fallback WRITES the state (below) so the chip row always shows the truth
+  // instead of silently contradicting the last click.
   const effectiveFilter: StatusFilter =
     filter === 'active' && counts.active === 0 && partners.length > 0 ? 'all' : filter
+  useEffect(() => {
+    if (effectiveFilter !== filter) setFilter(effectiveFilter)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveFilter])
 
   const visible = useMemo(
     () =>
@@ -150,8 +157,16 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-sm text-[color:var(--color-ink-500)]">
-                  No {effectiveFilter === 'all' ? '' : `${effectiveFilter} `}partners.
+                <td colSpan={8} className="px-0 py-0">
+                  <EmptyState
+                    title={`No ${effectiveFilter === 'all' ? '' : `${effectiveFilter} `}partners`}
+                    body="Try a different status filter."
+                    action={
+                      <ActionButton variant="secondary" size="sm" onClick={() => setFilter('all')}>
+                        Show all partners
+                      </ActionButton>
+                    }
+                  />
                 </td>
               </tr>
             ) : (
@@ -180,7 +195,7 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
                     </td>
                     <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                       <span className="font-mono-num tabular-nums">{formatBps(p.defaultPercentBps)}</span>
-                      <span className="text-gray-400 dark:text-gray-500"> · {formatTerm(p.defaultTermMonths)}</span>
+                      <span className="text-gray-500 dark:text-gray-400"> · {formatTerm(p.defaultTermMonths)}</span>
                     </td>
                     <td className="px-4 py-3 text-right font-mono-num tabular-nums text-gray-700 dark:text-gray-300">{p.clinicCount}</td>
                     <td className={`px-4 py-3 text-right font-mono-num tabular-nums ${p.unpaidCents > 0 ? 'text-amber-700 dark:text-amber-300 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>

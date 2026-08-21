@@ -1664,6 +1664,17 @@ $0-sales band (documented deliberate hide during setup).
   tokens; the route gains a loading skeleton. Deferred: + New plan stays
   with its card (a rare act shouldn't be the page primary).
 
+- **2026-08-21 — UI best-version batch 40 (Partners tail).** The
+  filtered-empty table hands over Show-all-partners; the terms editor
+  gets a real dirty contract (Save lights only on change, with an
+  Unsaved-changes hint, and demotes to secondary so Pay-now keeps the
+  page's one primary); all three rose-50 error blocks move to the urgent
+  recipe with role=alert; the modal ✕ grows a 32px hit area; gray-400
+  meaningful text joins the 500 floor; the silent active→all filter
+  fallback now writes the state so the chips can't contradict the last
+  click; both partner routes gain shaped loading skeletons. Ledger and
+  payout empties stay quiet one-liners by the in-card precedent.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
