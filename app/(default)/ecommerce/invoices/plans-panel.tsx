@@ -42,6 +42,8 @@ export default function PlansPanel({ products }: { products: AdminProduct[] }) {
 function ProductRow({ product }: { product: AdminProduct }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  // 'product' or a price id — only the pressed button spins.
+  const [activeKey, setActiveKey] = useState<string | null>(null)
   const confirm = useConfirm()
 
   async function handleArchiveProduct() {
@@ -55,23 +57,29 @@ function ProductRow({ product }: { product: AdminProduct }) {
     )
       return
     setError(null)
+    setActiveKey('product')
     startTransition(async () => {
       try {
         await archivePlanProduct(product.id)
       } catch (err) {
         setError((err as Error).message)
+      } finally {
+        setActiveKey(null)
       }
     })
   }
 
   function handleTogglePrice(priceId: string, active: boolean) {
     setError(null)
+    setActiveKey(priceId)
     startTransition(async () => {
       try {
         if (active) await archivePlanPrice(priceId)
         else await unarchivePlanPrice(priceId)
       } catch (err) {
         setError((err as Error).message)
+      } finally {
+        setActiveKey(null)
       }
     })
   }
@@ -86,7 +94,7 @@ function ProductRow({ product }: { product: AdminProduct }) {
           )}
           <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{product.id}</div>
         </div>
-        <ActionButton variant="danger" size="sm" pending={pending} onClick={handleArchiveProduct}>
+        <ActionButton variant="danger" size="sm" pending={pending && activeKey === 'product'} disabled={pending} onClick={handleArchiveProduct}>
           Archive product
         </ActionButton>
       </div>
@@ -116,7 +124,8 @@ function ProductRow({ product }: { product: AdminProduct }) {
             <ActionButton
               variant="secondary"
               size="sm"
-              pending={pending}
+              pending={pending && activeKey === pr.id}
+              disabled={pending}
               onClick={() => handleTogglePrice(pr.id, pr.active)}
             >
               {pr.active ? 'Archive' : 'Unarchive'}

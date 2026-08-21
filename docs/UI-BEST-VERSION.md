@@ -337,3 +337,162 @@ Already best-version: CompletedHeartbeat.
 2. ~~Up to four stacked notices before data~~ [BATCH 28: the steady-state "storefront live" band demotes to a quiet one-line status — good news is not a standing banner; the off-state and transient connect banners stay actionable].
 3. Sales band vanish. DEFERRED: hiding the $0 band during setup is a documented deliberate decision in the code (nobody stares at a $0 band while onboarding).
 4. ~~LowStockPanel outranks the Sales band~~ [BATCH 28: restock is housekeeping — it now reads AFTER the money story].
+
+---
+
+## Cluster 4 — Platform tenant (scouted 2026-08-21; three scouts: core · prospecting · tail)
+
+Scope notes: platform nav "Sales Pipeline" = /platform/prospecting; /marketing(+/pipeline)
+are deep-link-reachable legacy routes and still audited; /developer is a bare redirect
+(nothing to audit). No tenant-voice violations found anywhere — the platform owner never
+reads clinic-voiced copy.
+
+### Platform cross-cutting (mechanical sweeps)
+1. Cancel-spins + shared-pending sweep. CORE FILES DONE [BATCH 36: clinics-list (delete-modal Cancel + View-as demoted from per-row primary + resend-invite failure surfaced + dead ternaries), partner-actions (per-action keys), referral-card, referred-clinics-table, delete-partner-modal, subscriptions-panel (per-action), plans-panel (per-price keys)]. Remaining sites ride their surface batches: pipeline-lead-drawer, add-lead-button, audiences-client, campaign-editor, blog-editor, review-board, library-entry-editor, prospecting files.
+2. ~~FlashToast announces errors as success~~ [BATCH 36: role=alert + assertive when tone==='urgent'; partners-table and referred-clinics-table now pass urgent tones on every failure path (validation + catches). pipeline-board's silent move failure rides the /marketing batch].
+3. Tone sweep: sky-as-info (subscriptions-attention.tsx:66-73, prospecting page.tsx:75, sales-pipeline-board.tsx:27, momentum-strip.tsx:24, communications/page.tsx:19, marketing terminology.ts:91-101) → violet; special misuse (subscriptions-attention.tsx:52 churn, client-messaging-stats count, [id]/page.tsx:39-47 in_progress, phone-queue.tsx:59) → warn/info; brand-teal-as-status (pipeline-panel.tsx:42, territory-table.tsx:172, sales-pipeline-board.tsx:36, deal-room :314-335, copilot done-line) → emerald/violet; violet-as-link (clinics-list.tsx:254, subscriptions-panel.tsx:268, subscriptions-attention.tsx:107, [id]/page.tsx:129) → teal.
+4. Retired *-50 dialect sweep (~25 sites, both scouts' lists) → tone-500/10 + inset ring, or surface-sunk for neutral wells.
+5. Missing loading.tsx: /ecommerce/customers, /ecommerce/invoices, /messages, /partners(+/[id]), /platform/prospecting, /platform/prospecting/call-mode, /call-list, /demo/[id], /website/blog, /platform/service-library; dashboard/loading.tsx is clinic-shaped for the platform tenant → branch by shape.
+6. role=alert/status adoption: prospecting module has ZERO live regions (33 files); 9+ bare error divs on core surfaces; silent successes everywhere (subscriptions plan change/cancel, plans archive, drawer actions, resend-invite swallows failure clinics-list.tsx:322-346) → global useToast + role=alert.
+
+### Platform Overview
+1. No primary action in the header (platform-overview.tsx:120-129) → one primary, demote rest.
+2. Guardian audience control: raw brand button + inline text confirm + Saving… ternary + sub-40px (guardian-audience-control.tsx:90-128) → ActionButton pending + useConfirm(danger) for opening the lock; note/error get toast/role=alert (:131-132).
+3. Honesty banners amber-50 (guardian-panel.tsx:324, shared-brain-card.tsx:49) → warn recipe.
+4. Etched card recipe in guardian/brain panels (guardian-panel.tsx:95/329/334, shared-brain-card.tsx:61) → .v2-card.
+5. Engine/brain state chips hand-rolled + NO legend (guardian-panel.tsx:31-57/116, shared-brain-card.tsx:71-79) → StatusPill + EncodingLegend.
+6. 3 of 4 KPIs no heartbeat — MRR spark from getMrrSnapshot, Needs-Attention delta (platform-overview.tsx:155-177).
+7. Stripe-unavailable banner raw + silent (platform-overview.tsx:180-184; platform-revenue.tsx:60-65) → recipe + role=status.
+8. PMS-demand clinic chips dead (platform-overview.tsx:216-224) → deep-link clinic pages.
+9. Activity/attention hit target title-only (:326-346); QuickLink cards duplicate header links (:368-384).
+
+### Platform Revenue (fintech/platform-revenue.tsx)
+1. Contributor bars use semantic tones as series colors (:154-169; subscriptions-stats.tsx:71) → CHART_SERIES tokens.
+2. Top-contributor + transaction rows dead-end (:145-178, :248-271) → deep-link clinics.
+3. No primary (:48-57); KPIs no heartbeats though buckets computed (:69-89).
+4. MiniTrend width={760} hardcoded in fluid column (:310); legend order off + local LegendDot (:104-106, :280-287).
+
+### Clinics list (clinics-list.tsx)
+1. Delete modal hand-rolled (no trap/Esc/scrim-click, raw scrim) + Cancel spins (:394-467, :456) → delete-partner-modal pattern.
+2. Every row primary "View as" → N primaries (:470-483) → secondary; + Add clinic sole primary.
+3. Resend-invite swallows failure (:322-346) → toast both paths.
+4. Raw search input (:149-155) → SearchInput; filtered-empty dead end (:199-203) → Show-all action.
+5. Raw hex avatar #6d28d9 (:248, [id]/page.tsx:150); thead bg-gray-50 (:175); pending+ternary doubled (:480/:493).
+
+### Clinic detail ([id]/**, add-clinic-modal)
+1. No PageHeader — hand-rolled eyebrow/H1/back/actions ([id]/page.tsx:128-173) → PageHeader + legend + TrailBack-or-link.
+2. Violet identity (eyebrow :129, avatar :261) → teal; in_progress=special (:39-47) → info.
+3. Pills + glyphs no EncodingLegend (:352-355, 29-37).
+4. Project + invoice rows inert (:330-357, :383-410) → deep-link.
+5. NexHealth card: raw violet button, raw checkboxes, shared transition (nexhealth-card.tsx:97-143); bind success no role=status (:156).
+6. ReferralCard one transition spins Remove/Cancel/Save (:190-196); rose-50 errors no role=alert (referral-card.tsx:187, add-clinic-modal.tsx:342).
+7. Server toLocaleDateString without tz helper (:160/:342/:400) — flag; modal success not live region, scrim gray-900/40, hardcoded domain (:169-193, :160, :176/:212).
+
+### Client messaging (double-sidebar platform branch)
+1. No thread-header identity — name is 12px uppercase in body (messages-body.tsx:59, messages-header.tsx:3-27) → real thread header.
+2. Send never spins (disabled+ternary, messages-body.tsx:109-116) → pending prop.
+3. New-conversation trigger 20px raw SVG (new-conversation-button.tsx:39-49).
+4. Raw hex #151D2C + gray-400 flyout toggle (messages-header.tsx:8/14).
+5. Stat strip hand-rolled + special misuse (client-messaging-stats.tsx:15-60) → KpiStat.
+6. Empty states dead-end; /settings/team as prose (client-messaging-sidebar.tsx:212-231); raw search (:174-181); hand-rolled tab strip no aria (:158-173/:250-284); etched sidebar chrome (:141, stats :17).
+
+### MRR / Subscriptions (ecommerce/invoices/**)
+1. Local tone map w/ sky (subscriptions-attention.tsx:66-73) → TONE_* import; scheduled-to-cancel=special (:52) → warn.
+2. Row actions share one transition; errors render in the Customer cell no role=alert (subscriptions-panel.tsx:300-335, :277).
+3. All mutations silent on success (subscriptions-panel.tsx:231-252, plans-panel.tsx:47-77/140-161) → toast.
+4. Header lacks primary while + New plan buried (plans-panel.tsx:165, invoices/page.tsx:63-71).
+5. "+ N more" dead text (subscriptions-attention.tsx:137-141) → filter link; Stripe-error banner no role=alert (invoices/page.tsx:75-79).
+6. Raw search + raw plan select (subscriptions-panel.tsx:117-139); PlanMixCard empty bare div (subscriptions-stats.tsx:41-47).
+
+### Partners
+1. Errors as success toasts (FlashToast) — see cross-cutting 2 (partners-table.tsx:78/93-108, referred-clinics-table.tsx:63-83).
+2. Suspend + Pay-now share one transition (partner-actions.tsx:108/118); Cancels spin ×2 (referred-clinics-table.tsx:145, delete-partner-modal.tsx:235).
+3. Filtered-empty dead end (partners-table.tsx:151-156); ledger/payout empties bare <p> ([id]/page.tsx:179/:204).
+4. gray-400 on term/%/✕ (partners-table.tsx:183, referred-clinics-table.tsx:118/133, delete-partner-modal.tsx:170).
+5. rose-50 errors no role=alert ×3 (partner-terms-editor.tsx:83, delete-partner-modal.tsx:227, add-partner-modal).
+6. Terms editor no dirty contract (SaveBar) (partner-terms-editor.tsx:31-56/:84-88); two primaries on detail (Pay-now breath + Save terms).
+7. Hand-rolled back link + server dates ([id]/page.tsx:71-73/:42-45); effectiveFilter silently re-points chip (partners-table.tsx:61-62).
+Already best-version reference: delete-partner-modal, tone-aware toasts, per-row pendingId, legends, mono money columns.
+
+### Prospecting — module-wide
+1. Zero role=alert/status/aria-live in 33 files; useToast never imported — hand-rolled ephemeral feedback everywhere → adopt both module-wide.
+2. No loading.tsx on any prospecting route (all force-dynamic, AI-bound) → shaped skeletons ×4.
+3. sky ×4, brand-as-won ×3, *-50 ×20, raw hex ×3 → tone sweep (see cross-cutting).
+
+### Prospecting workspace (page.tsx)
+1. Two header primaries (AddClinic + Call Mode) → Call Mode primary+breath, Add secondary (page.tsx:155, add-clinic-button.tsx:104).
+2. Two stacked underline tab rows → view switcher becomes FilterChips (page.tsx:163-189).
+3. Raw search input (:284-290) → SearchInput+enterHint; kill-switch banner hand-rolled amber silent (:191-199) → recipe + role=status.
+4. Only name deep-links; row otherwise dead (:332-401) → whole-row ?prospect= target; warmth avatars no legend (:72-77/:338-345) → EncodingLegend.
+5. gray-400 "not checked yet" (:379); hand-rolled pagination + no PendingVeil on filter nav (:410-436).
+
+### Daily briefing / hunt panel / focus banner
+1. Briefing Empty helper gray-400 dead-end (:170-172) → inline column CTA; follow-ups amber card hand-rolled (:41), count gray-400 (:44).
+2. Hero CTA raw Link-pill (:31-36) → ActionButton; overnightHot names not links (:123-127).
+3. Hunt panel six KPI tiles hand-rolled, zero heartbeats (hunt-panel.tsx:24-32) → KpiStat + MiniTrend; sub gray-400 (:30); five coded pills no legend (:41-56).
+4. Focus banner raw ~28px controls + silent clear (focus-banner.tsx:24-42) → ActionButton sm + toast.
+
+### Copilot bar
+1. Hand-rolled modal no trap/role/aria-modal (:137-145) → useFocusTrap; Esc global listener conflicts (:66-77).
+2. All buttons raw (:164-253) → ActionButton/FilterChip; running disables ALL actions (:217) → per-action.
+3. Success tiny teal vanishing line (:256-260) → toast (emerald); gray-400 meaningful copy (:177/:233/:265); trigger ~30px (:128).
+
+### Prospect drawer + deal room
+1. Hand-rolled <aside> drawer (prospect-drawer.tsx:51) → shared Drawer (Esc/scrim/trap); ✕ bare 20px (:60-67). HIGHEST VALUE.
+2. drawer-actions one transition ×5 (:27-142) → per-action; suppress inline confirm → useConfirm (:121-142); all successes silent.
+3. contacts-panel one pending across rows; delete NO confirm, 12px ✕ (:41-134).
+4. Deal-room savings brand-tinted (:314-335) → emerald ok; gray-400 ×12; copy paths → CopyChip (demo-followup-drafter.tsx:60-69, call-card.tsx:152-166); drafter ternaries + never-clearing Logged ✓ (:119-179).
+
+### Call Mode + call list
+1. One pending disables five outcomes (call-session.tsx:82/535-549) → per-outcome; OutcomeButton emerald-as-primary (:565-599) → ActionButton grammar + kbd child.
+2. Errors no role=alert (:467, practice-panel :111); pickers' Cancels 12px (:492-522); pass chips → FilterChip; skip gray-400 but state-changing (:283-289); session-strip color-only (:36-43/:270-281); practice-panel modal no trap/Esc/role (:73-74).
+3. call-card one pending ×6 incl. Cancel toggle (:231/:314-331); every card variant=primary (:317) → header primary; 2.5s vanishing success + conversion in same slot (:235-243/:378-379) → toast, persistent for conversion.
+4. ConvertForm 8 fields inline no SaveBar, unlabelled error (:61-133) → modal + SaveBar + role=alert; loss chips rose-50 + duplicated constants (:363-373 vs call-session :506-514); reply disclosure no aria-expanded (:141-147).
+5. phone-queue "No website"=special vs urgent elsewhere (:59); dial CTA raw (:82-87); call-list raw hex ring + gray banner (:115-154).
+
+### Demo prep (demo/[id])
+1. THREE primaries, two breathing (prep-actions.tsx:14-16, track-picker.tsx:67-70, brief-panel.tsx:46) → one primary.
+2. prep-actions shared pending (:9-34); re-enrich result bare never-clearing span (:39-48) → toast.
+3. track-picker teal-50 selected (:44) → selected recipe; Suggested badge → StatusPill special (:53).
+4. brief-panel dead ternaries under pending (:46-48/:75-77); AI failure no role=alert (:49-53).
+5. KpiStats no heartbeat (page.tsx:85-102); "no verified gaps" bare p naming re-enrich w/o the button (:116-119) → EmptyState + action.
+
+### Add-a-clinic modal
+1. Cancel spins (:261-263); no trap/Esc/aria-labelledby (:109-117); two success-panel primaries (:131/:136); submit ternary (:264-266); duplicate warning amber-50 unannounced (:242); error/success no roles (:258, :118-145).
+
+### Pipeline board / momentum / win-loss / territory (prospecting)
+1. pipeline-panel 13× gray-400 meaningful numbers; W/L hand-rolled bg-gray-50 + Won-teal (:39-58) → KpiStat; empty bare paragraph (:15-29) → EmptyState + path.
+2. Hand-rolled meters no aria (loss bars :75-79, warmth :132-136 bg-slate-400, territory worked-% :154-159) → tokened + labeled.
+3. Board count pill + 4xl headline inert (:107-109/:158-160) → deep-link like momentum tiles; EmptyHint gray-400 dead-ends ×4; violet-50 soon card (:54); momentum flat deltas gray-400 (:32/:35/:57).
+4. Territory: one pending all rows (:65/:181); ~26px hand-rolled toggles (:179-190); Won teal (:172); gray-400 (:133-143); empty dead end (:195-201); state cell <button> router.push → <Link> (:126-132).
+
+### Marketing home + legacy pipeline (/marketing)
+1. Stage accents sky + -50 + stone (terminology.ts:91-101 + consumers) → tone contract.
+2. KPIs no heartbeats; funnel rows + activity rows + audience items dead → deep-link (page.tsx:91-247, :152, :202); stage chip → StatusPill (:162).
+3. Board: move failure silent (pipeline-board.tsx:118-121) → toast; drawer shared transition + no error paths (pipeline-lead-drawer.tsx:43/:63-108); add-lead modal hand-rolled + Cancel spins + error no role (add-lead-button.tsx:66-156).
+4. No board zero-state (:177-180); card double tab stop + no keyboard drag (:200/:214/:58-60); etched card/column recipes (:235/:221/:160); kanban loading shape; local FlashToasts ×3.
+
+### Service library
+1. library-entry-editor raw modal, outside-click close, NO unsaved guard (:93-99) → Drawer + useUnsavedChanges; monochrome primary no pending (:252-266).
+2. Approve/Reject adjacent shared busy (review-board.tsx:320-336); note validation as toast → FieldError (:328/:345); dual toast channels (:220 vs :303).
+3. Etched rows (:109) → v2-card; hand-rolled -50 chips + dev-speak (:125-133); error rose-50 no role (:123-127); counter gray-400 (:183); 28px controls (:304/:116); no SearchInput/loading.
+ESCALATED primitive: editor-kit.tsx:20-25 stone palette + stone focus ring → form-input + brand ring.
+
+### Platform blog (blog-editor + list)
+1. One transition ×8 actions incl. autosave (:74 etc.) → per-action.
+2. Publish-nudge teal-50 + raw teal button = second primary (:400-416); publishError no role (:394); autosave state gray-400 no role=status (:263-265).
+3. gray-400 helper copy ×8; raw buttons ×5 → ActionButton; excerpt → form-textarea (:321).
+4. List: gray-400 No-author (page.tsx:212); rows only title-linked (:188-199); no loading.tsx.
+
+### Platform settings
+1. Settings home hand-rolled search/hero — VERIFY vs batch-27 state first (settings-home.tsx:54-84/:42-52).
+2. Platform taxonomy two tiles, no doors to Service Library/Blog/Prospecting settings (settings-nav.tsx:129-137). DEFER candidate (taxonomy/IA — STRUCTURE-AUDIT territory).
+3. Notifications amber-50 (:241) → recipe; Includes gray-400 (:173/:222); Save ternary + no SaveBar + local FlashToast (:266-271).
+
+### Shared growth surfaces (platform orientation)
+1. Campaigns-list eyebrow "‹ Growth" → /growth bounces platform to /dashboard (growth/campaigns/page.tsx:104) → Platform eyebrow / ‹ Marketing.
+2. Audiences two names one destination (eyebrow ‹ Marketing + button ← Sales pipeline, both /marketing; nav's Sales Pipeline is prospecting) (audiences-client.tsx:92-102).
+3. Campaigns empty state dead end (:134-139) → hand over CTA.
+4. Audience Delete shared-pending + rose-50 + 24px (audiences-client.tsx:178-185); CustomerAudienceEditor modal no Esc/trap/role/✕, Cancel spins, ternary, save no error path (:358-488).
+5. Audience preview manual-refresh only (:453-479). DEFER candidate (auto-preview = action change).
+6. Campaign editor leaks "Resend" vendor name (:303); Cancels spin ×4; channel picker 28px hand-rolled (:292-322); Delete 24px rose-50 (:275-281); gray-400 preview labels ×6; campaigns/[id] bare breadcrumb + no legend (:92-107).

@@ -54,10 +54,12 @@ export default function ReferralCard({
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [active, setActive] = useState<'save' | 'clear' | null>(null)
 
   const selectedPartner = partners.find((p) => p.id === partnerId) ?? null
 
   function save() {
+    setActive('save')
     setError(null)
     if (!partnerId) {
       setError('Pick a partner, or use Remove to clear the referral')
@@ -96,6 +98,7 @@ export default function ReferralCard({
   }
 
   function clear() {
+    setActive('clear')
     startTransition(async () => {
       try {
         await clearClinicReferralAction(organizationId, current?.partnerId)
@@ -187,13 +190,14 @@ export default function ReferralCard({
           {error && <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>}
           <div className="flex items-center justify-between">
             {current ? (
-              <ActionButton variant="ghost" size="sm" onClick={clear} pending={pending}>Remove</ActionButton>
+              <ActionButton variant="ghost" size="sm" onClick={clear} pending={pending && active === 'clear'} disabled={pending}>Remove</ActionButton>
             ) : (
               <span />
             )}
             <div className="flex gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={() => { setEditing(false); setError(null) }} pending={pending}>Cancel</ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>Save</ActionButton>
+              {/* Cancel is the escape hatch — disabled while work runs, never spinning. */}
+              <ActionButton variant="secondary" size="sm" onClick={() => { setEditing(false); setError(null) }} disabled={pending}>Cancel</ActionButton>
+              <ActionButton variant="primary" size="sm" onClick={save} pending={pending && active === 'save'} disabled={pending}>Save</ActionButton>
             </div>
           </div>
         </div>
