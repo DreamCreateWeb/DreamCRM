@@ -71,7 +71,7 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
                 onClick={() => pick(n)}
                 disabled={pending}
                 aria-label={`Rate ${n} out of 10`}
-                className="h-9 w-9 rounded-full text-[0.85rem] font-semibold transition hover:scale-110 disabled:opacity-50"
+                className="h-11 w-11 rounded-full text-[0.9rem] font-semibold transition active:scale-95 disabled:opacity-50"
                 style={{ backgroundColor: '#FFFFFF', color: INK, border: `1px solid ${BORDER}` }}
               >
                 {n}

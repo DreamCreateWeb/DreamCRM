@@ -89,14 +89,14 @@ const STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> =
   no_show: { bg: PORTAL_DANGER_BG, fg: PORTAL_DANGER_INK, label: 'Missed' },
 }
 
-export function VisitStatusPill({ status }: { status: string }) {
+export function VisitStatusPill({ status, labelOverride }: { status: string; labelOverride?: string }) {
   const s = STATUS_STYLES[status] ?? STATUS_STYLES.scheduled
   return (
     <span
       className="rounded-full px-2.5 py-1 text-[0.78rem] font-semibold"
       style={{ backgroundColor: s.bg, color: s.fg }}
     >
-      {s.label}
+      {labelOverride ?? s.label}
     </span>
   )
 }
@@ -175,7 +175,7 @@ export function PortalEmptyState({
         <Link
           href={ctaHref}
           className="mt-5 inline-block rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white"
-          style={{ backgroundColor: brand ?? '#9CAF9F' }}
+          style={{ backgroundColor: brand ?? PORTAL_INK }}
         >
           {ctaLabel}
         </Link>
@@ -287,12 +287,12 @@ export function PortalNotice({
   children,
   className = '',
 }: {
-  tone: 'success' | 'warn'
+  tone: 'success' | 'warn' | 'danger'
   children: React.ReactNode
   className?: string
 }) {
-  const bg = tone === 'success' ? PORTAL_SUCCESS_BG : PORTAL_WARN_BG
-  const ink = tone === 'success' ? PORTAL_SUCCESS_INK : PORTAL_WARN_INK
+  const bg = tone === 'success' ? PORTAL_SUCCESS_BG : tone === 'danger' ? PORTAL_DANGER_BG : PORTAL_WARN_BG
+  const ink = tone === 'success' ? PORTAL_SUCCESS_INK : tone === 'danger' ? PORTAL_DANGER_INK : PORTAL_WARN_INK
   return (
     <div className={`rounded-2xl px-4 py-3.5 text-[0.9rem] font-medium ${className}`} style={{ backgroundColor: bg, color: ink }}>
       {children}

@@ -10,7 +10,14 @@ import {
 } from '@/app/(portal)/patient/actions'
 import SlotPicker from './slot-picker'
 import { fmtVisitDayTime, visitProximityLabel } from './format'
-import { PORTAL_INK as INK, PORTAL_MUTED as MUTED, PORTAL_BORDER as BORDER, PORTAL_WARN_BG, PORTAL_WARN_INK, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK, PORTAL_DANGER_BG, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
+import {
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+  PORTAL_DANGER_INK,
+  VisitStatusPill,
+  PortalNotice,
+} from '@/components/patient-portal/ui'
 
 /**
  * The portal's anchor object: a state-aware visit card. The action row
@@ -32,11 +39,6 @@ export interface VisitCardData {
   isDependent: boolean
 }
 
-
-const STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
-  confirmed: { bg: PORTAL_SUCCESS_BG, fg: PORTAL_SUCCESS_INK, label: 'Confirmed' },
-  scheduled: { bg: PORTAL_WARN_BG, fg: PORTAL_WARN_INK, label: 'Needs confirming' },
-}
 
 function Face({ name, photoUrl, brand }: { name: string | null; photoUrl: string | null; brand: string }) {
   if (!name) return null
@@ -133,14 +135,21 @@ export default function VisitCard({
   const [newSlotIso, setNewSlotIso] = useState<string | null>(null)
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [pending, startTransition] = useTransition()
+  // Which act is in flight — the shared pending flag disables everything,
+  // but only the pressed pill should change its label.
+  const [active, setActive] = useState<'confirm' | 'reschedule' | 'cancel' | 'waitlist' | null>(null)
 
   const start = new Date(visit.startIso)
   const withinNotice = start.getTime() - Date.now() < minNoticeHours * 3_600_000
-  const statusStyle = STATUS_STYLES[visit.status]
+  // The shared pill, with this card's one deliberate divergence: an upcoming
+  // 'scheduled' visit asks for action ("Needs confirming"), not a neutral
+  // "Scheduled".
+  const showStatusPill = visit.status === 'confirmed' || visit.status === 'scheduled'
   const proximity = visitProximityLabel(start, timeZone)
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => {
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string, key: 'confirm' | 'reschedule' | 'cancel' | 'waitlist' | null = null) => {
     setMessage(null)
+    setActive(key)
     startTransition(async () => {
       const res = await fn()
       if (res.ok) {
@@ -150,6 +159,7 @@ export default function VisitCard({
       } else {
         setMessage({ kind: 'error', text: res.error ?? 'Something went wrong.' })
       }
+      setActive(null)
     })
   }
 
@@ -177,10 +187,11 @@ export default function VisitCard({
                 </span>
               ) : null}
             </p>
-            {statusStyle && (
-              <span className="rounded-full px-2.5 py-0.5 text-[0.75rem] font-semibold" style={{ backgroundColor: statusStyle.bg, color: statusStyle.fg }}>
-                {statusStyle.label}
-              </span>
+            {showStatusPill && (
+              <VisitStatusPill
+                status={visit.status}
+                labelOverride={visit.status === 'scheduled' ? 'Needs confirming' : undefined}
+              />
             )}
           </div>
           <p className="mt-1 text-[0.92rem]" style={{ color: MUTED }}>
@@ -205,9 +216,9 @@ export default function VisitCard({
             brand={brand}
             variant="brand"
             disabled={pending}
-            onClick={() => run(() => confirmMyVisitAction(visit.id), 'See you then — you’re confirmed.')}
+            onClick={() => run(() => confirmMyVisitAction(visit.id), 'See you then — you’re confirmed.', 'confirm')}
           >
-            Confirm visit
+            {pending && active === 'confirm' ? 'Confirming…' : 'Confirm visit'}
           </ActionPill>
         )}
         <ActionPill href={`/patient/appointments/${visit.id}/ics`}>Add to calendar</ActionPill>
@@ -316,19 +327,13 @@ export default function VisitCard({
       )}
 
       {message && (
-        <p
-          // The portal's primary action feedback (confirm / reschedule /
-          // cancel). Without a live region the text appears silently.
-          role={message.kind === 'ok' ? 'status' : 'alert'}
-          className="mt-3 rounded-xl px-3.5 py-2.5 text-[0.85rem] font-medium"
-          style={
-            message.kind === 'ok'
-              ? { backgroundColor: PORTAL_SUCCESS_BG, color: PORTAL_SUCCESS_INK }
-              : { backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }
-          }
-        >
-          {message.text}
-        </p>
+        // The portal's primary action feedback (confirm / reschedule /
+        // cancel). Without a live region the text appears silently.
+        <div role={message.kind === 'ok' ? 'status' : 'alert'}>
+          <PortalNotice tone={message.kind === 'ok' ? 'success' : 'danger'} className="mt-3 text-[0.85rem]">
+            {message.text}
+          </PortalNotice>
+        </div>
       )}
     </div>
   )

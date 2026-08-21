@@ -1590,6 +1590,18 @@ $0-sales band (documented deliberate hide during setup).
   green hex joined the palette, and the empty state is PortalEmptyState
   with a next step.
 
+- **2026-08-21 — UI best-version batch 35 (the portal shared cards — THE
+  PROGRAM CLOSES).** Survey NPS circles hit 44px with press (not hover)
+  feedback; VisitCard's Confirm says "Confirming…" via a per-action key,
+  its status pill rides the shared VisitStatusPill (new labelOverride
+  keeps the deliberate "Needs confirming" divergence) and its result
+  notice rides PortalNotice, which grew a danger tone; loyalty-card's
+  rose text joins the palette with role=alert; PortalEmptyState's sage
+  fallback becomes PORTAL_INK; family-link-request gets real labels
+  (placeholders demote to examples). **Every item in
+  docs/UI-BEST-VERSION.md — clinic portal AND patient portal — is now
+  done or explicitly deferred with a reason.**
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
