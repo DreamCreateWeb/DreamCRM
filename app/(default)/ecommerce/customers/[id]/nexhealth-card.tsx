@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { bindNexHealthAction, setNexHealthWriteBackAction } from '../admin-actions'
+import { ActionButton } from '@/components/ui/action-button'
 
 /**
  * Platform-ops NexHealth binding card (onboarding overhaul §2.6). The
@@ -32,6 +33,7 @@ export default function NexHealthCard({
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [active, setActive] = useState<'bind' | 'writeback' | null>(null)
 
   function bind() {
     setError(null)
@@ -41,6 +43,7 @@ export default function NexHealthCard({
       setError('Enter the institution subdomain and a numeric location id.')
       return
     }
+    setActive('bind')
     startTransition(async () => {
       const r = await bindNexHealthAction({
         orgId: organizationId,
@@ -56,6 +59,7 @@ export default function NexHealthCard({
       } else {
         setError(r.error)
       }
+      setActive(null)
     })
   }
 
@@ -99,18 +103,19 @@ export default function NexHealthCard({
             checked={sandbox}
             onChange={(e) => setSandbox(e.target.checked)}
             disabled={pending}
-            className="rounded border-gray-300 dark:border-gray-600"
+            className="form-checkbox"
           />
           Sandbox
         </label>
-        <button
-          type="button"
+        <ActionButton
+          variant="primary"
+          size="sm"
           onClick={bind}
+          pending={pending && active === 'bind'}
           disabled={pending}
-          className="btn-sm bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-60"
         >
-          {pending ? 'Checking…' : current ? 'Rebind' : 'Bind + test'}
-        </button>
+          {pending && active === 'bind' ? 'Checking…' : current ? 'Rebind' : 'Bind + test'}
+        </ActionButton>
       </div>
       {current && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/60">
@@ -123,6 +128,7 @@ export default function NexHealthCard({
                 const enabled = e.target.checked
                 setError(null)
                 setResult(null)
+                setActive('writeback')
                 startTransition(async () => {
                   const r = await setNexHealthWriteBackAction({ orgId: organizationId, enabled }).catch(
                     () => ({ ok: false as const, error: 'Something went wrong — try again.' }),
@@ -137,9 +143,10 @@ export default function NexHealthCard({
                   } else {
                     setError(r.error)
                   }
+                  setActive(null)
                 })
               }}
-              className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+              className="form-checkbox mt-0.5"
             />
             <span>
               <span className="font-semibold text-gray-800 dark:text-gray-100">
@@ -153,7 +160,11 @@ export default function NexHealthCard({
           </label>
         </div>
       )}
-      {result && <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">{result}</p>}
+      {result && (
+        <p role="status" className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+          {result}
+        </p>
+      )}
       {error && (
         <p className="mt-2 text-xs text-rose-600" role="alert">
           {error}

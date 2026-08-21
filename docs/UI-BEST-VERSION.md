@@ -373,20 +373,20 @@ reads clinic-voiced copy.
 4. ~~Legend order off~~ [BATCH 37: fixed 1..3 order; the trend width stays a bounded constant (the card is max-width-capped) and LegendDot stays local — a one-page helper].
 
 ### Clinics list (clinics-list.tsx)
-1. Delete modal hand-rolled (no trap/Esc/scrim-click, raw scrim) + Cancel spins (:394-467, :456) → delete-partner-modal pattern.
-2. Every row primary "View as" → N primaries (:470-483) → secondary; + Add clinic sole primary.
-3. Resend-invite swallows failure (:322-346) → toast both paths.
-4. Raw search input (:149-155) → SearchInput; filtered-empty dead end (:199-203) → Show-all action.
-5. Raw hex avatar #6d28d9 (:248, [id]/page.tsx:150); thead bg-gray-50 (:175); pending+ternary doubled (:480/:493).
+1. ~~Delete modal hand-rolled~~ [BATCH 38: focus trap + Esc + scrim-click (all blocked mid-delete), role=dialog, ink-token scrim, modal shadow, role=alert error; the Cancel spin fell in batch 36].
+2. ~~Every row primary "View as"~~ [BATCH 36: secondary — + Add clinic is the page's one primary].
+3. ~~Resend-invite swallows failure~~ [BATCH 36: a failed send reads 'Failed — try again' on the button].
+4. ~~Raw search input + dead filtered-empty~~ [BATCH 38: SearchInput with clear; the no-match state hands over Show all clinics].
+5. ~~Raw hex avatars / gray-50 thead / doubled ternaries~~ [BATCH 38: brand token fallback on both avatar sites, surface-sunk thead; ternaries fell in batch 36].
 
 ### Clinic detail ([id]/**, add-clinic-modal)
-1. No PageHeader — hand-rolled eyebrow/H1/back/actions ([id]/page.tsx:128-173) → PageHeader + legend + TrailBack-or-link.
-2. Violet identity (eyebrow :129, avatar :261) → teal; in_progress=special (:39-47) → info.
+1. Hand-rolled identity header — DEFERRED as deliberate: this is an ENTITY page (logo + name + tagline), which PageHeader has no slot for; forcing it would lose the identity treatment. The eyebrow hue and legend landed (below).
+2. ~~Violet identity + special misuse~~ [BATCH 38: teal eyebrow; in_progress rides info].
 3. Pills + glyphs no EncodingLegend (:352-355, 29-37).
-4. Project + invoice rows inert (:330-357, :383-410) → deep-link.
-5. NexHealth card: raw violet button, raw checkboxes, shared transition (nexhealth-card.tsx:97-143); bind success no role=status (:156).
-6. ReferralCard one transition spins Remove/Cancel/Save (:190-196); rose-50 errors no role=alert (referral-card.tsx:187, add-clinic-modal.tsx:342).
-7. Server toLocaleDateString without tz helper (:160/:342/:400) — flag; modal success not live region, scrim gray-900/40, hardcoded domain (:169-193, :160, :176/:212).
+4. Rows inert. INVOICES DONE [BATCH 38: each links to its Stripe hosted page (service carries hostedInvoiceUrl)]. Project rows DEFERRED — no per-project destination exists (/ecommerce/orders has no row-targeting param); an IA gap, post-1.0.
+5. ~~NexHealth card raw mechanics~~ [BATCH 38: ActionButton primary with per-action pending (bind vs write-back no longer share fate), form-checkbox class, success role=status].
+6. ~~ReferralCard shared pending + rose-50 errors~~ [BATCH 36 split the pending; BATCH 38 moved both error blocks to the urgent recipe + role=alert].
+7. Server dates — N/A BY DESIGN: this is a platform-global surface with no clinic tz to anchor to (the tz law binds clinic-facing renders); dates are day-granular. ~~Modal success not live region / gray scrim~~ [BATCH 38: role=status + ink-token scrim]. Hardcoded domain string stays (display copy mirroring the SITE_DOMAIN default).
 
 ### Client messaging (double-sidebar platform branch)
 1. No thread-header identity — name is 12px uppercase in body (messages-body.tsx:59, messages-header.tsx:3-27) → real thread header.

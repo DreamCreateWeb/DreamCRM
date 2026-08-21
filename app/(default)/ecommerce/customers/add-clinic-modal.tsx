@@ -160,7 +160,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
             enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
             leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0"
           >
-            <div className="fixed inset-0 bg-gray-900/40" aria-hidden="true" />
+            <div className="fixed inset-0 bg-[color:var(--color-ink-900)]/40" aria-hidden="true" />
           </TransitionChild>
           <TransitionChild
             as={Fragment}
@@ -170,7 +170,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
             <div className="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
               <DialogPanel className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[var(--r-lg)] bg-white dark:bg-gray-800 shadow-lg p-6">
                 {created ? (
-                  <div className="text-center py-4">
+                  <div role="status" className="text-center py-4">
                     <div className="text-3xl mb-3" aria-hidden="true">📨</div>
                     <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
                       Invite sent to {created.ownerEmail}
@@ -342,7 +342,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                       )}
 
                       {error && (
-                        <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>
+                        <div role="alert" className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-3 py-2 rounded-[var(--r-sm)]">{error}</div>
                       )}
 
                       <div className="flex items-center justify-end gap-2 pt-1">
@@ -350,7 +350,7 @@ export default function AddClinicModal({ partners = [] }: { partners?: PartnerOp
                           Cancel
                         </ActionButton>
                         <ActionButton type="submit" variant="primary" pending={pending}>
-                          {pending ? 'Creating…' : 'Create & send invite'}
+                          Create &amp; send invite
                         </ActionButton>
                       </div>
                     </form>

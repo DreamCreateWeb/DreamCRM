@@ -187,7 +187,11 @@ export default function ReferralCard({
               The default applies automatically and follows any future change; enter a value only to lock a custom rate.
             </p>
           )}
-          {error && <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>}
+          {error && (
+            <div role="alert" className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-3 py-2 rounded-[var(--r-sm)]">
+              {error}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             {current ? (
               <ActionButton variant="ghost" size="sm" onClick={clear} pending={pending && active === 'clear'} disabled={pending}>Remove</ActionButton>
