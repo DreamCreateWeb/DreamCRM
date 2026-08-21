@@ -128,7 +128,7 @@ export default function ReferredClinicsTable({
                   ) : (
                     <span className="text-gray-700 dark:text-gray-300">
                       <span className="font-mono-num tabular-nums">{(c.percentBps / 100)}%</span>
-                      <span className="text-gray-400 dark:text-gray-500"> · {formatTerm(c.termMonths)}</span>
+                      <span className="text-gray-500 dark:text-gray-400"> · {formatTerm(c.termMonths)}</span>
                       <span className="ml-1.5 text-xs text-[color:var(--color-ink-500)]">
                         {c.hasPercentOverride ? 'override' : 'default'}
                       </span>

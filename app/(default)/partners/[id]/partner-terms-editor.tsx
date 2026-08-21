@@ -27,6 +27,14 @@ export default function PartnerTermsEditor({
   const [pending, startTransition] = useTransition()
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Dirty contract: Save only lights up when something actually changed, and
+  // the baseline moves on a successful save.
+  const [baseline, setBaseline] = useState(() => ({
+    percent: String(defaultPercentBps / 100),
+    term: defaultTermMonths == null ? '' : String(defaultTermMonths),
+    note: termsNote ?? '',
+  }))
+  const dirty = percent !== baseline.percent || term !== baseline.term || note !== baseline.note
 
   function save() {
     setError(null)
@@ -49,6 +57,7 @@ export default function PartnerTermsEditor({
           termsNote: note.trim() || null,
         })
         setToast('Terms updated')
+        setBaseline({ percent, term, note })
       } catch (err) {
         setError((err as Error).message)
       }
@@ -80,10 +89,17 @@ export default function PartnerTermsEditor({
           <textarea id="pt-note" className="form-textarea w-full" rows={3} value={note}
             onChange={(e) => setNote(e.target.value)} placeholder="What the partner agreed to." />
         </div>
-        {error && <div className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded">{error}</div>}
-        <div className="flex justify-end">
-          <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
-            {pending ? 'Saving…' : 'Save terms'}
+        {error && (
+          <div role="alert" className="text-sm text-rose-700 dark:text-rose-300 bg-rose-500/10 ring-1 ring-inset ring-rose-500/20 px-3 py-2 rounded-[var(--r-sm)]">
+            {error}
+          </div>
+        )}
+        <div className="flex items-center justify-end gap-3">
+          {dirty && !pending && (
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Unsaved changes</span>
+          )}
+          <ActionButton variant="secondary" size="sm" onClick={save} pending={pending} disabled={!dirty}>
+            Save terms
           </ActionButton>
         </div>
       </div>
