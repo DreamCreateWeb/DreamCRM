@@ -1528,6 +1528,26 @@ $0-sales band (documented deliberate hide during setup).
   fully retired — the last five imports (both boards, both heartbeats,
   KpiStat) now use MiniTrend directly and sparkline.tsx is deleted.
 
+- **2026-08-21 — UI best-version batch 31 (the clinic-portal closeout).**
+  Appointment drawer: the one-primary action ladder moved into a sticky
+  bottom footer (the shared Drawer's slot recipe) so it stays reachable
+  while the activity log scrolls; in-office + destructive rows stay
+  in-flow. Inbox: every bulk act now toasts its count; failures toast
+  urgent (the header swap stays — Gmail grammar). Audiences: per-audience
+  counts stream in after first paint (use() + Suspense on an unawaited
+  promise). Website quick-edit modals ride the shared useFocusTrap; the
+  services picker's reorder/remove now toast success. Website forms:
+  submission rows deep-link to their own inquiry (/leads?lead=… opens the
+  drawer), the empty state hands over Share-your-website, the 7-day count
+  leads at full weight. Practice settings: view-only banner on the
+  standard warn recipe, the Saved tick rides TONE_TEXT.ok + role=status,
+  and SettingsTabs now WRITES ?tab=&sub= on click (replaceState) so
+  refresh/share lands on the same tab. Two pages-manager items verified
+  already fixed in place. **With this batch every clinic-side item in
+  docs/UI-BEST-VERSION.md is done or explicitly deferred with a reason;
+  the remaining unstruck items are the patient-portal cluster, outside
+  this program's scope.**
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

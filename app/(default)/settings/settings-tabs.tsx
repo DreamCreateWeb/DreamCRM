@@ -62,6 +62,22 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
     return m
   })
 
+  // Write the selection back to the URL (history.replaceState — no nav churn,
+  // the patient-detail ?tab= precedent) so refresh/share lands on the same
+  // tab. Only fires on a click on THIS instance, so co-mounted tab sets
+  // can't fight over the param.
+  function writeUrl(tab: string, sub?: string) {
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.set('tab', tab)
+      if (sub) url.searchParams.set('sub', sub)
+      else url.searchParams.delete('sub')
+      window.history.replaceState(null, '', url.toString())
+    } catch {
+      // non-blocking — the tabs still switch
+    }
+  }
+
   // React to deep-link changes that arrive after mount (clicking a search
   // result while this page is already open — the rail navigates client-side).
   useEffect(() => {
@@ -88,7 +104,10 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
               type="button"
               role="tab"
               aria-selected={on}
-              onClick={() => setActiveTab(t.id)}
+              onClick={() => {
+                setActiveTab(t.id)
+                writeUrl(t.id, activeSub[t.id])
+              }}
               className={`-mb-px px-3.5 py-2 text-sm font-medium border-b-2 transition-colors ${
                 on
                   ? 'border-teal-500 text-teal-700 dark:text-teal-300'
@@ -120,7 +139,10 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
                         type="button"
                         role="tab"
                         aria-selected={on}
-                        onClick={() => setActiveSub((p) => ({ ...p, [t.id]: s.id }))}
+                        onClick={() => {
+                          setActiveSub((p) => ({ ...p, [t.id]: s.id }))
+                          writeUrl(t.id, s.id)
+                        }}
                         className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${
                           on
                             ? 'bg-teal-500/10 border-teal-500/40 text-teal-700 dark:text-teal-300'

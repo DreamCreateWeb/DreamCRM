@@ -424,54 +424,6 @@ export default function AppointmentDrawer({
                 onDone={(msg) => flash(msg)}
               />
 
-              {/* ── Action group — exactly one primary ───────────────── */}
-              <div className="flex flex-wrap gap-2">
-                {isRecoverable ? (
-                  <ActionButton variant="primary" size="sm" onClick={() => setRebookOpen(true)} disabled={pending}>
-                    Rebook patient
-                  </ActionButton>
-                ) : isScheduled ? (
-                  <ActionButton variant="primary" size="sm" onClick={onConfirm} pending={activeAction === 'confirm'} disabled={pending}>
-                    Mark confirmed
-                  </ActionButton>
-                ) : detail.status === 'completed' ? (
-                  // The visit's done — the natural next step is asking for a review.
-                  <ActionButton variant="primary" size="sm" onClick={onRequestReview} pending={activeAction === 'review'} disabled={pending}>
-                    Request review
-                  </ActionButton>
-                ) : (
-                  <ActionButton variant="primary" size="sm" onClick={onSendReminder} pending={activeAction === 'reminder'} disabled={pending}>
-                    Send reminder email
-                  </ActionButton>
-                )}
-                {/* When scheduled, "Send reminder" is a secondary verb (the
-                    primary is "Mark confirmed"). */}
-                {isScheduled && (
-                  <ActionButton variant="secondary" size="sm" onClick={onSendReminder} pending={activeAction === 'reminder'} disabled={pending}>
-                    Send reminder email
-                  </ActionButton>
-                )}
-                {detail.status !== 'completed' && detail.status !== 'cancelled' && (
-                  <ActionButton variant="secondary" size="sm" onClick={() => setReschedOpen(true)} disabled={pending}>
-                    Reschedule
-                  </ActionButton>
-                )}
-                {/* Fast-pass: patient wants an EARLIER time — put them on the
-                    list; a cancellation matching this visit's type/provider
-                    offers them the slot by one-click email. */}
-                {(detail.status === 'scheduled' || detail.status === 'confirmed') &&
-                  new Date(detail.startTime).getTime() > Date.now() && (
-                    <ActionButton variant="secondary" size="sm" onClick={onFastPass} pending={activeAction === 'fastpass'} disabled={pending}>
-                      Wants earlier · fast-pass
-                    </ActionButton>
-                  )}
-                {isPastOpen && (
-                  <ActionButton variant="secondary" size="sm" onClick={onComplete} pending={activeAction === 'complete'} disabled={pending}>
-                    Mark completed
-                  </ActionButton>
-                )}
-              </div>
-
               {/* ── In-office flow (today's live visits): arrived → seated ── */}
               {(detail.status === 'scheduled' || detail.status === 'confirmed') &&
                 new Date(detail.startTime).toDateString() === new Date().toDateString() && (
@@ -592,6 +544,61 @@ export default function AppointmentDrawer({
             </div>
           </div>
         ) : null}
+
+        {/* ── Sticky action footer — the shared Drawer's slot recipe: the
+            one-primary ladder stays reachable while the activity log
+            scrolls. In-office + destructive rows stay in-flow (destructive
+            never sits beside the primary). */}
+        {detail && !error && (
+          <div className="sticky bottom-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur border-t border-[color:var(--color-hairline)] px-5 py-3">
+            <div className="flex flex-wrap gap-2">
+                {isRecoverable ? (
+                  <ActionButton variant="primary" size="sm" onClick={() => setRebookOpen(true)} disabled={pending}>
+                    Rebook patient
+                  </ActionButton>
+                ) : isScheduled ? (
+                  <ActionButton variant="primary" size="sm" onClick={onConfirm} pending={activeAction === 'confirm'} disabled={pending}>
+                    Mark confirmed
+                  </ActionButton>
+                ) : detail.status === 'completed' ? (
+                  // The visit's done — the natural next step is asking for a review.
+                  <ActionButton variant="primary" size="sm" onClick={onRequestReview} pending={activeAction === 'review'} disabled={pending}>
+                    Request review
+                  </ActionButton>
+                ) : (
+                  <ActionButton variant="primary" size="sm" onClick={onSendReminder} pending={activeAction === 'reminder'} disabled={pending}>
+                    Send reminder email
+                  </ActionButton>
+                )}
+                {/* When scheduled, "Send reminder" is a secondary verb (the
+                    primary is "Mark confirmed"). */}
+                {isScheduled && (
+                  <ActionButton variant="secondary" size="sm" onClick={onSendReminder} pending={activeAction === 'reminder'} disabled={pending}>
+                    Send reminder email
+                  </ActionButton>
+                )}
+                {detail.status !== 'completed' && detail.status !== 'cancelled' && (
+                  <ActionButton variant="secondary" size="sm" onClick={() => setReschedOpen(true)} disabled={pending}>
+                    Reschedule
+                  </ActionButton>
+                )}
+                {/* Fast-pass: patient wants an EARLIER time — put them on the
+                    list; a cancellation matching this visit's type/provider
+                    offers them the slot by one-click email. */}
+                {(detail.status === 'scheduled' || detail.status === 'confirmed') &&
+                  new Date(detail.startTime).getTime() > Date.now() && (
+                    <ActionButton variant="secondary" size="sm" onClick={onFastPass} pending={activeAction === 'fastpass'} disabled={pending}>
+                      Wants earlier · fast-pass
+                    </ActionButton>
+                  )}
+                {isPastOpen && (
+                  <ActionButton variant="secondary" size="sm" onClick={onComplete} pending={activeAction === 'complete'} disabled={pending}>
+                    Mark completed
+                  </ActionButton>
+                )}
+            </div>
+          </div>
+        )}
 
         {reschedOpen && detail && (
           <RescheduleSubDrawer

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { Suspense, use, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
@@ -26,11 +26,14 @@ export interface AudienceRow {
   recipientSource: 'customers' | 'patients'
   filter: AudienceFilterT
   patientFilter: PatientAudienceFilterT
-  recipientCount: number
 }
 
 interface Props {
   initial: AudienceRow[]
+  /** Per-audience recipient counts, index-aligned with `initial`. A PROMISE
+   *  on purpose: each count is a full segment query, so the cards paint first
+   *  and the numbers stream in (use() + Suspense). */
+  countsPromise: Promise<number[]>
   /** Drives whether the audience editor exposes patient-segment chips
    * (clinic) or pipeline-stage chips (platform). Both tenants can create,
    * edit, and delete their own audiences here. */
@@ -44,7 +47,7 @@ interface Props {
   leadsLabel: string
 }
 
-export default function AudiencesClient({ initial, tenantType, stages, sources, tags, orgName, leadsLabel }: Props) {
+export default function AudiencesClient({ initial, countsPromise, tenantType, stages, sources, tags, orgName, leadsLabel }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const [editing, setEditing] = useState<AudienceRow | 'new' | null>(null)
@@ -118,7 +121,7 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {initial.map((a) => (
+          {initial.map((a, i) => (
             <div
               key={a.id}
               className="v2-card p-4"
@@ -130,12 +133,18 @@ export default function AudiencesClient({ initial, tenantType, stages, sources, 
                 {/* How many people this reaches IS the audience — the card's
                     one number, mono + full contrast, not a whispered corner. */}
                 <span className="shrink-0 text-right">
-                  <span className="block text-xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
-                    {a.recipientCount}
-                  </span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">
-                    {a.recipientCount === 1 ? 'recipient' : 'recipients'}
-                  </span>
+                  <Suspense
+                    fallback={
+                      <>
+                        <span className="block text-xl font-bold tabular-nums font-mono-num text-gray-300 dark:text-gray-600 leading-none">
+                          –
+                        </span>
+                        <span className="block text-xs text-gray-500 dark:text-gray-400">recipients</span>
+                      </>
+                    }
+                  >
+                    <RecipientCount promise={countsPromise} index={i} />
+                  </Suspense>
                 </span>
               </div>
               {a.description && (
@@ -832,5 +841,22 @@ function ToggleField({
         <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">{help}</p>
       </div>
     </label>
+  )
+}
+
+/** The card's one number, streamed: suspends on the shared counts promise so
+ *  the grid paints before the segment queries finish. */
+function RecipientCount({ promise, index }: { promise: Promise<number[]>; index: number }) {
+  const counts = use(promise)
+  const n = counts[index] ?? 0
+  return (
+    <>
+      <span className="block text-xl font-bold tabular-nums font-mono-num text-gray-900 dark:text-gray-100 leading-none">
+        {n}
+      </span>
+      <span className="block text-xs text-gray-500 dark:text-gray-400">
+        {n === 1 ? 'recipient' : 'recipients'}
+      </span>
+    </>
   )
 }

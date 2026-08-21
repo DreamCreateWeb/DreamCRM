@@ -3,6 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/components/ui/toast'
 import { bulkThreadAction } from '../mailbox-actions'
 import { useSelection } from './selection-context'
 
@@ -22,13 +23,26 @@ export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
+  const toast = useToast()
 
   if (count === 0) return null
 
   const ids = Array.from(selected)
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
 
+  // The single-thread actions toast ('Conversation archived') — a bulk act on
+  // N threads deserves at least the same receipt, since the rows just vanish.
+  const DONE_LABEL: Record<string, (n: number) => string> = {
+    archive: (n) => `${n} conversation${n === 1 ? '' : 's'} archived`,
+    trash: (n) => `${n} moved to trash`,
+    mark_read: (n) => `${n} marked read`,
+    mark_unread: (n) => `${n} marked unread`,
+    star: (n) => `${n} starred`,
+    unstar: (n) => `${n} unstarred`,
+  }
+
   function run(action: 'archive' | 'trash' | 'mark_read' | 'mark_unread' | 'star' | 'unstar') {
+    const n = ids.length
     startTransition(async () => {
       try {
         await bulkThreadAction({ ids, action })
@@ -42,8 +56,10 @@ export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
         }
         clear()
         router.refresh()
+        toast(DONE_LABEL[action]?.(n) ?? 'Done')
       } catch (err) {
         console.warn('[inbox] bulk action failed', err)
+        toast('That didn’t go through — try again.', { tone: 'urgent' })
       }
     })
   }

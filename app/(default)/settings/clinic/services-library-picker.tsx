@@ -171,14 +171,20 @@ export default function ServicesLibraryPicker({
             onMove={(dir) =>
               startTransition(() => {
                 moveLocal(s.id, dir)
-                void runAction(s.id, () => reorderService(s.id, dir))
+                // Add + errors already toast; a silent success here left staff
+                // unsure the auto-save landed (the hub-modal complaint).
+                void runAction(s.id, () => reorderService(s.id, dir), () =>
+                  showToast({ kind: 'success', msg: 'Order saved' }),
+                )
               })
             }
             onRemove={async () => {
               if (!(await confirm({ title: `Remove “${s.name}” from your services?`, confirmLabel: 'Remove', danger: true }))) return
               startTransition(() => {
                 removeServiceLocal(s.id)
-                void runAction(s.id, () => removeService(s.id))
+                void runAction(s.id, () => removeService(s.id), () =>
+                  showToast({ kind: 'success', msg: `Removed ${s.name}` }),
+                )
               })
             }}
           />
