@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PracticeTurn, PracticeFeedback } from '@/lib/services/practice-call'
 import { practiceReplyAction, practiceFeedbackAction } from '../admin-actions'
 
@@ -29,6 +30,8 @@ export default function PracticePanel({
   const [coaching, startCoaching] = useTransition()
   const opened = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, panelRef, { onEscape: onClose })
 
   // They answer the phone when the booth opens.
   useEffect(() => {
@@ -70,21 +73,31 @@ export default function PracticePanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-[var(--r-lg)] bg-white shadow-2xl ring-1 ring-[color:var(--color-hairline)] dark:bg-gray-800">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Rehearsal — ${prospectName}`}
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-[var(--r-lg)] bg-white shadow-2xl ring-1 ring-[color:var(--color-hairline)] dark:bg-gray-800"
+      >
         {/* Header */}
         <div className="flex items-center justify-between gap-2 border-b border-[color:var(--color-hairline)] px-4 py-3">
           <div>
             <p className="text-sm font-bold text-gray-900 dark:text-gray-100">🎭 Rehearsal — {prospectName}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Say it out loud as you type. Nothing is saved.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-xl leading-none text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            aria-label="Close rehearsal"
+            className="flex h-8 w-8 items-center justify-center rounded-[var(--r-xs)] text-xl leading-none text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-300"
+            aria-label="Close rehearsal (Esc)"
           >
             ✕
           </button>
@@ -106,9 +119,13 @@ export default function PracticePanel({
             </div>
           ))}
           {pending && (
-            <p className="text-xs text-gray-400 dark:text-gray-500">…</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">…</p>
           )}
-          {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+          {error && (
+            <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+              {error}
+            </p>
+          )}
 
           {feedback && (
             <div className="rounded-[var(--r-md)] border border-teal-500/20 bg-teal-500/5 p-4">
@@ -183,8 +200,14 @@ export default function PracticePanel({
               <ActionButton variant="primary" size="sm" disabled={pending || !draft.trim()} onClick={say}>
                 Say it
               </ActionButton>
-              <ActionButton variant="secondary" size="sm" disabled={coaching || turns.length < 2} onClick={endRehearsal}>
-                {coaching ? 'Coaching…' : '🏁 End + coach me'}
+              <ActionButton
+                variant="secondary"
+                size="sm"
+                pending={coaching}
+                disabled={coaching || turns.length < 2}
+                onClick={endRehearsal}
+              >
+                🏁 End + coach me
               </ActionButton>
             </div>
           )}

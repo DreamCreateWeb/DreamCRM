@@ -16,7 +16,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 const KIND_ICON: Record<CommItem['kind'], string> = { email: '✉️', call: '📞', reply: '💬' }
 // Avatar tint by kind — replies (a human reaching back) are the warm signal.
 const KIND_AVATAR: Record<CommItem['kind'], string> = {
-  email: 'bg-sky-500',
+  email: 'bg-violet-500',
   call: 'bg-gray-400',
   reply: 'bg-emerald-500',
 }

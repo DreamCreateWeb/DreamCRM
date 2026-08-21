@@ -109,7 +109,7 @@ export default function ContactsPanel({
         {contacts.map((c) => (
           <li
             key={c.id}
-            className="flex items-start justify-between gap-2 rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 px-3 py-2"
+            className="flex items-start justify-between gap-2 rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] px-3 py-2"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">

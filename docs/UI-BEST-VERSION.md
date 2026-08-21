@@ -350,7 +350,7 @@ reads clinic-voiced copy.
 ### Platform cross-cutting (mechanical sweeps)
 1. Cancel-spins + shared-pending sweep. CORE FILES DONE [BATCH 36: clinics-list (delete-modal Cancel + View-as demoted from per-row primary + resend-invite failure surfaced + dead ternaries), partner-actions (per-action keys), referral-card, referred-clinics-table, delete-partner-modal, subscriptions-panel (per-action), plans-panel (per-price keys)]. Remaining sites ride their surface batches: pipeline-lead-drawer, add-lead-button, audiences-client, campaign-editor, blog-editor, review-board, library-entry-editor, prospecting files.
 2. ~~FlashToast announces errors as success~~ [BATCH 36: role=alert + assertive when tone==='urgent'; partners-table and referred-clinics-table now pass urgent tones on every failure path (validation + catches). pipeline-board's silent move failure rides the /marketing batch].
-3. Tone sweep: sky-as-info (subscriptions-attention.tsx:66-73, prospecting page.tsx:75, sales-pipeline-board.tsx:27, momentum-strip.tsx:24, communications/page.tsx:19, marketing terminology.ts:91-101) → violet; special misuse (subscriptions-attention.tsx:52 churn, client-messaging-stats count, [id]/page.tsx:39-47 in_progress, phone-queue.tsx:59) → warn/info; brand-teal-as-status (pipeline-panel.tsx:42, territory-table.tsx:172, sales-pipeline-board.tsx:36, deal-room :314-335, copilot done-line) → emerald/violet; violet-as-link (clinics-list.tsx:254, subscriptions-panel.tsx:268, subscriptions-attention.tsx:107, [id]/page.tsx:129) → teal.
+3. Tone sweep. PARTIAL [BATCH 42: prospecting sky retired — cool score band → violet, communicated stage + replies tile → fuchsia (special: a human reaching back), email channel dot → violet; brand-teal-as-status → emerald across pipeline-panel Won, territory Won, board reply tone, deal-room savings, copilot done-line (now a toast); plus the module's *-50 surfaces → surface-sunk and the demos/call-list raw hex (#ddd6fe/#f59e0b) → tokens]. Remainder: marketing terminology.ts sky/stone stage accents ride the /marketing batch. (Subscriptions-attention + clinic-detail + violet-as-link were closed in earlier batches; phone-queue special deliberately kept.)
 4. Retired *-50 dialect sweep (~25 sites, both scouts' lists) → tone-500/10 + inset ring, or surface-sunk for neutral wells.
 5. Missing loading.tsx: /ecommerce/customers, /ecommerce/invoices, /messages, /partners(+/[id]), /platform/prospecting, /platform/prospecting/call-mode, /call-list, /demo/[id], /website/blog, /platform/service-library; dashboard/loading.tsx is clinic-shaped for the platform tenant — DEFERRED: loading.tsx is static and tenant-blind; branching would need the skeleton moved into the page or a cookie-reading client shim, disproportionate for the one-user platform surface.
 6. role=alert/status adoption: prospecting module has ZERO live regions (33 files); 9+ bare error divs on core surfaces; silent successes everywhere (subscriptions plan change/cancel, plans archive, drawer actions, resend-invite swallows failure clinics-list.tsx:322-346) → global useToast + role=alert.
@@ -433,38 +433,38 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 4. Focus banner raw ~28px controls + silent clear (focus-banner.tsx:24-42) → ActionButton sm + toast.
 
 ### Copilot bar
-1. Hand-rolled modal no trap/role/aria-modal (:137-145) → useFocusTrap; Esc global listener conflicts (:66-77).
-2. All buttons raw (:164-253) → ActionButton/FilterChip; running disables ALL actions (:217) → per-action.
-3. Success tiny teal vanishing line (:256-260) → toast (emerald); gray-400 meaningful copy (:177/:233/:265); trigger ~30px (:128).
+1. ~~Hand-rolled modal no trap/role/aria-modal~~ [BATCH 42: useFocusTrap + role=dialog/aria-modal/aria-label on the ⌘J panel; Esc moves off the global listener into the trap].
+2. ~~running disables ALL actions~~ [BATCH 42: per-action key — only the tapped action reads "Running…"; suggested-action buttons keep their compact chip form (a palette's chips, not page CTAs) — raw-button conversion accepted as-is].
+3. ~~Success vanishing line / gray-400 floors / trigger~~ [BATCH 42: mutation success → global toast; "Try asking"/matched-name/footer/thinking line to gray-500 + role=status; trigger grows to a 40px target].
 
 ### Prospect drawer + deal room
 1. ~~Hand-rolled drawer~~ [BATCH 41: a client ProspectDrawerShell supplies scrim + Esc + focus trap + role=dialog while the CONTENT stays server-rendered (the ?prospect= deep link is the part worth keeping — the shared client Drawer would have lost it); ✕ grows a 36px target + Esc hint].
 2. ~~drawer-actions shared transition + silent successes~~ [BATCH 41: per-action keys; suppress rides useConfirm(danger); enroll/stop/re-enrich/suppress all toast; error role=alert].
 3. ~~contacts-panel shared pending + confirm-less delete~~ [BATCH 41: per-act keys (re-verify/add/pin-id/del-id with live labels), delete asks by address, ✕ gets a 24px boxed target off gray-400].
-4. Deal-room savings brand-tinted (:314-335) → emerald ok; gray-400 ×12; copy paths → CopyChip (demo-followup-drafter.tsx:60-69, call-card.tsx:152-166); drafter ternaries + never-clearing Logged ✓ (:119-179).
+4. Deal-room savings + drafter. PARTIAL [BATCH 42: savings panel rides the emerald ok recipe (brand teal was reading as a status)]. Remainder (gray-400 ×12, CopyChip adoptions, drafter ternaries + never-clearing Logged ✓) rides the next batch.
 
 ### Call Mode + call list
-1. One pending disables five outcomes (call-session.tsx:82/535-549) → per-outcome; OutcomeButton emerald-as-primary (:565-599) → ActionButton grammar + kbd child.
-2. Errors no role=alert (:467, practice-panel :111); pickers' Cancels 12px (:492-522); pass chips → FilterChip; skip gray-400 but state-changing (:283-289); session-strip color-only (:36-43/:270-281); practice-panel modal no trap/Esc/role (:73-74).
-3. call-card one pending ×6 incl. Cancel toggle (:231/:314-331); every card variant=primary (:317) → header primary; 2.5s vanishing success + conversion in same slot (:235-243/:378-379) → toast, persistent for conversion.
-4. ConvertForm 8 fields inline no SaveBar, unlabelled error (:61-133) → modal + SaveBar + role=alert; loss chips rose-50 + duplicated constants (:363-373 vs call-session :506-514); reply disclosure no aria-expanded (:141-147).
-5. phone-queue "No website"=special vs urgent elsewhere (:59); dial CTA raw (:82-87); call-list raw hex ring + gray banner (:115-154).
+1. ~~One pending disables five outcomes / OutcomeButton emerald-as-primary~~ [BATCH 42: per-outcome active key ("Logging…" only on the tapped one); OutcomeButton grows a busy prop; the primary outcome's fill moves to the brand token].
+2. ~~Errors/pickers/skip/practice modal~~ [BATCH 42: role=alert on call-session + practice-panel errors; both pickers' Cancels become ghost ActionButtons; pass chips show live "Logging…" labels; Skip lifts to a legible gray-500 underline; practice-panel gains scrim-click + Esc + focus trap + role=dialog + a 32px ✕]. Session-strip color-only markers ride the next batch.
+3. ~~call-card one pending / all-primary / vanishing success~~ [BATCH 42: per-outcome keys incl. per-loss-reason; ALL outcome buttons go secondary (no per-card primary in a list of cards); the 2.5s flash becomes a global toast; Not-interested toggle never spins].
+4. ConvertForm + loss chips. PARTIAL [BATCH 42: submit gains the pending prop + role=alert error + a success toast; loss chips move to rose-500/10 with a live label]. Remainder (SaveBar/modal shape, shared loss-reason constants, reply aria-expanded) deliberately deferred: the inline form is 4 visible fields in practice and works; constants + disclosure ride the next batch.
+5. call-list ring + queue. PARTIAL [BATCH 42: the demo-accent ring's raw #f59e0b fallback → var(--color-amber-500)]. phone-queue "No website" stays a special pill DELIBERATELY — in a sales queue "no website" is the noteworthy opportunity, not an error; dial CTA rides the next batch.
 
 ### Demo prep (demo/[id])
-1. THREE primaries, two breathing (prep-actions.tsx:14-16, track-picker.tsx:67-70, brief-panel.tsx:46) → one primary.
-2. prep-actions shared pending (:9-34); re-enrich result bare never-clearing span (:39-48) → toast.
-3. track-picker teal-50 selected (:44) → selected recipe; Suggested badge → StatusPill special (:53).
-4. brief-panel dead ternaries under pending (:46-48/:75-77); AI failure no role=alert (:49-53).
+1. ~~THREE primaries~~ [BATCH 42: prep-actions' pair and the brief's Generate demote to secondary — the track-picker launcher is the page's one breathing primary].
+2. ~~prep-actions shared pending~~ [BATCH 42: per-action keys ('demo'/'enrich'); the re-enrich note gains role=status].
+3. ~~track-picker teal-50 selected~~ [BATCH 42: selected state onto the token recipe].
+4. ~~brief-panel ternaries + alert~~ [BATCH 42: dead ternaries under the pending prop removed; AI failure carries role=alert].
 5. KpiStats no heartbeat (page.tsx:85-102); "no verified gaps" bare p naming re-enrich w/o the button (:116-119) → EmptyState + action.
 
 ### Add-a-clinic modal
-1. Add-a-clinic modal. PARTIAL [BATCH 41: Cancel no longer spins; trigger demoted to secondary; duplicate warning onto amber-500/10]. Remainder (trap/roles/success-panel primaries/ternary) rides the next prospecting batch.
+1. ~~Add-a-clinic modal~~ [BATCH 41: Cancel no longer spins; trigger demoted to secondary] [BATCH 42: focus trap + Esc (guarded while pending) + aria-labelledby onto the dialog; success panel + duplicate warning gain role=status (the warning also drops a broken dark-mode class for the standard amber recipe); submit ternary removed under the pending prop; footer Cancel disabled-only; ✕ grows a 32px target. The success panel's two buttons were already one-primary-at-a-time by condition].
 
 ### Pipeline board / momentum / win-loss / territory (prospecting)
-1. pipeline-panel 13× gray-400 meaningful numbers; W/L hand-rolled bg-gray-50 + Won-teal (:39-58) → KpiStat; empty bare paragraph (:15-29) → EmptyState + path.
+1. pipeline-panel. PARTIAL [BATCH 42: tiles onto surface-sunk; Won reads emerald not brand teal]. Remainder (gray-400 floors, KpiStat shape, EmptyState) rides the next batch.
 2. Hand-rolled meters no aria (loss bars :75-79, warmth :132-136 bg-slate-400, territory worked-% :154-159) → tokened + labeled.
-3. Board count pill + 4xl headline inert (:107-109/:158-160) → deep-link like momentum tiles; EmptyHint gray-400 dead-ends ×4; violet-50 soon card (:54); momentum flat deltas gray-400 (:32/:35/:57).
-4. Territory: one pending all rows (:65/:181); ~26px hand-rolled toggles (:179-190); Won teal (:172); gray-400 (:133-143); empty dead end (:195-201); state cell <button> router.push → <Link> (:126-132).
+3. Board inert numbers + hints. PARTIAL [BATCH 42: violet-50 soon card → violet-500/10 tokens]. Remainder (deep-links, EmptyHint dead-ends, momentum flat deltas) rides the next batch.
+4. Territory. PARTIAL [BATCH 42: Won column → emerald; sunk surfaces tokened]. Remainder (per-row pending, toggle targets, gray-400s, empty dead end, button→Link) rides the next batch.
 
 ### Marketing home + legacy pipeline (/marketing)
 1. Stage accents sky + -50 + stone (terminology.ts:91-101 + consumers) → tone contract.

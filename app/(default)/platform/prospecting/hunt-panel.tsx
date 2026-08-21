@@ -22,7 +22,7 @@ export default function HuntPanel({
   const live = !config.killSwitch && !config.dryRun
   const senderReady = env.senderConfigured || env.gmailConfigured
   const tile = (label: string, value: number, sub?: string, tone?: Tone) => (
-    <div className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+    <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
       <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
       <div className={`mt-0.5 text-xl font-bold tabular-nums ${tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-100'}`}>
         {value.toLocaleString()}

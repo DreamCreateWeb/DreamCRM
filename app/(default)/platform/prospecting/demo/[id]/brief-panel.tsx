@@ -43,8 +43,8 @@ export default function BriefPanel({
           the walk-up story, which beat to lead with, likely objections with one-breath responses,
           and the closing ask. Generated once, cached — regenerate after a re-enrich.
         </p>
-        <ActionButton variant="primary" pending={pending} onClick={() => generate(false)} className="no-print">
-          {pending ? 'Writing the brief…' : '✨ Generate the brief'}
+        <ActionButton variant="secondary" pending={pending} onClick={() => generate(false)} className="no-print">
+          ✨ Generate the brief
         </ActionButton>
         {failed && (
           <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">
@@ -73,7 +73,7 @@ export default function BriefPanel({
             {new Date(brief.generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </span>
           <ActionButton size="sm" variant="ghost" pending={pending} onClick={() => generate(true)}>
-            {pending ? 'Rewriting…' : '↻ Regenerate'}
+            ↻ Regenerate
           </ActionButton>
         </div>
       </div>

@@ -1687,7 +1687,7 @@ $0-sales band (documented deliberate hide during setup).
   Add-a-clinic demotes), the kill-switch banner joins the warn recipe
   with a live region, the search box becomes the shared SearchInput (a
   small client wrapper keeps the plain GET form), and all four
-  prospecting routes gain shaped loading skeletons.
+  prospecting routes gain shaped loading skeletons. **Batch 42 (Call Mode + demo prep + copilot):** every outcome logger — Call Mode's teleprompter, the call-list cards, the demo-prep header — now spins only the button you pressed and reports through the global toast instead of a vanishing 2.5s flash; the ⌘J copilot, the 🎭 rehearsal booth, and the Add-a-clinic modal all gain the standard dialog contract (focus trap, Esc, scrim click, screen-reader roles); demo-prep keeps ONE breathing primary; conversion/AI errors announce via role=alert; and a module-wide tone sweep retires sky, brand-teal-as-status (Won/savings → emerald), off-palette *-50 surfaces, and two raw hex colors.
 
 ### Test-hygiene note (worth keeping)
 

@@ -73,7 +73,7 @@ const BAND_TONES: Record<ProspectScoreBand, Tone> = {
 const BAND_AVATAR: Record<string, string> = {
   hot: 'bg-rose-500',
   warm: 'bg-amber-500',
-  cool: 'bg-sky-500',
+  cool: 'bg-violet-500',
   low: 'bg-gray-400',
 }
 
