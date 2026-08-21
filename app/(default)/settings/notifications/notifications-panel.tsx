@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react'
 import { saveNotificationPrefs, setMyEmailReportsOptOutAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
-import { FlashToast } from '@/components/ui/flash-toast'
+import { SaveBar } from '@/components/ui/save-bar'
+import { useToast } from '@/components/ui/toast'
 import { Toggle } from '@/components/ui/toggle'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
@@ -122,10 +123,14 @@ export default function NotificationsPanel({
   emailReportsOptedOut?: boolean | null
 }) {
   const labels = EMAIL_LABELS[tenantType]
+  const toast = useToast()
   const [prefs, setPrefs] = useState<Prefs>(initial)
+  // Baseline moves on every successful save, so "Saved" can actually show
+  // (comparing against the immutable server prop left the form dirty forever).
+  const [baseline, setBaseline] = useState<Prefs>(initial)
   const [pending, startTransition] = useTransition()
-  const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
-  const dirty = JSON.stringify(prefs) !== JSON.stringify(initial)
+  const [saved, setSaved] = useState(false)
+  const dirty = JSON.stringify(prefs) !== JSON.stringify(baseline)
   // The report-emails mute saves IMMEDIATELY (it's the same switch as My
   // Day's — one tap, no Save button), separate from the form's dirty flow.
   const [reportsOptedOut, setReportsOptedOut] = useState(emailReportsOptedOut ?? false)
@@ -138,9 +143,9 @@ export default function NotificationsPanel({
       const res = await setMyEmailReportsOptOutAction(next)
       if ('error' in res) {
         setReportsOptedOut(!next)
-        setToast({ message: res.error, tone: 'urgent' })
+        toast(res.error, { tone: 'urgent' })
       } else {
-        setToast({ message: next ? 'Report emails muted for you.' : 'Report emails back on for you.', tone: 'ok' })
+        toast(next ? 'Report emails muted for you.' : 'Report emails back on for you.')
       }
     })
   }
@@ -149,15 +154,16 @@ export default function NotificationsPanel({
     setPrefs((p) => ({ ...p, [key]: !p[key] }))
   }
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setToast(null)
+  function onSubmit(e?: React.FormEvent) {
+    e?.preventDefault()
     startTransition(async () => {
       try {
         await saveNotificationPrefs(prefs)
-        setToast({ message: 'Preferences saved.', tone: 'ok' })
+        setBaseline(prefs)
+        setSaved(true)
+        toast('Preferences saved.')
       } catch (err) {
-        setToast({ message: (err as Error).message, tone: 'urgent' })
+        toast((err as Error).message, { tone: 'urgent' })
       }
     })
   }
@@ -170,7 +176,7 @@ export default function NotificationsPanel({
           includes ? (
             <>
               {description}
-              <span className="mt-1 block text-gray-400 dark:text-gray-500">{includes}</span>
+              <span className="mt-1 block text-gray-500 dark:text-gray-400">{includes}</span>
             </>
           ) : (
             description
@@ -219,7 +225,7 @@ export default function NotificationsPanel({
                     description={
                       <>
                         The Monday week-in-review, plus the morning digest when your clinic has it on.
-                        <span className="mt-1 block text-gray-400 dark:text-gray-500">
+                        <span className="mt-1 block text-gray-500 dark:text-gray-400">
                           Just for you — the rest of the team keeps theirs. Saves right away.
                         </span>
                       </>
@@ -238,7 +244,7 @@ export default function NotificationsPanel({
                 {prefs.pushNothing && (
                   <div
                     role="note"
-                    className="mt-3.5 flex items-start gap-2 rounded-[var(--r-sm)] border-l-4 border-l-amber-500 border border-amber-200/70 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                    className="mt-3.5 flex items-start gap-2 rounded-[var(--r-sm)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-200"
                   >
                     <svg className="mt-px h-3.5 w-3.5 shrink-0 fill-current" viewBox="0 0 16 16" aria-hidden="true">
                       <path d="M8 1.5 15 14H1L8 1.5Zm0 3.6a.9.9 0 0 0-.9.9v3.6a.9.9 0 1 0 1.8 0V6a.9.9 0 0 0-.9-.9Zm0 6.3a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" />
@@ -257,18 +263,14 @@ export default function NotificationsPanel({
         ]}
       />
 
-      <div className="mt-6 flex items-center justify-end gap-3">
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <SaveBar dirty={dirty} saved={saved} pending={pending} onSave={() => onSubmit()} />
         {dirty && (
-          <ActionButton variant="secondary" onClick={() => setPrefs(initial)}>
+          <ActionButton variant="ghost" size="sm" disabled={pending} onClick={() => setPrefs(baseline)}>
             Reset
           </ActionButton>
         )}
-        <ActionButton variant="primary" type="submit" disabled={pending || !dirty}>
-          {pending ? 'Saving…' : 'Save changes'}
-        </ActionButton>
       </div>
-
-      {toast && <FlashToast message={toast.message} tone={toast.tone} onDone={() => setToast(null)} />}
     </form>
   )
 }

@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { searchSettings, settingsEntryHref } from './search-index'
 import { settingsNavGroups, iconForHref, type SettingsTenant } from './settings-nav'
+import { SearchInput } from '@/components/ui/search-input'
 import { StatusPill } from '@/components/ui/status-pill'
 import type { Tone } from '@/lib/ui/encodings'
 import type { ReactNode } from 'react'
@@ -34,7 +35,6 @@ export default function SettingsHome({
   const results = searching
     ? [...searchSettings(query, tenantType), ...searchSettings(query, 'user')]
     : []
-  const searchRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="section-enter">
@@ -51,36 +51,14 @@ export default function SettingsHome({
           account. Pick an area to jump in.
         </p>
 
-        <div className="relative mt-5 max-w-md">
-          <svg
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 fill-current text-gray-400 dark:text-gray-500"
-            viewBox="0 0 16 16"
-            aria-hidden="true"
-          >
-            <path d="M7 14a7 7 0 1 1 4.94-2.06l3.56 3.56a1 1 0 0 1-1.42 1.42l-3.56-3.56A6.97 6.97 0 0 1 7 14Zm0-2a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" />
-          </svg>
-          <input
-            ref={searchRef}
-            type="text"
+        <div className="mt-5 max-w-md">
+          <SearchInput
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+            onChange={setQuery}
+            onClear={() => setQuery('')}
             placeholder="Search settings…"
-            aria-label="Search settings"
-            className="w-full rounded-[var(--r-md)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 pl-9 pr-8 py-2 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-500 outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20"
+            ariaLabel="Search settings"
           />
-          {query && (
-            <button
-              type="button"
-              onClick={() => { setQuery(''); searchRef.current?.focus() }}
-              aria-label="Clear search"
-              className="absolute right-1 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              <svg className="h-3 w-3 fill-current" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M9.4 8l4.3-4.3a1 1 0 1 0-1.4-1.4L8 6.6 3.7 2.3a1 1 0 0 0-1.4 1.4L6.6 8l-4.3 4.3a1 1 0 1 0 1.4 1.4L8 9.4l4.3 4.3a1 1 0 0 0 1.4-1.4L9.4 8Z" />
-              </svg>
-            </button>
-          )}
         </div>
       </div>
 
@@ -109,7 +87,7 @@ export default function SettingsHome({
               Try a different word — or{' '}
               <button
                 type="button"
-                onClick={() => { setQuery(''); searchRef.current?.focus() }}
+                onClick={() => setQuery('')}
                 className="font-medium text-teal-700 dark:text-teal-400 hover:underline"
               >
                 clear the search
