@@ -351,9 +351,9 @@ reads clinic-voiced copy.
 1. Cancel-spins + shared-pending sweep. CORE FILES DONE [BATCH 36: clinics-list (delete-modal Cancel + View-as demoted from per-row primary + resend-invite failure surfaced + dead ternaries), partner-actions (per-action keys), referral-card, referred-clinics-table, delete-partner-modal, subscriptions-panel (per-action), plans-panel (per-price keys)]. Remaining sites ride their surface batches: pipeline-lead-drawer, add-lead-button, audiences-client, campaign-editor, blog-editor, review-board, library-entry-editor, prospecting files.
 2. ~~FlashToast announces errors as success~~ [BATCH 36: role=alert + assertive when tone==='urgent'; partners-table and referred-clinics-table now pass urgent tones on every failure path (validation + catches). pipeline-board's silent move failure rides the /marketing batch].
 3. Tone sweep. PARTIAL [BATCH 42: prospecting sky retired — cool score band → violet, communicated stage + replies tile → fuchsia (special: a human reaching back), email channel dot → violet; brand-teal-as-status → emerald across pipeline-panel Won, territory Won, board reply tone, deal-room savings, copilot done-line (now a toast); plus the module's *-50 surfaces → surface-sunk and the demos/call-list raw hex (#ddd6fe/#f59e0b) → tokens]. Remainder: marketing terminology.ts sky/stone stage accents ride the /marketing batch. (Subscriptions-attention + clinic-detail + violet-as-link were closed in earlier batches; phone-queue special deliberately kept.)
-4. Retired *-50 dialect sweep (~25 sites, both scouts' lists) → tone-500/10 + inset ring, or surface-sunk for neutral wells.
+4. ~~Retired *-50 dialect sweep~~ [BATCHES 38–49, verified at close: the flagged sites landed with their surface batches (prospecting b42/43, marketing b45, service library b46, blog b47, settings b48, campaigns/audiences b49); a final grep finds only false positives (z-50/opacity-50), interaction-state hover:bg-gray-50 (accepted idiom), and the daily-briefing hero's white-on-teal chrome (deliberate)].
 5. Missing loading.tsx: /ecommerce/customers, /ecommerce/invoices, /messages, /partners(+/[id]), /platform/prospecting, /platform/prospecting/call-mode, /call-list, /demo/[id], /website/blog, /platform/service-library; dashboard/loading.tsx is clinic-shaped for the platform tenant — DEFERRED: loading.tsx is static and tenant-blind; branching would need the skeleton moved into the page or a cookie-reading client shim, disproportionate for the one-user platform surface.
-6. role=alert/status adoption: prospecting module has ZERO live regions (33 files); 9+ bare error divs on core surfaces; silent successes everywhere (subscriptions plan change/cancel, plans archive, drawer actions, resend-invite swallows failure clinics-list.tsx:322-346) → global useToast + role=alert.
+6. ~~role=alert/status adoption~~ [BATCHES 36–49, verified at close: prospecting went from zero live regions to toast/role adoption across 10 files; every flagged bare error div now carries role=alert; the flagged silent successes (subscriptions, plans, drawer actions, resend-invite) all toast].
 
 ### Platform Overview
 1. ~~No primary action in the header~~ [BATCH 37: + Add clinic is the one primary (lands on /ecommerce/customers?add=1, which now opens the modal on arrival); Revenue's header slot moved to the quick-link grid].
@@ -382,7 +382,7 @@ reads clinic-voiced copy.
 ### Clinic detail ([id]/**, add-clinic-modal)
 1. Hand-rolled identity header — DEFERRED as deliberate: this is an ENTITY page (logo + name + tagline), which PageHeader has no slot for; forcing it would lose the identity treatment. The eyebrow hue and legend landed (below).
 2. ~~Violet identity + special misuse~~ [BATCH 38: teal eyebrow; in_progress rides info].
-3. Pills + glyphs no EncodingLegend (:352-355, 29-37).
+3. ~~Pills + glyphs no EncodingLegend~~ [BATCH 38: PROJECT_STATUS_LEGEND + TYPE channels feed EncodingLegend on the clinic-detail header — verified present at close].
 4. Rows inert. INVOICES DONE [BATCH 38: each links to its Stripe hosted page (service carries hostedInvoiceUrl)]. Project rows DEFERRED — no per-project destination exists (/ecommerce/orders has no row-targeting param); an IA gap, post-1.0.
 5. ~~NexHealth card raw mechanics~~ [BATCH 38: ActionButton primary with per-action pending (bind vs write-back no longer share fate), form-checkbox class, success role=status].
 6. ~~ReferralCard shared pending + rose-50 errors~~ [BATCH 36 split the pending; BATCH 38 moved both error blocks to the urgent recipe + role=alert].
@@ -397,12 +397,12 @@ reads clinic-voiced copy.
 6. ~~Sidebar gaps~~ [BATCH 39: team empty state hands over an Invite-a-teammate button; SearchInput with clear; tab strip gains aria-pressed; chrome on surface/hairline tokens].
 
 ### MRR / Subscriptions (ecommerce/invoices/**)
-1. Local tone map w/ sky (subscriptions-attention.tsx:66-73) → TONE_* import; scheduled-to-cancel=special (:52) → warn.
+1. ~~Local tone map w/ sky + special churn~~ [BATCH 39: sky retired from subscriptions-attention (local map now info=violet/special=fuchsia), scheduled-to-cancel rides warn — verified no sky remains at close].
 2. ~~Shared row transition + orphaned errors~~ [BATCH 36 split the pending; BATCH 39 moves the error beside the buttons that caused it, role=alert].
 3. ~~Mutations silent on success~~ [BATCH 39: cancel/keep/plan-change/archive/price-toggle/create-plan all toast].
 4. + New plan placement — DEFERRED as deliberate: creating a Stripe plan is a rare act; promoting it to the page primary would out-shout the daily job (managing subscriptions). The button stays with the Plans card it creates into.
 5. ~~"+N more" dead + silent banner~~ [BATCH 39: each bucket's +N-more deep-links ?status= (the table now reads it); the Stripe banner announces role=alert on the urgent recipe].
-6. Raw search + raw plan select (subscriptions-panel.tsx:117-139); PlanMixCard empty bare div (subscriptions-stats.tsx:41-47).
+6. ~~Raw search + plan select + PlanMix empty~~ [BATCH 39: SearchInput adopted, selects ride form-select, PlanMixCard renders an EmptyState — verified at close].
 
 ### Partners
 1. ~~Errors as success toasts~~ [BATCH 36: FlashToast announces urgent as alert; both tables pass urgent tones].
@@ -415,9 +415,9 @@ reads clinic-voiced copy.
 Already best-version reference: delete-partner-modal, tone-aware toasts, per-row pendingId, legends, mono money columns.
 
 ### Prospecting — module-wide
-1. Zero role=alert/status/aria-live in 33 files; useToast never imported — hand-rolled ephemeral feedback everywhere → adopt both module-wide.
+1. ~~Zero live regions / no useToast module-wide~~ [BATCHES 41–44: the module's action surfaces (drawer, contacts, call cards, Call Mode, copilot, practice booth, drafter, focus banner, territory) adopted the global toast + role=alert/status; read-only report panels legitimately carry none].
 2. ~~No loading.tsx on any prospecting route~~ [BATCH 41: shaped skeletons for /prospecting, /call-mode, /call-list, /demo/[id]].
-3. sky ×4, brand-as-won ×3, *-50 ×20, raw hex ×3 → tone sweep (see cross-cutting).
+3. ~~sky/brand-as-won/*-50/raw-hex tone sweep~~ [BATCHES 42–43: executed as the cross-cutting sweep — see the Cross-cutting section's tone-sweep entry for the full disposition].
 
 ### Prospecting workspace (page.tsx)
 1. ~~Two header primaries~~ [BATCH 41: Call Mode is the one primary with breath; Add-a-clinic demotes to secondary].
@@ -490,9 +490,9 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 3. ~~Notifications panel~~ [BATCH 48: Pause-all note onto the standard amber ring recipe; Includes lines lift to gray-500; the footer becomes the shared SaveBar with a ghost Reset — dirty now compares against a baseline that MOVES on save (before this the form read dirty forever after saving); local FlashToast → global toast; the two panel test files wrap in ToastProvider].
 
 ### Shared growth surfaces (platform orientation)
-1. Campaigns-list eyebrow "‹ Growth" → /growth bounces platform to /dashboard (growth/campaigns/page.tsx:104) → Platform eyebrow / ‹ Marketing.
-2. Audiences two names one destination (eyebrow ‹ Marketing + button ← Sales pipeline, both /marketing; nav's Sales Pipeline is prospecting) (audiences-client.tsx:92-102).
-3. Campaigns empty state dead end (:134-139) → hand over CTA.
-4. Audience Delete shared-pending + rose-50 + 24px (audiences-client.tsx:178-185); CustomerAudienceEditor modal no Esc/trap/role/✕, Cancel spins, ternary, save no error path (:358-488).
-5. Audience preview manual-refresh only (:453-479). DEFER candidate (auto-preview = action change).
-6. Campaign editor leaks "Resend" vendor name (:303); Cancels spin ×4; channel picker 28px hand-rolled (:292-322); Delete 24px rose-50 (:275-281); gray-400 preview labels ×6; campaigns/[id] bare breadcrumb + no legend (:92-107).
+1. ~~Campaigns-list eyebrow~~ [BATCH 49: the platform-only list's eyebrow becomes ‹ Marketing (its real home) — ‹ Growth bounced the platform owner to /dashboard].
+2. ~~Audiences two names one destination~~ [BATCH 49: the platform's redundant "← Sales pipeline" button (which went to /marketing, while the NAV's Sales Pipeline is prospecting) is removed — the ‹ Marketing eyebrow is the one way back; clinics keep ← Recall dashboard (a genuinely different destination)].
+3. ~~Campaigns empty state~~ [BATCH 49: the empty state hands over the + New campaign button itself instead of describing where it is].
+4. ~~Audience delete + editors~~ [BATCH 49: Delete grows a 32px target on rose-500/10 hover, and the delete path reports failures; BOTH audience editors (customer + patient) gain focus trap + Esc (guarded while pending) + role=dialog/aria-label, per-action keys (Refresh-preview vs Save spin independently), Cancel disabled-only, dropped label ternaries, save error toasts, and the dead copy-pasted deletingId state is deleted; the whole surface moves off its local FlashToast onto the global toast].
+5. Audience preview manual-refresh — DEFERRED as designed: each preview is a full segment query, so an auto-refreshing preview would fire one per keystroke/chip-toggle; the explicit Refresh (now with its own pending state) keeps the cost visible.
+6. ~~Campaign editor + [id] strip~~ [BATCH 49: the channel picker's "Resend" label becomes "Branded email" (matching channelLabel everywhere else) with aria-pressed + 32px targets; all four modal Cancels stop spinning (disabled-only) and their primaries drop label ternaries for the pending prop; Delete-campaign grows a 32px target on rose-500/10; the preview-text reveal link and modal ✕ lift to legible/32px; the schedule error carries role=alert; the [id] page's status pill gains a hover meaning — the compact breadcrumb strip is deliberate on an editor page, so the full legend stays on the list].

@@ -44,6 +44,16 @@ const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
   paused: 'Paused',
 }
 
+// Hover meanings — the editor's breadcrumb strip is deliberately compact
+// (no room for the list page's full legend), so the pill explains itself.
+const CAMPAIGN_STATUS_MEANING: Record<string, string> = {
+  draft: 'Not sent — still editable.',
+  scheduled: 'Queued to send at the scheduled time.',
+  active: 'Sending right now.',
+  completed: 'Sent — recipients and opens below.',
+  paused: 'Sending paused.',
+}
+
 function channelLabel(channel: string): string {
   switch (channel) {
     case 'resend': return 'Email (branded)'
@@ -105,6 +115,7 @@ export default async function CampaignEditorPage({
         <StatusPill
           tone={CAMPAIGN_STATUS_TONE[campaign.status] ?? 'neutral'}
           label={CAMPAIGN_STATUS_LABEL[campaign.status] ?? campaign.status}
+          title={CAMPAIGN_STATUS_MEANING[campaign.status]}
         />
         <span className="text-xs text-gray-500 dark:text-gray-400">{channelLabel(campaign.sendChannel)}</span>
       </div>

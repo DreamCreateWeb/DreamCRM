@@ -212,7 +212,7 @@ export default function CampaignEditor({
             <button
               type="button"
               onClick={() => setShowPreviewText(true)}
-              className="text-xs font-medium text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+              className="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
             >
               + Preview text (the one-line tease next to the subject)
             </button>
@@ -275,7 +275,7 @@ export default function CampaignEditor({
           <button
             onClick={destroy}
             disabled={pending}
-            className="text-xs font-medium text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 px-2 py-0.5 rounded-md disabled:opacity-50"
+            className="min-h-8 text-xs font-medium text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 px-2.5 py-1 rounded-md disabled:opacity-50"
           >
             Delete campaign
           </button>
@@ -292,21 +292,23 @@ export default function CampaignEditor({
             <button
               onClick={() => field('sendChannel', 'resend')}
               disabled={sent}
+              aria-pressed={draft.sendChannel === 'resend'}
               className={cn(
-                'text-xs font-medium px-2 py-1.5 rounded-[var(--r-sm)] transition-colors',
+                'min-h-8 text-xs font-medium px-2 py-1.5 rounded-[var(--r-sm)] transition-colors',
                 draft.sendChannel === 'resend'
                   ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700/40 dark:text-gray-300 dark:hover:bg-gray-700',
                 sent && 'opacity-60 cursor-not-allowed',
               )}
             >
-              Resend
+              Branded email
             </button>
             <button
               onClick={() => field('sendChannel', 'gmail')}
               disabled={sent || gmailAccounts.length === 0}
+              aria-pressed={draft.sendChannel === 'gmail'}
               className={cn(
-                'text-xs font-medium px-2 py-1.5 rounded-[var(--r-sm)] transition-colors',
+                'min-h-8 text-xs font-medium px-2 py-1.5 rounded-[var(--r-sm)] transition-colors',
                 draft.sendChannel === 'gmail'
                   ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 ring-1 ring-inset ring-[color:var(--color-hairline-strong)]'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700/40 dark:text-gray-300 dark:hover:bg-gray-700',
@@ -599,7 +601,7 @@ function CampaignPreviewModal({
           <button
             onClick={onClose}
             aria-label="Close preview"
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none -mt-0.5 px-1"
+            className="flex h-8 w-8 items-center justify-center rounded-[var(--r-xs)] text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none"
           >
             ×
           </button>
@@ -707,11 +709,11 @@ function AiDraftModal({
           This replaces the current subject, preview text, and body.
         </p>
         <div className="flex justify-end gap-2 mt-4">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={busy}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={busy}>
             Cancel
           </ActionButton>
-          <ActionButton variant="primary" size="sm" onClick={() => onApply(brief)} disabled={busy || !brief.trim()}>
-            {busy ? 'Drafting…' : 'Draft it'}
+          <ActionButton variant="primary" size="sm" onClick={() => onApply(brief)} pending={busy} disabled={busy || !brief.trim()}>
+            Draft it
           </ActionButton>
         </div>
       </div>
@@ -766,11 +768,11 @@ function AiImproveModal({
           ))}
         </div>
         <div className="flex justify-end gap-2 mt-4">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={busy}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={busy}>
             Cancel
           </ActionButton>
-          <ActionButton variant="primary" size="sm" onClick={onApply} disabled={busy || !instruction.trim()}>
-            {busy ? 'Rewriting…' : 'Rewrite'}
+          <ActionButton variant="primary" size="sm" onClick={onApply} pending={busy} disabled={busy || !instruction.trim()}>
+            Rewrite
           </ActionButton>
         </div>
       </div>
@@ -989,11 +991,11 @@ function SendConfirmModal({
                 ' Patients who already got 2 marketing emails in the last 7 days are skipped automatically.'}
             </p>
             <div className="flex justify-end gap-2">
-              <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={send} pending={pending}>
-                {pending ? 'Sending…' : 'Send now'}
+                Send now
               </ActionButton>
             </div>
           </>
@@ -1031,7 +1033,7 @@ function ScheduledPanel({
         {when ? <>Queued to send <strong>{when}</strong>.</> : 'Queued to send.'}
       </p>
       <ActionButton variant="secondary" size="sm" onClick={onCancel} pending={pending} className="w-full justify-center">
-        {pending ? 'Working…' : 'Cancel scheduled send'}
+        Cancel scheduled send
       </ActionButton>
     </div>
   )
@@ -1116,13 +1118,17 @@ function ScheduleModal({
             </span>
           )}
         </p>
-        {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
+        {error && (
+          <p role="alert" className="text-xs text-rose-600 dark:text-rose-400 mb-3">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>
-          <ActionButton variant="primary" size="sm" onClick={confirm} disabled={pending || !when}>
-            {pending ? 'Scheduling…' : 'Schedule'}
+          <ActionButton variant="primary" size="sm" onClick={confirm} pending={pending} disabled={pending || !when}>
+            Schedule
           </ActionButton>
         </div>
       </div>

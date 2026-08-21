@@ -101,8 +101,10 @@ export default async function CampaignsPage({
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
         eyebrow={
-          <Link href="/growth" className="hover:underline underline-offset-4">
-            ‹ Growth
+          // Platform-only list (clinics redirect above) — its home is the
+          // Marketing workspace, not the clinic Growth hub.
+          <Link href="/marketing" className="hover:underline underline-offset-4">
+            ‹ Marketing
           </Link>
         }
         title="Campaigns"
@@ -135,7 +137,15 @@ export default async function CampaignsPage({
         <EmptyState
           icon="✉️"
           title="No campaigns yet."
-          body='Use "+ New campaign" above to start your first email — name it, pick who it goes to, and write.'
+          body="Start your first email — name it, pick who it goes to, and write."
+          action={
+            <NewCampaignButton
+              templates={templates}
+              audiences={audiences}
+              prefillAudienceId={prefillAudienceId}
+              prefillTemplateId={prefillTemplateId}
+            />
+          }
         />
       ) : (
         <div className="v2-card overflow-hidden">

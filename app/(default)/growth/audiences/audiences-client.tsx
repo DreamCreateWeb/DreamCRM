@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, use, useState, useTransition } from 'react'
+import { Suspense, use, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
@@ -11,7 +11,8 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { EmptyState } from '@/components/ui/empty-state'
-import { FlashToast } from '@/components/ui/flash-toast'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useToast } from '@/components/ui/toast'
 import {
   createAudienceAction,
   deleteAudienceAction,
@@ -50,11 +51,11 @@ interface Props {
 export default function AudiencesClient({ initial, countsPromise, tenantType, stages, sources, tags, orgName, leadsLabel }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
+  const toast = useToast()
   const [editing, setEditing] = useState<AudienceRow | 'new' | null>(null)
   const [pending, startTransition] = useTransition()
-  // Which card's delete is running — one shared flag used to spin EVERY card.
+  // Which card's delete is running — the per-card label; `pending` disables.
   const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
 
   async function handleDelete(id: number) {
     if (
@@ -70,8 +71,10 @@ export default function AudiencesClient({ initial, countsPromise, tenantType, st
     startTransition(async () => {
       try {
         await deleteAudienceAction(id)
-        setToast('Audience deleted.')
+        toast('Audience deleted.')
         router.refresh()
+      } catch {
+        toast("Couldn't delete the audience — try again.", { tone: 'urgent' })
       } finally {
         setDeletingId(null)
       }
@@ -98,9 +101,14 @@ export default function AudiencesClient({ initial, countsPromise, tenantType, st
         subtitle={`Saved groups of ${leadsLabel} you can send a campaign to.`}
         actions={
           <>
-            <ActionButton variant="secondary" href={tenantType === 'clinic' ? '/growth/outreach' : '/marketing'}>
-              {tenantType === 'clinic' ? '← Recall dashboard' : '← Sales pipeline'}
-            </ActionButton>
+            {/* Platform's way back is the ‹ Marketing eyebrow — a second
+                button (once labelled "← Sales pipeline", which is the NAV
+                name of prospecting) gave one destination two names. */}
+            {tenantType === 'clinic' && (
+              <ActionButton variant="secondary" href="/growth/outreach">
+                ← Recall dashboard
+              </ActionButton>
+            )}
             <ActionButton variant="primary" breath onClick={() => setEditing('new')}>
               + New audience
             </ActionButton>
@@ -179,7 +187,7 @@ export default function AudiencesClient({ initial, countsPromise, tenantType, st
                     type="button"
                     onClick={() => handleDelete(a.id)}
                     disabled={pending}
-                    className="px-2 py-1 rounded-[var(--r-sm)] text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:text-rose-300 dark:hover:bg-rose-500/10 disabled:opacity-50 transition-colors"
+                    className="min-h-8 px-2.5 py-1 rounded-[var(--r-sm)] text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-rose-700 hover:bg-rose-500/10 dark:hover:text-rose-300 disabled:opacity-50 transition-colors"
                   >
                     {deletingId === a.id ? 'Deleting…' : 'Delete'}
                   </button>
@@ -206,7 +214,7 @@ export default function AudiencesClient({ initial, countsPromise, tenantType, st
               onClose={() => setEditing(null)}
               onSaved={() => {
                 setEditing(null)
-                setToast('Audience saved.')
+                toast('Audience saved.')
                 router.refresh()
               }}
             />
@@ -220,14 +228,12 @@ export default function AudiencesClient({ initial, countsPromise, tenantType, st
             onClose={() => setEditing(null)}
             onSaved={() => {
               setEditing(null)
-              setToast('Audience saved.')
+              toast('Audience saved.')
               router.refresh()
             }}
           />
         )
       })()}
-
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </>
   )
 }
@@ -306,13 +312,17 @@ function CustomerAudienceEditor({
   const [filter, setFilter] = useState<AudienceFilterT>(audience?.filter ?? {})
   const [preview, setPreview] = useState<{ count: number; sample: { name: string; email: string }[] } | null>(null)
   const [pending, startTransition] = useTransition()
-  // Which card's delete is running — one shared flag used to spin EVERY card.
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [act, setAct] = useState<'preview' | 'save' | null>(null)
+  const toast = useToast()
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, panelRef, { onEscape: () => { if (!pending) onClose() } })
 
   function refreshPreview() {
+    setAct('preview')
     startTransition(async () => {
       const p = await previewAudienceAction({ recipientSource: 'customers', filter })
       setPreview(p)
+      setAct(null)
     })
   }
 
@@ -334,23 +344,30 @@ function CustomerAudienceEditor({
   }
 
   function save() {
+    setAct('save')
     startTransition(async () => {
-      if (audience) {
-        await updateAudienceAction(audience.id, {
-          name,
-          description: description || null,
-          recipientSource: 'customers',
-          filter,
-        })
-      } else {
-        await createAudienceAction({
-          name,
-          description: description || null,
-          recipientSource: 'customers',
-          filter,
-        })
+      try {
+        if (audience) {
+          await updateAudienceAction(audience.id, {
+            name,
+            description: description || null,
+            recipientSource: 'customers',
+            filter,
+          })
+        } else {
+          await createAudienceAction({
+            name,
+            description: description || null,
+            recipientSource: 'customers',
+            filter,
+          })
+        }
+        onSaved()
+      } catch {
+        toast("Couldn't save the audience — try again.", { tone: 'urgent' })
+      } finally {
+        setAct(null)
       }
-      onSaved()
     })
   }
 
@@ -360,6 +377,10 @@ function CustomerAudienceEditor({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Audience editor"
         className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -450,7 +471,13 @@ function CustomerAudienceEditor({
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                 Preview
               </span>
-              <ActionButton variant="secondary" size="sm" onClick={refreshPreview} pending={pending}>
+              <ActionButton
+                variant="secondary"
+                size="sm"
+                onClick={refreshPreview}
+                pending={pending && act === 'preview'}
+                disabled={pending}
+              >
                 Refresh
               </ActionButton>
             </div>
@@ -480,11 +507,17 @@ function CustomerAudienceEditor({
           </div>
         </div>
         <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex justify-end gap-2 sticky bottom-0 bg-[color:var(--color-surface-2)]">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>
-          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !name.trim()}>
-            {pending ? 'Saving…' : audience ? 'Save' : 'Create'}
+          <ActionButton
+            variant="primary"
+            size="sm"
+            onClick={save}
+            pending={pending && act === 'save'}
+            disabled={pending || !name.trim()}
+          >
+            {audience ? 'Save' : 'Create'}
           </ActionButton>
         </div>
       </div>
@@ -556,16 +589,20 @@ function PatientAudienceEditor({
   )
   const [preview, setPreview] = useState<{ count: number; sample: { name: string; email: string }[] } | null>(null)
   const [pending, startTransition] = useTransition()
-  // Which card's delete is running — one shared flag used to spin EVERY card.
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [act, setAct] = useState<'preview' | 'save' | null>(null)
+  const toast = useToast()
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(true, panelRef, { onEscape: () => { if (!pending) onClose() } })
 
   function refreshPreview() {
+    setAct('preview')
     startTransition(async () => {
       const p = await previewAudienceAction({
         recipientSource: 'patients',
         patientFilter: filter,
       })
       setPreview(p)
+      setAct(null)
     })
   }
 
@@ -580,23 +617,30 @@ function PatientAudienceEditor({
   }
 
   function save() {
+    setAct('save')
     startTransition(async () => {
-      if (audience) {
-        await updateAudienceAction(audience.id, {
-          name,
-          description: description || null,
-          recipientSource: 'patients',
-          patientFilter: filter,
-        })
-      } else {
-        await createAudienceAction({
-          name,
-          description: description || null,
-          recipientSource: 'patients',
-          patientFilter: filter,
-        })
+      try {
+        if (audience) {
+          await updateAudienceAction(audience.id, {
+            name,
+            description: description || null,
+            recipientSource: 'patients',
+            patientFilter: filter,
+          })
+        } else {
+          await createAudienceAction({
+            name,
+            description: description || null,
+            recipientSource: 'patients',
+            patientFilter: filter,
+          })
+        }
+        onSaved()
+      } catch {
+        toast("Couldn't save the segment — try again.", { tone: 'urgent' })
+      } finally {
+        setAct(null)
       }
-      onSaved()
     })
   }
 
@@ -606,6 +650,10 @@ function PatientAudienceEditor({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Patient segment editor"
         className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -772,11 +820,17 @@ function PatientAudienceEditor({
         </div>
 
         <div className="px-5 py-3 border-t border-[color:var(--color-hairline)] flex justify-end gap-2 sticky bottom-0 bg-[color:var(--color-surface-2)]">
-          <ActionButton variant="ghost" size="sm" onClick={onClose} pending={pending}>
+          <ActionButton variant="ghost" size="sm" onClick={onClose} disabled={pending}>
             Cancel
           </ActionButton>
-          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !name.trim()}>
-            {pending ? 'Saving…' : audience ? 'Save' : 'Create'}
+          <ActionButton
+            variant="primary"
+            size="sm"
+            onClick={save}
+            pending={pending && act === 'save'}
+            disabled={pending || !name.trim()}
+          >
+            {audience ? 'Save' : 'Create'}
           </ActionButton>
         </div>
       </div>
