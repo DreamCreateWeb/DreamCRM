@@ -244,12 +244,12 @@ Already best-version: CompletedHeartbeat.
 3. ~~Empty to-fill state bare~~ [BATCH 34: PortalEmptyState + See-your-visits next step].
 
 ### Portal primitives + shared cards
-1. NPS row 36px circles + hover:scale on touch (survey-card.tsx:74).
-2. VisitCard Confirm has no "Confirming…" label (visit-card.tsx:204).
-3. VisitCard duplicates STATUS_STYLES + hand-rolls result notice (:36,:318).
-4. loyalty-card text-rose-600 (:99).
-5. PortalEmptyState hardcoded #9CAF9F fallback brand (ui.tsx:180).
-6. family-link-request placeholders-as-labels (:76).
+1. ~~NPS row 36px circles + hover:scale on touch~~ [BATCH 35: 44px circles, active:scale press feedback (hover doesn't exist on the phone this renders on)].
+2. ~~VisitCard Confirm no "Confirming…"~~ [BATCH 35: per-action key so only the pressed pill changes its label].
+3. ~~VisitCard duplicates STATUS_STYLES + hand-rolls result notice~~ [BATCH 35: rides the shared VisitStatusPill (new labelOverride carries the deliberate "Needs confirming" divergence) and PortalNotice (which grew the danger tone)].
+4. ~~loyalty-card text-rose-600~~ [BATCH 35: PORTAL_DANGER_INK + role=alert].
+5. ~~PortalEmptyState hardcoded #9CAF9F fallback~~ [BATCH 35: falls back to PORTAL_INK — on-palette even unbranded].
+6. ~~family-link-request placeholders-as-labels~~ [BATCH 35: real labels above each field; placeholders demote to examples].
 
 ### Growth hub
 1. Hero KPI + FunnelStat → KpiStat. DEFERRED: the v3 hub's hero scoreboard and inline funnel row are deliberate owner-approved layouts (2026-07-26) — KpiStat's tile chrome would box what was designed to flow.

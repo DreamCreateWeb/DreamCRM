@@ -73,25 +73,43 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
             Who should we add?
           </p>
           <div className="mt-3 space-y-2.5">
-            <PortalInput
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Their full name"
-              maxLength={120}
-            />
+            {/* Real labels — a placeholder vanishes on the first keystroke,
+                and a parent filling three boxes deserves to see which is
+                which the whole time. */}
+            <label className="block">
+              <span className="mb-1 block text-[0.8rem] font-semibold" style={{ color: INK }}>
+                Their full name
+              </span>
+              <PortalInput
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Riley Sanchez"
+                maxLength={120}
+              />
+            </label>
             <div className="grid grid-cols-2 gap-2.5">
-              <PortalInput
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                placeholder="Birthday (optional)"
-                maxLength={20}
-              />
-              <PortalInput
-                value={rel}
-                onChange={(e) => setRel(e.target.value)}
-                placeholder="Relationship (optional)"
-                maxLength={60}
-              />
+              <label className="block">
+                <span className="mb-1 block text-[0.8rem] font-semibold" style={{ color: INK }}>
+                  Birthday <span className="font-normal" style={{ color: MUTED }}>(optional)</span>
+                </span>
+                <PortalInput
+                  value={dob}
+                  onChange={(e) => setDob(e.target.value)}
+                  placeholder="e.g. 6/14/2018"
+                  maxLength={20}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[0.8rem] font-semibold" style={{ color: INK }}>
+                  Relationship <span className="font-normal" style={{ color: MUTED }}>(optional)</span>
+                </span>
+                <PortalInput
+                  value={rel}
+                  onChange={(e) => setRel(e.target.value)}
+                  placeholder="e.g. daughter"
+                  maxLength={60}
+                />
+              </label>
             </div>
           </div>
           <p className="mt-2 text-[0.78rem] leading-relaxed" style={{ color: MUTED }}>

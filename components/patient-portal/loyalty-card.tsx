@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { redeemMyPointsAction } from '@/app/(portal)/patient/actions'
-import { PortalCard, PORTAL_INK, PORTAL_MUTED } from '@/components/patient-portal/ui'
+import { PORTAL_DANGER_INK, PortalCard, PORTAL_INK, PORTAL_MUTED } from '@/components/patient-portal/ui'
 
 /**
  * The portal's rewards card: points balance + redeem-for-shop-discount when
@@ -96,7 +96,7 @@ export default function LoyaltyCard({
           {pending ? 'One sec…' : `Redeem ${redeemPoints.toLocaleString()} pts → ${money(redeemValueCents)} off`}
         </button>
       )}
-      {error && <p className="mt-2 text-[0.85rem] text-rose-600">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-[0.85rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>{error}</p>}
     </PortalCard>
   )
 }
