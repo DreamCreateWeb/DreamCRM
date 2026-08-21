@@ -3,16 +3,19 @@
 import { useState, useTransition } from 'react'
 import { updateMyProfileAction, setMarketingEmailOptInAction } from './actions'
 import { signOut } from '@/lib/auth-client'
-import { PORTAL_SUCCESS_INK, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
+import {
+  PORTAL_SUCCESS_INK,
+  PORTAL_DANGER_INK,
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+} from '@/components/patient-portal/ui'
 
 /**
  * Profile editor + communication preferences + sign out. Single-column,
  * 56px inputs, native input types — the mobile-form basics.
  */
 
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 export interface ProfileFormValues {
   firstName: string

@@ -1,11 +1,17 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
 import { bookMyVisitAction, getPortalSlotsAction } from '../actions'
 import SlotPicker from '@/components/patient-portal/slot-picker'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
-import { PORTAL_DANGER_BG, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
+import {
+  PORTAL_DANGER_BG,
+  PORTAL_DANGER_INK,
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+  BrandButton,
+} from '@/components/patient-portal/ui'
 import { buildIcs, icsDataUrl } from '@/lib/ics'
 import { formatConfirmationWhen } from '@/app/site/[slug]/book/book-form'
 
@@ -16,9 +22,6 @@ import { formatConfirmationWhen } from '@/app/site/[slug]/book/book-form'
  * front desk how to make the visit easier.
  */
 
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 interface PersonOpt {
   id: string
@@ -123,13 +126,9 @@ export default function PortalBookForm({
           forward to seeing you.
         </p>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/patient/appointments"
-            className="inline-block rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white transition active:scale-[0.98]"
-            style={{ backgroundColor: brand }}
-          >
+          <BrandButton brand={brand} href="/patient/appointments">
             See my visits
-          </Link>
+          </BrandButton>
           {icsHref && (
             <a
               href={icsHref}
@@ -225,6 +224,7 @@ export default function PortalBookForm({
           selectedIso={slotIso}
           onSelect={setSlotIso}
           minNoticeHours={minNoticeHours}
+          clinicPhone={clinicPhone}
         />
       </section>
 
@@ -253,15 +253,14 @@ export default function PortalBookForm({
         </p>
       )}
 
-      <button
-        type="button"
+      <BrandButton
+        brand={brand}
         onClick={submit}
         disabled={!slotIso || pending}
-        className="w-full rounded-full py-3.5 text-[0.95rem] font-semibold text-white disabled:opacity-40 sm:w-auto sm:px-8"
-        style={{ backgroundColor: brand }}
+        className="w-full py-3.5 text-[0.95rem] sm:w-auto sm:px-8"
       >
         {!slotIso ? 'Pick a time to continue' : pending ? 'Booking…' : 'Book this visit'}
-      </button>
+      </BrandButton>
     </div>
   )
 }

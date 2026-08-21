@@ -10,7 +10,7 @@ import {
   finalizeBalancePaymentFromSession,
 } from '@/lib/services/balance-payments'
 import { getPortalPageContext, requirePortalFeature } from '../portal-data'
-import { PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_ERROR, PORTAL_WARN_BG, PORTAL_WARN_INK, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK } from '@/components/patient-portal/ui'
+import { PortalNotice, PortalCard, PortalHeading, PortalSectionLabel, PORTAL_INK, PORTAL_MUTED, PORTAL_ERROR, PORTAL_WARN_BG, PORTAL_WARN_INK, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK } from '@/components/patient-portal/ui'
 import { fmtMoney, fmtVisitDayShort } from '@/components/patient-portal/format'
 import PayBalanceForm from './pay-form'
 import PlanOffer, { type PlanOption } from './plan-offer'
@@ -115,9 +115,11 @@ export default async function PortalBillingPage({
       </p>
 
       {justPaid && (
-        <div className="mt-5 rounded-2xl px-4 py-3.5 text-[0.9rem] font-medium" style={{ backgroundColor: PORTAL_SUCCESS_BG, color: PORTAL_SUCCESS_INK }}>
-          Thank you — your payment went through. The front desk will post it to your account, so the
-          balance below may take a little while to update.
+        <div role="status">
+          <PortalNotice tone="success" className="mt-5">
+            Thank you — your payment went through. The front desk will post it to your account, so
+            the balance below may take a little while to update.
+          </PortalNotice>
         </div>
       )}
 

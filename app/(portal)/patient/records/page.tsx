@@ -24,7 +24,7 @@ function InfoRow({ label, value }: { label: string; value: string | null }) {
       <span className="shrink-0 text-[0.82rem] font-medium" style={{ color: PORTAL_MUTED }}>
         {label}
       </span>
-      <span className="text-right text-[0.9rem] font-semibold" style={{ color: value ? PORTAL_INK : '#B9B0A5' }}>
+      <span className="text-right text-[0.9rem] font-semibold" style={{ color: value ? PORTAL_INK : PORTAL_MUTED }}>
         {value ?? 'Not on file'}
       </span>
     </div>

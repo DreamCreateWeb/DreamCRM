@@ -1562,6 +1562,19 @@ $0-sales band (documented deliberate hide during setup).
   detail: the pending-forms callout rides PortalNotice; the bring-list
   emoji quiet down to markers.
 
+- **2026-08-21 — UI best-version batch 33 (portal booking + billing +
+  records).** Slot buttons hit the 44px tap floor; the no-openings state
+  offers the clinic's phone as a next step; book/request submits and the
+  confirmation CTA ride BrandButton; the request form recovers its
+  sibling's accessibility (role=group + aria-pressed on chips, role=alert
+  on errors, PortalInput/PortalTextarea focus rings); the three files
+  re-declaring the palette now import PORTAL_*. Billing: pay-form on
+  tokens + BrandButton + announced errors + a focus-within ring; the
+  post-Stripe banner is PortalNotice in a live region; history tabs get
+  real tap height and full tab/tabpanel ARIA. Records: the off-palette
+  error hex → PortalErrorText, success announces, "Not on file" reads at
+  PORTAL_MUTED.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
