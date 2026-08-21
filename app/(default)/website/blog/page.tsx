@@ -209,16 +209,20 @@ export default async function BlogPage() {
                       {p.category ?? '—'}
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
-                      {p.authorName ?? <span className="italic text-gray-400 dark:text-gray-500">No author</span>}
+                      {p.authorName ?? <span className="italic text-gray-500 dark:text-gray-400">No author</span>}
                     </td>
                     <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
                       {fmtDate(p.updatedAt)}
                     </td>
                     <td className="px-3 py-3 text-right whitespace-nowrap">
                       {p.status === 'published' && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums mr-3">
+                        <Link
+                          href={`/website/blog/${p.id}`}
+                          className="text-xs text-gray-500 dark:text-gray-400 tabular-nums mr-3 hover:text-teal-700 dark:hover:text-teal-400"
+                          title="Open the post — read count shows in its sidebar"
+                        >
                           <span className="font-mono-num">{p.viewCount}</span> {p.viewCount === 1 ? 'read' : 'reads'}
-                        </span>
+                        </Link>
                       )}
                       {p.status === 'published' && liveBlogUrl && (
                         <a

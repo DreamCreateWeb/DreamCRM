@@ -72,6 +72,15 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   const confirm = useConfirm()
   const toast = useToast()
   const [pending, startTransition] = useTransition()
+  // Autosave gets its OWN transition so a background save never makes the
+  // sidebar's buttons spin; `active` names which explicit action is running.
+  const [autosaving, startAutosave] = useTransition()
+  const [active, setActive] = useState<
+    'publish' | 'unpublish' | 'unschedule' | 'preview' | 'email' | 'archive' | null
+  >(null)
+  useEffect(() => {
+    if (!pending) setActive(null)
+  }, [pending])
   const [draft, setDraft] = useState({
     title: post.title === 'Untitled post' ? '' : post.title,
     slug: post.slug,
@@ -168,7 +177,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   useEffect(() => {
     if (!dirty) return
     const id = setTimeout(() => {
-      startTransition(() => {
+      startAutosave(() => {
         save()
       })
     }, 1200)
@@ -182,6 +191,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
 
   function publish() {
     setPublishError(null)
+    setActive('publish')
     startTransition(async () => {
       if (dirty) await save()
       const res = await publishBlogPostAction(post.id)
@@ -198,6 +208,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   }
 
   function unpublish() {
+    setActive('unpublish')
     startTransition(async () => {
       await unpublishBlogPostAction(post.id)
       setStatus('draft')
@@ -206,6 +217,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   }
 
   function preview() {
+    setActive('preview')
     startTransition(async () => {
       if (dirty) await save()
       window.open(`/website/blog/${post.id}/preview`, '_blank', 'noopener')
@@ -213,6 +225,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
   }
 
   function unschedule() {
+    setActive('unschedule')
     startTransition(async () => {
       await unscheduleBlogPostAction(post.id)
       setStatus('draft')
@@ -230,6 +243,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
       }))
     )
       return
+    setActive('archive')
     startTransition(async () => {
       await archiveBlogPostAction(post.id)
     })
@@ -258,10 +272,10 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             className="text-xs font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 disabled:opacity-50"
             title="See exactly how this looks on your live site"
           >
-            Preview ↗
+            {pending && active === 'preview' ? 'Opening…' : 'Preview ↗'}
           </button>
-          <span className="text-xs text-gray-400 dark:text-gray-500">
-            {pending ? 'Saving…' : dirty ? 'Editing…' : savedAt ? 'Saved' : 'Up to date'}
+          <span role="status" className="text-xs text-gray-500 dark:text-gray-400">
+            {autosaving || pending ? 'Saving…' : dirty ? 'Editing…' : savedAt ? 'Saved' : 'Up to date'}
           </span>
         </div>
       </div>
@@ -318,9 +332,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 onChange={(e) => field('excerpt', e.target.value)}
                 rows={2}
                 placeholder={derivedExcerpt || 'One or two sentences shown on your blog list and as the search description.'}
-                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 resize-none"
+                className="form-textarea w-full text-sm resize-none"
               />
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Leave blank and we&apos;ll use the opening of your post.
               </p>
             </label>
@@ -362,7 +376,13 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               </p>
             )}
             {published ? (
-              <ActionButton variant="secondary" onClick={unpublish} pending={pending} className="w-full">
+              <ActionButton
+                variant="secondary"
+                onClick={unpublish}
+                pending={pending && active === 'unpublish'}
+                disabled={pending}
+                className="w-full"
+              >
                 Unpublish
               </ActionButton>
             ) : scheduled ? (
@@ -378,7 +398,13 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     })}
                   </p>
                 )}
-                <ActionButton variant="secondary" onClick={unschedule} pending={pending} className="w-full">
+                <ActionButton
+                  variant="secondary"
+                  onClick={unschedule}
+                  pending={pending && active === 'unschedule'}
+                  disabled={pending}
+                  className="w-full"
+                >
                   Unschedule
                 </ActionButton>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-snug">
@@ -386,18 +412,26 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 </p>
               </>
             ) : (
-              <ActionButton variant="primary" onClick={publish} pending={pending} className="w-full">
+              <ActionButton
+                variant="primary"
+                onClick={publish}
+                pending={pending && active === 'publish'}
+                disabled={pending}
+                className="w-full"
+              >
                 Publish
               </ActionButton>
             )}
             {publishError && (
-              <p className="text-xs text-rose-600 dark:text-rose-400 mt-2">{publishError}</p>
+              <p role="alert" className="text-xs text-rose-600 dark:text-rose-400 mt-2">
+                {publishError}
+              </p>
             )}
             {/* The publish-moment nudge — the blog's whole retention value is
                 patients actually READING it; drafting the newsletter is one
                 click while the win is fresh. Review-before-send as always. */}
             {justPublished && (
-              <div className="mt-3 rounded-lg border border-teal-200 dark:border-teal-800/60 bg-teal-50 dark:bg-teal-950/40 p-3">
+              <div role="status" className="mt-3 rounded-lg bg-teal-500/5 ring-1 ring-inset ring-teal-500/20 p-3">
                 <p className="text-xs font-semibold text-teal-900 dark:text-teal-200">
                   It’s live 🎉 Want {isPlatform ? 'your audience' : 'your patients'} to see it?
                 </p>
@@ -406,14 +440,20 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   pick the audience and review before anything sends.
                 </p>
                 <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => startTransition(async () => { await emailThisPostAction(post.id) })}
+                  <ActionButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setActive('email')
+                      startTransition(async () => {
+                        await emailThisPostAction(post.id)
+                      })
+                    }}
+                    pending={pending && active === 'email'}
                     disabled={pending}
-                    className="text-xs font-semibold px-2.5 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-500 disabled:opacity-50"
                   >
                     ✉️ {isPlatform ? 'Email it to your list' : 'Email it to patients'}
-                  </button>
+                  </ActionButton>
                   <button
                     type="button"
                     onClick={() => setJustPublished(false)}
@@ -443,9 +483,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   value={draft.authorName}
                   onChange={(e) => field('authorName', e.target.value)}
                   placeholder="Byline, e.g. The DreamCRM team"
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  className="form-input w-full text-sm"
                 />
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-snug">
                   No team members added yet — type the byline here (you need one to publish).
                 </p>
               </>
@@ -454,7 +494,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 <select
                   value={draft.authorStaffId}
                   onChange={(e) => field('authorStaffId', e.target.value)}
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  className="form-select w-full text-sm"
                 >
                   <option value="">Choose an author…</option>
                   {authors.map((a) => (
@@ -464,7 +504,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-snug">
                   A real name and credentials help Google trust health content.
                 </p>
               </>
@@ -481,7 +521,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
               <select
                 value={draft.medicallyReviewedByStaffId}
                 onChange={(e) => field('medicallyReviewedByStaffId', e.target.value)}
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                className="form-select w-full text-sm"
               >
                 <option value="">No reviewer</option>
                 {authors.map((a) => (
@@ -491,7 +531,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5 leading-snug">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-snug">
                 Adds a &ldquo;Medically reviewed by&rdquo; line — a strong trust signal on clinical posts.
               </p>
             </div>
@@ -508,7 +548,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 onChange={(e) => field('category', e.target.value)}
                 list="blog-categories"
                 placeholder="e.g. Oral Health"
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                className="form-input w-full text-sm"
               />
               <datalist id="blog-categories">
                 {categorySuggestions.map((c) => (
@@ -524,7 +564,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                 value={draft.tagsText}
                 onChange={(e) => field('tagsText', e.target.value)}
                 placeholder="comma, separated, tags"
-                className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                className="form-input w-full text-sm"
               />
             </label>
           </div>
@@ -549,9 +589,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                   value={draft.coverImageAlt}
                   onChange={(e) => field('coverImageAlt', e.target.value)}
                   placeholder={isPlatform ? 'e.g. A front desk using the DreamCRM dashboard' : 'e.g. A dental hygienist smiling with a patient'}
-                  className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  className="form-input w-full text-sm"
                 />
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Describe the photo for screen readers and image search.
                 </p>
               </label>
@@ -578,7 +618,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     value={draft.seoTitle}
                     onChange={(e) => field('seoTitle', e.target.value)}
                     placeholder="Falls back to the post title"
-                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                    className="form-input w-full text-sm"
                   />
                 </label>
                 <label className="block">
@@ -590,7 +630,7 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
                     onChange={(e) => field('seoDescription', e.target.value)}
                     rows={2}
                     placeholder="Falls back to the excerpt"
-                    className="w-full text-sm px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
+                    className="form-textarea w-full text-sm resize-none"
                   />
                 </label>
               </div>
@@ -602,12 +642,19 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             {published && (
               <button
                 type="button"
-                onClick={() => startTransition(async () => { await emailThisPostAction(post.id) })}
+                onClick={() => {
+                  setActive('email')
+                  startTransition(async () => {
+                    await emailThisPostAction(post.id)
+                  })
+                }}
                 disabled={pending}
                 className="w-full text-xs font-medium px-2 py-1.5 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
                 title={isPlatform ? 'Create a Marketing email from this post' : 'Create a Recall & Outreach email from this post'}
               >
-                ✉️ {isPlatform ? 'Email to your list' : 'Email to patients'}
+                {pending && active === 'email'
+                  ? 'Opening the campaign…'
+                  : `✉️ ${isPlatform ? 'Email to your list' : 'Email to patients'}`}
               </button>
             )}
             <button
@@ -625,9 +672,9 @@ export default function BlogEditor({ post, authors, categorySuggestions, baseUrl
             <button
               onClick={destroy}
               disabled={pending}
-              className="w-full text-xs font-medium px-2 py-1.5 rounded-md text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10 disabled:opacity-50"
+              className="w-full text-xs font-medium px-2 py-1.5 rounded-md text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 disabled:opacity-50"
             >
-              Archive post
+              {pending && active === 'archive' ? 'Archiving…' : 'Archive post'}
             </button>
           </div>
         </aside>
@@ -723,9 +770,9 @@ function AiDraftModal({
               ? 'e.g. Why a practice website should own its booking flow. Keep it practical, for dentists comparing platforms.'
               : 'e.g. Why electric toothbrushes are worth it, for nervous patients. Keep it reassuring and practical.'
           }
-          className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-600 resize-none"
+          className="form-textarea w-full text-sm resize-none"
         />
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           This replaces the current title, content, and excerpt.
         </p>
         <div className="flex justify-end gap-2 mt-4">
