@@ -15,6 +15,7 @@ vi.mock('@/app/(default)/settings/actions', () => ({ saveNotificationPrefs: vi.f
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
 import NotificationsPanel from '@/app/(default)/settings/notifications/notifications-panel'
+import { ToastProvider } from '@/components/ui/toast'
 
 const initial = {
   comments: true,
@@ -26,7 +27,7 @@ const initial = {
 
 describe('NotificationsPanel — delivery toggles are honest', () => {
   it('does NOT render a mobile/desktop push ("Everything") toggle', () => {
-    render(<NotificationsPanel initial={initial} tenantType="clinic" />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
     expect(screen.queryByText(/Mobile \+ desktop pushes/i)).toBeNull()
     expect(screen.queryByRole('switch', { name: /everything|push/i })).toBeNull()
     // 5 honest switches (3 alert buckets + Email digest + Pause all), never 6.
@@ -34,7 +35,7 @@ describe('NotificationsPanel — delivery toggles are honest', () => {
   })
 
   it('still renders the two delivery controls that actually work', () => {
-    render(<NotificationsPanel initial={initial} tenantType="clinic" />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
     expect(screen.getByRole('switch', { name: 'Email digest' })).toBeTruthy()
     expect(screen.getByRole('switch', { name: 'Pause all' })).toBeTruthy()
     expect(screen.getByText('Email digest')).toBeTruthy()

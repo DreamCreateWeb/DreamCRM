@@ -19,6 +19,7 @@ vi.mock('@/app/(default)/settings/actions', () => ({ saveNotificationPrefs, setM
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }))
 
 import NotificationsPanel from '@/app/(default)/settings/notifications/notifications-panel'
+import { ToastProvider } from '@/components/ui/toast'
 
 const initial = {
   comments: true,
@@ -35,13 +36,13 @@ beforeEach(() => {
 
 describe('NotificationsPanel v2', () => {
   it('renders exactly the 5 honest switches (no push_everything row)', () => {
-    render(<NotificationsPanel initial={initial} tenantType="clinic" />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
     expect(screen.getAllByRole('switch')).toHaveLength(5)
     expect(screen.queryByRole('switch', { name: /everything/i })).toBeNull()
   })
 
   it('shows a per-bucket "Includes:" explainer for each bucket', () => {
-    render(<NotificationsPanel initial={initial} tenantType="clinic" />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
     // one for each of the 3 buckets
     expect(screen.getAllByText(/^Includes:/).length).toBeGreaterThanOrEqual(3)
     expect(screen.getByText(/website leads, new bookings/i)).toBeTruthy()
@@ -49,7 +50,7 @@ describe('NotificationsPanel v2', () => {
   })
 
   it('hides the Pause-all warning until Pause all is on', () => {
-    render(<NotificationsPanel initial={initial} tenantType="clinic" />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
     expect(screen.queryByRole('note')).toBeNull()
 
     fireEvent.click(screen.getByRole('switch', { name: 'Pause all' }))
@@ -61,7 +62,7 @@ describe('NotificationsPanel v2', () => {
   })
 
   it('saves the 5-field payload with no push_everything key', async () => {
-    render(<NotificationsPanel initial={initial} tenantType="clinic" />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
     // make it dirty so Save enables
     fireEvent.click(screen.getByRole('switch', { name: 'Email digest' }))
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
@@ -80,7 +81,7 @@ describe('NotificationsPanel v2', () => {
   })
 
   it('clinic staff get the "My report emails" mute — the report emails\' footer points at this page, so it must be able to silence them (Phase-2 self-sweep)', async () => {
-    render(<NotificationsPanel initial={initial} tenantType="clinic" emailReportsOptedOut={false} />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" emailReportsOptedOut={false} /></ToastProvider>)
     const toggle = screen.getByRole('switch', { name: 'My report emails' })
     expect(toggle).toBeInTheDocument()
     // Saves immediately — no Save button involved.
@@ -92,7 +93,7 @@ describe('NotificationsPanel v2', () => {
   })
 
   it('the report-emails mute never renders for tenants who don\'t get those emails (null prop)', () => {
-    render(<NotificationsPanel initial={initial} tenantType="platform" />)
+    render(<ToastProvider><NotificationsPanel initial={initial} tenantType="platform" /></ToastProvider>)
     expect(screen.queryByRole('switch', { name: 'My report emails' })).toBeNull()
     expect(screen.getAllByRole('switch')).toHaveLength(5)
   })

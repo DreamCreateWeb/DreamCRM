@@ -485,9 +485,9 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 4. ~~List~~ [BATCH 47: "No author" lifts to gray-500; the read-count cell links into the post; /website/blog gains a loading.tsx]. Whole-row anchors stay off — the title is the row's one clear target and the row also carries an external View link.
 
 ### Platform settings
-1. Settings home hand-rolled search/hero — VERIFY vs batch-27 state first (settings-home.tsx:54-84/:42-52).
-2. Platform taxonomy two tiles, no doors to Service Library/Blog/Prospecting settings (settings-nav.tsx:129-137). DEFER candidate (taxonomy/IA — STRUCTURE-AUDIT territory).
-3. Notifications amber-50 (:241) → recipe; Includes gray-400 (:173/:222); Save ternary + no SaveBar + local FlashToast (:266-271).
+1. ~~Settings home search~~ [BATCH 48: verified against batch 27 — the hand-rolled search box + 28px clear were still there; both become the shared SearchInput (serves both tenants). The aura hero stays DELIBERATELY — batch 27 established it as the one sanctioned brand-chrome moment].
+2. Platform taxonomy (two tiles; Service Library/Blog/Prospecting settings unlinked) — DEFERRED as an information-architecture change (docs/STRUCTURE-AUDIT.md territory, not a polish batch): those areas keep their own in-module settings doors by design.
+3. ~~Notifications panel~~ [BATCH 48: Pause-all note onto the standard amber ring recipe; Includes lines lift to gray-500; the footer becomes the shared SaveBar with a ghost Reset — dirty now compares against a baseline that MOVES on save (before this the form read dirty forever after saving); local FlashToast → global toast; the two panel test files wrap in ToastProvider].
 
 ### Shared growth surfaces (platform orientation)
 1. Campaigns-list eyebrow "‹ Growth" → /growth bounces platform to /dashboard (growth/campaigns/page.tsx:104) → Platform eyebrow / ‹ Marketing.
