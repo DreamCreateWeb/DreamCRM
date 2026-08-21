@@ -67,8 +67,10 @@ export default function BillingHistory({
                 type="button"
                 role="tab"
                 aria-selected={on}
+                aria-controls="billing-history-panel"
+                id={`billing-tab-${t.id}`}
                 onClick={() => setTab(t.id)}
-                className="rounded-full px-3.5 py-1.5 text-[0.82rem] font-semibold transition-colors"
+                className="min-h-[2.5rem] rounded-full px-4 py-2 text-[0.85rem] font-semibold transition-colors"
                 style={
                   on
                     ? { backgroundColor: brand, color: '#FFFFFF' }
@@ -82,7 +84,13 @@ export default function BillingHistory({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl bg-white" style={{ border: `1px solid ${PORTAL_BORDER}` }}>
+      <div
+        id="billing-history-panel"
+        role="tabpanel"
+        aria-labelledby={showTabs ? `billing-tab-${tab}` : undefined}
+        className="overflow-hidden rounded-2xl bg-white"
+        style={{ border: `1px solid ${PORTAL_BORDER}` }}
+      >
         <ul>
           {visible.map((h, i) => (
             <li key={h.key} style={i > 0 ? { borderTop: `1px solid ${PORTAL_BORDER}` } : undefined}>

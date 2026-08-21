@@ -2,7 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { startBalancePaymentAction } from './actions'
-import { PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
+import {
+  PORTAL_DANGER_INK,
+  PORTAL_INK,
+  PORTAL_MUTED,
+  PORTAL_BORDER,
+  BrandButton,
+} from '@/components/patient-portal/ui'
 
 /**
  * Inline "pay your balance" — defaults to the full balance, allows a
@@ -42,10 +48,10 @@ export default function PayBalanceForm({
     <div className="mt-4">
       <div className="flex flex-wrap items-center gap-2">
         <div
-          className="flex items-center rounded-full bg-white px-4 py-2"
-          style={{ border: '1px solid #E8E2D9' }}
+          className="flex items-center rounded-full bg-white px-4 py-2 focus-within:ring-2 focus-within:ring-slate-500 focus-within:ring-offset-1"
+          style={{ border: `1px solid ${PORTAL_BORDER}` }}
         >
-          <span className="mr-1 text-[0.9rem] font-semibold" style={{ color: '#6B635A' }}>
+          <span className="mr-1 text-[0.9rem] font-semibold" style={{ color: PORTAL_MUTED }}>
             $
           </span>
           <input
@@ -56,26 +62,20 @@ export default function PayBalanceForm({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className="w-24 bg-transparent text-[0.95rem] font-semibold outline-none"
-            style={{ color: '#1C1A17' }}
+            style={{ color: PORTAL_INK }}
             aria-label="Payment amount in dollars"
           />
         </div>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="rounded-full px-5 py-2.5 text-[0.88rem] font-semibold text-white disabled:opacity-50"
-          style={{ backgroundColor: brand }}
-        >
+        <BrandButton brand={brand} onClick={submit} disabled={pending} className="px-5 py-2.5 text-[0.88rem]">
           {pending ? 'Heading to checkout…' : 'Pay online'}
-        </button>
+        </BrandButton>
       </div>
       {error && (
-        <p className="mt-2 text-[0.82rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>
+        <p role="alert" className="mt-2 text-[0.82rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>
           {error}
         </p>
       )}
-      <p className="mt-2 text-[0.78rem]" style={{ color: '#6B635A' }}>
+      <p className="mt-2 text-[0.78rem]" style={{ color: PORTAL_MUTED }}>
         Card payments are processed securely by Stripe. Want to pay a different way? Call us.
       </p>
     </div>

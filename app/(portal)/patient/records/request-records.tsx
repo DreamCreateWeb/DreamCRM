@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { requestMyRecordsAction } from '../actions'
-import { PortalCard, PORTAL_INK, PORTAL_MUTED, PORTAL_SUCCESS_BG, PORTAL_SUCCESS_INK } from '@/components/patient-portal/ui'
+import { PortalCard, PortalNotice, PortalErrorText, PORTAL_INK, PORTAL_MUTED } from '@/components/patient-portal/ui'
 
 /**
  * "Request my records" — turns the old passive "call us" card into a real,
@@ -34,15 +34,14 @@ export default function RequestRecordsCard({ brand, phone }: { brand: string; ph
         copy anytime, X-rays included.
       </p>
       {done ? (
-        <div
-          className="mt-3 rounded-2xl px-4 py-3 text-[0.88rem] font-medium"
-          style={{ backgroundColor: PORTAL_SUCCESS_BG, color: PORTAL_SUCCESS_INK }}
-        >
-          Request sent — we’ll reply in your{' '}
-          <a href="/patient/messages" className="font-semibold underline">
-            messages
-          </a>{' '}
-          with how to get them to you.
+        <div role="status">
+          <PortalNotice tone="success" className="mt-3">
+            Request sent — we’ll reply in your{' '}
+            <a href="/patient/messages" className="font-semibold underline">
+              messages
+            </a>{' '}
+            with how to get them to you.
+          </PortalNotice>
         </div>
       ) : (
         <>
@@ -65,11 +64,7 @@ export default function RequestRecordsCard({ brand, phone }: { brand: string; ph
               </span>
             )}
           </div>
-          {error && (
-            <p className="mt-2 text-[0.82rem]" style={{ color: '#B4452F' }}>
-              {error}
-            </p>
-          )}
+          {error && <PortalErrorText>{error}</PortalErrorText>}
         </>
       )}
     </PortalCard>

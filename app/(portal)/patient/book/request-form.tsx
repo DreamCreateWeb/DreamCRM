@@ -4,7 +4,16 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { requestMyVisitAction } from '../actions'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
-import { PORTAL_DANGER_BG, PORTAL_DANGER_INK } from '@/components/patient-portal/ui'
+import {
+  PORTAL_DANGER_BG,
+  PORTAL_DANGER_INK,
+  PORTAL_INK as INK,
+  PORTAL_MUTED as MUTED,
+  PORTAL_BORDER as BORDER,
+  PortalInput,
+  PortalTextarea,
+  BrandButton,
+} from '@/components/patient-portal/ui'
 
 /**
  * Portal request-only booking — shown instead of the slot picker when the
@@ -15,9 +24,6 @@ import { PORTAL_DANGER_BG, PORTAL_DANGER_INK } from '@/components/patient-portal
  * website's request form + the slot-picker form's look.
  */
 
-const INK = '#1C1A17'
-const MUTED = '#6B635A'
-const BORDER = '#E8E2D9'
 
 interface PersonOpt {
   id: string
@@ -102,7 +108,7 @@ export default function PortalRequestForm({
           <p className="mb-2 text-[0.85rem] font-semibold" style={{ color: INK }}>
             Who’s this visit for?
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Who is this visit for?">
             {people.map((p) => {
               const active = forPatientId === p.id
               return (
@@ -110,6 +116,7 @@ export default function PortalRequestForm({
                   key={p.id}
                   type="button"
                   onClick={() => setForPatientId(p.id)}
+                  aria-pressed={active}
                   className="rounded-full px-4 py-2 text-[0.88rem] font-semibold"
                   style={
                     active
@@ -133,7 +140,7 @@ export default function PortalRequestForm({
               (optional)
             </span>
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="What kind of visit?">
             {reasonOptions.map((label) => {
               const active = reason === label
               return (
@@ -142,6 +149,7 @@ export default function PortalRequestForm({
                   type="button"
                   // Toggle: clicking the active pill clears the reason.
                   onClick={() => setReason(active ? '' : label)}
+                  aria-pressed={active}
                   className="rounded-full px-4 py-2 text-[0.88rem] font-semibold"
                   style={
                     active
@@ -173,14 +181,13 @@ export default function PortalRequestForm({
             (optional)
           </span>
         </label>
-        <input
+        <PortalInput
           id="preferred"
           value={preferred}
           onChange={(e) => setPreferred(e.target.value)}
           maxLength={200}
           placeholder="e.g. weekday mornings, after 4pm…"
-          className="w-full rounded-2xl bg-white px-4 py-3 text-[0.92rem] outline-none"
-          style={{ border: `1px solid ${BORDER}`, color: INK }}
+          className="px-4 py-3"
         />
       </section>
 
@@ -191,33 +198,31 @@ export default function PortalRequestForm({
             (optional)
           </span>
         </label>
-        <textarea
+        <PortalTextarea
           id="notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           maxLength={1000}
           placeholder="A bit about what you need, or anything that would make your visit easier."
-          className="w-full rounded-2xl bg-white px-4 py-3 text-[0.92rem] outline-none"
-          style={{ border: `1px solid ${BORDER}`, color: INK }}
+          className="px-4 py-3"
         />
       </section>
 
       {error && (
-        <p className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }}>
+        <p role="alert" className="rounded-xl px-4 py-3 text-[0.88rem] font-medium" style={{ backgroundColor: PORTAL_DANGER_BG, color: PORTAL_DANGER_INK }}>
           {error}
         </p>
       )}
 
-      <button
-        type="button"
+      <BrandButton
+        brand={brand}
         onClick={submit}
         disabled={pending}
-        className="w-full rounded-full py-3.5 text-[0.95rem] font-semibold text-white disabled:opacity-40 sm:w-auto sm:px-8"
-        style={{ backgroundColor: brand }}
+        className="w-full py-3.5 text-[0.95rem] sm:w-auto sm:px-8"
       >
         {pending ? 'Sending…' : 'Send request'}
-      </button>
+      </BrandButton>
     </div>
   )
 }

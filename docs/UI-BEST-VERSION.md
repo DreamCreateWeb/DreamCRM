@@ -204,22 +204,22 @@ Already best-version: CompletedHeartbeat.
 2. ~~Bring-list emoji bullets~~ [BATCH 32: quieted to 0.85rem at 60% — markers, not headlines].
 
 ### Book / Request / Slot picker
-1. Slot buttons ~36px — UNDER the tap floor on the most-tapped control (slot-picker.tsx:213). 
-2. Three files re-declare INK/MUTED/BORDER locally → import PORTAL_* (book-form.tsx:19, request-form.tsx:18, profile-form.tsx:13).
-3. Submit buttons bypass BrandButton (book-form.tsx:256, request-form.tsx:210, confirmation CTAs :126).
-4. request-form lost sibling a11y: no role=group/aria-pressed (:105,:133), no role=alert (:203), outline-none no ring (:181,:199).
-5. "No openings" box has no next step — pair with the phone link (slot-picker.tsx:178).
+1. ~~Slot buttons under the tap floor~~ [BATCH 33: py-3 on slot buttons + taken chips — 44px on the most-tapped control].
+2. ~~Three files re-declare INK/MUTED/BORDER~~ [BATCH 33: all three import PORTAL_* aliased — one home for the palette].
+3. ~~Submit buttons bypass BrandButton~~ [BATCH 33: book + request submits and the See-my-visits CTA ride BrandButton (tap feedback, disabled states); the .ics download stays a plain anchor by necessity].
+4. ~~request-form lost sibling a11y~~ [BATCH 33: who-for + reason chips get role=group + aria-pressed; the error announces (role=alert); free-text fields ride PortalInput/PortalTextarea with real focus rings].
+5. ~~"No openings" no next step~~ [BATCH 33: when the clinic has a phone, the empty state offers "Call us at (555)… and we'll find you something"].
 
 ### Billing / invoices
-1. pay-form.tsx most primitive-starved file: raw hexes, hand pill, error sans role=alert (:46-77).
-2. Post-Stripe success banner hand-rolled + never announced → PortalNotice + role=status (invoices/page.tsx:117).
-3. billing-history tabs ~28px, tab ARIA half-wired (:65).
+1. ~~pay-form primitive-starved~~ [BATCH 33: PORTAL_* tokens, BrandButton, role=alert on the error, focus-within ring on the amount pill].
+2. ~~Post-Stripe success banner hand-rolled~~ [BATCH 33: PortalNotice success inside role=status].
+3. ~~billing-history tabs 28px, ARIA half-wired~~ [BATCH 33: 40px min-height pills; tabs gain ids + aria-controls and the list is the labelled tabpanel].
 4. plan-offer.tsx already best-version.
 
 ### Records
-1. Off-palette #B4452F error hex → PortalErrorText (request-records.tsx:69).
-2. Success state hand-rolled, no live region (:36).
-3. "Not on file" dimmed to #B9B0A5 → PORTAL_MUTED (records/page.tsx:27).
+1. ~~Off-palette #B4452F error hex~~ [BATCH 33: PortalErrorText (palette ink + role=alert)].
+2. ~~Success state hand-rolled, no live region~~ [BATCH 33: PortalNotice success inside role=status].
+3. ~~"Not on file" dimmed below palette~~ [BATCH 33: PORTAL_MUTED].
 
 ### Portal messages
 1. Send feedback 0.78rem, unannounced, self-clears (messages-view.tsx:321).

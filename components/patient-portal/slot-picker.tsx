@@ -49,6 +49,7 @@ export default function SlotPicker({
   onSelect,
   /** Hide slots sooner than this many hours from now (booking minNotice). */
   minNoticeHours = 0,
+  clinicPhone = null,
 }: {
   loadSlots: (dateKey: string) => Promise<SlotsForDay>
   brand: string
@@ -57,6 +58,8 @@ export default function SlotPicker({
   selectedIso: string | null
   onSelect: (iso: string | null) => void
   minNoticeHours?: number
+  /** When set, the no-openings state offers the phone as the next step. */
+  clinicPhone?: string | null
 }) {
   const days = useMemo(() => {
     // Anchor the strip to the CLINIC's today, not the browser's.
@@ -176,13 +179,23 @@ export default function SlotPicker({
             <span className="sr-only">Checking openings…</span>
           </div>
         ) : visibleSlots.filter((s) => s.available).length === 0 ? (
-          <p className="py-6 text-center text-[0.88rem]" style={{ color: MUTED }}>
-            {slots.length > 0 && !closedReason && visibleSlots.length === 0
-              ? // The day HAD openings — they were all inside the notice window.
-                // "We're closed" would be untrue; say what's actually going on.
-                'Times this soon need a quick call — try tomorrow, or ring us.'
-              : emptySlotsCopy(visibleSlots, closedReason)}
-          </p>
+          <div className="py-6 text-center text-[0.88rem]" style={{ color: MUTED }}>
+            <p>
+              {slots.length > 0 && !closedReason && visibleSlots.length === 0
+                ? // The day HAD openings — they were all inside the notice window.
+                  // "We're closed" would be untrue; say what's actually going on.
+                  'Times this soon need a quick call — try tomorrow, or ring us.'
+                : emptySlotsCopy(visibleSlots, closedReason)}
+            </p>
+            {clinicPhone && (
+              <p className="mt-1.5">
+                <a href={`tel:${clinicPhone}`} className="font-semibold" style={{ color: brand }}>
+                  Call us at {clinicPhone}
+                </a>{' '}
+                and we’ll find you something.
+              </p>
+            )}
+          </div>
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {visibleSlots.map((slot) => {
@@ -191,7 +204,7 @@ export default function SlotPicker({
                 return (
                   <span
                     key={slot.startIso}
-                    className="rounded-xl px-2 py-2.5 text-center text-[0.85rem] line-through"
+                    className="rounded-xl px-2 py-3 text-center text-[0.85rem] line-through"
                     style={{ color: '#B9B0A5', backgroundColor: '#F3EEE7' }}
                   >
                     {slot.label}
@@ -210,7 +223,7 @@ export default function SlotPicker({
                   // not carried by colour alone.
                   aria-pressed={active}
                   aria-label={`${slot.label} — available`}
-                  className="rounded-xl px-2 py-2.5 text-center text-[0.85rem] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  className="rounded-xl px-2 py-3 text-center text-[0.85rem] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={
                     active
                       ? { backgroundColor: brand, color: '#FFFFFF' }
