@@ -46,7 +46,7 @@ beforeEach(() => previewLeadConvertAction.mockReset())
 describe('LeadDrawer — existing-patient hint on open', () => {
   it('shows the violet info chip when the dedupe dry-run matches a patient', async () => {
     previewLeadConvertAction.mockResolvedValue({ ok: true, matchedPatientName: 'Olivia Chen' })
-    render(<LeadDrawer row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
+    render(<LeadDrawer timeZone="America/Chicago" row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
     // Runs the preview on open (not just inside Convert).
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalledWith('lead_1'))
     const hint = await screen.findByText(/Looks like an existing patient/)
@@ -59,7 +59,7 @@ describe('LeadDrawer — existing-patient hint on open', () => {
 
   it('shows no chip when there is no match', async () => {
     previewLeadConvertAction.mockResolvedValue({ ok: true, matchedPatientName: null })
-    render(<LeadDrawer row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
+    render(<LeadDrawer timeZone="America/Chicago" row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalled())
     expect(screen.queryByText(/Looks like an existing patient/)).not.toBeInTheDocument()
   })
@@ -67,6 +67,7 @@ describe('LeadDrawer — existing-patient hint on open', () => {
   it('does not run the preview for converted leads (already linked)', async () => {
     render(
       <LeadDrawer
+        timeZone="America/Chicago"
         row={makeRow({ status: 'converted', convertedToPatientId: 'pat_x', convertedPatientName: 'Olivia Chen' })}
         onClose={() => {}}
         onStatusChange={() => {}}
@@ -81,7 +82,7 @@ describe('LeadDrawer — existing-patient hint on open', () => {
     // previewLeadConvertAction catches internally and returns { ok: false }
     // (it never rejects). The drawer must not show the chip in that case.
     previewLeadConvertAction.mockResolvedValue({ ok: false, error: 'lead gone' })
-    render(<LeadDrawer row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
+    render(<LeadDrawer timeZone="America/Chicago" row={makeRow()} onClose={() => {}} onStatusChange={() => {}} />)
     await waitFor(() => expect(previewLeadConvertAction).toHaveBeenCalled())
     expect(screen.queryByText(/Looks like an existing patient/)).not.toBeInTheDocument()
   })
@@ -95,7 +96,7 @@ describe('LeadDrawer — dismiss gestures', () => {
   // these await the call rather than asserting it synchronously.
   it('closes on backdrop click', async () => {
     const onClose = vi.fn()
-    const { container } = render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
+    const { container } = render(<LeadDrawer timeZone="America/Chicago" row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     // The backdrop is the outer fixed-inset overlay.
     fireEvent.click(container.querySelector('.fixed.inset-0')!)
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
@@ -103,14 +104,14 @@ describe('LeadDrawer — dismiss gestures', () => {
 
   it('does NOT close when clicking inside the panel', () => {
     const onClose = vi.fn()
-    render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
+    render(<LeadDrawer timeZone="America/Chicago" row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     fireEvent.click(screen.getByRole('dialog'))
     expect(onClose).not.toHaveBeenCalled()
   })
 
   it('closes on Escape', async () => {
     const onClose = vi.fn()
-    render(<LeadDrawer row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
+    render(<LeadDrawer timeZone="America/Chicago" row={makeRow()} onClose={onClose} onStatusChange={() => {}} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })

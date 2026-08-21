@@ -1514,6 +1514,20 @@ $0-sales band (documented deliberate hide during setup).
   Deferred with reason: two trend tiles without sparks (no per-day history
   series in getOverview — data-path work).
 
+- **2026-08-20 — UI best-version batch 30 (the Daily-cluster tail: My Day,
+  Follow-ups, Leads).** My Day: "All my follow-ups" promoted to the header
+  primary; the KPI grid goes 4-up when the conditional proposals tile
+  joins (no lone orphan); the raw chair/door emoji adopt the agenda's own
+  labeled StatusPill recipe; tick double-fire verified covered by the
+  shared TickButton. Follow-ups: the rules card collapses to a one-line
+  summary + disclosure (body stays mounted); the caught-up empty state
+  hands over Open patients; the per-row assignee select is quiet until
+  hover/focus. Leads: drawer timeline stamps clinic wall-clock via
+  formatClinicDayTime (tz plumbed through); loading.tsx matches the
+  aging-card-stack shape. System: the legacy Sparkline compat wrapper is
+  fully retired — the last five imports (both boards, both heartbeats,
+  KpiStat) now use MiniTrend directly and sparkline.tsx is deleted.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

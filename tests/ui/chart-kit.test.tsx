@@ -7,7 +7,7 @@
  *  - MiniTrend renders the plot + a tooltip layer at spark size;
  *  - both degrade to an honest "No data yet" (never a broken 0-size chart);
  *  - the series tokens are the validated fixed order (never cycled, never an
- *    ad-hoc hex) and the legacy Sparkline wrapper delegates to the kit;
+ *    ad-hoc hex);
  *  - no surface outside the kit hand-rolls a chart anymore (the polyline
  *    guard).
  */
@@ -18,7 +18,6 @@ import { resolve, join } from 'node:path'
 import React from 'react'
 import TrendChart from '@/components/ui/charts/trend-chart'
 import MiniTrend from '@/components/ui/charts/mini-trend'
-import Sparkline from '@/components/ui/sparkline'
 import { CHART_SERIES, tickIndices } from '@/components/ui/charts/chart-theme'
 
 const WEEKS = Array.from({ length: 12 }, (_, i) => ({ bucket: `W${i + 1}`, value: (i % 5) + 1 }))
@@ -58,7 +57,7 @@ describe('TrendChart', () => {
   })
 })
 
-describe('MiniTrend + the Sparkline compat wrapper', () => {
+describe('MiniTrend', () => {
   it('renders the plot and a tooltip layer at spark size', () => {
     const { container } = render(<MiniTrend data={WEEKS.slice(0, 8)} width={104} height={26} />)
     const root = container.querySelector('[data-chart="mini-line"]')!
@@ -66,8 +65,8 @@ describe('MiniTrend + the Sparkline compat wrapper', () => {
     expect(root.querySelector('.recharts-tooltip-wrapper')).toBeTruthy()
   })
 
-  it('Sparkline delegates to the kit (the 8 legacy call sites upgrade in place)', () => {
-    const { container } = render(<Sparkline data={WEEKS.slice(0, 8)} variant="bar" />)
+  it('renders bars at spark size (the retired Sparkline wrapper\'s bar path)', () => {
+    const { container } = render(<MiniTrend data={WEEKS.slice(0, 8)} variant="bar" width={104} height={26} />)
     expect(container.querySelector('[data-chart="mini-bar"]')).toBeTruthy()
     expect(container.querySelectorAll('.recharts-bar-rectangle').length).toBe(8)
   })

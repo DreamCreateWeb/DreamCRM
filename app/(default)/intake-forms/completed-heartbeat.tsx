@@ -10,7 +10,7 @@
  * list's 12-week spark.
  */
 import Link from 'next/link'
-import Sparkline from '@/components/ui/sparkline'
+import { MiniTrend } from '@/components/ui/charts'
 import type { FormsCompletedPerWeekPoint } from '@/lib/services/forms'
 
 export default function CompletedHeartbeat({
@@ -33,7 +33,7 @@ export default function CompletedHeartbeat({
         Completed · 8 weeks
       </Link>
       <span aria-hidden="true">
-<Sparkline data={series} width={104} height={26} />
+        <MiniTrend data={series} width={104} height={26} />
       </span>
     </div>
   )

@@ -1,5 +1,7 @@
+'use client'
+
 import Link from 'next/link'
-import Sparkline from '@/components/ui/sparkline'
+import { MiniTrend } from '@/components/ui/charts'
 
 export interface ClosedHeartbeatPoint {
   bucket: string
@@ -41,7 +43,7 @@ export default function ClosedHeartbeat({ series }: { series: ClosedHeartbeatPoi
         {label}
       </Link>
       <span aria-hidden="true">
-<Sparkline data={series} variant="bar" width={104} height={26} />
+        <MiniTrend data={series} variant="bar" width={104} height={26} />
       </span>
     </div>
   )

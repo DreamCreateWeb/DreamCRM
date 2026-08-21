@@ -42,28 +42,28 @@ Already best-version: TodayChairRow, MorningReveal, ring+text pairing, GrantsStr
 ### My Day
 Already best-version: ClosedHeartbeat, undo-toast on tick-off.
 1. [BATCH 10] loading.tsx max-w-6xl vs page max-w-[96rem] — guaranteed reflow (my-day/loading.tsx:11).
-2. Tick-off circle not disabled during transition — double-fire (my-day-followups.tsx:110).
+2. ~~Tick-off circle not disabled during transition~~ [BATCH 30: verified covered — the shared TickButton (batch 16) always disables while pending].
 3. ~~Prep flags bare amber text~~ [BATCH 15: StatusPill warn].
-4. Raw 🪑/🚪 emoji, no legend → GlyphCluster + EncodingLegend (page.tsx:192).
+4. ~~Raw 🪑/🚪 emoji, no legend~~ [BATCH 30: the agenda's own labeled StatusPill recipe (🪑 Seated ok / 🚪 Arrived info) — self-explaining, and the two surfaces can't drift].
 5. ~~Unread badge hand-rolled~~ [BATCH 15: StatusPill warn + hover meaning].
 6. ~~"Claim" raw chip~~ [BATCH 15: ActionButton secondary sm + pending].
-7. 7 KPI tiles in 3-col grid orphan the North-Star tile (page.tsx:55).
-8. No primary action; "All my follow-ups" should be it (page.tsx:47).
+7. ~~7 KPI tiles orphan~~ [BATCH 30: grid goes 4-up on lg when the conditional proposals tile joins — 4+3, no lone orphan].
+8. ~~No primary action~~ [BATCH 30: "All my follow-ups" is the header primary].
 9. digest-toggle: ~~no pending acknowledgment~~ [BATCH 15]; the orphaned placement stays (a deliberate quiet footnote).
-10. Sparkline compat import → MiniTrend (closed-heartbeat.tsx:2).
+10. ~~Sparkline compat import~~ [BATCH 30: MiniTrend everywhere — the compat wrapper itself is retired (kpi-stat + intake heartbeat swapped too, sparkline.tsx deleted)].
 
 ### Follow-ups board
 Already best-version: due-state grouping, optimistic complete with honest revert.
 1. [BATCH 10] No PendingVeil on filter nav (followups-board.tsx:79).
 2. [BATCH 10] One useTransition freezes rows during nav — split navPending/rowPending (:77,:226,:279,:309).
-3. Settings card between filters and the work → one-line summary + disclosure (:191).
+3. ~~Settings card between filters and the work~~ [BATCH 30: collapsed one-line summary ("N of M on · morning digest on/off") + chevron disclosure; body stays mounted while hidden (settings-tabs law)].
 4. ~~No tailored loading.tsx~~ [BATCH 16: chip row + rules line + grouped tick rows].
-5. Empty states hand over no action — pass EmptyState action (:196).
+5. ~~Empty states hand over no action~~ [BATCH 30: the unfiltered caught-up state hands over Open patients; filtered already had Clear filters].
 6. ~~"N due now" in the primary slot~~ [BATCH 16: StatusPill warn in the legend zone].
 7. ~~Tick circle drifted~~ [BATCH 16: components/ui/tick-button.tsx, both boards adopted].
-8. Bordered select on every row → text that becomes select on hover/focus (:306).
+8. ~~Bordered select on every row~~ [BATCH 30: transparent until hover/focus — the assignee reads as quiet text, the control chrome appears when reached for].
 9. ~~Heartbeat gone on tablets~~ [BATCH 16: label always shows; the spark stays desktop].
-10. Sparkline → MiniTrend (:10).
+10. ~~Sparkline → MiniTrend~~ [BATCH 30].
 
 ### Leads
 Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty copy, drawer action ladder, dedupe confirm.
@@ -72,11 +72,11 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 3. [BATCH 10] Hand-rolled search → SearchInput (leads-view.tsx:249).
 4. [BATCH 10] Discarded pending flag → PendingVeil (:106,:173).
 5. ~~Empty states actionless~~ [BATCH 16: Share-your-website / Clear-filters handed over].
-6. Drawer timeline uses browser-local time → formatClinicDayTime (lead-drawer.tsx:45).
-7. leads/loading.tsx isn't the aging-card-stack shape.
+6. ~~Drawer timeline uses browser-local time~~ [BATCH 30: formatClinicDayTime with the clinic tz plumbed page → view → drawer].
+7. ~~leads/loading.tsx wrong shape~~ [BATCH 30: chip row + select-all line + left-bordered card stack].
 8. ~~Select-all orphaned~~ [BATCH 16: a label-clickable list header].
 9. ~~Two styles for the archive exits~~ [BATCH 16: both ghost ActionButtons].
-10. Spark desktop-only + compat import (:258).
+10. ~~Spark desktop-only + compat import~~ [BATCH 30: MiniTrend; the container was already hidden lg:flex].
 
 ---
 
@@ -87,7 +87,7 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 2. ~~Row dead outside the name cell~~ [BATCH 19: whole-row mouse nav (cursor-pointer, own controls excluded, rides the PendingVeil transition); the name Link stays the keyboard/AT path].
 3. ~~Search needs Enter but never says so~~ [BATCH 19: SearchInput grows an opt-in `enterHint` ↵ kbd — shown only while typed text awaits submit; Messages' live search unaffected].
 4. ~~Two raw selects amid FilterChips~~ [BATCH 19: the picker stays a select (long enumerations), but an ACTIVE source/tag presents as the shared active FilterChip with one-click clear].
-5. Bulk bar: ~~Invite/Pay-link ternaries~~ [BATCH 11: pending prop]; the "Tagging…" placeholder-select spinner remains (popover-menu candidate).
+5. Bulk bar: ~~Invite/Pay-link ternaries~~ [BATCH 11: pending prop]; the "Tagging…" placeholder-select spinner DEFERRED — a select is the honest control for a long tag enumeration, and its first-option pending label is visible feedback; a popover menu would re-implement the same list for chrome.
 6. ~~No sticky thead~~ [BATCH 11].
 7. ~~Heartbeat hidden lg:flex~~ [BATCH 19: label survives from sm up; the spark stays desktop — the followups precedent].
 8. ~~saved-views-bar re-implements FilterChip~~ [BATCH 19: All-patients + view chips ride FilterChip href-mode; the action pills (+ Save view / Follow-up all / Send a campaign) stay deliberate — chips filter, they never act].

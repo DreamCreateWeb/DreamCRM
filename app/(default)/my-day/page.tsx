@@ -46,14 +46,17 @@ export default async function MyDayPage() {
         title={`Good day, ${firstName}`}
         subtitle="Your follow-ups and conversations, plus today's schedule — everything waiting on you in one place."
         actions={
-          <ActionButton variant="secondary" href="/followups?mine=1">
+          // The page's one primary: this cockpit's whole job is driving the
+          // staffer's own follow-up list, so the door to it leads.
+          <ActionButton variant="primary" href="/followups?mine=1">
             All my follow-ups
           </ActionButton>
         }
       />
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      {/* KPI strip — 6 tiles rows cleanly at 3-up; when the conditional
+          proposals tile joins (7 tiles), 4-up avoids the lone orphan. */}
+      <div className={`grid grid-cols-2 ${data.openProposalsCount > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 mb-6`}>
         <KpiStat
           label="Follow-ups due"
           value={followupsDue}
@@ -191,12 +194,18 @@ export default async function MyDayPage() {
                     <Link href={`/patients/${a.patientId}`} className="text-sm text-gray-700 dark:text-gray-200 hover:underline truncate flex-1">
                       {a.patientName}
                     </Link>
-                    {/* In-office flow breadcrumb (set from the agenda drawer). */}
+                    {/* In-office flow breadcrumb (set from the agenda drawer) —
+                        the agenda's own labeled-pill recipe, so the mark reads
+                        without a legend and can't drift between surfaces. */}
                     {(a.status === 'scheduled' || a.status === 'confirmed') &&
                       (a.seatedAt ? (
-                        <span className="shrink-0 text-xs" title="In the chair">🪑</span>
+                        <span className="shrink-0">
+                          <StatusPill tone="ok" title="In the chair">🪑 Seated</StatusPill>
+                        </span>
                       ) : a.arrivedAt ? (
-                        <span className="shrink-0 text-xs" title="Arrived — in the waiting room">🚪</span>
+                        <span className="shrink-0">
+                          <StatusPill tone="info" title="Checked in — in the waiting room">🚪 Arrived</StatusPill>
+                        </span>
                       ) : null)}
                     <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500 capitalize">{a.type.replace(/_/g, ' ')}</span>
                   </li>
