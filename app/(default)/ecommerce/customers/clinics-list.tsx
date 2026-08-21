@@ -1,6 +1,8 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useRef, useMemo, useState, useTransition } from 'react'
+import { SearchInput } from '@/components/ui/search-input'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { ClinicListRow } from '@/lib/services/clinics'
@@ -146,13 +148,15 @@ export default function ClinicsList({ rows }: Props) {
           </FilterChip>
         </div>
         <div className="flex-1 flex gap-2 lg:justify-end">
-          <input
-            type="search"
-            placeholder="Search by name, slug, or city…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="form-input w-full lg:w-72"
-          />
+          <div className="w-full lg:w-72">
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              onClear={() => setQuery('')}
+              placeholder="Search by name, slug, or city…"
+              ariaLabel="Search clinics"
+            />
+          </div>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
@@ -172,7 +176,7 @@ export default function ClinicsList({ rows }: Props) {
       <div className="v2-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-900/30 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            <thead className="bg-[color:var(--color-surface-sunk)] text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-5 py-3 text-left font-semibold">Clinic</th>
                 <th className="px-3 py-3 text-left font-semibold">Plan</th>
@@ -199,6 +203,15 @@ export default function ClinicsList({ rows }: Props) {
                       <EmptyState
                         title="No clinics match your filter"
                         body="Try a different plan, status, or search term."
+                        action={
+                          <ActionButton
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => { setFilter('all'); setQuery('') }}
+                          >
+                            Show all clinics
+                          </ActionButton>
+                        }
                       />
                     )}
                   </td>
@@ -245,13 +258,13 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
           ) : (
             <span
               className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
-              style={{ backgroundColor: c.brandColor ?? '#6d28d9' }}
+              style={{ backgroundColor: c.brandColor ?? 'var(--color-brand)' }}
             >
               {initials}
             </span>
           )}
           <div className="min-w-0">
-            <div className="font-semibold text-gray-800 dark:text-gray-100 truncate group-hover:text-violet-600 dark:group-hover:text-violet-400 transition">
+            <div className="font-semibold text-gray-800 dark:text-gray-100 truncate group-hover:text-teal-700 dark:hover:text-teal-400 dark:group-hover:text-violet-400 transition">
               {name}
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -371,6 +384,9 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
   const router = useRouter()
   const [typed, setTyped] = useState('')
   const [pending, startTransition] = useTransition()
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Tab stays inside; focus restores on close; Esc dismisses (never mid-delete).
+  useFocusTrap(true, panelRef, { onEscape: () => { if (!pending) onClose() } })
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ name: string; subscriptionCanceled: boolean } | null>(null)
   const matches = typed.trim() === clinic.slug
@@ -396,8 +412,18 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-2 sm:px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-2xl w-full max-w-md flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[color:var(--color-ink-900)]/40 px-2 sm:px-4"
+      onClick={() => { if (!pending) onClose() }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={result ? 'Clinic deleted' : `Delete ${clinic.displayName ?? clinic.name}`}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-gray-800 rounded-t-[var(--r-lg)] sm:rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md flex flex-col"
+      >
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700/60">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
             {result ? 'Clinic deleted' : `Delete ${clinic.displayName ?? clinic.name}?`}
@@ -454,7 +480,7 @@ function DeleteClinicModal({ clinic, onClose }: { clinic: ClinicListRow; onClose
                 autoFocus
                 className="form-input w-full text-sm font-mono"
               />
-              {error && <p className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
+              {error && <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">{error}</p>}
             </div>
             <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700/60 flex justify-end gap-2">
               <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>

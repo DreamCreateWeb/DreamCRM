@@ -5,6 +5,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getClinicDetail } from '@/lib/services/clinics'
@@ -39,7 +40,7 @@ const TYPE_ICONS: Record<AgencyProjectType, string> = {
 const STATUS_TONE: Record<AgencyProjectStatus, Tone> = {
   lead: 'neutral',
   discovery: 'warn',
-  in_progress: 'special',
+  in_progress: 'info',
   review: 'info',
   completed: 'ok',
   on_hold: 'warn',
@@ -47,6 +48,18 @@ const STATUS_TONE: Record<AgencyProjectStatus, Tone> = {
 }
 
 const PLAN_LABEL = { basic: 'Basic', pro: 'Pro', premium: 'Premium' } as const
+
+/** Legend rows generated from the same tables the rows render from. */
+const PROJECT_STATUS_LEGEND = (Object.keys(STATUS_TONE) as AgencyProjectStatus[]).map((k) => ({
+  tone: STATUS_TONE[k],
+  label: AGENCY_PROJECT_STATUS_LABELS[k],
+  meaning: 'project status',
+}))
+const PROJECT_TYPE_CHANNELS = (Object.keys(TYPE_ICONS) as AgencyProjectType[]).map((k) => ({
+  icon: TYPE_ICONS[k],
+  label: AGENCY_PROJECT_TYPE_LABELS[k],
+  meaning: 'project type',
+}))
 
 // Subscription status → tone (active/trialing healthy, past-due family a
 // problem, everything else inert).
@@ -126,7 +139,7 @@ export default async function ClinicDetailPage({
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <div className="text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-2">
+        <div className="text-xs font-semibold uppercase tracking-wider text-teal-700 dark:text-teal-400 mb-2">
           Platform · Dream Create
         </div>
         <Link
@@ -147,7 +160,7 @@ export default async function ClinicDetailPage({
             ) : (
               <span
                 className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-2xl font-bold shrink-0"
-                style={{ backgroundColor: clinic.profile?.brandColor ?? '#6d28d9' }}
+                style={{ backgroundColor: clinic.profile?.brandColor ?? 'var(--color-brand)' }}
               >
                 {(clinic.profile?.displayName ?? clinic.name).charAt(0).toUpperCase()}
               </span>
@@ -319,8 +332,14 @@ export default async function ClinicDetailPage({
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
             Projects
           </h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-            {clinic.projects.length} total · {activeProjects.length} active
+          <span className="flex items-center gap-3">
+            <EncodingLegend
+              pills={PROJECT_STATUS_LEGEND}
+              channels={PROJECT_TYPE_CHANNELS}
+            />
+            <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+              {clinic.projects.length} total · {activeProjects.length} active
+            </span>
           </span>
         </div>
         {clinic.projects.length === 0 ? (
@@ -394,7 +413,13 @@ export default async function ClinicDetailPage({
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-gray-800 dark:text-gray-100">
-                    {inv.number ?? inv.id}
+                    {inv.hostedInvoiceUrl ? (
+                      <a href={inv.hostedInvoiceUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                        {inv.number ?? inv.id} ↗
+                      </a>
+                    ) : (
+                      inv.number ?? inv.id
+                    )}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
                     {inv.status} · {inv.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

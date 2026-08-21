@@ -1634,6 +1634,21 @@ $0-sales band (documented deliberate hide during setup).
   spark (no stored monthly series) and a platform-shaped dashboard
   skeleton (loading.tsx is tenant-blind).
 
+- **2026-08-21 — UI best-version batch 38 (Clinics roster + clinic
+  detail).** The delete-clinic modal gets the full dialog contract
+  (focus trap, Esc, scrim-click — all blocked mid-delete — ink scrim,
+  modal shadow, announced error); the roster adopts SearchInput, hands
+  over "Show all clinics" on a filtered miss, and its header row +
+  avatar fallbacks ride tokens. The detail page: teal eyebrow,
+  in-progress projects read as in-flight (violet) instead of
+  celebration-pink, an EncodingLegend generated from the same tables the
+  rows render from, invoice rows deep-link to their Stripe hosted pages,
+  and the NexHealth bind card moves onto ActionButton with per-action
+  pending and an announced success. /ecommerce/customers gains a shaped
+  loading skeleton. Deferred with reasons: the entity-style identity
+  header stays custom (PageHeader has no avatar slot), and project rows
+  stay unlinked (no per-project destination exists yet).
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

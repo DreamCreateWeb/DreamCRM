@@ -209,6 +209,8 @@ export interface ClinicInvoiceRow {
   amountCents: number
   paid: boolean
   createdAt: Date
+  /** Stripe's hosted invoice page, when available — powers the row link. */
+  hostedInvoiceUrl: string | null
 }
 
 export interface ClinicDetail {
@@ -331,6 +333,7 @@ export async function getClinicDetail(orgId: string): Promise<ClinicDetail | nul
         amountCents: i.status === 'paid' ? i.amount_paid : i.amount_due,
         paid: i.status === 'paid',
         createdAt: new Date(i.created * 1000),
+        hostedInvoiceUrl: i.hosted_invoice_url ?? null,
       }))
       for (const inv of list.data) {
         if (inv.status === 'paid') lifetimeSubscriptionCents += inv.amount_paid
