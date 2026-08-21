@@ -416,13 +416,13 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 
 ### Prospecting — module-wide
 1. Zero role=alert/status/aria-live in 33 files; useToast never imported — hand-rolled ephemeral feedback everywhere → adopt both module-wide.
-2. No loading.tsx on any prospecting route (all force-dynamic, AI-bound) → shaped skeletons ×4.
+2. ~~No loading.tsx on any prospecting route~~ [BATCH 41: shaped skeletons for /prospecting, /call-mode, /call-list, /demo/[id]].
 3. sky ×4, brand-as-won ×3, *-50 ×20, raw hex ×3 → tone sweep (see cross-cutting).
 
 ### Prospecting workspace (page.tsx)
-1. Two header primaries (AddClinic + Call Mode) → Call Mode primary+breath, Add secondary (page.tsx:155, add-clinic-button.tsx:104).
+1. ~~Two header primaries~~ [BATCH 41: Call Mode is the one primary with breath; Add-a-clinic demotes to secondary].
 2. Two stacked underline tab rows → view switcher becomes FilterChips (page.tsx:163-189).
-3. Raw search input (:284-290) → SearchInput+enterHint; kill-switch banner hand-rolled amber silent (:191-199) → recipe + role=status.
+3. ~~Raw search + hand-rolled kill-switch banner~~ [BATCH 41: SearchInput (a small client wrapper keeps the plain GET form) with ↵ hint + clear; the banner rides the warn recipe + role=status].
 4. Only name deep-links; row otherwise dead (:332-401) → whole-row ?prospect= target; warmth avatars no legend (:72-77/:338-345) → EncodingLegend.
 5. gray-400 "not checked yet" (:379); hand-rolled pagination + no PendingVeil on filter nav (:410-436).
 
@@ -438,9 +438,9 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 3. Success tiny teal vanishing line (:256-260) → toast (emerald); gray-400 meaningful copy (:177/:233/:265); trigger ~30px (:128).
 
 ### Prospect drawer + deal room
-1. Hand-rolled <aside> drawer (prospect-drawer.tsx:51) → shared Drawer (Esc/scrim/trap); ✕ bare 20px (:60-67). HIGHEST VALUE.
-2. drawer-actions one transition ×5 (:27-142) → per-action; suppress inline confirm → useConfirm (:121-142); all successes silent.
-3. contacts-panel one pending across rows; delete NO confirm, 12px ✕ (:41-134).
+1. ~~Hand-rolled drawer~~ [BATCH 41: a client ProspectDrawerShell supplies scrim + Esc + focus trap + role=dialog while the CONTENT stays server-rendered (the ?prospect= deep link is the part worth keeping — the shared client Drawer would have lost it); ✕ grows a 36px target + Esc hint].
+2. ~~drawer-actions shared transition + silent successes~~ [BATCH 41: per-action keys; suppress rides useConfirm(danger); enroll/stop/re-enrich/suppress all toast; error role=alert].
+3. ~~contacts-panel shared pending + confirm-less delete~~ [BATCH 41: per-act keys (re-verify/add/pin-id/del-id with live labels), delete asks by address, ✕ gets a 24px boxed target off gray-400].
 4. Deal-room savings brand-tinted (:314-335) → emerald ok; gray-400 ×12; copy paths → CopyChip (demo-followup-drafter.tsx:60-69, call-card.tsx:152-166); drafter ternaries + never-clearing Logged ✓ (:119-179).
 
 ### Call Mode + call list
@@ -458,7 +458,7 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 5. KpiStats no heartbeat (page.tsx:85-102); "no verified gaps" bare p naming re-enrich w/o the button (:116-119) → EmptyState + action.
 
 ### Add-a-clinic modal
-1. Cancel spins (:261-263); no trap/Esc/aria-labelledby (:109-117); two success-panel primaries (:131/:136); submit ternary (:264-266); duplicate warning amber-50 unannounced (:242); error/success no roles (:258, :118-145).
+1. Add-a-clinic modal. PARTIAL [BATCH 41: Cancel no longer spins; trigger demoted to secondary; duplicate warning onto amber-500/10]. Remainder (trap/roles/success-panel primaries/ternary) rides the next prospecting batch.
 
 ### Pipeline board / momentum / win-loss / territory (prospecting)
 1. pipeline-panel 13× gray-400 meaningful numbers; W/L hand-rolled bg-gray-50 + Won-teal (:39-58) → KpiStat; empty bare paragraph (:15-29) → EmptyState + path.

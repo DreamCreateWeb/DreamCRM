@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import ProspectDrawerShell from './prospect-drawer-shell'
 import type { ProspectDetail } from '@/lib/services/prospecting'
 import {
   PROSPECT_STATUS_LABELS,
@@ -48,7 +49,7 @@ export default function ProspectDrawer({
   const verdict = (p.aiVerdict ?? null) as ProspectAiVerdict | null
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-40 w-full max-w-lg bg-white dark:bg-gray-800 shadow-2xl border-l border-[color:var(--color-hairline)] overflow-y-auto">
+    <ProspectDrawerShell closeHref={closeHref} label={p.name}>
       <div className="p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -60,8 +61,9 @@ export default function ProspectDrawer({
           <Link
             href={closeHref}
             scroll={false}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none"
-            aria-label="Close"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--r-sm)] text-gray-500 hover:text-gray-700 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-200 text-xl leading-none"
+            aria-label="Close (Esc)"
+            title="Close (Esc)"
           >
             ✕
           </Link>
@@ -278,7 +280,7 @@ export default function ProspectDrawer({
           hasEmail={Boolean(p.email)}
         />
       </div>
-    </aside>
+    </ProspectDrawerShell>
   )
 }
 
