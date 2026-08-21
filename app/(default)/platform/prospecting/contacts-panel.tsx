@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import {
   CONTACT_ROLE_LABELS,
   EMAIL_VERIFY_LABELS,
@@ -39,12 +40,17 @@ export default function ContactsPanel({
   contacts: ProspectContactRow[]
 }) {
   const [pending, startTransition] = useTransition()
+  // Per-act key: 'reverify' | 'add' | pin/delete carry the contact id, so
+  // acting on one row no longer greys the whole panel's controls into mush.
+  const [activeKey, setActiveKey] = useState<string | null>(null)
+  const confirm = useConfirm()
   const [adding, setAdding] = useState(false)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const add = () =>
+  const add = () => {
+    setActiveKey('add')
     startTransition(async () => {
       setError(null)
       const res = await addProspectContactAction({ prospectId, email: email.trim(), name: name.trim() || undefined })
@@ -55,7 +61,9 @@ export default function ContactsPanel({
       } else {
         setError(res.error)
       }
+      setActiveKey(null)
     })
+  }
 
   return (
     <div>
@@ -68,11 +76,17 @@ export default function ContactsPanel({
             <button
               type="button"
               disabled={pending}
-              onClick={() => startTransition(() => reverifyContactsAction(prospectId).then(() => {}))}
+              onClick={() => {
+                setActiveKey('reverify')
+                startTransition(async () => {
+                  await reverifyContactsAction(prospectId)
+                  setActiveKey(null)
+                })
+              }}
               className="text-xs text-gray-500 hover:text-teal-600 dark:hover:text-teal-400 disabled:opacity-50"
               title="Re-run MX deliverability checks"
             >
-              ↻ Re-verify
+              {pending && activeKey === 'reverify' ? '… Re-verifying' : '↻ Re-verify'}
             </button>
           )}
           <button
@@ -116,18 +130,32 @@ export default function ContactsPanel({
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() => startTransition(() => setPrimaryContactAction(prospectId, c.id))}
+                  onClick={() => {
+                    setActiveKey(`pin-${c.id}`)
+                    startTransition(async () => {
+                      await setPrimaryContactAction(prospectId, c.id)
+                      setActiveKey(null)
+                    })
+                  }}
                   className="text-xs text-gray-500 hover:text-teal-600 dark:hover:text-teal-400 disabled:opacity-50"
                   title="Reach out on this address"
                 >
-                  Pin ★
+                  {pending && activeKey === `pin-${c.id}` ? 'Pinning…' : 'Pin ★'}
                 </button>
               )}
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => startTransition(() => deleteProspectContactAction(prospectId, c.id))}
-                className="text-xs text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-50"
+                onClick={async () => {
+                  // A found-and-verified address is work — deleting it asks.
+                  if (!(await confirm({ title: `Remove ${c.email}?`, confirmLabel: 'Remove', danger: true }))) return
+                  setActiveKey(`del-${c.id}`)
+                  startTransition(async () => {
+                    await deleteProspectContactAction(prospectId, c.id)
+                    setActiveKey(null)
+                  })
+                }}
+                className="inline-flex h-6 w-6 items-center justify-center rounded text-sm text-gray-500 hover:text-rose-600 hover:bg-rose-500/10 dark:text-gray-400 dark:hover:text-rose-400 disabled:opacity-50"
                 aria-label="Remove contact"
               >
                 ✕

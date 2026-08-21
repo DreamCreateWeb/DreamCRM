@@ -1675,6 +1675,20 @@ $0-sales band (documented deliberate hide during setup).
   click; both partner routes gain shaped loading skeletons. Ledger and
   payout empties stay quiet one-liners by the in-card precedent.
 
+- **2026-08-21 — UI best-version batch 41 (Prospecting part 1).** The
+  prospect drawer gets the standard dismiss contract — a thin client
+  shell supplies scrim + Esc + focus trap + role=dialog while the
+  content stays server-rendered (keeping the ?prospect= deep link) —
+  and its ✕ grows a real target. The drawer's five actions split onto
+  per-action pending keys, suppress rides useConfirm, and
+  enroll/stop/re-enrich/suppress all confirm via toast. The contacts
+  panel gets per-row pending, a confirm on contact delete, and a boxed
+  ✕. The workspace header settles on ONE primary (Call Mode, breathing;
+  Add-a-clinic demotes), the kill-switch banner joins the warn recipe
+  with a live region, the search box becomes the shared SearchInput (a
+  small client wrapper keeps the plain GET form), and all four
+  prospecting routes gain shaped loading skeletons.
+
 ### Test-hygiene note (worth keeping)
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up

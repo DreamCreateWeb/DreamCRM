@@ -6,6 +6,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import ProspectSearch from './prospect-search'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import {
@@ -152,7 +153,7 @@ export default async function ProspectingPage({
             <ActionButton href="/platform/prospecting/call-list" variant="secondary">
               📞 Call list{funnel.callList > 0 ? ` (${funnel.callList - funnel.converted})` : ''}
             </ActionButton>
-            <ActionButton href="/platform/prospecting/call-mode" variant="primary">
+            <ActionButton href="/platform/prospecting/call-mode" variant="primary" breath>
               ▶ Call Mode
             </ActionButton>
           </div>
@@ -189,7 +190,10 @@ export default async function ProspectingPage({
       </div>
 
       {config.killSwitch && (
-        <div className="mb-6 v2-card border-l-4 border-amber-400 px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+        <div
+          role="status"
+          className="mb-6 rounded-[var(--r-lg)] bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200"
+        >
           The prospecting engine is <span className="font-semibold">switched off</span> — discovery,
           enrichment, and outreach are all idle.{' '}
           <Link href="/platform/prospecting/settings" className="font-medium text-teal-600 dark:text-teal-400 hover:underline">
@@ -281,13 +285,7 @@ export default async function ProspectingPage({
         )}
         <form action="/platform/prospecting" method="get" className="ml-auto">
           {filters.state && <input type="hidden" name="state" value={filters.state} />}
-          <input
-            type="search"
-            name="q"
-            defaultValue={filters.search ?? ''}
-            placeholder="Search name, city, dentist…"
-            className="form-input text-sm py-1.5 w-56"
-          />
+          <ProspectSearch initial={filters.search ?? ''} />
         </form>
       </div>
 

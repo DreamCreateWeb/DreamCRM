@@ -101,7 +101,7 @@ export default function AddClinicButton() {
 
   return (
     <>
-      <ActionButton variant="primary" onClick={() => setOpen(true)}>
+      <ActionButton variant="secondary" onClick={() => setOpen(true)}>
         ＋ Add a clinic
       </ActionButton>
 
@@ -239,7 +239,7 @@ export default function AddClinicButton() {
                   )}
 
                   {duplicate && (
-                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm dark:border-amber-500/40 dark:bg-amber-500/10">
+                    <div className="rounded-md border border-amber-300 bg-amber-500/10 px-3 py-2.5 text-sm dark:border-amber-500/40 dark:bg-amber-500/100/10">
                       <p className="text-amber-800 dark:text-amber-300">
                         <span className="font-semibold">{duplicate.name}</span>
                         {duplicate.city ? ` (${duplicate.city})` : ''} looks like it’s already in your pipeline.

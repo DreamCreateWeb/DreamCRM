@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useToast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { ActionButton } from '@/components/ui/action-button'
 import {
   suppressProspectAction,
@@ -25,8 +27,11 @@ export default function DrawerActions({
   hasEmail: boolean
 }) {
   const [pending, startTransition] = useTransition()
-  const [confirming, setConfirming] = useState(false)
+  // Which act is in flight — five buttons share the transition, one spins.
+  const [active, setActive] = useState<'enroll' | 'stop' | 'demo' | 'enrich' | 'suppress' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
+  const confirm = useConfirm()
 
   if (status === 'suppressed' || status === 'converted') return null
 
@@ -41,14 +46,18 @@ export default function DrawerActions({
           <ActionButton
             size="sm"
             variant="primary"
-            pending={pending}
-            onClick={() =>
+            pending={pending && active === 'enroll'}
+            disabled={pending}
+            onClick={() => {
+              setActive('enroll')
               startTransition(async () => {
                 setError(null)
                 const r = await enrollProspectAction(prospectId)
                 if (!r.ok) setError(r.error ?? 'Could not enroll.')
+                else toast('Enrolled — the next outreach run picks them up')
+                setActive(null)
               })
-            }
+            }}
           >
             ✉️ Enroll in outreach
           </ActionButton>
@@ -62,8 +71,16 @@ export default function DrawerActions({
           <ActionButton
             size="sm"
             variant="secondary"
-            pending={pending}
-            onClick={() => startTransition(() => stopEnrollmentAction(prospectId))}
+            pending={pending && active === 'stop'}
+            disabled={pending}
+            onClick={() => {
+              setActive('stop')
+              startTransition(async () => {
+                await stopEnrollmentAction(prospectId)
+                toast('Sequence stopped')
+                setActive(null)
+              })
+            }}
           >
             ⏹ Stop sequence
           </ActionButton>
@@ -100,9 +117,11 @@ export default function DrawerActions({
         <ActionButton
           size="sm"
           variant="ghost"
+          pending={pending && active === 'enrich'}
           disabled={pending}
           title="Recrawl their site (brand color, logo, booking signals), refresh Google data, and rescore"
-          onClick={() =>
+          onClick={() => {
+            setActive('enrich')
             startTransition(async () => {
               setError(null)
               const r = await reEnrichProspectAction(prospectId)
@@ -112,36 +131,46 @@ export default function DrawerActions({
                     ? 'Monthly enrichment budget is used up — try next month or raise it in Settings.'
                     : `Re-enrich failed (${r.reason ?? 'unknown'}).`,
                 )
+              } else {
+                toast('Refreshed — new crawl, Google data, and score')
               }
+              setActive(null)
             })
-          }
+          }}
         >
           ↻ Re-enrich
         </ActionButton>
-        {confirming ? (
-          <>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Never contact this practice again{hasEmail ? ' (email suppressed forever)' : ''}?
-            </span>
-            <ActionButton
-              size="sm"
-              variant="danger"
-              disabled={pending}
-              onClick={() => startTransition(() => suppressProspectAction(prospectId))}
-            >
-              Yes, suppress
-            </ActionButton>
-            <ActionButton size="sm" variant="secondary" onClick={() => setConfirming(false)}>
-              Cancel
-            </ActionButton>
-          </>
-        ) : (
-          <ActionButton size="sm" variant="secondary" onClick={() => setConfirming(true)}>
-            🚫 Suppress
-          </ActionButton>
-        )}
+        <ActionButton
+          size="sm"
+          variant="secondary"
+          pending={pending && active === 'suppress'}
+          disabled={pending}
+          onClick={async () => {
+            if (
+              !(await confirm({
+                title: 'Never contact this practice again?',
+                message: hasEmail ? 'Their email is suppressed forever.' : undefined,
+                confirmLabel: 'Suppress',
+                danger: true,
+              }))
+            )
+              return
+            setActive('suppress')
+            startTransition(async () => {
+              await suppressProspectAction(prospectId)
+              toast('Suppressed — they will never be contacted again')
+              setActive(null)
+            })
+          }}
+        >
+          🚫 Suppress
+        </ActionButton>
       </div>
-      {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-rose-600 dark:text-rose-400">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
