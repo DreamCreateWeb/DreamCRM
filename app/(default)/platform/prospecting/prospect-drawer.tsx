@@ -305,7 +305,7 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
           <li key={v.name} className="flex items-center justify-between gap-2 text-sm">
             <span className="text-gray-900 dark:text-gray-100">
               {v.name}
-              <span className="ml-1.5 text-xs text-gray-400">
+              <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400">
                 {VENDOR_CATEGORY_LABELS[v.category as VendorCategory] ?? v.category}
               </span>
             </span>
@@ -335,7 +335,7 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
           </div>
         )}
       </div>
-      <p className="mt-1.5 text-xs text-gray-400">
+      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
         Estimated from tools detected on their site — typical mid-range pricing, not a quote.
       </p>
     </div>

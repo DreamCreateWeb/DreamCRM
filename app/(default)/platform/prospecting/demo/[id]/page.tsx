@@ -115,7 +115,7 @@ export default async function DemoPrepPage({
         <div className={SECTION_TITLE}>Demo ammunition — where each gap lands</div>
         {gaps.length === 0 ? (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            No verified gaps yet — {signals ? 'this practice looks healthy online (sell the time-savings story instead)' : 'run a re-enrich to crawl their site first'}.
+            No verified gaps yet — {signals ? 'this practice looks healthy online (sell the time-savings story instead)' : 'tap ↻ Re-enrich in the header to crawl their site first'}.
           </p>
         ) : (
           <ul className="space-y-2">

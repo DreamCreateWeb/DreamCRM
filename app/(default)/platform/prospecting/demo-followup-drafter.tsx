@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { ActionButton } from '@/components/ui/action-button'
+import { useToast } from '@/components/ui/toast'
 import { draftDemoFollowupAction, logCallOutcomeAction } from './admin-actions'
 import type { DemoOutcome, DemoLostReason } from '@/lib/services/demo-followup'
 
@@ -30,6 +31,7 @@ const LOST_REASON_LABEL: Record<DemoLostReason, string> = {
 }
 
 export default function DemoFollowupDrafter({ prospectId }: { prospectId: string }) {
+  const toast = useToast()
   const [pending, startTransition] = useTransition()
   const [logging, startLogging] = useTransition()
   const [open, setOpen] = useState(false)
@@ -78,6 +80,7 @@ export default function DemoFollowupDrafter({ prospectId }: { prospectId: string
           note: note.trim() || undefined,
         })
         setLogged(outcome === 'won' ? 'won' : 'lost')
+        toast(outcome === 'won' ? 'Logged as won 🎉' : 'Pass logged — the learning loop hears it')
       } catch {
         setError("Couldn't log the outcome — use the action strip below.")
       }
@@ -103,7 +106,7 @@ export default function DemoFollowupDrafter({ prospectId }: { prospectId: string
           <div>
             <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
               How did the demo go?{' '}
-              <span className="text-gray-400">(optional — steers the draft + reads the outcome)</span>
+              <span className="text-gray-500 dark:text-gray-400">(optional — steers the draft + reads the outcome)</span>
             </label>
             <input
               type="text"
@@ -117,16 +120,20 @@ export default function DemoFollowupDrafter({ prospectId }: { prospectId: string
 
           <div className="flex items-center gap-2">
             <ActionButton size="sm" variant="primary" pending={pending} onClick={run}>
-              {pending ? 'Writing…' : draft ? 'Rewrite' : 'Draft it'}
+              {draft ? 'Rewrite' : 'Draft it'}
             </ActionButton>
             {draft && (
               <ActionButton size="sm" variant="secondary" onClick={copy}>
-                {copied ? '✓ Copied' : 'Copy'}
+                <span aria-live="polite">{copied ? '✓ Copied' : 'Copy'}</span>
               </ActionButton>
             )}
           </div>
 
-          {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+          {error && (
+            <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+              {error}
+            </p>
+          )}
 
           {draft && (
             <>
@@ -137,7 +144,7 @@ export default function DemoFollowupDrafter({ prospectId }: { prospectId: string
                 className="form-textarea w-full text-sm leading-relaxed"
                 spellCheck
               />
-              <p className="text-xs text-gray-400 dark:text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Edit anything, then copy it into your own inbox. We never auto-send.
               </p>
             </>
@@ -164,14 +171,14 @@ export default function DemoFollowupDrafter({ prospectId }: { prospectId: string
                   </>
                 )}
               </span>
-              <ActionButton size="sm" variant="secondary" disabled={logging} onClick={logOutcome}>
-                {logging ? 'Logging…' : outcome === 'won' ? 'Mark won' : 'Log the pass'}
+              <ActionButton size="sm" variant="secondary" pending={logging} disabled={logging} onClick={logOutcome}>
+                {outcome === 'won' ? 'Mark won' : 'Log the pass'}
               </ActionButton>
             </div>
           )}
 
           {logged && (
-            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+            <p role="status" className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
               {logged === 'won'
                 ? '✓ Logged as won — open the action strip below to convert them into a clinic.'
                 : '✓ Logged — the reason feeds your win/loss learning loop.'}
