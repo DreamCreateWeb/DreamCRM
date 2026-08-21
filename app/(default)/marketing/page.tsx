@@ -147,18 +147,23 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
             <ul className="divide-y divide-[color:var(--color-hairline)]">
               {recent.map((r) => {
                 const stage = t.stages.find((s) => s.key === r.pipelineStage)
-                const accent = stageAccentClasses(stage?.accent ?? 'stone')
+                const accent = stageAccentClasses(stage?.accent ?? 'gray')
                 return (
-                  <li key={r.id} className="py-2 flex items-center gap-3">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${accent.dot}`} aria-hidden="true" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-                        {r.name}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {r.email}
-                      </p>
-                    </div>
+                  <li key={r.id} className="flex items-center gap-3">
+                    <Link
+                      href={`/marketing/pipeline?lead=${r.id}`}
+                      className="group flex min-w-0 flex-1 items-center gap-3 py-2"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${accent.dot}`} aria-hidden="true" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                          {r.name}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {r.email}
+                        </p>
+                      </div>
+                    </Link>
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${accent.bg} ${accent.text}`}>
                       {stage?.label ?? r.pipelineStage}
                     </span>
@@ -199,13 +204,20 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
           ) : (
             <ul className="space-y-2">
               {audiences.slice(0, 6).map((a) => (
-                <li key={a.id} className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-gray-700 dark:text-gray-200">{a.name}</span>
-                  {a.description && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate ml-2">
-                      {a.description}
+                <li key={a.id}>
+                  <Link
+                    href="/growth/audiences"
+                    className="group flex items-center justify-between text-sm"
+                  >
+                    <span className="font-medium text-gray-700 dark:text-gray-200 group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                      {a.name}
                     </span>
-                  )}
+                    {a.description && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate ml-2">
+                        {a.description}
+                      </span>
+                    )}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -228,14 +240,18 @@ function FunnelBars({
     <div className="space-y-2">
       {funnel.map((f) => {
         const stage = stages.find((s) => s.key === f.stage)
-        const accent = stageAccentClasses(stage?.accent ?? 'stone')
+        const accent = stageAccentClasses(stage?.accent ?? 'gray')
         const pct = (f.count / max) * 100
         return (
-          <div key={f.stage} className="flex items-center gap-3">
-            <div className="w-32 text-xs font-medium text-gray-700 dark:text-gray-200 shrink-0">
+          <Link
+            key={f.stage}
+            href="/marketing/pipeline"
+            className="group flex items-center gap-3"
+          >
+            <div className="w-32 text-xs font-medium text-gray-700 dark:text-gray-200 shrink-0 group-hover:text-teal-600 dark:group-hover:text-teal-400">
               {stage?.label ?? f.stage}
             </div>
-            <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden">
+            <div aria-hidden="true" className="flex-1 h-6 bg-[color:var(--color-surface-sunk)] rounded-md overflow-hidden">
               <div
                 className={`h-full ${accent.dot} rounded-md transition-all`}
                 style={{ width: `${pct}%`, opacity: 0.85 }}
@@ -244,7 +260,7 @@ function FunnelBars({
             <div className="w-12 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 tabular-nums font-mono-num">
               {f.count}
             </div>
-          </div>
+          </Link>
         )
       })}
     </div>

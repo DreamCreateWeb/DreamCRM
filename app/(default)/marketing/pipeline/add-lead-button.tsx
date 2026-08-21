@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PipelineStage } from '@/lib/marketing/terminology'
 import { createLeadAction } from '../actions'
 import { ActionButton } from '@/components/ui/action-button'
-import { FlashToast } from '@/components/ui/flash-toast'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useToast } from '@/components/ui/toast'
 
 interface Props {
   stages: PipelineStage[]
@@ -14,10 +15,12 @@ interface Props {
 
 export default function AddLeadButton({ stages, sources }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(open, panelRef, { onEscape: () => { if (!pending) setOpen(false) } })
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -48,7 +51,7 @@ export default function AddLeadButton({ stages, sources }: Props) {
           notes: '',
         })
         setOpen(false)
-        setToast('Lead added.')
+        toast('Lead added.')
         router.refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message : "Couldn't add the lead. Try again.")
@@ -68,12 +71,26 @@ export default function AddLeadButton({ stages, sources }: Props) {
           onClick={() => setOpen(false)}
         >
           <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-lead-title"
             className="section-enter bg-[color:var(--color-surface-2)] rounded-[var(--r-lg)] shadow-[var(--shadow-modal)] w-full max-w-md p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
-              Add lead
-            </h2>
+            <div className="mb-4 flex items-start justify-between gap-2">
+              <h2 id="add-lead-title" className="text-base font-semibold text-gray-800 dark:text-gray-100">
+                Add lead
+              </h2>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--r-xs)] text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200"
+                aria-label="Close (Esc)"
+              >
+                ✕
+              </button>
+            </div>
             <div className="space-y-3">
               <Field label="Name">
                 <input
@@ -140,27 +157,28 @@ export default function AddLeadButton({ stages, sources }: Props) {
                 />
               </Field>
               {error && (
-                <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>
+                <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+                  {error}
+                </p>
               )}
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} pending={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
                 Cancel
               </ActionButton>
               <ActionButton
                 variant="primary"
                 size="sm"
                 onClick={submit}
+                pending={pending}
                 disabled={pending || !form.name.trim() || !form.email.trim()}
               >
-                {pending ? 'Saving…' : 'Add'}
+                Add
               </ActionButton>
             </div>
           </div>
         </div>
       )}
-
-      {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
     </>
   )
 }

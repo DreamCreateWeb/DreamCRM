@@ -7,6 +7,7 @@ import AddLeadButton from './add-lead-button'
 import PipelineLeadDrawer from './pipeline-lead-drawer'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export const metadata = {
   title: 'Pipeline - DreamCRM',
@@ -69,10 +70,19 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         }
       />
 
-      <PipelineBoard
-        initialByStage={byStage}
-        stages={t.stages}
-      />
+      {leads.length === 0 && !params.q && !params.source ? (
+        <EmptyState
+          icon="📇"
+          title={`No ${t.leads} yet`}
+          body={`Add your first ${t.lead} and drag the card through the stages as the conversation moves.`}
+          action={<AddLeadButton stages={t.stages} sources={t.sources} />}
+        />
+      ) : (
+        <PipelineBoard
+          initialByStage={byStage}
+          stages={t.stages}
+        />
+      )}
 
       <PipelineLeadDrawer
         lead={
