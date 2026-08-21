@@ -31,7 +31,7 @@ function TouchCard({ touch }: { touch: SequenceWithTouches['touches'][number] })
     })
 
   return (
-    <div className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-4">
+    <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
           <span

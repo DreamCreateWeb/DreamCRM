@@ -142,7 +142,7 @@ function BrainEditor({ brain }: { brain: ProspectingConfig['brain'] }) {
           {cards.map((c, i) => (
             <div
               key={i}
-              className="flex flex-col sm:flex-row gap-2 rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-2"
+              className="flex flex-col sm:flex-row gap-2 rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-2"
             >
               <input
                 type="text"
@@ -237,7 +237,7 @@ export default function SettingsPanel({
   return (
     <div>
       {config.watchdog.trippedAt && (
-        <div className="mb-5 rounded-lg border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-500/10 px-4 py-3">
+        <div className="mb-5 rounded-lg bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-4 py-3">
           <div className="text-sm font-semibold text-amber-800 dark:text-amber-300">
             🛡️ Deliverability watchdog tripped — sending auto-paused
           </div>
@@ -505,7 +505,7 @@ export default function SettingsPanel({
               ['AI scorings', usage.aiUsed, config.budgets.aiPerMonth],
             ] as Array<[string, number, number]>
           ).map(([label, used, budget]) => (
-            <div key={label} className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+            <div key={label} className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
               <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
               <div className="mt-0.5 font-semibold tabular-nums text-gray-900 dark:text-gray-100">
                 {used.toLocaleString()} <span className="text-gray-400 font-normal">/ {budget.toLocaleString()}</span>

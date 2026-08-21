@@ -313,7 +313,7 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
           </li>
         ))}
       </ul>
-      <div className="rounded-[var(--r-xs)] bg-teal-500/5 border border-teal-500/20 p-3 space-y-1">
+      <div className="rounded-[var(--r-xs)] bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/20 p-3 space-y-1">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-600 dark:text-gray-300">They likely pay across these</span>
           <span className="font-semibold tabular-nums text-gray-900 dark:text-gray-100">
@@ -322,14 +322,14 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-600 dark:text-gray-300">DreamCRM {est.ourPlanName} replaces it</span>
-          <span className="font-semibold tabular-nums text-teal-700 dark:text-teal-300">
+          <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
             ${est.ourPlanPrice}/mo
           </span>
         </div>
         {est.monthlySavings > 0 && (
-          <div className="flex items-center justify-between border-t border-teal-500/20 pt-1 text-sm">
+          <div className="flex items-center justify-between border-t border-emerald-500/20 pt-1 text-sm">
             <span className="font-medium text-gray-900 dark:text-gray-100">You&apos;d save them</span>
-            <span className="font-bold tabular-nums text-teal-700 dark:text-teal-300">
+            <span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
               ~${est.monthlySavings}/mo · ${(est.monthlySavings * 12).toLocaleString()}/yr
             </span>
           </div>

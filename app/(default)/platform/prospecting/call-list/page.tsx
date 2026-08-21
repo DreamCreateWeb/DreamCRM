@@ -113,7 +113,7 @@ export default async function CallListPage({
       {pinned && (
         <div
           className="mb-6 rounded-xl ring-2 p-0.5"
-          style={{ ['--tw-ring-color' as string]: 'var(--demo-accent, #f59e0b)' }}
+          style={{ ['--tw-ring-color' as string]: 'var(--demo-accent, var(--color-amber-500))' }}
         >
           <div className="px-4 pt-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             🎬 You just demoed {pinned.name} — log the outcome while it&apos;s fresh
@@ -149,7 +149,7 @@ export default async function CallListPage({
                 className={row.id === highlight ? 'rounded-xl ring-2 p-0.5' : undefined}
                 style={
                   row.id === highlight
-                    ? { ['--tw-ring-color' as string]: 'var(--demo-accent, #f59e0b)' }
+                    ? { ['--tw-ring-color' as string]: 'var(--demo-accent, var(--color-amber-500))' }
                     : undefined
                 }
               >

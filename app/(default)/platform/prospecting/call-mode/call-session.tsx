@@ -80,6 +80,8 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
   const [attendeeEmail, setAttendeeEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  // Which outcome key is in flight — only the pressed dock button shows work.
+  const [activeOutcome, setActiveOutcome] = useState<string | null>(null)
   const [rehearsing, setRehearsing] = useState(false)
 
   const item = idx < items.length ? items[idx] : null
@@ -124,6 +126,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
     (outcome: string, lostReason?: string) => {
       if (!item || pending) return
       setError(null)
+      setActiveOutcome(lostReason ? `lost-${lostReason}` : outcome)
       startTransition(async () => {
         try {
           await logCallOutcomeAction({
@@ -135,6 +138,8 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           advance(outcome)
         } catch {
           setError("Couldn't log that — try again.")
+        } finally {
+          setActiveOutcome(null)
         }
       })
     },
@@ -283,7 +288,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
         <button
           type="button"
           onClick={() => advance('skipped')}
-          className="whitespace-nowrap text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          className="whitespace-nowrap text-xs font-medium text-gray-500 underline underline-offset-2 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
         >
           Skip →
         </button>
@@ -464,7 +469,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
 
       {/* Outcome dock — sticky so long scripts never hide the buttons. */}
       <div className="sticky bottom-4 mt-4 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2)] p-3.5 shadow-lg ring-1 ring-[color:var(--color-hairline)]">
-        {error && <p className="mb-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+        {error && <p role="alert" className="mb-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
 
         {demoPicker ? (
           <div className="rounded-[var(--r-md)] bg-violet-500/10 p-3">
@@ -486,16 +491,12 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
                 placeholder="their email (optional)"
                 className="form-input w-52 text-sm"
               />
-              <ActionButton size="sm" variant="primary" disabled={pending || !demoAt} onClick={bookDemo}>
-                {pending ? 'Booking…' : 'Book it'}
+              <ActionButton size="sm" variant="primary" pending={pending} disabled={!demoAt} onClick={bookDemo}>
+                Book it
               </ActionButton>
-              <button
-                type="button"
-                onClick={() => setDemoPicker(false)}
-                className="text-xs text-gray-500 hover:underline dark:text-gray-400"
-              >
-                cancel
-              </button>
+              <ActionButton size="sm" variant="ghost" disabled={pending} onClick={() => setDemoPicker(false)}>
+                Cancel
+              </ActionButton>
             </div>
           </div>
         ) : passPicker ? (
@@ -508,18 +509,14 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
                   type="button"
                   disabled={pending}
                   onClick={() => log('not_interested', key)}
-                  className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-xs font-medium text-gray-700 ring-1 ring-[color:var(--color-hairline)] hover:ring-gray-400 dark:text-gray-200"
+                  className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-xs font-medium text-gray-700 ring-1 ring-[color:var(--color-hairline)] hover:ring-gray-400 disabled:opacity-60 dark:text-gray-200"
                 >
-                  {label}
+                  {pending && activeOutcome === `lost-${key}` ? 'Logging…' : label}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => setPassPicker(false)}
-                className="px-2 text-xs text-gray-500 hover:underline dark:text-gray-400"
-              >
-                cancel
-              </button>
+              <ActionButton size="sm" variant="ghost" disabled={pending} onClick={() => setPassPicker(false)}>
+                Cancel
+              </ActionButton>
             </div>
           </div>
         ) : (
@@ -535,13 +532,13 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
             <OutcomeButton primary kbd="1" disabled={pending} onClick={() => setDemoPicker(true)}>
               🎉 Demo booked
             </OutcomeButton>
-            <OutcomeButton kbd="2" disabled={pending} onClick={() => log('callback')}>
+            <OutcomeButton kbd="2" disabled={pending} busy={pending && activeOutcome === 'callback'} onClick={() => log('callback')}>
               🔁 Callback
             </OutcomeButton>
-            <OutcomeButton kbd="3" disabled={pending} onClick={() => log('voicemail')}>
+            <OutcomeButton kbd="3" disabled={pending} busy={pending && activeOutcome === 'voicemail'} onClick={() => log('voicemail')}>
               🎙 Voicemail
             </OutcomeButton>
-            <OutcomeButton kbd="4" disabled={pending} onClick={() => log('no_answer')}>
+            <OutcomeButton kbd="4" disabled={pending} busy={pending && activeOutcome === 'no_answer'} onClick={() => log('no_answer')}>
               📵 No answer
             </OutcomeButton>
             <OutcomeButton kbd="5" disabled={pending} onClick={() => setPassPicker(true)}>
@@ -550,7 +547,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           </div>
         )}
 
-        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           Keys 1–5 log outcomes · callbacks, voicemails, and no-answers schedule their own follow-up — nothing drops.
         </p>
       </div>
@@ -567,12 +564,15 @@ function OutcomeButton({
   kbd,
   primary,
   disabled,
+  busy,
   onClick,
 }: {
   children: React.ReactNode
   kbd: string
   primary?: boolean
   disabled?: boolean
+  /** This outcome is the one in flight — the label says so. */
+  busy?: boolean
   onClick: () => void
 }) {
   return (
@@ -582,14 +582,14 @@ function OutcomeButton({
       onClick={onClick}
       className={`flex flex-col items-center gap-0.5 rounded-[var(--r-md)] px-3.5 py-2 text-xs font-bold transition disabled:opacity-50 ${
         primary
-          ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+          ? 'bg-[color:var(--color-brand)] text-white hover:opacity-90'
           : 'bg-[color:var(--color-surface-2)] text-gray-700 ring-1 ring-[color:var(--color-hairline)] hover:ring-gray-400 dark:text-gray-200'
       }`}
     >
-      <span>{children}</span>
+      <span>{busy ? 'Logging…' : children}</span>
       <span
         className={`rounded px-1.5 font-mono-num text-xs font-semibold ${
-          primary ? 'bg-white/20 text-white' : 'bg-[color:var(--color-surface-sunk)] text-gray-400 dark:text-gray-500'
+          primary ? 'bg-white/20 text-white' : 'bg-[color:var(--color-surface-sunk)] text-gray-500 dark:text-gray-400'
         }`}
       >
         {kbd}

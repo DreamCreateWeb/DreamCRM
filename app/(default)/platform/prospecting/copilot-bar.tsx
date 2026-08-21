@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useToast } from '@/components/ui/toast'
 import {
   COPILOT_ACTIONS,
   type CopilotResponse,
@@ -54,13 +56,16 @@ async function runMutation(kind: CopilotActionKind): Promise<boolean> {
 export default function CopilotBar() {
   const router = useRouter()
   const confirm = useConfirm()
+  const toast = useToast()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [response, setResponse] = useState<CopilotResponse | null>(null)
   const [asking, startAsking] = useTransition()
   const [running, startRunning] = useTransition()
-  const [ranLabel, setRanLabel] = useState<string | null>(null)
+  const [activeAction, setActiveAction] = useState<CopilotActionKind | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(open, panelRef, { onEscape: () => setOpen(false) })
 
   // ⌘J / Ctrl-J opens the copilot from anywhere on the surface.
   useEffect(() => {
@@ -68,8 +73,6 @@ export default function CopilotBar() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
         e.preventDefault()
         setOpen((o) => !o)
-      } else if (e.key === 'Escape') {
-        setOpen(false)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -78,16 +81,16 @@ export default function CopilotBar() {
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50)
-    else {
-      setRanLabel(null)
-    }
   }, [open])
+
+  useEffect(() => {
+    if (!running) setActiveAction(null)
+  }, [running])
 
   const ask = useCallback((q: string) => {
     const trimmed = q.trim()
     if (trimmed.length === 0) return
     setResponse(null)
-    setRanLabel(null)
     startAsking(async () => {
       const res = await copilotAction(trimmed)
       setResponse(res)
@@ -113,9 +116,10 @@ export default function CopilotBar() {
       }))
     )
       return
+    setActiveAction(a.kind)
     startRunning(async () => {
       await runMutation(a.kind)
-      setRanLabel(a.label)
+      toast(`Done: ${a.label}`)
       router.refresh()
     })
   }
@@ -125,7 +129,7 @@ export default function CopilotBar() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-white/60 dark:bg-gray-800/40 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-colors"
+        className="inline-flex min-h-10 items-center gap-2 rounded-[var(--r-sm)] border border-[color:var(--color-hairline-strong)] bg-white/60 dark:bg-gray-800/40 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-colors"
       >
         <span aria-hidden="true">✨</span>
         Ask the copilot
@@ -140,6 +144,10 @@ export default function CopilotBar() {
           onClick={() => setOpen(false)}
         >
           <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ask the copilot"
             className="w-full max-w-xl rounded-[var(--r-lg)] border border-[color:var(--color-hairline-strong)] bg-white dark:bg-gray-900 shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -174,7 +182,7 @@ export default function CopilotBar() {
             <div className="max-h-[50vh] overflow-y-auto px-4 py-4">
               {!response && !asking && (
                 <div>
-                  <p className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-2">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
                     Try asking
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -196,7 +204,7 @@ export default function CopilotBar() {
               )}
 
               {asking && (
-                <p className="text-sm text-gray-400 dark:text-gray-500 animate-pulse">
+                <p role="status" className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">
                   Reading the hunt…
                 </p>
               )}
@@ -222,7 +230,7 @@ export default function CopilotBar() {
                                 : 'border border-[color:var(--color-hairline-strong)] text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
                             }`}
                           >
-                            {a.label}
+                            {running && activeAction === a.kind ? 'Running…' : a.label}
                           </button>
                         )
                       })}
@@ -230,7 +238,9 @@ export default function CopilotBar() {
                   )}
                   {response.matched && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[color:var(--color-hairline)] pt-3">
-                      <span className="text-xs text-gray-400">{response.matched.name}:</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {response.matched.name}:
+                      </span>
                       <button
                         type="button"
                         onClick={() => {
@@ -253,16 +263,11 @@ export default function CopilotBar() {
                       </button>
                     </div>
                   )}
-                  {ranLabel && (
-                    <p className="mt-3 text-xs text-teal-700 dark:text-teal-300">
-                      Done: {ranLabel} ✓
-                    </p>
-                  )}
                 </div>
               )}
             </div>
 
-            <div className="border-t border-[color:var(--color-hairline)] px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
+            <div className="border-t border-[color:var(--color-hairline)] px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
               Grounded in your live hunt data. The copilot never sends or changes anything on its
               own — you click to run any action.
             </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useToast } from '@/components/ui/toast'
 import type { CallListRow } from '@/lib/services/prospecting'
 import {
   INTENT_SIGNAL_LABELS,
@@ -59,7 +60,7 @@ function ConvertForm({
     })
 
   return (
-    <div className="mt-3 rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-4 space-y-3">
+    <div className="mt-3 rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-4 space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block text-xs text-gray-500 dark:text-gray-400">
           Clinic name
@@ -121,14 +122,15 @@ function ConvertForm({
           <ActionButton
             size="sm"
             variant="primary"
-            disabled={pending || !name || !ownerEmail || !ownerName}
+            pending={pending}
+            disabled={!name || !ownerEmail || !ownerName}
             onClick={submit}
           >
-            {pending ? 'Creating…' : 'Create clinic + send invite'}
+            Create clinic + send invite
           </ActionButton>
         </div>
       </div>
-      {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+      {error && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
     </div>
   )
 }
@@ -137,7 +139,7 @@ function SuggestedReply({ draft }: { draft: string }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   return (
-    <div className="mt-3 rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+    <div className="mt-3 rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -232,16 +234,20 @@ export default function CallCard({ row }: { row: CallListRow }) {
   const [note, setNote] = useState('')
   const [converting, setConverting] = useState(false)
   const [losing, setLosing] = useState(false)
-  const [flash, setFlash] = useState<string | null>(null)
+  // Which outcome is in flight — only the pressed button spins.
+  const [activeOutcome, setActiveOutcome] = useState<string | null>(null)
+  const toast = useToast()
 
-  const log = (outcome: string, lostReason?: ProspectLossReason) =>
+  const log = (outcome: string, lostReason?: ProspectLossReason) => {
+    setActiveOutcome(lostReason ? `lost-${lostReason}` : outcome)
     startTransition(async () => {
       await logCallOutcomeAction({ prospectId: row.id, outcome, note: note || undefined, lostReason })
       setNote('')
       setLosing(false)
-      setFlash(outcome === 'not_interested' ? 'Logged — they drop off the list.' : 'Logged.')
-      setTimeout(() => setFlash(null), 2500)
+      toast(outcome === 'not_interested' ? 'Logged — they drop off the list.' : 'Logged.')
+      setActiveOutcome(null)
     })
+  }
 
   return (
     <div className="v2-card p-5">
@@ -314,8 +320,9 @@ export default function CallCard({ row }: { row: CallListRow }) {
           <ActionButton
             key={o.value}
             size="sm"
-            variant={o.value === 'demo_booked' ? 'primary' : 'secondary'}
-            pending={pending}
+            variant="secondary"
+            pending={pending && activeOutcome === o.value}
+            disabled={pending}
             onClick={() => log(o.value)}
           >
             {o.label}
@@ -324,7 +331,7 @@ export default function CallCard({ row }: { row: CallListRow }) {
         <ActionButton
           size="sm"
           variant={losing ? 'ghost' : 'secondary'}
-          pending={pending}
+          disabled={pending}
           onClick={() => setLosing((v) => !v)}
         >
           {losing ? 'Cancel' : 'Not interested'}
@@ -355,7 +362,7 @@ export default function CallCard({ row }: { row: CallListRow }) {
       </div>
 
       {losing && (
-        <div className="mt-3 rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-800/40 p-3">
+        <div className="mt-3 rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] p-3">
           <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
             Why did we lose this one? (feeds the pipeline + sharpens outreach)
           </p>
@@ -366,17 +373,16 @@ export default function CallCard({ row }: { row: CallListRow }) {
                 type="button"
                 disabled={pending}
                 onClick={() => log('not_interested', r)}
-                className="rounded-full bg-white dark:bg-gray-900 border border-[color:var(--color-hairline-strong)] px-3 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:border-rose-300 disabled:opacity-60 transition-colors"
+                className="rounded-full bg-white dark:bg-gray-900 border border-[color:var(--color-hairline-strong)] px-3 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-rose-500/10 hover:border-rose-500/40 disabled:opacity-60 transition-colors"
               >
-                {LOSS_REASON_LABELS[r]}
+                {pending && activeOutcome === `lost-${r}` ? 'Logging…' : LOSS_REASON_LABELS[r]}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {flash && <p className="mt-2 text-xs text-teal-600 dark:text-teal-400">{flash}</p>}
-      {converting && <ConvertForm row={row} onDone={(msg) => setFlash(msg)} />}
+      {converting && <ConvertForm row={row} onDone={(msg) => toast(msg, { tone: 'ok' })} />}
     </div>
   )
 }

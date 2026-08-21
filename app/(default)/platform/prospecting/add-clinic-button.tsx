@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionButton } from '@/components/ui/action-button'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { addProspectAction, type AddProspectResult } from './admin-actions'
 
 /**
@@ -29,6 +30,7 @@ export default function AddClinicButton() {
   const [bookedDemo, setBookedDemo] = useState(false)
   const [pending, startTransition] = useTransition()
   const lastPayload = useRef<Payload | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   function reset() {
     setError(null)
@@ -41,6 +43,7 @@ export default function AddClinicButton() {
     setOpen(false)
     reset()
   }
+  useFocusTrap(open, panelRef, { onEscape: () => { if (!pending) close() } })
 
   function run(payload: Payload) {
     setError(null)
@@ -110,15 +113,16 @@ export default function AddClinicButton() {
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-gray-900/60 p-4 sm:items-center"
           role="dialog"
           aria-modal="true"
+          aria-labelledby="add-clinic-title"
           onClick={(e) => {
             if (e.target === e.currentTarget) close()
           }}
         >
-          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-800 p-5 sm:p-6">
+          <div ref={panelRef} className="w-full max-w-lg rounded-lg bg-white shadow-xl dark:bg-gray-800 p-5 sm:p-6">
             {success ? (
-              <div className="text-center">
+              <div className="text-center" role="status">
                 <div className="mb-2 text-3xl">✅</div>
-                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                <h2 id="add-clinic-title" className="text-lg font-semibold text-gray-800 dark:text-gray-100">
                   {success.demoLogged ? 'Added — and the demo is on your calendar' : 'Clinic added to your pipeline'}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -147,7 +151,7 @@ export default function AddClinicButton() {
               <>
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Add a clinic</h2>
+                    <h2 id="add-clinic-title" className="text-lg font-semibold text-gray-800 dark:text-gray-100">Add a clinic</h2>
                     <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                       A practice you called. It lands in your pipeline as a warm lead — no cold emails go out.
                     </p>
@@ -155,8 +159,8 @@ export default function AddClinicButton() {
                   <button
                     type="button"
                     onClick={close}
-                    className="shrink-0 rounded-md p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                    aria-label="Close"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-[color:var(--color-surface-sunk)] hover:text-gray-600 dark:hover:text-gray-200"
+                    aria-label="Close (Esc)"
                   >
                     ✕
                   </button>
@@ -239,7 +243,7 @@ export default function AddClinicButton() {
                   )}
 
                   {duplicate && (
-                    <div className="rounded-md border border-amber-300 bg-amber-500/10 px-3 py-2.5 text-sm dark:border-amber-500/40 dark:bg-amber-500/100/10">
+                    <div role="status" className="rounded-md bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 px-3 py-2.5 text-sm">
                       <p className="text-amber-800 dark:text-amber-300">
                         <span className="font-semibold">{duplicate.name}</span>
                         {duplicate.city ? ` (${duplicate.city})` : ''} looks like it’s already in your pipeline.
@@ -255,14 +259,18 @@ export default function AddClinicButton() {
                     </div>
                   )}
 
-                  {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
+                  {error && (
+                    <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
+                      {error}
+                    </p>
+                  )}
 
                   <div className="flex items-center justify-end gap-2 pt-1">
-                    <ActionButton type="button" variant="secondary" onClick={close} pending={pending}>
+                    <ActionButton type="button" variant="secondary" onClick={close} disabled={pending}>
                       Cancel
                     </ActionButton>
                     <ActionButton type="submit" variant="primary" pending={pending}>
-                      {pending ? 'Adding…' : bookedDemo ? 'Add + log demo' : 'Add clinic'}
+                      {bookedDemo ? 'Add + log demo' : 'Add clinic'}
                     </ActionButton>
                   </div>
                 </form>

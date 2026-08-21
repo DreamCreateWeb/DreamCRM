@@ -37,19 +37,19 @@ export default function PipelinePanel({ report }: { report: WinLossReport }) {
 
       {/* Headline numbers */}
       <div className="grid grid-cols-3 gap-3 mb-5">
-        <div className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+        <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
           <div className="text-xs text-gray-500 dark:text-gray-400">Won</div>
-          <div className="mt-0.5 text-lg font-semibold tabular-nums text-teal-700 dark:text-teal-300">
+          <div className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
             {report.won}
           </div>
         </div>
-        <div className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+        <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
           <div className="text-xs text-gray-500 dark:text-gray-400">Lost</div>
           <div className="mt-0.5 text-lg font-semibold tabular-nums text-gray-700 dark:text-gray-300">
             {report.lost}
           </div>
         </div>
-        <div className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+        <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
           <div className="text-xs text-gray-500 dark:text-gray-400">Win rate</div>
           <div className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">
             {report.winRatePct != null ? `${report.winRatePct}%` : '—'}

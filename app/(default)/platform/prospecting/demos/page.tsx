@@ -31,7 +31,7 @@ function DemoRowItem({ d, past, soon }: { d: DemoRow; past: boolean; soon?: bool
       href={d.href}
       className={`flex items-center justify-between gap-3 rounded-[var(--r-md)] px-4 py-3 transition hover:shadow-[inset_0_0_0_1px_var(--color-hairline),0_1px_6px_rgba(0,0,0,0.06)] ${
         soon
-          ? 'bg-violet-50 shadow-[inset_0_0_0_1px_#ddd6fe] dark:bg-violet-500/10 dark:shadow-[inset_0_0_0_1px_rgba(139,92,246,.3)]'
+          ? 'bg-violet-500/10 shadow-[inset_0_0_0_1px_rgba(139,92,246,.3)]'
           : 'bg-[color:var(--color-surface-2)] shadow-[inset_0_0_0_1px_var(--color-hairline)]'
       }`}
     >

@@ -41,7 +41,7 @@ export default function TrackPicker({
               aria-pressed={isSelected}
               className={`rounded-lg p-3 text-left ring-1 transition-colors ${
                 isSelected
-                  ? 'ring-2 ring-teal-500 bg-teal-50/50 dark:bg-teal-500/10'
+                  ? 'ring-2 ring-teal-500 bg-teal-500/5 dark:bg-teal-500/10'
                   : 'ring-inset ring-[color:var(--color-hairline)] hover:bg-gray-50 dark:hover:bg-gray-800/40'
               }`}
             >

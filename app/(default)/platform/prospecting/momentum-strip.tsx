@@ -21,7 +21,7 @@ interface Metric {
 }
 const METRICS: Metric[] = [
   { key: 'reachedOut', label: 'Reached out', icon: '📣', accent: 'text-gray-800 dark:text-gray-100', iconBg: 'bg-[color:var(--color-surface-sunk)]', href: '/platform/prospecting/communications' },
-  { key: 'replies', label: 'Replies', icon: '💬', accent: 'text-sky-600 dark:text-sky-400', iconBg: 'bg-sky-500/10', href: '/platform/prospecting/communications' },
+  { key: 'replies', label: 'Replies', icon: '💬', accent: 'text-fuchsia-600 dark:text-fuchsia-400', iconBg: 'bg-fuchsia-500/10', href: '/platform/prospecting/communications' },
   { key: 'demosBooked', label: 'Demos booked', icon: '📅', accent: 'text-violet-600 dark:text-violet-400', iconBg: 'bg-violet-500/10', href: '/platform/prospecting/demos' },
   { key: 'won', label: 'Won', icon: '🏆', accent: 'text-emerald-600 dark:text-emerald-400', iconBg: 'bg-emerald-500/10', href: '/platform/prospecting?view=prospects&status=converted' },
 ]

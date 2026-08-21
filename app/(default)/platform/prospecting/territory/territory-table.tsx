@@ -86,7 +86,7 @@ export default function TerritoryTable({
       )}
 
       {insights.enableMore && (
-        <div className="mb-5 rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] bg-gray-50 dark:bg-gray-800/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
+        <div className="mb-5 rounded-[var(--r-sm)] border border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
           Only {insights.enabledStates} state{insights.enabledStates === 1 ? '' : 's'} enabled — once
           this pool is warm, widen the net in{' '}
           <Link href="/platform/prospecting/settings" className="text-teal-700 dark:text-teal-300 hover:underline">
@@ -169,7 +169,7 @@ export default function TerritoryTable({
                   <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
                     {r.callList || '—'}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-teal-700 dark:text-teal-300">
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-700 dark:text-emerald-300">
                     {r.won || '—'}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500 dark:text-gray-400">
@@ -208,7 +208,7 @@ export default function TerritoryTable({
 
 function Stat({ label, value, tone }: { label: string; value: string | number; tone?: 'teal' }) {
   return (
-    <div className="rounded-[var(--r-xs)] bg-gray-50 dark:bg-gray-800/40 p-3">
+    <div className="rounded-[var(--r-xs)] bg-[color:var(--color-surface-sunk)] p-3">
       <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
       <div
         className={`mt-0.5 text-lg font-semibold tabular-nums ${
