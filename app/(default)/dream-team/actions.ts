@@ -43,3 +43,45 @@ export async function stopRunwayItemAction(input: {
   }
   return { ok: false, message: 'That item is no longer queued.' }
 }
+
+export interface SandmanChatResult {
+  ok: boolean
+  answer: string
+  actions: Array<{ kind: string; label: string; href: string }>
+}
+
+/**
+ * SANDMAN's one action (D5): ask a question, get a grounded answer plus
+ * NAVIGATION suggestions. It never mutates — the returned actions are hrefs
+ * the human clicks, resolved server-side from the closed registry so a
+ * model-invented kind can never become a link.
+ */
+export async function askSandmanAction(input: {
+  query: string
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
+}): Promise<SandmanChatResult> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') {
+    return { ok: false, answer: 'Sandman works for clinics.', actions: [] }
+  }
+  const query = (input.query ?? '').trim()
+  if (!query) return { ok: false, answer: 'Ask me something about the practice.', actions: [] }
+
+  const { askSandman } = await import('@/lib/services/sandman')
+  const { SANDMAN_ACTIONS } = await import('@/lib/sandman')
+  // Only the last few turns travel — the prompt clamps too, but the wire
+  // should not carry an unbounded transcript from a client we do not trust.
+  const history = (input.history ?? [])
+    .filter((t) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string')
+    .slice(-6)
+  const res = await askSandman(ctx.organizationId, ctx.organizationName, query, history)
+  return {
+    ok: true,
+    answer: res.answer,
+    actions: res.actions.map((a) => ({
+      kind: a.kind,
+      label: a.label,
+      href: SANDMAN_ACTIONS[a.kind].href,
+    })),
+  }
+}

@@ -3,6 +3,7 @@ import { buildWeeklyStandup } from '@/lib/services/standup'
 import { listRunway } from '@/lib/services/dream-team'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import RunwaySection from './runway-section'
+import SandmanPanel from './sandman-panel'
 import type { TenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
 import { PageHeader } from '@/components/ui/page-header'
@@ -90,6 +91,10 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         }))}
       />
       )}
+
+      {/* SANDMAN — the chief of staff, in conversation. Sits above the
+          roster: the team's face comes before its org chart. */}
+      <SandmanPanel clinicName={name} />
 
       {/* THE ROSTER — the staff you hired, with last week's real numbers. */}
       <TeamRoster

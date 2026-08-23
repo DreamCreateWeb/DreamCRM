@@ -69,7 +69,7 @@ export default function RunwaySection({ items }: { items: RunwayRowData[] }) {
   }
 
   return (
-    <section className="mt-8">
+    <section id="going-out-soon" className="mt-8 scroll-mt-24">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Going out soon</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400">

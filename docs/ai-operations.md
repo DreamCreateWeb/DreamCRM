@@ -261,3 +261,19 @@ commit → merge to main → verify deploy (same as the best-version program).
   staged lane never repeats the old "within the hour" false promise.
   Registry pins in spine/autonomy-service/proposals-service updated to the
   new defaults; new suites cover the slot math and the runway UI.
+- **2026-08-23 — D5**: SANDMAN v1 — the chief of staff, in conversation.
+  `lib/sandman.ts` (pure): the aggregates-only `SandmanSnapshot`, its
+  model-legible render, the prompt builder, the tolerant parser, and a CLOSED
+  action registry that is NAVIGATIONS BY CONSTRUCTION (every def is
+  {kind,label,href,when} — there is no mutation shape to abuse, so a misread
+  "email everyone" cannot fire). `lib/services/sandman.ts` builds the snapshot
+  from the clinic's own services with a per-read catch (an answer from the numbers
+  we could get beats an error, and a gap is REPORTED rather than rendered as a
+  zero we didn't measure), meters under `sandman_chat` (cap 300/mo, shared
+  ai_usage_counter), and degrades honestly when AI is off or the cap is hit.
+  The prompt's laws: correlation never dressed as cause, never discuss an
+  individual patient, never claim to have acted. `sandman-panel.tsx` is the
+  conversation on /dream-team (opening questions a front desk actually has,
+  last-6-turn history, suggestions render as LINKS resolved server-side from
+  the registry). Tests pin the privacy shape, the history clamp, the
+  invented-kind drop, and the panel's thread behaviour.
