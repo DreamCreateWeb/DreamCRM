@@ -133,6 +133,10 @@ vi.mock('@/lib/db', () => {
         // at all — the sibling harness had already documented this exact
         // hazard and fixed it, and this one never got the same treatment.
         guardianFirstSeenAt: col('guardianFirstSeenAt'),
+        // The Dream Team's heartbeat (0152) — same lesson as the line above:
+        // a column missing from this harness reads as `undefined` and the
+        // rule built on it cannot be tested at all.
+        dreamTeamCycleAt: col('dreamTeamCycleAt'),
       },
       actionLedger: {
         __name: 'action_ledger',
@@ -162,6 +166,7 @@ const NOW = new Date('2026-07-29T12:00:00Z')
 const OLD = new Date('2025-01-01T00:00:00Z')
 const DAY = 24 * 60 * 60 * 1000
 const old = (days: number) => new Date(NOW.getTime() - days * DAY)
+const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 3_600_000)
 
 function seedOrg(id: string, name: string, over: Record<string, unknown> = {}) {
   store.orgs.push({ id, name, type: 'clinic', isDemo: false, createdAt: old(200), ...over })
@@ -501,5 +506,37 @@ describe('the census accounts for every practice the sweep started with', () => 
     const sweep = await sweepEngineHealth(NOW)
     expect(sweep.blind).toBe(true)
     expect(sweep.census).toEqual({ eligible: 1, assessed: 0, unreadable: 1 })
+  })
+})
+
+describe('the heartbeat reaches the verdict (D16)', () => {
+  it('a clinic the pass has not reached in days is SILENT with the no_cycle cause', async () => {
+    // Busy ledger, nothing failing, both switches on — every other rule
+    // says healthy. Only the frozen stamp says otherwise, and it wins.
+    seedOrg('org_a', 'Ash Dental', { dreamTeamCycleAt: old(3) })
+    seedWork('org_a', 1, 20)
+    deps.switches.set('org_a', { remindersOn: true, reviewRequestsOn: true })
+    const out = await sweepEngineHealth(NOW)
+    expect(out.reports[0].verdict.state).toBe('silent')
+    expect(out.reports[0].verdict.cause).toBe('no_cycle')
+    expect(out.reports[0].signals.hoursSinceCycle).toBeGreaterThanOrEqual(24)
+  })
+
+  it('a fresh stamp leaves the other rules in charge', async () => {
+    seedOrg('org_b', 'Birch Dental', { dreamTeamCycleAt: hoursAgo(2) })
+    seedWork('org_b', 1, 20)
+    deps.switches.set('org_b', { remindersOn: true, reviewRequestsOn: true })
+    const out = await sweepEngineHealth(NOW)
+    expect(out.reports[0].verdict.cause).toBeNull()
+    expect(out.reports[0].verdict.state).not.toBe('silent')
+  })
+
+  it('an unstamped clinic reads NULL, and is judged exactly as it was before the column existed', async () => {
+    seedOrg('org_c', 'Cedar Dental')
+    seedWork('org_c', 1, 20)
+    deps.switches.set('org_c', { remindersOn: true, reviewRequestsOn: true })
+    const out = await sweepEngineHealth(NOW)
+    expect(out.reports[0].signals.hoursSinceCycle).toBeNull()
+    expect(out.reports[0].verdict.state).not.toBe('silent')
   })
 })

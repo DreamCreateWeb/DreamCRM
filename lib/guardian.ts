@@ -84,6 +84,18 @@ export interface EngineSignals {
    *  `PILEUP_COUNT` it appends a clause to the recommendation and leaves the
    *  state alone. */
   openProposals: number
+  /**
+   * Hours since the Dream Team's last CYCLE stamped for this clinic, or
+   * NULL when nothing has ever stamped.
+   *
+   * NULL IS NOT EVIDENCE. The column arrived in migration 0152, so every
+   * clinic reads null until their first pass after that deploy, and a
+   * brand-new practice reads null until their first hour. Treating an
+   * absent signal as a dead engine would have alarmed on the entire
+   * platform the morning the column shipped. A permanently dead engine is
+   * still caught — by the fourteen-empty-days rule that caught it before.
+   */
+  hoursSinceCycle: number | null
 }
 
 export interface EngineVerdict {
@@ -105,7 +117,7 @@ export interface EngineVerdict {
    * was the wrong half of the truth. Null when the state is its own whole
    * answer.
    */
-  cause: 'failures' | 'switches' | null
+  cause: 'failures' | 'switches' | 'no_cycle' | null
 }
 
 /** A clinic younger than this has no meaningful baseline to fall from. */
@@ -124,6 +136,24 @@ export const STALL_MIN_BASELINE = 4
  *  It never changes the STATE (the machine is working fine; the person is
  *  the one who went quiet), only what Dream Create should say about it. */
 export const PILEUP_COUNT = 8
+
+/**
+ * How long the Dream Team's heartbeat may go unstamped before it is an
+ * alarm (docs/ai-operations.md, D7d + D16).
+ *
+ * `clinic_profile.dream_team_cycle_at` is stamped at the END of every hourly
+ * generator pass for a clinic, whether or not the pass produced anything.
+ * A frozen stamp therefore means the ENGINE IS NOT REACHING THEM AT ALL —
+ * which is a different and far earlier fact than the `silent` rule's
+ * fourteen empty days, and today it is invisible for a fortnight.
+ *
+ * A FULL DAY, not an hour, for two reasons. The cron ticks hourly, so one
+ * missed tick is a deploy or a slow pass and never news. And this sweep runs
+ * once a day, so anything under 24h would fire or not fire depending on
+ * where the sweep landed relative to the last tick — an alarm whose meaning
+ * depends on the observer's clock is not an alarm.
+ */
+export const STALE_CYCLE_HOURS = 24
 
 /** The pile-up clause, appended to whatever the finding already recommends.
  *  Exported so the copy has one home and the tests read the real string. */
@@ -158,6 +188,36 @@ function switchClause(s: EngineSignals): string {
   if (!s.remindersOn) return ' Appointment reminders are switched off as well.'
   if (!s.reviewRequestsOn) return ' Automatic review requests are switched off as well.'
   return ''
+}
+
+/**
+ * THE HEARTBEAT STOPPED (D16). The most direct evidence this module has
+ * ever had: the generator driver stamps every clinic it reaches at the end
+ * of that clinic's pass, so a stamp older than a day means the engine is
+ * not reaching them — not that it tried and failed, and not that there was
+ * nothing to do.
+ *
+ * It stays with DREAM CREATE at every audience setting, and `silent` is
+ * already excluded from `clinicActionable`, so no extra guard is needed:
+ * a cron that isn't running is never a thing a practice can fix, and
+ * telling them would hand them alarm with no lever.
+ */
+function silentByStoppedHeartbeat(s: EngineSignals, hours: number): EngineVerdict {
+  const days = Math.floor(hours / 24)
+  const howLong =
+    days >= 1 ? `${days} ${days === 1 ? 'day' : 'days'}` : `${Math.floor(hours)} hours`
+  return {
+    state: 'silent',
+    headline: `The engine has not run for them in ${howLong}`,
+    // WHAT THIS IS AND IS NOT, because the two readings need different
+    // people. A failure is the machine trying and being stopped by
+    // something out at the edge (a token, a provider). This is the pass
+    // itself never arriving, which is ours and is upstream of everything.
+    why: `Their Dream Team stamps a heartbeat at the end of every hourly pass, and the last one was ${howLong} ago. That is not the machine failing at something — it is the pass not reaching them at all.`,
+    recommendation:
+      'Check the generate-proposals schedule and the last cron run before looking at anything clinic-side. If several practices show this at once, it is the job, not them.',
+    cause: 'no_cycle',
+  }
 }
 
 function blockedByFailures(s: EngineSignals): EngineVerdict {
@@ -229,7 +289,20 @@ function classify(s: EngineSignals): EngineVerdict {
   const brandNew = s.ageDays < NEW_CLINIC_GRACE_DAYS
   const bothOff = !s.remindersOn && !s.reviewRequestsOn
 
-  // BLOCKED BY FAILURES first, ahead of silence (round-1 audit). A clinic
+  // THE HEARTBEAT FIRST, ahead of everything (D16), on the same logic that
+  // put failures ahead of silence: lead with the fact that EXPLAINS the
+  // others. A clinic the pass never reaches produces no work (so the
+  // silence rule would fire, fourteen days late) and files no new failures
+  // (so the failure rule sees only stale ones). Both would send Dream
+  // Create hunting clinic-side for a cause that is entirely ours.
+  //
+  // NULL SAYS NOTHING. An unstamped clinic is one that predates the column
+  // or has not had its first pass — never evidence of a dead engine.
+  if (s.hoursSinceCycle !== null && s.hoursSinceCycle >= STALE_CYCLE_HOURS) {
+    return silentByStoppedHeartbeat(s, s.hoursSinceCycle)
+  }
+
+  // BLOCKED BY FAILURES next, ahead of silence (round-1 audit). A clinic
   // whose every attempt is failing has an EMPTY work ledger — failures are
   // not work — so the silence rule would fire and report "nothing has run",
   // which is both less true and less useful than "it tried and couldn't".

@@ -192,7 +192,10 @@ function alertBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): 
  * seconds, and one that reads like a second alarm undoes the good it does.
  */
 function standDownBody(report: ClinicEngineReport, memory: AlertMemory, now: Date): string {
-  const was = STATE_IN_WORDS[baseState(memory.state) as EngineState] ?? 'a problem'
+  const was =
+    (memory.state ? PROBLEM_IN_WORDS[memory.state] : undefined) ??
+    STATE_IN_WORDS[baseState(memory.state) as EngineState] ??
+    'a problem'
   const lines = [`${report.clinicName} is running normally again.`, '', `It was ${was}.`]
   if (memory.alertedAt) {
     const days = Math.max(1, Math.round((now.getTime() - memory.alertedAt.getTime()) / 86_400_000))
@@ -215,6 +218,17 @@ const STATE_IN_WORDS: Partial<Record<EngineState, string>> = {
   silent: 'showing nothing running at all',
   blocked: 'blocked — the machine could not act for them',
   stalled: 'showing new patients falling off',
+}
+
+/**
+ * A few problems are distinct enough that the STATE word gets the all-clear
+ * wrong (D16). `silent:no_cycle` is not "the ledger was empty" — it is "the
+ * hourly pass was not reaching them", which is a different thing to have
+ * been chasing and a different thing to hear is over. Keyed on the stored
+ * PROBLEM KEY, which already carries the cause, so nothing new is stored.
+ */
+const PROBLEM_IN_WORDS: Record<string, string> = {
+  'silent:no_cycle': 'showing the hourly pass never reaching them',
 }
 
 /**
@@ -788,3 +802,11 @@ async function recordHeartbeat(result: GuardianRunResult, now: Date): Promise<vo
     result.errors.push({ organizationId: '-', error: `heartbeat: ${(e as Error).message}` })
   }
 }
+
+/**
+ * Exported for tests — the two BODIES, which are pure string-building and
+ * the part most worth pinning. The sweep itself is exercised through
+ * `runGuardianSweep`; these are reachable only through a delivered email,
+ * which makes their exact wording expensive to assert any other way.
+ */
+export const __testables = { alertBody, standDownBody }

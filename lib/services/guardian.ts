@@ -384,7 +384,13 @@ async function ledgerCountsByOrg(
  *  promised was never built, and an export with no caller is a claim the
  *  code does not keep (round-2 audit). */
 async function assessClinic(
-  org: { id: string; name: string; createdAt: Date | null; guardianFirstSeenAt?: Date | null },
+  org: {
+    id: string
+    name: string
+    createdAt: Date | null
+    guardianFirstSeenAt?: Date | null
+    dreamTeamCycleAt?: Date | null
+  },
   windows: {
     weekStart: Date
     prevWeekStart: Date
@@ -433,6 +439,13 @@ async function assessClinic(
     seated30: seated30 ?? 0,
     seatedPrev30: seated30 === null || seatedPrev30 === null ? 0 : seatedPrev30,
     openProposals,
+    // THE HEARTBEAT (D16), read off the row the sweep already selected — no
+    // extra query for the fact that is upstream of every other one. Null
+    // when nothing has ever stamped, which says nothing rather than
+    // accusing a cron that may simply predate the column.
+    hoursSinceCycle: org.dreamTeamCycleAt
+      ? Math.max(0, (windows.now.getTime() - org.dreamTeamCycleAt.getTime()) / 3_600_000)
+      : null,
   }
   const verdict = assessEngine(signals)
   return {
@@ -493,6 +506,8 @@ export async function sweepEngineHealth(now: Date = new Date()): Promise<Guardia
       // Chronicity, read alongside everything else the org row already
       // carries — no extra query for the fact that matters most.
       guardianFirstSeenAt: schema.clinicProfile.guardianFirstSeenAt,
+      // The Dream Team's heartbeat (0152) — same row, no extra read.
+      dreamTeamCycleAt: schema.clinicProfile.dreamTeamCycleAt,
     })
     .from(schema.organization)
     .leftJoin(
@@ -647,6 +662,10 @@ const EMPTY_SIGNALS: EngineSignals = {
   seated30: 0,
   seatedPrev30: 0,
   openProposals: 0,
+  // NULL, deliberately: this re-derive exists to re-check SWITCHES against
+  // live state, and a heartbeat it did not read must not be able to swing
+  // the verdict to `silent` on the clinic's own card.
+  hoursSinceCycle: null,
 }
 
 export interface ActiveGuardianNote {

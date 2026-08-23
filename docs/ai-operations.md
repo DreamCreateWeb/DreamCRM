@@ -521,3 +521,34 @@ commit → merge to main → verify deploy (same as the best-version program).
   already sends any stored value that is no longer in the list to gray, so
   the swap degrades safely rather than throwing an undefined class at a chip.
   The guard's scope now includes both registries.
+- **2026-08-23 — D16**: THE GUARDIAN NOW WATCHES THE HEARTBEAT (closes open
+  item 5 of the certificate). Cycles was a report with one reader: if the
+  generator cron stopped reaching a clinic, the stamp froze, the band quietly
+  aged, and the only thing that would eventually notice was the `silent`
+  rule's FOURTEEN EMPTY DAYS. `EngineSignals.hoursSinceCycle` (read off the
+  row the sweep already selects — no extra query) now feeds a rule that reads
+  FIRST in `classify`, on the same logic that put failures ahead of silence:
+  lead with the fact that EXPLAINS the others. A clinic the pass never
+  reaches produces no work AND files no new failures, so both older rules
+  would have sent Dream Create hunting clinic-side for a cause that is
+  entirely ours.
+  Four things make it safe. **The sweep's eligibility set was already
+  exactly right** — it excludes demo orgs and billing-walled clinics, which
+  are the only two cases where a stale stamp is correct by design, so no new
+  filter was needed. **NULL says nothing**: the column shipped in 0152, so
+  every clinic reads null until their first pass after that deploy, and
+  reading absence as death would have alarmed on the whole platform that
+  morning; a permanently dead engine is still caught by the rule that caught
+  it before. **The threshold is a full day**, because the cron ticks hourly
+  (one missed tick is a deploy) and the sweep runs daily (anything under 24h
+  would fire or not depending on where the sweep landed relative to the last
+  tick — an alarm whose meaning depends on the observer's clock is not an
+  alarm). And it stays with **Dream Create at every audience setting**:
+  `silent` is already excluded from `clinicActionable`, because a cron that
+  is not running is never a thing a practice can fix.
+  The new `cause: 'no_cycle'` rides the existing `problemKey` machinery, so
+  a clinic moving between ordinary silence and a stopped pass reads as news
+  rather than "the same problem" — and the all-clear got a `PROBLEM_IN_WORDS`
+  lookup so a recovery says "the hourly pass never reaching them" instead of
+  the state word, which would have described the wrong thing the owner had
+  been chasing.

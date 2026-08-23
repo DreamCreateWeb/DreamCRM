@@ -145,7 +145,7 @@ vi.mock('drizzle-orm', () => ({
   eq: (c: { __col: string }, v: unknown) => (r: Record<string, unknown>) => r[c.__col] === v,
 }))
 
-import { runGuardianSweep } from '@/lib/services/guardian-alerts'
+import { runGuardianSweep, __testables } from '@/lib/services/guardian-alerts'
 import { assessEngine, RE_ALERT_DAYS, STAND_DOWN_DWELL_DAYS } from '@/lib/guardian'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
@@ -164,6 +164,9 @@ const SIGNALS = {
   seated30: 3,
   seatedPrev30: 12,
   openProposals: 0,
+  // The pass is reaching this fixture — these cases are about the ALERT
+  // cadence, not about a stopped engine.
+  hoursSinceCycle: 1,
 }
 
 /**
@@ -967,5 +970,32 @@ describe('the owner reads the owner’s language', () => {
     expect(body).toContain('Publish social & Google posts')
     // The clinic-addressed second person must never reach this inbox.
     expect(body).not.toMatch(/you.d handed|back with you|bring you/i)
+  })
+})
+
+describe('the all-clear names the PROBLEM, not just the state (D16)', () => {
+  it('a recovered stopped-heartbeat reads as the pass reaching them again', () => {
+    // 'silent' alone would say "showing nothing running at all", which is
+    // what the owner was chasing for ORDINARY silence — a different thing
+    // to have been chasing and a different thing to hear is over.
+    const body = __testables.standDownBody(
+      { ...report('org_a', 'Ash Dental', 'healthy'), troubleForDays: null } as unknown as Parameters<
+        typeof __testables.standDownBody
+      >[0],
+      { state: 'silent:no_cycle', alertedAt: new Date('2026-07-20T12:00:00Z'), firstSeenAt: null },
+      new Date('2026-07-29T12:00:00Z'),
+    )
+    expect(body).toContain('the hourly pass never reaching them')
+  })
+
+  it('an ordinary silent recovery keeps its own words', () => {
+    const body = __testables.standDownBody(
+      { ...report('org_a', 'Ash Dental', 'healthy'), troubleForDays: null } as unknown as Parameters<
+        typeof __testables.standDownBody
+      >[0],
+      { state: 'silent', alertedAt: new Date('2026-07-20T12:00:00Z'), firstSeenAt: null },
+      new Date('2026-07-29T12:00:00Z'),
+    )
+    expect(body).toContain('showing nothing running at all')
   })
 })

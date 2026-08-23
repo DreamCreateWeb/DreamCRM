@@ -25,6 +25,7 @@ import {
   PILEUP_COUNT,
   RE_ALERT_DAYS,
   STALL_MIN_BASELINE,
+  STALE_CYCLE_HOURS,
   type AlertMemory,
   type EngineSignals,
   type EngineState,
@@ -48,6 +49,9 @@ const HEALTHY: EngineSignals = {
   seated30: 9,
   seatedPrev30: 8,
   openProposals: 1,
+  // A HEALTHY baseline is one the pass is reaching. Explicit rather than
+  // null so the heartbeat rule is exercised by the fixtures that mean to.
+  hoursSinceCycle: 1
 }
 const sig = (over: Partial<EngineSignals> = {}): EngineSignals => ({ ...HEALTHY, ...over })
 
@@ -888,5 +892,76 @@ describe('clinicRecoveryNote — the practice hears the close too (open item #4)
       expect(note).not.toMatch(/\d/)
       expect(note).not.toMatch(/\b(should|need to|please|make sure)\b/i)
     }
+  })
+})
+
+describe('THE HEARTBEAT STOPPED (D16) — the engine not reaching a clinic at all', () => {
+  it('a stamp older than a day is SILENT, with its own cause', () => {
+    const v = assessEngine(sig({ hoursSinceCycle: 30 }))
+    expect(v.state).toBe('silent')
+    expect(v.cause).toBe('no_cycle')
+    expect(v.headline).toMatch(/has not run for them in 1 day/)
+  })
+
+  it('reads FIRST — it explains the silence and the stale failures, not the other way round', () => {
+    // Every other alarm is lit at once. The verdict must still name the pass
+    // that never arrived, because that is the fact upstream of all of them.
+    const v = assessEngine(
+      sig({
+        hoursSinceCycle: 72,
+        failures7: 5,
+        actions7: 0,
+        actionsPrev7: 0,
+        remindersOn: false,
+        reviewRequestsOn: false,
+      }),
+    )
+    expect(v.cause).toBe('no_cycle')
+    expect(v.recommendation).toMatch(/generate-proposals schedule/)
+  })
+
+  it('a FRESH stamp changes nothing — the other rules still decide', () => {
+    expect(assessEngine(sig({ hoursSinceCycle: 1 })).state).toBe('healthy')
+    expect(assessEngine(sig({ hoursSinceCycle: 23, failures7: 4 })).cause).toBe('failures')
+  })
+
+  it('NULL says nothing at all — an unstamped clinic is not a dead engine', () => {
+    // The column shipped in 0152; every clinic read null until their first
+    // pass after that deploy. Reading absence as death would have alarmed on
+    // the whole platform that morning.
+    expect(assessEngine(sig({ hoursSinceCycle: null })).state).toBe('healthy')
+    const quiet = assessEngine(sig({ hoursSinceCycle: null, actions7: 0, actionsPrev7: 0 }))
+    expect(quiet.state).toBe('silent')
+    // …and it is the FOURTEEN-DAYS silence, not the heartbeat one.
+    expect(quiet.cause).toBeNull()
+  })
+
+  it('the threshold is a full day, so one missed hourly tick is never news', () => {
+    expect(assessEngine(sig({ hoursSinceCycle: STALE_CYCLE_HOURS - 1 })).cause).toBeNull()
+    expect(assessEngine(sig({ hoursSinceCycle: STALE_CYCLE_HOURS })).cause).toBe('no_cycle')
+  })
+
+  it('says hours while it is still under a day past the line, and days after', () => {
+    expect(assessEngine(sig({ hoursSinceCycle: 26 })).headline).toMatch(/1 day/)
+    expect(assessEngine(sig({ hoursSinceCycle: 100 })).headline).toMatch(/4 days/)
+  })
+
+  it('stays with Dream Create — a cron that is not running is never the practice’s to fix', () => {
+    const s = sig({ hoursSinceCycle: 40 })
+    expect(clinicActionable(assessEngine(s).state, s)).toBe(false)
+    expect(clinicNote(assessEngine(s).state, s)).toBeNull()
+  })
+
+  it('is a DIFFERENT problem from ordinary silence, so a clinic moving between them is news', () => {
+    const stopped = assessEngine(sig({ hoursSinceCycle: 40 }))
+    const empty = assessEngine(sig({ hoursSinceCycle: null, actions7: 0, actionsPrev7: 0 }))
+    expect(problemKey(stopped)).not.toBe(problemKey(empty))
+    expect(baseState(problemKey(stopped))).toBe('silent')
+  })
+
+  it('names it as OURS rather than sending anyone hunting clinic-side', () => {
+    const v = assessEngine(sig({ hoursSinceCycle: 40 }))
+    expect(v.why).toMatch(/not reaching them|not the machine failing/i)
+    expect(v.recommendation).toMatch(/it is the job, not them/)
   })
 })
