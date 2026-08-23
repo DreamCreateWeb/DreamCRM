@@ -35,8 +35,13 @@ describe('the Dream Team status band', () => {
   })
 
   it('says a calm desk plainly when nothing waits and nothing is queued', () => {
-    render(band())
+    render(band({ lastCycle: 'an hour ago' }))
     expect(screen.getByText('Nothing needs you right now.')).toBeTruthy()
+  })
+
+  it('a FIRST visit says the team is settling in — "nothing needs you" would read as an empty page', () => {
+    render(band())
+    expect(screen.getByText('Your team is settling in — nothing has needed you yet.')).toBeTruthy()
   })
 
   it('reports queued work when the desk is clear but the runway is not', () => {

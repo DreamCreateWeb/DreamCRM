@@ -93,10 +93,15 @@ export default function TeamStatusBand({
         : `${waiting} things are finished and waiting on you.`
       : staged > 0
         ? 'Nothing needs you — work is queued and going out.'
-        : 'Nothing needs you right now.'
+        : // A FIRST VISIT is not the same fact as a calm desk. "Nothing
+          // needs you right now" is true on day one and reads as "this page
+          // is empty" — the wrong first impression of the whole product.
+          lastCycle === null
+          ? 'Your team is settling in — nothing has needed you yet.'
+          : 'Nothing needs you right now.'
 
   return (
-    <section className="relative mb-6 overflow-hidden rounded-[var(--r-lg)] bg-[linear-gradient(105deg,rgb(76_125_240/.08),rgb(20_184_166/.06)_55%,transparent)] px-5 py-5 sm:px-6">
+    <section aria-label="How the team is doing" className="relative mb-6 overflow-hidden rounded-[var(--r-lg)] bg-[linear-gradient(105deg,rgb(76_125_240/.08),rgb(20_184_166/.06)_55%,transparent)] px-5 py-5 sm:px-6">
       {/* Decorative bubbles — chrome-zone only, pointer-events off. */}
       <span
         aria-hidden="true"
@@ -119,7 +124,7 @@ export default function TeamStatusBand({
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-300">
               <span
                 aria-hidden="true"
-                className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse"
               />
               On the clock
               <span className="font-normal normal-case tracking-normal text-gray-500 dark:text-gray-400">

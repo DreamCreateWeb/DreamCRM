@@ -410,3 +410,15 @@ commit → merge to main → verify deploy (same as the best-version program).
   not a repeatable offer), the caption states the draft-only law where the
   finger is, and a success refreshes the page so the card the person just
   asked for is actually there.
+- **2026-08-23 — D9**: THE FIRST VISIT, and the small honesties. (1) "Nothing
+  needs you right now" is TRUE on day one and reads as "this page is empty" —
+  the wrong first impression of the flagship surface. When no cycle has run
+  yet the band says the team is settling in instead, and the calm-desk card
+  points at the roster ("Meet the team ↓"), because the first thing a new
+  practice should see is who they hired. (2) The band's live dot runs
+  FOREVER, unlike a transient loading pulse, so it is the one animation here
+  that needs `motion-safe`. (3) The band is a landmark and now has a name for
+  anyone navigating by region. (4) The roster's "waiting on you" pill states
+  a fact about work that is elsewhere ON THIS PAGE — making it a link is not
+  a switch (the roster stays a report), it is the difference between naming a
+  thing and being able to reach it.

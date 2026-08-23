@@ -30,7 +30,7 @@ function laneMode(capability: string, granted: ReadonlySet<string>): 'auto' | 'a
 
 export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingCapabilities }: RosterInput) {
   return (
-    <section className="mt-10">
+    <section id="the-team" className="mt-10 scroll-mt-24">
       <SectionHeading
         title="The team"
         hint="On the clock around the clock — last week’s numbers are what they actually did."
@@ -59,11 +59,16 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">{s.name}</h3>
                     {waiting > 0 && (
-                      <StatusPill
-                        tone="warn"
-                        label={waiting === 1 ? '1 waiting on you' : `${waiting} waiting on you`}
+                      <a
+                        href="#sign-here"
+                        className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2"
                         title="This teammate has finished work in the stack above"
-                      />
+                      >
+                        <StatusPill
+                          tone="warn"
+                          label={waiting === 1 ? '1 waiting on you' : `${waiting} waiting on you`}
+                        />
+                      </a>
                     )}
                   </div>
                   <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">

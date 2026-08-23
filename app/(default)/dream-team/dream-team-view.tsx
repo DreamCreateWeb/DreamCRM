@@ -112,6 +112,12 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
             They watch your reviews, inquiries, schedule, and content around the clock. Work that
             needs your sign-off lands here as a finished draft; the rest gets handled and reported.
           </p>
+          <a
+            href="#the-team"
+            className="mt-3 inline-block text-xs font-semibold text-teal-700 hover:underline dark:text-teal-300"
+          >
+            Meet the team ↓
+          </a>
         </div>
       )}
 
