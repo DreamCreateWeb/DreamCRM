@@ -2548,6 +2548,16 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     // The Dream Team's goal — the team has somewhere to aim in the demo.
     await seedDemoGoal(existing.id)
 
+    // CYCLES (D7d): the demo org is excluded from every cron, so its
+    // heartbeat would read "first cycle hasn't run yet" forever — a true
+    // sentence about the demo that tells a lie about the product. Stamped
+    // ~20 minutes back on each resync (which runs on every deploy/boot), so
+    // the Dream Team page shows the live state a real clinic sees.
+    await db
+      .update(schema.clinicProfile)
+      .set({ dreamTeamCycleAt: new Date(Date.now() - 20 * 60 * 1000) })
+      .where(eq(schema.clinicProfile.organizationId, existing.id))
+
     // Patient-portal family self-heal: Lily (Emma's dependent) + her upcoming
     // cleaning, so Family access demos on legacy seeds too. Idempotent.
     await seedDemoFamilyForOrg(existing.id, new Date())

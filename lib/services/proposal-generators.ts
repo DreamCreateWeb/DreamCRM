@@ -406,6 +406,19 @@ export async function runProposalGenerators(now: Date = new Date()): Promise<Gen
     }
     // One honest strike for this clinic, whatever broke and however.
     await flushFailures(org.id)
+    // CYCLES (D7d): the heartbeat, stamped whether or not this pass
+    // produced anything — a quiet cycle is still a cycle, and the Dream
+    // Team page's "on the clock" line is only honest if it can point at a
+    // real one. Best-effort: nothing branches on this, so a failed stamp
+    // costs a sentence and never a piece of work.
+    try {
+      await db
+        .update(schema.clinicProfile)
+        .set({ dreamTeamCycleAt: now })
+        .where(eq(schema.clinicProfile.organizationId, org.id))
+    } catch {
+      /* a report, not a rail */
+    }
   }
   await recordEngineRun(result, now)
   return result

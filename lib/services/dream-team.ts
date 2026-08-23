@@ -167,3 +167,22 @@ export async function countRunway(organizationId: string, now: Date = new Date()
     return 0
   }
 }
+
+/**
+ * CYCLES (D7d): when this clinic's team last ran a pass. Null when no pass
+ * has stamped yet (a brand-new clinic) or when the read fails — the caller
+ * treats both the same way, because "we don't know" and "it hasn't happened"
+ * are equally not a claim that it did.
+ */
+export async function getLastCycleAt(organizationId: string): Promise<Date | null> {
+  try {
+    const [row] = await db
+      .select({ at: schema.clinicProfile.dreamTeamCycleAt })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    return row?.at ?? null
+  } catch {
+    return null
+  }
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { nextRunwaySlot, RUNWAY_MIN_HOURS, RUNWAY_SEND_HOUR } from '@/lib/dream-team-runway'
-import { expiryDayLabel } from '@/lib/types/dream-team'
+import { expiryDayLabel, cycleLabel } from '@/lib/types/dream-team'
 
 /**
  * THE VETO RUNWAY's math (docs/ai-operations.md, D4). The slot must always
@@ -78,5 +78,29 @@ describe('expiryDayLabel — the tone dot, in words', () => {
   it('crosses a month and a year boundary by real days, not by digits', () => {
     expect(expiryDayLabel('2026-08-31', '2026-09-01')).toBe('Retires tomorrow')
     expect(expiryDayLabel('2026-12-31', '2027-01-02')).toBe('Retires in 2 days')
+  })
+})
+
+describe('cycleLabel — the heartbeat in words', () => {
+  const now = new Date('2026-08-23T12:00:00Z')
+  const ago = (mins: number) => new Date(now.getTime() - mins * 60_000)
+
+  it('reads coarsely, because the pass is hourly', () => {
+    expect(cycleLabel(ago(0), now)).toBe('just now')
+    expect(cycleLabel(ago(1), now)).toBe('just now')
+    expect(cycleLabel(ago(12), now)).toBe('12 minutes ago')
+    expect(cycleLabel(ago(60), now)).toBe('an hour ago')
+    expect(cycleLabel(ago(200), now)).toBe('3 hours ago')
+    expect(cycleLabel(ago(60 * 30), now)).toBe('yesterday')
+    expect(cycleLabel(ago(60 * 24 * 4), now)).toBe('4 days ago')
+  })
+
+  it('never renders arithmetic at a person — a future stamp reads as just now', () => {
+    expect(cycleLabel(new Date(now.getTime() + 5 * 60_000), now)).toBe('just now')
+  })
+
+  it('says nothing at all when no pass has stamped yet', () => {
+    expect(cycleLabel(null, now)).toBeNull()
+    expect(cycleLabel(undefined, now)).toBeNull()
   })
 })

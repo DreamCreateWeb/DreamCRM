@@ -371,3 +371,20 @@ commit → merge to main → verify deploy (same as the best-version program).
   focus, never its existence. (3) The loading skeleton now matches the page
   it precedes, band included; a skeleton that doesn't is a small lie the
   layout tells right before it jumps.
+- **2026-08-23 — D7d**: CYCLES — the heartbeat, by its owner-given name.
+  "The team is on the clock" was decoration until a person could see the
+  clock ticking. Migration 0152 adds `clinic_profile.dream_team_cycle_at`,
+  stamped at the END of every hourly generator pass for that clinic —
+  whether or not the pass produced anything, because a quiet cycle is still
+  a cycle. Best-effort by construction and nothing branches on it: a failed
+  stamp costs a sentence, never a piece of work. Pure `cycleLabel` reads it
+  COARSELY (the pass is hourly, so minute-precision would imply a resolution
+  the machine doesn't have), returns "just now" for a future stamp rather
+  than rendering negative arithmetic at a person, and returns null with no
+  stamp — where the band says the first cycle hasn't run yet instead of
+  implying one has. The wording deliberately avoids "within the hour",
+  which the granted-card copy owns and the send-window test asserts absent.
+  The demo org is excluded from every cron, so its heartbeat would read
+  "hasn't run yet" forever — a true sentence about the demo that tells a lie
+  about the product — and the resync stamps it ~20 minutes back on every
+  deploy.

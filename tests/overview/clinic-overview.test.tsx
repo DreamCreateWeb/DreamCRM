@@ -131,6 +131,9 @@ vi.mock('@/lib/services/clinic-timezone', () => ({
 vi.mock('@/lib/services/dream-team', () => ({
   countRunway: vi.fn(async () => 0),
   listRunway: vi.fn(async () => []),
+  // CYCLES (D7d): no stamp by default — the band then says the first cycle
+  // hasn't run yet, which is the honest state for a fresh clinic.
+  getLastCycleAt: vi.fn(async () => null),
 }))
 // Goals (D6): none by default — the dedicated suite covers the populated
 // states. Mocked here so the Dream Team renders never reach a database.

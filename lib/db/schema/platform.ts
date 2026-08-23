@@ -174,6 +174,17 @@ export const clinicProfile = pgTable('clinic_profile', {
    */
   guardianClinicState: text('guardian_clinic_state'),
   guardianClinicAlertedAt: timestamp('guardian_clinic_alerted_at'),
+  /**
+   * THE DREAM TEAM's HEARTBEAT — "Cycles" (docs/ai-operations.md, D7d;
+   * the owner named it after sleep cycles).
+   *
+   * Stamped at the END of every hourly generator pass for this clinic,
+   * whether or not the pass produced anything: a quiet cycle is still a
+   * cycle, and the whole point is to make "the team is on the clock"
+   * VERIFIABLE rather than decorative. Nothing branches on it — it is a
+   * report, so a missed stamp costs a sentence, never any work.
+   */
+  dreamTeamCycleAt: timestamp('dream_team_cycle_at'),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

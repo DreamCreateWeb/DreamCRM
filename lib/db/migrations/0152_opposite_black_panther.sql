@@ -1,0 +1,1 @@
+ALTER TABLE "clinic_profile" ADD COLUMN "dream_team_cycle_at" timestamp;

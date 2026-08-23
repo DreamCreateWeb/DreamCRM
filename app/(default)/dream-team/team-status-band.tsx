@@ -32,6 +32,10 @@ export interface TeamStatusBandData {
   weekLabel: string | null
   /** Goals currently pointing the team somewhere. */
   activeGoals: number
+  /** CYCLES (D7d): how long ago the last pass ran, already in words. Null
+   *  when no pass has stamped yet — the band says so rather than implying
+   *  one happened. */
+  lastCycle?: string | null
 }
 
 function Stat({
@@ -80,6 +84,7 @@ export default function TeamStatusBand({
   handledLastWeek,
   weekLabel,
   activeGoals,
+  lastCycle = null,
 }: TeamStatusBandData) {
   const headline =
     waiting > 0
@@ -117,6 +122,11 @@ export default function TeamStatusBand({
                 className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
               />
               On the clock
+              <span className="font-normal normal-case tracking-normal text-gray-500 dark:text-gray-400">
+                {/* The name has to earn itself: "on the clock" is decoration
+                    until a person can see the clock ticking. */}
+                {lastCycle ? `· last cycle ${lastCycle}` : '· first cycle hasn’t run yet'}
+              </span>
             </p>
             <p className="mt-1 text-base font-bold tracking-tight text-gray-900 dark:text-gray-100">
               {headline}

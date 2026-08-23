@@ -56,6 +56,30 @@ export function expiryDayLabel(todayKey: string, expiryKey: string | null): stri
 }
 
 /**
+ * "CYCLES" (D7d) — how long ago the team last ran, in plain words.
+ *
+ * The owner named the heartbeat after sleep cycles, and the name has to
+ * earn itself: "on the clock" is decoration until a person can see the
+ * clock ticking. Coarse on purpose (the pass is hourly, so minute-precision
+ * would imply a resolution the machine does not have), and null when there
+ * is no stamp yet — the caller says "first cycle within the hour", which is
+ * the truth for a clinic whose first pass has not run.
+ */
+export function cycleLabel(cycleAt: Date | null | undefined, now: Date = new Date()): string | null {
+  if (!cycleAt) return null
+  const mins = Math.floor((now.getTime() - cycleAt.getTime()) / 60_000)
+  // A clock skew or a stamp from the future reads as "just now" rather than
+  // "in -3 minutes" — a report must never render arithmetic at a person.
+  if (mins < 2) return 'just now'
+  if (mins < 60) return `${mins} minutes ago`
+  const hours = Math.floor(mins / 60)
+  if (hours === 1) return 'an hour ago'
+  if (hours < 24) return `${hours} hours ago`
+  const days = Math.floor(hours / 24)
+  return days === 1 ? 'yesterday' : `${days} days ago`
+}
+
+/**
  * THE ROSTER (D3): the presentational grouping of every registered
  * capability into the specialists a clinic meets on /dream-team. Purely a
  * lens over lib/autonomy's CAPABILITIES — membership here changes nothing

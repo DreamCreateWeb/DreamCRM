@@ -1,6 +1,6 @@
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { buildWeeklyStandup } from '@/lib/services/standup'
-import { listRunway } from '@/lib/services/dream-team'
+import { listRunway, getLastCycleAt } from '@/lib/services/dream-team'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import RunwaySection from './runway-section'
 import SandmanPanel from './sandman-panel'
@@ -9,6 +9,7 @@ import { listGoals, seatedSince } from '@/lib/services/goals'
 import { goalProgressLine } from '@/lib/goals'
 import type { TenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
+import { cycleLabel } from '@/lib/types/dream-team'
 import { PageHeader } from '@/components/ui/page-header'
 import ApprovalInbox from '../dashboard/approval-inbox'
 import TeamRoster from './team-roster'
@@ -26,12 +27,14 @@ import { loadApprovalInbox } from './load'
  * whole-DOM suite can render it directly with mocked services.
  */
 export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
-  const [timeZone, demoSkin, standup] = await Promise.all([
+  const [timeZone, demoSkin, standup, lastCycleAt] = await Promise.all([
     getClinicTimeZone(ctx.organizationId).catch(() => 'America/New_York'),
     readDemoSkin(ctx),
     // The roster's last-week numbers ride the standup's per-capability
     // counts — real ledger work, the same window the Monday email reports.
     buildWeeklyStandup(ctx.organizationId).catch(() => null),
+    // CYCLES (D7d) — the heartbeat, so "on the clock" points at a real one.
+    getLastCycleAt(ctx.organizationId),
   ])
   // The veto runway (D4) — best-effort like every other read on this page.
   const runway = await listRunway(ctx.organizationId).catch(() => [])
@@ -81,6 +84,7 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         handledLastWeek={standup?.totalActions ?? 0}
         weekLabel={standup?.weekLabel ?? null}
         activeGoals={goalCards.filter((g) => g.status === 'active').length}
+        lastCycle={cycleLabel(lastCycleAt)}
       />
 
       <div id="sign-here" className="scroll-mt-24">

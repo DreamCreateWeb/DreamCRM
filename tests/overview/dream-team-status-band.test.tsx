@@ -70,6 +70,16 @@ describe('the Dream Team status band', () => {
     expect(screen.getByText('handled last week')).toBeTruthy()
   })
 
+  it('shows the heartbeat by name — "on the clock" is decoration without it', () => {
+    render(band({ lastCycle: '12 minutes ago' }))
+    expect(screen.getByText('· last cycle 12 minutes ago')).toBeTruthy()
+  })
+
+  it('says the first cycle is coming rather than implying one already ran', () => {
+    render(band())
+    expect(screen.getByText('· first cycle hasn’t run yet')).toBeTruthy()
+  })
+
   it('tells a practice with no goals how to point the team, and reports the count when they have', () => {
     const { unmount } = render(band())
     expect(screen.getByText(/Tell them what you want more of/)).toBeTruthy()
