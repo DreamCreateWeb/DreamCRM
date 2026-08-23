@@ -215,3 +215,15 @@ commit → merge to main → verify deploy (same as the best-version program).
 
 - **2026-08-23 — D1**: spec written; doc-set table + POST-1.0 + RELEASE
   notes wired.
+- **2026-08-23 — D2**: the Dream Team page ships and the Approval Inbox
+  moves home. New: `/dream-team` (sidebar Daily entry, moon icon; the
+  proposals badge re-points to it), `dream-team-view.tsx` (ctx-taking, the
+  clinic-overview testability pattern), `load.ts` (the Phase-2 assembly
+  moved WHOLE from clinic-overview — every audited law intact), a
+  sign-here-shaped loading skeleton, and the Overview's SUMMONS STRIP
+  (`dashboard/dream-team-strip.tsx`: one calm linked row — count, capability
+  chips w/ expiry dots, renders NOTHING when quiet). `CAPABILITY_ICON` +
+  `expiryTone` single-home in `lib/types/dream-team.ts` (inbox re-exports
+  for test compat). Overview's proposal read slims to the strip's needs;
+  My Day's waiting-tile + the daily digest deep-link to /dream-team. The
+  three inbox test suites re-pointed at DreamTeamView; new strip suite.

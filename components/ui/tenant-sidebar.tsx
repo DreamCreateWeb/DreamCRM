@@ -49,9 +49,10 @@ const BADGE_FOR_MODULE: Record<string, keyof NavBadgeCounts> = {
   followups: 'followups',
   appointments: 'appointments',
   reviews: 'reviews',
-  // The Approval Inbox lives on the Overview — the badge is how a front
-  // desk that lives in /messages learns work is waiting on their yes.
-  overview: 'proposals',
+  // The Approval Inbox lives on the Dream Team page (docs/ai-operations.md,
+  // D2) — the badge is how a front desk that lives in /messages learns work
+  // is waiting on their yes.
+  dream_team: 'proposals',
 }
 
 const BADGE_POLL_MS = 60_000

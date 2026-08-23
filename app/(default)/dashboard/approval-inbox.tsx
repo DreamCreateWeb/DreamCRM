@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation'
 import { FlashToast } from '@/components/ui/flash-toast'
 import { ActionButton } from '@/components/ui/action-button'
 import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
-import { TONE_DOT, type Tone } from '@/lib/ui/encodings'
+import { TONE_DOT } from '@/lib/ui/encodings'
+import { CAPABILITY_ICON, expiryTone } from '@/lib/types/dream-team'
+
+// Single-homed in lib/types/dream-team (the summons strip shares them);
+// re-exported here so the whole-DOM suite's imports keep working.
+export { expiryTone } from '@/lib/types/dream-team'
 import { SMS_ENTITY_TYPES } from '@/lib/sms-registration'
 import { approveProposalAction, declineProposalAction, setAutonomyAction } from './actions'
 import { uploadFileWithProgress, UploadCancelledError } from '@/lib/upload-with-progress'
@@ -87,20 +92,6 @@ export interface ProposalCardData {
   expiresAt?: Date | null
 }
 
-const CAPABILITY_ICON: Record<string, string> = {
-  review_reply: '⭐',
-  social_post: '📣',
-  inquiry_response: '💬',
-  outreach_campaign: '💌',
-  gbp_website_fix: '📍',
-  setup_hours: '🕒',
-  setup_chairs: '🪑',
-  setup_booking_mode: '📅',
-  setup_texting: '💬',
-  content_plan: '🗂️',
-  schedule_gap: '🌤️',
-}
-
 /** Substitute the campaign merge tokens with a readable sample so the card
  *  shows what a patient will actually receive. Pure; pinned by tests. */
 export function renderTokenSample(text: string): string {
@@ -110,17 +101,6 @@ export function renderTokenSample(text: string): string {
 }
 
 const HAS_TOKENS = /\{\{(firstName|bookingUrl)\}\}/
-
-/** The queue rail's urgency dot: a card about to retire itself deserves a
- *  quiet tone mark (never the brand hue — tones carry meaning). Pure;
- *  exported for tests. */
-export function expiryTone(expiresAt: Date | null | undefined, now: Date = new Date()): Tone | null {
-  if (!expiresAt) return null
-  const ms = expiresAt.getTime() - now.getTime()
-  if (ms <= 24 * 60 * 60 * 1000) return 'urgent'
-  if (ms <= 72 * 60 * 60 * 1000) return 'warn'
-  return null
-}
 
 /** How many of a capability's autonomous entries the strip names before it
  *  clamps and says how many it is holding back. Generous on purpose: the

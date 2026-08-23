@@ -102,6 +102,11 @@ vi.mock('@/app/(default)/dashboard/actions', () => ({
   setAutonomyAction: mockSetAutonomyAction,
 }))
 vi.mock('@/lib/services/standup', () => ({ buildWeeklyStandup: mockBuildStandup }))
+// The Dream Team page (the inbox's home since D2) resolves the clinic tz
+// itself — pinned so waits-for-morning copy is deterministic here too.
+vi.mock('@/lib/services/clinic-timezone', () => ({
+  getClinicTimeZone: vi.fn(async () => 'America/New_York'),
+}))
 // The inbox's client cards call useRouter().refresh() after a decision.
 vi.mock('next/navigation', async (orig) => ({
   ...(await orig()),
@@ -109,6 +114,7 @@ vi.mock('next/navigation', async (orig) => ({
 }))
 
 import ClinicOverview from '@/app/(default)/dashboard/clinic-overview'
+import DreamTeamView from '@/app/(default)/dream-team/dream-team-view'
 import { expiryTone } from '@/app/(default)/dashboard/approval-inbox'
 import type { TenantContext } from '@/lib/auth/context'
 import type { ClinicOverviewData } from '@/lib/services/clinic-overview'
@@ -767,7 +773,7 @@ describe('website-health banner', () => {
 })
 
 // ── Phase 2: the Approval Inbox + the weekly standup card ────────────────────
-describe('the Approval Inbox on the Overview', () => {
+describe('the Approval Inbox on the Dream Team page', () => {
   it('renders finished work with the big Approve button and the editable draft', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([
@@ -799,7 +805,7 @@ describe('the Approval Inbox on the Overview', () => {
         expiresAt: null,
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText('Waiting on your yes')).toBeInTheDocument()
     expect(screen.getByText('Reply to Rob’s 2-star Google review')).toBeInTheDocument()
@@ -849,7 +855,7 @@ describe('the Approval Inbox on the Overview', () => {
         expiresAt: null,
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     fireEvent.click(screen.getByRole('button', { name: /edit first/i }))
     fireEvent.change(screen.getByLabelText('Edit the email subject'), { target: { value: '   ' } })
@@ -878,7 +884,7 @@ describe('the Approval Inbox on the Overview', () => {
         expiresAt: null,
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/Asked about/)).toBeInTheDocument()
     expect(screen.getByText('next Tuesday morning')).toBeInTheDocument()
@@ -909,7 +915,7 @@ describe('the Approval Inbox on the Overview', () => {
         expiresAt: null,
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/posts to Google Business, Instagram/)).toBeInTheDocument()
   })
@@ -931,14 +937,14 @@ describe('the Approval Inbox on the Overview', () => {
       },
     ])
     mockCountOpenProposals.mockResolvedValueOnce(15)
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/Showing 1 of 15/)).toBeInTheDocument()
   })
 
   it('renders nothing when the inbox is empty — no empty-state chrome to operate', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText('Waiting on your yes')).not.toBeInTheDocument()
   })
@@ -961,7 +967,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
   it('offers the hand-over on a grantable card — NEVER pre-ticked, and granting only rides a SUCCESSFUL approve', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     const box = screen.getByRole('checkbox', { name: /handle these for me on your own/i })
     expect(box).not.toBeChecked() // nothing grants itself autonomy
@@ -975,7 +981,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
   it('ticking the box + approving hands the job over — after the work went out', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     fireEvent.click(screen.getByRole('checkbox', { name: /handle these for me on your own/i }))
     fireEvent.click(screen.getByRole('button', { name: /approve — send it/i }))
@@ -990,7 +996,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockApproveAction.mockResolvedValueOnce({ ok: false, error: 'Google said no' } as never)
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     fireEvent.click(screen.getByRole('checkbox', { name: /handle these for me on your own/i }))
     fireEvent.click(screen.getByRole('button', { name: /approve — send it/i }))
@@ -1003,7 +1009,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
     mockUneditedRun.mockResolvedValueOnce(4)
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/said yes to the last 4 of these without changing a word/i)).toBeInTheDocument()
   })
@@ -1012,7 +1018,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
     mockUneditedRun.mockResolvedValueOnce(2)
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText(/without changing a word/i)).not.toBeInTheDocument()
   })
@@ -1024,7 +1030,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
       { capability: 'social_post', label: 'Publish social & Google posts', level: 'ask' },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/goes out on its own within the hour/i)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /handle these for me on your own/i })).toBeNull()
@@ -1036,7 +1042,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/I handle these on my own now/i)).toBeInTheDocument()
     expect(screen.getByText('Reply to Google reviews')).toBeInTheDocument()
@@ -1052,7 +1058,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     fireEvent.click(
       screen.getByRole('button', { name: /go back to asking before Reply to Google reviews/i }),
@@ -1088,7 +1094,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         ],
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/3 this week/)).toBeInTheDocument()
     // EACH one — the consent line promises a list, not a count plus an
@@ -1113,7 +1119,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         summaries: Array.from({ length: 11 }, (_, i) => `Reply ${i + 1} — handled on my own, as you asked`),
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/…and 3 more this week/)).toBeInTheDocument()
   })
@@ -1129,7 +1135,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         grantedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/Nothing on my own yet/i)).toBeInTheDocument()
   })
@@ -1145,7 +1151,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         grantedAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000),
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/Nothing this past week/i)).toBeInTheDocument()
     expect(screen.queryByText(/Nothing on my own yet/i)).toBeNull()
@@ -1154,7 +1160,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
   it('the review-reply consent says plainly that ANGRY reviews are included — a grant the granter doesn’t understand is not a grant', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(
       screen.getByRole('checkbox', { name: /including 1- and 2-star reviews/i }),
@@ -1169,7 +1175,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/tried this one on my own twice and couldn’t send it/i)).toBeInTheDocument()
     expect(screen.queryByText(/goes out on its own within the hour/i)).toBeNull()
@@ -1181,7 +1187,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto' },
     ])
-    const ui = await ClinicOverview({ ctx: { ...makeCtx(), isDemo: true } })
+    const ui = await DreamTeamView({ ctx: { ...makeCtx(), isDemo: true } })
     render(ui)
     expect(screen.getByText(/nothing actually goes out/i)).toBeInTheDocument()
   })
@@ -1195,7 +1201,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
       { capability: 'outreach_campaign', label: 'Launch outreach campaigns', level: 'auto', grantedAt: null },
     ])
     mockInsideSendWindow.mockReturnValueOnce(false)
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/goes out in the morning/i)).toBeInTheDocument()
     expect(screen.queryByText(/within the hour/i)).toBeNull()
@@ -1214,7 +1220,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         grantedAt: new Date('2026-06-01T00:00:00Z'),
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText(/goes out on its own within the hour/i)).toBeNull()
     // …and it must not re-ask for a trust the clinic already gave.
@@ -1229,7 +1235,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/tried this one on my own twice/i)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /handle these for me on your own/i })).toBeNull()
@@ -1247,7 +1253,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         latestSummary: 'Sent “We miss you” to 412 patients — handled on my own, as you asked',
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/Here’s what I handled on my own this week/i)).toBeInTheDocument()
     expect(screen.getByText(/412 patients/)).toBeInTheDocument()
@@ -1266,7 +1272,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
         grantedAt: new Date('2026-06-01T00:00:00Z'),
       },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/came in before you handed these over/i)).toBeInTheDocument()
   })
@@ -1279,7 +1285,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText('I’m handling this one')).toBeInTheDocument() // the pill
     // …and the section header stops speaking for it.
@@ -1292,7 +1298,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
     ])
-    const ui = await ClinicOverview({ ctx: { ...makeCtx(), isDemo: true } })
+    const ui = await DreamTeamView({ ctx: { ...makeCtx(), isDemo: true } })
     render(ui)
     // ONE label everywhere, so the header can name it.
     expect(screen.getByText('I’m handling this one')).toBeInTheDocument()
@@ -1303,7 +1309,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
   it('an all-ask-first inbox keeps the plain header — nothing to qualify', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText(/go out either way/)).toBeNull()
     expect(screen.queryByText('I’m handling this one')).toBeNull()
@@ -1315,7 +1321,7 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     mockListTrustGrants.mockResolvedValueOnce([
       { capability: 'review_reply', label: 'Reply to Google reviews', level: 'auto', grantedAt: null },
     ])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/tell me to skip this one/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Skip this one$/ })).toBeInTheDocument()
@@ -1325,14 +1331,14 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
   it('an ask-first card keeps the permanent-decline wording — the machine really will stop asking', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByRole('button', { name: /No thanks/ })).toBeInTheDocument()
   })
 
   it('no grants, no strip — the Overview stays quiet for a clinic that hasn’t handed anything over', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.queryByText(/I handle these on my own now/i)).not.toBeInTheDocument()
   })
@@ -1474,7 +1480,7 @@ describe('the sign-here stack', () => {
   async function renderStack(n: number) {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce(Array.from({ length: n }, (_, i) => stackProposal(i + 1)))
-    const ui = await ClinicOverview({ ctx: makeCtx() })
+    const ui = await DreamTeamView({ ctx: makeCtx() })
     return render(ui)
   }
 
