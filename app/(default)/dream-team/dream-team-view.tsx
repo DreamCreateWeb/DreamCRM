@@ -1,5 +1,8 @@
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { buildWeeklyStandup } from '@/lib/services/standup'
+import { listRunway } from '@/lib/services/dream-team'
+import { formatClinicDayTime } from '@/lib/format-datetime'
+import RunwaySection from './runway-section'
 import type { TenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
 import { PageHeader } from '@/components/ui/page-header'
@@ -25,6 +28,8 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
     // counts — real ledger work, the same window the Monday email reports.
     buildWeeklyStandup(ctx.organizationId).catch(() => null),
   ])
+  // The veto runway (D4) — best-effort like every other read on this page.
+  const runway = await listRunway(ctx.organizationId).catch(() => [])
   const name = demoSkin?.clinicName ?? ctx.organizationName
   const inbox = await loadApprovalInbox(ctx.organizationId, timeZone)
   const waiting = inbox.proposalCards.length
@@ -70,6 +75,20 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
             needs your sign-off lands here as a finished draft; the rest gets handled and reported.
           </p>
         </div>
+      )}
+
+      {/* THE VETO RUNWAY — staged work with its Stop (server-formats the
+          go-times in the clinic's wall clock; the tz law). */}
+      {runway.length > 0 && (
+      <RunwaySection
+        items={runway.map((r) => ({
+          kind: r.kind,
+          id: r.id,
+          excerpt: r.excerpt,
+          destination: r.destination,
+          goesOutLabel: formatClinicDayTime(r.goesOutAt, timeZone),
+        }))}
+      />
       )}
 
       {/* THE ROSTER — the staff you hired, with last week's real numbers. */}

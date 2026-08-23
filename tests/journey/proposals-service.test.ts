@@ -580,7 +580,10 @@ describe('listOpenProposals / countOpenProposals', () => {
   it('"waiting on your yes" EXCLUDES a capability the clinic handed over — the badge, the digest and the standup all read this count, and none of that work waits on a human (Phase 3)', async () => {
     store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
     seedProposal({ id: 'p_auto', capability: 'review_reply', sourceKey: 'ka' })
-    seedProposal({ id: 'p_ask', capability: 'social_post', sourceKey: 'kb' })
+    // inquiry_response as the ask-first example — social_post is DEEP SLEEP
+    // (default-auto) since the 2026-08-23 owner ruling, so it no longer
+    // waits on a human by default.
+    seedProposal({ id: 'p_ask', capability: 'inquiry_response', sourceKey: 'kb' })
     expect(await countOpenProposals(ORG)).toBe(1)
     // …but the inbox still LISTS both: the count means "on you", the list
     // means "in my hands" (the granted card renders its own honest line).
@@ -590,7 +593,7 @@ describe('listOpenProposals / countOpenProposals', () => {
   it('includeGranted counts the whole open population — the inbox truncation notice must compare against the list it draws from (round-1 Phase-3 audit)', async () => {
     store.profiles = [{ organizationId: ORG, autonomy: { review_reply: 'auto' } }]
     seedProposal({ id: 'p_auto', capability: 'review_reply', sourceKey: 'kg1' })
-    seedProposal({ id: 'p_ask', capability: 'social_post', sourceKey: 'kg2' })
+    seedProposal({ id: 'p_ask', capability: 'inquiry_response', sourceKey: 'kg2' })
     expect(await countOpenProposals(ORG, { includeGranted: true })).toBe(2)
     expect(await countOpenProposals(ORG)).toBe(1)
   })
@@ -1737,7 +1740,48 @@ describe('THE LADDER LIVE (Phase 3): autoExecuteProposal', () => {
     if (r.ok) expect(r.message).toContain('handled on my own')
   })
 
+  it('THE VETO RUNWAY (D4): the machine’s own yes to a social post STAGES at the next clinic-local 10 AM — a human approve stays immediate', async () => {
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:runway',
+      body: 'Fresh smiles, fresh post.',
+      payload: { accountIds: ['acc_1'] },
+    })
+    const r = await autoExecuteProposal(ORG, p.id)
+    expect(r.ok).toBe(true)
+    const input = executors.createSocialPost.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    // Staged, not sent: scheduledAt is an ISO instant at least 12h out.
+    expect(typeof input.scheduledAt).toBe('string')
+    const slot = new Date(input.scheduledAt as string)
+    expect(slot.getTime() - Date.now()).toBeGreaterThanOrEqual(12 * 60 * 60 * 1000 - 60_000)
+    // …and the narrate-once law holds: the module's own hand-off entry is
+    // suppressed; the proposal narrates the queue honestly, with the Stop.
+    const opts = executors.createSocialPost.mock.calls.at(-1)?.[2] as Record<string, unknown>
+    expect(opts.suppressHandoffLedger).toBe(true)
+    expect(recordActionMock).toHaveBeenCalledTimes(1)
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toContain('Queued')
+    expect(String(entry.summary)).toContain('Stop')
+    expect(String(entry.summary)).not.toContain('Published')
+  })
+
+  it('THE VETO RUNWAY (D4): a HUMAN approve of a social post publishes now — a person just said go', async () => {
+    const p = seedProposal({
+      capability: 'social_post',
+      sourceKey: 'social_post:runway-human',
+      body: 'Approved by hand.',
+      payload: { accountIds: ['acc_1'] },
+    })
+    const r = await approveProposal(ORG, p.id, 'user_1')
+    expect(r.ok).toBe(true)
+    const input = executors.createSocialPost.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(input.scheduledAt).toBeUndefined()
+    const entry = recordActionMock.mock.calls[0][0] as Record<string, unknown>
+    expect(String(entry.summary)).toContain('Published')
+  })
+
   it('autonomous work respects EVERY staleness guard — a review handled at the counter retires instead of double-replying', async () => {
+
     store.reviews[0].replyComment = 'Handled in person'
     const p = seedProposal()
     const r = await autoExecuteProposal(ORG, p.id)

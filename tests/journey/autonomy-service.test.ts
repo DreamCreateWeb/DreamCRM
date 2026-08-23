@@ -185,23 +185,32 @@ describe('setCapabilityTrust', () => {
 })
 
 describe('listTrustGrants', () => {
-  it('reports the four grantable capabilities with their resolved levels + reader-facing labels', async () => {
+  it('reports the five grantable capabilities with their resolved levels + reader-facing labels', async () => {
     store.profiles[0].autonomy = { review_reply: 'auto' }
     const grants = await listTrustGrants(ORG)
     expect(grants.map((g) => g.capability).sort()).toEqual(
-      ['inquiry_response', 'outreach_campaign', 'review_reply', 'social_post'].sort(),
+      ['content_plan', 'inquiry_response', 'outreach_campaign', 'review_reply', 'social_post'].sort(),
     )
     expect(grants.find((g) => g.capability === 'review_reply')).toMatchObject({
       level: 'auto',
       label: 'Reply to Google reviews',
     })
-    // Everything else stays ask-first — a grant is per capability.
-    expect(grants.filter((g) => g.level === 'auto')).toHaveLength(1)
+    // The stored grant + the two DEEP-SLEEP defaults (owner ruling
+    // 2026-08-23: social_post + content_plan run on their own from day 0;
+    // the veto runway is their consent mechanism).
+    expect(grants.filter((g) => g.level === 'auto').map((g) => g.capability).sort()).toEqual(
+      ['content_plan', 'review_reply', 'social_post'].sort(),
+    )
   })
 
-  it('a clinic with no stored grants is all ask-first', async () => {
+  it('a clinic with no stored grants keeps the patient-touching lanes ask-first; the deep-sleep lanes run on their own', async () => {
     const grants = await listTrustGrants(ORG)
-    expect(grants.every((g) => g.level === 'ask')).toBe(true)
+    const byCap = new Map(grants.map((g) => [g.capability, g.level]))
+    expect(byCap.get('review_reply')).toBe('ask')
+    expect(byCap.get('inquiry_response')).toBe('ask')
+    expect(byCap.get('outreach_campaign')).toBe('ask')
+    expect(byCap.get('social_post')).toBe('auto')
+    expect(byCap.get('content_plan')).toBe('auto')
   })
 })
 

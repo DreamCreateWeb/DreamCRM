@@ -7,6 +7,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { isGrantable, BOOKING_BUTTON_CAPABILITIES, SETUP_CAPABILITIES } from '@/lib/autonomy'
 import { TONE_DOT } from '@/lib/ui/encodings'
 import { CAPABILITY_ICON, expiryTone } from '@/lib/types/dream-team'
+import { stagesOnRunway } from '@/lib/dream-team-runway'
 
 // Single-homed in lib/types/dream-team (the summons strip shares them);
 // re-exported here so the whole-DOM suite's imports keep working.
@@ -1123,12 +1124,18 @@ function ProposalCard({
                 // which made the old "within the hour" line false all evening
                 // (round-2 audit). Say the real thing — it reassures.
                 'You’ve handed these to me — this one goes out in the morning; I don’t put mail in patients’ inboxes overnight. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'
-              : // THE THIRD EXIT (round-3 audit): the preview window exists so
-                // a human can stop ONE draft. Naming only "approve" and "take
-                // the job back" made a single bad draft cost the whole
-                // hand-over — a ladder whose only correction is climbing all
-                // the way down.
-                'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'}
+              : stagesOnRunway(proposal.capability)
+                ? // THE VETO RUNWAY (D4): a deep-sleep lane does NOT go out
+                  // within the hour — it queues at tomorrow's send time with
+                  // a Stop until then. Promising "within the hour" here would
+                  // be the same false-promise bug the send-window fix cured.
+                  'You’ve handed these to me — I’ll queue this one for tomorrow morning and you can stop it any time before then under “Going out soon”. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'
+                : // THE THIRD EXIT (round-3 audit): the preview window exists so
+                  // a human can stop ONE draft. Naming only "approve" and "take
+                  // the job back" made a single bad draft cost the whole
+                  // hand-over — a ladder whose only correction is climbing all
+                  // the way down.
+                  'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'}
         </p>
       )}
       {/* The hand-over offer and its nudge are gated on whether the CAPABILITY

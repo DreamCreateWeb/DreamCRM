@@ -9,6 +9,7 @@ import {
 } from '@/lib/autonomy'
 import { recordAction, recordEngineFailure } from '@/lib/services/action-ledger'
 import { resolveTrialState } from '@/lib/trial'
+import { stagesOnRunway } from '@/lib/dream-team-runway'
 
 /**
  * PROPOSALS + THE APPROVAL INBOX (Transformation Phase 2 — DESIGN.md "The
@@ -885,9 +886,24 @@ async function decideAndExecute(
   // invites a second Approve and a duplicate send (round-1 Phase-2 audit).
   let exec: ExecResult
   try {
+    // THE VETO RUNWAY (docs/ai-operations.md, D4): when the MACHINE says yes
+    // to its own broadcast post, the work stages at the next clinic-local
+    // 10 AM (>=12h out) on the Dream Team's visible queue with a one-tap
+    // Stop — the deep-sleep lanes' consent mechanism. A human tap stays
+    // immediate: a person just said go. Timezone read is best-effort; the
+    // fallback still STAGES (fail-safe is a longer runway, never a shorter
+    // one).
+    let runwayAt: Date | null = null
+    if (actor.kind === 'auto' && stagesOnRunway(claimed.capability)) {
+      const { nextRunwaySlot } = await import('@/lib/dream-team-runway')
+      const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
+      const tz = await getClinicTimeZone(organizationId).catch(() => 'America/New_York')
+      runwayAt = nextRunwaySlot(new Date(), tz)
+    }
     exec = await executeProposal(
       claimed,
       actor.kind === 'human' ? '— you approved it' : '— handled on my own, as you asked',
+      runwayAt,
     )
   } catch (e) {
     await reopen(claimed, { autonomous: actor.kind === 'auto' })
@@ -1100,6 +1116,7 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? 
 async function executeProposal(
   p: typeof schema.proposal.$inferSelect,
   saidYes: string,
+  runwayAt: Date | null = null,
 ): Promise<ExecResult> {
   // Demo proposals SIMULATE: the inbox demoes the full approve flow without
   // networking (same demo-safe law as Zernio/PMS). The ledger entry is
@@ -1121,7 +1138,7 @@ async function executeProposal(
     case 'review_reply':
       return executeReviewReply(p, payload, saidYes)
     case 'social_post':
-      return executeSocialPost(p, payload, saidYes)
+      return executeSocialPost(p, payload, saidYes, runwayAt)
     case 'inquiry_response':
       return executeInquiryResponse(p, payload, saidYes)
     case 'outreach_campaign':
@@ -1473,6 +1490,7 @@ async function executeSocialPost(
   p: typeof schema.proposal.$inferSelect,
   payload: Record<string, unknown>,
   saidYes: string,
+  runwayAt: Date | null = null,
 ): Promise<ExecResult> {
   const accountIds = Array.isArray(payload.accountIds)
     ? (payload.accountIds as unknown[]).filter((v): v is string => typeof v === 'string' && !!v.trim())
@@ -1562,6 +1580,10 @@ async function executeSocialPost(
       // showed it, so the publish carries it — what the card shows is what
       // sends). Absent → text-only, exactly as previewed.
       imageUrl: str(payload.imageUrl),
+      // THE VETO RUNWAY: the machine's own yes stages at the next runway
+      // slot; a human approve publishes now (runwayAt null). ISO string —
+      // the composer input's wire shape.
+      scheduledAt: runwayAt ? runwayAt.toISOString() : undefined,
     },
     {
       // Stamp the link the MOMENT the rows persist, before any network
@@ -1570,6 +1592,7 @@ async function executeSocialPost(
       // attribute them — narrate-once became narrate-zero, and the retire
       // copy blamed the clinic's own activity. A throw here aborts before
       // anything publishes.
+      suppressHandoffLedger: true,
       onPersisted: async (postId) => {
         await db
           .update(schema.proposal)
@@ -1612,6 +1635,24 @@ async function executeSocialPost(
     publishedCount != null && publishedCount < accountIds.length
       ? ` (${accountIds.length - publishedCount} ${accountIds.length - publishedCount === 1 ? 'channel' : 'channels'} didn’t take it)`
       : ''
+  if (runwayAt) {
+    // Staged, not sent — the ledger must say hand-off, never publication
+    // (the scheduled-social hand-off law). The runway time renders in the
+    // clinic's own wall clock.
+    let when = 'tomorrow morning'
+    try {
+      const { getClinicTimeZone } = await import('@/lib/services/clinic-timezone')
+      const { formatClinicDayTime } = await import('@/lib/format-datetime')
+      when = formatClinicDayTime(runwayAt, await getClinicTimeZone(p.organizationId))
+    } catch {
+      /* the honest-vague form */
+    }
+    return {
+      ok: true,
+      ledgerSummary: `Queued “${snippet}” for ${where}${partial} — going out ${when}, with a Stop on your Dream Team page until then ${saidYes}`,
+      ledgerDetail: { accountIds, publishedCount, postId: r.postId ?? null, runwayAt: runwayAt.toISOString() },
+    }
+  }
   return {
     ok: true,
     ledgerSummary: `Published “${snippet}” to ${where}${partial} ${saidYes}`,

@@ -107,6 +107,11 @@ vi.mock('@/lib/services/standup', () => ({ buildWeeklyStandup: mockBuildStandup 
 vi.mock('@/lib/services/clinic-timezone', () => ({
   getClinicTimeZone: vi.fn(async () => 'America/New_York'),
 }))
+// The veto runway (D4): quiet by default; the dedicated suites populate it.
+vi.mock('@/lib/services/dream-team', () => ({
+  countRunway: vi.fn(async () => 0),
+  listRunway: vi.fn(async () => []),
+}))
 // The inbox's client cards call useRouter().refresh() after a decision.
 vi.mock('next/navigation', async (orig) => ({
   ...(await orig()),
