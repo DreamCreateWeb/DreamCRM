@@ -977,7 +977,7 @@ function ProposalCard({
           <div>
             <SocialArtifact body={body} clinicName={clinicName} channel={artifact.channel} imageUrl={image} />
             <div className="mt-2 flex items-center gap-3">
-              <label className="text-xs font-medium text-sky-700 dark:text-sky-300 cursor-pointer hover:underline">
+              <label className="cursor-pointer text-xs font-medium text-teal-700 hover:underline dark:text-teal-300">
                 {imageUploading
                   ? `Uploading… ${imagePct}%`
                   : image
@@ -1230,7 +1230,7 @@ function ProposalCard({
           machine's. A handed-back card was re-asking for a trust the clinic
           had already given, while the strip below said so (round-2 audit). */}
       {!capabilityGranted && isGrantable(proposal.capability) && (proposal.uneditedRun ?? 0) >= 3 && (
-        <p className="mt-3 text-xs text-sky-700 dark:text-sky-300">
+        <p className="mt-3 text-xs text-violet-700 dark:text-violet-300">
           You’ve said yes to the last {proposal.uneditedRun} of these without changing a word — tick
           the box below and I’ll take them over.
         </p>

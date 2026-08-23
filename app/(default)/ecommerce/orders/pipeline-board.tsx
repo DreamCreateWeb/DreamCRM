@@ -36,7 +36,7 @@ const COLUMN_TONES: Record<AgencyProjectStatus, string> = {
   lead: 'border-gray-400/50',
   discovery: 'border-amber-400/60',
   in_progress: 'border-violet-400/70',
-  review: 'border-sky-400/70',
+  review: 'border-fuchsia-400/70',
   completed: 'border-emerald-500/70',
   on_hold: 'border-yellow-400/60',
   cancelled: 'border-red-400/60',

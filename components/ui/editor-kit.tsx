@@ -52,13 +52,13 @@ export function Field({
       {label && (
         <label
           htmlFor={fieldId}
-          className="block text-[12px] font-medium text-stone-600 dark:text-stone-300 mb-1"
+          className="block text-[12px] font-medium text-gray-600 dark:text-gray-300 mb-1"
         >
           {label}
         </label>
       )}
       {control}
-      {hint && <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{hint}</p>}
     </div>
   )
 }
@@ -85,8 +85,8 @@ function Ctrl({
       title={label}
       className={`w-8 h-8 inline-flex items-center justify-center rounded-md transition disabled:opacity-25 disabled:cursor-default ${
         danger
-          ? 'text-stone-400 hover:text-rose-600 hover:bg-rose-500/10'
-          : 'text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-700/60'
+          ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-500/10'
+          : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700/60'
       }`}
     >
       {children}
@@ -121,12 +121,12 @@ export function EditorCard({
 }) {
   const hasControls = onMoveUp || onMoveDown || onRemove
   return (
-    <div className="rounded-xl border border-stone-200 dark:border-stone-700/70 bg-stone-50/70 dark:bg-stone-800/40 p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-gray-700/70 bg-gray-50/70 dark:bg-gray-800/40 p-4">
       {(label || headerExtra || hasControls) && (
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 min-w-0">
             {label && (
-              <span className="text-xs font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                 {label}
               </span>
             )}
@@ -170,7 +170,7 @@ export function AddButton({ onClick, children }: { onClick: () => void; children
     <button
       type="button"
       onClick={onClick}
-      className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 dark:border-stone-600 py-2.5 text-[13px] font-semibold text-stone-500 dark:text-stone-400 hover:border-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800/40 transition"
+      className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 py-2.5 text-[13px] font-semibold text-gray-500 dark:text-gray-400 hover:border-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition"
     >
       <svg className="w-4 h-4" {...stroke}>
         <path d="M10 5v10M5 10h10" />
@@ -183,7 +183,7 @@ export function AddButton({ onClick, children }: { onClick: () => void; children
 /** Friendly empty state inside a dashed panel. */
 export function EmptyHint({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-stone-300 dark:border-stone-700 p-5 text-center text-[13px] leading-relaxed text-stone-500 dark:text-stone-400">
+    <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-5 text-center text-[13px] leading-relaxed text-gray-500 dark:text-gray-400">
       {children}
     </div>
   )
@@ -241,17 +241,17 @@ export function TagListEditor({
   return (
     <div>
       <input type="hidden" name={name} value={items.join('\n')} />
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 p-2 focus-within:ring-2 focus-within:ring-teal-500/40 focus-within:border-teal-500 transition">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 focus-within:ring-2 focus-within:ring-teal-500/40 focus-within:border-teal-500 transition">
         {items.map((it, i) => (
           <span
             key={`${it}-${i}`}
-            className="inline-flex items-center gap-1 rounded-md bg-stone-100 dark:bg-stone-700 pl-2.5 pr-1.5 py-1 text-[13px] font-medium text-stone-700 dark:text-stone-200"
+            className="inline-flex items-center gap-1 rounded-md bg-gray-100 dark:bg-gray-700 pl-2.5 pr-1.5 py-1 text-[13px] font-medium text-gray-700 dark:text-gray-200"
           >
             {it}
             <button
               type="button"
               onClick={() => remove(i)}
-              className="text-stone-400 hover:text-rose-600 transition"
+              className="text-gray-400 hover:text-rose-600 transition"
               aria-label={`Remove ${it}`}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 20 20" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round">
@@ -266,10 +266,10 @@ export function TagListEditor({
           onKeyDown={onKeyDown}
           onBlur={() => commit(draft)}
           placeholder={items.length === 0 ? placeholder : addLabel}
-          className="flex-1 min-w-[140px] bg-transparent text-sm px-1.5 py-1 focus:outline-none text-stone-900 dark:text-stone-100 placeholder-stone-400"
+          className="flex-1 min-w-[140px] bg-transparent text-sm px-1.5 py-1 focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400"
         />
       </div>
-      <p className="text-xs text-stone-500 dark:text-stone-400 mt-1.5">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
         Type and press Enter to add. Click × to remove.
       </p>
     </div>

@@ -47,7 +47,7 @@ export default function OrdersTableItem({ order, onCheckboxChange, isSelected }:
                 <path d="M5 7h6v2H5zM14 0H2C.9 0 0 .9 0 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V2c0-1.1-.9-2-2-2zM2 14V2h12v12H2z" />
               </svg>
             </div>
-            <div className="font-medium text-sky-600">{order.orderNumber}</div>
+            <div className="font-medium text-teal-700 dark:text-teal-300">{order.orderNumber}</div>
           </div>
         </td>
         <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap"><div>{order.date}</div></td>

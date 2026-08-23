@@ -266,7 +266,13 @@ export default function SeoMetaForm({
                   {/* Live preview snippet (Google-result style). */}
                   <div className="mb-4 rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-700/40 dark:bg-gray-900/40">
                     <p className="truncate text-xs text-emerald-700 dark:text-emerald-400">{previewUrl}</p>
-                    <p className="truncate text-[15px] leading-snug text-[#1a0dab] dark:text-sky-400">{effTitle}</p>
+                    {/* GOOGLE'S OWN LINK BLUE, on purpose. This preview
+                        imitates a search result, so it borrows the colours
+                        Google uses (#1a0dab light, a lighter blue at night)
+                        rather than this product's palette — the same reason
+                        the email artifact borrows the email's button. Not a
+                        stray v2 tone. */}
+                    <p className="truncate text-[15px] leading-snug text-[#1a0dab] dark:text-[#8ab4f8]">{effTitle}</p>
                     <p className="line-clamp-2 text-xs text-gray-600 dark:text-gray-300">{effDesc}</p>
                   </div>
 

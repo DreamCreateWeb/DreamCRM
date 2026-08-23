@@ -493,3 +493,19 @@ commit → merge to main → verify deploy (same as the best-version program).
   public sites' `--c-*` palette, the site fonts, Tailwind's own theme
   colours), and it strips comments first so prose describing the bug isn't
   read as the bug.
+- **2026-08-23 — D14 (the retired hues, finally)**: v3 kept six semantic tones
+  and dropped `sky` and `stone`; they were cleaned out module by module and
+  each pass left a handful behind, which is how a design system dies — not by
+  a decision, by attrition. The last of them: an "In the waiting room" status,
+  the order/invoice/customer identifiers (now the brand link hue), a kanban
+  column, the approval card's photo link (an action → teal) and its
+  earned-trust nudge (informational → violet), the plan-mix bar (a CHART, so
+  it rides the validated `--color-chart-*` tokens), the Stripe integration
+  accent (whose real brand is violet anyway, so the fix corrected two things
+  at once), the Gmail "Updates" category, and every neutral in the three
+  SHARED editor primitives (editor-kit, image-uploader, focal-point-picker —
+  62 classes). The avatar rotations were considered for an exemption and did
+  not need one: identity hues can be blue. That leaves exactly ONE deliberate
+  use, the Search-appearance preview, which borrows Google's own link blue
+  for the same reason the email artifact borrows the email's button — and
+  `tests/a11y/retired-tones.test.ts` makes the allowlist keep earning itself.

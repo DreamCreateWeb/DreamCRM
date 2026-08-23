@@ -80,16 +80,16 @@ export default function ImageUploader({
 
   return (
     <div>
-      <label className="block text-[12px] font-medium text-stone-600 dark:text-stone-300 mb-1.5">{label}</label>
+      <label className="block text-[12px] font-medium text-gray-600 dark:text-gray-300 mb-1.5">{label}</label>
       <input type="hidden" name={name} value={url ?? ''} />
       <div
-        className={`${previewClass} w-full max-w-md rounded-xl border-2 border-dashed border-stone-300 dark:border-stone-600 overflow-hidden bg-stone-50 dark:bg-stone-800/40 flex items-center justify-center relative`}
+        className={`${previewClass} w-full max-w-md rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden bg-gray-50 dark:bg-gray-800/40 flex items-center justify-center relative`}
       >
         {url ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={url} alt="" className="w-full h-full object-cover" />
         ) : (
-          <span className="text-xs text-stone-400">No image</span>
+          <span className="text-xs text-gray-400">No image</span>
         )}
         {uploading && (
           <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 text-white text-xs">
@@ -112,7 +112,7 @@ export default function ImageUploader({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="inline-flex items-center justify-center rounded-lg px-3.5 py-1.5 text-[13px] font-semibold bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/60 transition disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-lg px-3.5 py-1.5 text-[13px] font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition disabled:opacity-60"
         >
           {url ? 'Replace' : 'Upload'}
         </button>
@@ -120,7 +120,7 @@ export default function ImageUploader({
           <button
             type="button"
             onClick={() => setUrl(null)}
-            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[13px] font-medium text-stone-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition"
+            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[13px] font-medium text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition"
           >
             Remove
           </button>
@@ -137,7 +137,7 @@ export default function ImageUploader({
           }}
         />
       </div>
-      <p className="text-xs text-stone-500 dark:text-stone-400 mt-1.5">{hintText}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{hintText}</p>
       {error && <p className="text-xs text-rose-600 mt-1" role="alert">{error}</p>}
     </div>
   )

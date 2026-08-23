@@ -18,7 +18,7 @@ const CATEGORIES: Array<{
   color: string
 }> = [
   { value: 'primary', label: 'Primary', hint: 'Real correspondence', color: 'text-emerald-600' },
-  { value: 'updates', label: 'Updates', hint: 'Automated / transactional', color: 'text-sky-600' },
+  { value: 'updates', label: 'Updates', hint: 'Automated / transactional', color: 'text-violet-600' },
   { value: 'promotions', label: 'Promotions', hint: 'Marketing / newsletters', color: 'text-amber-600' },
   { value: 'spam', label: 'Spam', hint: 'Junk / phishing', color: 'text-rose-600' },
 ]

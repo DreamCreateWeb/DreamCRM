@@ -112,12 +112,12 @@ export default async function PlatformMetrics() {
               title={`Basic: ${mrr.byTier.basic}`}
             />
             <div
-              className="bg-sky-500"
+              className="bg-[color:var(--color-chart-1)]"
               style={{ width: `${(mrr.byTier.pro / mrr.activeClinics) * 100}%` }}
               title={`Pro: ${mrr.byTier.pro}`}
             />
             <div
-              className="bg-violet-500"
+              className="bg-[color:var(--color-chart-4)]"
               style={{ width: `${(mrr.byTier.premium / mrr.activeClinics) * 100}%` }}
               title={`Premium: ${mrr.byTier.premium}`}
             />
@@ -125,8 +125,8 @@ export default async function PlatformMetrics() {
         )}
         <div className="grid grid-cols-3 gap-3 text-sm">
           <PlanCell tier="Basic" count={mrr.byTier.basic} price={`$${getPlanById('basic')!.price}`} color="bg-gray-400" />
-          <PlanCell tier="Pro" count={mrr.byTier.pro} price={`$${getPlanById('pro')!.price}`} color="bg-sky-500" />
-          <PlanCell tier="Premium" count={mrr.byTier.premium} price={`$${getPlanById('premium')!.price}`} color="bg-violet-500" />
+          <PlanCell tier="Pro" count={mrr.byTier.pro} price={`$${getPlanById('pro')!.price}`} color="bg-[color:var(--color-chart-1)]" />
+          <PlanCell tier="Premium" count={mrr.byTier.premium} price={`$${getPlanById('premium')!.price}`} color="bg-[color:var(--color-chart-4)]" />
         </div>
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
           Based on clinic plan assignments (synced from Stripe via webhook). For

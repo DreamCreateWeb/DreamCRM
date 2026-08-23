@@ -71,7 +71,7 @@ describe('CSS custom properties referenced in code are defined', () => {
     const offenders: string[] = []
     for (const file of files) {
       const text = stripComments(readFileSync(file, 'utf8'))
-      for (const m of text.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)) {
+      for (const m of Array.from(text.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g))) {
         const token = m[1]
         if (defined.has(token)) continue
         if (RUNTIME_PROVIDED.some((r) => token.startsWith(r.prefix))) continue

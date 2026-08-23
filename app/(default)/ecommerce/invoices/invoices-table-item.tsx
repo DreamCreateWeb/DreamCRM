@@ -48,7 +48,7 @@ export default function InvoicesTableItem({ invoice, onCheckboxChange, isSelecte
         </div>
       </td>
       <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-        <div className="font-medium text-sky-600">{invoice.invoice}</div>
+        <div className="font-medium text-teal-700 dark:text-teal-300">{invoice.invoice}</div>
       </td>
       <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
         <div className={`font-medium ${totalColor(statusLabel)}`}>{formatMoney(invoice.totalCents, invoice.currency)}</div>

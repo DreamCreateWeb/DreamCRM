@@ -58,7 +58,6 @@ export interface AvatarTint {
  */
 const AVATAR_TINTS: AvatarTint[] = [
   { bg: 'bg-indigo-500/15 dark:bg-indigo-400/20', text: 'text-indigo-700 dark:text-indigo-200' },
-  { bg: 'bg-sky-500/15 dark:bg-sky-400/20', text: 'text-sky-700 dark:text-sky-200' },
   { bg: 'bg-violet-500/15 dark:bg-violet-400/20', text: 'text-violet-700 dark:text-violet-200' },
   { bg: 'bg-fuchsia-500/15 dark:bg-fuchsia-400/20', text: 'text-fuchsia-700 dark:text-fuchsia-200' },
   { bg: 'bg-rose-500/15 dark:bg-rose-400/20', text: 'text-rose-700 dark:text-rose-200' },

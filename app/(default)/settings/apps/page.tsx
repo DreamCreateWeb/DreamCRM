@@ -74,7 +74,7 @@ export default async function AppsSettings() {
       description:
         'Your subscription is managed through Stripe. Use the Stripe customer portal to change card, update billing address, or download invoices.',
       icon: 'card',
-      accent: 'sky',
+      accent: 'violet',
       status: { kind: 'connected', detail: 'Subscription managed by Stripe' },
       manageHref: '/settings/billing',
     })
@@ -86,7 +86,7 @@ export default async function AppsSettings() {
       description:
         'You collect clinic subscription revenue through Stripe. Manage prices, taxes, and webhooks in the Stripe dashboard.',
       icon: 'card',
-      accent: 'sky',
+      accent: 'violet',
       status: process.env.STRIPE_SECRET_KEY
         ? { kind: 'connected', detail: 'API key configured' }
         : { kind: 'misconfigured', managed: true },

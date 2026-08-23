@@ -55,7 +55,7 @@ export default function FocalPointPicker({
     <div>
       <div
         ref={ref}
-        className={`relative ${aspectClass} w-full ${compact ? '' : 'max-w-[220px] mx-auto'} overflow-hidden ${compact ? 'rounded-lg' : 'rounded-2xl'} cursor-crosshair select-none touch-none ring-1 ring-stone-200 dark:ring-stone-700`}
+        className={`relative ${aspectClass} w-full ${compact ? '' : 'max-w-[220px] mx-auto'} overflow-hidden ${compact ? 'rounded-lg' : 'rounded-2xl'} cursor-crosshair select-none touch-none ring-1 ring-gray-200 dark:ring-gray-700`}
         onPointerDown={(e) => {
           draggingRef.current = true
           e.currentTarget.setPointerCapture(e.pointerId)
@@ -87,7 +87,7 @@ export default function FocalPointPicker({
         />
       </div>
       {!compact && (
-        <p className="text-xs text-stone-400 mt-2 text-center">
+        <p className="text-xs text-gray-400 mt-2 text-center">
           Drag to choose what stays in frame.
         </p>
       )}

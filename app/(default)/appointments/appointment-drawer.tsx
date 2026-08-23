@@ -437,7 +437,7 @@ export default function AppointmentDrawer({
                       </span>
                     ) : detail.arrivedAt ? (
                       <>
-                        <span className="text-xs font-medium text-sky-700 dark:text-sky-300">
+                        <span className="text-xs font-medium text-violet-700 dark:text-violet-300">
                           🚪 In the waiting room
                         </span>
                         <ActionButton variant="secondary" size="sm" onClick={() => onArrival('seated')} pending={activeAction === 'arrival-seated'} disabled={pending}>

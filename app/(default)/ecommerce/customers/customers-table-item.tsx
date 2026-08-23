@@ -92,7 +92,7 @@ export default function CustomersTableItem({
         <div className="text-center">{customer.orderCount}</div>
       </td>
       <td className="px-2 first:pl-5 last:pr-5 py-3 whitespace-nowrap">
-        <div className="text-left font-medium text-sky-600">
+        <div className="text-left font-medium text-teal-700 dark:text-teal-300">
           {customer.lastOrderNumber ?? '—'}
         </div>
       </td>
