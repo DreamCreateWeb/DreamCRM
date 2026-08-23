@@ -2294,7 +2294,14 @@ sweeping by class rather than by module: the classes travel.
    math is unit-tested; the end-to-end shape — machine approves, stages,
    nobody stops it, Zernio publishes at 10 AM — has not been observed on a
    live clinic.
-5. **Cycles is a report with one writer.** If the generator cron stops, the
-   heartbeat freezes and the band quietly ages. That is the honest failure
-   mode (it never claims a cycle that did not happen), but nothing yet
-   ALARMS on a stale heartbeat — the Guardian would need to read it.
+5. ~~**Cycles is a report with one writer.**~~ **CLOSED 2026-08-23 (D16).**
+   The Guardian reads the heartbeat now: `hoursSinceCycle` off the row the
+   sweep already selects, a rule that reads FIRST in `classify` (it explains
+   the silence and the stale failures rather than being explained by them),
+   a full-day threshold so one missed hourly tick is never news, and a NULL
+   that says nothing — the column shipped in 0152, so absence is "no pass
+   yet", never "the engine is dead". It needed no new eligibility filter:
+   the sweep already excluded demo and billing-walled orgs, which are the
+   only two cases where a stale stamp is correct by design. Reported as
+   `silent` with a new `no_cycle` cause, so it is distinguishable from
+   ordinary silence in the alert memory and in the all-clear.
