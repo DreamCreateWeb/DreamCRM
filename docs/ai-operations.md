@@ -509,3 +509,15 @@ commit → merge to main → verify deploy (same as the best-version program).
   use, the Search-appearance preview, which borrows Google's own link blue
   for the same reason the email artifact borrows the email's button — and
   `tests/a11y/retired-tones.test.ts` makes the allowlist keep earning itself.
+- **2026-08-23 — D15**: THE REGISTRIES WERE ON THE RETIRED RAMP TOO. D14 swept
+  the screens; the two shared registries that hand colours to everything else
+  still carried it. `lib/ui/encodings.ts` — the single home for meaning-colours
+  — painted the "quiet" aging tier in stone (quiet is the NEUTRAL tone by
+  definition, so gray was always the right answer), and
+  `lib/types/patient-tags.ts` offered `sky` as a pickable tag colour, which
+  would have re-seeded the retired ramp into every clinic's own labels. A
+  registry matters more than any one screen because it re-supplies the hue
+  everywhere it is read. The tag key moves to `blue`; `coerceTagColor`
+  already sends any stored value that is no longer in the list to gray, so
+  the swap degrades safely rather than throwing an undefined class at a chip.
+  The guard's scope now includes both registries.

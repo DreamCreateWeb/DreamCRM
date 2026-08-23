@@ -257,8 +257,10 @@ export const AGING_TIERS: Record<AgingTierId, AgingTierDef> = {
   quiet: {
     id: 'quiet',
     label: 'Quiet',
-    borderClass: 'border-l-stone-300 dark:border-l-stone-600',
-    swatchClass: 'bg-stone-300 dark:bg-stone-600',
+    // Quiet is the NEUTRAL tone by definition — nothing is wrong, nothing
+    // is urgent. It wore `stone` from v2; gray is the v3 neutral.
+    borderClass: 'border-l-gray-300 dark:border-l-gray-600',
+    swatchClass: 'bg-gray-300 dark:bg-gray-600',
   },
   aging: {
     id: 'aging',

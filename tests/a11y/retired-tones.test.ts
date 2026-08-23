@@ -16,11 +16,16 @@ import { resolve, join } from 'node:path'
  * tokens, an integration accent (Stripe, whose real brand is violet anyway),
  * and every neutral in the three shared editor primitives.
  *
- * SCOPE: the authenticated app + shared components. The public clinic sites
- * and the patient portal own their own palettes.
+ * SCOPE: the authenticated app, the shared components, and the two shared
+ * REGISTRIES that hand colours to everything else — `lib/ui/encodings.ts`
+ * (which was itself painting the "quiet" aging tier in stone) and
+ * `lib/types/patient-tags.ts` (which offered sky as a pickable tag colour).
+ * A registry on a retired ramp re-seeds it everywhere it is read, so those
+ * two matter more than any one screen. The public clinic sites and the
+ * patient portal own their own palettes and are out of scope.
  */
 
-const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'components/ui']
+const ROOTS = ['app/(default)', 'app/(double-sidebar)', 'components/ui', 'lib/ui', 'lib/types']
 
 /** Deliberate uses, each with the reason it is not a stray tone. */
 const ALLOWED: Array<{ file: string; why: string }> = [

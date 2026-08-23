@@ -15,7 +15,9 @@ export const PATIENT_TAG_COLORS = [
   'amber',
   'rose',
   'emerald',
-  'sky',
+  // Was 'sky', a hue v3 retired. `coerceTagColor` sends any stored value
+  // that is no longer in this list to gray, so the swap degrades safely.
+  'blue',
 ] as const
 
 export type PatientTagColor = (typeof PATIENT_TAG_COLORS)[number]
@@ -38,7 +40,7 @@ export const TAG_CHIP_CLASSES: Record<PatientTagColor, string> = {
   amber: 'bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800',
   rose: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800',
   emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800',
-  sky: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-800',
+  blue: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-800',
 }
 
 /** A small swatch class (solid dot) per tone — for the color picker. */
@@ -50,7 +52,7 @@ export const TAG_DOT_CLASSES: Record<PatientTagColor, string> = {
   amber: 'bg-amber-500',
   rose: 'bg-rose-500',
   emerald: 'bg-emerald-500',
-  sky: 'bg-sky-500',
+  blue: 'bg-blue-500',
 }
 
 export const MAX_TAG_NAME_LEN = 32
