@@ -2196,3 +2196,105 @@ All six are done; migration 0142 was the only new schema.
    default instead of raising and taking the whole statement down.
 
 Suite 6,007 → **6,036**. Phase 4 has no open items.
+
+---
+
+## CERTIFICATE — The Dream Team (AI Operations), D1–D15
+
+**CLOSED 2026-08-23 on a MAIN-LOOP SELF-SWEEP, not on a subagent audit
+fleet.** That is the first thing this certificate should say. The
+phase-audit gate exists because a big slice ships with gaps; the v2 shape
+(Opus subagents, four lenses, three-round cap) exists because v1 cost ~75%
+of a monthly quota in one night. This program was built inside a single
+overnight session under an explicit "work until the quota blocks"
+directive, so spending that quota on an audit fleet would have bought
+verification at the cost of the thing being verified. The main loop did
+the sweeping instead — which the amended gate allows, and which the Phase-4
+retrospective explicitly recommends for a phase whose own corrections are
+the next round's material.
+
+**Range:** `9a3873a..3c0296b` · 19 commits · migrations 0151 (`goal`), 0152
+(`clinic_profile.dream_team_cycle_at`).
+**Suite:** 6,556 → **6,642** tests (668 files), green; `pnpm build` clean on
+every one of the 15 gates.
+
+### What shipped
+
+D1 the spec · D2 the page + the Overview's summons strip · D3 the roster ·
+D4 the veto runway + the owner's day-0 deep-sleep ruling in code · D5
+Sandman · D6 goals · D7a the page's shape (one heading rhythm, the status
+band) · D7b the approval card (the pile, the expiry in words, the key hint)
+· D7c the demo's goal + the derived service focus · D7d Cycles · D8
+Sandman's request registry · D9 the first visit · D10 the project map · and
+then the sweep: D11, D12, D13, D14, D15.
+
+### What the self-sweep found — the five that mattered
+
+1. **`seatedSince` counted the wrong population** (D11). The goal card
+   promises patients SEATED since the goal was set; the query counted every
+   row with a `firstSeenAt` in the window, so connecting a PMS a week later
+   would have opened the card to "1,800 new patients seated in the last 3
+   days" — exactly the claim the card's own caption promises it is not
+   making. Now on the shared acquisition semantics, with a scan guard
+   against a local copy of the backfill list.
+2. **Sandman's two actions had no billing wall** (D11). The shell hides the
+   page from a shut-down clinic; a hidden UI is not a gate, and both actions
+   either spend the practice's AI budget or start work for an engine the
+   crons refuse to run.
+3. **The ladder mis-described consent** (D12). The day-0 ruling made two
+   lanes `auto` out of the box, but every line of granted-card copy was
+   written when `auto` could only mean somebody ticked a box — so on a
+   clinic's FIRST day the card said "You've handed these to me" about an
+   action they never took. `TrustGrantView.explicit` is the difference; a
+   resolved level cannot tell the two apart.
+4. **Five invisible colours** (D13). Painting with an undefined CSS variable
+   does not fail, warn, or fall back: CSS drops the declaration and the
+   white text lands on whatever is behind it. Live at once: an invisible
+   selected state in review settings, an invisible PRIMARY button in Call
+   Mode, a transparent clinic swatch, and — worst for this program — the
+   approval card's email artifact showing a small blue pill for a button
+   that arrives as a wide near-black block, breaking the one promise the
+   artifacts make.
+5. **The retired hues were still being re-seeded** (D14, D15). v3 dropped
+   sky and stone; each earlier cleanup pass left a handful, including in the
+   two shared REGISTRIES that hand colours to everything else. A registry
+   matters more than any screen because it re-supplies the hue everywhere it
+   is read.
+
+Three of these five were OUTSIDE the Dream Team. That is the argument for
+sweeping by class rather than by module: the classes travel.
+
+### What is TRUE at close
+
+- Every new surface has whole-DOM coverage; every new pure core has a unit
+  contract; every new server action has its tenant, role, closed-registry
+  and billing-wall refusals pinned.
+- Nothing Sandman can say sends, posts, or emails. Actions are navigations
+  BY CONSTRUCTION (the def shape has no mutation field); requests name an
+  existing generator and carry no content, audience, or recipient.
+- Every generator keeps its own guards under a request, so a second tap
+  cannot mint a second card.
+- Three new CI guards exist that did not before: undefined CSS variables,
+  retired tones, and the goal card's acquisition semantics.
+
+### What is OPEN, by name
+
+1. **No subagent audit has run on this program.** The self-sweep found five
+   real defect classes, but it is one reader. If the owner wants the
+   full gate, the entry point is `.claude/workflows/phase-audit.js` and the
+   range is `9a3873a..3c0296b`.
+2. **Sandman is unproven against a real conversation.** Its privacy shape,
+   parser tolerance and closed registries are pinned by tests; how it
+   actually answers a front desk is not, and cannot be until somebody talks
+   to it with real numbers behind it.
+3. **`matchServiceFocus` has no real-world sample.** It is deliberately
+   conservative (returns null rather than guessing), but the only service
+   lists it has been run against are the demo's and the test's.
+4. **The veto runway has never been watched over a real night.** The staging
+   math is unit-tested; the end-to-end shape — machine approves, stages,
+   nobody stops it, Zernio publishes at 10 AM — has not been observed on a
+   live clinic.
+5. **Cycles is a report with one writer.** If the generator cron stops, the
+   heartbeat freezes and the band quietly ages. That is the honest failure
+   mode (it never claims a cycle that did not happen), but nothing yet
+   ALARMS on a stale heartbeat — the Guardian would need to read it.
