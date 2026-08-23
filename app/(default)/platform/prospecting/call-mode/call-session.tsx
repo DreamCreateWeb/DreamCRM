@@ -587,7 +587,7 @@ function OutcomeButton({
       onClick={onClick}
       className={`flex flex-col items-center gap-0.5 rounded-[var(--r-md)] px-3.5 py-2 text-xs font-bold transition disabled:opacity-50 ${
         primary
-          ? 'bg-[color:var(--color-brand)] text-white hover:opacity-90'
+          ? 'bg-teal-600 text-white hover:opacity-90'
           : 'bg-[color:var(--color-surface-2)] text-gray-700 ring-1 ring-[color:var(--color-hairline)] hover:ring-gray-400 dark:text-gray-200'
       }`}
     >

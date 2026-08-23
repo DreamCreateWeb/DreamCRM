@@ -471,3 +471,25 @@ commit → merge to main → verify deploy (same as the best-version program).
   and it showed up as a flaky panel test under load, which was the same fact
   in a second place. Requests now have their own transition and their own
   "Putting them to work…" indicator.
+- **2026-08-23 — D13 (self-sweep round 3, and it left the Dream Team)**: FIVE
+  INVISIBLE COLOURS. `bg-[color:var(--color-primary)] text-white` on a token
+  nobody ever defined does not fail, does not warn, and does not fall back —
+  CSS drops the declaration, the element keeps whatever is behind it, and the
+  white text lands on that. Types can't see it, the build can't see it, and no
+  test asserting on text can see it. Five were live at once, all spelling a
+  brand token that had never existed: the approval card's EMAIL ARTIFACT
+  painted its "Book a time" button with it (a `sky` fallback, a hue v3
+  retired — so the artifact showed a small blue pill for a button that
+  arrives as a wide near-black block, breaking the one promise these
+  previews make: *look at the work as it will exist*), the social preview's
+  avatar, the SELECTED star-threshold segment in review settings (an
+  invisible selected state), the PRIMARY outcome button in Call Mode (an
+  invisible button in the owner's most-used cockpit), and the identity
+  swatch for a clinic with no brand colour. All five fixed, the email
+  artifact now mirroring `authEmailShell`'s real recipe with the constant
+  single-homed beside the preview. `tests/a11y/css-var-definitions.test.ts`
+  is the new guard: every `var(--token)` under app/ components/ lib/ must be
+  defined in the stylesheet or listed as runtime-provided WITH A REASON (the
+  public sites' `--c-*` palette, the site fonts, Tailwind's own theme
+  colours), and it strips comments first so prose describing the bug isn't
+  read as the bug.

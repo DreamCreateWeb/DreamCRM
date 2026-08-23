@@ -25,6 +25,11 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import { EmptyState } from '@/components/ui/empty-state'
 
+/** A clinic that hasn't set a brand colour still needs a visible dot —
+ *  this used to be `var(--color-brand)`, a token that does not exist, so
+ *  the swatch rendered transparent. Teal is the platform's own hue. */
+const BRANDLESS_SWATCH = '#0d9488'
+
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
 const TYPE_ICONS: Record<AgencyProjectType, string> = {
@@ -160,7 +165,7 @@ export default async function ClinicDetailPage({
             ) : (
               <span
                 className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-2xl font-bold shrink-0"
-                style={{ backgroundColor: clinic.profile?.brandColor ?? 'var(--color-brand)' }}
+                style={{ backgroundColor: clinic.profile?.brandColor ?? BRANDLESS_SWATCH }}
               >
                 {(clinic.profile?.displayName ?? clinic.name).charAt(0).toUpperCase()}
               </span>

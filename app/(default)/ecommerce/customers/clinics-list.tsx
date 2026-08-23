@@ -13,6 +13,11 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 
+/** A clinic that hasn't set a brand colour still needs a visible dot —
+ *  this used to be `var(--color-brand)`, a token that does not exist, so
+ *  the swatch rendered transparent. Teal is the platform's own hue. */
+const BRANDLESS_SWATCH = '#0d9488'
+
 interface Props {
   rows: ClinicListRow[]
 }
@@ -258,7 +263,7 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
           ) : (
             <span
               className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
-              style={{ backgroundColor: c.brandColor ?? 'var(--color-brand)' }}
+              style={{ backgroundColor: c.brandColor ?? BRANDLESS_SWATCH }}
             >
               {initials}
             </span>

@@ -143,7 +143,7 @@ export default function ReviewConfigPanel({ config }: Props) {
                 onClick={() => update('featureMinStars', opt.v)}
                 className={`px-4 py-1.5 text-sm font-medium transition ${
                   draft.featureMinStars === opt.v
-                    ? 'bg-[color:var(--color-primary)] text-white'
+                    ? 'bg-teal-600 text-white'
                     : 'text-gray-600 dark:text-gray-300 hover:bg-black/[0.03]'
                 }`}
               >

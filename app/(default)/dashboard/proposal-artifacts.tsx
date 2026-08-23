@@ -37,6 +37,14 @@ export type ProposalArtifact =
   | { kind: 'plan'; items: PlanArtifactItem[]; channel: ArtifactChannel | null }
   | { kind: 'gbp'; targetUrl: string; previousUri: string | null }
 
+/**
+ * The send's real button colour. `authEmailShell` takes an optional accent
+ * and falls back to this; no executor passes one, so this IS what patients
+ * see. Kept beside the preview so the two can be compared at a glance —
+ * the artifact is only worth anything while it matches the send.
+ */
+const EMAIL_BUTTON_BG = '#1c1a17'
+
 function postContent(body: string, clinicName: string, imageUrl: string | null): PreviewContent {
   return {
     summary: body,
@@ -93,7 +101,7 @@ function GenericFeedCard({
     <div className="max-w-sm rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3">
       <div className="flex items-center gap-2 mb-2">
         <span
-          className="inline-flex w-8 h-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white bg-[color:var(--color-brand-600,theme(colors.sky.600))]"
+          className="inline-flex w-8 h-8 shrink-0 items-center justify-center rounded-full bg-teal-600 text-sm font-semibold text-white"
           aria-hidden="true"
         >
           {initial}
@@ -155,7 +163,18 @@ export function EmailArtifact({
         {showSignoff && <p className="mt-3 text-sm text-gray-800 dark:text-gray-100">— {clinicName}</p>}
         {showBookingButton && (
           <div className="mt-3">
-            <span className="inline-block rounded-lg bg-[color:var(--color-brand-600,theme(colors.sky.600))] px-4 py-2 text-sm font-semibold text-white select-none">
+            {/* THE BUTTON THE PATIENT ACTUALLY GETS (D13). This painted
+                `var(--color-brand-600)` — a token that does not exist — so
+                it silently fell back to sky, a hue v3 retired, and showed a
+                small blue pill for a button that arrives as a wide near-black
+                block. The whole premise of these artifacts is "look at the
+                work as it will exist", so the recipe here mirrors
+                authEmailShell's: its `#1c1a17` default (no caller passes an
+                accent), 8px radius, bold white. */}
+            <span
+              className="inline-block select-none rounded-lg px-6 py-2.5 text-sm font-bold text-white"
+              style={{ backgroundColor: EMAIL_BUTTON_BG }}
+            >
               Book a time
             </span>
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
@@ -260,7 +279,7 @@ export function PlanArtifact({
               </p>
               <div className="mt-1.5 flex items-start gap-2">
                 <span
-                  className="inline-flex w-6 h-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white bg-[color:var(--color-brand-600,theme(colors.sky.600))]"
+                  className="inline-flex w-6 h-6 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-semibold text-white"
                   aria-hidden="true"
                 >
                   {initial}
