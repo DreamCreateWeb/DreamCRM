@@ -9,10 +9,11 @@ import 'server-only'
  * should cost the practice its goal FLAVOR for one tick, never its work.
  */
 
-import { and, count, desc, eq, gte } from 'drizzle-orm'
+import { and, count, desc, eq, gte, isNotNull, ne } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId, slugify } from '@/lib/utils'
 import { recordAction } from '@/lib/services/action-ledger'
+import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
 import {
   MAX_ACTIVE_GOALS,
   goalPromptLine,
@@ -70,19 +71,30 @@ export async function goalPromptLineFor(organizationId: string): Promise<string>
   }
 }
 
-/** New patients SEATED since an instant — the goal's honest progress number
- *  (the journey law: seated, never booked). */
+/**
+ * New patients SEATED since an instant — the goal's honest progress number.
+ *
+ * SAME ACQUISITION SEMANTICS as Analytics and the Overview tile, and for the
+ * same reasons: `firstSeenAt` is the honest field (the journey law: seated,
+ * never booked), archived patients don't count, and BULK BACKFILLS are
+ * excluded. That last one is not a nicety here — a practice that connects
+ * their PMS the week after setting a goal would otherwise open this card to
+ * "1,800 new patients seated in the last 3 days", which is precisely the
+ * kind of claim the card's own caption promises it is not making.
+ */
 export async function seatedSince(organizationId: string, since: Date): Promise<number> {
-  const [row] = await db
-    .select({ n: count() })
+  const rows = await db
+    .select({ source: schema.patient.source })
     .from(schema.patient)
     .where(
       and(
         eq(schema.patient.organizationId, organizationId),
+        isNotNull(schema.patient.firstSeenAt),
         gte(schema.patient.firstSeenAt, since),
+        ne(schema.patient.lifecycle, 'archived'),
       ),
     )
-  return row?.n ?? 0
+  return rows.filter((r) => !BACKFILL_PATIENT_SOURCES.has(r.source ?? '')).length
 }
 
 /**

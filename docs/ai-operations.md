@@ -433,3 +433,21 @@ commit → merge to main → verify deploy (same as the best-version program).
   explicit line stays on purpose: a reset must produce ONE known state, and
   inheriting a default would make the demo's baseline move the next time a
   default does.
+- **2026-08-23 — D11 (the main-loop self-sweep)**: two real defects, found by
+  walking the new code against the standing checklist rather than by an audit
+  fleet. (1) **`seatedSince` counted the wrong population.** The goal card
+  promises patients SEATED since the goal was set, but the query counted
+  every row with a `firstSeenAt` in the window — so a practice that connects
+  their PMS the week after setting a goal would have opened the card to
+  "1,800 new patients seated in the last 3 days", precisely the claim the
+  card's own caption promises it is not making. It now uses the SAME
+  acquisition semantics as Analytics and the Overview tile: archived
+  excluded, bulk backfills excluded via the single-homed
+  `BACKFILL_PATIENT_SOURCES` (a source-scan guard fails CI if a local copy of
+  that list ever appears here). (2) **Sandman's two actions had no billing
+  wall.** The dashboard shell hides /dream-team from a shut-down clinic, and
+  a hidden UI is not a gate — both actions are reachable by any signed-in
+  user who can POST, and both either spend the practice's AI budget or start
+  real work for an engine the crons already refuse to run. Both now check
+  `isClinicShutDown` server-side, and `tests/journey/dream-team-actions.test.ts`
+  pins that plus the tenant/role/closed-registry refusals.

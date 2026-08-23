@@ -68,6 +68,19 @@ export async function askSandmanAction(input: {
   }
   const query = (input.query ?? '').trim()
   if (!query) return { ok: false, answer: 'Ask me something about the practice.', actions: [], requests: [] }
+  // THE BILLING WALL, enforced on the SERVER. The dashboard shell hides this
+  // page from a shut-down clinic, but a hidden UI is not a gate — and every
+  // ask here spends the practice's AI budget (the crons already skip these
+  // orgs for the same reason).
+  const { isClinicShutDown } = await import('@/lib/services/billing-state')
+  if (await isClinicShutDown(ctx.organizationId)) {
+    return {
+      ok: false,
+      answer: 'Your team is paused while the account is on hold. Nothing is lost — everything picks back up when it’s active again.',
+      actions: [],
+      requests: [],
+    }
+  }
 
   const { askSandman } = await import('@/lib/services/sandman')
   const { SANDMAN_ACTIONS, SANDMAN_REQUESTS } = await import('@/lib/sandman')
@@ -120,6 +133,13 @@ export async function askTeamForWorkAction(input: { kind: string }): Promise<Tea
   const kind = input.kind
   if (typeof kind !== 'string' || !(kind in SANDMAN_REQUESTS)) {
     return { ok: false, message: 'I can’t do that one.' }
+  }
+  // Same wall, same reason: a request runs a generator, and a generator both
+  // spends AI and files work for a practice whose engine is meant to be
+  // parked.
+  const { isClinicShutDown } = await import('@/lib/services/billing-state')
+  if (await isClinicShutDown(ctx.organizationId)) {
+    return { ok: false, message: 'Your team is paused while the account is on hold.' }
   }
   const { runSandmanRequest } = await import('@/lib/services/sandman-requests')
   return runSandmanRequest(ctx.organizationId, ctx.organizationName, kind as keyof typeof SANDMAN_REQUESTS)
