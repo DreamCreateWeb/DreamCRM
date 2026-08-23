@@ -1,8 +1,10 @@
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
+import { buildWeeklyStandup } from '@/lib/services/standup'
 import type { TenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
 import { PageHeader } from '@/components/ui/page-header'
 import ApprovalInbox from '../dashboard/approval-inbox'
+import TeamRoster from './team-roster'
 import { loadApprovalInbox } from './load'
 
 /**
@@ -16,13 +18,21 @@ import { loadApprovalInbox } from './load'
  * whole-DOM suite can render it directly with mocked services.
  */
 export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
-  const [timeZone, demoSkin] = await Promise.all([
+  const [timeZone, demoSkin, standup] = await Promise.all([
     getClinicTimeZone(ctx.organizationId).catch(() => 'America/New_York'),
     readDemoSkin(ctx),
+    // The roster's last-week numbers ride the standup's per-capability
+    // counts — real ledger work, the same window the Monday email reports.
+    buildWeeklyStandup(ctx.organizationId).catch(() => null),
   ])
   const name = demoSkin?.clinicName ?? ctx.organizationName
   const inbox = await loadApprovalInbox(ctx.organizationId, timeZone)
   const waiting = inbox.proposalCards.length
+  const weeklyCounts = new Map<string, number>(
+    (standup?.lines ?? []).map((l) => [l.capability, l.count]),
+  )
+  const grantedCapabilities = new Set(inbox.grants.map((g) => g.capability))
+  const waitingCapabilities = new Set(inbox.proposalCards.map((p) => p.capability))
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
@@ -61,6 +71,13 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
           </p>
         </div>
       )}
+
+      {/* THE ROSTER — the staff you hired, with last week's real numbers. */}
+      <TeamRoster
+        grantedCapabilities={grantedCapabilities}
+        weeklyCounts={weeklyCounts}
+        waitingCapabilities={waitingCapabilities}
+      />
     </div>
   )
 }

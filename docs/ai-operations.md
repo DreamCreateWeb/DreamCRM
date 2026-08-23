@@ -227,3 +227,14 @@ commit → merge to main → verify deploy (same as the best-version program).
   for test compat). Overview's proposal read slims to the strip's needs;
   My Day's waiting-tile + the daily digest deep-link to /dream-team. The
   three inbox test suites re-pointed at DreamTeamView; new strip suite.
+- **2026-08-23 — D3**: THE ROSTER. `SPECIALISTS` registry in
+  lib/types/dream-team (six teammates as a pure lens over lib/autonomy's
+  CAPABILITIES — membership changes no behavior) + `team-roster.tsx`: one
+  card per specialist with the blurb, last week's REAL per-capability
+  counts (the standup's ledger lines — zero says "a quiet week", never
+  looks busy), the on-their-own vs asks-first lanes (grants move a lane
+  live), and a warn pill when that teammate has work in the stack. A
+  report, not a console — no switches; take-it-back stays on the grants
+  strip. Registry-parity tests guard that every non-meta capability sits
+  on exactly one specialist (a new capability can't silently miss the
+  roster).
