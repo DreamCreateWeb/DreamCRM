@@ -22,8 +22,42 @@ export interface StripProposal {
 
 const MAX_CHIPS = 4
 
-export default function DreamTeamStrip({ proposals }: { proposals: StripProposal[] }) {
-  if (proposals.length === 0) return null
+export default function DreamTeamStrip({
+  proposals,
+  stagedCount = 0,
+}: {
+  proposals: StripProposal[]
+  /** How many staged pieces sit on the veto runway (D4) — the strip
+   *  mentions them so the runway is never a page-only secret. */
+  stagedCount?: number
+}) {
+  if (proposals.length === 0 && stagedCount === 0) return null
+  if (proposals.length === 0) {
+    // Nothing waits on a signature, but work is queued — a single calm
+    // sentence keeps the veto window visible from the huddle.
+    return (
+      <section className="mb-6">
+        <Link
+          href="/dream-team"
+          className="group flex items-center gap-3 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2,white)] px-4 py-3 ring-1 ring-[color:var(--color-hairline)] transition-shadow hover:shadow-[var(--shadow-raised,0_2px_8px_rgba(0,0,0,0.06))]"
+        >
+          <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-base">
+            🌙
+          </span>
+          <span className="min-w-0 flex-1 text-sm text-gray-700 dark:text-gray-200">
+            The Dream Team has{' '}
+            <span className="font-semibold">
+              {stagedCount === 1 ? 'one piece' : `${stagedCount} pieces`} going out soon
+            </span>{' '}
+            — stop anything that shouldn&rsquo;t.
+          </span>
+          <span className="shrink-0 text-sm font-medium text-teal-700 group-hover:underline dark:text-teal-300">
+            See the queue →
+          </span>
+        </Link>
+      </section>
+    )
+  }
   const n = proposals.length
   const chips = proposals.slice(0, MAX_CHIPS)
   const rest = n - chips.length
@@ -73,6 +107,11 @@ export default function DreamTeamStrip({ proposals }: { proposals: StripProposal
             {rest > 0 && (
               <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                 +{rest} more
+              </span>
+            )}
+            {stagedCount > 0 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                · {stagedCount} going out soon
               </span>
             )}
           </span>

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getClinicOverview, type TodayAppointmentRow, type ActivityKind } from '@/lib/services/clinic-overview'
 import { getStaffOnboarding, getActivationChecklist } from '@/lib/services/staff-onboarding'
 import { listOpenProposals } from '@/lib/services/proposals'
+import { countRunway } from '@/lib/services/dream-team'
 
 import { buildWeeklyStandup } from '@/lib/services/standup'
 import { getActiveGuardianNote } from '@/lib/services/guardian'
@@ -86,7 +87,7 @@ function money(cents: number): string {
 // formatClinicDayHeader from @/lib/format-datetime, tz from the snapshot).
 
 export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
-  const [data, onboarding, proposals, standup, guardianNote] = await Promise.all([
+  const [data, onboarding, proposals, stagedCount, standup, guardianNote] = await Promise.all([
     getClinicOverview(ctx.organizationId),
     getStaffOnboarding(ctx.organizationId, ctx.userId),
     // The Dream Team's summons strip + the weekly standup are best-effort
@@ -95,6 +96,9 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
     // grants strip) moved to /dream-team (docs/ai-operations.md, D2); the
     // Overview reads only what the one-row summons needs.
     listOpenProposals(ctx.organizationId).catch(() => []),
+    // The veto runway's count (D4) — the strip mentions staged work so the
+    // Stop window is visible from the huddle. Best-effort, 0 on failure.
+    countRunway(ctx.organizationId),
     buildWeeklyStandup(ctx.organizationId).catch(() => null),
     // THE GUARDIAN's heads-up (Phase 4), when the audience lock is open
     // and the finding is one this practice can act on. Self-expiring and
@@ -229,6 +233,7 @@ export default async function ClinicOverview({ ctx }: { ctx: TenantContext }) {
           capabilityLabel: p.capabilityLabel,
           expiresAt: p.expiresAt ?? null,
         }))}
+        stagedCount={stagedCount}
       />
 
       {/* ── Row 1 — Needs your attention ─────────────────────────────── */}

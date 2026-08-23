@@ -70,15 +70,26 @@ export const CAPABILITIES: readonly CapabilityDef[] = [
   { key: 'proposal_engine', label: 'Bring you work that’s ready to approve', defaultTrust: 'auto' },
   // Ask-first today (drafts that wait for a human):
   { key: 'review_reply', label: 'Reply to Google reviews', defaultTrust: 'ask' },
-  { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'ask' },
+  // DEEP SLEEP (owner ruling 2026-08-23, docs/ai-operations.md lane matrix):
+  // broadcast content in the clinic's own voice runs on its own from day 0 —
+  // dental staff won't keep up with social posting, and the VETO RUNWAY
+  // (lib/dream-team-runway.ts) replaces the approval as the consent
+  // mechanism: machine-initiated posts STAGE at the next clinic-local 10 AM
+  // (>=12h out) on the Dream Team's visible "Going out soon" queue with a
+  // one-tap Stop. This deliberately REVERSES the Phase-2 ask-first default;
+  // a clinic can still take the lane back (stored 'ask' beats the default).
+  { key: 'social_post', label: 'Publish social & Google posts', defaultTrust: 'auto' },
   { key: 'inquiry_response', label: 'Answer website inquiries', defaultTrust: 'ask' },
   { key: 'outreach_campaign', label: 'Launch outreach campaigns', defaultTrust: 'ask' },
-  // THE CONTENT CALENDAR (Phase 5, limb 1). A month of public writing in one
-  // card. Ask-first like its siblings, and deliberately NOT grantable below:
-  // handing over one post is a bounded yes, handing over four weeks of a
-  // practice's public voice, unseen, is a different order of thing. It can
-  // earn that later, on evidence — the ladder is a ladder.
-  { key: 'content_plan', label: 'Plan a month of posts & articles', defaultTrust: 'ask' },
+  // THE CONTENT CALENDAR (Phase 5, limb 1). DEEP SLEEP since the owner's
+  // 2026-08-23 ruling (docs/ai-operations.md): the month plan runs on its
+  // own — its pieces are SCHEDULED by construction (dates resolve at
+  // execute time), so every one of them sits on the visible runway with a
+  // Stop before it goes out. That standing veto window is what made
+  // reversing the original "four weeks of public voice, unseen" ruling
+  // honest: nothing in the plan is unseen — it queues in plain sight.
+  // Grantable below so the take-back ("go back to asking") works for it.
+  { key: 'content_plan', label: 'Plan a month of posts & articles', defaultTrust: 'auto' },
   // THE EMPTY CHAIR (Phase 5, limb 2). Ask-first, and NOT grantable below
   // for the same reason its sibling recall campaign isn't: it puts mail in a
   // patient's inbox on the strength of the machine reading a schedule, and
@@ -162,6 +173,9 @@ export const GRANTABLE_CAPABILITIES = [
   'social_post',
   'inquiry_response',
   'outreach_campaign',
+  // Deep-sleep lane (owner ruling 2026-08-23) — grantable so the ladder's
+  // take-back machinery ("go back to asking") governs it like its siblings.
+  'content_plan',
 ] as const
 
 export function isGrantable(key: string): boolean {

@@ -112,11 +112,16 @@ describe('the autonomy ladder', () => {
       'domain_autorenew',
       'listing_sync',
       'review_feature',
+      // DEEP SLEEP (owner ruling 2026-08-23, docs/ai-operations.md):
+      // broadcast content runs on its own from day 0 — the veto runway,
+      // not an approval, is the consent mechanism for these two.
+      'social_post',
+      'content_plan',
     ]) {
       expect(getCapability(key)?.defaultTrust, key).toBe('auto')
     }
     // Ask-first today (drafts that wait for a human yes):
-    for (const key of ['review_reply', 'social_post', 'inquiry_response', 'outreach_campaign']) {
+    for (const key of ['review_reply', 'inquiry_response', 'outreach_campaign']) {
       expect(getCapability(key)?.defaultTrust, key).toBe('ask')
     }
   })

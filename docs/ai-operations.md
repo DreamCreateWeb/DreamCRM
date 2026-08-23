@@ -238,3 +238,26 @@ commit → merge to main → verify deploy (same as the best-version program).
   strip. Registry-parity tests guard that every non-meta capability sits
   on exactly one specialist (a new capability can't silently miss the
   roster).
+- **2026-08-23 — D4**: THE VETO RUNWAY + day-0 deep sleep. The owner's lane
+  ruling is now code: `social_post` and `content_plan` default to `auto` in
+  lib/autonomy (a deliberate, comment-recorded reversal of the Phase-2/3
+  ask-first + not-grantable rulings), and `content_plan` joins
+  GRANTABLE_CAPABILITIES so the take-back governs it. `lib/dream-team-runway.ts`
+  is the pure core: `nextRunwaySlot` (next clinic-local 10 AM >=12h out) +
+  `RUNWAY_CAPABILITIES`/`stagesOnRunway` single-homing which lanes stage.
+  The MACHINE's own yes to a social post now stages instead of firing
+  (decideAndExecute computes the slot only for `actor.kind==='auto'`; a human
+  approve stays immediate — a person just said go), and narrates the queue
+  honestly ("Queued … going out <when>, with a Stop … until then") while
+  suppressing social-posts' own hand-off ledger entry so one staged post
+  narrates ONCE. content_plan needed no staging rule: it schedules every
+  piece by construction. `lib/services/dream-team.ts` reads the unified
+  runway (scheduled social + scheduled blog, batched destinations) +
+  `countRunway` for the strip; `runway-section.tsx` renders "Going out soon"
+  with per-row Stop (social confirms — the draft is discarded; blog returns
+  to drafts), routed through the OWNING services via one server action. The
+  summons strip gains a staged-count line and a quiet queue-only variant.
+  The Approval Inbox's granted-card copy branches on `stagesOnRunway` so a
+  staged lane never repeats the old "within the hour" false promise.
+  Registry pins in spine/autonomy-service/proposals-service updated to the
+  new defaults; new suites cover the slot math and the runway UI.

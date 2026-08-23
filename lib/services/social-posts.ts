@@ -333,6 +333,10 @@ export async function createSocialPost(
      *  (Phase-2 verification round 3). A throw here aborts BEFORE anything
      *  publishes, which is the safe side. */
     onPersisted?: (postId: string) => Promise<void>
+    /** The proposal executor narrates its own yes under the proposal's
+     *  capability (the ledger-boundary law) — it suppresses this module's
+     *  scheduled hand-off entry so one staged post never narrates twice. */
+    suppressHandoffLedger?: boolean
   } = {},
 ): Promise<CreateSocialPostResult> {
   // Resolve the connection + the targeted accounts.
@@ -514,7 +518,7 @@ export async function createSocialPost(
   // the entry is written at HAND-OFF and says exactly that: the post is
   // queued with the publisher for the chosen moment — never a claim that it
   // already went live. Best-effort: a ledger hiccup must not fail the post.
-  if (v.scheduledAt && finalStatuses.includes('scheduled')) {
+  if (v.scheduledAt && finalStatuses.includes('scheduled') && !opts.suppressHandoffLedger) {
     try {
       const tz = await getClinicTimeZone(orgId)
       const okTargets = targets.filter((_, i) => finalStatuses[i] === 'scheduled')
