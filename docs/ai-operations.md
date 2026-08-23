@@ -352,3 +352,22 @@ commit → merge to main → verify deploy (same as the best-version program).
   (4) Room to read: the focal card went `p-4` → `p-5`, and the last two
   retired etched-ring surfaces (the completion note, the calm-desk card)
   moved to the floating-card recipe.
+- **2026-08-23 — D7c**: THE DEMO + THE GOAL'S SERVICE. (1) `seedDemoGoal` gives
+  the demo clinic one active goal ("more implant patients", focused on their
+  dental-implants service) baselined three weeks back, so /dream-team opens on
+  a practice that has POINTED its team somewhere: the goals section's
+  populated state, the status band's "pointed at your goal" line, and the
+  ancestry line the generators read. Seed-if-absent, `isDemo`-marked, and it
+  never overwrites a goal a person typed in the demo. (2) THE SERVICE,
+  UNDERSTOOD RATHER THAN ASKED FOR: `serviceFocus` had no way to be filled
+  except by the seeder, and adding a dropdown would be the tool asking the
+  employee to operate it — "more implant patients" is ALREADY the answer to
+  "which service?". `matchServiceFocus` (pure) matches what a person typed
+  against the practice's OWN service list, so a match can only be a service
+  they actually offer; it folds plurals, refuses generic words ("dental care"
+  describes almost everything a practice does), prefers the more specific
+  service, and returns null rather than guessing. `deriveServiceFocus` is
+  best-effort by construction — an unreadable profile costs the goal its
+  focus, never its existence. (3) The loading skeleton now matches the page
+  it precedes, band included; a skeleton that doesn't is a small lie the
+  layout tells right before it jumps.

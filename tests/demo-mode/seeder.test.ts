@@ -28,6 +28,7 @@ vi.mock('@/lib/db', async () => {
     if (t === schema.products) return 'products'
     if (t === schema.orders) return 'orders'
     if (t === schema.invoices) return 'invoices'
+    if (t === schema.goal) return 'goal'
     if (t === schema.formTemplate) return 'form_template'
     if (t === schema.formSubmission) return 'form_submission'
     if (t === schema.patientNote) return 'patient_note'
@@ -231,14 +232,30 @@ describe('createDemoClinic', () => {
     expect(out.patientCount).toBe(3)
     expect(out.appointmentCount).toBe(1)
     // Self-heal re-seeds no demo *entities*. The only inserts it issues are
-    // non-destructive onConflictDoNothing backfills: the AI-usage meter and the
-    // second intake form (idempotent on the org+slug unique index). The referral
-    // self-heal bails here (its patient guard read hits the exhausted queue), so
-    // it issues no inserts on this exhausted-queue path.
+    // non-destructive seed-if-absent backfills: the AI-usage meter, the
+    // second intake form (idempotent on the org+slug unique index), and the
+    // Dream Team's goal (guarded by its own "does one exist" read, which on
+    // this exhausted-queue path reads empty). The referral self-heal bails
+    // here (its patient guard read hits the exhausted queue), so it issues
+    // no inserts on this path.
     expect(
-      state.inserts.filter((i) => i.table !== 'ai_usage_counter' && i.table !== 'form_template'),
+      state.inserts.filter(
+        (i) =>
+          i.table !== 'ai_usage_counter' && i.table !== 'form_template' && i.table !== 'goal',
+      ),
     ).toHaveLength(0)
     expect(state.inserts.some((i) => i.table === 'ai_usage_counter')).toBe(true)
+    // The Dream Team's demo goal: one active goal so /dream-team opens on a
+    // practice that has pointed its team somewhere, marked isDemo like every
+    // other seeded artifact, and baselined in the PAST so the card shows a
+    // running count rather than "early days" on a demo that resyncs on
+    // every deploy.
+    const goalInsert = state.inserts.find((i) => i.table === 'goal')
+    const goalValues = goalInsert?.values as Record<string, unknown> | undefined
+    expect(goalValues?.objective).toBe('more implant patients')
+    expect(goalValues?.status).toBe('active')
+    expect(goalValues?.isDemo).toBe(1)
+    expect((goalValues?.baselineAt as Date).getTime()).toBeLessThan(Date.now())
   })
 
   it('self-heals stats / testimonials / officePhotos / logoUrl / heroImageUrl when the existing demo has nulls', async () => {

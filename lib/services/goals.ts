@@ -11,11 +11,12 @@ import 'server-only'
 
 import { and, count, desc, eq, gte } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { newId } from '@/lib/utils'
+import { newId, slugify } from '@/lib/utils'
 import { recordAction } from '@/lib/services/action-ledger'
 import {
   MAX_ACTIVE_GOALS,
   goalPromptLine,
+  matchServiceFocus,
   isGoalStatus,
   validateObjective,
   type GoalStatus,
@@ -84,6 +85,35 @@ export async function seatedSince(organizationId: string, since: Date): Promise<
   return row?.n ?? 0
 }
 
+/**
+ * THE GOAL'S SERVICE, UNDERSTOOD (D7c): read the practice's own service list
+ * and let `matchServiceFocus` decide. Best-effort by construction — an
+ * unreadable profile costs the goal its service focus, never its existence.
+ */
+async function deriveServiceFocus(organizationId: string, objective: string): Promise<string | null> {
+  try {
+    const [row] = await db
+      .select({ services: schema.clinicProfile.services })
+      .from(schema.clinicProfile)
+      .where(eq(schema.clinicProfile.organizationId, organizationId))
+      .limit(1)
+    const raw = Array.isArray(row?.services) ? (row!.services as unknown[]) : []
+    const services = raw
+      .map((s) => {
+        if (!s || typeof s !== 'object') return null
+        const o = s as Record<string, unknown>
+        const name = typeof o.name === 'string' ? o.name : ''
+        if (!name.trim()) return null
+        const slug = typeof o.librarySlug === 'string' && o.librarySlug ? o.librarySlug : slugify(name)
+        return { name, slug }
+      })
+      .filter((x): x is { name: string; slug: string } => x !== null)
+    return matchServiceFocus(objective, services)
+  } catch {
+    return null
+  }
+}
+
 export interface SetGoalResult {
   ok: boolean
   error?: string
@@ -114,11 +144,16 @@ export async function createGoal(input: {
   }
 
   const id = newId('goal')
+  // A caller-supplied focus wins (the demo seeder names one); otherwise the
+  // team works out which of the practice's OWN services the goal is about,
+  // rather than making a person pick it twice.
+  const serviceFocus =
+    input.serviceFocus?.trim() || (await deriveServiceFocus(input.organizationId, v.objective))
   await db.insert(schema.goal).values({
     id,
     organizationId: input.organizationId,
     objective: v.objective,
-    serviceFocus: input.serviceFocus?.trim() || null,
+    serviceFocus,
     status: 'active',
     createdByUserId: input.userId,
     // THE BASELINE IS ZERO-AT-NOW, not a historical count: progress means

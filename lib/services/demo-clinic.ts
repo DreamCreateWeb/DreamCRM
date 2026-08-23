@@ -1318,6 +1318,42 @@ const DEMO_STAFF: ClinicStaff[] = [
  * (e.g. "188 of 200 left"). Demo-scoped + idempotent — pins a fixed value on
  * conflict so a resync always presents the same illustrative number.
  */
+/**
+ * THE DREAM TEAM's GOAL (docs/ai-operations.md, D6/D7c). One active goal so
+ * the demo's /dream-team opens on a practice that has POINTED its team
+ * somewhere — the goals section's populated state, the status band's
+ * "pointed at your goal" line, and the ancestry line the generators read.
+ *
+ * Seed-if-absent: the owner tests goal-setting in the demo like everything
+ * else, so a resync must never wipe a goal a person typed. `isDemo` marks
+ * it for the same reason every other seeded artifact carries a marker.
+ */
+async function seedDemoGoal(orgId: string): Promise<void> {
+  const [existing] = await db
+    .select({ id: schema.goal.id })
+    .from(schema.goal)
+    .where(eq(schema.goal.organizationId, orgId))
+    .limit(1)
+  if (existing) return
+  const now = new Date()
+  // Baselined three weeks back so the card shows a real running count
+  // rather than "early days" on a demo that resyncs every deploy.
+  const baselineAt = new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000)
+  await db.insert(schema.goal).values({
+    id: newId('goal'),
+    organizationId: orgId,
+    objective: 'more implant patients',
+    serviceFocus: 'dental-implants',
+    status: 'active',
+    createdByUserId: null,
+    baselineNewPatients: 0,
+    baselineAt,
+    isDemo: 1,
+    createdAt: baselineAt,
+    updatedAt: baselineAt,
+  })
+}
+
 async function seedDemoAiUsage(orgId: string) {
   const now = new Date()
   const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
@@ -2508,6 +2544,9 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
 
     // Website Editor: seed the AI-rewrite allowance meter with a non-zero count.
     await seedDemoAiUsage(existing.id)
+
+    // The Dream Team's goal — the team has somewhere to aim in the demo.
+    await seedDemoGoal(existing.id)
 
     // Patient-portal family self-heal: Lily (Emma's dependent) + her upcoming
     // cleaning, so Family access demos on legacy seeds too. Idempotent.

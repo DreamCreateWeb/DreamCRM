@@ -69,6 +69,87 @@ export function goalPromptLine(goals: Array<Pick<GoalView, 'objective' | 'servic
   ].join('\n')
 }
 
+/**
+ * Words too generic to identify a service. "Dental care" and "family
+ * dentistry" describe almost every service a practice offers, so matching on
+ * them would aim a goal at whichever service happened to sort first.
+ */
+const GENERIC_SERVICE_WORDS = new Set([
+  'dental',
+  'dentistry',
+  'dentist',
+  'care',
+  'general',
+  'service',
+  'services',
+  'treatment',
+  'treatments',
+  'family',
+  'patient',
+  'patients',
+  'more',
+  'new',
+  'your',
+  'our',
+  'the',
+  'and',
+  'for',
+])
+
+/** Crude singular/plural fold — "implants" and "implant" are the same word
+ *  to a person, and a goal is typed by a person. */
+function stem(word: string): string {
+  if (word.length > 4 && word.endsWith('ies')) return `${word.slice(0, -3)}y`
+  if (word.length > 3 && word.endsWith('es')) return word.slice(0, -2)
+  if (word.length > 3 && word.endsWith('s')) return word.slice(0, -1)
+  return word
+}
+
+function distinctiveTokens(text: string): string[] {
+  return (text ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter((w) => w.length >= 4 && !GENERIC_SERVICE_WORDS.has(w))
+    .map(stem)
+}
+
+/**
+ * THE GOAL'S SERVICE, UNDERSTOOD RATHER THAN ASKED FOR (D7c).
+ *
+ * "More implant patients" is already the answer to "which service?" — making
+ * someone pick it again from a dropdown is the tool asking the employee to
+ * operate it. So the goal's service focus is DERIVED by matching what they
+ * typed against the practice's OWN service list, which means a match can
+ * only ever be a service they actually offer.
+ *
+ * Pure, and honest about uncertainty: no confident match returns null, and a
+ * null focus simply means the ancestry line names the goal without a service.
+ */
+export function matchServiceFocus(
+  objective: string,
+  services: Array<{ name: string; slug: string }>,
+): string | null {
+  const objTokens = new Set(distinctiveTokens(objective))
+  if (objTokens.size === 0) return null
+  let best: { slug: string; matched: number; ratio: number } | null = null
+  for (const svc of services) {
+    const tokens = distinctiveTokens(svc.name)
+    if (tokens.length === 0) continue
+    const matched = tokens.filter((t) => objTokens.has(t)).length
+    if (matched === 0) continue
+    const ratio = matched / tokens.length
+    if (
+      !best ||
+      matched > best.matched ||
+      (matched === best.matched && ratio > best.ratio)
+    ) {
+      best = { slug: svc.slug, matched, ratio }
+    }
+  }
+  return best?.slug ?? null
+}
+
 /** The honest progress line for a goal card. New patients SEATED since the
  *  goal was set, and how long it has been running — never a projection, and
  *  never a claim that the goal CAUSED them. */

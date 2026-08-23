@@ -6,6 +6,7 @@ import {
   isGoalStatus,
   MAX_ACTIVE_GOALS,
   OBJECTIVE_MAX,
+  matchServiceFocus,
 } from '@/lib/goals'
 
 /**
@@ -93,5 +94,48 @@ describe('isGoalStatus', () => {
   it('accepts only the four real states', () => {
     for (const s of ['active', 'paused', 'achieved', 'retired']) expect(isGoalStatus(s)).toBe(true)
     for (const s of ['deleted', '', 'ACTIVE', null, 7]) expect(isGoalStatus(s)).toBe(false)
+  })
+})
+
+describe('matchServiceFocus — the goal’s service, understood not asked for', () => {
+  const services = [
+    { name: 'Dental Implants', slug: 'dental-implants' },
+    { name: 'Teeth Whitening', slug: 'teeth-whitening' },
+    { name: 'Invisalign', slug: 'invisalign' },
+    { name: 'General Dentistry', slug: 'general-dentistry' },
+    { name: 'Root Canal Treatment', slug: 'root-canal' },
+  ]
+
+  it('reads the service straight out of what a person typed', () => {
+    expect(matchServiceFocus('more implant patients', services)).toBe('dental-implants')
+    expect(matchServiceFocus('more Invisalign', services)).toBe('invisalign')
+    expect(matchServiceFocus('more whitening patients', services)).toBe('teeth-whitening')
+  })
+
+  it('folds plurals — a person types “implants”, the list says “Implant”', () => {
+    expect(matchServiceFocus('more dental implants', services)).toBe('dental-implants')
+    expect(
+      matchServiceFocus('more implant patients', [{ name: 'Implant', slug: 'implant' }]),
+    ).toBe('implant')
+  })
+
+  it('prefers the more specific service when two overlap', () => {
+    expect(matchServiceFocus('more root canal patients', services)).toBe('root-canal')
+  })
+
+  it('never matches on generic words — “dental care” describes everything', () => {
+    expect(matchServiceFocus('more dental patients', services)).toBeNull()
+    expect(matchServiceFocus('more families', services)).toBeNull()
+    expect(matchServiceFocus('more new patients', services)).toBeNull()
+  })
+
+  it('says null rather than guessing when nothing matches', () => {
+    expect(matchServiceFocus('more veneers', services)).toBeNull()
+    expect(matchServiceFocus('', services)).toBeNull()
+    expect(matchServiceFocus('more implants', [])).toBeNull()
+  })
+
+  it('tolerates junk rows without throwing', () => {
+    expect(matchServiceFocus('more implants', [{ name: '', slug: 'x' }])).toBeNull()
   })
 })
