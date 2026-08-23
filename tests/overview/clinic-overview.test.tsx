@@ -1045,7 +1045,9 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     const ui = await DreamTeamView({ ctx: makeCtx() })
     render(ui)
     expect(screen.getByText(/I handle these on my own now/i)).toBeInTheDocument()
-    expect(screen.getByText('Reply to Google reviews')).toBeInTheDocument()
+    // The label now also appears on the roster's Reputation card (D3), so
+    // assert presence without demanding uniqueness.
+    expect(screen.getAllByText('Reply to Google reviews').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: /go back to asking before Reply to Google reviews/i }))
     await Promise.resolve()
     await Promise.resolve()
