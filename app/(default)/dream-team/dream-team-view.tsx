@@ -95,6 +95,7 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         grants={inbox.grants}
         autonomousWork={inbox.autonomousWork}
         isDemo={ctx.isDemo}
+        teamHasRun={lastCycleAt != null}
       />
       </div>
 

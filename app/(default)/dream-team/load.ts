@@ -69,6 +69,12 @@ export async function loadApprovalInbox(
   // showing, how many recent approvals in a row went out unedited — the
   // card suggests the grant at 3+. Best-effort; at most four tiny reads.
   const grantedSet = new Set(trustGrants.filter((g) => g.level === 'auto').map((g) => g.capability))
+  // WHO DECIDED (D12): a lane that is automatic because the product ships
+  // that way must never be described to a clinic as something they handed
+  // over. Only a stored 'auto' is a choice they made.
+  const explicitlyGranted = new Set(
+    trustGrants.filter((g) => g.level === 'auto' && g.explicit).map((g) => g.capability),
+  )
   const grantedCapabilities = trustGrants
     .filter((g) => g.level === 'auto')
     .map((g) => ({ capability: g.capability, grantedAt: g.grantedAt }))
@@ -247,6 +253,7 @@ export async function loadApprovalInbox(
       // The capability is automatic AT ALL — the consent checkbox's gate, so
       // a card the machine won't act on never re-asks for a standing trust.
       capabilityGranted: grantedSet.has(p.capability),
+      grantExplicit: explicitlyGranted.has(p.capability),
       // When the card retires itself — the queue rail's urgency dot.
       expiresAt: p.expiresAt ?? null,
       expiresLabel: expiryDayLabel(todayKey, p.expiresAt ? clinicDayKey(p.expiresAt, timeZone) : null),
@@ -262,7 +269,12 @@ export async function loadApprovalInbox(
     totalOpen,
     grants: trustGrants
       .filter((g) => g.level === 'auto')
-      .map((g) => ({ capability: g.capability, label: g.label, grantedAt: g.grantedAt })),
+      .map((g) => ({
+        capability: g.capability,
+        label: g.label,
+        grantedAt: g.grantedAt,
+        explicit: g.explicit,
+      })),
     autonomousWork,
   }
 }

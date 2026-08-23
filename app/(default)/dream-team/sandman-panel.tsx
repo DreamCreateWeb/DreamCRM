@@ -36,12 +36,18 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
   const [pending, startTransition] = useTransition()
+  // A SEPARATE transition for requests (D12). Sharing one meant the request
+  // buttons rendered disabled for the tail of the very ask that produced
+  // them — a button that appears and cannot be pressed reads as broken, and
+  // it made the panel's own test flaky under load, which is the same fact
+  // showing up twice.
+  const [working, startWork] = useTransition()
   const threadRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' })
-  }, [turns, pending])
+  }, [turns, pending, working])
 
   function ask(question: string) {
     const q = question.trim()
@@ -71,11 +77,11 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
   }
 
   function putToWork(turnIndex: number, kind: string) {
-    if (pending) return
+    if (working) return
     setTurns((prev) =>
       prev.map((t, i) => (i === turnIndex ? { ...t, requested: kind } : t)),
     )
-    startTransition(async () => {
+    startWork(async () => {
       try {
         const r = await askTeamForWorkAction({ kind })
         setTurns((prev) => [...prev, { role: 'assistant', content: r.message }])
@@ -178,7 +184,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
                           <button
                             key={q.kind}
                             type="button"
-                            disabled={pending || t.requested != null}
+                            disabled={working || t.requested != null}
                             onClick={() => putToWork(i, q.kind)}
                             className="rounded-full bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-teal-700 disabled:opacity-40"
                           >
@@ -196,7 +202,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
             ),
           )}
 
-          {pending && (
+          {(pending || working) && (
             <div className="flex gap-2.5">
               <span
                 aria-hidden="true"
@@ -205,7 +211,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
                 🌙
               </span>
               <p role="status" className="animate-pulse text-sm text-gray-500 dark:text-gray-400">
-                Reading your numbers…
+                {working ? 'Putting them to work…' : 'Reading your numbers…'}
               </p>
             </div>
           )}

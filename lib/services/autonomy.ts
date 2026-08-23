@@ -40,6 +40,17 @@ export interface TrustGrantView {
   /** When the clinic last took it back — the floor on the earned-trust run,
    *  so the machine never re-cites approvals a revoke has overruled. */
   revokedAt: Date | null
+  /**
+   * Did a PERSON choose this, or is it how the product ships?
+   *
+   * The day-0 deep-sleep ruling (docs/ai-operations.md, D4) made two lanes
+   * `auto` by default, and every piece of copy in the ladder was written
+   * when `auto` could only mean somebody had ticked a box. "You've handed
+   * these to me" is then a false statement about a clinic's own action on
+   * their very first day. This flag is the difference, and only the stored
+   * value can tell them apart — a resolved level cannot.
+   */
+  explicit: boolean
 }
 
 /** The four grantable capabilities with their resolved levels — the
@@ -51,12 +62,16 @@ export async function listTrustGrants(organizationId: string): Promise<TrustGran
     .where(eq(schema.clinicProfile.organizationId, organizationId))
     .limit(1)
   const stored = row?.autonomy ?? null
+  const storedLevels = stored && typeof stored === 'object' ? (stored as Record<string, unknown>) : {}
   return GRANTABLE_CAPABILITIES.map((key) => ({
     capability: key,
     label: getCapability(key)?.label ?? key,
     level: resolveTrust(stored, key),
     grantedAt: resolveGrantedAt(stored, key),
     revokedAt: resolveRevokedAt(stored, key),
+    // Only an 'auto' WRITTEN for this clinic is a choice they made; anything
+    // else that resolves to auto is the platform default.
+    explicit: storedLevels[key] === 'auto',
   }))
 }
 

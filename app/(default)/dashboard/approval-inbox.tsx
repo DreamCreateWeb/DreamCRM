@@ -89,6 +89,10 @@ export interface ProposalCardData {
    *  in its platform's chrome, an email as an email, a reply under its
    *  review). Null → the plain-paragraph fallback. */
   artifact?: ProposalArtifact | null
+  /** This card's capability is automatic because a PERSON handed it over,
+   *  not because it ships that way (D12). Only the first case may be
+   *  addressed as something they did. */
+  grantExplicit?: boolean
   /** When this card retires itself — drives the queue rail's urgency dot. */
   expiresAt?: Date | null
   /** The same fact in WORDS ("Retires tomorrow"), computed SERVER-side in
@@ -123,6 +127,10 @@ export interface TrustGrantChip {
    *  grant older than that must not be told "nothing yet" — that is a claim
    *  about all of history from a week's worth of data (round-3 audit). */
   grantedAt?: Date | null
+  /** A PERSON chose this, rather than it being how the product ships (D12).
+   *  Two lanes are auto by default since the day-0 ruling, and copy written
+   *  when auto could only mean "somebody ticked a box" is false for them. */
+  explicit?: boolean
 }
 
 /** One capability's worth of work the machine did alone this past week —
@@ -144,6 +152,7 @@ export default function ApprovalInbox({
   grants = [],
   autonomousWork = [],
   isDemo = false,
+  teamHasRun = true,
   clinicName = 'Your clinic',
 }: {
   proposals: ProposalCardData[]
@@ -161,6 +170,9 @@ export default function ApprovalInbox({
   /** The demo clinic never really sends — the grant strip says so rather
    *  than promising work that the demo's own cron exclusion prevents. */
   isDemo?: boolean
+  /** Has a cycle ever run for this clinic (D7d)? Only the grants strip uses
+   *  it, to tell "nothing YET" from "nothing this past week". */
+  teamHasRun?: boolean
   /** Names the sender/author inside the artifact previews. */
   clinicName?: string
 }) {
@@ -281,6 +293,7 @@ export default function ApprovalInbox({
             grants={grants}
             work={autonomousWork}
             isDemo={isDemo}
+            teamHasRun={teamHasRun}
             onToast={setToast}
           />
         )}
@@ -393,7 +406,7 @@ export default function ApprovalInbox({
         })}
       </div>
       {(grants.length > 0 || autonomousWork.length > 0) && (
-        <GrantsStrip grants={grants} work={autonomousWork} isDemo={isDemo} onToast={setToast} />
+        <GrantsStrip grants={grants} work={autonomousWork} isDemo={isDemo} teamHasRun={teamHasRun} onToast={setToast} />
       )}
     </section>
   )
@@ -525,11 +538,15 @@ function GrantsStrip({
   grants,
   work = [],
   isDemo = false,
+  teamHasRun = true,
   onToast,
 }: {
   grants: TrustGrantChip[]
   work?: AutonomousWorkChip[]
   isDemo?: boolean
+  /** Has a cycle ever run for this clinic (D7d's heartbeat)? Only used to
+   *  tell "nothing YET" from "nothing this past week". */
+  teamHasRun?: boolean
   onToast: (message: string) => void
 }) {
   const router = useRouter()
@@ -551,8 +568,14 @@ function GrantsStrip({
   // "Yet" is a statement about all of history; the read behind it covers
   // seven days. It stays only while every live grant is younger than that.
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+  // An undated lane is either a legacy grant (unknown age — assume old) or a
+  // PLATFORM DEFAULT, which is exactly as old as the clinic. For the latter
+  // "nothing yet" is right until the team has actually run (D12).
   const everyGrantIsFresh =
-    shown.length > 0 && shown.every((g) => (g.grantedAt ? g.grantedAt.getTime() >= weekAgo : false))
+    shown.length > 0 &&
+    shown.every((g) =>
+      g.grantedAt ? g.grantedAt.getTime() >= weekAgo : g.explicit === false && !teamHasRun,
+    )
 
   return (
     <div className="mt-3 mb-8 text-xs text-gray-500 dark:text-gray-400">
@@ -1170,25 +1193,36 @@ function ProposalCard({
       )}
       {alreadyGranted && (
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          {/* WHO DECIDED THIS (D12). Every line below used to open "You've
+              handed these to me", written when `auto` could only mean
+              somebody had ticked a box. The day-0 ruling made two lanes
+              automatic out of the box, so on a clinic's FIRST day that
+              sentence describes an action they never took — and the ladder's
+              whole credibility rests on it never mis-describing consent.
+              The rest of each line is unchanged; only the opening clause
+              tells the truth about where the arrangement came from. */}
+          {(proposal.grantExplicit ?? true)
+            ? 'You’ve handed these to me'
+            : 'This is one I handle on my own'}
           {isDemo
-            ? 'You’ve handed these to me — in the demo I’ll show you how it works, but nothing actually goes out. Approve to see the whole flow, or take the job back below.'
+            ? ' — in the demo I’ll show you how it works, but nothing actually goes out. Approve to see the whole flow, or take the job back below.'
             : proposal.waitsForMorning
               ? // The send window (round-1 P4) holds patient mail overnight,
                 // which made the old "within the hour" line false all evening
                 // (round-2 audit). Say the real thing — it reassures.
-                'You’ve handed these to me — this one goes out in the morning; I don’t put mail in patients’ inboxes overnight. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'
+                ' — this one goes out in the morning; I don’t put mail in patients’ inboxes overnight. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'
               : stagesOnRunway(proposal.capability)
                 ? // THE VETO RUNWAY (D4): a deep-sleep lane does NOT go out
                   // within the hour — it queues at tomorrow's send time with
                   // a Stop until then. Promising "within the hour" here would
                   // be the same false-promise bug the send-window fix cured.
-                  'You’ve handed these to me — I’ll queue this one for tomorrow morning and you can stop it any time before then under “Going out soon”. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'
+                  ' — I’ll queue this one for tomorrow morning and you can stop it any time before then under “Going out soon”. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'
                 : // THE THIRD EXIT (round-3 audit): the preview window exists so
                   // a human can stop ONE draft. Naming only "approve" and "take
                   // the job back" made a single bad draft cost the whole
                   // hand-over — a ladder whose only correction is climbing all
                   // the way down.
-                  'You’ve handed these to me — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'}
+                  ' — this one goes out on its own within the hour. Approve now if you’d like it to go this minute, tell me to skip this one, or take the job back below.'}
         </p>
       )}
       {/* The hand-over offer and its nudge are gated on whether the CAPABILITY

@@ -1364,6 +1364,45 @@ describe('THE LADDER LIVE (Phase 3): "always do this for me"', () => {
     expect(screen.queryByRole('button', { name: /No thanks/ })).toBeNull()
   })
 
+  it('a card the CLINIC handed over is addressed as their decision', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    mockListTrustGrants.mockResolvedValueOnce([
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        level: 'auto',
+        grantedAt: null,
+        explicit: true,
+      },
+    ])
+    const ui = await DreamTeamView({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/You’ve handed these to me/)).toBeInTheDocument()
+  })
+
+  it('a card that is automatic BY DEFAULT never claims the clinic handed it over (D12)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([reviewCard])
+    mockListTrustGrants.mockResolvedValueOnce([
+      // level auto, but nothing stored for this clinic — this is how the
+      // product ships, not something a person chose on their first day.
+      {
+        capability: 'review_reply',
+        label: 'Reply to Google reviews',
+        level: 'auto',
+        grantedAt: null,
+        explicit: false,
+      },
+    ])
+    const ui = await DreamTeamView({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.getByText(/This is one I handle on my own/)).toBeInTheDocument()
+    expect(screen.queryByText(/You’ve handed these to me/)).toBeNull()
+    // The rest of the sentence — the exits — is unchanged.
+    expect(screen.getByText(/tell me to skip this one/i)).toBeInTheDocument()
+  })
+
   it('an ask-first card keeps the permanent-decline wording — the machine really will stop asking', async () => {
     mockGetOverview.mockResolvedValueOnce(makeData())
     mockListOpenProposals.mockResolvedValueOnce([reviewCard])

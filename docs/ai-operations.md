@@ -451,3 +451,23 @@ commit → merge to main → verify deploy (same as the best-version program).
   real work for an engine the crons already refuse to run. Both now check
   `isClinicShutDown` server-side, and `tests/journey/dream-team-actions.test.ts`
   pins that plus the tenant/role/closed-registry refusals.
+- **2026-08-23 — D12 (self-sweep round 2)**: WHO DECIDED THIS. The day-0
+  ruling made two lanes `auto` out of the box, but every line of ladder copy
+  was written when `auto` could only mean somebody had ticked a box — so on a
+  clinic's FIRST day the granted card opened with "You've handed these to me",
+  describing an action they never took. The ladder's whole credibility rests
+  on never mis-describing consent, so `TrustGrantView` grew `explicit` (only a
+  stored 'auto' is a choice they made; a resolved level cannot tell the two
+  apart), the card's opening clause branches on it, and the rest of the
+  sentence — the send-window / runway / third-exit variants — is untouched.
+  The grants strip's "nothing YET" vs "nothing this past week" heuristic had
+  the same blind spot: it keyed on `grantedAt`, which a default lane never
+  has, so it silently fell to the wrong line for every new clinic. An undated
+  DEFAULT lane is exactly as old as the practice, so it counts as fresh while
+  the team has never run a cycle (D7d's heartbeat, threaded down as
+  `teamHasRun`). Also fixed here: Sandman's request buttons shared the ask's
+  transition, so they rendered DISABLED for the tail of the very answer that
+  produced them — a button that appears and can't be pressed reads as broken,
+  and it showed up as a flaky panel test under load, which was the same fact
+  in a second place. Requests now have their own transition and their own
+  "Putting them to work…" indicator.
