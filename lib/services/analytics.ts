@@ -29,6 +29,7 @@ export const BENCHMARK_NO_SHOW_RATE = 0.135 // ~12-18% typical dental no-show
 // lib/patient-acquisition.ts (the patients service needs it without dragging
 // this module's heavy import graph); re-exported here for existing importers.
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 export { BACKFILL_PATIENT_SOURCES }
 
 export interface TrendPoint {
@@ -95,7 +96,19 @@ export interface ClinicAnalytics {
   pmsOwned: { label: string; detail: string }[]
 }
 
-export function weeklyTrend(dates: Date[], windowDays: number, now: Date): TrendPoint[] {
+/**
+ * @param timeZone the CLINIC's zone for the bucket LABELS. Optional because
+ * this is a pure helper with unit tests that predate the tz law and do not
+ * care which calendar the label lands on — but every product caller passes
+ * one, because a bucket boundary rendered from a UTC server can name the
+ * wrong day for a practice whose week starts an evening earlier (D17).
+ */
+export function weeklyTrend(
+  dates: Date[],
+  windowDays: number,
+  now: Date,
+  timeZone?: string,
+): TrendPoint[] {
   const nBuckets = Math.max(1, Math.ceil(windowDays / 7))
   const counts = new Array(nBuckets).fill(0)
   for (const d of dates) {
@@ -107,7 +120,11 @@ export function weeklyTrend(dates: Date[], windowDays: number, now: Date): Trend
   for (let i = nBuckets - 1; i >= 0; i--) {
     const bucketStart = new Date(now.getTime() - (i + 1) * WEEK_MS)
     out.push({
-      label: bucketStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      label: bucketStart.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        ...(timeZone ? { timeZone } : {}),
+      }),
       count: counts[i],
     })
   }
@@ -143,6 +160,9 @@ function scheduleRatesOf(rows: { status: string; confirmedAt: Date | null }[]): 
 
 export async function getClinicAnalytics(organizationId: string, windowDays = 30): Promise<ClinicAnalytics> {
   const now = new Date()
+  // THE TZ LAW (D17): the trend charts' bucket labels are dates rendered
+  // server-side, so they need the practice's calendar and not the server's.
+  const timeZone = await getClinicTimeZone(organizationId).catch(() => 'America/New_York')
   const since = new Date(now.getTime() - windowDays * DAY_MS)
   const prevSince = new Date(now.getTime() - 2 * windowDays * DAY_MS)
 
@@ -311,6 +331,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
         acquiredRows.map((r) => r.firstSeenAt!).filter(Boolean),
         windowDays,
         now,
+        timeZone,
       ),
       sourceMix: Array.from(sourceCounts.entries())
         .map(([source, c]) => ({ source, count: c }))
@@ -341,6 +362,7 @@ export async function getClinicAnalytics(organizationId: string, windowDays = 30
         apptRows.map((a) => a.startTime),
         windowDays,
         now,
+        timeZone,
       ),
     },
     recall: { due: recallDue, outreach },

@@ -552,3 +552,35 @@ commit → merge to main → verify deploy (same as the best-version program).
   lookup so a recovery says "the hourly pass never reaching them" instead of
   the state word, which would have described the wrong thing the owner had
   been chasing.
+- **2026-08-23 — D17 (the next silent class: server-rendered times)**. Prod
+  runs in UTC and clinics do not. CLAUDE.md states the law and
+  `lib/format-datetime.ts` exists so a call site cannot forget — but nothing
+  stopped a NEW page from declaring its own two-line `fmtDate` with no zone
+  at all, which is how four of them ended up in the tree at once: the intake
+  forms list, an intake form's submissions, online payments, and the blog
+  manager. Each rendered a date in the SERVER's calendar, so anything that
+  happened after ~7 PM Central showed the wrong day. All four now go through
+  a new `formatClinicDate(date, timeZone)` — the plain-date shape the module
+  was missing, which is exactly why everyone kept re-inventing it — with the
+  zone resolved once per page. The analytics trend charts' bucket labels got
+  the same treatment (`weeklyTrend` gained an optional zone; every product
+  caller passes one).
+  TWO SITES WERE ALREADY RIGHT AND LOOK WRONG, so they got comments rather
+  than changes: a follow-up's due label and the website traffic axis both
+  parse a Y-M-D CALENDAR date as a local midnight and render it in that same
+  zone, so the two agree — passing a clinic zone there would reinterpret the
+  midnight as an instant and render the day BEFORE. Without the comment the
+  next timezone sweep "fixes" them into being wrong.
+  `tests/timezone/server-render-tz.test.ts` is the guard, and its SCOPE is
+  the interesting part: provably-server files only (page/layout/route without
+  a 'use client' banner, plus `lib/services/**`). A component file without
+  the banner proves nothing — it may be imported by a client component and
+  run in the browser, where the viewer's own zone is the right answer for
+  staff. Guessing there would have flagged the inbox's patient card, which is
+  correct, and a noisy guard earns an allowlist entry instead of a fix. It
+  also resolves options objects passed by NAME (`{ ...dayOpts }` carries a
+  zone as surely as an inline literal), which is what keeps the appointments
+  agenda — correct all along — off the list. The allowlist is six platform
+  and partner surfaces where no clinic clock applies, each with its reason,
+  and a second test makes every entry keep earning it. Verified by breaking a
+  fixed page on purpose and watching the guard fail.

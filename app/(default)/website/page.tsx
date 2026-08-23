@@ -436,6 +436,10 @@ export default async function WebsiteHubPage() {
           </div>
           <TrendChart
             data={performance.traffic.daily.map((d) => ({
+              // NO `timeZone`, deliberately (D17): `d.day` is a Y-M-D
+              // CALENDAR DATE, parsed as a local midnight and rendered in
+              // that same zone, so the axis always names the day that was
+              // counted. A clinic zone here would shift the label a day.
               bucket: new Date(`${d.day}T00:00:00`).toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',

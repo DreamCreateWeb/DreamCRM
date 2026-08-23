@@ -13,6 +13,8 @@ import { EncodingLegend } from '@/components/ui/encoding-legend'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiStat } from '@/components/ui/kpi-stat'
 import type { PillLegendRow, Tone } from '@/lib/ui/encodings'
+import { formatClinicDate } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 export const metadata = { title: 'Blog - DreamCRM' }
 export const dynamic = 'force-dynamic'
@@ -58,16 +60,18 @@ function freshness(d: Date | null): { label: string; tone: Tone } {
   return { label, tone: days < 21 ? 'ok' : days < 60 ? 'warn' : 'urgent' }
 }
 
-function fmtDate(d: Date | null): string {
-  if (!d) return '—'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+
 
 export default async function BlogPage() {
   const ctx = await requireTenant()
   const dest = postsAccessRedirect(ctx)
   if (dest) redirect(dest)
   const isPlatform = ctx.tenantType === 'platform'
+  // THE TZ LAW (D17). The platform org has no clinic clock, so it reads the
+  // default rather than pretending to one — the point is that the string is
+  // rendered against a NAMED zone instead of the server's UTC by accident.
+  const timeZone = await getClinicTimeZone(ctx.organizationId)
+  const fmtDate = (d: Date | null): string => (d ? formatClinicDate(d, timeZone) : '—')
 
   const [posts, stats, baseUrl] = await Promise.all([
     listBlogPosts(ctx.organizationId),

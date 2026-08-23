@@ -58,6 +58,11 @@ export function formatDueLabel(dueDate: string | null, today: string = todayYmd(
   if (!dueDate) return 'No due date'
   const [y, m, d] = dueDate.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
+  // NO `timeZone` HERE, deliberately (D17). A due date is a CALENDAR DATE,
+  // not an instant: it is constructed in the runtime's own zone from its
+  // Y-M-D parts and rendered in that same zone, so the two agree and the
+  // label is always the date that was stored. Passing a clinic zone would
+  // reinterpret a local midnight as an instant and render the day BEFORE.
   const nice = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const state = followupDueState(dueDate, today)
   if (state === 'today') return 'Today'

@@ -24,6 +24,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { formatClinicDate } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 export default async function IntakeFormsListPage() {
   const ctx = await requireTenant()
@@ -50,8 +52,10 @@ export default async function IntakeFormsListPage() {
   const profile = profileRows[0]
   const org = orgRows[0]
 
-  const fmtDate = (d: Date) =>
-    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  // THE TZ LAW (D17): rendered against the practice's calendar, not the
+  // server's UTC one.
+  const timeZone = await getClinicTimeZone(ctx.organizationId)
+  const fmtDate = (d: Date) => formatClinicDate(d, timeZone)
 
   const baseUrl = org
     ? publicSiteUrl({

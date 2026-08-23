@@ -5,6 +5,8 @@ import { notFound, redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import { getFormTemplate, listSubmissionsForTemplate, countSubmissionsForTemplate } from '@/lib/services/forms'
 import FormBuilder from './form-builder'
+import { formatClinicDate } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 export const metadata = { title: 'Intake Form - DreamCRM' }
 
@@ -16,10 +18,13 @@ export default async function EditFormPage({ params }: Props) {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') redirect('/')
   const { id } = await params
-  const [template, submissions, totalSubmissions] = await Promise.all([
+  const [template, submissions, totalSubmissions, timeZone] = await Promise.all([
     getFormTemplate(ctx.organizationId, id),
     listSubmissionsForTemplate(ctx.organizationId, id),
     countSubmissionsForTemplate(ctx.organizationId, id),
+    // THE TZ LAW (D17): a submission that landed at 7:30 PM Central is
+    // already tomorrow to a UTC server.
+    getClinicTimeZone(ctx.organizationId),
   ])
   if (!template) notFound()
 
@@ -48,7 +53,7 @@ export default async function EditFormPage({ params }: Props) {
                     {s.submitterName ?? s.submitterEmail ?? 'Anonymous'}
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums font-mono-num">
-                    {new Date(s.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {formatClinicDate(new Date(s.submittedAt), timeZone)}
                   </span>
                 </Link>
               </li>

@@ -10,19 +10,22 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { StatusPill } from '@/components/ui/status-pill'
 import { EmptyState } from '@/components/ui/empty-state'
+import { formatClinicDate } from '@/lib/format-datetime'
+import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 export const metadata = { title: 'Online payments - DreamCRM' }
 export const dynamic = 'force-dynamic'
 
-function fmtDate(d: Date | null): string {
-  if (!d) return '—'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+
 
 export default async function ShopPaymentsPage() {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
   if (ctx.tenantType !== 'clinic') redirect('/dashboard')
+  // THE TZ LAW: a date rendered server-side is rendered in UTC unless it is
+  // told otherwise, and a 7:30 PM Central payment is already tomorrow there.
+  const timeZone = await getClinicTimeZone(ctx.organizationId)
+  const fmtDate = (d: Date | null): string => (d ? formatClinicDate(d, timeZone) : '—')
 
   const [payments, deposits, outreach, paymentsReady] = await Promise.all([
     listRecentBalancePayments(ctx.organizationId),

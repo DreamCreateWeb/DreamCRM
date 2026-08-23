@@ -56,6 +56,19 @@ export function formatClinicDayHeader(date: Date, timeZone: string): string {
 }
 
 /**
+ * "Jul 1, 2026" at the clinic's calendar — the plain DATE, no time.
+ *
+ * The shape half a dozen server pages had each re-declared as a local
+ * `fmtDate(d)` with no timezone at all (D17). A date-only render looks
+ * harmless and is not: the server's clock is UTC, so a 7:30 PM Central
+ * anything is already TOMORROW to it, and the row shows the wrong day for
+ * every evening event in every clinic west of London.
+ */
+export function formatClinicDate(date: Date, timeZone: string): string {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone })
+}
+
+/**
  * The clinic-local calendar day of an instant, as a sortable `YYYY-MM-DD` key.
  * Grouping/bucketing by day must use THIS, not `startOfDay(date)` — a 7 PM
  * Central visit is already "tomorrow" in UTC and would land under the wrong

@@ -11,6 +11,7 @@ import {
   formatClinicDayTime,
   formatClinicTime,
   formatClinicDayHeader,
+  formatClinicDate,
 } from '@/lib/format-datetime'
 
 /**
@@ -153,5 +154,24 @@ describe('null-timezone fallback', () => {
     expect(clinicDayStart(now, null).toISOString()).toBe(
       clinicDayStart(now, resolveClinicTimeZone(null)).toISOString(),
     )
+  })
+})
+
+describe('formatClinicDate — the plain date, at the clinic’s calendar', () => {
+  // 7:30 PM Central on Jul 1 is 00:30 UTC on Jul 2. A date-only render
+  // without a timezone shows the WRONG DAY for every evening event in every
+  // clinic west of London — which is why half a dozen pages that each
+  // re-declared a local `fmtDate` were wrong in a way nobody would notice
+  // until a patient did.
+  const eveningCentral = new Date('2026-07-02T00:30:00Z')
+
+  it('renders the clinic’s calendar day, not the server’s', () => {
+    expect(formatClinicDate(eveningCentral, 'America/Chicago')).toBe('Jul 1, 2026')
+    expect(formatClinicDate(eveningCentral, 'UTC')).toBe('Jul 2, 2026')
+  })
+
+  it('crosses a year boundary by the clinic’s clock', () => {
+    const nye = new Date('2027-01-01T04:00:00Z') // 11 PM Eastern, Dec 31
+    expect(formatClinicDate(nye, 'America/New_York')).toBe('Dec 31, 2026')
   })
 })

@@ -26,6 +26,11 @@ const getReviewStatsMock = vi.fn(async (_org: string, windowDays = 30) => ({
   byPlatform: { google: 3, healthgrades: 1, facebook: 0, yelp: 0 },
   pending: 2,
 }))
+// The tz read (D17) must not consume a row from the ordered db queue below —
+// this suite is about the aggregates, not about resolving a timezone.
+vi.mock('@/lib/services/clinic-timezone', () => ({
+  getClinicTimeZone: vi.fn(async () => 'America/Chicago'),
+}))
 vi.mock('@/lib/services/reviews', () => ({
   getReviewStats: (org: string, windowDays?: number) => getReviewStatsMock(org, windowDays),
 }))
