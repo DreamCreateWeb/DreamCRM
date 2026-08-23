@@ -33,6 +33,29 @@ export function expiryTone(expiresAt: Date | null | undefined, now: Date = new D
 }
 
 /**
+ * The same fact the tone dot encodes, said in WORDS (D7). A coloured dot is
+ * not self-labelling, and the one thing a person needs before skipping a
+ * card is whether skipping costs them the card. Day-granular and computed
+ * in the CLINIC's day (never the server's UTC one — a card expiring at
+ * 11 PM Central is still "today" for the practice, not tomorrow).
+ *
+ * Pure: takes the two day KEYS (YYYY-MM-DD, from `clinicDayKey`) so the
+ * caller owns the timezone and this stays testable without one.
+ */
+export function expiryDayLabel(todayKey: string, expiryKey: string | null): string | null {
+  if (!expiryKey) return null
+  const a = Date.parse(`${todayKey}T00:00:00Z`)
+  const b = Date.parse(`${expiryKey}T00:00:00Z`)
+  if (Number.isNaN(a) || Number.isNaN(b)) return null
+  const days = Math.round((b - a) / 86_400_000)
+  if (days < 0) return 'Retires today'
+  if (days === 0) return 'Retires today'
+  if (days === 1) return 'Retires tomorrow'
+  if (days <= 6) return `Retires in ${days} days`
+  return null
+}
+
+/**
  * THE ROSTER (D3): the presentational grouping of every registered
  * capability into the specialists a clinic meets on /dream-team. Purely a
  * lens over lib/autonomy's CAPABILITIES — membership here changes nothing

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { nextRunwaySlot, RUNWAY_MIN_HOURS, RUNWAY_SEND_HOUR } from '@/lib/dream-team-runway'
+import { expiryDayLabel } from '@/lib/types/dream-team'
 
 /**
  * THE VETO RUNWAY's math (docs/ai-operations.md, D4). The slot must always
@@ -50,5 +51,32 @@ describe('nextRunwaySlot', () => {
         expect(localHour(slot, tz)).toBe(RUNWAY_SEND_HOUR)
       }
     }
+  })
+})
+
+describe('expiryDayLabel — the tone dot, in words', () => {
+  it('names today, tomorrow, and the days between', () => {
+    expect(expiryDayLabel('2026-08-23', '2026-08-23')).toBe('Retires today')
+    expect(expiryDayLabel('2026-08-23', '2026-08-24')).toBe('Retires tomorrow')
+    expect(expiryDayLabel('2026-08-23', '2026-08-26')).toBe('Retires in 3 days')
+  })
+
+  it('says nothing when the card has a week of life left — a countdown that never changes is noise', () => {
+    expect(expiryDayLabel('2026-08-23', '2026-09-05')).toBeNull()
+    expect(expiryDayLabel('2026-08-23', null)).toBeNull()
+  })
+
+  it('reads a card already past its day as retiring today, never negative', () => {
+    expect(expiryDayLabel('2026-08-23', '2026-08-20')).toBe('Retires today')
+  })
+
+  it('degrades to silence on junk rather than rendering NaN at a person', () => {
+    expect(expiryDayLabel('not-a-day', '2026-08-24')).toBeNull()
+    expect(expiryDayLabel('2026-08-23', 'nonsense')).toBeNull()
+  })
+
+  it('crosses a month and a year boundary by real days, not by digits', () => {
+    expect(expiryDayLabel('2026-08-31', '2026-09-01')).toBe('Retires tomorrow')
+    expect(expiryDayLabel('2026-12-31', '2027-01-02')).toBe('Retires in 2 days')
   })
 })

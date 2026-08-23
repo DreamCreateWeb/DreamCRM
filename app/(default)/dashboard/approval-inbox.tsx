@@ -91,6 +91,11 @@ export interface ProposalCardData {
   artifact?: ProposalArtifact | null
   /** When this card retires itself — drives the queue rail's urgency dot. */
   expiresAt?: Date | null
+  /** The same fact in WORDS ("Retires tomorrow"), computed SERVER-side in
+   *  the clinic's day. A coloured dot is not self-labelling, and whether
+   *  skipping costs you the card is the one thing you need before you skip.
+   *  Server-computed on purpose: a client clock would hydrate differently. */
+  expiresLabel?: string | null
 }
 
 /** Substitute the campaign merge tokens with a readable sample so the card
@@ -257,7 +262,7 @@ export default function ApprovalInbox({
       <>
         {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
         {proposals.length > 0 && (
-          <div className="mb-8 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2,white)] p-6 text-center ring-1 ring-[color:var(--color-hairline)]">
+          <div className="v2-card mb-8 p-6 text-center">
             <p className="text-2xl" aria-hidden="true">
               🌤️
             </p>
@@ -335,13 +340,32 @@ export default function ApprovalInbox({
           }}
         />
       )}
-      <div className={viewAll ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : 'mx-auto w-full max-w-2xl'}>
+      <div className={viewAll ? 'grid grid-cols-1 lg:grid-cols-2 gap-4' : 'relative mx-auto w-full max-w-2xl'}>
+        {/* THE STACK, made visible (D7). Two paper edges peeking from under
+            the focused card — the whole shape of this surface is "the
+            employee hands you one paper at a time", and until now the pile
+            behind it existed only as a counter. Decorative and painted
+            FIRST so the card lands on top without a z-index fight; sized by
+            the wrapper, which the hidden cards don't grow. */}
+        {!viewAll &&
+          visible.length > 1 &&
+          [0, 1].slice(0, Math.min(2, visible.length - 1)).map((i) => (
+            <span
+              key={`sheet-${i}`}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 rounded-[var(--r-md)] bg-[color:var(--color-surface-2)] shadow-[var(--shadow-xs)]"
+              style={{
+                transform: `translateY(${(i + 1) * 6}px) scaleX(${1 - (i + 1) * 0.012})`,
+                opacity: 1 - (i + 1) * 0.25,
+              }}
+            />
+          ))}
         {visible.map((p) => {
           const isFocused = !viewAll && p.id === focused?.id
           return (
             <div
               key={p.id}
-              className={viewAll || isFocused ? undefined : 'hidden'}
+              className={viewAll ? undefined : isFocused ? 'relative' : 'hidden'}
               style={
                 isFocused
                   ? {
@@ -446,13 +470,27 @@ function QueueRail({
         })}
       </div>
       {!viewAll && remaining.length > 1 && (
-        <button
-          type="button"
-          onClick={onSkip}
-          className="whitespace-nowrap text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-        >
-          Skip for now →
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={onSkip}
+            className="whitespace-nowrap text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            Skip for now →
+          </button>
+          {/* The arrow-key path has worked since the stack shipped and
+              nothing said so. A hint costs one line and turns a hidden
+              feature into a real one; hidden on touch, where it is a lie. */}
+          <span className="hidden whitespace-nowrap text-xs text-gray-400 dark:text-gray-500 sm:inline">
+            or press{' '}
+            <kbd className="rounded border border-[color:var(--color-hairline-strong)] px-1 font-mono-num text-xs">
+              ←
+            </kbd>{' '}
+            <kbd className="rounded border border-[color:var(--color-hairline-strong)] px-1 font-mono-num text-xs">
+              →
+            </kbd>
+          </span>
+        </>
       )}
       <button
         type="button"
@@ -787,7 +825,7 @@ function ProposalCard({
   }
 
   return (
-    <div className="v2-card p-4 flex flex-col">
+    <div className="v2-card p-5 flex flex-col">
       <div className="flex items-start gap-3">
         <div
           className="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-base bg-[color:var(--color-surface-sunk)]"
@@ -822,6 +860,21 @@ function ProposalCard({
             {proposal.capabilityLabel}
             {proposal.meta ? ` · ${proposal.meta}` : ''}
           </p>
+          {/* THE DOT, IN WORDS (D7). The queue rail marks a soon-to-retire
+              card with a tone dot, which is not self-labelling — and whether
+              skipping costs you the card is exactly what you need to know
+              before you skip. Server-computed in the clinic's day. */}
+          {proposal.expiresLabel && (
+            <p
+              className={`mt-1 text-xs font-medium ${
+                expiryTone(proposal.expiresAt) === 'urgent'
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : 'text-amber-600 dark:text-amber-400'
+              }`}
+            >
+              {proposal.expiresLabel} · skipping keeps it here until then
+            </p>
+          )}
         </div>
       </div>
 

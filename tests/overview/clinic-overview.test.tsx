@@ -1517,6 +1517,47 @@ describe('the sign-here stack', () => {
     return render(ui)
   }
 
+  it('says the retirement in WORDS on the card, not only as a dot on the rail (D7)', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...stackProposal(1), expiresAt: new Date(Date.now() + 36 * 60 * 60 * 1000) },
+    ])
+    const ui = await DreamTeamView({ ctx: makeCtx() })
+    render(ui)
+    // Day-granular and clinic-local, so the exact word depends on the hour
+    // the suite runs — the CONTRACT is that the card says it at all, with
+    // the reassurance that skipping does not spend it.
+    expect(screen.getByText(/^Retires (today|tomorrow|in \d+ days) · skipping keeps it here until then$/)).toBeTruthy()
+  })
+
+  it('a card with a long life says nothing — a countdown that never moves is noise', async () => {
+    mockGetOverview.mockResolvedValueOnce(makeData())
+    mockListOpenProposals.mockResolvedValueOnce([
+      { ...stackProposal(1), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
+    ])
+    const ui = await DreamTeamView({ ctx: makeCtx() })
+    render(ui)
+    expect(screen.queryByText(/Retires/)).toBeNull()
+  })
+
+  it('shows the pile behind the focused card — the stack metaphor, made visible (D7)', async () => {
+    const { container } = await renderStack(3)
+    // Two decorative sheets peek from under the focused card; they are
+    // aria-hidden and painted before it so the card lands on top.
+    const sheets = container.querySelectorAll('span[aria-hidden="true"].absolute.inset-0')
+    expect(sheets.length).toBe(2)
+  })
+
+  it('a lone card gets no pile — there is nothing behind it', async () => {
+    const { container } = await renderStack(1)
+    expect(container.querySelectorAll('span[aria-hidden="true"].absolute.inset-0').length).toBe(0)
+  })
+
+  it('tells a person the arrow keys work — a hidden feature is not a feature', async () => {
+    await renderStack(3)
+    expect(screen.getByText(/or press/)).toBeTruthy()
+  })
+
   it('shows ONE card focused with the rest mounted-but-hidden, and an honest counter', async () => {
     await renderStack(3)
     expect(

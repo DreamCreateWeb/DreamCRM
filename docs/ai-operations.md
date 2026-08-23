@@ -330,3 +330,25 @@ commit → merge to main → verify deploy (same as the best-version program).
   lines tall reads as a broken widget, not an invitation) and its opening
   line given the same moon that answers. The calm-desk card stopped repeating
   the band's sentence and now explains what the team is doing instead.
+- **2026-08-23 — D7b**: THE CARD ITSELF — the owner's original question. Four
+  changes, each closing a gap the sign-here shape had left. (1) THE PILE,
+  MADE VISIBLE: the whole surface is "the employee hands you one paper at a
+  time", and the pile behind that paper existed only as a counter — two
+  decorative sheets now peek from under the focused card (painted BEFORE it
+  so DOM order, not a z-index fight, keeps the card on top; the focused
+  wrapper had to become positioned, since a static card paints under
+  positioned siblings). (2) THE DOT, IN WORDS: the queue rail marked a
+  soon-to-retire card with a tone dot, which is not self-labelling — and
+  whether skipping costs you the card is exactly what a person needs before
+  they skip. `expiryDayLabel` (pure, day-granular, takes two day KEYS so the
+  caller owns the timezone) is computed SERVER-side in the CLINIC's day —
+  a client clock would hydrate differently, and a card expiring at 11 PM
+  Central is still "today" for that practice. It stays silent past six days,
+  because a countdown that never moves is noise, and degrades to silence on
+  junk rather than rendering NaN at a person. The line carries its own
+  reassurance: skipping keeps it here until then. (3) The arrow-key path
+  through the stack has worked since the stack shipped and nothing said so —
+  one `←/→` hint in the rail, hidden on touch where it would be a lie.
+  (4) Room to read: the focal card went `p-4` → `p-5`, and the last two
+  retired etched-ring surfaces (the completion note, the calm-desk card)
+  moved to the floating-card recipe.

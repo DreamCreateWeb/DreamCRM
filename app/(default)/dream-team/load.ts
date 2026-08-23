@@ -21,6 +21,8 @@ import {
 import { listTrustGrants, listAutonomousWork } from '@/lib/services/autonomy'
 import { isGrantable } from '@/lib/autonomy'
 import { describeDays } from '@/lib/empty-chair'
+import { expiryDayLabel } from '@/lib/types/dream-team'
+import { clinicDayKey } from '@/lib/format-datetime'
 import type {
   ProposalCardData,
   TrustGrantChip,
@@ -73,6 +75,9 @@ export async function loadApprovalInbox(
   // One clinic-local read for every card's copy — the same rule the hourly
   // driver applies before it sends anything to a patient's inbox.
   const insideSendWindow = insidePatientSendWindow(new Date(), timeZone)
+  // The card's own words for what the rail's tone dot only colours — in the
+  // CLINIC's day, so a card retiring at 11 PM Central still reads "today".
+  const todayKey = clinicDayKey(new Date(), timeZone)
   const suggestFor = Array.from(
     new Set(
       proposals
@@ -244,6 +249,7 @@ export async function loadApprovalInbox(
       capabilityGranted: grantedSet.has(p.capability),
       // When the card retires itself — the queue rail's urgency dot.
       expiresAt: p.expiresAt ?? null,
+      expiresLabel: expiryDayLabel(todayKey, p.expiresAt ? clinicDayKey(p.expiresAt, timeZone) : null),
       // Patient mail waits for daylight, so "within the hour" would be a lie
       // in the evening (round-2 audit).
       waitsForMorning:
