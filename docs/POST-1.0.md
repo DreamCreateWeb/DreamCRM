@@ -20,6 +20,10 @@ memory.
 
 ## Feature ideas (deferred by the freeze)
 
+- ~~AI Operations / conversational copilot~~ **PROMOTED out of this backlog
+  2026-08-23 (owner directive): now THE DREAM TEAM program, building through
+  the freeze in its own lane — spec + build log in `docs/ai-operations.md`.**
+
 - Webhooks at scale (NexHealth push instead of cadence polling; Zernio
   review webhooks — the hourly cron covers today).
 - Content-plan cards: per-piece photo slots (noted to owner 2026-08-14).

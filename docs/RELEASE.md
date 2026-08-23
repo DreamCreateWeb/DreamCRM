@@ -108,6 +108,10 @@ A serious agency moves a feature-complete product through five gates:
 1. **Scope lock / feature freeze.** A written definition of what 1.0 IS.
    New ideas go to a post-1.0 backlog, not the release. Severity bars are
    agreed in advance (what blocks launch vs. what ships-with-known-issue).
+   **Standing exception (owner directive 2026-08-23): the Dream Team / AI
+   Operations program (`docs/ai-operations.md`) builds through the freeze
+   in its own lane — its defects still land in Part 5, and its phase audit
+   runs at the end of its build arc.**
 2. **Stabilization.** Full-regression passes, exploratory QA cycle per
    module, bug triage with a rising fix bar (early: fix everything; late:
    P0/P1 only — churn is itself a risk near a release).
