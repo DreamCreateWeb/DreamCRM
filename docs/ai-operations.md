@@ -305,3 +305,28 @@ commit → merge to main → verify deploy (same as the best-version program).
   renders through the same ToastProvider/ConfirmProvider the shell gives a
   real page: rendering bare made any child calling `useToast()` throw, which
   said "the test forgot a wrapper", not "the UI is broken".
+- **2026-08-23 — D7a**: THE PAGE'S SHAPE. Five slices had each added a section
+  with its own heading, so a long scroll read as five unrelated widgets in a
+  column. Three fixes. (1) `section-heading.tsx` — one rhythm: same size,
+  same weight, same hint placement, one optional count that always rides the
+  numeral face; anchors live on the `<section>`, which owns the scroll
+  offset. (2) `team-status-band.tsx` — the OPENING BEAT. The page used to
+  open straight onto a demanding surface (the sign-here stack) or, on a calm
+  day, onto nothing much; neither answers the question a person arrives with,
+  *is anything happening?* The band answers in one glance — waiting on you /
+  going out soon / handled last week, plus what the team is pointed at — with
+  the moon, a live dot, and the chrome-zone wash + floating bubbles the
+  design system allows in a header zone and nowhere below. Its laws: every
+  number REAL, zero said plainly, and a number with nowhere to go stays plain
+  text (only two of the three have a section to land on, and a dead link
+  reads as a broken page). (3) Order: work-in-flight (the stack, then the
+  runway) before the about-the-team half (goals, Sandman, roster) — the
+  runway belongs beside the stack, not after the goals. Plus the v3 surface
+  sweep this surface had missed: the retired etched-ring card recipe replaced
+  with `.v2-card`/`.v2-card-interactive` on the Overview summons strip, the
+  goals empty state and the calm-desk card; counts moved to the numeral face;
+  the roster's weekly number promoted from mid-sentence to a scannable stat;
+  Sandman's thread given a FLOOR as well as a ceiling (an empty panel three
+  lines tall reads as a broken widget, not an invitation) and its opening
+  line given the same moon that answers. The calm-desk card stopped repeating
+  the band's sentence and now explains what the team is doing instead.

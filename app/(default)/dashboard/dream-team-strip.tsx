@@ -39,7 +39,7 @@ export default function DreamTeamStrip({
       <section className="mb-6">
         <Link
           href="/dream-team"
-          className="group flex items-center gap-3 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2,white)] px-4 py-3 ring-1 ring-[color:var(--color-hairline)] transition-shadow hover:shadow-[var(--shadow-raised,0_2px_8px_rgba(0,0,0,0.06))]"
+          className="group v2-card-interactive flex items-center gap-3 px-4 py-3"
         >
           <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-base">
             🌙
@@ -67,7 +67,7 @@ export default function DreamTeamStrip({
     <section className="mb-6">
       <Link
         href="/dream-team"
-        className="group flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--r-lg)] bg-[color:var(--color-surface-2,white)] p-4 ring-1 ring-[color:var(--color-hairline)] transition-shadow hover:shadow-[var(--shadow-raised,0_2px_8px_rgba(0,0,0,0.06))]"
+        className="group v2-card-interactive flex flex-wrap items-center gap-x-4 gap-y-2 p-4"
       >
         <span
           aria-hidden="true"
@@ -105,12 +105,12 @@ export default function DreamTeamStrip({
               )
             })}
             {rest > 0 && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+              <span className="font-mono-num text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                 +{rest} more
               </span>
             )}
             {stagedCount > 0 && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+              <span className="font-mono-num text-xs text-gray-500 dark:text-gray-400 tabular-nums">
                 · {stagedCount} going out soon
               </span>
             )}

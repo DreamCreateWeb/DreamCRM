@@ -12,6 +12,7 @@ import { readDemoSkin } from '@/lib/demo-skin'
 import { PageHeader } from '@/components/ui/page-header'
 import ApprovalInbox from '../dashboard/approval-inbox'
 import TeamRoster from './team-roster'
+import TeamStatusBand from './team-status-band'
 import { loadApprovalInbox } from './load'
 
 /**
@@ -72,6 +73,17 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         }
       />
 
+      {/* The opening beat — is anything happening? — before the page asks
+          anything of anyone (D7). */}
+      <TeamStatusBand
+        waiting={waiting}
+        staged={runway.length}
+        handledLastWeek={standup?.totalActions ?? 0}
+        weekLabel={standup?.weekLabel ?? null}
+        activeGoals={goalCards.filter((g) => g.status === 'active').length}
+      />
+
+      <div id="sign-here" className="scroll-mt-24">
       <ApprovalInbox
         proposals={inbox.proposalCards}
         totalOpen={inbox.totalOpen}
@@ -80,16 +92,17 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         autonomousWork={inbox.autonomousWork}
         isDemo={ctx.isDemo}
       />
+      </div>
 
       {/* A first-visit presence when the desk is truly empty — the page must
           never open onto nothing (the stack + strips all hide when quiet). */}
       {waiting === 0 && inbox.grants.length === 0 && inbox.autonomousWork.length === 0 && (
-        <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-2,white)] p-8 text-center ring-1 ring-[color:var(--color-hairline)]">
+        <div className="v2-card p-8 text-center">
           <p className="text-3xl" aria-hidden="true">
             🌙
           </p>
           <p className="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-100">
-            The team is on the clock — nothing needs you right now.
+            Here&rsquo;s what they&rsquo;re doing while you work.
           </p>
           <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400">
             They watch your reviews, inquiries, schedule, and content around the clock. Work that
@@ -97,9 +110,6 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
           </p>
         </div>
       )}
-
-      {/* GOALS — what the practice wants more of; the team aims here. */}
-      <GoalsSection goals={goalCards} canEdit={ctx.role === 'owner' || ctx.role === 'admin'} />
 
       {/* THE VETO RUNWAY — staged work with its Stop (server-formats the
           go-times in the clinic's wall clock; the tz law). */}
@@ -114,6 +124,9 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
         }))}
       />
       )}
+
+      {/* GOALS — what the practice wants more of; the team aims here. */}
+      <GoalsSection goals={goalCards} canEdit={ctx.role === 'owner' || ctx.role === 'admin'} />
 
       {/* SANDMAN — the chief of staff, in conversation. Sits above the
           roster: the team's face comes before its org chart. */}

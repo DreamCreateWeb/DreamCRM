@@ -1,6 +1,7 @@
 import { SPECIALISTS, CAPABILITY_ICON } from '@/lib/types/dream-team'
 import { getCapability } from '@/lib/autonomy'
 import { StatusPill } from '@/components/ui/status-pill'
+import SectionHeading from './section-heading'
 
 /**
  * THE ROSTER (docs/ai-operations.md, D3) — "the staff you hired." One card
@@ -30,12 +31,10 @@ function laneMode(capability: string, granted: ReadonlySet<string>): 'auto' | 'a
 export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingCapabilities }: RosterInput) {
   return (
     <section className="mt-10">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">The team</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          On the clock around the clock — last week&rsquo;s numbers are from your own diary.
-        </p>
-      </div>
+      <SectionHeading
+        title="The team"
+        hint="On the clock around the clock — last week’s numbers are what they actually did."
+      />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {SPECIALISTS.map((s) => {
           const lanes = s.capabilities
@@ -75,14 +74,20 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
 
               {/* Last week, in real numbers — the honest line. Zero is said
                   plainly; a quiet lane must never look busy (Guardian law). */}
-              <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">
+              <p className="mt-3 flex items-baseline gap-1.5 text-sm text-gray-700 dark:text-gray-200">
                 {weekly > 0 ? (
                   <>
-                    <span className="font-mono-num font-semibold tabular-nums">{weekly}</span>{' '}
-                    {weekly === 1 ? 'thing' : 'things'} handled last week
+                    <span className="font-mono-num text-xl font-bold leading-none tabular-nums text-gray-900 dark:text-gray-100">
+                      {weekly}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {weekly === 1 ? 'thing' : 'things'} handled last week
+                    </span>
                   </>
                 ) : (
-                  <span className="text-gray-500 dark:text-gray-400">A quiet week — nothing to report.</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    A quiet week — nothing to report.
+                  </span>
                 )}
               </p>
 

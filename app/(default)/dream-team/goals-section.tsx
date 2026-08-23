@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/ui/action-button'
 import { useToast } from '@/components/ui/toast'
 import { StatusPill } from '@/components/ui/status-pill'
 import { MAX_ACTIVE_GOALS, OBJECTIVE_MAX } from '@/lib/goals'
+import SectionHeading from './section-heading'
 import { createGoalAction, setGoalStatusAction } from './actions'
 
 /**
@@ -79,16 +80,14 @@ export default function GoalsSection({
   }
 
   return (
-    <section className="mt-8">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">What you want more of</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          The team aims its writing and outreach here.
-        </p>
-      </div>
+    <section id="goals" className="mt-8 scroll-mt-24">
+      <SectionHeading
+        title="What you want more of"
+        hint="The team aims its writing and outreach here."
+      />
 
       {active.length === 0 && !adding ? (
-        <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-2,white)] p-6 ring-1 ring-[color:var(--color-hairline)]">
+        <div className="v2-card p-6">
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
             Tell the team what you want more of.
           </p>

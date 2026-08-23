@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import SectionHeading from './section-heading'
 import { stopRunwayItemAction } from './actions'
 
 /**
@@ -70,12 +71,12 @@ export default function RunwaySection({ items }: { items: RunwayRowData[] }) {
 
   return (
     <section id="going-out-soon" className="mt-8 scroll-mt-24">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Going out soon</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Queued by the team — stop anything that shouldn&rsquo;t go.
-        </p>
-      </div>
+      <SectionHeading
+        title="Going out soon"
+        count={visible.length}
+        countLabel={`${visible.length} queued`}
+        hint="Queued by the team — stop anything that shouldn’t go."
+      />
       <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
         {visible.map((item) => (
           <li key={`${item.kind}-${item.id}`} className="flex items-center gap-3 px-4 py-3">

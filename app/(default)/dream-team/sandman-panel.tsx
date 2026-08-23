@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { SANDMAN_SUGGESTIONS } from '@/lib/sandman'
 import { ActionButton } from '@/components/ui/action-button'
+import SectionHeading from './section-heading'
 import { askSandmanAction } from './actions'
 
 /**
@@ -62,21 +63,26 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
 
   return (
     <section className="mt-10">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Ask Sandman</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Your chief of staff — grounded in {clinicName}&rsquo;s own numbers.
-        </p>
-      </div>
+      <SectionHeading
+        title="Ask Sandman"
+        hint={<>Your chief of staff — grounded in {clinicName}&rsquo;s own numbers.</>}
+      />
 
       <div className="v2-card overflow-hidden">
         <div
           ref={threadRef}
-          className="max-h-[26rem] space-y-3 overflow-y-auto px-5 py-4"
+          className="max-h-[26rem] min-h-[11rem] space-y-3 overflow-y-auto px-5 py-4"
           aria-live="polite"
         >
           {turns.length === 0 && (
-            <div>
+            <div className="flex gap-2.5">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-500/10 text-sm"
+              >
+                🌙
+              </span>
+              <div className="min-w-0 flex-1">
               <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-200">
                 Ask me how the month is going, why a number moved, or what to do about it. I read
                 your real numbers — never a patient&rsquo;s details.
@@ -93,6 +99,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
                     {s}
                   </button>
                 ))}
+              </div>
               </div>
             </div>
           )}
