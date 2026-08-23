@@ -8,9 +8,20 @@
  *
  * THE GUARD RAIL, inherited from the prospecting copilot and hardened for a
  * clinic tenant: Sandman NEVER executes. It answers grounded in a snapshot
- * and may SUGGEST from a closed, enumerated registry of NAVIGATIONS — the
- * human clicks. Nothing it can say sends mail, posts publicly, or grants
- * autonomy; a misread "email everyone" cannot fire.
+ * and may SUGGEST from two closed, enumerated registries — the human clicks.
+ * Nothing it can say sends mail, posts publicly, or grants autonomy; a
+ * misread "email everyone" cannot fire.
+ *
+ *   1. ACTIONS are NAVIGATIONS BY CONSTRUCTION — every def is
+ *      {kind,label,href,when}, so there is no mutation shape to abuse.
+ *   2. REQUESTS (D8) are the owner's "then initiate a task" — and they are
+ *      safe for exactly one reason: a request only ever asks an EXISTING
+ *      generator to run now, and every generator's output is a DRAFT that
+ *      lands in the sign-here stack needing a human yes. Sandman cannot
+ *      shorten the approval path, only start the work that fills it. The
+ *      registry names a generator; it never carries content, an audience,
+ *      or a recipient, so there is nothing in a request for a bad answer to
+ *      steer.
  *
  * THE PRIVACY LINE (the shared brain's law, applied here): the snapshot
  * carries AGGREGATES ONLY. No patient names, no addresses, no visit rows —
@@ -102,6 +113,66 @@ export const SANDMAN_ACTIONS: Record<SandmanActionKind, SandmanActionDef> = {
 
 export const SANDMAN_ACTION_KINDS = Object.keys(SANDMAN_ACTIONS) as SandmanActionKind[]
 
+/**
+ * THE REQUESTS (D8) — "we need more social posts" → the team drafts one.
+ *
+ * Each request names an existing generator and nothing else. Running one is
+ * the same work the hourly cycle does, asked for early: the generator keeps
+ * ALL of its own guards (its stand-downs, its dedupe by sourceKey, its
+ * skip-when-AI-is-off), so tapping twice cannot produce two cards and
+ * tapping at a bad moment produces none. The result is always a draft in
+ * the stack — never a send.
+ */
+export type SandmanRequestKind =
+  | 'draft_social'
+  | 'plan_month'
+  | 'recall_campaign'
+  | 'fill_week'
+
+export interface SandmanRequestDef {
+  kind: SandmanRequestKind
+  /** The button, in the person's own words — a request, not a command. */
+  label: string
+  /** What lands in the stack if the generator has something to draft. */
+  produces: string
+  /** One-line hint the prompt shows the model. */
+  when: string
+}
+
+export const SANDMAN_REQUESTS: Record<SandmanRequestKind, SandmanRequestDef> = {
+  draft_social: {
+    kind: 'draft_social',
+    label: 'Draft a post for me',
+    produces: 'a social post, written and waiting on your yes',
+    when: 'they want more posts, more visibility, or something to put out this week',
+  },
+  plan_month: {
+    kind: 'plan_month',
+    label: 'Plan the next four weeks',
+    produces: 'a month of posts and an article, scheduled once you approve',
+    when: 'they ask about a plan, a calendar, or keeping it going rather than one post',
+  },
+  recall_campaign: {
+    kind: 'recall_campaign',
+    label: 'Draft a recall email',
+    produces: 'an invitation to patients who are due, waiting on your yes',
+    when: 'they want to bring patients back, fill the book, or reach the ones who are due',
+  },
+  fill_week: {
+    kind: 'fill_week',
+    label: 'Look at next week’s gaps',
+    produces: 'an invitation naming the quiet days, if next week has any',
+    when: 'they ask about openings, a quiet week, or filling specific days',
+  },
+}
+
+export const SANDMAN_REQUEST_KINDS = Object.keys(SANDMAN_REQUESTS) as SandmanRequestKind[]
+
+export interface SandmanSuggestedRequest {
+  kind: SandmanRequestKind
+  label: string
+}
+
 export interface SandmanSuggestedAction {
   kind: SandmanActionKind
   label: string
@@ -110,6 +181,8 @@ export interface SandmanSuggestedAction {
 export interface SandmanResponse {
   answer: string
   actions: SandmanSuggestedAction[]
+  /** Work the person can ASK the team to draft (D8). Always a draft. */
+  requests: SandmanSuggestedRequest[]
 }
 
 /** AGGREGATES ONLY — see the privacy line above. */
@@ -206,6 +279,10 @@ export function buildSandmanPrompt(
   const actionMenu = SANDMAN_ACTION_KINDS.map(
     (k) => `- ${k}: ${SANDMAN_ACTIONS[k].label} — suggest when ${SANDMAN_ACTIONS[k].when}`,
   ).join('\n')
+  const requestMenu = SANDMAN_REQUEST_KINDS.map(
+    (k) =>
+      `- ${k}: ${SANDMAN_REQUESTS[k].label} → produces ${SANDMAN_REQUESTS[k].produces} — suggest when ${SANDMAN_REQUESTS[k].when}`,
+  ).join('\n')
   const system = [
     `You are Sandman, the chief of staff for ${snapshot.clinicName}'s Dream Team — the AI staff that works this dental practice's marketing and follow-up around the clock. You are talking to the practice's own staff.`,
     'Answer using ONLY the snapshot below — it is their live data. Never invent numbers, names, or history. If the snapshot cannot answer, say so plainly and say what you would need.',
@@ -215,6 +292,9 @@ export function buildSandmanPrompt(
     'You do NOT perform actions and never claim you did. When a place to look would help, SUGGEST it from this closed menu; the person clicks:',
     actionMenu,
     'Return at most 3 actions, most useful first, and none if none fit. The answer must stand on its own — the buttons are a convenience.',
+    'You may also OFFER TO PUT THE TEAM TO WORK from this second closed menu. A request produces a DRAFT that lands in their approval stack — it never sends, posts, or emails anyone. Say what will be drafted; never say it has gone out, and never promise a result:',
+    requestMenu,
+    'Return at most 2 requests, and none unless the person is actually asking for more of something. Do not offer a request as a way to end an awkward answer — a quiet month does not need a button attached to it.',
     '',
     'SNAPSHOT:',
     renderSandmanSnapshot(snapshot),
@@ -251,7 +331,24 @@ export function parseSandmanResponse(raw: unknown): SandmanResponse | null {
       if (actions.length >= 3) break
     }
   }
-  return { answer: answer.slice(0, 1500), actions }
+  // REQUESTS (D8) — same tolerant shape, tighter clamp. An invented kind is
+  // dropped rather than rendered: a button that names work the machine
+  // cannot do is worse than no button.
+  const seenReq = new Set<string>()
+  const requests: SandmanSuggestedRequest[] = []
+  if (Array.isArray(r.requests)) {
+    for (const q of r.requests) {
+      if (!q || typeof q !== 'object') continue
+      const kind = (q as Record<string, unknown>).kind
+      if (typeof kind !== 'string' || !(kind in SANDMAN_REQUESTS) || seenReq.has(kind)) continue
+      seenReq.add(kind)
+      // The LABEL is ours, never the model's: it is a promise about what
+      // happens when the button is pressed, and only the registry knows.
+      requests.push({ kind: kind as SandmanRequestKind, label: SANDMAN_REQUESTS[kind as SandmanRequestKind].label })
+      if (requests.length >= 2) break
+    }
+  }
+  return { answer: answer.slice(0, 1500), actions, requests }
 }
 
 /** The opening prompts the panel offers — plain questions a front desk has. */

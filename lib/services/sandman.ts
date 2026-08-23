@@ -23,6 +23,7 @@ import {
   buildSandmanPrompt,
   parseSandmanResponse,
   SANDMAN_ACTION_KINDS,
+  SANDMAN_REQUEST_KINDS,
   type SandmanResponse,
   type SandmanSnapshot,
 } from '@/lib/sandman'
@@ -36,6 +37,7 @@ const FALLBACK: SandmanResponse = {
   answer:
     'I can’t reach my read of your numbers right now. Try again in a moment — nothing is wrong with your practice’s data.',
   actions: [],
+  requests: [],
 }
 
 async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
@@ -168,6 +170,7 @@ export async function askSandman(
     return {
       answer: 'Ask me anything about the practice — how the month is going, why a number moved, what to do next.',
       actions: [],
+      requests: [],
     }
   }
   if (!aiConfigured()) {
@@ -175,6 +178,7 @@ export async function askSandman(
       answer:
         'My writing brain isn’t switched on for this practice yet, so I can’t talk things through. Everything else the team does still runs.',
       actions: [{ kind: 'open_integrations', label: 'Open integrations' }],
+      requests: [],
     }
   }
   if (await safe(getAiUsageCount(organizationId, SANDMAN_KIND).then((n) => n >= SANDMAN_MONTHLY_CAP), false)) {
@@ -182,6 +186,7 @@ export async function askSandman(
       answer:
         'We’ve talked a lot this month — I’m at my limit for conversations until it resets. The team keeps working in the meantime.',
       actions: [{ kind: 'open_dream_team', label: 'See what’s waiting' }],
+      requests: [],
     }
   }
 
@@ -213,6 +218,23 @@ export async function askSandman(
               properties: {
                 kind: { type: 'string', enum: SANDMAN_ACTION_KINDS },
                 label: { type: 'string', maxLength: 60 },
+              },
+              required: ['kind'],
+            },
+          },
+          // REQUESTS (D8): the model may only NAME a generator — there is
+          // no content, audience, or recipient field for a bad answer to
+          // fill in, and everything a generator produces still needs a
+          // human yes.
+          requests: {
+            type: 'array',
+            maxItems: 2,
+            description:
+              'Up to 2 pieces of work to offer to draft; omit unless they are asking for more of something.',
+            items: {
+              type: 'object',
+              properties: {
+                kind: { type: 'string', enum: SANDMAN_REQUEST_KINDS },
               },
               required: ['kind'],
             },

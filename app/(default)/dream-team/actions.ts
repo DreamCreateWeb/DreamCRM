@@ -48,6 +48,8 @@ export interface SandmanChatResult {
   ok: boolean
   answer: string
   actions: Array<{ kind: string; label: string; href: string }>
+  /** Work the person can ASK the team to draft (D8). Labels are ours. */
+  requests: Array<{ kind: string; label: string }>
 }
 
 /**
@@ -62,13 +64,13 @@ export async function askSandmanAction(input: {
 }): Promise<SandmanChatResult> {
   const ctx = await requireTenant()
   if (ctx.tenantType !== 'clinic') {
-    return { ok: false, answer: 'Sandman works for clinics.', actions: [] }
+    return { ok: false, answer: 'Sandman works for clinics.', actions: [], requests: [] }
   }
   const query = (input.query ?? '').trim()
-  if (!query) return { ok: false, answer: 'Ask me something about the practice.', actions: [] }
+  if (!query) return { ok: false, answer: 'Ask me something about the practice.', actions: [], requests: [] }
 
   const { askSandman } = await import('@/lib/services/sandman')
-  const { SANDMAN_ACTIONS } = await import('@/lib/sandman')
+  const { SANDMAN_ACTIONS, SANDMAN_REQUESTS } = await import('@/lib/sandman')
   // Only the last few turns travel — the prompt clamps too, but the wire
   // should not carry an unbounded transcript from a client we do not trust.
   const history = (input.history ?? [])
@@ -83,7 +85,44 @@ export async function askSandmanAction(input: {
       label: a.label,
       href: SANDMAN_ACTIONS[a.kind].href,
     })),
+    requests: res.requests.map((q) => ({ kind: q.kind, label: SANDMAN_REQUESTS[q.kind].label })),
   }
+}
+
+export interface TeamRequestResult {
+  ok: boolean
+  message: string
+}
+
+/**
+ * PUTTING THE TEAM TO WORK (D8) — the owner's "then initiate a task".
+ *
+ * Safe for exactly one reason: this runs an EXISTING generator now, and a
+ * generator's output is a DRAFT that lands in the sign-here stack needing a
+ * human yes. Nothing here shortens the approval path. The wire carries only
+ * a KIND from a closed registry — no content, no audience, no recipient —
+ * so there is nothing in the request for a bad answer to steer.
+ *
+ * Every generator keeps its own guards (stand-downs, sourceKey dedupe,
+ * skip-when-AI-is-off), so a second tap cannot mint a second card and a tap
+ * at a bad moment produces none. That is why "nothing to draft" is a normal,
+ * honest outcome rather than a failure.
+ */
+export async function askTeamForWorkAction(input: { kind: string }): Promise<TeamRequestResult> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') {
+    return { ok: false, message: 'Only clinic staff can put the team to work.' }
+  }
+  if (ctx.role === 'patient') {
+    return { ok: false, message: 'Only clinic staff can put the team to work.' }
+  }
+  const { SANDMAN_REQUESTS } = await import('@/lib/sandman')
+  const kind = input.kind
+  if (typeof kind !== 'string' || !(kind in SANDMAN_REQUESTS)) {
+    return { ok: false, message: 'I can’t do that one.' }
+  }
+  const { runSandmanRequest } = await import('@/lib/services/sandman-requests')
+  return runSandmanRequest(ctx.organizationId, ctx.organizationName, kind as keyof typeof SANDMAN_REQUESTS)
 }
 
 export interface GoalActionResult {

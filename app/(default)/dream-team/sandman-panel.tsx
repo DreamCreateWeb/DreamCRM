@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { SANDMAN_SUGGESTIONS } from '@/lib/sandman'
 import { ActionButton } from '@/components/ui/action-button'
 import SectionHeading from './section-heading'
-import { askSandmanAction } from './actions'
+import { askSandmanAction, askTeamForWorkAction } from './actions'
 
 /**
  * SANDMAN (docs/ai-operations.md, D5) — the Dream Team's chief of staff, in
@@ -21,9 +22,17 @@ interface Turn {
   role: 'user' | 'assistant'
   content: string
   actions?: Array<{ kind: string; label: string; href: string }>
+  /** Work the person can ASK the team to draft (D8) — a button, not a link,
+   *  because it starts something rather than going somewhere. */
+  requests?: Array<{ kind: string; label: string }>
+  /** Set once a request on THIS turn has been asked for, so the answer
+   *  stays a record of what happened rather than an offer that can be
+   *  pressed again and again. */
+  requested?: string
 }
 
 export default function SandmanPanel({ clinicName }: { clinicName: string }) {
+  const router = useRouter()
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
   const [pending, startTransition] = useTransition()
@@ -45,7 +54,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
         const res = await askSandmanAction({ query: q, history })
         setTurns((prev) => [
           ...prev,
-          { role: 'assistant', content: res.answer, actions: res.actions },
+          { role: 'assistant', content: res.answer, actions: res.actions, requests: res.requests },
         ])
       } catch {
         setTurns((prev) => [
@@ -57,6 +66,27 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
         ])
       } finally {
         inputRef.current?.focus()
+      }
+    })
+  }
+
+  function putToWork(turnIndex: number, kind: string) {
+    if (pending) return
+    setTurns((prev) =>
+      prev.map((t, i) => (i === turnIndex ? { ...t, requested: kind } : t)),
+    )
+    startTransition(async () => {
+      try {
+        const r = await askTeamForWorkAction({ kind })
+        setTurns((prev) => [...prev, { role: 'assistant', content: r.message }])
+        // A new card may now be sitting in the stack above — refresh so the
+        // person can see the thing they just asked for.
+        if (r.ok) router.refresh()
+      } catch {
+        setTurns((prev) => [
+          ...prev,
+          { role: 'assistant', content: 'That didn’t go through — try asking me again in a moment.' },
+        ])
       }
     })
   }
@@ -134,6 +164,31 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
                           {a.label} →
                         </Link>
                       ))}
+                    </div>
+                  )}
+                  {/* REQUESTS (D8) — a button, not a link: it starts work
+                      rather than going somewhere, and the shape says so.
+                      Every one of these produces a DRAFT that still needs a
+                      yes, which the caption states outright so nobody
+                      presses it thinking something is about to go out. */}
+                  {t.requests && t.requests.length > 0 && (
+                    <div className="mt-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {t.requests.map((q) => (
+                          <button
+                            key={q.kind}
+                            type="button"
+                            disabled={pending || t.requested != null}
+                            onClick={() => putToWork(i, q.kind)}
+                            className="rounded-full bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-teal-700 disabled:opacity-40"
+                          >
+                            {t.requested === q.kind ? 'On it…' : q.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                        They&rsquo;ll draft it — nothing goes out until you approve it.
+                      </p>
                     </div>
                   )}
                 </div>

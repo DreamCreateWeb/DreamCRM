@@ -388,3 +388,25 @@ commit → merge to main → verify deploy (same as the best-version program).
   "hasn't run yet" forever — a true sentence about the demo that tells a lie
   about the product — and the resync stamps it ~20 minutes back on every
   deploy.
+- **2026-08-23 — D8**: SANDMAN CAN PUT THE TEAM TO WORK — the owner's "and
+  then be able to initiate or schedule a task", built so it cannot become the
+  thing that scares you. A second CLOSED registry (`SANDMAN_REQUESTS`) sits
+  beside the navigation one, and it is safe for exactly one reason: **a
+  request runs an EXISTING generator now, and every generator's output is a
+  DRAFT that lands in the sign-here stack needing a human yes.** Sandman
+  cannot shorten the approval path, only start the work that fills it. The
+  wire carries a KIND and nothing else — no content, no audience, no
+  recipient — so there is nothing in a request for a bad answer to steer, and
+  the button's LABEL comes from the registry rather than the model, because
+  the label is a promise about what pressing it does. Four requests:
+  draft_social · plan_month · recall_campaign · fill_week. Because the
+  generators keep all their own guards (stand-downs, `sourceKey` dedupe,
+  skip-when-AI-is-off), a second tap cannot mint a second card and a tap at a
+  bad moment mints none — which is why "nothing to draft" is a NORMAL outcome
+  and gets its own honest line per request ("next week looks well booked" is
+  good news, not a failure; a shared "nothing to do" would have read as one).
+  In the panel a request is a BUTTON, not a link — it starts something rather
+  than going somewhere — it can be pressed once (the answer becomes a record,
+  not a repeatable offer), the caption states the draft-only law where the
+  finger is, and a success refreshes the page so the card the person just
+  asked for is actually there.

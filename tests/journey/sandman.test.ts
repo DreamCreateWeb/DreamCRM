@@ -5,6 +5,8 @@ import {
   renderSandmanSnapshot,
   SANDMAN_ACTIONS,
   SANDMAN_ACTION_KINDS,
+  SANDMAN_REQUESTS,
+  SANDMAN_REQUEST_KINDS,
   type SandmanSnapshot,
 } from '@/lib/sandman'
 
@@ -152,5 +154,57 @@ describe('the action registry', () => {
       // registry is links by construction.
       expect(Object.keys(def).sort()).toEqual(['href', 'kind', 'label', 'when'])
     }
+  })
+})
+
+describe('the REQUESTS registry (D8) — putting the team to work', () => {
+  it('every request names a generator and carries NO content, audience, or recipient', () => {
+    for (const kind of SANDMAN_REQUEST_KINDS) {
+      const def = SANDMAN_REQUESTS[kind]
+      expect(Object.keys(def).sort()).toEqual(['kind', 'label', 'produces', 'when'])
+      expect(def.kind).toBe(kind)
+      expect(def.label.length).toBeGreaterThan(0)
+      // The shape is the guard: there is no field a bad answer could steer.
+      expect(JSON.stringify(def)).not.toMatch(/body|recipient|audience|send|href/i)
+    }
+  })
+
+  it('every request PROMISES a draft, never a send', () => {
+    for (const kind of SANDMAN_REQUEST_KINDS) {
+      expect(SANDMAN_REQUESTS[kind].produces).toMatch(/waiting on your yes|once you approve|if next week/i)
+    }
+  })
+
+  it('the prompt shows the request menu and states the draft-only law', () => {
+    const { system } = buildSandmanPrompt(snap(), 'we need more posts')
+    expect(system).toContain('draft_social')
+    expect(system).toContain('it never sends, posts, or emails anyone')
+    expect(system).toContain('never say it has gone out')
+  })
+
+  it('parses requests, drops an invented kind, and clamps to two', () => {
+    const r = parseSandmanResponse({
+      answer: 'Posting has been light.',
+      requests: [
+        { kind: 'draft_social' },
+        { kind: 'email_everyone' },
+        { kind: 'plan_month' },
+        { kind: 'recall_campaign' },
+      ],
+    })
+    expect(r?.requests.map((q) => q.kind)).toEqual(['draft_social', 'plan_month'])
+  })
+
+  it('takes the LABEL from the registry, never from the model — it is a promise about what happens', () => {
+    const r = parseSandmanResponse({
+      answer: 'ok',
+      requests: [{ kind: 'draft_social', label: 'Post it right now to every channel' }],
+    })
+    expect(r?.requests[0].label).toBe(SANDMAN_REQUESTS.draft_social.label)
+  })
+
+  it('an answer with no requests is normal — the field is always an array', () => {
+    expect(parseSandmanResponse({ answer: 'All quiet.' })?.requests).toEqual([])
+    expect(parseSandmanResponse({ answer: 'x', requests: 'nope' })?.requests).toEqual([])
   })
 })

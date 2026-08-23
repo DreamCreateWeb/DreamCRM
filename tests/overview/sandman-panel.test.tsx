@@ -2,16 +2,32 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import SandmanPanel from '@/app/(default)/dream-team/sandman-panel'
 
-const { mockAsk } = vi.hoisted(() => ({
+const { mockAsk, mockPutToWork } = vi.hoisted(() => ({
   mockAsk: vi.fn(async (..._a: unknown[]) => ({
     ok: true,
     answer: 'Nine seated so far, against seventeen at this point last month.',
     actions: [{ kind: 'open_outreach', label: 'Open recall & outreach', href: '/growth/outreach' }],
+    requests: [] as Array<{ kind: string; label: string }>,
+  })),
+  mockPutToWork: vi.fn(async (..._a: unknown[]) => ({
+    ok: true,
+    message: 'Done — a post is drafted and waiting on your yes.',
   })),
 }))
-vi.mock('@/app/(default)/dream-team/actions', () => ({ askSandmanAction: mockAsk }))
+vi.mock('@/app/(default)/dream-team/actions', () => ({
+  askSandmanAction: mockAsk,
+  askTeamForWorkAction: mockPutToWork,
+}))
+// The panel refreshes after a request so the new card shows up in the stack.
+vi.mock('next/navigation', async (orig) => ({
+  ...(await orig()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}))
 
-beforeEach(() => mockAsk.mockClear())
+beforeEach(() => {
+  mockAsk.mockClear()
+  mockPutToWork.mockClear()
+})
 
 describe('the Sandman panel', () => {
   it('opens with the questions a front desk actually has — and promises the privacy line', () => {
@@ -57,5 +73,65 @@ describe('the Sandman panel', () => {
     render(<SandmanPanel clinicName="Acme Dental" />)
     fireEvent.click(screen.getByRole('button', { name: 'Is anything waiting on me?' }))
     expect(await screen.findByText(/didn’t go through/)).toBeInTheDocument()
+  })
+
+  // ── PUTTING THE TEAM TO WORK (D8) ──────────────────────────────────────
+  it('offers to draft work as a BUTTON, not a link — it starts something rather than going somewhere', async () => {
+    mockAsk.mockResolvedValueOnce({
+      ok: true,
+      answer: 'Posting has been light this month.',
+      actions: [],
+      requests: [{ kind: 'draft_social', label: 'Draft a post for me' }],
+    })
+    render(<SandmanPanel clinicName="Acme Dental" />)
+    fireEvent.click(screen.getByRole('button', { name: 'What should we do this week to bring more in?' }))
+    const btn = await screen.findByRole('button', { name: 'Draft a post for me' })
+    expect(btn.tagName).toBe('BUTTON')
+    // And the promise is stated where the finger is: a draft, not a send.
+    expect(screen.getByText(/nothing goes out until you approve it/i)).toBeInTheDocument()
+  })
+
+  it('a tapped request runs it and reports what happened in the thread', async () => {
+    mockAsk.mockResolvedValueOnce({
+      ok: true,
+      answer: 'Posting has been light this month.',
+      actions: [],
+      requests: [{ kind: 'draft_social', label: 'Draft a post for me' }],
+    })
+    render(<SandmanPanel clinicName="Acme Dental" />)
+    fireEvent.click(screen.getByRole('button', { name: 'What should we do this week to bring more in?' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Draft a post for me' }))
+    await waitFor(() => expect(mockPutToWork).toHaveBeenCalledWith({ kind: 'draft_social' }))
+    expect(await screen.findByText(/a post is drafted and waiting on your yes/i)).toBeInTheDocument()
+  })
+
+  it('a request can only be asked for ONCE — the answer becomes a record, not a repeatable offer', async () => {
+    mockAsk.mockResolvedValueOnce({
+      ok: true,
+      answer: 'Posting has been light this month.',
+      actions: [],
+      requests: [{ kind: 'draft_social', label: 'Draft a post for me' }],
+    })
+    render(<SandmanPanel clinicName="Acme Dental" />)
+    fireEvent.click(screen.getByRole('button', { name: 'What should we do this week to bring more in?' }))
+    const btn = await screen.findByRole('button', { name: 'Draft a post for me' })
+    fireEvent.click(btn)
+    await waitFor(() => expect(mockPutToWork).toHaveBeenCalledTimes(1))
+    const after = screen.getByRole('button', { name: /On it…|Draft a post for me/ })
+    expect(after).toBeDisabled()
+  })
+
+  it('a request that fails answers in the thread rather than throwing the panel away', async () => {
+    mockAsk.mockResolvedValueOnce({
+      ok: true,
+      answer: 'Posting has been light this month.',
+      actions: [],
+      requests: [{ kind: 'draft_social', label: 'Draft a post for me' }],
+    })
+    mockPutToWork.mockRejectedValueOnce(new Error('network'))
+    render(<SandmanPanel clinicName="Acme Dental" />)
+    fireEvent.click(screen.getByRole('button', { name: 'What should we do this week to bring more in?' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Draft a post for me' }))
+    expect(await screen.findByText(/didn’t go through/i)).toBeInTheDocument()
   })
 })
