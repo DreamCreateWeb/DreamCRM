@@ -195,7 +195,7 @@ app/
 lib/
   db/schema/         auth.ts, platform.ts, clinic.ts (bulk), domain.ts, email.ts,
                      referrals.ts, index.ts
-  db/migrations/     drizzle; 0000–0148 applied to prod (auto-apply on deploy)
+  db/migrations/     drizzle; 0000–0152 applied to prod (auto-apply on deploy)
   auth/              server.ts, client.ts, context.ts (getTenantContext,
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
@@ -316,6 +316,7 @@ hub) / **Business** (Payments · Shop · Integrations) + a pinned
 | Section | Module | Path | Notes |
 |---|---|---|---|
 | Daily | Overview | `/` → `/dashboard` | Morning-huddle: today's chair, attention cards, trends, activity feed, integrations-health banner, follow-up summary. Clinic-tz day windows. |
+| Daily | Dream Team | `/dream-team` | **THE AI STAFF (2026-08-23, docs/ai-operations.md).** The sign-here stack of finished work waiting on a yes (moved here from the Overview, which keeps only a calm summons strip), the take-it-back grants strip, the status band ("Cycles" heartbeat + waiting / going out soon / handled last week), the veto RUNWAY with per-row Stop, GOALS ("more implant patients" — flavors every generator's prompt; service focus DERIVED from the practice's own service list), SANDMAN (the chief of staff in conversation — aggregates-only snapshot, a closed navigation registry, and a closed REQUEST registry that can only ask an existing generator to run now, so everything it starts still lands as a draft needing a yes), and the ROSTER of six specialists with last week's real numbers. |
 | Daily | My Day | `/my-day` | Per-staff cockpit: my/unclaimed follow-ups, my conversations, today's schedule, collections nudge. Mirrored by the opt-in morning digest email (per-staff opt-out). |
 | Daily | Messages | `/messages` (double-sidebar) | Front-style unified patient inbox (in_app + email + inbound SMS — replies thread as channel 'sms' once a clinic's texting is live; the outbound SMS composer option waits on the honesty flip). Receipts (in-app read + email Delivered/Opened/bounce via tagged Resend webhooks, 2026-07-14), attachments, AI draft, quick-book, scheduled send, star/unread, auto-reply after hours. ACTIVITY MARKERS (2026-07-23): every automated touch (reminders, campaigns+opened, bookings/cancels w/ actor, review asks, balance nudges, surveys, forms) interleaves the thread as thin gray context lines — read-time merge (`lib/services/thread-activity.ts`, no new write paths, history backfills free); LAW: markers never bump unread/reopen/reorder and never render in the patient portal; runs of 4+ collapse; open/click signals attribute per-send; pre-history older than 14d before the first message trims (the patient timeline keeps it all). Gmail mailbox at `/inbox`. |
 | Daily | Appointments | `/appointments` | Agenda grouped by clinic-local day; window chips; aging borders; drawer (confirm/reschedule/cancel/no-show + review request); bulk actions; saved views; CSV call-sheet export. |
@@ -658,7 +659,13 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0148** (`pms_api_usage` — the NexHealth call-budget ledger:
+  migration: **0152** (`clinic_profile.dream_team_cycle_at` — the Dream
+  Team's heartbeat, "Cycles": stamped at the end of every hourly generator
+  pass for that clinic whether or not it produced anything, read only by
+  the status band; nothing branches on it). Before it: **0151** (the `goal`
+  table — the practice's durable objective in its own words; it queues
+  nothing and FLAVORS every generator's prompt). Before those: **0148**
+  (`pms_api_usage` — the NexHealth call-budget ledger:
   one row per org per UTC day, unique index, read by
   `lib/services/pms/api-meter.ts`). Before it: **0147**
   (`clinic_profile.site_live_at` — the GO-LIVE LEVER: a clinic's public
@@ -723,6 +730,22 @@ sitemap/robots/OG.
   apex→www) — the Vercel/Replit redirect hop is fully retired.
 
 ## Open items (priority order)
+
+-2. **THE DREAM TEAM / AI OPERATIONS PROGRAM (2026-08-23, owner directive —
+   BUILDING NOW, in its own lane through the feature freeze).** Read
+   `docs/ai-operations.md` FIRST before touching /dream-team, the proposal
+   spine, the autonomy ladder, goals, or Sandman: it carries the vision in
+   the owner's words ("gain new patients, in the services you want more
+   patients in, and effortlessly organize, market, track, follow up, and
+   maintain relationships with them"), the naming lexicon (Dream Team ·
+   Cycles · Sandman · Goals in-product, Dreams in marketing), the Paperclip
+   build-vs-borrow decision record, the three-lane matrix incl. the owner's
+   DAY-0 DEEP SLEEP ruling ("dental staff won't keep up with social posts —
+   that's exactly where human-out-of-the-loop works"), and the running build
+   log D1–D9. Shipped: the page + summons strip · the roster · the veto
+   runway + day-0 auto lanes · Sandman · goals (0151) · the design passes ·
+   Cycles (0152) · Sandman's request registry. The program's phase audit
+   runs at the END of the arc, not per slice.
 
 -1. **THE RELEASE PROGRAM (2026-08-16, owner directive — THE CURRENT
    PROGRAM OF RECORD).** "We have every feature we plan to offer currently,

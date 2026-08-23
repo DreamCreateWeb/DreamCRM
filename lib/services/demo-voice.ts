@@ -62,7 +62,11 @@ export async function seedDemoVoice(
  * a demo that shows one of them shows half the phase:
  *  - social_post is HANDED OVER, dated before the seeded cards, so the demo
  *    renders the granted card (hedged), the take-back chip, and the "what I
- *    handled on my own" tell — whose seeded entry narrates the real seeded
+ *    handled on my own" tell. NOTE (D4, docs/ai-operations.md): social_post
+ *    now defaults to 'auto' for EVERY clinic, so this line pins a state
+ *    rather than staging a choice — the demo still shows the same screens a
+ *    real clinic sees on day one, and the LADDER itself is demonstrated by
+ *    the ask-first review card's earned-trust nudge below — whose seeded entry narrates the real seeded
  *    post at ITS OWN publish instant (the social seeder re-dates that row on
  *    every resync, so it stays inside the tell's 7-day window; if it ever
  *    falls outside, the entry is skipped and the strip says the week was
@@ -79,6 +83,9 @@ async function resetAutonomy(organizationId: string, now: Date): Promise<void> {
     .update(schema.clinicProfile)
     .set({
       autonomy: {
+        // Explicit even though D4 made this the platform default: the reset
+        // must produce ONE known state, and inheriting a default would make
+        // the demo's baseline move the next time a default does.
         social_post: 'auto',
         [GRANTED_AT_KEY]: { social_post: new Date(now.getTime() - 10 * DAY).toISOString() },
       },

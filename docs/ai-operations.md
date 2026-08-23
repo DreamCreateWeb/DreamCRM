@@ -422,3 +422,14 @@ commit → merge to main → verify deploy (same as the best-version program).
   a fact about work that is elsewhere ON THIS PAGE — making it a link is not
   a switch (the roster stays a report), it is the difference between naming a
   thing and being able to reach it.
+- **2026-08-23 — D10 (bookkeeping)**: CLAUDE.md gains the Dream Team module
+  row, the 0151/0152 migration entries, and an open-items block pointing the
+  next session at this doc BEFORE it touches /dream-team, the proposal spine,
+  the ladder, goals or Sandman. Also corrected a now-stale comment in the
+  demo's voice seeder: `social_post: 'auto'` there used to stage a CHOICE and
+  now pins a state, since D4 made it the platform default — the demo still
+  shows a real clinic's day-one screens, and the ladder itself is
+  demonstrated by the ask-first review card's earned-trust nudge. The
+  explicit line stays on purpose: a reset must produce ONE known state, and
+  inheriting a default would make the demo's baseline move the next time a
+  default does.
