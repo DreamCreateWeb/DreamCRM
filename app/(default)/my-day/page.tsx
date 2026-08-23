@@ -109,7 +109,7 @@ export default async function MyDayPage() {
             value={data.openProposalsCount}
             sub="finished work, ready to send"
             tone="warn"
-            href="/dashboard"
+            href="/dream-team"
           />
         )}
       </div>

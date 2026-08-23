@@ -119,7 +119,7 @@ export function buildDigestContent(
   if (proposals > 0) {
     // Phase 2 (round-1 audit): the Approval Inbox must reach the morning
     // email — drafted work expires quietly if nobody is told it exists.
-    parts.push(`✨ ${proposals} piece${proposals === 1 ? '' : 's'} of finished work ${proposals === 1 ? 'is' : 'are'} waiting on your yes (on your Overview).`)
+    parts.push(`✨ ${proposals} piece${proposals === 1 ? '' : 's'} of finished work ${proposals === 1 ? 'is' : 'are'} waiting on your yes (on your Dream Team page).`)
   }
   if (conversations > 0) {
     parts.push(`💬 ${conversations} conversation${conversations === 1 ? '' : 's'} assigned to you.`)

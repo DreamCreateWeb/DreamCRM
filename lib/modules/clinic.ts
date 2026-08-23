@@ -56,6 +56,10 @@ export const clinicModules: ModuleRegistry = {
     // signed-in users there) — the registry must carry the RENDERED path or
     // the sidebar active-state + trail label never match the home page.
     { id: 'overview',          path: '/dashboard',         label: 'Overview',         section: 'Daily',    icon: 'home',     status: 'live', pinned: true, shortcut: '⌘1' },
+    // THE DREAM TEAM (docs/ai-operations.md) — the clinic's AI staff: the
+    // sign-here stack (moved off the Overview, D2), the take-it-back strip,
+    // and, as slices land, the veto runway, goals, roster, and Sandman.
+    { id: 'dream_team',        path: '/dream-team',        label: 'Dream Team',       section: 'Daily',    icon: 'moon',     status: 'live' },
     { id: 'my_day',            path: '/my-day',            label: 'My Day',           section: 'Daily',    icon: 'user',     status: 'live' },
     { id: 'messages',          path: '/messages',          label: 'Messages',         section: 'Daily',    icon: 'chat',     status: 'live', pinned: true, shortcut: '⌘2' },
     { id: 'appointments',      path: '/appointments',      label: 'Appointments',     section: 'Daily',    icon: 'cal',      status: 'live', pinned: true, shortcut: '⌘3' },
