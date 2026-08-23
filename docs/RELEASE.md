@@ -267,6 +267,40 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
 (Populated by R1 sweeps. Format: `S# · severity · surface · one-line ·
 status`. Verified findings only — a finder's claim is not a defect.)
 
+### Deploy pipeline — the source zip has ONE key for every build (2026-08-23)
+
+Found while checking deploy health during the Dream Team build: three of the
+last ten `main` deploys failed. Two shapes, and the second one is a real
+release-program defect rather than a flake.
+
+**The evidence.** Runs 794 and 798 failed at ~3.5–4 min, shorter than a
+complete build — the documented CodeBuild provisioning flake, retried by
+pushing. Runs 801 and 803 each ran a FULL build and failed at the end, and
+each was created while the previous deploy was still running (801 at
+10:19:28 against 800 running 10:17:35→10:23:09; 803 at 16:35:51 against 802
+running 16:35:26→16:40:28). Both of those commits were docs-only, so the
+diff cannot be the cause.
+
+**The mechanism, and why it is worse than a failed build.**
+`.github/workflows/deploy.yml` uploads `git archive HEAD` to a FIXED S3 key
+(`source/dreamcrm-src.zip`) and then calls `aws codebuild start-build` with
+NO source override, so the project reads whatever is at that key right now.
+The workflow has a `concurrency: deploy-main` group, which serialises the
+GitHub runs — but nothing serialises the CodeBuild builds they start, and
+nothing ties a build to the commit that triggered it. If two uploads ever
+interleave with a build's fetch, the failure mode is a broken build (what we
+saw); if they interleave the other way, the failure mode is silent and much
+worse: **a deploy that ships the wrong commit, reported as a success.**
+
+**Fix shape** (NOT applied — it changes the deploy path and cannot be
+verified from a session with no AWS CLI, and a wrong guess here breaks every
+deploy): upload to a SHA-keyed object (`source/<sha>.zip`) and pass
+`--source-location-override` (with `--source-type-override S3` if the
+project's source type needs it) to `start-build`, so a build is pinned to
+the commit that started it. Worth adding a post-deploy assertion that the
+image App Runner is serving carries the expected SHA — right now nothing
+checks. · **OPEN — owner/ops, needs an AWS-CLI-capable session to verify.**
+
 ### R1 · S1 sweep — Tenant & auth (2026-08-17)
 
 Parallel finders enumerated every server action, API route, and cron; the

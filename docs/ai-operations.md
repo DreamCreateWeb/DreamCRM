@@ -584,3 +584,30 @@ commit → merge to main → verify deploy (same as the best-version program).
   and partner surfaces where no clinic clock applies, each with its reason,
   and a second test makes every entry keep earning it. Verified by breaking a
   fixed page on purpose and watching the guard fail.
+- **2026-08-23 — D18**: TWO INVARIANTS — one enforced, one recorded.
+  (1) THE DEPLOY PIPELINE, recorded in docs/RELEASE.md's ledger rather than
+  changed. Checking deploy health turned up three failures in the last ten
+  `main` runs, in two shapes: two short ones (the documented CodeBuild
+  provisioning flake) and two that ran a FULL build and failed at the end,
+  each created while the previous deploy was still running — and both of
+  those commits were docs-only, so the diff cannot be the cause. The
+  mechanism is that `deploy.yml` uploads `git archive HEAD` to a FIXED S3
+  key and starts a build with no source override, so a build reads whatever
+  is at that key right now. The GitHub `concurrency` group serialises the
+  RUNS but nothing ties a BUILD to the commit that triggered it. The failure
+  we saw is the benign direction; the other direction is a deploy that ships
+  the wrong commit and reports success. NOT FIXED HERE ON PURPOSE: the fix
+  changes the deploy path, it cannot be verified from a session with no AWS
+  CLI, and a wrong guess breaks every deploy — so it is written up with its
+  evidence and its fix shape and left for a session that can test it.
+  (2) `tests/guards/server-only-services.test.ts` freezes a convention that
+  holds at 193 of 196 modules — which is exactly when freezing is worth it,
+  since erosion happens one new file at a time and nobody reviewing that file
+  has the other 195 in their head. `import 'server-only'` is what makes a
+  client component importing a service a BUILD ERROR rather than a bundle
+  that ships database code to a browser. The three exceptions are reasoned
+  (two are pure data; the third is a barrel, whose protection is transitive
+  because the modules it re-exports carry their own banners), and a second
+  test voids any exemption whose file ever reaches for the database. Both
+  guards were verified the same way as the last two: by introducing a real
+  violation and watching them fail.
