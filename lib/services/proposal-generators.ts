@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
+import { goalPromptLineFor } from './goals'
 import { db, schema } from '@/lib/db'
 import { z } from 'zod'
 import { runClaudeJson, aiConfigured } from '@/lib/ai'
@@ -1180,12 +1181,15 @@ export async function generateSocialPostProposals(
     .limit(1)
   if (queued) return 0
 
+  // THE ANCESTRY LINE (D6): the practice's active goals aim this post. Empty
+  // string when no goal is set — the no-goal path stays byte-identical.
+  const goalLine = await goalPromptLineFor(organizationId)
   const draft = await draftText(organizationId, {
     system: `You write short social posts for ${clinicName}, a dental clinic. A staff member reviews and edits before anything publishes. ${CORE_VOICE_RULES}
 Additional rules:
 - 2–4 sentences, no hashtag walls (at most one natural hashtag, or none).
 - Evergreen and warm: a genuinely useful dental-health tip, a note about what a first visit is like, or a friendly reminder that the practice welcomes new patients.
-- NEVER invent events, offers, staff names, or anything clinic-specific you weren't told.`,
+- NEVER invent events, offers, staff names, or anything clinic-specific you weren't told.${goalLine}`,
     user: `Draft one post the clinic could publish this week.`,
   })
   if (!draft.ok) {
@@ -1286,7 +1290,7 @@ Rules:
 - Evergreen and useful: dental-health tips, what a first visit is like, how to help an anxious patient, why a cleaning matters. Nothing seasonal or dated.
 - NEVER invent events, offers, prices, staff names, awards, or anything clinic-specific you were not told.
 - No medical claims beyond ordinary preventive-dentistry advice.
-- The four pieces should cover four different topics — this is a plan, not one idea four times.`,
+- The four pieces should cover four different topics — this is a plan, not one idea four times.${await goalPromptLineFor(organizationId)}`,
       messages: [{ role: 'user', content: `Plan the next four weeks.` }],
       toolName: 'content_plan',
       toolDescription: 'Return the planned pieces, in publish order, for a staff member to review.',

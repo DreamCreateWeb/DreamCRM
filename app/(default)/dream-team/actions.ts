@@ -85,3 +85,57 @@ export async function askSandmanAction(input: {
     })),
   }
 }
+
+export interface GoalActionResult {
+  ok: boolean
+  message: string
+}
+
+/** Set a goal — "more implant patients". Owner/admin only: a goal points the
+ *  whole team, which is a direction decision, not a daily task. */
+export async function createGoalAction(input: {
+  objective: string
+  serviceFocus?: string | null
+}): Promise<GoalActionResult> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, message: 'Goals belong to a clinic.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, message: 'Ask an owner or admin to set the practice’s goal.' }
+  }
+  const { createGoal } = await import('@/lib/services/goals')
+  const r = await createGoal({
+    organizationId: ctx.organizationId,
+    userId: ctx.userId,
+    objective: input.objective ?? '',
+    serviceFocus: input.serviceFocus ?? null,
+    isDemo: ctx.isDemo,
+  })
+  return r.ok
+    ? { ok: true, message: 'Goal set — the team will aim its work here.' }
+    : { ok: false, message: r.error ?? 'That didn’t save.' }
+}
+
+export async function setGoalStatusAction(input: {
+  goalId: string
+  status: string
+}): Promise<GoalActionResult> {
+  const ctx = await requireTenant()
+  if (ctx.tenantType !== 'clinic') return { ok: false, message: 'Goals belong to a clinic.' }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+    return { ok: false, message: 'Ask an owner or admin to change the practice’s goal.' }
+  }
+  const { isGoalStatus } = await import('@/lib/goals')
+  if (!isGoalStatus(input.status)) return { ok: false, message: 'That isn’t a goal state.' }
+  const { setGoalStatus } = await import('@/lib/services/goals')
+  const r = await setGoalStatus(ctx.organizationId, input.goalId, input.status)
+  if (!r.ok) return { ok: false, message: r.error ?? 'That didn’t save.' }
+  const said =
+    input.status === 'achieved'
+      ? 'Nice — marked as reached.'
+      : input.status === 'paused'
+        ? 'Paused — the team stops aiming here.'
+        : input.status === 'retired'
+          ? 'Put away.'
+          : 'Back on — the team aims here again.'
+  return { ok: true, message: said }
+}

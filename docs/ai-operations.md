@@ -277,3 +277,31 @@ commit → merge to main → verify deploy (same as the best-version program).
   last-6-turn history, suggestions render as LINKS resolved server-side from
   the registry). Tests pin the privacy shape, the history clamp, the
   invented-kind drop, and the panel's thread behaviour.
+- **2026-08-23 — D6**: GOALS — "tell the team what you want more of." Migration
+  0151 adds the `goal` table (objective, optional serviceFocus, status,
+  baselineNewPatients/baselineAt, isDemo). `lib/goals.ts` is the pure core:
+  `validateObjective` (one line, `OBJECTIVE_MAX` 120 — a goal, not a plan),
+  `MAX_ACTIVE_GOALS` = 3 (a team pointed everywhere is pointed nowhere, and
+  every generator's context pays per goal), `goalPromptLine` — the ANCESTRY
+  LINE borrowed from Paperclip, deliberately a SUGGESTION so a goal can never
+  override a generator's own laws (never invent a service/offer/price/
+  credential, and "a good general piece beats a strained one"), returning `''`
+  with no goals so the no-goal path is BYTE-IDENTICAL to today's prompts — and
+  `goalProgressLine`, which states patients SEATED since the goal was set and
+  never says the goal caused them. `lib/services/goals.ts` adds
+  `goalPromptLineFor` (the hot path — never throws, because a failed goal read
+  should cost a tick its flavor, never its work), `seatedSince` (the journey
+  law: seated, never booked), and create/status writers; RESUMING RE-BASELINES
+  so a goal paused for a month can't resume and claim the patients seated
+  while it slept. Threaded into the social-post and content-plan prompts.
+  `goals-section.tsx` on /dream-team is a REPORT with one input — no dates, no
+  milestones, no task tree, which would be a queue of work wearing a goal's
+  clothes. LEDGER VOCABULARY: setting/pausing/reaching a goal is an
+  instruction the HUMAN gave, so `goalChange` joins `NOT_WORK_MARKERS` (a
+  clinic's own typing must not inflate the machine's week) — and because it
+  carries a VALUE rather than `true`, both `hasMarker` and its SQL twin in
+  action-ledger learned a `PRESENCE_MARKERS` set, keeping the JS and SQL
+  predicates generated from the one list. The whole-DOM overview suite now
+  renders through the same ToastProvider/ConfirmProvider the shell gives a
+  real page: rendering bare made any child calling `useToast()` throw, which
+  said "the test forgot a wrapper", not "the UI is broken".

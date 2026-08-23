@@ -4,6 +4,9 @@ import { listRunway } from '@/lib/services/dream-team'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import RunwaySection from './runway-section'
 import SandmanPanel from './sandman-panel'
+import GoalsSection, { type GoalCardData } from './goals-section'
+import { listGoals, seatedSince } from '@/lib/services/goals'
+import { goalProgressLine } from '@/lib/goals'
 import type { TenantContext } from '@/lib/auth/context'
 import { readDemoSkin } from '@/lib/demo-skin'
 import { PageHeader } from '@/components/ui/page-header'
@@ -31,6 +34,23 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
   ])
   // The veto runway (D4) — best-effort like every other read on this page.
   const runway = await listRunway(ctx.organizationId).catch(() => [])
+  // GOALS (D6). Progress is computed per goal against ITS OWN baseline
+  // instant, so a goal set today never claims last month's patients.
+  const goalRows = await listGoals(ctx.organizationId).catch(() => [])
+  const goalCards: GoalCardData[] = await Promise.all(
+    goalRows
+      .filter((g) => g.status !== 'retired')
+      .map(async (g) => ({
+        id: g.id,
+        objective: g.objective,
+        serviceFocus: g.serviceFocus,
+        status: g.status as GoalCardData['status'],
+        progressLine: goalProgressLine(
+          g,
+          await seatedSince(ctx.organizationId, g.baselineAt).catch(() => g.baselineNewPatients),
+        ),
+      })),
+  )
   const name = demoSkin?.clinicName ?? ctx.organizationName
   const inbox = await loadApprovalInbox(ctx.organizationId, timeZone)
   const waiting = inbox.proposalCards.length
@@ -77,6 +97,9 @@ export default async function DreamTeamView({ ctx }: { ctx: TenantContext }) {
           </p>
         </div>
       )}
+
+      {/* GOALS — what the practice wants more of; the team aims here. */}
+      <GoalsSection goals={goalCards} canEdit={ctx.role === 'owner' || ctx.role === 'admin'} />
 
       {/* THE VETO RUNWAY — staged work with its Stop (server-formats the
           go-times in the clinic's wall clock; the tz law). */}

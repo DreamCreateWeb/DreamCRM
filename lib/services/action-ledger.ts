@@ -82,8 +82,13 @@ export async function recordAction(input: RecordActionInput): Promise<boolean> {
 // tests that have to check which markers it names.
 const markerIsTrue = (m: string) =>
   sql`(${schema.actionLedger.detail} ->> ${sql.raw(`'${m}'`)}) = 'true'`
+// The value-carrying markers (autonomyChange, goalChange) are tested by
+// PRESENCE — they hold what happened, not `true` — so their SQL twin must
+// ask "is null", never "is distinct from 'true'". Kept in step with
+// lib/ledger-markers' PRESENCE_MARKERS by the marker-law suite.
+const PRESENCE_MARKERS = new Set(['autonomyChange', 'goalChange'])
 const markerIsNotTrue = (m: string) =>
-  m === 'autonomyChange'
+  PRESENCE_MARKERS.has(m)
     ? sql`(${schema.actionLedger.detail} ->> ${sql.raw(`'${m}'`)}) is null`
     : sql`(${schema.actionLedger.detail} ->> ${sql.raw(`'${m}'`)}) is distinct from 'true'`
 

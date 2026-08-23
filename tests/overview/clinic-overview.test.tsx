@@ -1,5 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { ToastProvider } from '@/components/ui/toast'
+import { ConfirmProvider } from '@/components/ui/confirm-dialog'
+
+/**
+ * Every render here goes through the SAME providers <DashboardShell> gives a
+ * real page (toast + confirm). Rendering a page component bare made any child
+ * that calls useToast() throw — which said "the test forgot a wrapper", not
+ * "the UI is broken", and cost a whole suite when the Dream Team page grew its
+ * goals section.
+ */
+function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ConfirmProvider>
+      <ToastProvider>{children}</ToastProvider>
+    </ConfirmProvider>
+  )
+}
+const render = (ui: ReactElement, opts?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: Providers, ...opts })
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -111,6 +131,12 @@ vi.mock('@/lib/services/clinic-timezone', () => ({
 vi.mock('@/lib/services/dream-team', () => ({
   countRunway: vi.fn(async () => 0),
   listRunway: vi.fn(async () => []),
+}))
+// Goals (D6): none by default — the dedicated suite covers the populated
+// states. Mocked here so the Dream Team renders never reach a database.
+vi.mock('@/lib/services/goals', () => ({
+  listGoals: vi.fn(async () => []),
+  seatedSince: vi.fn(async () => 0),
 }))
 // The inbox's client cards call useRouter().refresh() after a decision.
 vi.mock('next/navigation', async (orig) => ({

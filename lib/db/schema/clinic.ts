@@ -2171,3 +2171,44 @@ export const proposal = pgTable(
   ],
 )
 export type ProposalRow = typeof proposal.$inferSelect
+
+/**
+ * THE DREAM TEAM's GOALS (docs/ai-operations.md, D6).
+ *
+ * "I want more implant patients" — one durable objective the whole team
+ * works toward. Goals are FEW (0–3 active per clinic) and long-lived; they
+ * do not queue work themselves. They flavor it: every generator reads the
+ * active goals and aims its drafts, its audiences, and its copy at them.
+ *
+ * Deliberately thin: no plan rows, no task tree. The proposal table already
+ * holds work, the ledger already holds history, and a second scheduler here
+ * would be a fact with two homes.
+ */
+export const goal = pgTable(
+  'goal',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    // What they want, in their own words ("more implant patients").
+    objective: text('objective').notNull(),
+    // The service line it aims at, when the practice named one — the slug
+    // from their own services list, so the content and audience generators
+    // can point at a real page rather than a guessed phrase.
+    serviceFocus: text('service_focus'),
+    // 'active' | 'paused' | 'achieved' | 'retired'. Only 'active' flavors work.
+    status: text('status').notNull().default('active'),
+    createdByUserId: text('created_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+    // New patients seated at the moment the goal was set — the honest
+    // baseline the progress line compares against (a goal set mid-month
+    // must not claim credit for the weeks before it existed).
+    baselineNewPatients: integer('baseline_new_patients').notNull().default(0),
+    baselineAt: timestamp('baseline_at').notNull().defaultNow(),
+    isDemo: integer('is_demo').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('goal_org_status_idx').on(t.organizationId, t.status, t.createdAt)],
+)
+export type GoalRow = typeof goal.$inferSelect

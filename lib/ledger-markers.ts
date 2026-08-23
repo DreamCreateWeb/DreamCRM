@@ -35,8 +35,13 @@
  *  - `failure`        — "I tried and couldn't". Not something that got done.
  *  - `report`         — the Guardian's own heads-up. A watcher must never be
  *                       able to satisfy its own liveness alarm.
+ *  - `goalChange`     — the practice pointed the team somewhere (a goal set,
+ *                       paused, reached, or put away). An instruction the
+ *                       HUMAN gave, exactly like `autonomyChange`; counting
+ *                       it as work would let a clinic's own typing inflate
+ *                       the machine's week.
  */
-export const NOT_WORK_MARKERS = ['autonomyChange', 'autoFailure', 'failure', 'report'] as const
+export const NOT_WORK_MARKERS = ['autonomyChange', 'autoFailure', 'failure', 'report', 'goalChange'] as const
 
 /**
  * The subset meaning "it tried and couldn't" — what the Guardian's alarm
@@ -59,7 +64,10 @@ export type FailureKind =
 function hasMarker(detail: unknown, markers: readonly string[]): boolean {
   if (!detail || typeof detail !== 'object') return false
   const d = detail as Record<string, unknown>
-  return markers.some((m) => (m === 'autonomyChange' ? d[m] !== undefined : d[m] === true))
+  // `autonomyChange` and `goalChange` carry a VALUE (the new level / what
+  // happened), so presence is the test; the rest are booleans.
+  const PRESENCE_MARKERS = new Set(['autonomyChange', 'goalChange'])
+  return markers.some((m) => (PRESENCE_MARKERS.has(m) ? d[m] !== undefined : d[m] === true))
 }
 
 /** Is this entry WORK — something the machine actually did for the clinic? */
