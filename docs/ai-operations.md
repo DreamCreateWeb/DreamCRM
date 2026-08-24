@@ -611,3 +611,23 @@ commit → merge to main → verify deploy (same as the best-version program).
   test voids any exemption whose file ever reaches for the database. Both
   guards were verified the same way as the last two: by introducing a real
   violation and watching them fail.
+- **2026-08-23 — D19**: DIMINISHING RETURNS, HONESTLY REPORTED — plus the one
+  thing the sweep did find. Two more silent classes came back essentially
+  CLEAN, which is worth writing down as a result rather than quietly moving
+  on: (a) MONEY — every `formatMoney` call site passes cents; the four that
+  do not say "cents" in the argument NAME (`taxes`, `total`) are derived from
+  `subtotalCents` two lines above, so R1·S2's sweep holds. (b) SERVER-ONLY —
+  193 of 196 service modules carry the banner and the three that do not are
+  reasoned (now frozen by D18's guard). The class hunt that found five real
+  defects in D11–D14 is running out of material, which is the signal to stop
+  manufacturing sweeps and say so.
+  The one real find: the v3 checklist's numeral rule ("numerals → Geist Mono
+  where KPI/money/time/count") had exactly ONE survivor — the hunt panel's
+  KPI tiles wore `tabular-nums` at `text-xl` with no `font-mono-num`, i.e.
+  half the recipe: the digits stop shifting but stay in the text face, and it
+  reads as one slightly-wrong tile beside a dozen right ones, which is the
+  least likely thing to get reported and the easiest to fix.
+  `tests/design-system/kpi-numerals.test.ts` freezes the pairing (dashboard
+  tenants only — the public sites, the portal and the marketing site carry
+  their own type systems), and like the others it was verified by putting the
+  violation back and watching it fail.
