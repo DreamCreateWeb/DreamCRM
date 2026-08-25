@@ -36,6 +36,7 @@ vi.mock('@/lib/db', () => {
         candidates: 'candidates',
         offers: 'offers',
         pushEmail: 'pushEmail',
+        emailMode: 'emailMode',
         pushNothing: 'pushNothing',
       },
       user: { email: 'email', name: 'name' },
@@ -69,14 +70,14 @@ describe('notify()', () => {
     linkPath: '/inbox',
   }
 
-  it('inserts a notification when the bucket is enabled and emails when pushEmail is on', async () => {
+  it('inserts a notification and emails under mode "all"', async () => {
     // First select: prefs row
     state.selectQueue.push([
       {
         comments: true,
         candidates: true,
         offers: true,
-        pushEmail: true,
+        emailMode: 'all',
         pushNothing: false,
       },
     ])
@@ -96,7 +97,7 @@ describe('notify()', () => {
         comments: true,
         candidates: true,
         offers: true,
-        pushEmail: true,
+        emailMode: 'all',
         pushNothing: true,
       },
     ])
@@ -113,7 +114,7 @@ describe('notify()', () => {
         comments: false, // ← muted
         candidates: true,
         offers: true,
-        pushEmail: true,
+        emailMode: 'all',
         pushNothing: false,
       },
     ])
@@ -124,13 +125,13 @@ describe('notify()', () => {
     expect(state.emails).toHaveLength(0)
   })
 
-  it('inserts but skips email when pushEmail is off', async () => {
+  it('inserts but skips email under mode "none"', async () => {
     state.selectQueue.push([
       {
         comments: true,
         candidates: true,
         offers: true,
-        pushEmail: false,
+        emailMode: 'none',
         pushNothing: false,
       },
     ])
@@ -141,8 +142,45 @@ describe('notify()', () => {
     expect(state.emails).toHaveLength(0)
   })
 
+  it('mode "urgent" emails an urgent type but not a routine one', async () => {
+    // inbox_message is registry-urgent (a person is waiting) → emails.
+    state.selectQueue.push([
+      { comments: true, candidates: true, offers: true, emailMode: 'urgent', pushNothing: false },
+    ])
+    state.selectQueue.push([{ email: 'alice@example.com', name: 'Alice' }])
+    await notify(baseInput)
+    expect(state.emails).toHaveLength(1)
+
+    // online_booking is routine (the bell + morning digest cover it) → no email.
+    state.selectQueue.push([
+      { comments: true, candidates: true, offers: true, emailMode: 'urgent', pushNothing: false },
+    ])
+    await notify({ ...baseInput, type: 'online_booking' })
+    expect(state.inserts).toHaveLength(2)
+    expect(state.emails).toHaveLength(1)
+  })
+
+  it('an unrecognized stored mode floors to "urgent", never "all"', async () => {
+    state.selectQueue.push([
+      { comments: true, candidates: true, offers: true, emailMode: 'shouty', pushNothing: false },
+    ])
+    await notify({ ...baseInput, type: 'online_booking' })
+    expect(state.inserts).toHaveLength(1)
+    expect(state.emails).toHaveLength(0)
+  })
+
+  it('suppressEmail beats even forceEmail — demo noise never reaches an inbox', async () => {
+    state.selectQueue.push([
+      { comments: true, candidates: true, offers: true, emailMode: 'all', pushNothing: false },
+    ])
+    await notify({ ...baseInput, forceEmail: true, suppressEmail: true })
+    expect(state.inserts).toHaveLength(1)
+    expect(state.emails).toHaveLength(0)
+  })
+
   it('falls back to default prefs when no row exists yet for the user', async () => {
-    // Empty prefs result → defaults apply (comments=on, pushEmail=on)
+    // Empty prefs result → defaults apply (comments=on, mode='urgent' —
+    // baseInput's inbox_message is registry-urgent, so it emails)
     state.selectQueue.push([])
     // user row for the email send
     state.selectQueue.push([{ email: 'alice@example.com', name: 'Alice' }])
@@ -153,13 +191,13 @@ describe('notify()', () => {
     expect(state.emails).toHaveLength(1)
   })
 
-  it('honours forceEmail even when bucket is disabled and pushEmail is off', async () => {
+  it('honours forceEmail even when bucket is disabled and mode is "none"', async () => {
     state.selectQueue.push([
       {
         comments: false,
         candidates: false,
         offers: false,
-        pushEmail: false,
+        emailMode: 'none',
         pushNothing: true,
       },
     ])
@@ -177,7 +215,7 @@ describe('notify()', () => {
         comments: true,
         candidates: true,
         offers: true,
-        pushEmail: false,
+        emailMode: 'none',
         pushNothing: false,
       },
     ])
@@ -200,7 +238,7 @@ describe('notify()', () => {
         comments: true,
         candidates: true,
         offers: true,
-        pushEmail: true,
+        emailMode: 'all',
         pushNothing: false,
       },
     ])

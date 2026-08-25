@@ -78,6 +78,7 @@ export const NotificationPrefsInput = z.object({
   offers: z.boolean().optional(),
   pushEmail: z.boolean().optional(),
   pushNothing: z.boolean().optional(),
+  emailMode: z.enum(['all', 'urgent', 'none']).optional(),
 })
 
 export async function getNotificationPrefs(userId: string) {
@@ -94,6 +95,7 @@ export async function getNotificationPrefs(userId: string) {
       offers: false,
       pushEmail: true,
       pushNothing: false,
+      emailMode: 'urgent',
       updatedAt: new Date(),
     }
   )
@@ -101,6 +103,11 @@ export async function getNotificationPrefs(userId: string) {
 
 export async function upsertNotificationPrefs(userId: string, input: z.infer<typeof NotificationPrefsInput>) {
   const data = NotificationPrefsInput.parse(input)
+  // Keep the legacy boolean in step with the mode ('none' ↔ off) so a
+  // rollback to the pushEmail read path degrades sanely, not surprisingly.
+  if (data.emailMode !== undefined && data.pushEmail === undefined) {
+    data.pushEmail = data.emailMode !== 'none'
+  }
   const [row] = await db
     .insert(schema.notificationPrefs)
     .values({ userId, ...data, updatedAt: new Date() })

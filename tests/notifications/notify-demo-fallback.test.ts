@@ -37,12 +37,14 @@ vi.mock('@/lib/db', () => {
         candidates: 'np.candidates',
         offers: 'np.offers',
         pushEmail: 'np.pushEmail',
+        emailMode: 'np.emailMode',
         pushNothing: 'np.pushNothing',
       },
     },
   }
 })
 
+import { sendNotificationEmail } from '@/lib/email'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 
 beforeEach(() => {
@@ -64,6 +66,24 @@ describe('notifyOrgMembers demo fallback', () => {
 
     expect(state.inserts).toHaveLength(1)
     expect(state.inserts[0]).toMatchObject({ userId: 'admin_1', title: 'New booking' })
+  })
+
+  it('demo-fallback events are BELL ONLY — no email even for an urgent type + mode "all"', async () => {
+    state.selectQueue.push([]) // member lookup → none
+    state.selectQueue.push([{ isDemo: true }]) // org → demo
+    state.selectQueue.push([{ userId: 'admin_1', email: 'admin@x.com' }]) // platform admins
+    state.selectQueue.push([
+      { comments: true, candidates: true, offers: true, emailMode: 'all', pushNothing: false },
+    ]) // notify(): prefs — loudest possible settings
+
+    await notifyOrgMembers(
+      'org_demo',
+      { ...input, type: 'review_low_rating', forceEmail: true },
+      { roles: ['owner', 'admin'] },
+    )
+
+    expect(state.inserts).toHaveLength(1) // the bell row still lands
+    expect(vi.mocked(sendNotificationEmail)).not.toHaveBeenCalled()
   })
 
   it('stays silent for a member-less org that is NOT a demo', async () => {

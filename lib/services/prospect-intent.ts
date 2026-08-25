@@ -488,7 +488,7 @@ export async function rollupEngagementSignals(): Promise<{ promoted: number }> {
           {
             bucket: 'comments',
             type: 'prospect_engaged',
-            title: `🔥 ${promoted} prospect${promoted === 1 ? '' : 's'} heating up`,
+            title: `${promoted} prospect${promoted === 1 ? '' : 's'} heating up`,
             body: `${names.join(', ')}${promoted > names.length ? ` and ${promoted - names.length} more` : ''} opened or clicked your outreach.`,
             linkPath: '/platform/prospecting?status=engaged',
           },

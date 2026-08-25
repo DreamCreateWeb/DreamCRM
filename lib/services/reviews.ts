@@ -850,7 +850,7 @@ export async function submitReviewText(input: {
         ? {
             bucket: 'comments',
             type: 'review_low_rating',
-            title: `⚠️ ${rating}★ review from ${who} — reach out before it goes public`,
+            title: `${rating}★ review from ${who} — reach out before it goes public`,
             body: `“${text.slice(0, 120)}” — a quick personal follow-up now is the best save.`,
             linkPath: '/growth/reviews/received',
             forceEmail: true,

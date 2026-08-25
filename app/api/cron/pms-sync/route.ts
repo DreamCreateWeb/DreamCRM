@@ -216,7 +216,10 @@ async function sendFailureAlert(organizationId: string): Promise<void> {
   await notifyOrgMembers(
     organizationId,
     {
-      bucket: 'candidates',
+      // 'comments' (default ON): a failing PMS connection is an attention
+      // item, and it sat in 'candidates' — labeled "Recall & marketing" in
+      // settings — where muting campaign chatter also muted THIS alarm.
+      bucket: 'comments',
       type: 'pms_sync_failing',
       title,
       body,

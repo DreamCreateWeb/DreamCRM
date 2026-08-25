@@ -8,107 +8,114 @@ import { useToast } from '@/components/ui/toast'
 import { Toggle } from '@/components/ui/toggle'
 import { SettingsSection, SettingsRow } from '../settings-kit'
 import { SettingsTabs } from '../settings-tabs'
+import type { EmailMode } from '@/lib/types/notifications'
 
 /**
  * Personal notification preferences.
  *
- * NOTE on the schema's `push_everything` column: it's intentionally NOT
- * surfaced here. `notify()` (lib/services/notifications.ts) never reads it and
- * the app ships no push channel (no service worker / FCM / APNs), so a control
- * for it would be write-only — exactly the kind of promise-a-capability toggle
- * we don't ship. It stays in the DB (harmless default `false`); this panel
- * simply doesn't send it. `saveNotificationPrefs` → `NotificationPrefsInput`
- * treats every field as optional and `.parse()` strips absent keys, so omitting
- * it leaves the stored value untouched — no shared type change required. (The
- * shared `NotificationPrefsInput` / `getNotificationPrefs` could drop the field
- * entirely in a later pass — FLAGGED in the report, not changed here.)
+ * Rebuilt honest in the 2026-08-25 notifications overhaul:
+ *  - The old "Email digest" toggle was not a digest — it emailed EVERY bell
+ *    event the moment it happened, and shipped ON. It is now a three-way
+ *    delivery MODE (every alert / urgent only / bell only) whose copy says
+ *    exactly what each choice does.
+ *  - The third bucket toggle ("Platform updates" / "Product news") was a
+ *    switch wired to nothing — no dispatch site has ever sent to the
+ *    `offers` bucket — so the row is gone (the column stays; re-add the row
+ *    with the first real sender).
+ *  - The `includes` lines now enumerate what actually fires, per tenant.
+ *
+ * NOTE: these controls gate the in-app bell + its email copies only. They do
+ * NOT touch transactional email — patient appointment reminders, booking
+ * confirmations, and clinic replies send through their own pipelines
+ * regardless. Copy stays honest about that.
  */
 interface Prefs {
   comments: boolean
   candidates: boolean
-  offers: boolean
-  pushEmail: boolean
+  emailMode: EmailMode
   pushNothing: boolean
 }
 
 type TenantType = 'platform' | 'clinic' | 'patient'
 
-/**
- * Tenant-aware labels for the three notification buckets. The schema columns
- * stay generic (comments / candidates / offers) — they're the only three
- * "buckets" of in-app notifications we currently fire — and the wording shown
- * to each tenant reflects what activity actually lands in their bell.
- *
- * IMPORTANT: these toggles control the in-app notification bell + (when "Email
- * digest" is on) a digest email. They do NOT gate transactional email — patient
- * appointment reminders, booking confirmations, and clinic replies send through
- * their own pipelines regardless of these settings. Copy stays honest about
- * that: it describes what shows up in the dashboard, never "we'll stop emailing
- * you reminders," which this can't actually do.
- *
- * Each bucket carries a one-line `includes` explainer so staff know exactly
- * what "Patient activity" vs "Recall & marketing" vs "Platform updates" covers.
- */
-const EMAIL_LABELS: Record<
+/** Tenant-aware labels for the two LIVE notification buckets. The schema
+ *  columns stay generic (comments / candidates); the wording shown to each
+ *  tenant reflects what actually lands in their bell. */
+const BUCKET_LABELS: Record<
   TenantType,
   {
     comments: { title: string; description: string; includes: string }
     candidates: { title: string; description: string; includes: string }
-    offers: { title: string; description: string; includes: string }
   }
 > = {
   platform: {
     comments: {
-      title: 'Customer activity',
-      description: 'Bell alerts when a clinic signs up, upgrades, downgrades, or cancels.',
-      includes: 'Includes: new sign-ups, plan changes, add-on purchases, cancellations.',
+      title: 'Business activity',
+      description: 'Bell alerts for the things Dream Create needs to see.',
+      includes:
+        'Includes: sign-ups, cancellations, failed payments, inbound mail, prospect replies and demo bookings.',
     },
     candidates: {
-      title: 'Support & inbox',
-      description: 'Bell alerts when email lands in the platform inbox or a customer replies.',
-      includes: 'Includes: new inbox email, customer replies, feedback submissions.',
-    },
-    offers: {
-      title: 'Product news',
-      description: 'Occasional release notes and admin tips from Dream Create.',
-      includes: 'Includes: release notes, admin tips. (Never marketing to your customers.)',
+      title: 'Campaign reports',
+      description: 'Bell alerts when a client campaign finishes sending.',
+      includes: 'Includes: sent confirmations, and sends that finished with errors.',
     },
   },
   clinic: {
     comments: {
       title: 'Patient activity',
-      description: 'Bell alerts for new patient inquiries, bookings, and replies.',
-      includes: 'Includes: website leads, new bookings, patient messages, intake submissions.',
+      description: 'Bell alerts for messages, bookings, forms, payments, and reviews.',
+      includes:
+        'Includes: patient messages, website leads, bookings and schedule changes, intake forms, payments, low reviews and survey scores, and connection problems that need a look.',
     },
     candidates: {
-      title: 'Recall & marketing',
-      description: 'Bell alerts when a recall campaign is sent or a patient becomes due.',
-      includes: 'Includes: recall campaigns sent, patients due for recall, review requests.',
-    },
-    offers: {
-      title: 'Platform updates',
-      description: 'Occasional DreamCRM product news. (Billing receipts always email separately.)',
-      includes: 'Includes: new features, product tips. Not patient- or billing-related.',
+      title: 'Campaign reports',
+      description: 'Bell alerts when a recall or marketing campaign finishes sending.',
+      includes: 'Includes: sent confirmations, and sends that finished with errors.',
     },
   },
   patient: {
     comments: {
       title: 'Clinic message alerts',
-      description: 'Bell alerts when your clinic replies. (Reminders always reach you regardless.)',
+      description: 'Alerts when your clinic replies. (Reminders always reach you regardless.)',
       includes: 'Includes: replies from your clinic in the patient portal.',
     },
     candidates: {
       title: 'Visit activity',
-      description: 'Bell alerts about your upcoming visits and recall nudges.',
+      description: 'Alerts about your upcoming visits and recall nudges.',
       includes: 'Includes: upcoming-visit nudges, time-to-book reminders.',
-    },
-    offers: {
-      title: 'Clinic news',
-      description: 'Newsletters and dental health tips from your clinic.',
-      includes: 'Includes: clinic newsletters, dental health tips.',
     },
   },
 }
+
+/** The three email delivery modes, in the order shown. Copy is the contract:
+ *  each option says exactly what reaches the inbox. */
+const EMAIL_MODE_OPTIONS: Array<{
+  value: EmailMode
+  label: string
+  description: (tenant: TenantType) => string
+}> = [
+  {
+    value: 'urgent',
+    label: 'Just the important ones',
+    description: (t) =>
+      t === 'clinic'
+        ? 'Emails when a person is waiting on you or something went wrong — a new patient message or lead, a low review or survey score, a failed payment, a bounced message, a sync problem. Routine activity (bookings, forms, payments received) stays in the bell.'
+        : 'Emails when something needs a human — new mail, a sign-up or cancellation, a failed payment, a prospect ready for a call. Routine activity stays in the bell.',
+  },
+  {
+    value: 'all',
+    label: 'Every alert',
+    description: () =>
+      'Every bell alert also lands in your inbox as its own email, the moment it happens. Busy days mean a busy inbox.',
+  },
+  {
+    value: 'none',
+    label: 'Bell only',
+    description: () =>
+      'Nothing from the bell reaches your email. You’ll see alerts the next time you open the dashboard.',
+  },
+]
 
 export default function NotificationsPanel({
   initial,
@@ -122,7 +129,7 @@ export default function NotificationsPanel({
    *  section (platform/patient tenants don't get these emails). */
   emailReportsOptedOut?: boolean | null
 }) {
-  const labels = EMAIL_LABELS[tenantType]
+  const labels = BUCKET_LABELS[tenantType]
   const toast = useToast()
   const [prefs, setPrefs] = useState<Prefs>(initial)
   // Baseline moves on every successful save, so "Saved" can actually show
@@ -150,7 +157,7 @@ export default function NotificationsPanel({
     })
   }
 
-  function toggle<K extends keyof Prefs>(key: K) {
+  function toggle(key: 'comments' | 'candidates' | 'pushNothing') {
     setPrefs((p) => ({ ...p, [key]: !p[key] }))
   }
 
@@ -168,7 +175,12 @@ export default function NotificationsPanel({
     })
   }
 
-  function prefRow(prefKey: keyof Prefs, title: string, description: string, includes?: string) {
+  function prefRow(
+    prefKey: 'comments' | 'candidates' | 'pushNothing',
+    title: string,
+    description: string,
+    includes?: string,
+  ) {
     return (
       <SettingsRow
         label={title}
@@ -195,10 +207,9 @@ export default function NotificationsPanel({
             id: 'alerts',
             label: 'In-app alerts',
             content: (
-              <SettingsSection description={`Pick which activity shows up in your notification bell. These control the bell (and, with Email digest on, a summary email) — never transactional email${tenantType === 'clinic' ? ' like appointment reminders or booking confirmations' : ''}, which always sends.`}>
+              <SettingsSection description={`Pick which activity shows up in your notification bell. These control the bell and its email copies — never transactional email${tenantType === 'clinic' ? ' like appointment reminders or booking confirmations' : ''}, which always sends.`}>
                 {prefRow('comments', labels.comments.title, labels.comments.description, labels.comments.includes)}
                 {prefRow('candidates', labels.candidates.title, labels.candidates.description, labels.candidates.includes)}
-                {prefRow('offers', labels.offers.title, labels.offers.description, labels.offers.includes)}
               </SettingsSection>
             ),
           },
@@ -206,16 +217,50 @@ export default function NotificationsPanel({
             id: 'delivery',
             label: 'Delivery',
             content: (
-              <SettingsSection description="How these alerts reach you, on top of the bell.">
+              <SettingsSection description="Which of those alerts also reach your email inbox.">
                 {/* NOTE: no "mobile/desktop push" toggle — we don't ship push (no service
-                    worker / FCM / APNs), so a toggle promising it would be write-only.
-                    Email digest + Pause all are the two delivery controls that act. */}
-                {prefRow('pushEmail', 'Email digest', 'Email a copy of these alerts to your inbox.')}
-                {prefRow('pushNothing', 'Pause all', 'Temporarily silence every alert (overrides the buckets above).')}
+                    worker / FCM / APNs), so a toggle promising it would be write-only. */}
+                <fieldset>
+                  <legend className="sr-only">Email delivery</legend>
+                  <div className="space-y-2.5">
+                    {EMAIL_MODE_OPTIONS.map((opt) => {
+                      const active = prefs.emailMode === opt.value
+                      return (
+                        <label
+                          key={opt.value}
+                          className={`flex cursor-pointer items-start gap-3 rounded-[var(--r-sm)] p-3.5 ring-1 ring-inset transition-colors ${
+                            active
+                              ? 'bg-teal-500/[0.06] ring-teal-500/40 dark:bg-teal-400/[0.06]'
+                              : 'ring-[color:var(--color-hairline)] hover:bg-gray-50 dark:hover:bg-gray-800/40'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="email-mode"
+                            value={opt.value}
+                            checked={active}
+                            onChange={() => setPrefs((p) => ({ ...p, emailMode: opt.value }))}
+                            className="form-radio mt-0.5 shrink-0 text-teal-600"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+                              {opt.label}
+                            </span>
+                            <span className="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                              {opt.description(tenantType)}
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+
+                {prefRow('pushNothing', 'Pause all', 'Temporarily silence every alert — the bell and its emails (overrides everything above).')}
 
                 {/* The recurring REPORT emails — the morning digest + the
                     Monday week-in-review — are a different pipeline from the
-                    alert digest above, and their footer points at this page,
+                    alert emails above, and their footer points at this page,
                     so this page must actually be able to silence them
                     (Phase-2 self-sweep). Saves immediately; same per-staff
                     switch as My Day's. */}
@@ -250,7 +295,7 @@ export default function NotificationsPanel({
                       <path d="M8 1.5 15 14H1L8 1.5Zm0 3.6a.9.9 0 0 0-.9.9v3.6a.9.9 0 1 0 1.8 0V6a.9.9 0 0 0-.9-.9Zm0 6.3a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" />
                     </svg>
                     <span>
-                      <strong className="font-semibold">Pause all silences the notification bell and the email digest.</strong>{' '}
+                      <strong className="font-semibold">Pause all silences the notification bell and its emails.</strong>{' '}
                       {tenantType === 'clinic'
                         ? 'Transactional patient email — appointment reminders, booking confirmations, and clinic replies — still sends through its own pipeline and is unaffected.'
                         : 'Transactional email (billing receipts, invites, account email) still sends through its own pipeline and is unaffected.'}

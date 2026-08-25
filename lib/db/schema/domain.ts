@@ -606,6 +606,11 @@ export const notificationPrefs = pgTable('notification_prefs', {
   offers: boolean('offers').notNull().default(false),
   pushEmail: boolean('push_email').notNull().default(true),
   pushNothing: boolean('push_nothing').notNull().default(false),
+  // HOW alerts reach email (2026-08-25): 'all' = every bell alert also
+  // emails (the old firehose, now opt-in) · 'urgent' = only the types the
+  // registry marks urgent (default) · 'none' = bell only. Replaces
+  // push_email as the read path; the boolean stays for rollback safety.
+  emailMode: text('email_mode').notNull().default('urgent'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

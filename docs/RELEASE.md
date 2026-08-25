@@ -1732,7 +1732,48 @@ $0-sales band (documented deliberate hide during setup).
   small client wrapper keeps the plain GET form), and all four
   prospecting routes gain shaped loading skeletons. **Batch 42 (Call Mode + demo prep + copilot):** every outcome logger — Call Mode's teleprompter, the call-list cards, the demo-prep header — now spins only the button you pressed and reports through the global toast instead of a vanishing 2.5s flash; the ⌘J copilot, the 🎭 rehearsal booth, and the Add-a-clinic modal all gain the standard dialog contract (focus trap, Esc, scrim click, screen-reader roles); demo-prep keeps ONE breathing primary; conversion/AI errors announce via role=alert; and a module-wide tone sweep retires sky, brand-teal-as-status (Won/savings → emerald), off-palette *-50 surfaces, and two raw hex colors. **Batch 43 (Prospecting home + boards):** the workspace's view switcher becomes filter chips so it can't be confused with the sub-nav; the prospects table's whole practice cell deep-links and the warmth tiles get a legend; the daily briefing's empty columns offer real next steps and overnight hot arrivals link to their deal rooms; the hunt panel's five engine pills get a legend; the focus banner and territory table move onto shared buttons with per-row pending, real links, and an empty state that points at settings; the pipeline board's counts and headline deep-link; win/loss meters and all low-contrast gray floors are tokened and legible; phone-queue's "No website" tone now matches the prospects table. **Batch 44 (Call Mode + deal-room tail):** Call Mode's session strip gains hover/screen-reader text for every segment (the outcome colors were the only encoding); both loss-reason pickers now read the one shared registry instead of a hand-rolled duplicate with different wording; the suggested-reply disclosure and copy buttons announce properly; the post-demo follow-up drafter gets honest button states, an announcing error line, and a toast when an outcome is logged; remaining low-contrast gray text in the deal room lifted. **Batch 45 (Marketing home + lead pipeline):** the lead-pipeline stage colors move onto the design system's tone registry (and match the prospecting board's language); the marketing home's funnel bars, recent-activity rows, and audience list all deep-link (activity rows open the lead's drawer directly); a failed card drag now announces itself instead of silently snapping back; the lead drawer spins only the pressed button and reports every failure; the add-lead dialog gets the standard modal contract; an empty board hands over the Add-lead button instead of six bare columns; the board gets a matching loading skeleton. **Batch 46 (Service library + editor kit):** the shared editor inputs used across every Website Studio modal move onto the app-wide form recipes (brand focus ring instead of a private gray dialect); the library-entry editor finally guards unsaved work on every way out (outside click included) and gets real dialog behavior; Approve/Reject each show their own progress; a missing reviewer note is pointed out right under the note box instead of a popup; chips lose developer wording; the board gains search and a loading skeleton. **Batch 47 (Blog editor + list):** background autosave no longer makes every sidebar button spin — each action shows its own progress with a live label; the just-published email nudge stops competing as a second primary and announces itself properly; publish errors announce to screen readers; all the sidebar's hand-rolled inputs move onto the shared form styles; the post list's read counts link into the post and the page gets a loading skeleton. **Batch 48 (Settings home + notifications):** the settings search box becomes the shared search control for both tenants; the notification page's save flow moves onto the standard save bar (it now actually shows "Saved" — before, the form thought it had unsaved changes forever after a save), the pause-all warning rides the standard amber style, explainer text is legible, and confirmations ride the global toast. **Batch 49 (Campaigns + audiences, platform orientation):** the platform's campaigns list now points home to Marketing instead of bouncing through a clinic-only hub; the audiences page stops giving one destination two different names; empty campaign lists hand over the New-campaign button; both audience editors get real dialog behavior, independent Refresh/Save progress, and error reporting; the campaign editor stops leaking the email vendor's name ("Resend" → "Branded email"), its cancel buttons stop pretending to work, and its status pill explains itself on hover. THE PLATFORM BEST-VERSION PROGRAM'S CLUSTER 4 IS NOW FULLY WORKED — every item done or deferred with a reason.
 
-### Test-hygiene note (worth keeping)
+### The notifications overhaul (2026-08-25, owner: "the notification system
+seems pretty bad")
+
+The scout found the system's badness was mostly HONESTY, not plumbing. The
+defect list, all fixed in one slice (migration 0153):
+
+- **The "Email digest" that wasn't.** The delivery toggle — ON by default —
+  emailed EVERY bell event individually the instant it fired: each booking,
+  paid order, cancellation, form, and campaign send became its own email to
+  every owner/admin, under a label promising a digest. Email delivery is now
+  a per-user three-way MODE (`notification_prefs.email_mode`): 'all' (the
+  old firehose, opt-in), **'urgent' (default for new users)** — only types
+  the new registry marks urgent (a person waiting: patient message, lead,
+  inquiry; or something broken: failed payment, bounced message, low
+  review/survey, PMS sync down), and 'none' (bell only). Existing rows were
+  backfilled to the behavior they had chosen; the legacy `push_email`
+  boolean stays in sync for rollback.
+- **Demo noise emailed real people.** The demo-org fallback routes bell
+  events to platform admins — and emailed them too, so every test booking
+  in Dream Dental landed in the owner's real inbox. Demo-fallback events
+  are now bell-only by construction (`suppressEmail` beats even
+  `forceEmail`; pinned by test).
+- **A settings toggle wired to nothing.** The third bucket row ("Platform
+  updates" / "Product news") controlled the `offers` bucket — which no
+  dispatch site has ever sent to. Row cut; column stays for a first real
+  sender. The other buckets' "Includes:" lines now enumerate what actually
+  fires.
+- **A muted alarm.** `pms_sync_failing` lived in the `candidates` bucket,
+  labeled "Recall & marketing" — muting campaign chatter also muted the
+  your-PMS-connection-is-down alarm. Moved to `comments` (default ON).
+- **One face per bucket.** The tray painted 💬/🎯/📣 per BUCKET (Mosaic
+  leftovers), so a 1-star review, a no-show and a paid order looked alike,
+  and three dispatch sites compensated by baking emoji into titles (which
+  leaked into email subjects). New client-safe registry
+  `lib/types/notifications.ts` gives every type an icon + semantic tone;
+  titles are words again; the tray was rebuilt on the v3 system
+  (tone-tinted icon tiles, honest read-state, a real empty state) and
+  screenshot-verified light/dark/empty via the render-rig loop.
+
+Known and accepted: patients have no bell surface (no notify() ever
+targets a patient and the portal renders no tray), so the patient branch
+of the settings panel is defensive copy for an unreachable tenant state.
 
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
 assignee guard) had broken `tests/patients` — a subset run had missed it

@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 
 /**
- * v2 notifications panel behaviours:
- *  - `push_everything` is gone from the panel: never rendered, and never sent to
- *    the save action (the shared input treats it as optional / preserves it).
- *  - Each bucket carries a one-line "Includes:" explainer.
- *  - "Pause all" surfaces a warn-tone note that it silences the bell + digest
- *    but NOT transactional patient email — only when it's on.
- *  - The real save action still fires with the honest 5-field payload.
+ * Notifications panel behaviours (email-mode generation, 2026-08-25):
+ *  - Two live bucket switches + Pause all — no `offers` row (nothing sends
+ *    to it), no `push_everything` (dropped in 0114).
+ *  - Email delivery is the three-way mode radio; picking one saves
+ *    `emailMode`, never the legacy `pushEmail` boolean (the service derives
+ *    that itself for rollback safety).
+ *  - Each bucket carries a one-line "Includes:" explainer that matches what
+ *    actually fires.
+ *  - "Pause all" surfaces a warn-tone note that it silences the bell + its
+ *    emails but NOT transactional patient email — only when it's on.
  */
 
 const { saveNotificationPrefs, setMyEmailReportsOptOutAction } = vi.hoisted(() => ({
@@ -24,8 +27,7 @@ import { ToastProvider } from '@/components/ui/toast'
 const initial = {
   comments: true,
   candidates: true,
-  offers: false,
-  pushEmail: true,
+  emailMode: 'urgent' as const,
   pushNothing: false,
 }
 
@@ -34,19 +36,19 @@ beforeEach(() => {
   setMyEmailReportsOptOutAction.mockClear()
 })
 
-describe('NotificationsPanel v2', () => {
-  it('renders exactly the 5 honest switches (no push_everything row)', () => {
+describe('NotificationsPanel', () => {
+  it('renders exactly the 3 honest switches and the 3-way email mode', () => {
     render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
-    expect(screen.getAllByRole('switch')).toHaveLength(5)
+    expect(screen.getAllByRole('switch')).toHaveLength(3)
     expect(screen.queryByRole('switch', { name: /everything/i })).toBeNull()
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
   })
 
-  it('shows a per-bucket "Includes:" explainer for each bucket', () => {
+  it('shows a per-bucket "Includes:" explainer that matches what actually fires', () => {
     render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
-    // one for each of the 3 buckets
-    expect(screen.getAllByText(/^Includes:/).length).toBeGreaterThanOrEqual(3)
-    expect(screen.getByText(/website leads, new bookings/i)).toBeTruthy()
-    expect(screen.getByText(/recall campaigns sent/i)).toBeTruthy()
+    expect(screen.getAllByText(/^Includes:/).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText(/patient messages, website leads, bookings/i)).toBeTruthy()
+    expect(screen.getByText(/sent confirmations, and sends that finished with errors/i)).toBeTruthy()
   })
 
   it('hides the Pause-all warning until Pause all is on', () => {
@@ -57,14 +59,13 @@ describe('NotificationsPanel v2', () => {
     const note = screen.getByRole('note')
     // warn-tone (amber left edge) + honest transactional-email caveat
     expect(note.className).toMatch(/amber/)
-    expect(within(note).getByText(/silences the notification bell and the email digest/i)).toBeTruthy()
+    expect(within(note).getByText(/silences the notification bell and its emails/i)).toBeTruthy()
     expect(within(note).getByText(/appointment reminders, booking confirmations/i)).toBeTruthy()
   })
 
-  it('saves the 5-field payload with no push_everything key', async () => {
+  it('picking a mode saves emailMode — and never sends offers or pushEmail', async () => {
     render(<ToastProvider><NotificationsPanel initial={initial} tenantType="clinic" /></ToastProvider>)
-    // make it dirty so Save enables
-    fireEvent.click(screen.getByRole('switch', { name: 'Email digest' }))
+    fireEvent.click(screen.getByRole('radio', { name: /bell only/i }))
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     // allow the transition's async callback to run
@@ -74,10 +75,12 @@ describe('NotificationsPanel v2', () => {
     expect(saveNotificationPrefs).toHaveBeenCalledTimes(1)
     const payload = saveNotificationPrefs.mock.calls[0][0]
     expect(payload).not.toHaveProperty('pushEverything')
+    expect(payload).not.toHaveProperty('pushEmail')
+    expect(payload).not.toHaveProperty('offers')
     expect(Object.keys(payload).sort()).toEqual(
-      ['candidates', 'comments', 'offers', 'pushEmail', 'pushNothing'].sort(),
+      ['candidates', 'comments', 'emailMode', 'pushNothing'].sort(),
     )
-    expect(payload.pushEmail).toBe(false)
+    expect(payload.emailMode).toBe('none')
   })
 
   it('clinic staff get the "My report emails" mute — the report emails\' footer points at this page, so it must be able to silence them (Phase-2 self-sweep)', async () => {
@@ -95,6 +98,6 @@ describe('NotificationsPanel v2', () => {
   it('the report-emails mute never renders for tenants who don\'t get those emails (null prop)', () => {
     render(<ToastProvider><NotificationsPanel initial={initial} tenantType="platform" /></ToastProvider>)
     expect(screen.queryByRole('switch', { name: 'My report emails' })).toBeNull()
-    expect(screen.getAllByRole('switch')).toHaveLength(5)
+    expect(screen.getAllByRole('switch')).toHaveLength(3)
   })
 })

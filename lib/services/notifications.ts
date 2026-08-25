@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { sendNotificationEmail } from '@/lib/email'
+import { isUrgentType, type EmailMode } from '@/lib/types/notifications'
 
 /**
  * Notifications dispatcher + reader.
@@ -11,8 +12,16 @@ import { sendNotificationEmail } from '@/lib/email'
  * `notify()`. That function reads the user's preferences (`notification_prefs`
  * — one of `comments`, `candidates`, or `offers` is the controlling bucket),
  * short-circuits if `pushNothing` is set, otherwise inserts an in-app row.
- * If the user also has `pushEmail` on for that bucket, an email is sent via
- * the existing Resend wrapper.
+ *
+ * EMAIL is a per-user MODE, not a boolean (2026-08-25 overhaul). The old
+ * `pushEmail` toggle emailed EVERY event the instant it happened — a booking,
+ * a paid order, a submitted form each became a separate message in every
+ * owner's inbox, under a settings label that called itself a "digest". The
+ * mode makes the promise honest: 'all' keeps the old firehose for whoever
+ * wants it, 'urgent' (the default for new users) emails only the types the
+ * registry marks urgent — something broke, or a person is waiting on a reply
+ * — and 'none' keeps everything in the bell. `forceEmail` dispatches bypass
+ * the mode; `suppressEmail` beats even that (demo noise must never email).
  *
  * Buckets map onto the three toggles in /settings/notifications. The labels
  * shown to each tenant differ (see notifications-panel.tsx), but the columns
@@ -43,15 +52,19 @@ export interface NotifyInput {
   linkLabel?: string | null
   /** Arbitrary structured data carried with the row. */
   meta?: Record<string, unknown>
-  /** Set true to force-send the email even if `pushEmail` is off. */
+  /** Set true to force-send the email even if the user's mode wouldn't. */
   forceEmail?: boolean
+  /** Set true to guarantee NO email regardless of mode or forceEmail — the
+   *  demo-org fallback routes bell events to platform admins, and demo
+   *  noise landing in a real inbox is how a bell gets ignored. */
+  suppressEmail?: boolean
 }
 
 interface PrefsRow {
   comments: boolean
   candidates: boolean
   offers: boolean
-  pushEmail: boolean
+  emailMode: string
   pushNothing: boolean
 }
 
@@ -59,8 +72,14 @@ const DEFAULT_PREFS: PrefsRow = {
   comments: true,
   candidates: true,
   offers: false,
-  pushEmail: true,
+  emailMode: 'urgent',
   pushNothing: false,
+}
+
+/** An unrecognized stored mode floors to the calm default — this value
+ *  decides whether a stranger's inbox gets interrupted. */
+function normalizeEmailMode(raw: string): EmailMode {
+  return raw === 'all' || raw === 'none' ? raw : 'urgent'
 }
 
 async function getPrefs(userId: string): Promise<PrefsRow> {
@@ -69,7 +88,7 @@ async function getPrefs(userId: string): Promise<PrefsRow> {
       comments: schema.notificationPrefs.comments,
       candidates: schema.notificationPrefs.candidates,
       offers: schema.notificationPrefs.offers,
-      pushEmail: schema.notificationPrefs.pushEmail,
+      emailMode: schema.notificationPrefs.emailMode,
       pushNothing: schema.notificationPrefs.pushNothing,
     })
     .from(schema.notificationPrefs)
@@ -113,7 +132,11 @@ export async function notify(input: NotifyInput): Promise<void> {
       )
     }
 
-    const shouldEmail = input.forceEmail || (prefs.pushEmail && prefs[input.bucket])
+    const mode = normalizeEmailMode(prefs.emailMode)
+    const modeAllows =
+      prefs[input.bucket] &&
+      (mode === 'all' || (mode === 'urgent' && isUrgentType(input.type)))
+    const shouldEmail = !input.suppressEmail && (input.forceEmail || modeAllows)
     if (shouldEmail) {
       const [u] = await db
         .select({ email: schema.user.email, name: schema.user.name })
@@ -175,7 +198,10 @@ export async function notifyOrgMembers(
     // synthesized from a cookie, not a membership row), so org events would
     // notify nobody and the bell would look broken in the exact surface the
     // platform admin demos from. Route demo-org events to platform admins —
-    // the only people who can see a demo org.
+    // the only people who can see a demo org. BELL ONLY: a test booking in
+    // the demo clinic must never become real email in a real inbox
+    // (suppressEmail below beats even a caller's forceEmail).
+    let demoFallback = false
     if (rows.length === 0) {
       const [org] = await db
         .select({ isDemo: schema.organization.isDemo })
@@ -183,6 +209,7 @@ export async function notifyOrgMembers(
         .where(eq(schema.organization.id, organizationId))
         .limit(1)
       if (org?.isDemo) {
+        demoFallback = true
         rows = await db
           .select({ userId: schema.user.id, email: schema.user.email })
           .from(schema.user)
@@ -198,7 +225,12 @@ export async function notifyOrgMembers(
 
     await Promise.all(
       recipients.map((r) =>
-        notify({ ...input, userId: r.userId, organizationId }),
+        notify({
+          ...input,
+          userId: r.userId,
+          organizationId,
+          suppressEmail: input.suppressEmail || demoFallback,
+        }),
       ),
     )
   } catch (err) {

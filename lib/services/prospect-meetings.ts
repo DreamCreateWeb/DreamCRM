@@ -261,7 +261,7 @@ async function sendBookingEmails(view: BookingView, slot: Date, attendeeEmail: s
         {
           bucket: 'comments',
           type: 'prospect_demo_booked',
-          title: `📅 ${view.prospectName} booked a demo`,
+          title: `${view.prospectName} booked a demo`,
           body: `${whenForHost}${attendeeEmail ? ` · ${attendeeEmail}` : ''}\nAdd to your calendar: ${cal}`,
           linkPath: '/platform/prospecting/call-list',
           forceEmail: true,

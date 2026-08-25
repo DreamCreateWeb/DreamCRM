@@ -36,11 +36,12 @@ export default async function NotificationsSettings() {
           initial={{
             comments: prefs.comments,
             candidates: prefs.candidates,
-            offers: prefs.offers,
-            // The dead `push_everything` column was dropped (migration 0114) — see the
-            // note in notifications-panel.tsx. `saveNotificationPrefs` treats the
-            // field as optional and preserves the stored column when it's absent.
-            pushEmail: prefs.pushEmail,
+            // `offers` is deliberately NOT passed: no dispatch site has ever
+            // sent to that bucket, so its toggle row was cut (2026-08-25
+            // overhaul). The column stays; `saveNotificationPrefs` treats
+            // absent fields as "leave stored value alone".
+            emailMode:
+              prefs.emailMode === 'all' || prefs.emailMode === 'none' ? prefs.emailMode : 'urgent',
             pushNothing: prefs.pushNothing,
           }}
           emailReportsOptedOut={emailReportsOptedOut}
