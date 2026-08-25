@@ -47,14 +47,13 @@ jobs:
       - name: Build image + deploy (CodeBuild -> ECR -> App Runner)
         run: |
           set -euo pipefail
-          # NOT yet pinning the build with --source-location-override to the
-          # SHA zip uploaded above: the CodeBuild role's s3:GetObject resource
-          # scope is unverified, and if it names ONLY the fixed key, the
-          # override would fail EVERY build at DOWNLOAD_SOURCE. Once
-          #   aws iam get-role-policy --role-name DreamCRMCodeBuildRole --policy-name dreamcrm-build-perms
-          # confirms the S3 read covers source/*, swap the line below for:
-          #   BID=$(aws codebuild start-build --project-name dreamcrm-image-build --source-location-override "dreamcrm-codebuild-952078552817/source/${GITHUB_SHA}.zip" --query 'build.id' --output text)
-          BID=$(aws codebuild start-build --project-name dreamcrm-image-build --query 'build.id' --output text)
+          # PINNED to this commit's own zip (verified 2026-08-25: the CodeBuild
+          # role's s3:GetObject covers the whole source bucket). Without the
+          # override, a build read whatever sat at the fixed key at fetch time
+          # — nothing tied a build to the commit that triggered it, and the
+          # silent failure mode of that was deploying the wrong commit while
+          # reporting success.
+          BID=$(aws codebuild start-build --project-name dreamcrm-image-build --source-location-override "dreamcrm-codebuild-952078552817/source/${GITHUB_SHA}.zip" --query 'build.id' --output text)
           echo "CodeBuild started: $BID"
           # Tight 5s polling (was 15s). Saves up to ~10s of overhang once
           # the build finishes; the API call is cheap.
@@ -70,27 +69,15 @@ jobs:
           fi
           echo "Build succeeded — App Runner deployment triggered by the buildspec (start-deployment)."
 
-      # HOLD THE CONCURRENCY LOCK THROUGH THE ROLLOUT (2026-08-25). App Runner
-      # allows ONE rollout at a time, and the rollout starts at the END of the
-      # build (the buildspec's start-deployment) — the exact moment this job
-      # used to exit and release the deploy-main lock. A back-to-back merge
-      # then built in ~3-4 minutes on a warm cache, and its own
-      # start-deployment landed while the previous rollout was still going,
-      # failing with App Runner's "isn't in RUNNING state" AFTER the new image
-      # was pushed — so prod silently stayed on the OLDER commit until the
-      # next merge. Observed three times on 2026-08-23 (CodeBuild builds
-      # a4ffcc01, d509923c, 4a775b7b — every one failed at exactly that line).
-      #
-      # This role has no apprunner:Describe* to poll the real status, so the
-      # hold is time-based: rollouts here run ~3-5 minutes and the lock is
-      # held for 7. The better fix lives in the BUILDSPEC — retry
-      # start-deployment until accepted, which needs no new permission because
-      # it retries the already-permitted call; once that lands in the
-      # CodeBuild project (console edit), this step can be deleted.
-      - name: Hold the deploy lock while App Runner rolls out
-        run: |
-          echo "Holding deploy-main for 7 minutes so the next merge cannot collide with this rollout."
-          sleep 420
+      # NO rollout hold here any more (2026-08-25). App Runner allows ONE
+      # rollout at a time, and three deploys on 2026-08-23 died at the
+      # buildspec's start-deployment ("isn't in RUNNING state") when a
+      # back-to-back merge landed inside the previous rollout's window — after
+      # the new image was already pushed, so prod silently stayed on the OLDER
+      # commit until the next merge. The fix lives in the CodeBuild project's
+      # buildspec now: start-deployment retries until the previous rollout
+      # clears (30×30s cap). A 7-minute lock hold briefly stood in for it
+      # while that buildspec edit waited on access.
 
       # Self-heal the EventBridge cron schedules on every deploy. The script is
       # idempotent (create-if-missing, update-if-different), so a newly-added

@@ -286,32 +286,25 @@ warm cache and its own `start-deployment` fired while the previous rollout
 pushed its image, so prod silently stayed on the OLDER commit until the
 next merge — run 803's commit never got its own rollout.
 
-**Fixed in the workflow (2026-08-25):** the job now holds the concurrency
-lock for 7 minutes after a successful build, so the next merge cannot
-collide with the rollout window. Time-based because the GitHub OIDC role
-has no `apprunner:Describe*` to poll the real status.
+**Fixed, both halves (2026-08-25, owner-authorized session):**
+1. *The collision* — the CodeBuild project's inline buildspec now wraps
+   `start-deployment` in a retry-until-accepted loop (30×30s cap), so a
+   build waits out the previous rollout instead of failing after it already
+   pushed its image. Read-back verified against the live project. (An
+   interim 7-minute lock hold shipped in the workflow first and was removed
+   the same day once the buildspec fix landed.)
+2. *Source pinning* — `DreamCRMCodeBuildRole`'s `s3:GetObject` was
+   confirmed to cover the whole source bucket, so every deploy now uploads
+   `source/<sha>.zip` and passes `--source-location-override`: a build is
+   pinned to the commit that triggered it, and the ships-the-wrong-commit
+   direction is closed. The fixed key is still refreshed each deploy for
+   manual console builds.
 
-**The latent, separate defect stands:** the fixed S3 source key means
-nothing ties a CodeBuild build to the commit that triggered it — the silent
-direction of that is shipping the wrong commit as a success. The workflow
-now ALSO uploads `source/<sha>.zip` on every deploy, with the
-`--source-location-override` line staged as a comment beside `start-build`.
-
-**Owner one-liners remaining** (AWS mutations; the assistant's session
-policy blocks infra writes):
-1. *The proper collision fix* — edit the CodeBuild project's inline
-   buildspec (console → dreamcrm-image-build → Edit → Buildspec) to wrap
-   `start-deployment` in a retry-until-accepted loop (30×30s). Needs no new
-   IAM: it retries the already-permitted call. Then delete the workflow's
-   7-minute hold step.
-2. *Enable source pinning* — confirm `DreamCRMCodeBuildRole`'s
-   `s3:GetObject` resource covers `source/*` (`aws iam get-role-policy
-   --role-name DreamCRMCodeBuildRole --policy-name dreamcrm-build-perms`),
-   then flip the commented `--source-location-override` line in deploy.yml.
-3. *(Optional)* S3 lifecycle rule expiring `source/*.zip` after ~30 days so
-   SHA zips don't accumulate; and `apprunner:DescribeService` on the
-   CodeBuild role if the retry loop should narrate what it is waiting for.
-   · **PARTIALLY FIXED — workflow half shipped; buildspec half is owner's.**
+**Still optional, genuinely:** an S3 lifecycle rule expiring old
+`source/*.zip` objects (a few MB per deploy accumulates slowly), and
+`apprunner:DescribeService` on the CodeBuild role if the retry loop should
+narrate the service status while it waits. · **FIXED — verified live on
+the next deploys (runs 807–808).**
 
 ### R1 · S1 sweep — Tenant & auth (2026-08-17)
 
