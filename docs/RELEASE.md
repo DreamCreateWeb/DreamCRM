@@ -267,39 +267,51 @@ bar: last week of R2 accepts only S0/S1 changes — churn is risk.
 (Populated by R1 sweeps. Format: `S# · severity · surface · one-line ·
 status`. Verified findings only — a finder's claim is not a defect.)
 
-### Deploy pipeline — the source zip has ONE key for every build (2026-08-23)
+### Deploy pipeline — rollout collisions + the unpinned source zip (2026-08-23, root-caused 2026-08-25)
 
 Found while checking deploy health during the Dream Team build: three of the
-last ten `main` deploys failed. Two shapes, and the second one is a real
-release-program defect rather than a flake.
+last ten `main` deploys failed. The 2026-08-23 entry blamed a source-zip
+race; on 2026-08-25 the owner provided AWS credentials and CodeBuild's own
+logs settled it — **that theory was wrong about the observed failures.**
 
-**The evidence.** Runs 794 and 798 failed at ~3.5–4 min, shorter than a
-complete build — the documented CodeBuild provisioning flake, retried by
-pushing. Runs 801 and 803 each ran a FULL build and failed at the end, and
-each was created while the previous deploy was still running (801 at
-10:19:28 against 800 running 10:17:35→10:23:09; 803 at 16:35:51 against 802
-running 16:35:26→16:40:28). Both of those commits were docs-only, so the
-diff cannot be the cause.
+**The CONFIRMED root cause.** All three failed builds (a4ffcc01, d509923c,
+4a775b7b) died at the same line, POST_BUILD's `aws apprunner
+start-deployment`, with the verbatim error *"Can't start a deployment on
+the specified service, because it isn't in RUNNING state."* App Runner
+allows ONE rollout at a time; the rollout starts at the END of a build,
+which is the exact moment the workflow used to exit and release its
+`deploy-main` lock. A back-to-back merge then built in ~3–4 minutes on a
+warm cache and its own `start-deployment` fired while the previous rollout
+(~3–5 min) was still going. **The real harm:** the failed build had already
+pushed its image, so prod silently stayed on the OLDER commit until the
+next merge — run 803's commit never got its own rollout.
 
-**The mechanism, and why it is worse than a failed build.**
-`.github/workflows/deploy.yml` uploads `git archive HEAD` to a FIXED S3 key
-(`source/dreamcrm-src.zip`) and then calls `aws codebuild start-build` with
-NO source override, so the project reads whatever is at that key right now.
-The workflow has a `concurrency: deploy-main` group, which serialises the
-GitHub runs — but nothing serialises the CodeBuild builds they start, and
-nothing ties a build to the commit that triggered it. If two uploads ever
-interleave with a build's fetch, the failure mode is a broken build (what we
-saw); if they interleave the other way, the failure mode is silent and much
-worse: **a deploy that ships the wrong commit, reported as a success.**
+**Fixed in the workflow (2026-08-25):** the job now holds the concurrency
+lock for 7 minutes after a successful build, so the next merge cannot
+collide with the rollout window. Time-based because the GitHub OIDC role
+has no `apprunner:Describe*` to poll the real status.
 
-**Fix shape** (NOT applied — it changes the deploy path and cannot be
-verified from a session with no AWS CLI, and a wrong guess here breaks every
-deploy): upload to a SHA-keyed object (`source/<sha>.zip`) and pass
-`--source-location-override` (with `--source-type-override S3` if the
-project's source type needs it) to `start-build`, so a build is pinned to
-the commit that started it. Worth adding a post-deploy assertion that the
-image App Runner is serving carries the expected SHA — right now nothing
-checks. · **OPEN — owner/ops, needs an AWS-CLI-capable session to verify.**
+**The latent, separate defect stands:** the fixed S3 source key means
+nothing ties a CodeBuild build to the commit that triggered it — the silent
+direction of that is shipping the wrong commit as a success. The workflow
+now ALSO uploads `source/<sha>.zip` on every deploy, with the
+`--source-location-override` line staged as a comment beside `start-build`.
+
+**Owner one-liners remaining** (AWS mutations; the assistant's session
+policy blocks infra writes):
+1. *The proper collision fix* — edit the CodeBuild project's inline
+   buildspec (console → dreamcrm-image-build → Edit → Buildspec) to wrap
+   `start-deployment` in a retry-until-accepted loop (30×30s). Needs no new
+   IAM: it retries the already-permitted call. Then delete the workflow's
+   7-minute hold step.
+2. *Enable source pinning* — confirm `DreamCRMCodeBuildRole`'s
+   `s3:GetObject` resource covers `source/*` (`aws iam get-role-policy
+   --role-name DreamCRMCodeBuildRole --policy-name dreamcrm-build-perms`),
+   then flip the commented `--source-location-override` line in deploy.yml.
+3. *(Optional)* S3 lifecycle rule expiring `source/*.zip` after ~30 days so
+   SHA zips don't accumulate; and `apprunner:DescribeService` on the
+   CodeBuild role if the retry loop should narrate what it is waiting for.
+   · **PARTIALLY FIXED — workflow half shipped; buildspec half is owner's.**
 
 ### R1 · S1 sweep — Tenant & auth (2026-08-17)
 
