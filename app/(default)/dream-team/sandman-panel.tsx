@@ -130,7 +130,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
                     type="button"
                     onClick={() => ask(s)}
                     disabled={pending}
-                    className="rounded-full bg-[color:var(--color-surface-sunk)] px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-teal-500/10 hover:text-teal-700 disabled:opacity-50 dark:text-gray-300 dark:hover:text-teal-300"
+                    className="rounded-full bg-[color:var(--color-surface-sunk)] px-3.5 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-teal-500/10 hover:text-teal-700 disabled:opacity-50 dark:text-gray-300 dark:hover:text-teal-300"
                   >
                     {s}
                   </button>
@@ -232,7 +232,7 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
             placeholder="Ask about your practice…"
             aria-label="Ask Sandman about your practice"
             maxLength={2000}
-            className="form-input flex-1 rounded-full text-sm"
+            className="form-input flex-1 rounded-full bg-[color:var(--color-surface-sunk)] px-4 text-sm"
           />
           <ActionButton
             type="submit"

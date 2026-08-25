@@ -239,8 +239,15 @@ export function ReviewReplyArtifact({
   )
 }
 
-/** The month plan as its four pieces — three posts in miniature feed cards
- *  and the article as a titled sheet — in publish order. */
+/**
+ * The month plan, compressed (D20 — the owner's screenshot verdict). The
+ * first cut rendered all four pieces as FULL mini-cards, which made the
+ * page's focal card a scroll-length wall with the Approve button somewhere
+ * below the fold. Now the FIRST piece is previewed in full (the "look at
+ * the work" promise survives — you see a real post as it will exist) and
+ * the rest are compact expandable rows: one tap opens any piece, nothing
+ * is hidden, and the card fits on a screen. Native <details>, no state.
+ */
 export function PlanArtifact({
   items,
   clinicName,
@@ -252,46 +259,74 @@ export function PlanArtifact({
 }) {
   const initial = clinicName.replace(/[^A-Za-z]/g, '').charAt(0).toUpperCase() || 'C'
   const dest = channel?.handle?.trim() || channel?.label || null
+  const pieceLabel = (item: PlanArtifactItem, i: number) =>
+    item.kind === 'blog'
+      ? `📝 Blog article · piece ${i + 1} of ${items.length}`
+      : `📣 Social post · piece ${i + 1} of ${items.length}${dest ? ` · ${dest}` : ''}`
+
+  const fullPiece = (item: PlanArtifactItem, i: number) => (
+    <div className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+        {pieceLabel(item, i)}
+      </p>
+      {item.kind === 'blog' ? (
+        <>
+          {item.title && (
+            <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{item.title}</p>
+          )}
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300 line-clamp-2 whitespace-pre-wrap">
+            {item.body}
+          </p>
+        </>
+      ) : (
+        <div className="mt-1.5 flex items-start gap-2">
+          <span
+            className="inline-flex w-6 h-6 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-semibold text-white"
+            aria-hidden="true"
+          >
+            {initial}
+          </span>
+          <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap line-clamp-3">
+            {item.body}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className="space-y-2">
-      {items.map((item, i) => (
-        <div
-          key={i}
-          className="rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60 p-3"
-        >
-          {item.kind === 'blog' ? (
-            <>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                📝 Blog article · piece {i + 1} of {items.length}
-              </p>
-              {item.title && (
-                <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">{item.title}</p>
+      {items.length > 0 && fullPiece(items[0], 0)}
+      {items.slice(1).map((item, k) => {
+        const i = k + 1
+        return (
+          <details
+            key={i}
+            className="group rounded-xl border border-[color:var(--color-hairline)] bg-white dark:bg-gray-900/60"
+          >
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                {pieceLabel(item, i)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">
+                {item.kind === 'blog' && item.title ? item.title : item.body}
+              </span>
+              <span
+                aria-hidden="true"
+                className="shrink-0 text-gray-400 transition-transform group-open:rotate-90"
+              >
+                ›
+              </span>
+            </summary>
+            <div className="border-t border-[color:var(--color-hairline)] px-3 pb-3 pt-2">
+              {item.kind === 'blog' && item.title && (
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{item.title}</p>
               )}
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300 line-clamp-2 whitespace-pre-wrap">
-                {item.body}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                📣 Social post · piece {i + 1} of {items.length}
-                {dest ? ` · ${dest}` : ''}
-              </p>
-              <div className="mt-1.5 flex items-start gap-2">
-                <span
-                  className="inline-flex w-6 h-6 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-semibold text-white"
-                  aria-hidden="true"
-                >
-                  {initial}
-                </span>
-                <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap line-clamp-3">
-                  {item.body}
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-      ))}
+              <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">{item.body}</p>
+            </div>
+          </details>
+        )
+      })}
     </div>
   )
 }

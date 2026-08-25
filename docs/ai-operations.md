@@ -631,3 +631,25 @@ commit → merge to main → verify deploy (same as the best-version program).
   tenants only — the public sites, the portal and the marketing site carry
   their own type systems), and like the others it was verified by putting the
   violation back and watching it fail.
+- **2026-08-25 — D20**: THE SCREENSHOT VERDICT ("this looks horrible visually"
+  — owner, looking at the live page). Five diagnoses, five fixes, all inside
+  the v3 system. (1) NO FIGURE/GROUND — white cards on a near-white page at
+  one visual weight, so the page's focal object didn't read as one: the
+  sign-here stack now sits on a sunk DESK surface, the rail aligned to the
+  card's own column inside it — which also makes the stacked-sheets pile
+  visible at last (white sheets were invisible on the white page). (2) THE
+  MONTH-PLAN WALL — the plan artifact rendered all four pieces as full
+  mini-cards, pushing Approve below the fold: now the FIRST piece previews in
+  full (the look-at-the-work promise survives) and the rest are one-tap
+  `<details>` rows, nothing hidden. (3) FOOTNOTE SOUP — the grants strip was
+  raw text-xs gray with pills floating mid-sentence: rebuilt as a structured
+  card (icon tile, real heading, chips row, the handled-work tell as icon'd
+  list rows), same copy, same take-back control, same aria-label. (4) CHIP
+  SOUP — the roster's per-capability icon-chips became prose lanes with tone
+  dots ("On their own: Google reviews · Social posts"), each label still its
+  own span for the tests, and `mt-auto` pins the lanes footer so six cards of
+  different content share one baseline. (5) LOOSE COMPOSITION — the band's
+  floating numbers became anchored white tiles on the wash (linked ones lift
+  on hover), the inbox's title+subtitle STACK instead of running as one
+  endless gray line, goals collapse to one caption, Sandman's chips/input got
+  proper tap-target weight, and the section rhythm evened to mt-10.

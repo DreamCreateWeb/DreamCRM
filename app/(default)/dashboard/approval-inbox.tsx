@@ -312,23 +312,34 @@ export default function ApprovalInbox({
   return (
     <section className="mb-8" aria-label="Waiting on your yes">
       {toast && <FlashToast message={toast} onDone={() => setToast(null)} />}
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-          Waiting on your yes
-          <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+      {/* Title and its long honest subtitle STACK now (D20): inline, the
+          pair rendered as one endless gray line that read like debug
+          output rather than a heading. */}
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="min-w-0">
+          <h2 className="text-[0.9375rem] font-bold tracking-tight text-gray-900 dark:text-gray-100">
+            Waiting on your yes
+          </h2>
+          <p className="mt-0.5 max-w-2xl text-xs text-gray-500 dark:text-gray-400">
             {!anyMachineHandled
               ? 'I finished these — say the word and they go out.'
               : isDemo
                 ? 'I finished these — say the word and they go out. The ones marked “I’m handling this one” I’d send myself, though in the demo nothing actually goes out.'
                 : 'I finished these — say the word and they go out. The ones marked “I’m handling this one” go out either way.'}
-          </span>
-        </h2>
+          </p>
+        </div>
         {hiddenCount > 0 && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
             Showing {visible.length} of {totalOpen} — the rest queue up as you decide these.
           </p>
         )}
       </div>
+      {/* THE DESK (D20). White card on a near-white page had no
+          figure/ground — the page's one focal object didn't read as one.
+          The rail and the card now sit on a sunk well, which also makes
+          the stacked-sheets pile visible at last (white sheets were
+          invisible on the white page). */}
+      <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-sunk)] p-4 sm:p-6">
       {proposals.length > 1 && (
         <QueueRail
           proposals={proposals}
@@ -405,6 +416,7 @@ export default function ApprovalInbox({
           )
         })}
       </div>
+      </div>
       {(grants.length > 0 || autonomousWork.length > 0) && (
         <GrantsStrip grants={grants} work={autonomousWork} isDemo={isDemo} teamHasRun={teamHasRun} onToast={setToast} />
       )}
@@ -443,7 +455,7 @@ function QueueRail({
   const remaining = proposals.filter((p) => !gone.has(p.id))
   const pos = focusedId ? Math.max(1, proposals.findIndex((p) => p.id === focusedId) + 1) : 1
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3">
+    <div className={`mb-4 flex flex-wrap items-center gap-3${viewAll ? '' : ' mx-auto w-full max-w-2xl'}`}>
       {!viewAll && (
         <span className="whitespace-nowrap font-mono-num text-xs font-bold text-gray-700 dark:text-gray-200">
           {pos} <span className="font-normal text-gray-400 dark:text-gray-500">of {proposals.length}</span>
@@ -578,93 +590,112 @@ function GrantsStrip({
     )
 
   return (
-    <div className="mt-3 mb-8 text-xs text-gray-500 dark:text-gray-400">
-      {shown.length > 0 && (
-      <div className="flex flex-wrap items-center gap-2">
-      <span>
-        {isDemo
-          ? 'In the demo I show you how this works — nothing actually goes out:'
-          : 'I handle these on my own now, and list each one right here:'}
-      </span>
-      {shown.map((g) => (
+    <div className="v2-card mt-4 mb-8 p-4 sm:p-5">
+      <div className="flex flex-wrap items-start gap-3">
         <span
-          key={g.capability}
-          className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-700/60 px-2.5 py-1 text-gray-700 dark:text-gray-200"
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-base"
         >
-          {g.label}
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                // The take-back gets the same failure boundary the hand-over
-                // has (round-3 audit): a throw here used to reject inside the
-                // transition, so the click said nothing, the chip stayed, and
-                // staff could not tell whether the machine had stopped.
-                const r = await setAutonomyAction({
-                  capability: g.capability,
-                  level: 'ask',
-                }).catch(() => ({
-                  ok: false as const,
-                  error: 'I couldn’t switch this one back just now — give it another try in a minute.',
-                }))
-                if (r.ok) {
-                  onToast(r.message)
-                  router.refresh()
-                } else {
-                  onToast(r.error)
-                }
-              })
-            }
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline decoration-dotted underline-offset-2 disabled:opacity-50"
-            aria-label={`Go back to asking before ${g.label}`}
-          >
-            back to asking
-          </button>
+          🤝
         </span>
-      ))}
-      </div>
-      )}
-      {/* THE TELL. Every entry the machine handled alone, in its own words —
-          no drill-down, no filters, nothing to operate. Clamped per
-          capability with an honest "…and N more" rather than a silent cut.
-          The zero state is honest rather than hidden: silence after a
-          hand-over reads as "did it break?". */}
-      <div className="mt-2 pl-0.5">
-        {work.length === 0 ? (
-          <p>
-            {everyGrantIsFresh
-              ? 'Nothing on my own yet — I’ll list each one right here.'
-              : 'Nothing this past week — I’ll list each one right here.'}
-          </p>
-        ) : (
-          <>
-            {shown.length === 0 && (
-              <p className="mb-0.5">Here’s what I handled on my own this week:</p>
-            )}
-            <ul className="space-y-1.5">
-              {work.map((w) => {
-                const lines = w.summaries?.length ? w.summaries : [w.latestSummary]
-                const shownLines = lines.slice(0, WORK_LINES_PER_CAPABILITY)
-                const rest = w.count - shownLines.length
-                return (
-                  <li key={w.capability}>
-                    <span className="text-gray-700 dark:text-gray-200">{w.label}</span> — {w.count}{' '}
-                    this week:
-                    <ul className="mt-0.5 ml-3 space-y-0.5">
-                      {shownLines.map((line, i) => (
-                        <li key={i}>{`· ${line}`}</li>
-                      ))}
-                      {rest > 0 && (
-                        <li>{`· …and ${rest} more this week`}</li>
-                      )}
-                    </ul>
-                  </li>
-                )
-              })}
-            </ul>
-          </>
-        )}
+        <div className="min-w-0 flex-1">
+          {shown.length > 0 && (
+            <>
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                {isDemo
+                  ? 'In the demo I show you how this works — nothing actually goes out:'
+                  : 'I handle these on my own now, and list each one right here:'}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {shown.map((g) => (
+                  <span
+                    key={g.capability}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--color-surface-sunk)] px-2.5 py-1 text-xs text-gray-700 dark:text-gray-200"
+                  >
+                    {g.label}
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        startTransition(async () => {
+                          // The take-back gets the same failure boundary the
+                          // hand-over has (round-3 audit): a throw here used to
+                          // reject inside the transition, so the click said
+                          // nothing, the chip stayed, and staff could not tell
+                          // whether the machine had stopped.
+                          const r = await setAutonomyAction({
+                            capability: g.capability,
+                            level: 'ask',
+                          }).catch(() => ({
+                            ok: false as const,
+                            error: 'I couldn’t switch this one back just now — give it another try in a minute.',
+                          }))
+                          if (r.ok) {
+                            onToast(r.message)
+                            router.refresh()
+                          } else {
+                            onToast(r.error)
+                          }
+                        })
+                      }
+                      className="text-gray-400 underline decoration-dotted underline-offset-2 hover:text-gray-700 disabled:opacity-50 dark:hover:text-gray-200"
+                      aria-label={`Go back to asking before ${g.label}`}
+                    >
+                      back to asking
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* THE TELL. Every entry the machine handled alone, in its own
+              words — no drill-down, nothing to operate. Clamped per
+              capability with an honest "…and N more". The zero state stays
+              honest rather than hidden: silence after a hand-over reads as
+              "did it break?". */}
+          {work.length === 0 ? (
+            <p className={`text-xs text-gray-500 dark:text-gray-400${shown.length > 0 ? ' mt-3' : ''}`}>
+              {everyGrantIsFresh
+                ? 'Nothing on my own yet — I’ll list each one right here.'
+                : 'Nothing this past week — I’ll list each one right here.'}
+            </p>
+          ) : (
+            <div className={shown.length > 0 ? 'mt-3 border-t border-[color:var(--color-hairline)] pt-3' : ''}>
+              {shown.length === 0 && (
+                <p className="mb-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  Here’s what I handled on my own this week:
+                </p>
+              )}
+              <ul className="space-y-2.5">
+                {work.map((w) => {
+                  const lines = w.summaries?.length ? w.summaries : [w.latestSummary]
+                  const shownLines = lines.slice(0, WORK_LINES_PER_CAPABILITY)
+                  const rest = w.count - shownLines.length
+                  return (
+                    <li key={w.capability} className="flex gap-2.5">
+                      <span aria-hidden="true" className="mt-0.5 shrink-0 text-sm">
+                        {CAPABILITY_ICON[w.capability] ?? '✨'}
+                      </span>
+                      <div className="min-w-0 flex-1 text-xs">
+                        <p className="text-gray-700 dark:text-gray-200">
+                          <span className="font-semibold">{w.label}</span>
+                          <span className="text-gray-400 dark:text-gray-500"> — {w.count} this week:</span>
+                        </p>
+                        <ul className="mt-0.5 space-y-0.5 text-gray-500 dark:text-gray-400">
+                          {shownLines.map((line, i) => (
+                            <li key={i}>{`· ${line}`}</li>
+                          ))}
+                          {rest > 0 && <li>{`· …and ${rest} more this week`}</li>}
+                        </ul>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

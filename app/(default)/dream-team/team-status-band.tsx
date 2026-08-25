@@ -59,19 +59,23 @@ function Stat({
           : 'text-gray-900 dark:text-gray-100'
   const inner = (
     <>
-      <span className={`block font-mono-num text-2xl font-bold tabular-nums ${valueTone}`}>
+      <span className={`block font-mono-num text-2xl font-bold leading-none tabular-nums ${valueTone}`}>
         {value}
       </span>
-      <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="mt-1 block text-xs leading-snug text-gray-500 dark:text-gray-400">{label}</span>
     </>
   )
+  // The numbers used to float unanchored on the wash (D20) — each stat is
+  // now its own small tile, so the trio reads as one deliberate cluster.
+  const tile =
+    'min-w-[6.5rem] max-w-[10rem] rounded-xl bg-white/70 px-4 py-3 shadow-[var(--shadow-xs)] dark:bg-white/10'
   // A number with nowhere to go stays plain text — a dead link reads as a
   // broken page, and only two of these three have a section to land on.
-  if (!href || value === 0) return <div className="min-w-[5.5rem]">{inner}</div>
+  if (!href || value === 0) return <div className={tile}>{inner}</div>
   return (
     <Link
       href={href}
-      className="min-w-[5.5rem] rounded-[var(--r-sm)] transition-colors hover:text-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:text-teal-300"
+      className={`${tile} transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)] hover:text-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 dark:hover:text-teal-300`}
     >
       {inner}
     </Link>
@@ -144,7 +148,7 @@ export default function TeamStatusBand({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+        <div className="flex flex-wrap items-stretch gap-3">
           <Stat value={waiting} label="waiting on you" href="#sign-here" tone="warn" />
           <Stat value={staged} label="going out soon" href="#going-out-soon" tone="neutral" />
           <Stat

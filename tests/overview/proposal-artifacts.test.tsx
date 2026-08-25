@@ -103,9 +103,32 @@ describe('PlanArtifact', () => {
       />,
     )
     expect(screen.getByText('Post one')).toBeInTheDocument()
-    expect(screen.getByText('Why flossing wins')).toBeInTheDocument()
-    expect(screen.getByText('Post two')).toBeInTheDocument()
+    // Pieces after the first render as compact expandable rows (D20 — the
+    // owner's screenshot verdict: four full cards made the focal card a
+    // wall). The CONTRACT is unchanged: every piece's content is in the
+    // DOM and labelled — a summary row plus its expanded body may both
+    // carry the text, so presence, not uniqueness.
+    expect(screen.getAllByText('Why flossing wins').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Post two').length).toBeGreaterThan(0)
     expect(screen.getByText(/piece 2 of 3/)).toBeInTheDocument()
+  })
+
+  it('shows the FIRST piece as a full preview and the rest as one-tap rows — nothing hidden, no wall', () => {
+    render(
+      <PlanArtifact
+        clinicName="Acme Dental"
+        channel={null}
+        items={[
+          { kind: 'social', title: null, body: 'Post one' },
+          { kind: 'blog', title: 'Why flossing wins', body: 'Article intro…' },
+          { kind: 'social', title: null, body: 'Post two' },
+        ]}
+      />,
+    )
+    const details = document.querySelectorAll('details')
+    expect(details.length).toBe(2) // pieces 2 and 3 collapse; piece 1 previews in full
+    // Each collapsed piece still names itself on the always-visible summary.
+    expect(screen.getByText(/piece 3 of 3/)).toBeInTheDocument()
   })
 })
 

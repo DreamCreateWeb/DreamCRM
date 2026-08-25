@@ -108,14 +108,16 @@ export default function GoalsSection({
             <article key={g.id} className="v2-card flex flex-wrap items-start gap-4 p-5">
               <span
                 aria-hidden="true"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-lg"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-500/10 text-xl"
               >
                 🎯
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{g.objective}</p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{g.progressLine}</p>
-                <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{g.objective}</p>
+                <p className="mt-1.5 text-sm text-gray-700 dark:text-gray-200">{g.progressLine}</p>
+                {/* One caption, not two (D20): the honesty note rides the
+                    progress line's tail instead of being its own paragraph. */}
+                <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
                   Seated patients since you set this — a count, not a claim that the goal caused them.
                 </p>
               </div>

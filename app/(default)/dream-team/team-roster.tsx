@@ -51,7 +51,7 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
               <div className="flex items-start gap-3">
                 <span
                   aria-hidden="true"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-xl"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-500/10 text-xl"
                 >
                   {s.icon}
                 </span>
@@ -79,7 +79,7 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
 
               {/* Last week, in real numbers — the honest line. Zero is said
                   plainly; a quiet lane must never look busy (Guardian law). */}
-              <p className="mt-3 flex items-baseline gap-1.5 text-sm text-gray-700 dark:text-gray-200">
+              <p className="mt-4 flex items-baseline gap-1.5 text-sm text-gray-700 dark:text-gray-200">
                 {weekly > 0 ? (
                   <>
                     <span className="font-mono-num text-xl font-bold leading-none tabular-nums text-gray-900 dark:text-gray-100">
@@ -96,39 +96,44 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
                 )}
               </p>
 
-              {/* The arrangement: which jobs run alone, which ask first. */}
-              <div className="mt-3 space-y-1.5 border-t border-[color:var(--color-hairline)] pt-3 text-xs">
+              {/* The arrangement, as PROSE rather than chip soup (D20): a
+                  tone dot per lane, the job names as plain text. mt-auto
+                  pins this footer so six cards of different content share
+                  one baseline. */}
+              <div className="mt-auto space-y-1.5 border-t border-[color:var(--color-hairline)] pt-3 text-xs">
                 {autoLanes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                      On their own:
+                  <p className="flex items-baseline gap-1.5 leading-relaxed">
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 shrink-0 self-start translate-y-[5px] rounded-full bg-emerald-500"
+                    />
+                    <span className="font-medium text-emerald-700 dark:text-emerald-300">On their own:</span>
+                    <span className="min-w-0 text-gray-600 dark:text-gray-300">
+                      {autoLanes.map((l, i) => (
+                        <span key={l.capability}>
+                          {i > 0 && <span className="text-gray-300 dark:text-gray-600"> · </span>}
+                          <span>{l.def!.label}</span>
+                        </span>
+                      ))}
                     </span>
-                    {autoLanes.map((l) => (
-                      <span
-                        key={l.capability}
-                        className="inline-flex items-center gap-1 rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 text-gray-600 dark:text-gray-300"
-                        title={l.def!.label}
-                      >
-                        <span aria-hidden="true">{CAPABILITY_ICON[l.capability] ?? '·'}</span>
-                        {l.def!.label}
-                      </span>
-                    ))}
-                  </div>
+                  </p>
                 )}
                 {askLanes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="flex items-baseline gap-1.5 leading-relaxed">
+                    <span
+                      aria-hidden="true"
+                      className="h-1.5 w-1.5 shrink-0 self-start translate-y-[5px] rounded-full bg-gray-300 dark:bg-gray-600"
+                    />
                     <span className="font-medium text-gray-500 dark:text-gray-400">Asks first:</span>
-                    {askLanes.map((l) => (
-                      <span
-                        key={l.capability}
-                        className="inline-flex items-center gap-1 rounded-full bg-[color:var(--color-surface-sunk)] px-2 py-0.5 text-gray-600 dark:text-gray-300"
-                        title={l.def!.label}
-                      >
-                        <span aria-hidden="true">{CAPABILITY_ICON[l.capability] ?? '·'}</span>
-                        {l.def!.label}
-                      </span>
-                    ))}
-                  </div>
+                    <span className="min-w-0 text-gray-600 dark:text-gray-300">
+                      {askLanes.map((l, i) => (
+                        <span key={l.capability}>
+                          {i > 0 && <span className="text-gray-300 dark:text-gray-600"> · </span>}
+                          <span>{l.def!.label}</span>
+                        </span>
+                      ))}
+                    </span>
+                  </p>
                 )}
               </div>
             </article>

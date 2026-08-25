@@ -70,7 +70,7 @@ export default function RunwaySection({ items }: { items: RunwayRowData[] }) {
   }
 
   return (
-    <section id="going-out-soon" className="mt-8 scroll-mt-24">
+    <section id="going-out-soon" className="mt-10 scroll-mt-24">
       <SectionHeading
         title="Going out soon"
         count={visible.length}
