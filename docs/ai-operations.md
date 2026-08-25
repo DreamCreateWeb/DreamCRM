@@ -653,3 +653,26 @@ commit → merge to main → verify deploy (same as the best-version program).
   on hover), the inbox's title+subtitle STACK instead of running as one
   endless gray line, goals collapse to one caption, Sandman's chips/input got
   proper tap-target weight, and the section rhythm evened to mt-10.
+- **2026-08-25 — D21**: DESIGNING AGAINST PIXELS ("keep going… take
+  screenshots and actually look at it as you design it" — owner, after D20).
+  The prod DB is VPC-private, so the page can't be rendered live from a work
+  container — instead a gated render rig
+  (`tests/fixtures/dream-team-screenshot.test.tsx`, `SCREENSHOT=1` only):
+  the real `DreamTeamView` renders against rich demo-shaped mocks, the DOM
+  dumps to HTML, gets dressed in the REAL built Tailwind chunk + Nunito, and
+  the preinstalled Chromium screenshots it — light, dark, and 390px — so
+  every change is judged on actual pixels. First look found four things the
+  code read never showed: (1) the DESK was a vast empty tray — a full-width
+  sunk well around a max-w-2xl card left ~350px of dead flank each side; in
+  one-at-a-time mode the well now hugs the card (max-w-3xl, centered) and
+  the section heading shares its column, while see-all keeps full width for
+  the grid. (2) the roster's lane labels FOLDED WORD-PER-LINE ("On / their /
+  own:") whenever the job list beside them was long — `shrink-0
+  whitespace-nowrap` on the label spans. (3) the band's third tile folded
+  mid-date ("handled Aug 18 – Aug / 24") under its 10rem cap — cap dropped,
+  tiles nowrap. (4) Sandman's empty state painted ~80px of dead panel under
+  the suggestion chips — the `min-h-[11rem]` thread floor now applies only
+  once a conversation exists. Plus the dark-mode bubble smearing through the
+  translucent stat tiles (`dark:bg-teal-400/[.05]`). The rig is the
+  deliverable as much as the fixes: the next design pass starts from a
+  screenshot, not a guess.

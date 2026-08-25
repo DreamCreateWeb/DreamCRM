@@ -107,7 +107,9 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
                       aria-hidden="true"
                       className="h-1.5 w-1.5 shrink-0 self-start translate-y-[5px] rounded-full bg-emerald-500"
                     />
-                    <span className="font-medium text-emerald-700 dark:text-emerald-300">On their own:</span>
+                    {/* nowrap or the phrase folds word-per-line when the
+                        job list beside it is long (screenshot D21). */}
+                    <span className="shrink-0 whitespace-nowrap font-medium text-emerald-700 dark:text-emerald-300">On their own:</span>
                     <span className="min-w-0 text-gray-600 dark:text-gray-300">
                       {autoLanes.map((l, i) => (
                         <span key={l.capability}>
@@ -124,7 +126,7 @@ export default function TeamRoster({ grantedCapabilities, weeklyCounts, waitingC
                       aria-hidden="true"
                       className="h-1.5 w-1.5 shrink-0 self-start translate-y-[5px] rounded-full bg-gray-300 dark:bg-gray-600"
                     />
-                    <span className="font-medium text-gray-500 dark:text-gray-400">Asks first:</span>
+                    <span className="shrink-0 whitespace-nowrap font-medium text-gray-500 dark:text-gray-400">Asks first:</span>
                     <span className="min-w-0 text-gray-600 dark:text-gray-300">
                       {askLanes.map((l, i) => (
                         <span key={l.capability}>

@@ -107,7 +107,12 @@ export default function SandmanPanel({ clinicName }: { clinicName: string }) {
       <div className="v2-card overflow-hidden">
         <div
           ref={threadRef}
-          className="max-h-[26rem] min-h-[11rem] space-y-3 overflow-y-auto px-5 py-4"
+          className={`max-h-[26rem] space-y-3 overflow-y-auto px-5 py-4${
+            // The floor keeps the thread from collapsing between turns, but
+            // on the empty state it just painted ~80px of dead panel under
+            // the suggestion chips (screenshot D21).
+            turns.length > 0 ? ' min-h-[11rem]' : ''
+          }`}
           aria-live="polite"
         >
           {turns.length === 0 && (

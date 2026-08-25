@@ -315,7 +315,12 @@ export default function ApprovalInbox({
       {/* Title and its long honest subtitle STACK now (D20): inline, the
           pair rendered as one endless gray line that read like debug
           output rather than a heading. */}
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+      {/* In stack mode the heading shares the desk's column — a hard-left
+          heading over a centered tray read as two unrelated objects
+          (screenshot D21). */}
+      <div
+        className={`mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1${viewAll ? '' : ' mx-auto w-full max-w-3xl'}`}
+      >
         <div className="min-w-0">
           <h2 className="text-[0.9375rem] font-bold tracking-tight text-gray-900 dark:text-gray-100">
             Waiting on your yes
@@ -338,8 +343,12 @@ export default function ApprovalInbox({
           figure/ground — the page's one focal object didn't read as one.
           The rail and the card now sit on a sunk well, which also makes
           the stacked-sheets pile visible at last (white sheets were
-          invisible on the white page). */}
-      <div className="rounded-[var(--r-lg)] bg-[color:var(--color-surface-sunk)] p-4 sm:p-6">
+          invisible on the white page). One-at-a-time mode hugs the card
+          (a full-width well left ~350px of dead tray on each flank);
+          see-all keeps the full width for the grid. */}
+      <div
+        className={`rounded-[var(--r-lg)] bg-[color:var(--color-surface-sunk)] p-4 sm:p-6${viewAll ? '' : ' mx-auto w-full max-w-3xl'}`}
+      >
       {proposals.length > 1 && (
         <QueueRail
           proposals={proposals}

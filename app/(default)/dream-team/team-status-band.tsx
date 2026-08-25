@@ -67,8 +67,10 @@ function Stat({
   )
   // The numbers used to float unanchored on the wash (D20) — each stat is
   // now its own small tile, so the trio reads as one deliberate cluster.
+  // No max-width: the third tile's label carries a date range ("handled
+  // Aug 18 – Aug 24") and a 10rem cap folded it mid-date (screenshot D21).
   const tile =
-    'min-w-[6.5rem] max-w-[10rem] rounded-xl bg-white/70 px-4 py-3 shadow-[var(--shadow-xs)] dark:bg-white/10'
+    'min-w-[6.5rem] whitespace-nowrap rounded-xl bg-white/70 px-4 py-3 shadow-[var(--shadow-xs)] dark:bg-white/10'
   // A number with nowhere to go stays plain text — a dead link reads as a
   // broken page, and only two of these three have a section to land on.
   if (!href || value === 0) return <div className={tile}>{inner}</div>
@@ -109,7 +111,7 @@ export default function TeamStatusBand({
       {/* Decorative bubbles — chrome-zone only, pointer-events off. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-teal-400/10 blur-[2px]"
+        className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-teal-400/10 blur-[2px] dark:bg-teal-400/[.05]"
       />
       <span
         aria-hidden="true"
