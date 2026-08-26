@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Menu, MenuButton, MenuItems, MenuItem, Transition } from '@headlessui/react'
+import { Popover, PopoverButton, PopoverPanel, Transition } from '@headlessui/react'
 import { useRealtime } from '@/components/realtime/realtime-provider'
 import { notificationType, type NotificationTone } from '@/lib/types/notifications'
 
@@ -24,6 +24,16 @@ interface NotificationItem {
  * Postgres NOTIFY) and refetches on each event. A slow interval remains as a
  * fallback for when the stream is mid-reconnect. Clicking an item marks it read
  * and navigates to the linked path.
+ *
+ * A POPOVER, not a Menu (2026-08-25, owner: "I can't click anything without
+ * closing the tray"). The old headlessui <Menu> treated everything outside
+ * its <MenuItems> list — the Mark-all-read header, the Clear-all/Preferences
+ * footer — as OUTSIDE the menu, so the outside-click handler dismissed the
+ * tray on mousedown before those buttons ever received their click. A
+ * Popover's panel is one container: everything inside it is clickable, and
+ * it closes only on Esc, a true outside click, or when a row/link calls
+ * close() itself. Dismiss ✕, Mark all read, and Clear all deliberately KEEP
+ * the tray open — you're tidying the tray, not leaving it.
  *
  * Rows wear their TYPE's face (2026-08-25 overhaul): icon + tone come from
  * the shared registry in lib/types/notifications, so a 1-star review, a
@@ -74,7 +84,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
     refresh()
   })
 
-  async function handleItemClick(item: NotificationItem) {
+  async function handleItemClick(item: NotificationItem, closePanel: () => void) {
     if (!item.readAt) {
       // Optimistic update
       setItems((rows) => rows.map((r) => (r.id === item.id ? { ...r, readAt: new Date().toISOString() } : r)))
@@ -89,6 +99,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
         /* ignore */
       }
     }
+    closePanel()
     if (item.linkPath) router.push(item.linkPath)
   }
 
@@ -144,10 +155,10 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
   }
 
   return (
-    <Menu as="div" className="relative inline-flex">
-      {({ open }) => (
+    <Popover as="div" className="relative inline-flex">
+      {({ open, close }) => (
         <>
-          <MenuButton
+          <PopoverButton
             className={`w-8 h-8 flex items-center justify-center hover:bg-gray-100 lg:hover:bg-gray-200 dark:hover:bg-gray-700/50 dark:lg:hover:bg-gray-800 rounded-full relative ${
               open && 'bg-gray-200 dark:bg-gray-800'
             }`}
@@ -170,12 +181,8 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                 {unread > 9 ? '9+' : unread}
               </span>
             )}
-          </MenuButton>
+          </PopoverButton>
           <Transition
-            as="div"
-            className={`origin-top-right z-10 absolute top-full -mr-48 sm:mr-0 min-w-[24rem] max-w-[24rem] bg-white dark:bg-gray-800 border border-[color:var(--color-hairline)] rounded-[var(--r-md)] shadow-[var(--shadow-pop)] overflow-hidden mt-1.5 ${
-              align === 'right' ? 'right-0' : 'left-0'
-            }`}
             enter="transition ease-out duration-200 transform"
             enterFrom="opacity-0 -translate-y-2"
             enterTo="opacity-100 translate-y-0"
@@ -183,6 +190,11 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
           >
+            <PopoverPanel
+              className={`origin-top-right z-10 absolute top-full -mr-48 sm:mr-0 min-w-[24rem] max-w-[24rem] bg-white dark:bg-gray-800 border border-[color:var(--color-hairline)] rounded-[var(--r-md)] shadow-[var(--shadow-pop)] overflow-hidden mt-1.5 ${
+                align === 'right' ? 'right-0' : 'left-0'
+              }`}
+            >
             <div className="flex items-baseline justify-between px-4 pb-2 pt-3">
               <div className="text-sm font-bold tracking-tight text-gray-900 dark:text-gray-100">
                 Notifications
@@ -202,7 +214,7 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                 </button>
               )}
             </div>
-            <MenuItems as="ul" className="focus:outline-hidden max-h-[60vh] overflow-y-auto">
+            <ul className="max-h-[60vh] overflow-y-auto">
               {items.length === 0 ? (
                 <li className="px-6 py-10 text-center">
                   <span
@@ -220,66 +232,64 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
                 items.map((n) => {
                   const def = notificationType(n.type)
                   return (
-                    <MenuItem key={n.id} as="li" className="border-b border-gray-100 last:border-0 dark:border-gray-700/40">
-                      {({ active }) => (
-                        <div className="relative group">
-                          <button
-                            type="button"
-                            onClick={() => handleItemClick(n)}
-                            className={`block w-full py-3 pl-4 pr-9 text-left ${active ? 'bg-gray-50 dark:bg-gray-700/20' : ''} ${n.readAt ? 'opacity-75' : ''}`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <span
-                                aria-hidden="true"
-                                className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base ${TONE_TILE[def.tone]}`}
-                              >
-                                {def.icon}
-                              </span>
-                              <div className="min-w-0 grow">
-                                <div className="flex items-start gap-2">
-                                  <span className={`min-w-0 flex-1 text-sm leading-snug text-gray-800 dark:text-gray-100 ${n.readAt ? 'font-medium' : 'font-semibold'}`}>
-                                    {n.title}
-                                  </span>
-                                  {!n.readAt && (
-                                    <span
-                                      className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500"
-                                      aria-label="Unread"
-                                    />
-                                  )}
-                                </div>
-                                {n.body && (
-                                  <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{n.body}</p>
+                    <li key={n.id} className="border-b border-gray-100 last:border-0 dark:border-gray-700/40">
+                      <div className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => handleItemClick(n, close)}
+                          className={`block w-full py-3 pl-4 pr-9 text-left hover:bg-gray-50 focus-visible:bg-gray-50 dark:hover:bg-gray-700/20 dark:focus-visible:bg-gray-700/20 ${n.readAt ? 'opacity-75' : ''}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span
+                              aria-hidden="true"
+                              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-base ${TONE_TILE[def.tone]}`}
+                            >
+                              {def.icon}
+                            </span>
+                            <div className="min-w-0 grow">
+                              <div className="flex items-start gap-2">
+                                <span className={`min-w-0 flex-1 text-sm leading-snug text-gray-800 dark:text-gray-100 ${n.readAt ? 'font-medium' : 'font-semibold'}`}>
+                                  {n.title}
+                                </span>
+                                {!n.readAt && (
+                                  <span
+                                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal-500"
+                                    aria-label="Unread"
+                                  />
                                 )}
-                                <p className="mt-1 text-[11px] font-medium tabular-nums text-gray-400 dark:text-gray-500">
-                                  {formatRelative(n.createdAt)}
-                                </p>
                               </div>
+                              {n.body && (
+                                <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{n.body}</p>
+                              )}
+                              <p className="mt-1 text-[11px] font-medium tabular-nums text-gray-400 dark:text-gray-500">
+                                {formatRelative(n.createdAt)}
+                              </p>
                             </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleDismiss(n, e)}
-                            aria-label="Dismiss notification"
-                            title="Dismiss"
-                            className="absolute right-2 top-2.5 flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-opacity hover:bg-gray-200/70 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-600/50 dark:hover:text-gray-200"
-                          >
-                            <svg width="9" height="9" viewBox="0 0 9 9" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                              <path
-                                d="M1 1l7 7M8 1l-7 7"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                fill="none"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </MenuItem>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDismiss(n, e)}
+                          aria-label="Dismiss notification"
+                          title="Dismiss"
+                          className="absolute right-2 top-2.5 flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-opacity hover:bg-gray-200/70 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-600/50 dark:hover:text-gray-200"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 9 9" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path
+                              d="M1 1l7 7M8 1l-7 7"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              fill="none"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </li>
                   )
                 })
               )}
-            </MenuItems>
+            </ul>
             <div className="flex items-center justify-between border-t border-[color:var(--color-hairline)] bg-[color:var(--color-surface-sunk)] px-4 py-2">
               {items.length > 0 ? (
                 <button
@@ -295,15 +305,17 @@ export default function DropdownNotifications({ align }: { align?: 'left' | 'rig
               )}
               <Link
                 href="/settings/notifications"
+                onClick={() => close()}
                 className="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 Preferences →
               </Link>
             </div>
+            </PopoverPanel>
           </Transition>
         </>
       )}
-    </Menu>
+    </Popover>
   )
 }
 
