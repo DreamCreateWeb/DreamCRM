@@ -264,13 +264,18 @@ export default async function ClinicDetailPage({
           )}
         </div>
 
-        {/* Members */}
+        {/* The practice team — staff logins only. Patients also hold member
+            rows (role='patient') but they belong to the Patients count, not
+            a business panel listing names and emails. */}
         <div className="v2-card p-6">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            Members ({clinic.members.length})
+          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+            Team ({clinic.members.length})
           </h2>
+          <p className="mt-0.5 mb-4 text-xs text-gray-500 dark:text-gray-400">
+            Staff logins for this practice. Patients are counted above, not listed here.
+          </p>
           {clinic.members.length === 0 ? (
-            <EmptyState title="No members yet" body="Invite-accepted members will appear here." />
+            <EmptyState title="No team yet" body="Invite-accepted staff will appear here." />
           ) : (
             <ul className="space-y-3">
               {clinic.members.map((m) => (

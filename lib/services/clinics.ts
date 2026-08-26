@@ -92,13 +92,17 @@ export async function listClinics(): Promise<ClinicListRow[]> {
 
     if (rows.length === 0) return []
 
-    // Member count per org
+    // STAFF count per org. In this data model every portal-activated patient
+    // is also a member row (role='patient'), so an unfiltered count read
+    // "9 members" for a two-person practice — patients have their own
+    // column, and mixing them into the team count double-reports them.
     const memberCounts = await db
       .select({
         orgId: member.organizationId,
         count: sql<number>`count(${member.id})::int`,
       })
       .from(member)
+      .where(ne(member.role, 'patient'))
       .groupBy(member.organizationId)
     const membersByOrg = new Map(memberCounts.map((r) => [r.orgId, Number(r.count)]))
 
@@ -251,7 +255,12 @@ export async function getClinicDetail(orgId: string): Promise<ClinicDetail | nul
     if (!isMissingSchema(err)) throw err
   }
 
-  // Members
+  // The practice TEAM — owner/admin/member rows only. Portal-activated
+  // patients are ALSO member rows (role='patient'), and listing them here
+  // put patient names + emails on a platform business surface where they
+  // don't belong: the detail page already reports patients as a count, and
+  // that count is the honest home for them (2026-08-26, owner report:
+  // "why is it showing all of these people as members?").
   const memberRows = await db
     .select({
       userId: member.userId,
@@ -262,7 +271,7 @@ export async function getClinicDetail(orgId: string): Promise<ClinicDetail | nul
     })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
-    .where(eq(member.organizationId, orgId))
+    .where(and(eq(member.organizationId, orgId), ne(member.role, 'patient')))
     .orderBy(member.createdAt)
 
   // Patient + appointment counts
