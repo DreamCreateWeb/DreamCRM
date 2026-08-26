@@ -278,27 +278,95 @@ B2B demand · city-page pSEO · mass thin AI content · cold SMS / ringless
 voicemail · SmileCon · big-hall booths before revenue supports them
 (Voices of Dentistry is the exception worth watching).
 
-## Part 7 — Open questions for the owner
+## Part 7 — Owner rulings (2026-08-26; all four questions answered)
 
-1. **Cold email posture.** The Resend AUP finding (Part 4) means the
-   Hunter's email drip cannot run on current rails. Move it to
-   cold-native separate infra as a small test, or demote cold email and
-   let grader + mail + calls carry outbound? (Recommendation: demote for
-   now; revisit if Tier 1/2 underfill the pipeline. The engine ships OFF
-   today, so nothing is on fire.)
-2. **"Powered by DreamCRM" on clinic sites.** The single proven PLG loop
-   in this shape of business (Jane, Mangomint). It's a product-surface
-   change on customers' sites — quiet footer credit with a link, present
-   by default with a per-clinic off switch? Needs a product ruling; the
-   research says it may be the highest-LTV free channel we have.
-3. **Budget level + start date for Tier 2.** Recommendation: $0 paid
-   until Tier 0 sensors + Tier 1 conversion surfaces are live; then
-   $2–3k/mo (Google competitor terms + Meta retargeting) and let the
-   dials earn increases.
-4. **Grader scope.** Website-only grade (ships fastest, uses the crawler
-   as-is) vs website+GBP+reviews composite (stronger hook, more moving
-   parts)?
+1. **Cold email: DEMOTED.** The Hunter's email drip stays OFF and does not
+   move to separate infra. Outbound = grader + dimensional mail + Call
+   Mode. The drip code stays inert (like the SES driver) — revisit only if
+   Tiers 1–2 underfill the pipeline, and then only on cold-native
+   infrastructure fully firewalled from dreamcreatestudio.com.
+2. **"Powered by DreamCRM": APPROVED.** Quiet footer credit on clinic
+   public sites, UTM-tagged link back to www (its clicks are a first-class
+   attribution channel), per-clinic off switch, suppressed in preview/
+   template frames. The Jane/Mangomint loop.
+3. **Budget: $1,000/mo initial**, grows only if it produces results (the
+   dial philosophy applied from dollar one). Implication from Part 3: at
+   $1k, do NOT split channels — concentrate the whole budget on Google
+   Search competitor/alternative terms (the one channel whose floor fits),
+   manual/exact-match since smart bidding won't get signal at this level,
+   and judge on cost-per-trial <$120. Meta unlocks at the next budget
+   step, not by splitting this one.
+4. **Grader: the full composite** — website + Google Business listing +
+   reviews. The stronger hook wins over the faster ship; the Hunter's
+   enrichment + the GBP listing-truth machinery already compute all three
+   axes.
+
+## Part 8 — The build order (from the rulings)
+
+1. **Slice 1 — the sensor layer + the loop (Tier 0 + ruling #2):**
+   marketing-site pageview/UTM capture (the www twin of the clinic-site
+   beacon) → first-touch attribution stamped at signup → the funnel read
+   (visit → signup → trial → activated → paid, per channel) → the
+   Powered-by footer credit as the first attributed channel.
+2. **Slice 2 — the grader** (composite website + GBP + reviews; public
+   tool page + email-gated full report → opt-in nurture + Hunter warm
+   signal via promoteProspectByEmail).
+3. **Slice 3 — the dials cockpit**: per-channel spend entry + CAC/
+   cost-per-trial computation against the funnel + the master dial rule
+   rendered as recommendations (the machine reports; the owner moves
+   money).
+4. **Slice 4 — content engine**: comparison/pricing pages + schema, review
+   engine (G2/Capterra asks), long-tail library via the platform blog,
+   Zernio YouTube/LinkedIn surfaces.
 
 ## Build log
 
-*(Slices append here as they ship.)*
+**Slice 1 — the sensor layer + the loop (SHIPPED 2026-08-26, migration
+0154).** The dials now have eyes:
+
+- **Pure core `lib/marketing-attribution.ts`** (client/edge-safe — the
+  middleware, the beacon, and the signup stamp all share it so
+  classification can never disagree between surfaces): the CLOSED channel
+  registry (`powered_by · google_ads · meta_ads · organic_search ·
+  ai_assistant · social · email · referral · direct` — closed because the
+  dials will hang budgets off these ids; unknowns degrade to
+  referral/direct, never a new string; `ai_assistant` is first-class
+  because 51% of buyers now start in a chatbot and those referrers would
+  vanish into 'referral' exactly when they matter), total deterministic
+  `classifyChannel` (explicit markers > paid click ids > UTM intent >
+  referrer inference > direct; self-referrals read as direct), the
+  first-touch cookie codec (versioned, capped, and PARSE TREATS THE COOKIE
+  AS CLIENT INPUT — a tampered payload degrades to "no attribution",
+  never a poisoned stamp), and `buildPoweredByUrl`.
+- **The sensor**: `marketing_pageview` (0154) — the www twin of
+  `site_pageview`, same no-PII daily-rollup ethos plus the channel
+  dimension, platform-global by design (no organizationId — the
+  prospecting-schema precedent); `MarketingViewBeacon` in the marketing
+  layout reports RAW facts (path/query/referrer) and the `/api/site-view`
+  marketing branch classifies server-side, so a client can't invent a
+  channel. First-touch attribution lives in an httpOnly cookie set by the
+  MIDDLEWARE (before any client JS), strict first-touch (never
+  overwritten — the dials measure what STARTED the journey), 90-day
+  memory, no per-visitor DB rows anywhere.
+- **The stamp**: `clinic_profile.signup_attribution` jsonb (0154), written
+  ONCE by `submitOnboarding` at profile creation (deliberately not in the
+  conflict-update set — a re-submit must never re-stamp), read back only
+  through `parseSignupAttribution`. Null = honest "untracked" (pre-sensor,
+  blocked cookie, managed provisioning) — reported, never guessed.
+- **The loop (owner ruling #2)**: `PoweredBy` credit rendered once in the
+  clinic-site layout below every template's footer, palette-var styled so
+  it harmonizes with any design, UTM-tagged (`utm_source=powered_by`,
+  campaign = the clinic slug) so its clicks are a first-class channel,
+  `rel="nofollow"` (widget-link SEO safety — the value is the click, not
+  PageRank), suppressed in gallery frames + coming-soon. Off switch:
+  `hide_powered_by` (0154), live-instant toggle on Website → Design (NOT
+  draft-staged — it's a platform-loop setting, not site content).
+- **The read**: `lib/services/acquisition.ts` `getAcquisitionReport` —
+  visits per channel from the rollup + signups graded through the SAME
+  `lib/trial.ts` rules the billing wall uses (this report and the app can
+  never disagree about who is paying), demo orgs excluded, every registry
+  channel present zeros-and-all; the Acquisition panel on the platform
+  /marketing home (honest empty state; quiet channels stay off the table
+  but untracked signups always show with their reason).
+- Suite 6,703 green + `pnpm build` clean. Next: slice 2, the composite
+  grader.

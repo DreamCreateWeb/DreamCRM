@@ -185,6 +185,27 @@ export const clinicProfile = pgTable('clinic_profile', {
    * report, so a missed stamp costs a sentence, never any work.
    */
   dreamTeamCycleAt: timestamp('dream_team_cycle_at'),
+  /**
+   * WHERE THIS CLINIC CAME FROM — the acquisition sensor's durable stamp
+   * (docs/marketing-engine.md, slice 1). Shape: SignupAttribution in
+   * lib/marketing-attribution.ts — { channel, landing, referrerHost,
+   * utmSource, utmMedium, utmCampaign, firstSeenAt, signedUpAt }. Written
+   * ONCE by submitOnboarding when the org is created, from the visitor's
+   * first-touch cookie; never updated after (first-touch by design — the
+   * dials measure what STARTED the journey). Null = untracked (signed up
+   * before the sensor existed, cookie blocked/expired, or managed
+   * provisioning — the funnel reports these honestly as untracked, never
+   * guesses). Read through parseSignupAttribution, which treats the jsonb
+   * as untrusted and degrades malformed rows to null.
+   */
+  signupAttribution: jsonb('signup_attribution'),
+  /**
+   * The per-clinic OFF switch for the "Powered by DreamCRM" credit on the
+   * clinic's public site (owner ruling 2026-08-26: the credit is on by
+   * default — the Jane/Mangomint growth loop — and any clinic may turn it
+   * off on Website → Design). Default false = credit shows.
+   */
+  hidePoweredBy: boolean('hide_powered_by').notNull().default(false),
   // Server-persisted draft of the post-checkout AI website interview (the
   // /welcome step). Shape: OnboardingInterviewDraft in
   // lib/types/onboarding-interview.ts — { answers: Record<string,string>,

@@ -2,6 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
 import { RESERVED_SLUGS } from '@/lib/onboarding/slug'
+import {
+  ATTRIBUTION_COOKIE,
+  ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
+  buildAttributionTouch,
+  serializeAttributionCookie,
+} from '@/lib/marketing-attribution'
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -124,6 +130,49 @@ const PUBLIC_PATHS = [
 ]
 
 const PUBLIC_PREFIXES = ['/_next', '/images', '/favicon', '/css', '/fonts']
+
+/**
+ * Pages where a visitor's FIRST TOUCH is worth remembering — the marketing
+ * site plus the signup/signin doors (an ad can land straight on /signup).
+ * Deliberately excludes /api/* and the token-auth patient publics: those are
+ * never acquisition landings.
+ */
+function isAttributionLanding(pathname: string): boolean {
+  if (pathname === '/' || pathname === '/signup' || pathname === '/signin') return true
+  return MARKETING_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+}
+
+/**
+ * Set the first-touch attribution cookie (docs/marketing-engine.md, slice 1)
+ * on a response when this GET is a marketing landing and the visitor doesn't
+ * already carry one. STRICT first-touch by design: an existing cookie is
+ * never overwritten — the dials measure what STARTED the journey. The cookie
+ * is httpOnly (only submitOnboarding ever reads it, server-side) and holds
+ * no identity — just channel/UTM/referrer-host/landing/instant.
+ */
+function withAttributionCookie(request: NextRequest, hostname: string, res: NextResponse): NextResponse {
+  try {
+    if (request.method !== 'GET') return res
+    if (request.cookies.has(ATTRIBUTION_COOKIE)) return res
+    if (!isAttributionLanding(request.nextUrl.pathname)) return res
+    const touch = buildAttributionTouch({
+      path: request.nextUrl.pathname,
+      search: request.nextUrl.search,
+      referrer: request.headers.get('referer'),
+      selfHost: hostname,
+    })
+    res.cookies.set(ATTRIBUTION_COOKIE, serializeAttributionCookie(touch), {
+      maxAge: ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
+      sameSite: 'lax',
+      httpOnly: true,
+      secure: !hostname.startsWith('localhost') && !hostname.startsWith('127.0.0.1'),
+      path: '/',
+    })
+  } catch {
+    /* attribution is best-effort — never break routing over it */
+  }
+  return res
+}
 
 function isPublicPath(pathname: string) {
   // The root is the public marketing site (the page itself routes signed-in
@@ -262,7 +311,12 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (isPublicPath(pathname)) return NextResponse.next()
+  if (isPublicPath(pathname)) {
+    // By this point the host is the platform's own (clinic subdomains and
+    // custom domains rewrote + returned above), so a marketing landing here
+    // is a real www visit — remember its first touch.
+    return withAttributionCookie(request, hostname, NextResponse.next())
+  }
   if (pathname.startsWith('/site/')) return siteResponse(request, pathname)
 
   const sessionCookie = getSessionCookie(request)

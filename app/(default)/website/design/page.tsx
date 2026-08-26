@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { EmptyState } from '@/components/ui/empty-state'
 import DesignPanel from './design-panel'
+import PoweredByCard from './powered-by-card'
 import PublishCard from '../publish-card'
 
 export const metadata = {
@@ -43,6 +44,7 @@ export default async function WebsiteDesignPage() {
       differenceVideoUrl: clinicProfile.differenceVideoUrl,
       imagePositions: clinicProfile.imagePositions,
       websiteDraft: clinicProfile.websiteDraft,
+      hidePoweredBy: clinicProfile.hidePoweredBy,
     })
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, ctx.organizationId))
@@ -96,6 +98,10 @@ export default async function WebsiteDesignPage() {
         differenceVideoUrl={profile.differenceVideoUrl}
         imagePositions={(profile.imagePositions as Record<string, string> | null) ?? {}}
       />
+      {/* The site-credit switch reads the RAW row on purpose — hide_powered_by
+          is live-instant, never draft-staged, so the merged draft view above
+          must not shadow it. */}
+      <PoweredByCard initialHidden={row?.hidePoweredBy === true} />
     </div>
   )
 }

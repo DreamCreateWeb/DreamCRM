@@ -69,6 +69,13 @@ interface Body {
   slug?: unknown
   path?: unknown
   edit?: unknown
+  /** Marketing-site beacon marker (www pages — Dream Create's own
+   *  acquisition sensor). When true, the view goes to the platform-global
+   *  marketing rollup instead of a clinic's; search+referrer classify the
+   *  channel server-side (docs/marketing-engine.md, slice 1). */
+  marketing?: unknown
+  search?: unknown
+  referrer?: unknown
 }
 
 export async function POST(req: Request) {
@@ -95,6 +102,26 @@ export async function POST(req: Request) {
     // Skip Website Studio edit-mode canvases entirely.
     const path = typeof body.path === 'string' ? body.path : '/'
     if (body.edit === true || body.edit === 1 || body.edit === '1' || /[?&]edit=1\b/.test(path)) {
+      return new NextResponse(null, { status: 204 })
+    }
+
+    // Marketing-site branch: no org — the www rollup is platform-global.
+    // Same best-effort contract as the clinic branch.
+    if (body.marketing === true) {
+      const { recordMarketingView } = await import('@/lib/services/acquisition')
+      // selfHost makes internal www→www referrers classify as direct, not
+      // referral (the visitor navigating our own pages is not a source).
+      const selfHost = (req.headers.get('x-forwarded-host') || req.headers.get('host') || '')
+        .split(',')[0]
+        .trim()
+        .toLowerCase()
+        .split(':')[0]
+      await recordMarketingView({
+        path,
+        search: typeof body.search === 'string' ? body.search : null,
+        referrer: typeof body.referrer === 'string' ? body.referrer : null,
+        selfHost: selfHost || null,
+      })
       return new NextResponse(null, { status: 204 })
     }
 

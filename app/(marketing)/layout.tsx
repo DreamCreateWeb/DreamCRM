@@ -1,5 +1,6 @@
 import { MarketingHeader } from '@/components/marketing/chrome'
 import { MarketingFooter, MarketingMotionStyles } from '@/components/marketing/ui'
+import MarketingViewBeacon from '@/components/marketing/marketing-view-beacon'
 import { JsonLd, organizationLd, websiteLd } from '@/lib/marketing/seo'
 
 /**
@@ -21,6 +22,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
         Skip to content
       </a>
       <MarketingMotionStyles />
+      {/* Acquisition sensor — aggregate pageview counts per (day, path,
+          channel), no PII. The first-touch attribution COOKIE is set by the
+          middleware, not here (it must exist before any client JS runs). */}
+      <MarketingViewBeacon />
       <MarketingHeader />
       <main id="main-content">{children}</main>
       <MarketingFooter />

@@ -12,6 +12,7 @@ import { getSubscriptionStats } from '@/lib/services/projects'
 import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/utils/format'
 import { permanentRedirect } from 'next/navigation'
 import ModuleHint from '@/components/onboarding/module-hint'
+import AcquisitionPanel from './acquisition-panel'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -126,6 +127,10 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
         </div>
         <FunnelBars funnel={funnel} stages={t.stages} />
       </div>
+
+      {/* Acquisition sensors — www traffic + signups by first-touch channel
+          (docs/marketing-engine.md). */}
+      <AcquisitionPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="v2-card p-5">

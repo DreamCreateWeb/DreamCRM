@@ -744,6 +744,36 @@ export const sitePageview = pgTable(
 export type SitePageview = typeof sitePageview.$inferSelect
 export type NewSitePageview = typeof sitePageview.$inferInsert
 
+// Marketing-SITE traffic — the www twin of site_pageview, for Dream Create's
+// OWN acquisition sensor (docs/marketing-engine.md, slice 1). Same
+// daily-rollup ethos (no PII, no per-visit rows, no IP/UA) plus ONE extra
+// dimension: the closed-registry CHANNEL (lib/marketing-attribution.ts)
+// classified at capture from UTM + referrer, so the funnel can say which
+// source the visits came from without ever storing a visitor. PLATFORM-GLOBAL
+// BY DESIGN — no organizationId (the www marketing site belongs to no tenant;
+// same precedent as lib/db/schema/prospecting.ts).
+export const marketingPageview = pgTable(
+  'marketing_pageview',
+  {
+    id: serial('id').primaryKey(),
+    // UTC calendar day, 'YYYY-MM-DD' app-side — same bucketing as site_pageview.
+    day: date('day', { mode: 'string' }).notNull(),
+    // Normalized www path ('/', '/pricing', '/compare/weave', …), query
+    // stripped + capped by the route before insert.
+    path: text('path').notNull(),
+    // MarketingChannel id from the closed registry; the route only ever
+    // writes registry values (classification is total, unknowns degrade to
+    // referral/direct — never a free-text channel).
+    channel: text('channel').notNull(),
+    views: integer('views').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('marketing_pageview_day_path_channel_idx').on(t.day, t.path, t.channel)]
+)
+export type MarketingPageview = typeof marketingPageview.$inferSelect
+export type NewMarketingPageview = typeof marketingPageview.$inferInsert
+
 // Website Studio edit history — one row per save, holding the PREVIOUS value
 // of every clinic_profile column that save overwrote, so the owner can walk
 // back ("undo my last change") in a Studio where every save goes live

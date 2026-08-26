@@ -1079,6 +1079,13 @@
       "when": 1787696211052,
       "tag": "0153_small_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1787787383153,
+      "tag": "0154_plain_red_skull",
+      "breakpoints": true
     }
   ]
 }

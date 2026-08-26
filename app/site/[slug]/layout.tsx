@@ -15,6 +15,7 @@ import DraftPreviewBanner from '@/components/clinic-site/draft-preview-banner'
 import EditBridgeGate from '@/components/clinic-site/edit-bridge-gate'
 import SiteViewBeacon from '@/components/clinic-site/site-view-beacon'
 import SiteChatWidget from '@/components/clinic-site/site-chat-widget'
+import PoweredBy from '@/components/clinic-site/powered-by'
 import AnnouncementBar from '@/components/clinic-site/announcement-bar'
 import { activeAnnouncement } from '@/lib/types/clinic-content'
 import { clinicDayKey } from '@/lib/format-datetime'
@@ -71,10 +72,15 @@ export default async function ClinicSiteLayout({
   // (shouldShowComingSoon owns the rule).
   let comingSoon: { clinicName: string; phone: string | null; logoUrl: string | null } | null =
     null
+  // The "Powered by DreamCRM" credit (owner ruling 2026-08-26 — the growth
+  // loop, docs/marketing-engine.md). Default ON; Website → Design is the
+  // off switch. Never in a gallery frame, never on coming-soon.
+  let showPoweredBy = false
   if (orgId) {
     const [prof] = await db
       .select({
         enabled: clinicProfile.chatWidgetEnabled,
+        hidePoweredBy: clinicProfile.hidePoweredBy,
         displayName: clinicProfile.displayName,
         announcement: clinicProfile.announcement,
         timezone: clinicProfile.timezone,
@@ -101,6 +107,9 @@ export default async function ClinicSiteLayout({
     }
     if (prof && prof.enabled !== false && !isFrame) {
       chatWidget = { enabled: true, clinicName: prof.displayName ?? 'our office' }
+    }
+    if (prof && prof.hidePoweredBy !== true && !isFrame) {
+      showPoweredBy = true
     }
     if (prof?.announcement && !isFrame) {
       const tz = prof.timezone || 'America/New_York'
@@ -166,6 +175,8 @@ export default async function ClinicSiteLayout({
           template, non-sticky so it scrolls away. */}
       <AnnouncementBar announcement={announcement} />
       {children}
+      {/* Below the template's own footer, on every page — the growth loop. */}
+      {showPoweredBy && <PoweredBy slug={slug} />}
       {/* Never count gallery-frame renders as site traffic. */}
       {orgId && !isFrame && <SiteViewBeacon orgId={orgId} slug={slug} />}
       {chatWidget && (

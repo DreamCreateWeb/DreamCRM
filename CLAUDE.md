@@ -659,7 +659,14 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0152** (`clinic_profile.dream_team_cycle_at` — the Dream
+  migration: **0154** (the acquisition sensor layer, docs/marketing-engine.md
+  slice 1: `marketing_pageview` — the www twin of site_pageview with a
+  channel dimension, platform-global by design — plus
+  `clinic_profile.signup_attribution` jsonb (first-touch stamp, written once
+  at org creation) and `clinic_profile.hide_powered_by` (the site-credit off
+  switch, Website → Design)). Before it: **0153** (`notification_prefs.
+  email_mode` — honest email modes for the notification tray). Before those:
+  **0152** (`clinic_profile.dream_team_cycle_at` — the Dream
   Team's heartbeat, "Cycles": stamped at the end of every hourly generator
   pass for that clinic whether or not it produced anything, read only by
   the status band; nothing branches on it). Before it: **0151** (the `goal`

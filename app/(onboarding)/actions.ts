@@ -1,6 +1,6 @@
 'use server'
 
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -12,6 +12,7 @@ import { applyStarterFloor } from '@/lib/services/starter-pack'
 import { RESERVED_SLUGS, SLUG_PATTERN } from '@/lib/onboarding/slug'
 import { slugify } from '@/lib/utils'
 import { trialEndDate } from '@/lib/trial'
+import { ATTRIBUTION_COOKIE, parseAttributionCookie, type SignupAttribution } from '@/lib/marketing-attribution'
 
 /** Postgres unique-violation SQLSTATE — a slug claimed between check + insert. */
 function isUniqueViolation(err: unknown): boolean {
@@ -239,6 +240,20 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
 
   const displayName = data.practiceName?.trim() || session.user.name || 'My Clinic'
 
+  // WHERE THIS CLINIC CAME FROM — the acquisition sensor's stamp
+  // (docs/marketing-engine.md, slice 1). The middleware wrote the visitor's
+  // first touch into an httpOnly cookie; parse re-validates it (client
+  // input), and a missing/tampered cookie stamps NOTHING — an untracked
+  // signup is honest, a guessed channel is not. Best-effort by construction.
+  const signupAttribution: SignupAttribution | null = await (async () => {
+    try {
+      const touch = parseAttributionCookie((await cookies()).get(ATTRIBUTION_COOKIE)?.value)
+      return touch ? { ...touch, signedUpAt: new Date().toISOString() } : null
+    } catch {
+      return null
+    }
+  })()
+
   // Validate the client-supplied IANA zone — a bogus value must never poison
   // every wall-clock render. Invalid → null (the app-wide Eastern default).
   const timeZone = (() => {
@@ -275,6 +290,9 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
       billingMode: 'self_serve',
       subscriptionStatus: 'trialing',
       trialEndsAt: trialEndDate(),
+      // Set once at profile creation, NEVER on conflict — first-touch
+      // attribution would be corrupted by a later re-submit re-stamping it.
+      signupAttribution,
     })
     .onConflictDoUpdate({
       target: schema.clinicProfile.organizationId,
