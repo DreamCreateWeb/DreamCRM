@@ -346,18 +346,11 @@ export default function SiteFooter({
               </a>
             </li>
           </ul>
+          {/* The "Powered by DreamCRM" credit single-homes in the layout's
+              PoweredBy strip (components/clinic-site/powered-by.tsx) — gated
+              by the clinic's off switch + UTM-attributed. Not duplicated here. */}
           <div style={{ color: FOOTER_MUTED }}>
-            © {new Date().getFullYear()} {name}.{' '}
-            <span className="hidden sm:inline">Powered by </span>
-            <a
-              href="https://dreamcreateweb.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium hover:underline"
-              style={{ color: FOOTER_INK }}
-            >
-              DreamCreate
-            </a>
+            © {new Date().getFullYear()} {name}.
           </div>
         </div>
       </div>

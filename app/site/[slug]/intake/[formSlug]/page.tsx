@@ -149,21 +149,9 @@ export default async function IntakeFormPage({ params, searchParams }: Props) {
           className="max-w-[1240px] mx-auto px-5 sm:px-8 py-8 text-center text-sm"
           style={{ color: INK_MUTED }}
         >
+          {/* The "Powered by DreamCRM" credit single-homes in the layout's
+              PoweredBy strip — gated + UTM-attributed there, not here. */}
           © {new Date().getFullYear()} {name}
-          {!kiosk && (
-            <>
-              {' '}· Powered by{' '}
-              <a
-                href="https://dreamcreateweb.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium hover:underline"
-                style={{ color: INK }}
-              >
-                DreamCreate
-              </a>
-            </>
-          )}
         </div>
       </footer>
     </div>

@@ -206,11 +206,15 @@ describe('ModernTemplate', () => {
     expect(screen.getByText('Closed')).toBeInTheDocument()
   })
 
-  it('shows footer with current year and powered-by attribution', () => {
+  it('shows footer with current year — the powered-by credit single-homes in the layout strip', () => {
     render(<ModernTemplate data={makeData()} basePath="/site/test" />)
     const year = new Date().getFullYear().toString()
     expect(screen.getByText(new RegExp(`© ${year}`))).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /DreamCreate/ })).toBeInTheDocument()
+    // The "Powered by DreamCRM" credit lives ONLY in the layout's PoweredBy
+    // strip (components/clinic-site/powered-by.tsx) — gated by the clinic's
+    // off switch + UTM-attributed. A second copy in the footer would double
+    // the credit and its clicks would be invisible to attribution.
+    expect(screen.queryByRole('link', { name: /DreamCreate/ })).toBeNull()
   })
 
   // ── Sign-in links + section nav ─────────────────────────────────────
