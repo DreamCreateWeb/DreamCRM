@@ -404,3 +404,22 @@ voicemail · SmileCon · big-hall booths before revenue supports them
   Powered-by sources resolved to clinic names (unmatched slugs stay
   visible — a stale slug is still a fact about where clicks came from).
 - Suite 6,724 green + `pnpm build` clean.
+
+**Slice 1c — the self-serve win loop (SHIPPED 2026-08-27, no migration).**
+The last dangling Tier-0 wire: `markConverted` had ONE caller (managed
+provisioning), so a Hunter prospect who signed up SELF-SERVE — the whole
+point of the program — stayed open in the pipeline: the win never fed the
+win/loss learning loop, and the call list / future outreach would keep
+targeting a practice that already signed up. Now `submitOnboarding`
+(new-org path, best-effort, once per clinic) calls
+`convertProspectForSignup` (lib/services/prospecting.ts): exact-email
+match (prospect.email, then any crawled prospect_contact) → else the
+signup email's DOMAIN against prospect websites via the pure
+`domainMatchesWebsite` (lib/prospect-email.ts — host or subdomain, never a
+substring, so mysmilebright.com can't claim smilebright.com's win), only
+for non-freemail/non-disposable domains and only when exactly ONE prospect
+matches (ambiguity = no match, never a guess). Idempotent for the same
+org; a prospect converted to a DIFFERENT org is never moved. Conversion
+rides the existing `markConverted` (status + linked org + outcomeAt +
+enrollment stop), so the win/loss report picks it up with no new code.
+Suite 6,733 green. Slice 1 (a+b+c) is COMPLETE — slice 2 (the grader) next.

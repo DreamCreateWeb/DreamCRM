@@ -354,6 +354,19 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
     console.warn('[onboarding] could not apply starter floor', err)
   }
 
+  // The win loop (marketing-engine slice 1c): if this signer was already a
+  // Hunter prospect (matched by email, then practice domain — conservative,
+  // never a guess), mark that prospect CONVERTED and link it to this org, so
+  // the win feeds the win/loss learning loop and no outreach or call list
+  // ever targets a practice that already signed up. Best-effort; once per
+  // clinic (only the submit that created the org).
+  if (isNewOrg) try {
+    const { convertProspectForSignup } = await import('@/lib/services/prospecting')
+    await convertProspectForSignup({ organizationId: orgId, email: session.user.email })
+  } catch (err) {
+    console.warn('[onboarding] prospect win-loop check failed', err)
+  }
+
   // Welcome email — the trial is live. Best-effort (a mail hiccup must never
   // block onboarding); also our earliest deliverability check on the owner's
   // address (before this, their first-ever email was the day-3 trial reminder).

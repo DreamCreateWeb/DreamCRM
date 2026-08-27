@@ -118,6 +118,28 @@ export function isFreeProvider(domain: string): boolean {
   return FREE_PROVIDERS.has(domain.toLowerCase())
 }
 
+/**
+ * Does an email DOMAIN belong to a practice's website? True when the site's
+ * host IS the domain or a subdomain of it ('www.smilebright.com' matches
+ * 'smilebright.com'; 'mysmilebright.com' does NOT — substring matches are
+ * how a signup gets pinned on the wrong practice). Junk/relative URLs are
+ * false, never a guess. Used by the signup→prospect conversion matcher.
+ */
+export function domainMatchesWebsite(domain: string, websiteUrl: string | null | undefined): boolean {
+  if (!domain || !websiteUrl) return false
+  const d = domain.trim().toLowerCase().replace(/^www\./, '')
+  if (!d) return false
+  let host: string
+  try {
+    const raw = websiteUrl.trim()
+    host = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+  host = host.replace(/^www\./, '')
+  return host === d || host.endsWith('.' + d)
+}
+
 /** normalize a person name to comparable lowercase tokens ≥3 chars. */
 function nameTokens(personName: string | null | undefined): string[] {
   if (!personName) return []

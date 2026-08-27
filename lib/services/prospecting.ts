@@ -15,6 +15,7 @@ import {
 import { SEGMENT_LABELS, type OutreachSegment } from '@/lib/types/prospecting'
 import { stateZip3Prefixes, stateTimeZone } from '@/lib/types/us-geo'
 import { followUpForOutcome } from '@/lib/prospect-followup'
+import { domainMatchesWebsite, isDisposableDomain, isFreeProvider, parseEmail } from '@/lib/prospect-email'
 import { lossReasonForSuppression } from '@/lib/prospect-learnings'
 import { relativeDayTime, callWindowScore, communicatedNextStep, type CallWindow } from '@/lib/prospect-when'
 
@@ -1526,6 +1527,89 @@ export async function logCallOutcome(input: {
         ),
       )
   }
+}
+
+/**
+ * The self-serve half of the win loop (marketing-engine slice 1c). Managed
+ * conversions call markConverted() from the platform UI; a SELF-SERVE
+ * signup used to leave its prospect sitting open in the pipeline — the win
+ * never fed the win/loss learning loop, and the call list / outreach would
+ * keep targeting a practice that already signed up. Called best-effort from
+ * submitOnboarding when a new clinic org is created.
+ *
+ * Matching is deliberately conservative — a FALSE conversion poisons the
+ * win/loss numbers and silently drops a real prospect from the pipeline:
+ *  1. Exact email match (prospect.email, then any crawled prospect_contact).
+ *  2. Else, the signup email's DOMAIN against prospect websites — only for
+ *     a non-freemail, non-disposable domain, and only when exactly ONE
+ *     prospect matches (ambiguity = no match, never a guess).
+ * A prospect already converted to a DIFFERENT org is left alone (and
+ * matching the same org again is a no-op success).
+ */
+export async function convertProspectForSignup(input: {
+  organizationId: string
+  email: string
+}): Promise<{ converted: boolean; prospectId: string | null }> {
+  const none = { converted: false, prospectId: null }
+  const parsed = parseEmail(input.email)
+  if (!parsed) return none
+
+  type Candidate = { id: string; status: string; convertedOrganizationId: string | null }
+  let candidates: Candidate[] = []
+
+  const [byEmail] = await db
+    .select({
+      id: schema.prospect.id,
+      status: schema.prospect.status,
+      convertedOrganizationId: schema.prospect.convertedOrganizationId,
+    })
+    .from(schema.prospect)
+    .where(sql`lower(${schema.prospect.email}) = ${parsed.email}`)
+    .limit(1)
+  if (byEmail) candidates = [byEmail]
+
+  if (candidates.length === 0) {
+    // Crawled contacts store lowercased addresses; any of them naming this
+    // signer is as good as the mirrored prospect.email.
+    const contactRows = await db
+      .select({
+        id: schema.prospect.id,
+        status: schema.prospect.status,
+        convertedOrganizationId: schema.prospect.convertedOrganizationId,
+      })
+      .from(schema.prospectContact)
+      .innerJoin(schema.prospect, eq(schema.prospect.id, schema.prospectContact.prospectId))
+      .where(eq(schema.prospectContact.email, parsed.email))
+      .limit(2)
+    candidates = contactRows
+  }
+
+  if (candidates.length === 0 && !isFreeProvider(parsed.domain) && !isDisposableDomain(parsed.domain)) {
+    const domainRows = await db
+      .select({
+        id: schema.prospect.id,
+        status: schema.prospect.status,
+        convertedOrganizationId: schema.prospect.convertedOrganizationId,
+        websiteUrl: schema.prospect.websiteUrl,
+      })
+      .from(schema.prospect)
+      .where(ilike(schema.prospect.websiteUrl, `%${parsed.domain}%`))
+      .limit(6)
+    const matched = domainRows.filter((r) => domainMatchesWebsite(parsed.domain, r.websiteUrl))
+    const distinct = new Map(matched.map((r) => [r.id, r]))
+    // Exactly one practice may own the domain — two candidates means the
+    // ilike net caught cousins, and guessing pins the win on the wrong one.
+    if (distinct.size === 1) candidates = Array.from(distinct.values())
+  }
+
+  if (candidates.length === 0) return none
+  const already = candidates.find((c) => c.convertedOrganizationId === input.organizationId)
+  if (already) return { converted: true, prospectId: already.id }
+  const target = candidates.find((c) => c.status !== 'converted')
+  if (!target) return none // converted to some other org — not ours to move
+
+  await markConverted(target.id, input.organizationId)
+  return { converted: true, prospectId: target.id }
 }
 
 /** Link a won prospect to its brand-new clinic org. */
