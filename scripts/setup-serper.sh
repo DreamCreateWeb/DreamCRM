@@ -27,7 +27,7 @@ if [[ -z "${SERPER_API_KEY_VALUE:-}" ]]; then
 fi
 
 echo "==> Preflight"
-IDENTITY_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+IDENTITY_ACCOUNT=$(aws sts get-caller-identity --region "$REGION" --query Account --output text)
 if [[ "$IDENTITY_ACCOUNT" != "$ACCOUNT" ]]; then
   echo "ERROR: credentials belong to account $IDENTITY_ACCOUNT, expected $ACCOUNT" >&2
   exit 1
@@ -46,22 +46,36 @@ fi
 echo "    key works"
 
 echo "==> Secrets Manager: SERPER_API_KEY in $SECRET_ID"
-CURRENT=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text)
+CURRENT=$(aws secretsmanager get-secret-value --region "$REGION" --secret-id "$SECRET_ID" --query SecretString --output text)
 UPDATED=$(echo "$CURRENT" | python3 -c "
 import json, sys, os
 d = json.load(sys.stdin)
 d['SERPER_API_KEY'] = os.environ['SERPER_API_KEY_VALUE']
 print(json.dumps(d))
 ")
-aws secretsmanager put-secret-value --secret-id "$SECRET_ID" --secret-string "$UPDATED" >/dev/null
+aws secretsmanager put-secret-value --region "$REGION" --secret-id "$SECRET_ID" --secret-string "$UPDATED" >/dev/null
 echo "    stored (not printed)"
-SECRET_ARN=$(aws secretsmanager describe-secret --secret-id "$SECRET_ID" --query ARN --output text)
+SECRET_ARN=$(aws secretsmanager describe-secret --region "$REGION" --secret-id "$SECRET_ID" --query ARN --output text)
 
 echo "==> App Runner: SERPER_API_KEY on service $SERVICE_NAME"
 SERVICE_ARN=$(aws apprunner list-services --region "$REGION" \
   --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
 if [[ -z "$SERVICE_ARN" || "$SERVICE_ARN" == "None" ]]; then
   echo "ERROR: App Runner service '$SERVICE_NAME' not found in $REGION" >&2
+  exit 1
+fi
+
+# A deploy may already be rolling (update-service rejects with
+# OPERATION_IN_PROGRESS) — wait for RUNNING, up to ~10 minutes.
+for i in $(seq 1 40); do
+  STATUS=$(aws apprunner describe-service --region "$REGION" --service-arn "$SERVICE_ARN" \
+    --query Service.Status --output text)
+  [[ "$STATUS" == "RUNNING" ]] && break
+  echo "    service is $STATUS — waiting (${i}/40)"
+  sleep 15
+done
+if [[ "$STATUS" != "RUNNING" ]]; then
+  echo "ERROR: service never reached RUNNING — re-run once the current operation finishes" >&2
   exit 1
 fi
 
