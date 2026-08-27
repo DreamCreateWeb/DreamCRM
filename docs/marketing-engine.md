@@ -522,3 +522,18 @@ reviews per the owner's ruling.
   DreamCRM' line above is shipped, not promised." v1 stored rows parse
   back-compat (string findings → afterless; missing search axis →
   hidden). Suite 6,775 green.
+- **SERPER KEY LIVE (2026-08-27, same day).** The owner supplied the
+  Serper.dev key + a dedicated `Claude` IAM user; `scripts/setup-serper.sh`
+  (new, the setup-sms-aws.sh pattern — idempotent, validates the key with
+  one live query, MERGES into App Runner's RuntimeEnvironmentSecrets,
+  waits out in-flight rollouts; re-running with a new value IS the
+  rotation path) stored `SERPER_API_KEY` in dreamcrm/app-secrets and
+  mapped it into the service. Live-verified end to end on the Ward-AR
+  inputs: all four axes render — website 39 w/ deep-scan findings
+  (tap-to-call, structured data) + Today/~95 paired bars, listing/reviews
+  honestly ungraded w/ the stranger disclosure, and SEARCH VISIBILITY
+  live ("isn't on page one for 'dentist in Ward, AR'", score 20, no
+  projected rank by law). Housekeeping owed: the AWS key CSV + Serper key
+  passed through chat/uploads — rotate both at the owner's convenience
+  (Serper: regenerate + re-run the script; AWS: rotate the Claude user's
+  key in IAM).
