@@ -73,6 +73,10 @@ export const NOTIFICATION_TYPES: Record<string, NotificationTypeDef> = {
   // ---- Campaigns ----
   campaign_sent: { icon: '📣', tone: 'ok' },
 
+  // ---- Support (clinic ↔ Dream Create — a person is waiting either way) ----
+  support_message: { icon: '🎧', tone: 'info', urgent: true },
+  support_reply: { icon: '🎧', tone: 'info', urgent: true },
+
   // ---- Platform (Dream Create's own desk) ----
   clinic_signup: { icon: '🎉', tone: 'ok', urgent: true },
   subscription_cancelled: { icon: '👋', tone: 'urgent', urgent: true },

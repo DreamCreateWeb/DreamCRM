@@ -141,6 +141,27 @@ export async function createConversation(input: z.infer<typeof ConversationInput
   if (requested.some((id) => !allowed.has(id))) {
     throw new Error('You can only start a conversation with your own team or clinic contacts.')
   }
+  // Platform → clinic staff routes into that clinic's ONE support thread
+  // instead of minting a parallel conversation the clinic can't see (their
+  // /messages is the patient inbox; the support tab is their only window
+  // into this system, and it shows the org thread).
+  const supportOrgId = await singleClinicOrgFor(requested)
+  if (supportOrgId) {
+    const callerIsPlatform = (await platformMemberIds()).has(currentUserId)
+    if (callerIsPlatform) {
+      const conversationId = await ensureOrgSupportThread(supportOrgId)
+      await db
+        .insert(schema.conversationMembers)
+        .values({ conversationId, userId: currentUserId })
+        .onConflictDoNothing()
+      const [existing] = await db
+        .select()
+        .from(schema.conversations)
+        .where(eq(schema.conversations.id, conversationId))
+        .limit(1)
+      return existing
+    }
+  }
   const [convo] = await db.insert(schema.conversations).values({ title: data.title ?? null }).returning()
   const allIds = Array.from(new Set([currentUserId, ...requested]))
   await db.insert(schema.conversationMembers).values(allIds.map((userId) => ({ conversationId: convo.id, userId }))).onConflictDoNothing()
@@ -174,7 +195,82 @@ export async function postMessage(input: z.infer<typeof MessageInput>, userId: s
         eq(schema.conversationMembers.userId, userId),
       ),
     )
+  await notifySupportCounterparts(data.conversationId, userId, data.body)
   return row
+}
+
+/**
+ * SUPPORT threads (organization_id set) alert the other side of the desk —
+ * without this, a clinic's plea for help sat silent until somebody happened
+ * to open the right page. Clinic author → platform members hear "a client
+ * wrote in"; platform author → the clinic's staff hear "Support replied"
+ * (never a platform person's name — the identity contract). Best-effort by
+ * design: a failed alert must never fail the message itself.
+ */
+async function notifySupportCounterparts(
+  conversationId: number,
+  authorId: string,
+  body: string,
+): Promise<void> {
+  try {
+    const [convo] = await db
+      .select({
+        organizationId: schema.conversations.organizationId,
+        title: schema.conversations.title,
+      })
+      .from(schema.conversations)
+      .where(eq(schema.conversations.id, conversationId))
+      .limit(1)
+    if (!convo?.organizationId) return // a generic chat, not a support thread
+
+    const orgId = convo.organizationId
+    const [platform, staff] = await Promise.all([platformMemberIds(), clinicStaffIds(orgId)])
+    const excerpt = body.length > 140 ? `${body.slice(0, 140)}…` : body
+    const { notify } = await import('./notifications')
+    const { publishRealtime } = await import('./realtime')
+
+    if (platform.has(authorId)) {
+      // Support replied → tell the clinic's staff, as "Support".
+      await Promise.all(
+        Array.from(staff)
+          .filter((id) => id !== authorId)
+          .map((id) =>
+            notify({
+              userId: id,
+              organizationId: orgId,
+              bucket: 'comments',
+              type: 'support_reply',
+              title: 'Support replied',
+              body: excerpt,
+              linkPath: '/messages/support',
+              linkLabel: 'Open the conversation →',
+            }),
+          ),
+      )
+    } else {
+      // A clinic wrote in → tell the platform side, named by the clinic.
+      await Promise.all(
+        Array.from(platform)
+          .filter((id) => id !== authorId)
+          .map((id) =>
+            notify({
+              userId: id,
+              organizationId: null,
+              bucket: 'comments',
+              type: 'support_message',
+              title: `${convo.title ?? 'A client'} wrote to support`,
+              body: excerpt,
+              linkPath: `/messages?c=${conversationId}`,
+              linkLabel: 'Open the conversation →',
+            }),
+          ),
+      )
+    }
+    // Live-refresh the clinic's support pane (and their /messages surface).
+    await publishRealtime(orgId, 'messages', { support: true })
+  } catch (err) {
+    console.warn('[messages] support notification failed', err)
+  }
 }
 
 // ---------- Client Messaging (platform-side, tenant-aware) ----------
@@ -282,17 +378,25 @@ export async function listClientConversations(userId: string): Promise<ClientCon
           ne(schema.conversationMembers.userId, userId),
         ),
       )
-    const counterpartByConvo = new Map<number, { userId: string; name: string | null }>()
+    // Keep EVERY other member per conversation — support threads are
+    // multi-party (clinic staff + all platform admins), and taking the
+    // first row could land on a platform teammate, misfiling the thread
+    // under 'team'. The clinic-staff member is chosen below, once the
+    // membership maps exist.
+    const candidatesByConvo = new Map<number, Array<{ userId: string; name: string | null }>>()
     for (const r of counterpartRows) {
-      if (!counterpartByConvo.has(r.conversationId)) {
-        counterpartByConvo.set(r.conversationId, { userId: r.userId, name: r.userName })
-      }
+      const list = candidatesByConvo.get(r.conversationId) ?? []
+      list.push({ userId: r.userId, name: r.userName })
+      candidatesByConvo.set(r.conversationId, list)
     }
+    const counterpartByConvo = candidatesByConvo
 
     // Resolve every membership for each counterpart so we can classify the
     // conversation as 'client' (counterpart belongs to a clinic) or 'team'
     // (counterpart is a member of a platform org).
-    const counterpartIds = Array.from(new Set(Array.from(counterpartByConvo.values()).map((c) => c.userId)))
+    const counterpartIds = Array.from(
+      new Set(Array.from(counterpartByConvo.values()).flatMap((list) => list.map((c) => c.userId))),
+    )
     const clinicByUser = new Map<string, { orgId: string; name: string; slug: string; role: string }>()
     const platformByUser = new Map<string, { orgId: string; role: string }>()
     if (counterpartIds.length > 0) {
@@ -309,7 +413,11 @@ export async function listClientConversations(userId: string): Promise<ClientCon
         .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
         .where(inArray(schema.member.userId, counterpartIds))
       for (const m of memberRows) {
-        if (m.orgType === 'clinic' && (m.role === 'owner' || m.role === 'admin') && !clinicByUser.has(m.userId)) {
+        if (
+          m.orgType === 'clinic' &&
+          (m.role === 'owner' || m.role === 'admin' || m.role === 'member') &&
+          !clinicByUser.has(m.userId)
+        ) {
           clinicByUser.set(m.userId, {
             orgId: m.organizationId,
             name: m.orgName,
@@ -324,10 +432,16 @@ export async function listClientConversations(userId: string): Promise<ClientCon
     }
 
     return convos.map((c) => {
-      const counterpart = counterpartByConvo.get(c.id) ?? null
+      const candidates = counterpartByConvo.get(c.id) ?? []
+      // Prefer the clinic-staff member as the face of the row; fall back to
+      // whoever else is there (a platform teammate, for team chats).
+      const counterpart =
+        candidates.find((x) => clinicByUser.has(x.userId)) ?? candidates[0] ?? null
       const clinic = counterpart ? clinicByUser.get(counterpart.userId) : null
       const team = counterpart ? platformByUser.get(counterpart.userId) : null
-      const kind: ConversationKind = clinic ? 'client' : team ? 'team' : 'other'
+      // An org-anchored thread IS a client conversation even before any
+      // clinic staff joined it (e.g. a support thread just provisioned).
+      const kind: ConversationKind = clinic || c.organizationId ? 'client' : team ? 'team' : 'other'
       return {
         id: c.id,
         title: c.title,
@@ -516,6 +630,148 @@ export async function listPendingInvitations(organizationId: string): Promise<Pe
   } catch (err) {
     if (isMissingSchemaError(err)) return []
     throw err
+  }
+}
+
+// ---------- Support (clinic ↔ Dream Create) ----------
+//
+// ONE support thread per clinic org, anchored on `conversations.organization_id`
+// (which nothing else has ever written — every generic conversation stores
+// NULL there, so a set value IS the support marker; no migration needed).
+// The clinic side renders it as "Support" — never a platform person's name
+// or face — and the platform side sees it in Client Messaging under the
+// clinic's name. 2026-08-26, owner directive: "i want it to be called
+// 'support' for the chat, not my name or identity."
+
+export interface SupportMessage {
+  id: number
+  body: string
+  createdAt: Date
+  authorId: string
+  authorName: string | null
+  /** Authored by the platform side → the clinic renders it as "Support". */
+  fromSupport: boolean
+}
+
+export interface SupportThread {
+  conversationId: number
+  messages: SupportMessage[]
+}
+
+/** The one clinic org ALL of these users are staff of — or null when they
+ *  span orgs, aren't all clinic staff, or the list is empty. Drives the
+ *  platform-composer redirect into the org support thread. */
+async function singleClinicOrgFor(userIds: string[]): Promise<string | null> {
+  if (userIds.length === 0) return null
+  const rows = await db
+    .select({ userId: schema.member.userId, orgId: schema.member.organizationId })
+    .from(schema.member)
+    .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
+    .where(
+      and(
+        inArray(schema.member.userId, userIds),
+        eq(schema.organization.type, 'clinic'),
+        inArray(schema.member.role, ['owner', 'admin', 'member']),
+      ),
+    )
+  const orgIds = new Set(rows.map((r) => r.orgId))
+  if (orgIds.size !== 1) return null
+  const covered = new Set(rows.map((r) => r.userId))
+  return userIds.every((id) => covered.has(id)) ? Array.from(orgIds)[0] : null
+}
+
+/** Every platform-org member — the people who ARE "Support". */
+async function platformMemberIds(): Promise<Set<string>> {
+  const rows = await db
+    .select({ userId: schema.member.userId })
+    .from(schema.member)
+    .innerJoin(schema.organization, eq(schema.organization.id, schema.member.organizationId))
+    .where(eq(schema.organization.type, 'platform'))
+  return new Set(rows.map((r) => r.userId))
+}
+
+/** Staff (owner/admin/member — never patients) of a clinic org. */
+async function clinicStaffIds(orgId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ userId: schema.member.userId })
+    .from(schema.member)
+    .where(
+      and(
+        eq(schema.member.organizationId, orgId),
+        inArray(schema.member.role, ['owner', 'admin', 'member']),
+      ),
+    )
+  return new Set(rows.map((r) => r.userId))
+}
+
+/**
+ * Find-or-create the org's support thread. No caller authorization here —
+ * the exported wrappers do that — but membership is synced on every call so
+ * staff hired after the thread was created (and platform admins added later)
+ * can still open it.
+ */
+async function ensureOrgSupportThread(orgId: string): Promise<number> {
+  const [existing] = await db
+    .select({ id: schema.conversations.id })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.organizationId, orgId))
+    .limit(1)
+
+  const [staff, platform] = await Promise.all([clinicStaffIds(orgId), platformMemberIds()])
+  const memberIds = Array.from(new Set([...Array.from(staff), ...Array.from(platform)]))
+
+  if (existing) {
+    if (memberIds.length > 0) {
+      await db
+        .insert(schema.conversationMembers)
+        .values(memberIds.map((userId) => ({ conversationId: existing.id, userId })))
+        .onConflictDoNothing()
+    }
+    return existing.id
+  }
+
+  // Title carries the CLINIC's name — that's what the platform's Client
+  // Messaging list shows. The clinic side ignores it and renders "Support".
+  const [org] = await db
+    .select({ name: schema.organization.name })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, orgId))
+    .limit(1)
+  const [convo] = await db
+    .insert(schema.conversations)
+    .values({ organizationId: orgId, title: org?.name ?? 'Support' })
+    .returning()
+  if (memberIds.length > 0) {
+    await db
+      .insert(schema.conversationMembers)
+      .values(memberIds.map((userId) => ({ conversationId: convo.id, userId })))
+      .onConflictDoNothing()
+  }
+  return convo.id
+}
+
+/**
+ * The clinic's support thread, for a clinic STAFF member. Opens (or creates)
+ * the org thread, marks it read for the viewer, and flags which messages
+ * came from the platform side so the UI can label them "Support".
+ */
+export async function getSupportThread(orgId: string, userId: string): Promise<SupportThread> {
+  const staff = await clinicStaffIds(orgId)
+  if (!staff.has(userId)) throw new Error('Only clinic staff can message support.')
+  const conversationId = await ensureOrgSupportThread(orgId)
+  const platform = await platformMemberIds()
+  const msgs = await listMessages(conversationId, userId)
+  await markConversationRead(conversationId, userId)
+  return {
+    conversationId,
+    messages: msgs.map((m) => ({
+      id: m.id,
+      body: m.body,
+      createdAt: m.createdAt,
+      authorId: m.authorId,
+      authorName: m.authorName,
+      fromSupport: platform.has(m.authorId),
+    })),
   }
 }
 

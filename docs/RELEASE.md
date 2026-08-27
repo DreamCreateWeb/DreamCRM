@@ -1775,6 +1775,37 @@ Known and accepted: patients have no bell surface (no notify() ever
 targets a patient and the portal renders no tray), so the patient branch
 of the settings panel is defensive copy for an unreachable tenant state.
 
+Same-day follow-ups (2026-08-26): the tray itself was rebuilt from
+headlessui Menu to Popover — the Menu's outside-click handler dismissed
+the panel before its own header/footer buttons (Mark all read, Clear all,
+Preferences) ever received a click, and rows "activated" an inert <li>
+instead of navigating (owner: "I can't click anything"); contract pinned
+by tests/notifications/tray-popover.test.tsx.
+
+### Support messaging wired end-to-end (2026-08-26, owner directive)
+
+"From my platform portal, im supposed to be able to message clients, and
+clients to be able to message me from their messages tab. i want it to be
+called 'support' for the chat, not my name or identity." The system was
+half-built: platform → clinic messages landed in a surface the clinic
+NEVER renders (their /messages is the patient inbox), and clinic staff
+were explicitly barred from starting a conversation with the platform
+(`allowedRecipientIds` stops at their own org). Shipped: ONE support
+thread per clinic org anchored on the never-before-used
+`conversations.organization_id` (no migration); a third Messages tab —
+Patients · Mailbox · **Support** (`/messages/support`) — where the
+platform side always renders as "Support" 🎧 (identity contract pinned by
+tests/messaging/support-view.test.tsx); the platform works the same
+thread from Client Messaging under the clinic's name, its
+New-conversation composer routes into the org thread instead of minting a
+parallel invisible one, and its counterpart-picker now prefers the clinic
+staffer (a multi-party support thread could otherwise file under 'team').
+Both directions notify through the registry (support_message /
+support_reply, urgent → they email under the default mode). The demo org
+gets a read-only preview (no thread minted from Dream Create to itself).
+
+### Test-hygiene note (worth keeping)
+
 Two earlier R1 fixes (the loyalty patient-in-org guard and the follow-up
 assignee guard) had broken `tests/patients` — a subset run had missed it
 because those suites weren't in the subset. Caught by the full-suite gate,
