@@ -177,10 +177,12 @@ describe('runPracticeGrade', () => {
     // The stranger's placeId is NOT stored; the Google axes grade unknown
     // with the rejection disclosed.
     expect(row.placeId).toBeNull()
-    const result = row.result as { axes: Record<string, { score: number | null; findings: string[] }> }
+    const result = row.result as {
+      axes: Record<string, { score: number | null; findings: { text: string }[] }>
+    }
     expect(result.axes.listing.score).toBeNull()
     expect(result.axes.reviews.score).toBeNull()
-    expect(result.axes.listing.findings.join(' ')).toContain('similar-sounding practice')
+    expect(result.axes.listing.findings.map((x) => x.text).join(' ')).toContain('similar-sounding practice')
   })
 
   it('rejects an undeliverable email before doing any work', async () => {

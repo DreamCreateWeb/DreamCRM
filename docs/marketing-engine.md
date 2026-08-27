@@ -495,3 +495,30 @@ reviews per the owner's ruling.
   the matched listing + address in the report so a wrong match is visible
   to its owner in one glance. The Ward-AR incident is pinned verbatim as a
   test at both the pure and service layers. Suite 6,766 green.
+- **v2 — THE BEFORE/AFTER REPORT (2026-08-27, owner directive: "use the
+  gaps as leverage; scan deeper; check search rank; present it better").**
+  (1) Every finding now carries an AFTER — what the same check reads with
+  DreamCRM running — from a SHIPPED-features-only registry (site-build,
+  24/7 booking, HTTPS, phone-first templates, structured data, tap-to-call,
+  sitemap, the watched listing = gbp_website_fix, self-sending review
+  asks, private escalations); a check the product can't deterministically
+  pass (a review rating, a search rank) gets after: null BY LAW — the
+  report says what happens instead ("asks send themselves", "climbs as
+  the fixes land"), never a promise. `projectedWithDreamCrm` projects
+  per-axis bars the same way (website/listing ~95, reviews/search never).
+  (2) DEEP SCAN — pure `lib/practice-scan.ts` (h1, JSON-LD dentist
+  structured data, OG tags, tap-to-call phone, canonical) + service-filled
+  robots.txt/sitemap probes and homepage response time; each gap is a
+  finding with its remedy. (3) SEARCH VISIBILITY as a 4th axis behind an
+  INERT SERP driver (`lib/serp.ts`, Serper.dev wire format, SES/Bedrock
+  pattern — no `SERPER_API_KEY`, no calls, and the axis HIDES rather than
+  nagging "not graded"; scraping Google violates its TOS, so ranks come
+  from an API the owner can switch on for ~$1/1k checks). Query = the one
+  a new patient runs: "dentist in {city}, {state}". Weights rebalance
+  .35/.25/.2/.2 with null axes re-weighted out. (4) The report page tells
+  the story: paired Today/With-DreamCRM bars per axis (direct-labeled,
+  one 0–100 axis, thin marks), remedy lines under every finding, honest
+  growth notes where projection is refused, CTA reframed "Every 'With
+  DreamCRM' line above is shipped, not promised." v1 stored rows parse
+  back-compat (string findings → afterless; missing search axis →
+  hidden). Suite 6,775 green.

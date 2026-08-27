@@ -12,7 +12,10 @@ import {
   parsePracticeGradeResult,
   placeMatchesPractice,
   type PracticeGradeResult,
+  type SearchCheck,
 } from '@/lib/practice-grade'
+import { extractDeepSiteSignals, type DeepSiteSignals } from '@/lib/practice-scan'
+import { positionOfDomain, searchDentistRankings, serpConfigured } from '@/lib/serp'
 import { GRADER_UTM_SOURCE } from '@/lib/marketing-attribution'
 import type { ProspectCrawlSignals } from '@/lib/types/prospecting'
 
@@ -55,11 +58,15 @@ export function normalizeWebsiteInput(raw: string | null | undefined): string | 
   }
 }
 
-/** One homepage fetch → crawl signals. Never throws; failure returns an
- *  error-stamped stub so the grade can say "couldn't reach it" honestly. */
-async function fetchHomepageSignals(url: string): Promise<ProspectCrawlSignals | null> {
+/** One homepage fetch → crawl signals + the v2 deep scan. Never throws;
+ *  failure returns an error-stamped stub so the grade can say "couldn't
+ *  reach it" honestly. */
+async function fetchHomepageSignals(
+  url: string,
+): Promise<{ signals: ProspectCrawlSignals; deep: DeepSiteSignals | null }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  const startedAt = Date.now()
   try {
     const res = await fetch(url, {
       signal: controller.signal,
@@ -67,7 +74,7 @@ async function fetchHomepageSignals(url: string): Promise<ProspectCrawlSignals |
       headers: { 'user-agent': USER_AGENT, accept: 'text/html' },
     })
     if (!res.ok) {
-      return { ...emptySignals(), error: `http_${res.status}` }
+      return { signals: { ...emptySignals(), error: `http_${res.status}` }, deep: null }
     }
     const reader = res.body?.getReader()
     let html = ''
@@ -89,9 +96,33 @@ async function fetchHomepageSignals(url: string): Promise<ProspectCrawlSignals |
       html = await res.text()
       bytes = html.length
     }
-    return extractCrawlSignals({ html, finalUrl: res.url || url, bytes, fetchedAt: new Date() })
+    const fetchMs = Date.now() - startedAt
+    const signals = extractCrawlSignals({ html, finalUrl: res.url || url, bytes, fetchedAt: new Date() })
+    const deep: DeepSiteSignals = { ...extractDeepSiteSignals(html), fetchMs }
+    // Crawlability probes — two tiny best-effort fetches against the SITE's
+    // origin (the final URL's, so a www redirect probes the right host).
+    try {
+      const origin = new URL(res.url || url).origin
+      const probe = async (path: string): Promise<boolean | null> => {
+        try {
+          const r = await fetch(origin + path, {
+            headers: { 'user-agent': USER_AGENT },
+            signal: AbortSignal.timeout(4000),
+          })
+          return r.ok
+        } catch {
+          return null // unreachable ≠ missing — never a finding
+        }
+      }
+      const [robotsTxt, sitemap] = await Promise.all([probe('/robots.txt'), probe('/sitemap.xml')])
+      deep.robotsTxt = robotsTxt
+      deep.sitemap = sitemap
+    } catch {
+      /* probes are decoration on the scan */
+    }
+    return { signals, deep }
   } catch {
-    return { ...emptySignals(), error: 'fetch_failed' }
+    return { signals: { ...emptySignals(), error: 'fetch_failed' }, deep: null }
   } finally {
     clearTimeout(timer)
   }
@@ -134,14 +165,19 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
   const state = input.state?.trim().toUpperCase().slice(0, 2) || null
   const websiteUrl = normalizeWebsiteInput(input.websiteUrl)
 
-  // The two lookups run together — the visitor is watching this happen.
+  // The lookups run together — the visitor is watching this happen. The
+  // search-rank check (v2) rides along when its driver is configured and a
+  // city was given (the query IS "dentist in {city}").
   const checkedPlaces = placesConfigured()
-  const [signals, candidate] = await Promise.all([
+  const [crawl, candidate, serp] = await Promise.all([
     websiteUrl ? fetchHomepageSignals(websiteUrl) : Promise.resolve(null),
     checkedPlaces
       ? findDentalPlace({ name: practiceName, city, state }).catch((): PlaceResult | null => null)
       : Promise.resolve(null),
+    serpConfigured() && city ? searchDentistRankings({ city, state }) : Promise.resolve(null),
   ])
+  const signals = crawl?.signals ?? null
+  const deep: DeepSiteSignals | null = crawl?.deep ?? null
 
   // MATCH VERIFICATION (the first real runs' lesson): searchText returns
   // the closest-sounding practice ANYWHERE, so a candidate is trusted only
@@ -156,12 +192,30 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
   const place = verified ? candidate : null
   const rejectedSimilar = Boolean(candidate && !verified)
 
+  // Search visibility (v2): position of THEIR domain in the results a new
+  // patient sees. The practice domain comes from the entered site, falling
+  // back to a VERIFIED listing's website. No domain or no SERP data → the
+  // axis stays hidden.
+  let search: SearchCheck | null = null
+  if (serp) {
+    const domainSource = websiteUrl ?? (verified ? candidate?.websiteUri : null)
+    if (domainSource) {
+      try {
+        const host = new URL(domainSource).hostname
+        search = { query: serp.query, position: positionOfDomain(serp.organicHosts, host) }
+      } catch {
+        search = null
+      }
+    }
+  }
+
   const crawled = signals && !signals.error ? signals : null
   const verdict = crawled ? heuristicVerdict(crawled, true) : null
   const grade = gradeOnlinePresence({
     enteredUrl: websiteUrl,
     signals,
     verdict,
+    deep,
     place: place
       ? {
           placeId: place.placeId,
@@ -176,6 +230,7 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
       : null,
     placesChecked: checkedPlaces,
     rejectedSimilar,
+    search,
   })
 
   const token = randomBytes(16).toString('hex')

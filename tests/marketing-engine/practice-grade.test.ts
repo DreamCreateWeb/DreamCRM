@@ -2,15 +2,24 @@ import { describe, expect, it } from 'vitest'
 import {
   GRADE_AXES,
   gradeOnlinePresence,
+  isAxisHidden,
   letterFor,
   parsePracticeGradeResult,
   placeMatchesPractice,
+  projectedWithDreamCrm,
+  type AxisGrade,
   type GradeInputs,
 } from '@/lib/practice-grade'
+import { extractDeepSiteSignals, type DeepSiteSignals } from '@/lib/practice-scan'
 import { classifyChannel } from '@/lib/marketing-attribution'
 import type { ProspectCrawlSignals, ProspectAiVerdict } from '@/lib/types/prospecting'
 
 const NOW = new Date('2026-08-27T12:00:00Z')
+
+/** Flatten an axis's finding texts for substring assertions. */
+const ftext = (a: AxisGrade) => a.findings.map((x) => x.text).join(' ')
+/** Flatten an axis's "with DreamCRM" remedy lines. */
+const aftext = (a: AxisGrade) => a.findings.map((x) => x.after ?? '').join(' ')
 
 function goodSignals(over: Partial<ProspectCrawlSignals> = {}): ProspectCrawlSignals {
   return {
@@ -68,14 +77,15 @@ describe('gradeOnlinePresence', () => {
     const g = gradeOnlinePresence(inputs())
     expect(g.letter).toBe('A')
     expect(g.overall).toBeGreaterThanOrEqual(90)
-    for (const axis of GRADE_AXES) expect(g.axes[axis].score).toBeGreaterThan(80)
+    for (const axis of ['website', 'listing', 'reviews'] as const) expect(g.axes[axis].score).toBeGreaterThan(80)
+    expect(isAxisHidden(g.axes.search)).toBe(true)
     expect(g.axes.listing.wins.join(' ')).toContain('links to your website')
   })
 
   it('no website at all is the loudest finding, not a crash', () => {
     const g = gradeOnlinePresence(inputs({ enteredUrl: null, signals: null, verdict: null }))
     expect(g.axes.website.score).toBeLessThan(20)
-    expect(g.axes.website.findings[0]).toContain('couldn’t find a website')
+    expect(g.axes.website.findings[0].text).toContain('couldn’t find a website')
     expect(g.letter).not.toBeNull()
   })
 
@@ -92,15 +102,15 @@ describe('gradeOnlinePresence', () => {
     const g = gradeOnlinePresence(inputs({ place: null }))
     expect(g.axes.listing.score).toBeNull()
     expect(g.axes.reviews.score).toBeNull()
-    expect(g.axes.listing.findings[0]).toContain('couldn’t confidently find')
+    expect(g.axes.listing.findings[0].text).toContain('couldn’t confidently find')
     // Composite falls back to the website axis alone.
     expect(g.overall).toBe(g.axes.website.score)
   })
 
   it('a rejected similar-sounding candidate is disclosed out loud', () => {
     const g = gradeOnlinePresence(inputs({ place: null, rejectedSimilar: true }))
-    expect(g.axes.listing.findings.join(' ')).toContain('similar-sounding practice')
-    expect(g.axes.listing.findings.join(' ')).toContain('stranger')
+    expect(ftext(g.axes.listing)).toContain('similar-sounding practice')
+    expect(ftext(g.axes.listing)).toContain('stranger')
   })
 
   it('a verified match names the listing it matched — transparency is the last guard', () => {
@@ -117,21 +127,21 @@ describe('gradeOnlinePresence', () => {
 
   it('a listing without a website link is called out', () => {
     const g = gradeOnlinePresence(inputs({ place: { ...inputs().place!, websiteUri: null } }))
-    expect(g.axes.listing.findings.join(' ')).toContain('no website link')
+    expect(ftext(g.axes.listing)).toContain('no website link')
   })
 
   it('a listing pointing at a DIFFERENT site is called out', () => {
     const g = gradeOnlinePresence(
       inputs({ place: { ...inputs().place!, websiteUri: 'https://old-agency-site.com' } }),
     )
-    expect(g.axes.listing.findings.join(' ')).toContain('different site')
+    expect(ftext(g.axes.listing)).toContain('different site')
   })
 
   it('thin reviews get the volume finding; a great rating gets its win', () => {
     const g = gradeOnlinePresence(
       inputs({ place: { ...inputs().place!, ratingTenths: 49, reviewCount: 12 } }),
     )
-    expect(g.axes.reviews.findings.join(' ')).toContain('12 reviews')
+    expect(ftext(g.axes.reviews)).toContain('12 reviews')
     expect(g.axes.reviews.wins.join(' ')).toContain('4.9')
   })
 
@@ -148,7 +158,86 @@ describe('gradeOnlinePresence', () => {
       inputs({ signals: goodSignals({ ssl: false }), verdict: verdict(85) }),
     )
     expect(g.axes.website.score).toBeLessThanOrEqual(40)
-    expect(g.axes.website.findings.join(' ')).toContain('not secure')
+    expect(ftext(g.axes.website)).toContain('not secure')
+  })
+
+  // ── v2: the Before/After story ─────────────────────────────────────────
+  it('every fixable finding carries a shipped-feature After; unfixables carry none', () => {
+    const g = gradeOnlinePresence(
+      inputs({ signals: goodSignals({ bookingWidget: false }), place: null, rejectedSimilar: true }),
+    )
+    expect(aftext(g.axes.website)).toContain('books patients 24/7')
+    expect(aftext(g.axes.listing)).toContain('claim your listing')
+    // The stranger-disclosure line has no After — there's nothing to sell there.
+    const disclosure = g.axes.listing.findings.find((x) => x.text.includes('similar-sounding'))
+    expect(disclosure?.after).toBeNull()
+  })
+
+  it('deep-scan gaps become findings with remedies', () => {
+    const deep: DeepSiteSignals = {
+      h1: false, jsonLd: false, jsonLdDentist: false, ogTags: false,
+      phoneVisible: false, canonical: false, robotsTxt: false, sitemap: true, fetchMs: 5000,
+    }
+    const g = gradeOnlinePresence(inputs({ deep }))
+    const t = ftext(g.axes.website)
+    expect(t).toContain('phone number a patient can tap')
+    expect(t).toContain('structured data')
+    expect(t).toContain('sitemap or crawl rules')
+    expect(t).toContain('took several seconds')
+    expect(g.axes.website.score).toBeLessThan(85)
+  })
+
+  it('a clean deep scan earns its wins', () => {
+    const deep: DeepSiteSignals = {
+      h1: true, jsonLd: true, jsonLdDentist: true, ogTags: true,
+      phoneVisible: true, canonical: true, robotsTxt: true, sitemap: true, fetchMs: 400,
+    }
+    const g = gradeOnlinePresence(inputs({ deep }))
+    expect(g.axes.website.findings).toHaveLength(0)
+    expect(g.axes.website.wins.join(' ')).toContain('phone number is right there')
+  })
+
+  it('the search axis hides when unchecked and grades by position when checked', () => {
+    expect(isAxisHidden(gradeOnlinePresence(inputs()).axes.search)).toBe(true)
+    const top = gradeOnlinePresence(inputs({ search: { query: 'dentist in Austin, TX', position: 1 } }))
+    expect(top.axes.search.score).toBeGreaterThanOrEqual(90)
+    expect(top.axes.search.wins.join(' ')).toContain('#1 on Google')
+    const missing = gradeOnlinePresence(inputs({ search: { query: 'dentist in Austin, TX', position: null } }))
+    expect(missing.axes.search.score).toBeLessThanOrEqual(25)
+    expect(ftext(missing.axes.search)).toContain('isn’t on page one')
+    const low = gradeOnlinePresence(inputs({ search: { query: 'dentist in Austin, TX', position: 9 } }))
+    expect(ftext(low.axes.search)).toContain('below where most patients stop scrolling')
+  })
+
+  it('projections are honest by construction — never reviews, never rank', () => {
+    const g = gradeOnlinePresence(inputs({ place: null, search: { query: 'q', position: null } }))
+    const p = projectedWithDreamCrm(g)
+    expect(p.website).toBe(95)
+    expect(p.listing).toBe(95)
+    expect(p.reviews).toBeNull()
+    expect(p.search).toBeNull()
+    // An already-excellent listing keeps its own number, not a downgrade.
+    const strong = projectedWithDreamCrm(gradeOnlinePresence(inputs()))
+    expect(strong.listing).toBe(gradeOnlinePresence(inputs()).axes.listing.score)
+  })
+})
+
+describe('extractDeepSiteSignals', () => {
+  it('reads the signals from real-ish HTML', () => {
+    const html = `<html><head>
+      <link rel="canonical" href="https://x.com/">
+      <meta property="og:title" content="X">
+      <script type="application/ld+json">{"@type":"Dentist","name":"X"}</script>
+      </head><body><h1>Welcome</h1><a href="tel:+15015551234">Call us</a></body></html>`
+    const d = extractDeepSiteSignals(html)
+    expect(d).toMatchObject({ h1: true, jsonLd: true, jsonLdDentist: true, ogTags: true, phoneVisible: true, canonical: true })
+  })
+  it('an empty page reads as all-missing, never a crash', () => {
+    const d = extractDeepSiteSignals('<html><body>hi</body></html>')
+    expect(d).toMatchObject({ h1: false, jsonLd: false, jsonLdDentist: false, ogTags: false, phoneVisible: false, canonical: false })
+  })
+  it('a visible formatted phone number counts without a tel: link', () => {
+    expect(extractDeepSiteSignals('<p>Call (501) 555-1234 today</p>').phoneVisible).toBe(true)
   })
 })
 
@@ -241,6 +330,22 @@ describe('parsePracticeGradeResult', () => {
     expect(parsePracticeGradeResult(null)).toBeNull()
     expect(parsePracticeGradeResult({ overall: 90 })).toBeNull()
     expect(parsePracticeGradeResult({ axes: { website: {} } })).toBeNull()
+  })
+  it('a v1 row (3 axes, string findings) still parses — search defaults to hidden', () => {
+    const v1 = {
+      overall: 67,
+      headline: 'old row',
+      computedAt: '2026-08-27T00:00:00.000Z',
+      axes: {
+        website: { score: 50, findings: ['There’s no online booking.'], wins: ['Works on phones.'] },
+        listing: { score: null, findings: ['We couldn’t confidently find…'], wins: [] },
+        reviews: { score: null, findings: [], wins: [] },
+      },
+    }
+    const parsed = parsePracticeGradeResult(v1)
+    expect(parsed?.axes.website.findings[0]).toEqual({ text: 'There’s no online booking.', after: null })
+    expect(parsed?.axes.search).toEqual({ score: null, findings: [], wins: [] })
+    expect(parsed?.overall).toBe(67)
   })
 })
 
