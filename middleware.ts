@@ -6,6 +6,8 @@ import {
   ATTRIBUTION_COOKIE,
   ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
   buildAttributionTouch,
+  isTaggedTouch,
+  parseAttributionCookie,
   serializeAttributionCookie,
 } from '@/lib/marketing-attribution'
 
@@ -143,31 +145,42 @@ function isAttributionLanding(pathname: string): boolean {
 }
 
 /**
- * Set the first-touch attribution cookie (docs/marketing-engine.md, slice 1)
- * on a response when this GET is a marketing landing and the visitor doesn't
- * already carry one. STRICT first-touch by design: an existing cookie is
- * never overwritten — the dials measure what STARTED the journey. The cookie
- * is httpOnly (only submitOnboarding ever reads it, server-side) and holds
- * no identity — just channel/UTM/referrer-host/landing/instant.
+ * Maintain the attribution cookie (docs/marketing-engine.md, slices 1+1b)
+ * on marketing-landing GETs. The FIRST touch is written once and never
+ * overwritten — the dials measure what STARTED the journey (owner ruling).
+ * The LAST half updates whenever a later TAGGED touch lands (an ad click, a
+ * sponsorship link, an external referrer), so a journey like organic-first
+ * → ad-click-later stays visible to the CAC math; a plain direct re-visit
+ * never touches the cookie. httpOnly (only submitOnboarding reads it,
+ * server-side), no identity — just channel/UTM/referrer-host/landing/instant.
  */
 function withAttributionCookie(request: NextRequest, hostname: string, res: NextResponse): NextResponse {
   try {
     if (request.method !== 'GET') return res
-    if (request.cookies.has(ATTRIBUTION_COOKIE)) return res
     if (!isAttributionLanding(request.nextUrl.pathname)) return res
+    const existing = parseAttributionCookie(request.cookies.get(ATTRIBUTION_COOKIE)?.value)
     const touch = buildAttributionTouch({
       path: request.nextUrl.pathname,
       search: request.nextUrl.search,
       referrer: request.headers.get('referer'),
       selfHost: hostname,
     })
-    res.cookies.set(ATTRIBUTION_COOKIE, serializeAttributionCookie(touch), {
-      maxAge: ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
-      sameSite: 'lax',
-      httpOnly: true,
-      secure: !hostname.startsWith('localhost') && !hostname.startsWith('127.0.0.1'),
-      path: '/',
-    })
+    let next: Parameters<typeof serializeAttributionCookie>[0] | null = null
+    if (!existing) {
+      // First touch (or an unreadable cookie — same thing to the sensor).
+      next = { first: touch, last: null }
+    } else if (isTaggedTouch(touch)) {
+      next = { first: existing.first, last: touch }
+    }
+    if (next) {
+      res.cookies.set(ATTRIBUTION_COOKIE, serializeAttributionCookie(next), {
+        maxAge: ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
+        sameSite: 'lax',
+        httpOnly: true,
+        secure: !hostname.startsWith('localhost') && !hostname.startsWith('127.0.0.1'),
+        path: '/',
+      })
+    }
   } catch {
     /* attribution is best-effort — never break routing over it */
   }

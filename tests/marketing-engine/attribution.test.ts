@@ -5,7 +5,9 @@ import {
   MARKETING_CHANNEL_LABELS,
   buildAttributionTouch,
   buildPoweredByUrl,
+  campaignKeyOf,
   classifyChannel,
+  isTaggedTouch,
   normalizeLandingPath,
   parseAttributionCookie,
   parseSignupAttribution,
@@ -119,15 +121,62 @@ describe('buildAttributionTouch', () => {
 })
 
 describe('the attribution cookie', () => {
-  it('round-trips a touch', () => {
-    const touch = buildAttributionTouch({
-      path: '/compare/weave',
-      search: '?utm_source=powered_by&utm_medium=referral&utm_campaign=acme-dental',
-      referrer: 'https://acme-dental.dreamcreatestudio.com/',
-      now: new Date('2026-08-26T12:00:00Z'),
-    })
-    const parsed = parseAttributionCookie(serializeAttributionCookie(touch))
-    expect(parsed).toEqual(touch)
+  const firstTouch = buildAttributionTouch({
+    path: '/compare/weave',
+    search: '?utm_source=powered_by&utm_medium=referral&utm_campaign=acme-dental',
+    referrer: 'https://acme-dental.dreamcreatestudio.com/',
+    now: new Date('2026-08-26T12:00:00Z'),
+  })
+  const lastTouch = buildAttributionTouch({
+    path: '/pricing',
+    search: '?gclid=abc',
+    referrer: 'https://www.google.com/',
+    now: new Date('2026-08-27T09:00:00Z'),
+  })
+
+  it('round-trips a first-only memory', () => {
+    const parsed = parseAttributionCookie(serializeAttributionCookie({ first: firstTouch, last: null }))
+    expect(parsed).toEqual({ first: firstTouch, last: null })
+  })
+
+  it('round-trips a two-touch memory (slice 1b)', () => {
+    const parsed = parseAttributionCookie(
+      serializeAttributionCookie({ first: firstTouch, last: lastTouch }),
+    )
+    expect(parsed?.first).toEqual(firstTouch)
+    expect(parsed?.last).toEqual(lastTouch)
+  })
+
+  it('still parses a v1 cookie (pre-1b memories survive the upgrade)', () => {
+    const v1 = encodeURIComponent(
+      JSON.stringify({
+        v: 1,
+        c: 'google_ads',
+        l: '/pricing',
+        r: 'www.google.com',
+        s: 'google',
+        m: 'cpc',
+        g: 'competitor-weave',
+        t: '2026-08-20T10:00:00.000Z',
+      }),
+    )
+    const parsed = parseAttributionCookie(v1)
+    expect(parsed?.first.channel).toBe('google_ads')
+    expect(parsed?.first.utmCampaign).toBe('competitor-weave')
+    expect(parsed?.last).toBeNull()
+  })
+
+  it('a malformed last half degrades to null without costing the first touch', () => {
+    const raw = encodeURIComponent(
+      JSON.stringify({
+        v: 2,
+        f: { c: 'direct', l: '/', r: null, s: null, m: null, g: null, t: '2026-08-20T10:00:00Z' },
+        z: { c: 'not_a_channel', t: 'junk' },
+      }),
+    )
+    const parsed = parseAttributionCookie(raw)
+    expect(parsed?.first.channel).toBe('direct')
+    expect(parsed?.last).toBeNull()
   })
 
   it('rejects tampered payloads rather than storing them', () => {
@@ -135,7 +184,29 @@ describe('the attribution cookie', () => {
     expect(parseAttributionCookie(encodeURIComponent(JSON.stringify({ v: 1, c: 'not_a_channel', t: '2026-01-01' })))).toBeNull()
     expect(parseAttributionCookie(encodeURIComponent(JSON.stringify({ v: 2 })))).toBeNull()
     expect(parseAttributionCookie(encodeURIComponent(JSON.stringify({ v: 1, c: 'direct', t: 'not-a-date' })))).toBeNull()
+    expect(parseAttributionCookie(encodeURIComponent(JSON.stringify({ v: 3, f: {} })))).toBeNull()
     expect(parseAttributionCookie(null)).toBeNull()
+  })
+})
+
+describe('campaignKeyOf (the rollup campaign key)', () => {
+  it('normalizes to a bounded slug', () => {
+    expect(campaignKeyOf('Competitor-Weave')).toBe('competitor-weave')
+    expect(campaignKeyOf('  Fall Promo 2026! ')).toBe('fall-promo-2026')
+    expect(campaignKeyOf(null)).toBe('')
+    expect(campaignKeyOf('')).toBe('')
+    expect(campaignKeyOf('<script>x</script>')).toBe('script-x-script')
+    expect(campaignKeyOf('x'.repeat(500)).length).toBe(80)
+  })
+})
+
+describe('isTaggedTouch', () => {
+  it('only a bare direct visit is untagged', () => {
+    expect(isTaggedTouch(buildAttributionTouch({ path: '/', search: '', referrer: null }))).toBe(false)
+    expect(isTaggedTouch(buildAttributionTouch({ path: '/', search: '?gclid=1', referrer: null }))).toBe(true)
+    expect(
+      isTaggedTouch(buildAttributionTouch({ path: '/', search: '', referrer: 'https://chatgpt.com/' })),
+    ).toBe(true)
   })
 })
 
@@ -153,6 +224,23 @@ describe('parseSignupAttribution', () => {
     })
     expect(stamp?.channel).toBe('powered_by')
     expect(stamp?.signedUpAt).toBe('2026-08-26T12:00:00.000Z')
+  })
+  it('reads a nested last touch, and degrades a malformed one to null', () => {
+    const base = {
+      channel: 'organic_search',
+      landing: '/',
+      firstSeenAt: '2026-08-01T10:00:00.000Z',
+      signedUpAt: '2026-08-26T12:00:00.000Z',
+    }
+    const good = parseSignupAttribution({
+      ...base,
+      last: { channel: 'google_ads', landing: '/pricing', utmCampaign: 'competitor-weave', firstSeenAt: '2026-08-20T09:00:00.000Z' },
+    })
+    expect(good?.last?.channel).toBe('google_ads')
+    expect(good?.last?.utmCampaign).toBe('competitor-weave')
+    const bad = parseSignupAttribution({ ...base, last: { channel: 'nope' } })
+    expect(bad?.channel).toBe('organic_search')
+    expect(bad?.last).toBeNull()
   })
   it('degrades malformed rows to null, never a poisoned stamp', () => {
     expect(parseSignupAttribution(null)).toBeNull()

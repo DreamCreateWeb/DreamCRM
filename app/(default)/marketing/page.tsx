@@ -25,7 +25,11 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic'
 
-export default async function MarketingDashboard() {
+export default async function MarketingDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ win?: string }>
+}) {
   const ctx = await requireTenant()
   if (ctx.tenantType === 'patient') redirect('/patient/dashboard')
 
@@ -36,12 +40,22 @@ export default async function MarketingDashboard() {
     permanentRedirect('/growth/outreach')
   }
 
-  return <PlatformMarketingDashboard ctx={ctx} />
+  // Acquisition window (?win=7|30|90) — anything else falls back to 30.
+  const sp = await searchParams
+  const winDays = sp.win === '7' ? 7 : sp.win === '90' ? 90 : 30
+
+  return <PlatformMarketingDashboard ctx={ctx} winDays={winDays} />
 }
 
 // ── Platform tenant: SaaS pipeline funnel (unchanged behavior) ──────
 
-async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typeof requireTenant>> }) {
+async function PlatformMarketingDashboard({
+  ctx,
+  winDays,
+}: {
+  ctx: Awaited<ReturnType<typeof requireTenant>>
+  winDays: number
+}) {
   const t = marketingTerminology(ctx.tenantType)
   const stageKeys = t.stages.map((s) => s.key)
 
@@ -130,7 +144,7 @@ async function PlatformMarketingDashboard({ ctx }: { ctx: Awaited<ReturnType<typ
 
       {/* Acquisition sensors — www traffic + signups by first-touch channel
           (docs/marketing-engine.md). */}
-      <AcquisitionPanel />
+      <AcquisitionPanel days={winDays} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="v2-card p-5">

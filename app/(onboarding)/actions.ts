@@ -247,8 +247,11 @@ export async function submitOnboarding(input: z.infer<typeof SubmitInput>): Prom
   // signup is honest, a guessed channel is not. Best-effort by construction.
   const signupAttribution: SignupAttribution | null = await (async () => {
     try {
-      const touch = parseAttributionCookie((await cookies()).get(ATTRIBUTION_COOKIE)?.value)
-      return touch ? { ...touch, signedUpAt: new Date().toISOString() } : null
+      const memory = parseAttributionCookie((await cookies()).get(ATTRIBUTION_COOKIE)?.value)
+      if (!memory) return null
+      // Top level = the first touch (the report's primary, owner ruling);
+      // `last` preserves a later tagged touch (slice 1b) when one exists.
+      return { ...memory.first, last: memory.last, signedUpAt: new Date().toISOString() }
     } catch {
       return null
     }

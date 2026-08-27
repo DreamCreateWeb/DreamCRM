@@ -370,3 +370,37 @@ voicemail · SmileCon · big-hall booths before revenue supports them
   but untracked signups always show with their reason).
 - Suite 6,703 green + `pnpm build` clean. Next: slice 2, the composite
   grader.
+- **Post-deploy live check found + fixed a double credit**: the templates'
+  shared footer (and the intake page) carried a hardcoded "Powered by
+  DreamCreate" link — agency domain, no UTM, immune to the off switch.
+  Single-homed: the layout strip is THE credit; the old links removed;
+  pinned by tests both ways.
+
+**Slice 1b — the sensor layer, deepened (SHIPPED 2026-08-27, migration
+0155).** Owner directive: "go deeper on slice 1 before slice 2."
+
+- **The campaign dimension**: `marketing_pageview.campaign` (0155) — the
+  normalized `campaignKeyOf(utm_campaign)` slug ('' = none, NOT NULL so the
+  unique index holds on every Postgres version; charset-bounded so a
+  hostile query string can't mint junk rows). This is what lets the dials
+  tell competitor-weave from competitor-nexhealth inside one channel. The
+  report's Campaigns table keys signups on the FIRST-touch campaign.
+- **Sessions**: `marketing_pageview.sessions` (0155) — the beacon marks
+  its first report per browser session (sessionStorage marker; an
+  unreadable store UNDERCOUNTS rather than inflating), giving conversion
+  rates a visitor-shaped denominator: a 5-page browse is one session, not
+  five prospects.
+- **The two-touch memory**: the attribution cookie is v2 — the FIRST touch
+  still never moves (owner ruling: the dials measure what started the
+  journey), and a LAST half updates on any later TAGGED touch (ad click,
+  sponsorship link, external referrer — a bare direct re-visit never
+  writes). v1 cookies parse as first-only, so pre-1b memories survive the
+  upgrade. The signup stamp carries `last` alongside; the report stays
+  keyed on first touch, and `last` waits for the dials' assisted-CAC math.
+- **Panel v2** on the platform Marketing home: 7/30/90 window chips
+  (?win=), the daily-visits TrendChart (house chart kit — and the
+  legibility-floor guard caught + fixed a sub-12px label in review),
+  session-based conversion rates per channel, the Campaigns table, and
+  Powered-by sources resolved to clinic names (unmatched slugs stay
+  visible — a stale slug is still a fact about where clicks came from).
+- Suite 6,724 green + `pnpm build` clean.

@@ -659,7 +659,10 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0154** (the acquisition sensor layer, docs/marketing-engine.md
+  migration: **0155** (marketing-engine slice 1b: `marketing_pageview.
+  campaign` — the normalized utm_campaign key, '' = none — plus `sessions`,
+  and the unique index widened to (day, path, channel, campaign)). Before
+  it: **0154** (the acquisition sensor layer, docs/marketing-engine.md
   slice 1: `marketing_pageview` — the www twin of site_pageview with a
   channel dimension, platform-global by design — plus
   `clinic_profile.signup_attribution` jsonb (first-touch stamp, written once

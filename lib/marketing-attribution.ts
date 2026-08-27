@@ -77,6 +77,45 @@ export interface AttributionTouch {
   firstSeenAt: string
 }
 
+/**
+ * What the sensor remembers about a visitor: the FIRST touch (never
+ * overwritten — the dials measure what started the journey) plus the most
+ * recent TAGGED touch (a later ad click, sponsorship link, or referral that
+ * would otherwise be invisible behind a months-old direct first touch).
+ * `last` is null until a tagged touch follows the first.
+ */
+export interface AttributionMemory {
+  first: AttributionTouch
+  last: AttributionTouch | null
+}
+
+/** A touch worth remembering as "last": anything the sensor could classify
+ *  beyond a bare direct visit. */
+export function isTaggedTouch(touch: AttributionTouch): boolean {
+  return touch.channel !== 'direct'
+}
+
+/** Campaign cap for the ROLLUP key (tighter than the cookie cap — this one
+ *  becomes table rows). */
+export const CAMPAIGN_KEY_MAX_LEN = 80
+
+/**
+ * Normalize a utm_campaign into the rollup's campaign key: lowercase,
+ * [a-z0-9._-] only (everything else collapses to '-'), capped. '' = no
+ * campaign — the column defaults to '' rather than NULL so the unique index
+ * treats "no campaign" as one bucket on every Postgres version.
+ */
+export function campaignKeyOf(utmCampaign: string | null | undefined): string {
+  if (!utmCampaign || typeof utmCampaign !== 'string') return ''
+  const key = utmCampaign
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+  return key.slice(0, CAMPAIGN_KEY_MAX_LEN)
+}
+
 /** The utm_source the Powered-by footer stamps — the loop's attribution marker. */
 export const POWERED_BY_UTM_SOURCE = 'powered_by'
 
@@ -254,9 +293,11 @@ export function buildAttributionTouch(input: {
   }
 }
 
-/** Compact cookie form (versioned, short keys — cookies ride every request). */
-interface CookiePayloadV1 {
-  v: 1
+/** Compact cookie form (versioned, short keys — cookies ride every request).
+ *  v1 carried one touch flat; v2 carries {f: first, z: last|null} in the
+ *  same short-key shape. v1 cookies keep parsing (as first-only) so the
+ *  90-day memories set before the upgrade survive it. */
+interface CookieTouchV1 {
   c: string
   l: string
   r: string | null
@@ -265,11 +306,14 @@ interface CookiePayloadV1 {
   g: string | null
   t: string
 }
+interface CookiePayloadV2 {
+  v: 2
+  f: CookieTouchV1
+  z: CookieTouchV1 | null
+}
 
-/** Serialize a touch for the first-touch cookie (URI-safe JSON). */
-export function serializeAttributionCookie(touch: AttributionTouch): string {
-  const payload: CookiePayloadV1 = {
-    v: 1,
+function packTouch(touch: AttributionTouch): CookieTouchV1 {
+  return {
     c: touch.channel,
     l: touch.landing,
     r: touch.referrerHost,
@@ -278,16 +322,53 @@ export function serializeAttributionCookie(touch: AttributionTouch): string {
     g: touch.utmCampaign,
     t: touch.firstSeenAt,
   }
+}
+
+/** Re-validate one packed touch. Cookie content is CLIENT INPUT: channel
+ *  must be in the registry, strings re-capped, dates real — anything
+ *  malformed returns null. */
+function unpackTouch(p: unknown): AttributionTouch | null {
+  if (typeof p !== 'object' || p === null) return null
+  const t = p as Partial<CookieTouchV1>
+  const channel = typeof t.c === 'string' && (MARKETING_CHANNELS as readonly string[]).includes(t.c)
+    ? (t.c as MarketingChannel)
+    : null
+  if (!channel) return null
+  const str = (v: unknown): string | null =>
+    typeof v === 'string' && v.trim() ? v.trim().slice(0, ATTRIBUTION_FIELD_MAX_LEN) : null
+  const firstSeenAt = (() => {
+    if (typeof t.t !== 'string') return null
+    const d = new Date(t.t)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  })()
+  if (!firstSeenAt) return null
+  return {
+    channel,
+    landing: normalizeLandingPath(typeof t.l === 'string' ? t.l : '/'),
+    referrerHost: str(t.r),
+    utmSource: str(t.s),
+    utmMedium: str(t.m),
+    utmCampaign: str(t.g),
+    firstSeenAt,
+  }
+}
+
+/** Serialize the visitor's attribution memory (URI-safe JSON, v2). */
+export function serializeAttributionCookie(memory: AttributionMemory): string {
+  const payload: CookiePayloadV2 = {
+    v: 2,
+    f: packTouch(memory.first),
+    z: memory.last ? packTouch(memory.last) : null,
+  }
   return encodeURIComponent(JSON.stringify(payload))
 }
 
 /**
- * Parse the first-touch cookie back into a touch. The cookie is CLIENT
- * INPUT: every field is re-validated (channel must be in the registry,
- * strings re-capped) and any malformed value returns null — a tampered
- * cookie degrades to "no attribution", never to a poisoned stamp.
+ * Parse the attribution cookie back into a memory. A tampered or malformed
+ * payload degrades to null ("no attribution"), never a poisoned stamp; a
+ * v2 payload whose `last` half is malformed keeps its valid first touch.
  */
-export function parseAttributionCookie(raw: string | null | undefined): AttributionTouch | null {
+export function parseAttributionCookie(raw: string | null | undefined): AttributionMemory | null {
   if (!raw || typeof raw !== 'string') return null
   let payload: unknown
   try {
@@ -296,38 +377,32 @@ export function parseAttributionCookie(raw: string | null | undefined): Attribut
     return null
   }
   if (typeof payload !== 'object' || payload === null) return null
-  const p = payload as Partial<CookiePayloadV1>
-  if (p.v !== 1) return null
-  const channel = typeof p.c === 'string' && (MARKETING_CHANNELS as readonly string[]).includes(p.c)
-    ? (p.c as MarketingChannel)
-    : null
-  if (!channel) return null
-  const str = (v: unknown): string | null =>
-    typeof v === 'string' && v.trim() ? v.trim().slice(0, ATTRIBUTION_FIELD_MAX_LEN) : null
-  const firstSeenAt = (() => {
-    if (typeof p.t !== 'string') return null
-    const d = new Date(p.t)
-    return Number.isNaN(d.getTime()) ? null : d.toISOString()
-  })()
-  if (!firstSeenAt) return null
-  return {
-    channel,
-    landing: normalizeLandingPath(typeof p.l === 'string' ? p.l : '/'),
-    referrerHost: str(p.r),
-    utmSource: str(p.s),
-    utmMedium: str(p.m),
-    utmCampaign: str(p.g),
-    firstSeenAt,
+  const versioned = payload as { v?: unknown; f?: unknown; z?: unknown }
+  if (versioned.v === 2) {
+    const first = unpackTouch(versioned.f)
+    if (!first) return null
+    return { first, last: unpackTouch(versioned.z) }
   }
+  if (versioned.v === 1) {
+    const first = unpackTouch(payload)
+    if (!first) return null
+    return { first, last: null }
+  }
+  return null
 }
 
 /**
  * The shape stamped into clinic_profile.signup_attribution — the durable
- * record. Identical to the touch plus the moment the signup landed; kept as
- * its own type so the stamp can evolve without the cookie following.
+ * record. The top-level fields are the FIRST touch (the report's primary
+ * key by owner ruling); `last` preserves the most recent tagged touch so a
+ * journey like organic-first → ad-click-later stays visible to the CAC
+ * math. Kept as its own type so the stamp can evolve without the cookie
+ * following.
  */
 export interface SignupAttribution extends AttributionTouch {
   signedUpAt: string
+  /** Most recent tagged touch before signup, when one followed the first. */
+  last?: AttributionTouch | null
 }
 
 /** Validate a stored signup_attribution jsonb back into a typed stamp.
@@ -350,6 +425,28 @@ export function parseSignupAttribution(raw: unknown): SignupAttribution | null {
   const firstSeenAt = iso(r.firstSeenAt)
   const signedUpAt = iso(r.signedUpAt)
   if (!firstSeenAt || !signedUpAt) return null
+  // The nested last touch is validated with the SAME rules as a cookie
+  // touch; a malformed one degrades to null without costing the stamp.
+  const last = (() => {
+    const l = r.last
+    if (typeof l !== 'object' || l === null) return null
+    const lr = l as Record<string, unknown>
+    const lChannel =
+      typeof lr.channel === 'string' && (MARKETING_CHANNELS as readonly string[]).includes(lr.channel)
+        ? (lr.channel as MarketingChannel)
+        : null
+    const lSeen = iso(lr.firstSeenAt)
+    if (!lChannel || !lSeen) return null
+    return {
+      channel: lChannel,
+      landing: normalizeLandingPath(typeof lr.landing === 'string' ? lr.landing : '/'),
+      referrerHost: str(lr.referrerHost),
+      utmSource: str(lr.utmSource),
+      utmMedium: str(lr.utmMedium),
+      utmCampaign: str(lr.utmCampaign),
+      firstSeenAt: lSeen,
+    }
+  })()
   return {
     channel,
     landing: normalizeLandingPath(typeof r.landing === 'string' ? r.landing : '/'),
@@ -359,5 +456,6 @@ export function parseSignupAttribution(raw: unknown): SignupAttribution | null {
     utmCampaign: str(r.utmCampaign),
     firstSeenAt,
     signedUpAt,
+    last,
   }
 }

@@ -38,7 +38,22 @@ export default function MarketingViewBeacon() {
       /* non-browser environment — send what we have */
     }
 
-    const payload = JSON.stringify({ marketing: true, path, search, referrer })
+    // Session-start marker (slice 1b): the first report of this browser
+    // session carries newSession, so the rollup can count sessions — the
+    // visitor-shaped denominator conversion rates need. sessionStorage
+    // unavailable → report no session start rather than one per pageview
+    // (undercounting a private-mode session beats inflating them all).
+    let newSession = false
+    try {
+      if (!sessionStorage.getItem('mktsession')) {
+        sessionStorage.setItem('mktsession', '1')
+        newSession = true
+      }
+    } catch {
+      /* leave newSession false */
+    }
+
+    const payload = JSON.stringify({ marketing: true, path, search, referrer, newSession })
     try {
       if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
         const blob = new Blob([payload], { type: 'application/json' })

@@ -76,6 +76,7 @@ interface Body {
   marketing?: unknown
   search?: unknown
   referrer?: unknown
+  newSession?: unknown
 }
 
 export async function POST(req: Request) {
@@ -121,6 +122,7 @@ export async function POST(req: Request) {
         search: typeof body.search === 'string' ? body.search : null,
         referrer: typeof body.referrer === 'string' ? body.referrer : null,
         selfHost: selfHost || null,
+        newSession: body.newSession === true,
       })
       return new NextResponse(null, { status: 204 })
     }

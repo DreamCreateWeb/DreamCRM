@@ -765,11 +765,28 @@ export const marketingPageview = pgTable(
     // writes registry values (classification is total, unknowns degrade to
     // referral/direct — never a free-text channel).
     channel: text('channel').notNull(),
+    // Campaign key (slice 1b) — campaignKeyOf(utm_campaign): lowercase
+    // slug, [a-z0-9._-], capped at 80. '' = no campaign, deliberately NOT
+    // NULL so the unique index treats "no campaign" as one bucket on every
+    // Postgres version. This is what lets the dials tell competitor-weave
+    // from competitor-nexhealth inside one channel.
+    campaign: text('campaign').notNull().default(''),
     views: integer('views').notNull().default(0),
+    // Browser-session starts (slice 1b) — the beacon marks its FIRST report
+    // of a session, giving conversion rates a visitor-shaped denominator
+    // (a 5-page browse is one session, not five prospects).
+    sessions: integer('sessions').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('marketing_pageview_day_path_channel_idx').on(t.day, t.path, t.channel)]
+  (t) => [
+    uniqueIndex('marketing_pageview_day_path_channel_campaign_idx').on(
+      t.day,
+      t.path,
+      t.channel,
+      t.campaign,
+    ),
+  ]
 )
 export type MarketingPageview = typeof marketingPageview.$inferSelect
 export type NewMarketingPageview = typeof marketingPageview.$inferInsert
