@@ -33,10 +33,12 @@ const { placesMock, placesConfiguredMock, deliverMock, promoteMock, addGraderMoc
   vi.hoisted(() => ({
     placesMock: vi.fn(),
     placesConfiguredMock: vi.fn(() => true),
-    deliverMock: vi.fn(async () => {}),
+    deliverMock: vi.fn(async (_msg: { to: string; html: string }) => {}),
     promoteMock: vi.fn(async () => true),
     addGraderMock: vi.fn(async () => ({ id: 'pros_new' })),
-    findExistingMock: vi.fn(async () => null),
+    findExistingMock: vi.fn(
+      async (): Promise<{ id: string; name: string; city: string | null; status: string } | null> => null,
+    ),
   }))
 
 vi.mock('@/lib/google-places', () => ({
@@ -75,6 +77,8 @@ function mockFetchOk() {
 
 const PLACE = {
   placeId: 'place_1',
+  displayName: 'Smile Bright Dental',
+  formattedAddress: '100 Main St, Austin, TX 78701, USA',
   websiteUri: 'https://smilebright.com',
   ratingTenths: 48,
   reviewCount: 160,
@@ -153,6 +157,30 @@ describe('runPracticeGrade', () => {
     expect(promoteMock).not.toHaveBeenCalled()
     expect(addGraderMock).not.toHaveBeenCalled()
     expect(state.inserts[0]).toMatchObject({ prospectId: 'pros_named' })
+  })
+
+  it('rejects a wrong-state Places candidate — the stranger guard at the service layer', async () => {
+    // The Ward, AR incident: the lookup returns a real practice elsewhere.
+    placesMock.mockResolvedValue({
+      ...PLACE,
+      placeId: 'place_stranger',
+      displayName: 'Dream Dental',
+      formattedAddress: '4801 Frankford Rd, Dallas, TX 75287, USA',
+      websiteUri: 'https://dreamdentaltx.com',
+      ratingTenths: 49,
+      reviewCount: 385,
+    })
+    state.selectQueue.push([])
+    const res = await runPracticeGrade({ ...INPUT, practiceName: 'Dream Dental', city: 'Ward', state: 'AR', websiteUrl: 'dreamcreateweb.com' })
+    expect(res.ok).toBe(true)
+    const row = state.inserts[0]
+    // The stranger's placeId is NOT stored; the Google axes grade unknown
+    // with the rejection disclosed.
+    expect(row.placeId).toBeNull()
+    const result = row.result as { axes: Record<string, { score: number | null; findings: string[] }> }
+    expect(result.axes.listing.score).toBeNull()
+    expect(result.axes.reviews.score).toBeNull()
+    expect(result.axes.listing.findings.join(' ')).toContain('similar-sounding practice')
   })
 
   it('rejects an undeliverable email before doing any work', async () => {

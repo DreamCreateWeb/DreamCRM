@@ -51,12 +51,87 @@ export interface PracticeGradeResult {
  *  in lib/google-places.ts without importing the server module). */
 export interface GraderPlaceFacts {
   placeId: string | null
+  displayName: string | null
+  formattedAddress: string | null
   websiteUri: string | null
   /** 4.7 stars → 47. */
   ratingTenths: number | null
   reviewCount: number | null
   businessStatus: string | null
   googleMapsUri: string | null
+}
+
+/** Name tokens too generic to identify a practice on their own. */
+const GENERIC_NAME_TOKENS = new Set([
+  'dental', 'dentistry', 'dentist', 'dentists', 'family', 'care', 'clinic',
+  'office', 'the', 'of', 'and', 'dr', 'dds', 'dmd', 'pa', 'pc', 'llc',
+  'pllc', 'group', 'center', 'centre', 'associates', 'orthodontics',
+  'pediatric', 'cosmetic', 'general',
+])
+
+function nameTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+/**
+ * Does this Places result plausibly BELONG to the practice the visitor
+ * described? Learned from the first real runs: searchText happily returns
+ * a similar-sounding practice three states away, and a grader that adopts
+ * a stranger's reviews as "Your reviews" is worse than no grader. Rules,
+ * hardest first:
+ *  1. A website match (the listing links the site the visitor typed) is
+ *     proof — accept.
+ *  2. A given STATE must appear in the listing's address; a given CITY
+ *     must too. Either missing from the address (or the address being
+ *     unreadable while geo was given) = reject.
+ *  3. The entered name's salient tokens must overlap the listing's name
+ *     (all-generic names fall back to a whole-name containment check).
+ *  4. Both sides naming DIFFERENT websites = reject even if the rest
+ *     agrees.
+ * Pure + exported for tests; the service applies it before trusting a
+ * lookup, and rejection grades the Google axes as UNKNOWN, never as the
+ * stranger's numbers.
+ */
+export function placeMatchesPractice(
+  input: { practiceName: string; city?: string | null; state?: string | null; enteredUrl?: string | null },
+  place: Pick<GraderPlaceFacts, 'displayName' | 'formattedAddress' | 'websiteUri'>,
+): boolean {
+  // 1. Website agreement is proof of ownership.
+  const entered = input.enteredUrl ? comparableUrl(input.enteredUrl) : null
+  const listed = place.websiteUri ? comparableUrl(place.websiteUri) : null
+  if (entered && listed && (entered === listed || entered.startsWith(listed) || listed.startsWith(entered))) {
+    return true
+  }
+
+  // 4. Explicit website disagreement is a hard reject.
+  if (entered && listed) {
+    const enteredHost = entered.split('/')[0]
+    const listedHost = listed.split('/')[0]
+    if (enteredHost !== listedHost) return false
+  }
+
+  // 2. Geography the visitor gave us must hold.
+  const address = place.formattedAddress ?? ''
+  const state = input.state?.trim().toUpperCase().slice(0, 2)
+  if (state) {
+    const stateRe = new RegExp(`(^|[\\s,])${state}([\\s,]|$)`)
+    if (!stateRe.test(address.toUpperCase())) return false
+  }
+  const city = input.city?.trim().toLowerCase()
+  if (city && !address.toLowerCase().includes(city)) return false
+
+  // 3. The name must actually resemble theirs.
+  const display = place.displayName?.toLowerCase() ?? ''
+  if (!display) return false
+  const salient = nameTokens(input.practiceName).filter((t) => !GENERIC_NAME_TOKENS.has(t))
+  if (salient.length === 0) {
+    return display.includes(input.practiceName.trim().toLowerCase())
+  }
+  return salient.some((t) => display.includes(t))
 }
 
 export interface GradeInputs {
@@ -66,11 +141,17 @@ export interface GradeInputs {
   signals: ProspectCrawlSignals | null
   /** Heuristic verdict over the signals (lib/prospect-scoring.ts). */
   verdict: ProspectAiVerdict | null
-  /** Places lookup; null = not found. */
+  /** Places lookup, ALREADY match-verified by the caller
+   *  (placeMatchesPractice); null = no confident match. */
   place: GraderPlaceFacts | null
   /** False when GOOGLE_PLACES_API_KEY isn't configured — the listing +
    *  reviews axes then read "couldn't check", never a fake zero. */
   placesChecked: boolean
+  /** True when the lookup DID return a candidate but verification rejected
+   *  it — the report says so out loud (grading a stranger's listing is the
+   *  one sin a grader can't survive; leaving one out silently is the
+   *  second). */
+  rejectedSimilar?: boolean
   now?: Date
 }
 
@@ -151,24 +232,39 @@ function gradeWebsite(input: GradeInputs): AxisGrade {
   return { score, findings, wins }
 }
 
+function noConfidentMatchFindings(input: GradeInputs): string[] {
+  const findings = [
+    'We couldn’t confidently find a Google Business listing for your practice — so this part isn’t graded. If you have one, it may be listed under a different name or address; if you don’t, claiming it is the single biggest fix on this list (when someone searches “dentist near me”, that listing IS the front door).',
+  ]
+  if (input.rejectedSimilar) {
+    findings.push(
+      'We did find a similar-sounding practice somewhere else and left it out — grading a stranger’s listing wouldn’t tell you anything about yours.',
+    )
+  }
+  return findings
+}
+
 function gradeListing(input: GradeInputs): AxisGrade {
   if (!input.placesChecked) {
     return { score: null, findings: ['We couldn’t check your Google listing right now — this part isn’t graded.'], wins: [] }
   }
   const place = input.place
   if (!place) {
-    return {
-      score: 10,
-      findings: [
-        'We couldn’t find your Google Business listing. When someone searches “dentist near me”, that listing IS the front door — without it you’re invisible on the map.',
-      ],
-      wins: [],
-    }
+    // UNKNOWN, not a fake low score: a one-result text search can't prove a
+    // listing doesn't exist, and the first real runs proved it can't be
+    // trusted to have found the right one either.
+    return { score: null, findings: noConfidentMatchFindings(input), wins: [] }
   }
   const findings: string[] = []
   const wins: string[] = []
   let score = 75
-  wins.push('Your practice shows up on Google.')
+  // Transparency is the last guard: NAME the listing we matched, so a wrong
+  // match is visible to its owner in one glance.
+  wins.push(
+    place.displayName && place.formattedAddress
+      ? `Matched your listing: ${place.displayName} — ${place.formattedAddress}.`
+      : 'Your practice shows up on Google.',
+  )
   if (place.businessStatus && place.businessStatus !== 'OPERATIONAL') {
     findings.push('Google currently shows your practice as closed — patients will take that at face value.')
     score -= 45
@@ -194,7 +290,11 @@ function gradeReviews(input: GradeInputs): AxisGrade {
   }
   const place = input.place
   if (!place) {
-    return { score: 10, findings: ['With no Google listing, there’s nowhere for your reviews to live.'], wins: [] }
+    return {
+      score: null,
+      findings: ['Without a confidently-matched Google listing, we can’t grade your reviews — they live on that listing.'],
+      wins: [],
+    }
   }
   const rating = place.ratingTenths != null ? place.ratingTenths / 10 : null
   const count = place.reviewCount ?? 0

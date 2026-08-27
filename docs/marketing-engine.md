@@ -475,3 +475,23 @@ reviews per the owner's ruling.
   footer's date now pins UTC explicitly).
 - Suite 6,756 green + `pnpm build` clean. Next: slice 3 (the dials
   cockpit) or content-engine work per the owner's call.
+- **THE STRANGER GUARD (2026-08-27, same day — the owner's own live run
+  caught the grader's worst possible failure).** The owner graded "Dream
+  Dental" in Ward, AR (no such listing exists) and the report presented a
+  real Dream Dental from another state — 4.9★, 385 reviews — as "Your
+  reviews": searchText returns the closest-sounding practice ANYWHERE and
+  the grader trusted it blindly. Fixed at three layers: (1) the Places
+  field mask grew `displayName` + `formattedAddress` (both below the
+  Advanced SKU the call already pays for — verification data, not new
+  cost); (2) pure `placeMatchesPractice` (lib/practice-grade.ts) — a
+  website match is proof of ownership, explicit website DISAGREEMENT is a
+  hard reject, a given city/state MUST appear in the listing's address
+  (unreadable address + given geo = reject: cannot-verify ≠ verified), and
+  the name's salient tokens (generic dental words excluded) must overlap;
+  (3) no confident match now grades BOTH Google axes as UNKNOWN — never
+  the old fake-low score, because a one-result search can't prove absence
+  either — with the rejection DISCLOSED ("we found a similar-sounding
+  practice somewhere else and left it out"), and a verified match NAMES
+  the matched listing + address in the report so a wrong match is visible
+  to its owner in one glance. The Ward-AR incident is pinned verbatim as a
+  test at both the pure and service layers. Suite 6,766 green.

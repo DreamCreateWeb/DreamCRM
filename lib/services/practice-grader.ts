@@ -10,6 +10,7 @@ import { findDentalPlace, placesConfigured, type PlaceResult } from '@/lib/googl
 import {
   gradeOnlinePresence,
   parsePracticeGradeResult,
+  placeMatchesPractice,
   type PracticeGradeResult,
 } from '@/lib/practice-grade'
 import { GRADER_UTM_SOURCE } from '@/lib/marketing-attribution'
@@ -135,12 +136,25 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
 
   // The two lookups run together — the visitor is watching this happen.
   const checkedPlaces = placesConfigured()
-  const [signals, place] = await Promise.all([
+  const [signals, candidate] = await Promise.all([
     websiteUrl ? fetchHomepageSignals(websiteUrl) : Promise.resolve(null),
     checkedPlaces
       ? findDentalPlace({ name: practiceName, city, state }).catch((): PlaceResult | null => null)
       : Promise.resolve(null),
   ])
+
+  // MATCH VERIFICATION (the first real runs' lesson): searchText returns
+  // the closest-sounding practice ANYWHERE, so a candidate is trusted only
+  // when it verifiably matches what the visitor described — otherwise the
+  // Google axes grade as unknown, never as a stranger's numbers.
+  const verified =
+    candidate &&
+    placeMatchesPractice(
+      { practiceName, city, state, enteredUrl: websiteUrl },
+      candidate,
+    )
+  const place = verified ? candidate : null
+  const rejectedSimilar = Boolean(candidate && !verified)
 
   const crawled = signals && !signals.error ? signals : null
   const verdict = crawled ? heuristicVerdict(crawled, true) : null
@@ -151,6 +165,8 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
     place: place
       ? {
           placeId: place.placeId,
+          displayName: place.displayName,
+          formattedAddress: place.formattedAddress,
           websiteUri: place.websiteUri,
           ratingTenths: place.ratingTenths,
           reviewCount: place.reviewCount,
@@ -159,6 +175,7 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
         }
       : null,
     placesChecked: checkedPlaces,
+    rejectedSimilar,
   })
 
   const token = randomBytes(16).toString('hex')

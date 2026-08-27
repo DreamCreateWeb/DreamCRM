@@ -4,6 +4,7 @@ import {
   gradeOnlinePresence,
   letterFor,
   parsePracticeGradeResult,
+  placeMatchesPractice,
   type GradeInputs,
 } from '@/lib/practice-grade'
 import { classifyChannel } from '@/lib/marketing-attribution'
@@ -48,6 +49,8 @@ function inputs(over: Partial<GradeInputs> = {}): GradeInputs {
     verdict: verdict(85),
     place: {
       placeId: 'p1',
+      displayName: 'Smile Bright Dental',
+      formattedAddress: '100 Main St, Austin, TX 78701, USA',
       websiteUri: 'https://smilebright.com/',
       ratingTenths: 48,
       reviewCount: 180,
@@ -85,11 +88,24 @@ describe('gradeOnlinePresence', () => {
     expect(g.overall).not.toBeNull()
   })
 
-  it('a missing Google listing scores the listing and reviews axes honestly low', () => {
+  it('no confident listing match leaves BOTH Google axes ungraded — never a fake zero, never a stranger', () => {
     const g = gradeOnlinePresence(inputs({ place: null }))
-    expect(g.axes.listing.score).toBeLessThanOrEqual(15)
-    expect(g.axes.reviews.score).toBeLessThanOrEqual(15)
-    expect(g.axes.listing.findings[0]).toContain('couldn’t find your Google Business listing')
+    expect(g.axes.listing.score).toBeNull()
+    expect(g.axes.reviews.score).toBeNull()
+    expect(g.axes.listing.findings[0]).toContain('couldn’t confidently find')
+    // Composite falls back to the website axis alone.
+    expect(g.overall).toBe(g.axes.website.score)
+  })
+
+  it('a rejected similar-sounding candidate is disclosed out loud', () => {
+    const g = gradeOnlinePresence(inputs({ place: null, rejectedSimilar: true }))
+    expect(g.axes.listing.findings.join(' ')).toContain('similar-sounding practice')
+    expect(g.axes.listing.findings.join(' ')).toContain('stranger')
+  })
+
+  it('a verified match names the listing it matched — transparency is the last guard', () => {
+    const g = gradeOnlinePresence(inputs())
+    expect(g.axes.listing.wins.join(' ')).toContain('Matched your listing: Smile Bright Dental — 100 Main St, Austin, TX')
   })
 
   it('places-not-configured leaves both Google axes null — unknown is never scored', () => {
@@ -133,6 +149,75 @@ describe('gradeOnlinePresence', () => {
     )
     expect(g.axes.website.score).toBeLessThanOrEqual(40)
     expect(g.axes.website.findings.join(' ')).toContain('not secure')
+  })
+})
+
+describe('placeMatchesPractice (the stranger guard)', () => {
+  // The real incident, verbatim: the owner graded "Dream Dental" in Ward,
+  // AR (which has no listing), and searchText returned a real Dream Dental
+  // in another state — 385 reviews the report presented as "Your reviews".
+  it('rejects a similar-sounding practice in the wrong state — the Ward, AR incident', () => {
+    expect(
+      placeMatchesPractice(
+        { practiceName: 'Dream Dental', city: 'Ward', state: 'AR', enteredUrl: 'https://dreamcreateweb.com' },
+        {
+          displayName: 'Dream Dental',
+          formattedAddress: '4801 Frankford Rd, Dallas, TX 75287, USA',
+          websiteUri: 'https://dreamdentaltx.com',
+        },
+      ),
+    ).toBe(false)
+  })
+
+  it('a website match is proof of ownership, even with thin geo', () => {
+    expect(
+      placeMatchesPractice(
+        { practiceName: 'Smile Bright Dental', enteredUrl: 'https://www.smilebright.com' },
+        { displayName: 'Smile Bright', formattedAddress: null, websiteUri: 'https://smilebright.com/' },
+      ),
+    ).toBe(true)
+  })
+
+  it('explicit website disagreement rejects even when name and geo agree', () => {
+    expect(
+      placeMatchesPractice(
+        { practiceName: 'Smile Bright Dental', city: 'Austin', state: 'TX', enteredUrl: 'https://smilebright.com' },
+        {
+          displayName: 'Smile Bright Dental',
+          formattedAddress: '100 Main St, Austin, TX 78701, USA',
+          websiteUri: 'https://totally-different-practice.com',
+        },
+      ),
+    ).toBe(false)
+  })
+
+  it('city and state given must both appear in the address', () => {
+    const place = {
+      displayName: 'Smile Bright Dental',
+      formattedAddress: '100 Main St, Austin, TX 78701, USA',
+      websiteUri: null,
+    }
+    expect(placeMatchesPractice({ practiceName: 'Smile Bright Dental', city: 'Austin', state: 'TX' }, place)).toBe(true)
+    expect(placeMatchesPractice({ practiceName: 'Smile Bright Dental', city: 'Dallas', state: 'TX' }, place)).toBe(false)
+    expect(placeMatchesPractice({ practiceName: 'Smile Bright Dental', state: 'AR' }, place)).toBe(false)
+  })
+
+  it('geo given but the address unreadable = reject (cannot verify ≠ verified)', () => {
+    expect(
+      placeMatchesPractice(
+        { practiceName: 'Smile Bright Dental', state: 'TX' },
+        { displayName: 'Smile Bright Dental', formattedAddress: null, websiteUri: null },
+      ),
+    ).toBe(false)
+  })
+
+  it('the name must resemble theirs — generic-word overlap is not a match', () => {
+    expect(
+      placeMatchesPractice(
+        { practiceName: 'Smile Bright Dental', city: 'Austin', state: 'TX' },
+        { displayName: 'Lakeside Family Dentistry', formattedAddress: '5 Oak St, Austin, TX, USA', websiteUri: null },
+      ),
+    ).toBe(false)
   })
 })
 

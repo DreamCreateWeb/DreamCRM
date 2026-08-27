@@ -13,11 +13,20 @@
  */
 
 const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText'
+// displayName + formattedAddress ride along for MATCH VERIFICATION (the
+// grader learned the hard way that searchText happily returns a
+// similar-sounding practice three states away). Both are lower-tier fields
+// than websiteUri/rating, which already put this call in the Advanced SKU —
+// the mask addition changes what we can verify, not what we pay.
 const FIELD_MASK =
-  'places.id,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri'
+  'places.id,places.displayName,places.formattedAddress,places.websiteUri,places.rating,places.userRatingCount,places.businessStatus,places.googleMapsUri'
 
 export interface PlaceResult {
   placeId: string
+  /** The listing's own name — what Google shows patients. */
+  displayName: string | null
+  /** Full formatted address — the match-verification anchor. */
+  formattedAddress: string | null
   websiteUri: string | null
   /** 4.7 → 47 (tenths, integer — no float drift in the DB). */
   ratingTenths: number | null
@@ -37,8 +46,19 @@ export function normalizePlace(raw: unknown): PlaceResult | null {
   const placeId = typeof p.id === 'string' && p.id ? p.id : null
   if (!placeId) return null
   const rating = typeof p.rating === 'number' && Number.isFinite(p.rating) ? p.rating : null
+  const displayName = (() => {
+    const d = p.displayName
+    if (typeof d === 'string') return d || null
+    if (d && typeof d === 'object' && typeof (d as { text?: unknown }).text === 'string') {
+      return ((d as { text: string }).text || null)
+    }
+    return null
+  })()
   return {
     placeId,
+    displayName,
+    formattedAddress:
+      typeof p.formattedAddress === 'string' && p.formattedAddress ? p.formattedAddress : null,
     websiteUri: typeof p.websiteUri === 'string' && p.websiteUri ? p.websiteUri : null,
     ratingTenths: rating != null ? Math.round(rating * 10) : null,
     reviewCount:
