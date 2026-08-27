@@ -21,6 +21,9 @@ export default function robots(): MetadataRoute.Robots {
           // with the link and render patient names — crawlers must not index
           // them (the pages also carry noindex metadata, belt + suspenders).
           '/r/',
+          // Practice-grader reports: token-auth, one practice's numbers per
+          // page — not for the index (pages carry noindex too).
+          '/g/',
           '/accept-invite',
         ],
       },

@@ -102,7 +102,7 @@ function formatPhone(phone: string | null | undefined): string | null {
  */
 async function alertCallList(
   prospect: ClassifiableProspect,
-  classification: 'interested' | 'question' | 'demo_request',
+  classification: 'interested' | 'question' | 'demo_request' | 'grader_run',
   summary: string,
 ): Promise<void> {
   try {
@@ -116,7 +116,9 @@ async function alertCallList(
           ? `✉️ ${name} replied with a question`
           : classification === 'demo_request'
             ? `🔥 ${name} requested a demo`
-            : `🔥 ${name} replied — they're interested`
+            : classification === 'grader_run'
+              ? `📊 ${name} graded their practice`
+              : `🔥 ${name} replied — they're interested`
       const phone = formatPhone(prospect.phone)
       await notifyOrgMembers(
         orgId,
@@ -508,7 +510,7 @@ export async function rollupEngagementSignals(): Promise<{ promoted: number }> {
  */
 export async function promoteProspectByEmail(
   email: string,
-  signal: 'demo_request',
+  signal: 'demo_request' | 'grader_run',
 ): Promise<boolean> {
   const [prospect] = await db
     .select({
@@ -531,8 +533,10 @@ export async function promoteProspectByEmail(
     .where(eq(schema.prospect.id, prospect.id))
   await alertCallList(
     { id: prospect.id, name: prospect.name, email: email, phone: prospect.phone },
-    'demo_request',
-    'Requested a demo from the marketing site.',
+    signal,
+    signal === 'grader_run'
+      ? 'Ran the practice grader on the marketing site — they just read their own gaps.'
+      : 'Requested a demo from the marketing site.',
   )
   return true
 }

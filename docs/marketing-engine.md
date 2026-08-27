@@ -423,3 +423,55 @@ org; a prospect converted to a DIFFERENT org is never moved. Conversion
 rides the existing `markConverted` (status + linked org + outcomeAt +
 enrollment stop), so the win/loss report picks it up with no new code.
 Suite 6,733 green. Slice 1 (a+b+c) is COMPLETE — slice 2 (the grader) next.
+
+**Slice 2 — THE PRACTICE GRADER (SHIPPED 2026-08-27, migration 0156).**
+The marketing site's first interactive door (and first form of any kind):
+a public "grade my practice's online presence" tool — the HubSpot-grader
+play the research ranked as Tier 1, composite website + Google listing +
+reviews per the owner's ruling.
+
+- **Pure core `lib/practice-grade.ts`**: `gradeOnlinePresence` — three
+  axes (website 0.4 · listing 0.3 · reviews 0.3), composite letter A–F,
+  findings in the anti-shame voice BY LAW (they name what a PATIENT
+  experiences: "patients searching after hours can't grab a time", never
+  "no booking widget detected"). Unknown axes stay NULL and the composite
+  re-weights — an unchecked thing is never scored. The mirror of
+  computeOpportunityScore's polarity (that scores the sales opportunity;
+  this grades the presence for its owner), and the curves are anchored so
+  a genuinely excellent practice clears an A — a grader that can't hand a
+  clean A reads as rigged. `parsePracticeGradeResult` treats the stored
+  jsonb as untrusted (malformed → 404, never rendered garbage).
+- **Deliberate scope bounds** (each a decision, not a shortcut): HOMEPAGE
+  ONLY, one 10s/1MB fetch (the enrichment engine's contact-discovery
+  sub-hops don't inform a grade and triple the wall-clock of a form the
+  visitor is watching); NO AI (an AI call per anonymous visitor is an
+  abuse vector — the heuristic verdict's signals are what the report
+  names anyway); the on-screen report is the product and the email is a
+  courtesy copy (transactional, platform identity — NOT the cold-outreach
+  subdomain — with a "nothing to unsubscribe from" footnote).
+- **Reuse over rebuild**: `extractCrawlSignals` + `heuristicVerdict` (the
+  Hunter's own eyes), `findDentalPlace` (existing field mask kept — no new
+  Places SKUs), `comparableUrl` (the GBP forgiving-URL compare, now
+  grading listing↔website match for strangers), the /r /d token-IS-auth
+  pattern, `looksLikeBot` + `rateLimitPublicAction('grader', 4/10min)`
+  (the spend gate — every run is a live fetch + a metered Places call).
+- **The Hunter hook** (best-effort, never blocks the report): email match
+  → `promoteProspectByEmail(email, 'grader_run')` — ITS FIRST REAL
+  PRODUCTION CALLER — lands the prospect on the call list with a "they
+  just read their own gaps" alert; name+state pipeline match → linked
+  WITHOUT promotion (a shared name is not an email); stranger →
+  `addGraderProspect` (call_list · warm · intentSignal 'grader_run' ·
+  emailSource 'grader' — and unlike addManualProspect it logs NO call,
+  because none happened). New intent signal `grader_run` registered.
+- **Schema 0156**: `practice_grade` (token-uniqued, platform-global,
+  result jsonb, prospectId link). Surfaces: `/grade` (marketing nav +
+  footer + sitemap via MARKETING_PUBLIC_PATHS) and `/g/[token]` (noindex
+  + robots.txt disallow — one practice's numbers per page). The `grader`
+  channel joined the closed attribution registry: the emailed report link
+  is UTM-tagged, so grader-driven visits and signups report as their own
+  acquisition channel.
+- Two repo guards earned their keep in review: the legibility floor
+  (slice 1b) and this slice the server-render timezone guard (the report
+  footer's date now pins UTC explicitly).
+- Suite 6,756 green + `pnpm build` clean. Next: slice 3 (the dials
+  cockpit) or content-engine work per the owner's call.

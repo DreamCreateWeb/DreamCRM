@@ -236,6 +236,7 @@ describe('getAcquisitionReport', () => {
     const report = await getAcquisitionReport(30, NOW)
     expect(report.channels.map((c) => c.channel)).toEqual([
       'powered_by',
+      'grader',
       'google_ads',
       'meta_ads',
       'organic_search',

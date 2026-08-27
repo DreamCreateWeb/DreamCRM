@@ -659,7 +659,9 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0155** (marketing-engine slice 1b: `marketing_pageview.
+  migration: **0156** (marketing-engine slice 2: `practice_grade` — the
+  public grader's token-uniqued run/report table, platform-global). Before
+  it: **0155** (marketing-engine slice 1b: `marketing_pageview.
   campaign` — the normalized utm_campaign key, '' = none — plus `sessions`,
   and the unique index widened to (day, path, channel, campaign)). Before
   it: **0154** (the acquisition sensor layer, docs/marketing-engine.md

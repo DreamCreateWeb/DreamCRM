@@ -38,6 +38,7 @@ export const ATTRIBUTION_PATH_MAX_LEN = 256
  */
 export const MARKETING_CHANNELS = [
   'powered_by',
+  'grader',
   'google_ads',
   'meta_ads',
   'organic_search',
@@ -52,6 +53,7 @@ export type MarketingChannel = (typeof MARKETING_CHANNELS)[number]
 /** Owner-facing labels (platform tenant voice — this surface never serves clinics). */
 export const MARKETING_CHANNEL_LABELS: Record<MarketingChannel, string> = {
   powered_by: 'Powered-by links',
+  grader: 'Practice grader',
   google_ads: 'Google Ads',
   meta_ads: 'Meta ads',
   organic_search: 'Search',
@@ -118,6 +120,10 @@ export function campaignKeyOf(utmCampaign: string | null | undefined): string {
 
 /** The utm_source the Powered-by footer stamps — the loop's attribution marker. */
 export const POWERED_BY_UTM_SOURCE = 'powered_by'
+
+/** The utm_source the grader's report email stamps — a report link opened
+ *  later (often on another device) classifies as its own channel. */
+export const GRADER_UTM_SOURCE = 'grader'
 
 /**
  * The Powered-by footer's destination: the marketing home, tagged so the
@@ -208,6 +214,7 @@ export function classifyChannel(input: ClassifyInput): MarketingChannel {
 
   // 1. Our own explicit markers first — they exist to beat inference.
   if (source === POWERED_BY_UTM_SOURCE) return 'powered_by'
+  if (source === GRADER_UTM_SOURCE) return 'grader'
 
   // 2. Paid click ids / paid UTM intent.
   const paidMedium = medium === 'cpc' || medium === 'ppc' || medium === 'paid' || medium === 'paid_social'

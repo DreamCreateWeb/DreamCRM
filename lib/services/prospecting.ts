@@ -95,6 +95,44 @@ export async function addManualProspect(input: {
 }
 
 /**
+ * Mint a prospect from a PUBLIC grader run (marketing-engine slice 2) —
+ * someone we'd never discovered just handed us their practice name, email,
+ * and website, and read their own gaps. Warm by definition, so it lands on
+ * the call list like a demo request — but UNLIKE addManualProspect it logs
+ * NO call (no call happened; a fake log would make the pipeline lie about
+ * who's been talked to).
+ */
+export async function addGraderProspect(input: {
+  name: string
+  email: string
+  city?: string | null
+  state?: string | null
+  websiteUrl?: string | null
+  gradeSummary?: string | null
+}): Promise<{ id: string }> {
+  const id = newId('pros')
+  const rawSite = input.websiteUrl?.trim() || null
+  const websiteUrl = rawSite ? (/^https?:\/\//.test(rawSite) ? rawSite : `https://${rawSite}`) : null
+  const state = input.state?.trim().toUpperCase().slice(0, 2) || null
+  await db.insert(schema.prospect).values({
+    id,
+    name: input.name.trim(),
+    email: input.email.trim().toLowerCase(),
+    emailSource: 'grader',
+    city: input.city?.trim() || null,
+    state,
+    timezone: stateTimeZone(state),
+    websiteUrl,
+    status: 'call_list',
+    scoreBand: 'warm',
+    intentSignal: 'grader_run',
+    intentAt: new Date(),
+    intentSummary: input.gradeSummary || 'Ran the practice grader on the marketing site.',
+  })
+  return { id }
+}
+
+/**
  * Is this clinic likely already in the pipeline? Checked before a manual add so
  * the owner doesn't create a duplicate of a discovered (or previously-added)
  * prospect. Matches on normalized phone first (strongest signal), then on an

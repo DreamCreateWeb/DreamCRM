@@ -40,6 +40,7 @@ export const PROSPECT_INTENT_SIGNALS = [
   'clicked',
   'opens',
   'demo_request',
+  'grader_run', // ran the public practice grader (marketing-engine slice 2)
 ] as const
 export type ProspectIntentSignal = (typeof PROSPECT_INTENT_SIGNALS)[number]
 
@@ -480,3 +481,35 @@ export const prospectingCounter = pgTable(
   }),
 )
 export type ProspectingCounter = typeof prospectingCounter.$inferSelect
+
+// The practice grader (marketing-engine slice 2) — the public "grade my
+// practice's online presence" tool on the marketing site. One row per run:
+// what the visitor gave us, what the sensors saw, and the computed grade
+// (PracticeGradeResult jsonb, read back through parsePracticeGradeResult).
+// The token IS the auth for the public /g/<token> report page (the /r /d
+// pattern); prospectId links the run to the Hunter pipeline when the email
+// or domain matched (or a new grader-sourced prospect was minted).
+export const practiceGrade = pgTable(
+  'practice_grade',
+  {
+    id: text('id').primaryKey(), // pgrd_…
+    token: text('token').notNull(), // opaque URL auth
+    email: text('email').notNull(), // lowercased; where the report was sent
+    practiceName: text('practice_name').notNull(),
+    city: text('city'),
+    state: text('state'),
+    websiteUrl: text('website_url'), // as entered; null = "no website"
+    placeId: text('place_id'), // Google place matched, when found
+    // PracticeGradeResult (lib/practice-grade.ts) — parsed defensively.
+    result: jsonb('result').notNull(),
+    prospectId: text('prospect_id').references(() => prospect.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    token: uniqueIndex('idx_pgrd_token').on(t.token),
+    email: index('idx_pgrd_email').on(t.email),
+    created: index('idx_pgrd_created').on(t.createdAt),
+  }),
+)
+export type PracticeGrade = typeof practiceGrade.$inferSelect
+export type NewPracticeGrade = typeof practiceGrade.$inferInsert
