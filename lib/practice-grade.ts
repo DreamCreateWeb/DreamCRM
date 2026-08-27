@@ -137,6 +137,16 @@ function gradeWebsite(input: GradeInputs): AxisGrade {
       findings.push('The homepage is heavy — on a phone connection it keeps patients waiting.')
     }
     if (signals.ssl && findings.length === 0) wins.push('Secure, and the basics are in order.')
+    // Honesty law: a report that can't NAME a gap must not imply one. The
+    // heuristic verdict is conservative by design (it scores a sales
+    // opportunity elsewhere), so a clean-findings page floors at a solid
+    // score — "50/100 with three checkmarks" is incoherent to a reader.
+    // (Live-run finding, 2026-08-27: the demo clinic's own template graded
+    // 50 with zero findings.)
+    // ZERO findings only — any named gap (SSL above all) keeps its real
+    // weight; the floor exists for the page we couldn't fault, not the one
+    // we could.
+    if (findings.length === 0) score = Math.max(score, 80)
   }
   return { score, findings, wins }
 }

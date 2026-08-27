@@ -119,6 +119,14 @@ describe('gradeOnlinePresence', () => {
     expect(g.axes.reviews.wins.join(' ')).toContain('4.9')
   })
 
+  it('a page with NO nameable findings floors at a solid score — the report never implies a gap it cannot name', () => {
+    // Live-run finding: heuristicVerdict scored a clean template page 50
+    // while the report listed only wins. Clean findings ⇒ floor at 80.
+    const g = gradeOnlinePresence(inputs({ verdict: verdict(50) }))
+    expect(g.axes.website.findings).toHaveLength(0)
+    expect(g.axes.website.score).toBeGreaterThanOrEqual(80)
+  })
+
   it('missing HTTPS caps the website score hard', () => {
     const g = gradeOnlinePresence(
       inputs({ signals: goodSignals({ ssl: false }), verdict: verdict(85) }),
