@@ -222,6 +222,60 @@ describe('gradeOnlinePresence', () => {
   })
 })
 
+describe('the facts block (gadget fuel)', () => {
+  const deep: DeepSiteSignals = {
+    h1: true, jsonLd: true, jsonLdDentist: false, ogTags: true,
+    phoneVisible: false, canonical: true, robotsTxt: true, sitemap: true, fetchMs: 900,
+  }
+
+  it('the scan matrix mirrors the graded signals check for check', () => {
+    const g = gradeOnlinePresence(inputs({ deep, signals: goodSignals({ bookingWidget: false }) }))
+    const byId = Object.fromEntries((g.facts?.checks ?? []).map((c) => [c.id, c]))
+    expect(g.facts?.checks).toHaveLength(10)
+    expect(byId.https.ok).toBe(true)
+    expect(byId.booking.ok).toBe(false)
+    expect(byId.schema.ok).toBe(false) // jsonLdDentist drives it, not jsonLd
+    expect(byId.phone.ok).toBe(false)
+    expect(byId.speed).toMatchObject({ ok: true, detail: '900 MS' })
+  })
+
+  it('no deep scan = unknowable checks read null, never fail', () => {
+    const g = gradeOnlinePresence(inputs())
+    const byId = Object.fromEntries((g.facts?.checks ?? []).map((c) => [c.id, c]))
+    expect(byId.h1.ok).toBeNull()
+    expect(byId.speed).toMatchObject({ ok: null, detail: null })
+  })
+
+  it('an unreachable site produces NO scan checks — the gadget hides rather than guesses', () => {
+    const g = gradeOnlinePresence(inputs({ signals: { ...goodSignals(), error: 'fetch_failed' }, verdict: null }))
+    expect(g.facts?.checks).toBeUndefined()
+  })
+
+  it('serp facts carry the real page-one hosts, capped at ten', () => {
+    const hosts = Array.from({ length: 14 }, (_, i) => `competitor${i + 1}.com`)
+    const g = gradeOnlinePresence(inputs({ search: { query: 'dentist in Austin, TX', position: 3, hosts } }))
+    expect(g.facts?.serp).toEqual({ query: 'dentist in Austin, TX', position: 3, hosts: hosts.slice(0, 10) })
+    // No search run → no serp block at all.
+    expect(gradeOnlinePresence(inputs()).facts?.serp).toBeUndefined()
+  })
+
+  it('review facts come only from a verified listing match', () => {
+    expect(gradeOnlinePresence(inputs()).facts?.reviews).toEqual({ rating: 4.8, count: 180 })
+    expect(gradeOnlinePresence(inputs({ place: null })).facts?.reviews).toBeUndefined()
+  })
+
+  it('a pre-gadget stored row parses with facts null; malformed facts cost the gadgets, never the report', () => {
+    const g = gradeOnlinePresence(inputs())
+    const stored = JSON.parse(JSON.stringify(g))
+    delete stored.facts
+    expect(parsePracticeGradeResult(stored)?.facts).toBeNull()
+    stored.facts = { checks: 'garbage', serp: { position: 3 }, reviews: [] }
+    const parsed = parsePracticeGradeResult(stored)
+    expect(parsed?.facts).toBeNull() // nothing in it survived
+    expect(parsed?.overall).toBe(g.overall)
+  })
+})
+
 describe('extractDeepSiteSignals', () => {
   it('reads the signals from real-ish HTML', () => {
     const html = `<html><head>

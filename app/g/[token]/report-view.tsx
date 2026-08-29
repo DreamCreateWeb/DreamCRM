@@ -5,6 +5,8 @@ import {
   projectedWithDreamCrm,
   type AxisGrade,
   type GradeAxis,
+  type GradeCheck,
+  type GradeFacts,
   type PracticeGradeResult,
 } from '@/lib/practice-grade'
 import type { PublicGradeView } from '@/lib/services/practice-grader'
@@ -141,6 +143,7 @@ export default function ReportView({ view }: { view: PublicGradeView }) {
               axis={axis}
               grade={result.axes[axis]}
               projected={projected[axis]}
+              facts={result.facts ?? null}
               delay={i}
             />
           ))}
@@ -241,11 +244,13 @@ function AxisPanel({
   axis,
   grade,
   projected,
+  facts,
   delay,
 }: {
   axis: GradeAxis
   grade: AxisGrade
   projected: number | null
+  facts: GradeFacts | null
   delay: number
 }) {
   // The growth note replaces a refused projection — but only when no
@@ -286,6 +291,13 @@ function AxisPanel({
             </div>
           )}
         </div>
+      )}
+
+      {/* ── The instruments: real sensor data, or nothing ───────────── */}
+      {axis === 'website' && facts?.checks && facts.checks.length > 0 && <ScanMatrix checks={facts.checks} />}
+      {axis === 'search' && facts?.serp && facts.serp.hosts.length > 0 && <PageOneBoard serp={facts.serp} />}
+      {axis === 'reviews' && grade.score != null && facts?.reviews?.rating != null && (
+        <ReviewsMeter rating={facts.reviews.rating} count={facts.reviews.count ?? 0} />
       )}
 
       {grade.findings.length > 0 && (
@@ -375,6 +387,155 @@ function BarRow({
   )
 }
 
+// ── Gadget 1 · the site-scan matrix (website axis): every check as an LED
+//    cell — pass glows emerald, fail glows rose, unknowable stays unlit. ──
+function ScanMatrix({ checks }: { checks: GradeCheck[] }) {
+  const passed = checks.filter((c) => c.ok === true).length
+  const counted = checks.filter((c) => c.ok !== null).length
+  return (
+    <div className="mt-6">
+      <div className="dg-mono mb-2 flex items-baseline justify-between" style={{ color: INK_3 }}>
+        <span>SITE SCAN</span>
+        <span>
+          <span style={{ color: passed === counted ? '#34d399' : passed >= counted - 2 ? '#fbbf24' : '#fb7185' }}>
+            {passed}
+          </span>
+          /{counted} PASS
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+        {checks.map((c, i) => (
+          <div key={c.id} className="dg-cell" style={{ ['--dg-i' as string]: i }}>
+            <span
+              className={`dg-led ${c.ok === true ? 'dg-led-ok' : c.ok === false ? 'dg-led-bad' : ''}`}
+              aria-hidden="true"
+            />
+            <span className="dg-mono" style={{ color: c.ok === false ? '#fda4af' : INK_2 }}>
+              {c.label}
+            </span>
+            <span className="dg-mono" style={{ color: INK_3 }}>
+              {c.detail ?? (c.ok === true ? 'PASS' : c.ok === false ? 'FAIL' : 'N/A')}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Gadget 2 · the page-one board (search axis): the REAL ten slots for
+//    the query, competitors named, with your row lit — or the dashed slot
+//    you don't hold yet. ──────────────────────────────────────────────────
+function PageOneBoard({ serp }: { serp: { query: string; position: number | null; hosts: string[] } }) {
+  const rows = serp.hosts.slice(0, 10)
+  const youIndex = serp.position != null && serp.position <= rows.length ? serp.position - 1 : null
+  return (
+    <div className="mt-6">
+      <div className="dg-mono mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1" style={{ color: INK_3 }}>
+        <span>GOOGLE PAGE ONE</span>
+        <span>“{serp.query.toUpperCase()}”</span>
+      </div>
+      <ol className="space-y-1.5">
+        {rows.map((host, i) => {
+          const you = i === youIndex
+          return (
+            <li
+              key={`${host}-${i}`}
+              className={`dg-slot ${you ? 'dg-slot-you' : ''}`}
+              style={{ ['--dg-i' as string]: i }}
+            >
+              <span className="dg-mono w-6 shrink-0 text-right" style={{ color: you ? '#5eead4' : INK_3 }}>
+                {i + 1}
+              </span>
+              <span className="min-w-0 truncate text-sm" style={{ color: you ? INK : INK_2 }}>
+                {host.replace(/^www\./, '')}
+              </span>
+              {you && <span className="dg-you">YOU</span>}
+            </li>
+          )
+        })}
+        {youIndex === null && (
+          <li className="dg-slot dg-slot-miss" style={{ ['--dg-i' as string]: rows.length }}>
+            <span className="dg-mono w-6 shrink-0 text-right" style={{ color: INK_3 }}>
+              —
+            </span>
+            <span className="min-w-0 truncate text-sm" style={{ color: INK_2 }}>
+              your practice
+            </span>
+            <span className="dg-you dg-you-miss">NOT ON PAGE ONE</span>
+          </li>
+        )}
+      </ol>
+    </div>
+  )
+}
+
+// ── Gadget 3 · the reviews meter (reviews axis): the rating as stars, the
+//    count against what actually wins the map pack. No projection — the
+//    benchmark is the instrument. ─────────────────────────────────────────
+const REVIEW_BENCHMARK = 100 // what map-pack winners typically carry
+
+function ReviewsMeter({ rating, count }: { rating: number; count: number }) {
+  const scale = Math.max(count, REVIEW_BENCHMARK) * 1.2
+  const countPct = Math.min(100, (count / scale) * 100)
+  const tickPct = Math.min(96, (REVIEW_BENCHMARK / scale) * 100)
+  return (
+    <div className="mt-6 grid gap-5 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-8">
+      <div className="flex items-center gap-4">
+        <span className="text-[44px] font-semibold" style={{ letterSpacing: '-0.03em', lineHeight: 1 }}>
+          {rating.toFixed(1)}
+        </span>
+        <Stars rating={rating} />
+      </div>
+      <div>
+        <div className="dg-mono mb-2 flex flex-wrap justify-between gap-x-4 gap-y-1" style={{ color: INK_3 }}>
+          <span style={{ color: INK_2 }}>
+            {count} REVIEW{count === 1 ? '' : 'S'}
+          </span>
+          <span>MAP-PACK WINNERS · {REVIEW_BENCHMARK}+</span>
+        </div>
+        <div className="relative h-2 rounded-full bg-white/[0.06]">
+          <div
+            className="dg-bar h-full rounded-full"
+            style={{
+              width: `${countPct}%`,
+              background:
+                count >= REVIEW_BENCHMARK ? 'linear-gradient(90deg,#2dd4bf,#38bdf8)' : '#fbbf24',
+            }}
+          />
+          <span
+            className="absolute top-[-3px] bottom-[-3px] w-px bg-white/35"
+            style={{ left: `${tickPct}%` }}
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Stars({ rating }: { rating: number }) {
+  const pct = Math.max(0, Math.min(100, (rating / 5) * 100))
+  return (
+    <span
+      className="relative inline-block text-xl leading-none tracking-[0.12em]"
+      role="img"
+      aria-label={`${rating.toFixed(1)} out of 5 stars`}
+    >
+      <span style={{ color: 'rgba(255,255,255,0.14)' }} aria-hidden="true">
+        ★★★★★
+      </span>
+      <span
+        className="absolute inset-0 overflow-hidden whitespace-nowrap"
+        style={{ width: `${pct}%`, color: '#fbbf24' }}
+        aria-hidden="true"
+      >
+        ★★★★★
+      </span>
+    </span>
+  )
+}
+
 // ── Page CSS: tokens, glass, motion (reduced-motion safe) ────────────────
 const PAGE_CSS = `
 .dg-root { font-feature-settings: 'tnum'; }
@@ -401,11 +562,26 @@ const PAGE_CSS = `
   color: #04211d; background: linear-gradient(90deg,#2dd4bf,#38bdf8);
   box-shadow: 0 12px 32px -12px rgba(45,212,191,0.55); text-decoration: none; transition: filter .15s ease; }
 .dg-btn:hover { filter: brightness(1.08); }
+.dg-cell { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 14px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
+.dg-led { width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.18); }
+.dg-led-ok { background: #34d399; box-shadow: 0 0 10px rgba(52,211,153,0.75); }
+.dg-led-bad { background: #fb7185; box-shadow: 0 0 10px rgba(251,113,133,0.65); }
+.dg-slot { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
+.dg-slot-you { background: rgba(45,212,191,0.08); border-color: rgba(94,234,212,0.35); }
+.dg-slot-miss { border-style: dashed; border-color: rgba(251,113,133,0.35); background: rgba(251,113,133,0.04); }
+.dg-you { margin-left: auto; flex-shrink: 0; padding: 2px 9px; border-radius: 999px;
+  font-family: ${MONO}; font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
+  color: #04211d; background: linear-gradient(90deg,#2dd4bf,#38bdf8); }
+.dg-you-miss { color: #fecdd3; background: rgba(251,113,133,0.14); border: 1px solid rgba(251,113,133,0.3); }
 @media (prefers-reduced-motion: no-preference) {
   .dg-in { animation: dgUp .6s cubic-bezier(.2,.7,.2,1) both; }
   .dg-d1 { animation-delay: .08s; } .dg-d2 { animation-delay: .16s; } .dg-d3 { animation-delay: .24s; }
   .dg-ring-arc { animation: dgRing 1.1s cubic-bezier(.3,.6,.2,1) .2s both; }
   .dg-bar { animation: dgBar .9s cubic-bezier(.3,.6,.2,1) .3s both; transform-origin: left; }
+  .dg-cell, .dg-slot { animation: dgUp .45s cubic-bezier(.2,.7,.2,1) both;
+    animation-delay: calc(.25s + var(--dg-i, 0) * 45ms); }
 }
 @keyframes dgUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes dgRing { from { stroke-dashoffset: var(--dg-circ); } to { stroke-dashoffset: var(--dg-dash); } }

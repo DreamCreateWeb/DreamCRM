@@ -554,3 +554,34 @@ reviews per the owner's ruling.
   prefers-reduced-motion. Every v2 content law holds unchanged. The
   css-var guard earned its keep (the ring's inline animation vars joined
   RUNTIME_PROVIDED with a reason). Suite 6,775 green.
+- **THE GADGETS (2026-08-29, same directive round 2: "still a generic
+  layout without any cool looking gadgets/charts/graphs").** The report
+  grew three data-driven instruments, each fed ONLY by real sensor data —
+  a gadget with nothing true to show doesn't render. The fuel is a new
+  `facts` block on `PracticeGradeResult` (`GradeFacts`: checks/serp/
+  reviews), assembled by `buildGradeFacts` from the SAME inputs the axes
+  graded — one source, so a gadget can never disagree with its panel —
+  and parsed leniently (`parseGradeFacts`: a malformed block costs the
+  gadgets, never the report; pre-gadget rows → facts null → the report
+  degrades to text). (1) THE SITE-SCAN MATRIX (website axis): the ten
+  checks as LED cells — HTTPS / MOBILE READY / ONLINE BOOKING / SEARCH
+  TITLE / MAIN HEADLINE / STRUCTURED DATA / TAP-TO-CALL / SOCIAL PREVIEW
+  / SITEMAP / RESPONSE (with the real ms readout) — pass glows emerald,
+  fail glows rose, unknowable stays unlit (ok:null, never a fake fail),
+  with a pass-count header. (2) THE PAGE-ONE BOARD (search axis): the
+  REAL ten organic slots for "dentist in {city}, {state}" with the
+  competitors who own them named (service stores
+  `serp.organicHosts.slice(0,10)`), the practice's row lit teal with a
+  YOU pill — or a trailing dashed rose slot reading NOT ON PAGE ONE. Who
+  owns the page is more persuasive than any score. (3) THE REVIEWS METER
+  (reviews axis, verified-match only by construction — facts.reviews is
+  built from the SAME place the stranger guard vetted): the rating as a
+  numeral + partial-fill stars, the count as a bar against the honest
+  benchmark tick (MAP-PACK WINNERS · 100+) — a benchmark is an
+  instrument, not a projection, so no law bends. Round-trip law:
+  `detail` is always present (null when silent) so a computed grade and
+  its stored-then-parsed twin are structurally identical — the existing
+  toEqual round-trip test caught exactly that asymmetry, and the parser
+  gained Array.isArray guards the malformed-facts test exposed. Staggered
+  cell/slot entrance rides the same reduced-motion-gated keyframes.
+  Suite 6,782 green.

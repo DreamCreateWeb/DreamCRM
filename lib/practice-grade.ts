@@ -60,6 +60,10 @@ export interface PracticeGradeResult {
   axes: Record<GradeAxis, AxisGrade>
   /** One-sentence topline in the house voice. */
   headline: string
+  /** Raw check outcomes the report renders as instruments (v2.1). Absent
+   *  on rows stored before the gadgets shipped — the report degrades to
+   *  text and nothing lies. */
+  facts?: GradeFacts | null
   computedAt: string
 }
 
@@ -157,6 +161,31 @@ export interface SearchCheck {
   /** 1-based organic position of the practice's site; null = not in the
    *  results we saw. */
   position: number | null
+  /** The page-one organic hostnames, position order (gadget fuel — the
+   *  report shows WHO owns the page the practice isn't on). Max 10. */
+  hosts?: string[]
+}
+
+// ── The facts block (gadget fuel): raw check outcomes the report renders
+//    as instruments. Everything here is REAL sensor data — a gadget with
+//    nothing true to show simply doesn't render. ─────────────────────────
+export interface GradeCheck {
+  id: string
+  /** Mono micro-label, already uppercase-safe. */
+  label: string
+  /** true = pass, false = fail, null = couldn't check. */
+  ok: boolean | null
+  /** Optional readout beside the LED ('412 MS'). */
+  detail?: string | null
+}
+
+export interface GradeFacts {
+  /** The website scan, check by check. Absent when no site was crawled. */
+  checks?: GradeCheck[]
+  /** Page-one reality. Absent when the SERP check didn't run. */
+  serp?: { query: string; position: number | null; hosts: string[] } | null
+  /** The listing's review numbers. Absent without a verified match. */
+  reviews?: { rating: number | null; count: number | null } | null
 }
 
 export interface GradeInputs {
@@ -447,6 +476,49 @@ function gradeSearch(input: GradeInputs): AxisGrade {
   }
 }
 
+/** Assemble the facts block from the same inputs the axes graded — one
+ *  source, so a gadget can never disagree with its panel's findings. */
+function buildGradeFacts(input: GradeInputs): GradeFacts {
+  const facts: GradeFacts = {}
+  const { signals, deep } = input
+  if (signals && !signals.error) {
+    // detail is ALWAYS present (null when silent) so a freshly computed
+    // grade and its stored-then-parsed twin are structurally identical.
+    const checks: GradeCheck[] = [
+      { id: 'https', label: 'HTTPS', ok: signals.ssl, detail: null },
+      { id: 'mobile', label: 'MOBILE READY', ok: signals.mobileViewport, detail: null },
+      { id: 'booking', label: 'ONLINE BOOKING', ok: signals.bookingWidget, detail: null },
+      { id: 'meta', label: 'SEARCH TITLE', ok: Boolean(signals.titleTag && signals.metaDescription), detail: null },
+      { id: 'h1', label: 'MAIN HEADLINE', ok: deep ? deep.h1 : null, detail: null },
+      { id: 'schema', label: 'STRUCTURED DATA', ok: deep ? deep.jsonLdDentist : null, detail: null },
+      { id: 'phone', label: 'TAP-TO-CALL', ok: deep ? deep.phoneVisible : null, detail: null },
+      { id: 'og', label: 'SOCIAL PREVIEW', ok: deep ? deep.ogTags : null, detail: null },
+      { id: 'sitemap', label: 'SITEMAP', ok: deep ? deep.sitemap : null, detail: null },
+      {
+        id: 'speed',
+        label: 'RESPONSE',
+        ok: deep?.fetchMs != null ? deep.fetchMs <= 3500 : null,
+        detail: deep?.fetchMs != null ? `${deep.fetchMs} MS` : null,
+      },
+    ]
+    facts.checks = checks
+  }
+  if (input.search) {
+    facts.serp = {
+      query: input.search.query,
+      position: input.search.position,
+      hosts: (input.search.hosts ?? []).slice(0, 10),
+    }
+  }
+  if (input.place) {
+    facts.reviews = {
+      rating: input.place.ratingTenths != null ? input.place.ratingTenths / 10 : null,
+      count: input.place.reviewCount,
+    }
+  }
+  return facts
+}
+
 const AXIS_WEIGHTS: Record<GradeAxis, number> = { website: 0.35, listing: 0.25, reviews: 0.2, search: 0.2 }
 
 /** An axis with nothing to say (unchecked search) — the report skips it. */
@@ -486,6 +558,7 @@ export function gradeOnlinePresence(input: GradeInputs): PracticeGradeResult {
     letter,
     axes,
     headline,
+    facts: buildGradeFacts(input),
     computedAt: (input.now ?? new Date()).toISOString(),
   }
 }
@@ -556,5 +629,57 @@ export function parsePracticeGradeResult(raw: unknown): PracticeGradeResult | nu
   const letter = overall != null ? letterFor(overall) : null
   const headline = typeof r.headline === 'string' ? r.headline : ''
   const computedAt = typeof r.computedAt === 'string' ? r.computedAt : new Date(0).toISOString()
-  return { overall, letter, axes, headline, computedAt }
+  return { overall, letter, axes, headline, facts: parseGradeFacts(r.facts), computedAt }
+}
+
+/** Lenient facts parse — a malformed block costs the gadgets, never the
+ *  report (pre-gadget rows simply have none). */
+function parseGradeFacts(raw: unknown): GradeFacts | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  const facts: GradeFacts = {}
+  if (Array.isArray(r.checks)) {
+    const checks = r.checks
+      .map((c): GradeCheck | null => {
+        if (typeof c !== 'object' || c === null) return null
+        const o = c as Record<string, unknown>
+        if (typeof o.id !== 'string' || typeof o.label !== 'string') return null
+        return {
+          id: o.id.slice(0, 32),
+          label: o.label.slice(0, 32),
+          ok: typeof o.ok === 'boolean' ? o.ok : null,
+          detail: typeof o.detail === 'string' ? o.detail.slice(0, 32) : null,
+        }
+      })
+      .filter((c): c is GradeCheck => c !== null)
+      .slice(0, 16)
+    if (checks.length > 0) facts.checks = checks
+  }
+  if (typeof r.serp === 'object' && r.serp !== null && !Array.isArray(r.serp)) {
+    const s = r.serp as Record<string, unknown>
+    if (typeof s.query === 'string' && s.query) {
+      facts.serp = {
+        query: s.query.slice(0, 120),
+        position:
+          typeof s.position === 'number' && Number.isFinite(s.position)
+            ? Math.max(1, Math.min(10, Math.round(s.position)))
+            : null,
+        hosts: Array.isArray(s.hosts)
+          ? s.hosts.filter((h): h is string => typeof h === 'string' && h.length > 0).map((h) => h.slice(0, 80)).slice(0, 10)
+          : [],
+      }
+    }
+  }
+  if (typeof r.reviews === 'object' && r.reviews !== null && !Array.isArray(r.reviews)) {
+    const v = r.reviews as Record<string, unknown>
+    facts.reviews = {
+      rating:
+        typeof v.rating === 'number' && Number.isFinite(v.rating)
+          ? Math.max(0, Math.min(5, v.rating))
+          : null,
+      count:
+        typeof v.count === 'number' && Number.isFinite(v.count) ? Math.max(0, Math.round(v.count)) : null,
+    }
+  }
+  return Object.keys(facts).length > 0 ? facts : null
 }

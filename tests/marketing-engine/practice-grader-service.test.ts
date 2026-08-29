@@ -29,10 +29,12 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-const { placesMock, placesConfiguredMock, deliverMock, promoteMock, addGraderMock, findExistingMock } =
+const { placesMock, placesConfiguredMock, deliverMock, promoteMock, addGraderMock, findExistingMock, serpMock, serpConfiguredMock } =
   vi.hoisted(() => ({
     placesMock: vi.fn(),
     placesConfiguredMock: vi.fn(() => true),
+    serpMock: vi.fn(async (): Promise<{ query: string; organicHosts: string[] } | null> => null),
+    serpConfiguredMock: vi.fn(() => false),
     deliverMock: vi.fn(async (_msg: { to: string; html: string }) => {}),
     promoteMock: vi.fn(async () => true),
     addGraderMock: vi.fn(async () => ({ id: 'pros_new' })),
@@ -45,6 +47,10 @@ vi.mock('@/lib/google-places', () => ({
   placesConfigured: placesConfiguredMock,
   findDentalPlace: placesMock,
 }))
+vi.mock('@/lib/serp', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@/lib/serp')
+  return { ...actual, serpConfigured: serpConfiguredMock, searchDentistRankings: serpMock }
+})
 vi.mock('@/lib/email', () => ({
   deliver: deliverMock,
   authEmailShell: (o: { heading: string }) => `<html>${o.heading}</html>`,
@@ -95,6 +101,8 @@ beforeEach(() => {
   promoteMock.mockResolvedValue(true)
   findExistingMock.mockResolvedValue(null)
   addGraderMock.mockResolvedValue({ id: 'pros_new' })
+  serpConfiguredMock.mockReturnValue(false)
+  serpMock.mockResolvedValue(null)
   mockFetchOk()
 })
 
@@ -212,6 +220,25 @@ describe('runPracticeGrade', () => {
     const res = await runPracticeGrade(INPUT)
     expect(res.ok).toBe(true)
     expect(state.inserts).toHaveLength(1)
+  })
+
+  it('the stored search facts carry the real page-one hosts for the board', async () => {
+    serpConfiguredMock.mockReturnValue(true)
+    const hosts = [
+      'wardfamilydental.com', 'smilebright.com', 'healthgrades.com', 'yelp.com',
+      'a.com', 'b.com', 'c.com', 'd.com', 'e.com', 'f.com', 'eleventh.com', 'twelfth.com',
+    ]
+    serpMock.mockResolvedValue({ query: 'dentist in Austin, TX', organicHosts: hosts })
+    state.selectQueue.push([])
+    const res = await runPracticeGrade(INPUT)
+    expect(res.ok).toBe(true)
+    const result = state.inserts[0].result as {
+      axes: { search: { score: number | null } }
+      facts: { serp: { query: string; position: number | null; hosts: string[] } }
+    }
+    // Their domain sits at organic #2; the board gets exactly the top ten.
+    expect(result.facts.serp).toEqual({ query: 'dentist in Austin, TX', position: 2, hosts: hosts.slice(0, 10) })
+    expect(result.axes.search.score).not.toBeNull()
   })
 
   it('a failed Hunter hook never fails the run', async () => {

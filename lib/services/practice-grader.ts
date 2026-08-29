@@ -202,7 +202,12 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
     if (domainSource) {
       try {
         const host = new URL(domainSource).hostname
-        search = { query: serp.query, position: positionOfDomain(serp.organicHosts, host) }
+        search = {
+          query: serp.query,
+          position: positionOfDomain(serp.organicHosts, host),
+          // Gadget fuel: the page-one board shows WHO owns the page.
+          hosts: serp.organicHosts.slice(0, 10),
+        }
       } catch {
         search = null
       }
