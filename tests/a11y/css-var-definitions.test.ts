@@ -33,6 +33,7 @@ const RUNTIME_PROVIDED: Array<{ prefix: string; why: string }> = [
   { prefix: '--c-', why: 'public-site palette, emitted per template by lib/site-templates' },
   { prefix: '--demo-accent', why: 'presenter mode paints the prospect’s own colour inline' },
   { prefix: '--tm-step', why: 'set inline per template-gallery card' },
+  { prefix: '--dg-', why: 'grade-report ring animation targets, set inline on the SVG arc (app/g/[token]/report-view.tsx)' },
   { prefix: '--site-header-h', why: 'measured and set by the public site’s header' },
   { prefix: '--font-display', why: 'public-site font, set on the site layout element' },
   { prefix: '--font-sans', why: 'public-site font, set on the site layout element' },

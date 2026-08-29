@@ -537,3 +537,20 @@ reviews per the owner's ruling.
   passed through chat/uploads — rotate both at the owner's convenience
   (Serper: regenerate + re-run the script; AWS: rotate the Claude user's
   key in IAM).
+- **THE REPORT DESIGN RUN (2026-08-29, owner directive: "state-of-the-art
+  tech design, not a basic report card — it's the first impression of the
+  business").** The /g page's visual body extracted to
+  `app/g/[token]/report-view.tsx` — pure presentational + framework-free
+  (plain <a>, no next/link) SO an offline design harness can render it
+  with mock data against the BUILT Tailwind CSS and screenshot it before
+  any deploy (three iteration rounds ran that loop). The design: a
+  diagnostic INSTRUMENT, deliberately dark against the white marketing
+  site — deep blue-black canvas, glass cards, ONE signature teal→sky
+  gradient spent in exactly two places (the animated hero score ring and
+  the CTA), monospace micro-labels, the axis readout strip in the hero
+  (anchor-linked chips), Today→With-DreamCRM as a structural two-column
+  LEDGER with per-panel column headers (inline labels only on mobile
+  stacking), wins as chips, CSS-only staggered entrance honoring
+  prefers-reduced-motion. Every v2 content law holds unchanged. The
+  css-var guard earned its keep (the ring's inline animation vars joined
+  RUNTIME_PROVIDED with a reason). Suite 6,775 green.
