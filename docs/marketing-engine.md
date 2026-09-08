@@ -585,3 +585,20 @@ reviews per the owner's ruling.
   gained Array.isArray guards the malformed-facts test exposed. Staggered
   cell/slot entrance rides the same reduced-motion-gated keyframes.
   Suite 6,782 green.
+- **THE SALES-COPY PASS (2026-09-08, owner directive: "sales copy, not
+  pure honest copy" — the example: 'Without a confidently-matched…' reads
+  like a disclaimer).** The frame shift: the empty lookup IS the pitch.
+  Rewritten hedges → leverage, without inventing a fact: the
+  listing-not-found finding now reads "We searched Google for your
+  practice and your listing didn’t come up — patients searching 'dentist
+  near me' are hitting the same wall… it’s also the highest-impact fix on
+  this list" (still never claims to KNOW whether a listing exists — a
+  one-result search can't prove absence, and the axis still scores null);
+  the reviews twin reads "if patients can’t find the listing, they can’t
+  find the reviews — every five-star experience you deliver right now is
+  invisible"; the stranger disclosure tightened to "you deserve your own
+  numbers, not a stranger’s"; the report intro's "checks the product
+  passes by construction" engineer-speak became "we only project what the
+  product actually ships — your reviews and your rank are earned, not
+  promised." The honesty laws all hold: null axes stay null, transient
+  can't-check strings stay plain, no projected reviews/rank.

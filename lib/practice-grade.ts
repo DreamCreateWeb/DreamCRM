@@ -345,17 +345,21 @@ function gradeWebsite(input: GradeInputs): AxisGrade {
   return { score, findings, wins }
 }
 
+// Sales copy, honestly earned (owner directive 2026-08-29): our lookup
+// coming up empty IS the pitch — patients searching "dentist near me" hit
+// the same wall we just did. Say that, and say it's fixable; never claim
+// to know whether a listing exists (a one-result search can't prove it).
 function noConfidentMatchFindings(input: GradeInputs): AxisFinding[] {
   const findings = [
     f(
-      'We couldn’t confidently find a Google Business listing for your practice — so this part isn’t graded. If you have one, it may be listed under a different name or address; if you don’t, claiming it is the single biggest fix on this list (when someone searches “dentist near me”, that listing IS the front door).',
+      'We searched Google for your practice and your listing didn’t come up — which means patients searching “dentist near me” are hitting the same wall. That listing is the front door of local search: buried under a different name, or never claimed, it’s costing you the patients who pick straight from the map. It’s also the highest-impact fix on this list.',
       AFTER.listing,
     ),
   ]
   if (input.rejectedSimilar) {
     findings.push(
       f(
-        'We did find a similar-sounding practice somewhere else and left it out — grading a stranger’s listing wouldn’t tell you anything about yours.',
+        'We did find a similar-sounding practice somewhere else and left it out — you deserve your own numbers, not a stranger’s.',
         null,
       ),
     )
@@ -411,7 +415,12 @@ function gradeReviews(input: GradeInputs): AxisGrade {
   if (!place) {
     return {
       score: null,
-      findings: [f('Without a confidently-matched Google listing, we can’t grade your reviews — they live on that listing.', AFTER.reviews)],
+      findings: [
+        f(
+          'Your reviews live on your Google listing — and if patients can’t find the listing, they can’t find the reviews. Every five-star experience you deliver right now is invisible to the next person searching.',
+          AFTER.reviews,
+        ),
+      ],
       wins: [],
     }
   }

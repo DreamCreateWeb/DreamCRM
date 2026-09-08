@@ -102,7 +102,11 @@ describe('gradeOnlinePresence', () => {
     const g = gradeOnlinePresence(inputs({ place: null }))
     expect(g.axes.listing.score).toBeNull()
     expect(g.axes.reviews.score).toBeNull()
-    expect(g.axes.listing.findings[0].text).toContain('couldn’t confidently find')
+    // The sales frame (owner directive): the empty lookup is the leverage —
+    // "patients hit the same wall" — but it still never claims to KNOW
+    // whether a listing exists, and the axis still scores null.
+    expect(g.axes.listing.findings[0].text).toContain('your listing didn’t come up')
+    expect(g.axes.listing.findings[0].text).toContain('hitting the same wall')
     // Composite falls back to the website axis alone.
     expect(g.overall).toBe(g.axes.website.score)
   })

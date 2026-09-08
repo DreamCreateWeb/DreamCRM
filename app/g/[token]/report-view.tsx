@@ -132,7 +132,8 @@ export default function ReportView({ view }: { view: PublicGradeView }) {
         <p className="dg-in dg-d1 mb-10 max-w-3xl text-sm" style={{ color: INK_3 }}>
           Each section shows <span style={{ color: INK_2 }}>today</span> beside{' '}
           <span style={{ color: '#5eead4' }}>what the same checks read with DreamCRM running</span> — we
-          only project checks the product passes by construction, never your reviews or your rank.
+          only project what the product actually ships. Your reviews and your rank are earned, not
+          promised.
         </p>
 
         {/* ── Axis panels ────────────────────────────────────────────── */}
