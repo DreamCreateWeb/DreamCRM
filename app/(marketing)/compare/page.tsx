@@ -1,17 +1,30 @@
 import Link from 'next/link'
 import { COMPARISONS, COMPARISON_DISCLAIMER } from '@/lib/marketing/comparisons'
 import { PageHero } from '@/components/marketing/ui'
+import { JsonLd, SITE_URL } from '@/lib/marketing/seo'
 
 export const metadata = {
   title: 'Compare DreamCRM to the alternatives',
   alternates: { canonical: '/compare' },
-  description:
-    'Honest, page-length comparisons against Weave, NexHealth, RevenueWell, Solutionreach, and Adit — including what each vendor does better than us.',
+  description: `Honest, page-length comparisons against ${COMPARISONS.map((c) => c.name).join(', ')} — reported pricing included, plus what each vendor does better than us.`,
 }
 
 export default function CompareIndexPage() {
   return (
     <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          name: 'DreamCRM comparisons',
+          itemListElement: COMPARISONS.map((c, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: `DreamCRM vs ${c.name}`,
+            url: `${SITE_URL}/compare/${c.slug}`,
+          })),
+        }}
+      />
       <PageHero
         eyebrow="Comparisons"
         title="Evaluating us against the field? Good."

@@ -60,7 +60,7 @@ function baseMatrix(vendor: {
     { feature: 'Google Business sync + social posting', dreamcrm: 'yes', dreamcrmNote: 'Sync + reply to Google reviews; post to Instagram/Facebook/TikTok', vendor: vendor.social[0], vendorNote: vendor.social[1] },
     { feature: 'Online store + membership plans', dreamcrm: 'yes', dreamcrmNote: 'Stripe payouts to the clinic’s own bank', vendor: vendor.shop[0], vendorNote: vendor.shop[1] },
     { feature: 'Careers page + applicant tracking', dreamcrm: 'yes', vendor: vendor.careers[0], vendorNote: vendor.careers[1] },
-    { feature: 'PMS sync', dreamcrm: 'yes', dreamcrmNote: 'Open Dental two-way via the official API only', vendor: vendor.pms[0], vendorNote: vendor.pms[1] },
+    { feature: 'PMS sync', dreamcrm: 'yes', dreamcrmNote: 'Two-way via the NexHealth bridge — Dentrix, Eaglesoft, Open Dental + more', vendor: vendor.pms[0], vendorNote: vendor.pms[1] },
     { feature: 'VoIP phones', dreamcrm: 'no', dreamcrmNote: 'Keep your existing phone system', vendor: vendor.phones[0], vendorNote: vendor.phones[1] },
     { feature: 'Two-way SMS texting', dreamcrm: 'no', dreamcrmNote: 'On the roadmap — not available yet', vendor: vendor.sms[0], vendorNote: vendor.sms[1] },
     { feature: 'Month-to-month, no contract', dreamcrm: 'yes', dreamcrmNote: '$200/mo flat', vendor: vendor.contract[0], vendorNote: vendor.contract[1] },
@@ -138,7 +138,7 @@ export const COMPARISONS: VendorComparison[] = [
       contract: ['partial', 'Custom quotes; terms vary'],
     }),
     bottomLine:
-      'If you run a PMS we don’t sync yet and need real-time today, NexHealth is the pragmatic pick. If you run Open Dental and want the whole patient-facing stack — site, booking, portal, reviews, shop — synced through the official API at a flat price, that’s DreamCRM.',
+      'If you’re a DSO building custom tooling on the sync API, NexHealth-direct is the pragmatic pick. If you want the whole patient-facing stack — site, booking, portal, reviews, shop — riding the same class of PMS bridge at a flat published price, that’s DreamCRM.',
   },
   {
     slug: 'revenuewell',
@@ -326,7 +326,7 @@ export const COMPARISONS: VendorComparison[] = [
     category: 'Healthcare practice-growth: websites, SEO & reputation',
     reportedPricing: 'Reported ~$300–$700+/mo, typically annual, per the practice-growth suite (third-party reviews, 2025–2026)',
     summary:
-      'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite. It’s a capable, established product across medical and dental. The differences are focus and terms: PatientPop is a multi-specialty healthcare tool (not dental-native), its sites and portal run more as a managed service on annual contracts, and it has no online store, memberships, or official-path PMS sync. DreamCRM is dental-native, self-serve, edit-it-yourself, and month-to-month.',
+      'PatientPop — now part of Tebra after merging with Kareo — is the closest thing to a direct overlap: it sells healthcare practice websites, SEO, online scheduling, and reputation as a growth suite. It’s a capable, established product across medical and dental. The differences are focus and terms: PatientPop is a multi-specialty healthcare tool (not dental-native), its sites and portal run more as a managed service on annual contracts, and it has no online store, memberships, or dental-PMS-native sync. DreamCRM is dental-native, self-serve, edit-it-yourself, and month-to-month.',
     theirStrengths: [
       { title: 'Established healthcare SEO', body: 'Years of medical + dental SEO and directory-listing management across specialties — broad and proven.' },
       { title: 'Reputation + scheduling suite', body: 'Reviews, online scheduling, and provider profiles bundled with the site.' },
@@ -335,7 +335,7 @@ export const COMPARISONS: VendorComparison[] = [
     ourStrengths: [
       { title: 'Dental-native, not multi-specialty', body: 'A curated dental services library, visit-type booking rules, dental intake, and PMS recall — versus a generic healthcare template.' },
       { title: 'Edit it yourself, no agency queue', body: 'The Website Studio changes your live site by clicking it; PatientPop sites lean on managed changes.' },
-      { title: 'Store, memberships, and official-path sync', body: 'An online shop, in-house membership plans, and two-way PMS sync through sanctioned paths — none of which PatientPop ships.' },
+      { title: 'Store, memberships, and dental PMS sync', body: 'An online shop, in-house membership plans, and two-way dental PMS sync through the NexHealth bridge — none of which PatientPop ships.' },
       { title: 'Month-to-month, published price', body: '$200/mo on the page with no annual contract, versus reported annual growth-suite agreements.' },
     ],
     matrix: baseMatrix({
@@ -348,18 +348,48 @@ export const COMPARISONS: VendorComparison[] = [
       social: ['partial'],
       shop: ['no'],
       careers: ['no'],
-      pms: ['partial', 'Broad healthcare integrations; not official-API OD sync'],
+      pms: ['partial', 'Broad healthcare integrations; not dental-PMS-native sync'],
       phones: ['no'],
       sms: ['yes'],
       contract: ['no', 'Reported annual contracts'],
     }),
     bottomLine:
-      'If you want an established multi-specialty growth suite and don’t mind an annual contract and managed changes, PatientPop is credible. If you want a dental-native platform you edit yourself, with a store, memberships, and official-path PMS sync, month-to-month — that’s DreamCRM.',
+      'If you want an established multi-specialty growth suite and don’t mind an annual contract and managed changes, PatientPop is credible. If you want a dental-native platform you edit yourself, with a store, memberships, and real dental PMS sync, month-to-month — that’s DreamCRM.',
   },
 ]
 
 export function getComparison(slug: string): VendorComparison | undefined {
   return COMPARISONS.find((c) => c.slug === slug)
+}
+
+/**
+ * The per-vendor FAQ (slice 4a, docs/marketing-engine.md Part 5): the
+ * questions buyers actually type — "{vendor} pricing", "{vendor}
+ * alternatives" — and the ones AI assistants extract answers from. DERIVED
+ * from the same registry fields the page renders, so the FAQ (and its
+ * FAQPage JSON-LD twin) can never drift from the comparison itself, and no
+ * answer can carry a fact the honesty bar above didn't already admit.
+ */
+export function buildComparisonFaq(c: VendorComparison): Array<{ q: string; a: string }> {
+  const leadTitles = c.theirStrengths.map((s) => s.title.toLowerCase()).join(', ')
+  return [
+    {
+      q: `How much does ${c.name} cost?`,
+      a: `${c.reportedPricing}. By comparison, DreamCRM is $200/mo published (founding practice rate), month-to-month, with a 7-day free trial and no card required to start.`,
+    },
+    {
+      q: `What is a good ${c.name} alternative for a dental practice?`,
+      a: `DreamCRM is a dentistry-native ${c.name} alternative that ships the whole patient-facing stack in one product — practice website with an edit-in-place editor, online booking, a patient portal in the clinic’s own branding, review collection, recall campaigns, and an online store with membership plans — at $200/mo published, month-to-month.`,
+    },
+    {
+      q: `When is ${c.name} the better choice?`,
+      a: `Honestly: when ${leadTitles} are your deciding factors — ${c.name} genuinely leads there, and the comparison above says so plainly. Weigh what your practice is actually missing before you pick either product.`,
+    },
+    {
+      q: `Can I switch from ${c.name} to DreamCRM?`,
+      a: `Yes. DreamCRM is month-to-month with a no-card 7-day trial, so you can run it alongside ${c.name} before deciding. Patients import via CSV, PMS sync connects through the NexHealth bridge, and you keep your existing phone system — and if you ever leave, your content exports with you.`,
+    },
+  ]
 }
 
 export const COMPARISON_DISCLAIMER =

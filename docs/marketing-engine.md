@@ -642,3 +642,34 @@ computes, the owner moves the money:
   `recordSpendAction` in admin-actions.ts). The retired-tones CI guard
   earned its keep in the very first run — the "collecting" state shipped
   in retired sky and was moved to the v3 info violet. Suite 6,802 green.
+
+**Slice 4a — compare-page AEO hardening (SHIPPED 2026-09-08).** The
+content engine's first piece, and the one the ad plan lands on:
+- **The derived FAQ** (`buildComparisonFaq` in lib/marketing/
+  comparisons.ts): the four questions buyers actually type — "{vendor}
+  cost", "{vendor} alternative", "when is {vendor} better", "can I
+  switch" — COMPOSED from the same registry fields the page renders
+  (reportedPricing, category, theirStrengths), so the FAQ and its
+  FAQPage JSON-LD twin can never drift from the comparison, and no
+  answer can carry a fact the honesty bar didn't already admit. The
+  when-they-win answer concedes the vendor's real strengths by
+  construction (machine-checked in tests/marketing/seo.test.ts).
+  Rendered as a details/summary FAQ section on every /compare/[vendor]
+  page + emitted as FAQPage schema (schema describes only on-page
+  content, per Google's requirement).
+- **The query surface**: titles/descriptions now carry "pricing,
+  features & alternatives" — the BOFU terms thin-domain challengers
+  provably rank for (Part 5); the /compare hub gained ItemList JSON-LD
+  and a description naming all eight vendors.
+- **STALE-FACT SWEEP**: the registry still claimed "Open Dental two-way
+  via the official API only" from before the 2026-08-19 one-door ruling
+  — fixed to the NexHealth-bridge truth everywhere (baseMatrix note,
+  NexHealth bottom line, Tebra copy), with a test pinning that the
+  retired claim stays out (`'official API' stays out of the registry`).
+  Ad landing pages carrying stale facts are both a conversion and an
+  honesty problem — this sweep is why the slice touched the registry at
+  all.
+- **The funnel cross-link**: every comparison page's CTA block now
+  offers the free grader ("Grade your online presence free →") — the
+  Part 5 free-tool magnet feeding the same attributed funnel.
+  Suite 6,804 green.

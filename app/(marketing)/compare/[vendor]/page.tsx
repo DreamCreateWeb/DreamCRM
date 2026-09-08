@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { COMPARISONS, COMPARISON_DISCLAIMER, getComparison } from '@/lib/marketing/comparisons'
+import { COMPARISONS, COMPARISON_DISCLAIMER, buildComparisonFaq, getComparison } from '@/lib/marketing/comparisons'
 import { Eyebrow, PrimaryCta, GhostCta, MatrixMark, CheckIcon } from '@/components/marketing/ui'
 import { DEMO_URL } from '@/lib/marketing/site'
-import { JsonLd, breadcrumbLd } from '@/lib/marketing/seo'
+import { JsonLd, breadcrumbLd, faqPageLd } from '@/lib/marketing/seo'
 
 interface Props {
   params: Promise<{ vendor: string }>
@@ -17,9 +17,13 @@ export async function generateMetadata({ params }: Props) {
   const { vendor } = await params
   const c = getComparison(vendor)
   if (!c) return {}
+  // Title + description carry the queries this page exists to win —
+  // "{vendor} pricing" and "{vendor} alternative(s)" (marketing-engine
+  // Part 5: BOFU comparison pages, the terms thin-domain challengers rank
+  // for today).
   return {
-    title: `DreamCRM vs ${c.name} — an honest comparison`,
-    description: c.summary.slice(0, 155),
+    title: `DreamCRM vs ${c.name}: pricing, features & alternatives`,
+    description: `${c.name} pricing as reported, what it genuinely does well, and an honest feature-by-feature comparison with DreamCRM — a $200/mo published, dentistry-native alternative.`,
     alternates: { canonical: `/compare/${c.slug}` },
   }
 }
@@ -28,15 +32,22 @@ export default async function ComparePage({ params }: Props) {
   const { vendor } = await params
   const c = getComparison(vendor)
   if (!c) notFound()
+  // Derived from the page's own registry entry, and rendered verbatim in
+  // the FAQ section below — the schema describes only content that is
+  // actually on the page.
+  const faq = buildComparisonFaq(c)
 
   return (
     <>
       <JsonLd
-        data={breadcrumbLd([
-          { name: 'Home', path: '/' },
-          { name: 'Compare', path: '/compare' },
-          { name: `DreamCRM vs ${c.name}`, path: `/compare/${c.slug}` },
-        ])}
+        data={[
+          breadcrumbLd([
+            { name: 'Home', path: '/' },
+            { name: 'Compare', path: '/compare' },
+            { name: `DreamCRM vs ${c.name}`, path: `/compare/${c.slug}` },
+          ]),
+          faqPageLd(faq),
+        ]}
       />
       <section className="border-b border-gray-100 bg-gradient-to-b from-teal-50/60 to-white">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
@@ -165,12 +176,41 @@ export default async function ComparePage({ params }: Props) {
             Browse the demo practice ↗
           </GhostCta>
         </div>
-        <p className="mt-8 text-[0.85rem] text-gray-500">
+        <p className="mt-4 text-[0.85rem] text-gray-500">
+          Not sure what your practice is missing?{' '}
+          <Link href="/grade" className="font-semibold text-teal-700 hover:underline">
+            Grade your online presence free →
+          </Link>
+        </p>
+        <p className="mt-3 text-[0.85rem] text-gray-500">
           Comparing someone else?{' '}
           <Link href="/compare" className="font-semibold text-teal-700 hover:underline">
             All comparisons →
           </Link>
         </p>
+      </section>
+
+      {/* ── The questions buyers type (rendered twin of the FAQPage schema) ── */}
+      <section className="border-t border-gray-100 bg-gray-50/70">
+        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+          <h2 className="mb-6 text-center text-[1.4rem] font-bold tracking-tight">
+            Common questions about {c.name}
+          </h2>
+          <div className="space-y-4">
+            {faq.map((f) => (
+              <details key={f.q} className="group rounded-xl border border-gray-200 bg-white p-5 open:shadow-sm">
+                <summary className="cursor-pointer list-none text-[0.95rem] font-bold text-gray-900 [&::-webkit-details-marker]:hidden">
+                  <span className="mr-2 inline-block text-teal-600 transition-transform group-open:rotate-90" aria-hidden="true">
+                    ›
+                  </span>
+                  {f.q}
+                </summary>
+                <p className="mt-3 text-[0.9rem] leading-relaxed text-gray-600">{f.a}</p>
+              </details>
+            ))}
+          </div>
+          <p className="mt-6 text-center text-[0.78rem] leading-relaxed text-gray-400">{COMPARISON_DISCLAIMER}</p>
+        </div>
       </section>
     </>
   )

@@ -102,9 +102,13 @@ describe('comparison pages', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('DreamCRM vs Weave')
     expect(screen.getByText(/Where Weave shines/i)).toBeInTheDocument()
     expect(screen.getByText(/Where DreamCRM wins/i)).toBeInTheDocument()
-    // The matrix shows our honest "no"s too.
+    // The matrix shows our honest "no"s too (the switching FAQ answer also
+    // says "keep your existing phone system", hence getAllByText).
     expect(screen.getByText('VoIP phones')).toBeInTheDocument()
-    expect(screen.getByText(/Keep your existing phone system/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Keep your existing phone system/i).length).toBeGreaterThanOrEqual(1)
+    // Slice 4a: the buyer-question FAQ renders, with its schema twin.
+    expect(screen.getByText('How much does Weave cost?')).toBeInTheDocument()
+    expect(screen.getByText('What is a good Weave alternative for a dental practice?')).toBeInTheDocument()
   })
 
   it('404s an unknown vendor', async () => {
