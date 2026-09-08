@@ -13,6 +13,7 @@ import { formatMoneyShort, formatNumberShort, formatRelativeDate } from '@/lib/u
 import { permanentRedirect } from 'next/navigation'
 import ModuleHint from '@/components/onboarding/module-hint'
 import AcquisitionPanel from './acquisition-panel'
+import DialsPanel from './dials-panel'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
 import { KpiStat } from '@/components/ui/kpi-stat'
@@ -145,6 +146,9 @@ async function PlatformMarketingDashboard({
       {/* Acquisition sensors — www traffic + signups by first-touch channel
           (docs/marketing-engine.md). */}
       <AcquisitionPanel days={winDays} />
+
+      {/* The dials — spend in, CAC + recommendation out (slice 3). */}
+      <DialsPanel />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="v2-card p-5">

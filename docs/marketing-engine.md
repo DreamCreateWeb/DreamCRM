@@ -602,3 +602,43 @@ reviews per the owner's ruling.
   product actually ships — your reviews and your rank are earned, not
   promised." The honesty laws all hold: null axes stay null, transient
   can't-check strings stay plain, no projected reviews/rank.
+
+**Slice 3 — the dials cockpit (SHIPPED 2026-09-08, migration 0157).** The
+budget philosophy from Part 3 + ruling #3, running as code — the machine
+computes, the owner moves the money:
+- **`marketing_spend` (0157)**: one row per (month, channel), owner-typed
+  monthly spend in cents, unique-upserted (the latest figure is the
+  figure). Human-entered by design — ad-platform APIs can come later, but
+  a number the owner typed is a number the owner believes. Platform-global
+  like its siblings.
+- **Pure `lib/marketing-dials.ts`**: the master dial rule as constants
+  (dial down at blended CAC >$1,600 two consecutive judged months; dial up
+  under $800; 60-day cohort lag), the per-channel cost-per-trial kill bars
+  from the Part 3 table (google_ads $120, meta_ads $80), and
+  `assessDials` — month cohorts in, a typed recommendation out (no_spend /
+  collecting / dial_up / dial_down / hold) with one warm reason sentence.
+  Honesty laws carried over from the grader: a cohort inside the lag is
+  COLLECTING, never a verdict (every fresh month reads zero-paying at
+  first — screaming at it would train the owner to ignore the dial); zero
+  conversions is not an infinite CAC — a mature zero-paying month counts
+  against the ceiling only when its spend ALONE exceeds it (even one
+  conversion wouldn't have saved it), and below that the per-channel bars
+  are the instrument that catches the burn; blended means blended
+  (untracked paying clinics count — they're still revenue the spend period
+  produced). `STEP_ONE_PLAN` renders ruling #3 verbatim while nothing is
+  spent: the whole $1k on Google competitor terms, manual exact-match,
+  land on /compare, judge on cost/trial <$120, Meta at the NEXT step.
+- **Service `lib/services/marketing-spend.ts`**: `recordSpend` upsert
+  (validated month key + closed-registry channel) and `getDialsReport` —
+  6-month window, signup cohorts by UTC month from the same
+  signup_attribution stamps + `hasPaidSubscription` grading the billing
+  wall uses, demo orgs excluded (a seeded clinic is not a CAC).
+- **UI**: `DialsPanel` on the platform Marketing home under the
+  acquisition panel — verdict pill + reason + the rule spelled out, a
+  month table (spend / signups / paying / blended CAC / judged-or-
+  collecting) with per-channel sub-rows showing cost-per-trial against
+  the bars, the step-one plan card, and the one input the machine needs:
+  a month × channel × dollars entry form (platform-gated
+  `recordSpendAction` in admin-actions.ts). The retired-tones CI guard
+  earned its keep in the very first run — the "collecting" state shipped
+  in retired sky and was moved to the v3 info violet. Suite 6,802 green.

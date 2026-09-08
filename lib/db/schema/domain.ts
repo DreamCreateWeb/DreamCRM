@@ -791,6 +791,32 @@ export const marketingPageview = pgTable(
 export type MarketingPageview = typeof marketingPageview.$inferSelect
 export type NewMarketingPageview = typeof marketingPageview.$inferInsert
 
+// Marketing SPEND — the dials cockpit's input (docs/marketing-engine.md,
+// slice 3). One row per (month, channel): the owner records what was
+// actually spent, and the dials compute CAC/cost-per-trial against the
+// funnel. Human-entered by design — ad-platform APIs can come later, but a
+// number the owner typed is a number the owner believes. PLATFORM-GLOBAL
+// like its siblings (Dream Create's own money, no tenant).
+export const marketingSpend = pgTable(
+  'marketing_spend',
+  {
+    id: serial('id').primaryKey(),
+    // UTC calendar month, 'YYYY-MM' — the dials judge whole-month cohorts.
+    month: text('month').notNull(),
+    // MarketingChannel id from the closed registry (validated in the action).
+    channel: text('channel').notNull(),
+    // Whole-month spend in CENTS. Re-entering a month+channel replaces it.
+    amountCents: integer('amount_cents').notNull().default(0),
+    // Optional owner note ("competitor exact-match set A").
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('marketing_spend_month_channel_idx').on(t.month, t.channel)]
+)
+export type MarketingSpend = typeof marketingSpend.$inferSelect
+export type NewMarketingSpend = typeof marketingSpend.$inferInsert
+
 // Website Studio edit history — one row per save, holding the PREVIOUS value
 // of every clinic_profile column that save overwrote, so the owner can walk
 // back ("undo my last change") in a Studio where every save goes live
