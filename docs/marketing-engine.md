@@ -673,3 +673,44 @@ content engine's first piece, and the one the ad plan lands on:
   offers the free grader ("Grade your online presence free →") — the
   Part 5 free-tool magnet feeding the same attributed funnel.
   Suite 6,804 green.
+
+**Slice 4b — the practice-growth resource library (SHIPPED 2026-09-08).**
+Part 5 item 3, built as CODE-OWNED marketing pages rather than blog rows
+(hand-written depth, not scaled-thin — the shape the helpful-content
+updates reward; the DB-backed platform blog stays the home for ongoing
+posts). `/resources` + three guides targeting the provably-winnable
+long-tail queries, each carrying ORIGINAL material:
+- **/resources/dental-recall-scripts** — the email/text/phone recall
+  scripts, where the email template IS the product's real reactivation
+  campaign copy ("Has it been a minute?…"), the texts carry the STOP
+  line + a plain-language TCPA consent caveat and the GSM-7 alphabet
+  cliff (one smart quote halves the segment), the phone script uses the
+  two-yeses close, plus the due+2w/+3w/+6w cadence and the
+  patient-keyed frequency-cap rule — all lessons the product itself
+  enforces in code.
+- **/resources/dental-membership-plan-pricing** — the worked pricing
+  math (cost-to-deliver floor → 65–80%-of-retail target band), family
+  tiers, monthly-vs-annual, the pitfalls (never stack with insurance,
+  lab-cost discounting, renewal-as-recall), the front-desk one-sentence
+  script, and a visible state-regulation caveat ("arithmetic, not legal
+  advice").
+- **/resources/how-to-get-more-dental-patients** — the ORDERED playbook
+  (listing → reviews → a website that books → reactivation → referrals
+  → only then paid), mirroring the grader's own checks and
+  cross-linking both the grader and the recall guide; it makes no rank
+  promises and says why nobody honestly can.
+Infrastructure: `lib/marketing/resources.ts` registry (single source for
+hub, sitemap, Article JSON-LD), `GuideShell`/`ScriptCard`/`GuideNote`
+shared shell with Breadcrumb+Article schema, '/resources' in
+MARKETING_PUBLIC_PATHS (middleware + sitemap in one move), nav Resources
+menu + footer links, ItemList on the hub, grader CTA on every guide.
+Also fixed in passing: the nav's stale "official paths only" PMS line →
+the NexHealth-bridge truth. Tests pin that each guide renders its
+original material and its honest caveats (tests/marketing/
+resources.test.tsx). Suite 6,811 green.
+**Slice 4 remaining — owner-action-gated, not code:** (1) claim the
+G2/Capterra listings (review-ask machinery is premature until there are
+paying clinics to ask — revisit at ~5 customers); (2) ongoing long-tail
+posts via the platform blog in-app; (3) YouTube long-form + LinkedIn via
+Zernio need content produced first — surfacing the composer for the
+platform org is a small slice once there's something to post.

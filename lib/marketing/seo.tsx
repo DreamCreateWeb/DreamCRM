@@ -70,6 +70,24 @@ export function faqPageLd(faqs: ReadonlyArray<{ q: string; a: string }>) {
   }
 }
 
+export function articleLd(input: {
+  title: string
+  description: string
+  path: string
+  datePublished: string
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: input.title,
+    description: input.description,
+    datePublished: input.datePublished,
+    url: `${SITE_URL}${input.path}`,
+    author: { '@type': 'Organization', name: MARKETING.companyName, url: SITE_URL },
+    publisher: { '@type': 'Organization', name: MARKETING.companyName, url: SITE_URL, logo: { '@type': 'ImageObject', url: LOGO_URL } },
+  }
+}
+
 export function breadcrumbLd(items: ReadonlyArray<{ name: string; path: string }>) {
   return {
     '@context': 'https://schema.org',

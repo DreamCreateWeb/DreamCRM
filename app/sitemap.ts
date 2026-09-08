@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 import { COMPARISONS } from '@/lib/marketing/comparisons'
 import { DOCS } from '@/lib/marketing/docs'
 import { MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
+import { RESOURCE_GUIDES } from '@/lib/marketing/resources'
 import { getMarketingPosts } from '@/lib/services/marketing-blog'
 
 // Request-time: the blog posts come from the DB, which isn't reachable at
@@ -37,6 +38,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
+  const resourcePages = RESOURCE_GUIDES.map((g) => ({
+    url: `${base}/resources/${g.slug}`,
+    lastModified: now,
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }))
+
   // Published marketing posts — best-effort: a DB hiccup must not 500 the
   // sitemap, so degrade to the static set.
   let postPages: MetadataRoute.Sitemap = []
@@ -52,5 +60,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     postPages = []
   }
 
-  return [...staticPages, ...comparePages, ...docPages, ...postPages]
+  return [...staticPages, ...comparePages, ...docPages, ...resourcePages, ...postPages]
 }

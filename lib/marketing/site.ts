@@ -18,7 +18,7 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
  * makes it public + indexed in one move (a page that exists in nav but is
  * auth-walled has shipped twice before; see middleware.ts history).
  */
-export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/pricing', '/compare', '/docs', '/blog', '/grade'] as const
+export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/pricing', '/compare', '/docs', '/blog', '/grade', '/resources'] as const
 export const DEMO_URL = `https://acme-dental-demo.${SITE_DOMAIN}`
 
 export interface MarketingNavChild {
@@ -47,7 +47,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
       { label: 'Google Business & social', href: '/product#gbp', description: 'Sync reviews, post everywhere' },
       { label: 'Recall & outreach', href: '/product#recall', description: 'Measured in booked visits' },
       { label: 'Shop & memberships', href: '/product#shop', description: 'Payouts to your own bank' },
-      { label: 'PMS sync', href: '/product#integrations', description: 'Open Dental, Dentrix + more — official paths only' },
+      { label: 'PMS sync', href: '/product#integrations', description: 'Open Dental, Dentrix + more via the NexHealth bridge' },
     ],
   },
   {
@@ -68,6 +68,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
     href: '/docs',
     children: [
       { label: 'Grade your practice', href: '/grade', description: 'Free — your site, listing & reviews, scored' },
+      { label: 'Practice growth library', href: '/resources', description: 'Recall scripts, membership math, patient growth' },
       { label: 'Help docs', href: '/docs', description: 'Setup guides in front-desk language' },
       { label: 'Blog', href: '/blog', description: 'Announcements & essays from the team' },
       { label: 'Your first 30 minutes', href: '/docs/your-first-30-minutes', description: 'The setup order that works' },
@@ -103,10 +104,11 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
     title: 'Resources',
     links: [
       { label: 'Grade your practice', href: '/grade' },
+      { label: 'Dental recall scripts', href: '/resources/dental-recall-scripts' },
+      { label: 'Membership plan pricing', href: '/resources/dental-membership-plan-pricing' },
+      { label: 'Get more dental patients', href: '/resources/how-to-get-more-dental-patients' },
       { label: 'Help docs', href: '/docs' },
       { label: 'Blog', href: '/blog' },
-      { label: 'Getting started guide', href: '/docs/your-first-30-minutes' },
-      { label: 'Connect your PMS', href: '/docs/connecting-your-pms' },
     ],
   },
   {
