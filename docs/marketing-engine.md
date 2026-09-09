@@ -1,6 +1,6 @@
 # The Marketing Engine — research foundation + build log
 
-**Status: RESEARCH PHASE (2026-08-26).** This is the research foundation for
+**Status: THE POWERHOUSE PROGRAM (Part 10, 2026-09-09) — foundation slices 1–4 shipped; Part 10 is the program of record.** This is the research foundation for
 Dream Create's own growth program — the "marketing powerhouse" the owner
 directed: social campaigns via the existing Zernio key, email marketing,
 budget dials, and effectiveness monitors, all aimed at **driving self-serve
@@ -319,7 +319,7 @@ voicemail · SmileCon · big-hall booths before revenue supports them
    engine (G2/Capterra asks), long-tail library via the platform blog,
    Zernio YouTube/LinkedIn surfaces.
 
-## Part 9 — The idea engine (the standing backlog; owner directive 2026-09-09)
+## Part 9 — The idea engine (the first backlog, 2026-09-09 — SUBSUMED by Part 10's master catalog; kept as the record of the first pulls)
 
 Slices 1–4 were the FOUNDATION, not the program. The owner's framing:
 "the best SaaS in the world doesn't stop at one or two funnels — we're
@@ -423,6 +423,504 @@ outbound-shaped respects the cold-email demotion.
   landing pages; the honesty laws make these unusually credible.
 - ③ **A "wall of love"** — G2/Google review embeds on /why once they
   exist.
+
+## Part 10 — THE POWERHOUSE: the complete vision (research pass 2, 2026-09-09)
+
+**Owner directive:** "the best SaaS in the world doesn't stop at one or two
+funnels — we're building a mega marketing engine that will generate new
+subscriptions." The four foundation slices (sensors, grader, dials,
+content) and the first Part 9 pulls (ROI calculator, delta re-grade,
+partner door, grader nurture) are the chassis. This part is the whole
+machine, designed from a second research pass — five parallel deep
+passes on 2026-09-09 (competitor GTM at scale · vertical-SaaS PLG
+playbooks · the 2026 tool stack + compliance · the sized dental channel
+map · AI-run growth engines + free tools); full reports with inline
+sources live in `docs/research/marketing-engine-2026-09/` (`research-1…5-*.md`), and every
+number below carries its flag (FACT / VENDOR CLAIM / EST / INFERENCE).
+
+### 10.0 What the research settled — the ten facts the vision stands on
+
+1. **"Large scale" in dental costs what Weave pays, and we must never
+   pay it.** FY2025: $239M revenue, 39,625 locations, +4,628 net new,
+   S&M $102.7M (43% of revenue), gross retention 89%, NRR 93% (SEC
+   filings, FACT). That is ~$22k of S&M per NET-NEW location for a
+   ~$540/mo ticket (arithmetic, INFERENCE) — a demo-gated inside-sales
+   machine. At $200/mo the arithmetic forbids inside sales; only
+   self-serve + partner + product-led pencil.
+2. **Not one of 24 dental patient-engagement vendors is self-serve.**
+   Every "Try for free" led to a consultation; only Podium, Flex, PbN
+   (one tier), Emitrr and the marketplaces publish a price; real prices
+   run 2–3× headline (Weave $348–497+ bundled, NexHealth ~$350/module,
+   Solutionreach $400–800, DI ~$500 + $500 setup + 12 months). A public
+   $200 with a card-free trial is the single largest open lane (FACT for
+   the gates; VENDOR/3P for the prices).
+3. **Referral is THE channel in clinic SaaS, and the winners engineer
+   it.** Jane App: ~85% of new customers from existing-customer
+   referrals (co-founder, FACT); Toast ~20%; Mangomint ~60% "organic";
+   built on peer community + support so good it's the thing people
+   mention + free migration/no contract + an ambassador layer. The
+   market's bounty is standardized at **$500 per closed practice**
+   (Weave $50+$500, NexHealth $25+$500, Swell $300), paid slowly and
+   only to current customers (FACT).
+4. **The consultant is the highest-leverage human in dentistry.**
+   Fortune Management (150+ coaches, 15,000+ dentists, 400+ events/yr),
+   Levin Group (30,000 practices, a 25k daily-tip list), ACT Dental,
+   Dental A Team (1,000+ practices), Sandy Pardue, Teresa Duncan — in
+   the building at every trigger, trusted by dentist AND office manager,
+   and paid recurring referral fees by NexHealth/Podium/Birdeye/DI
+   already (VENDOR CLAIMS on reach; FACT on the programs).
+5. **Buying happens at trigger moments, and they are sized.** Owner
+   changes ~5,000–8,000 locations/yr; scratch startups ~800–1,500/yr
+   (each budgeting $2–3k/mo for software with no incumbent); PMS
+   switches a few thousand/yr; front-desk/OM turnover touching 20,000+
+   practices/yr; plus the continuous bad-review/Google-listing incident
+   (INFERENCE from ADA HPI + BLS + lender data). Brokers (ADS: 42,000
+   cumulative sales), lenders (BofA Practice Solutions, Provide) and
+   dental IT/MSPs (Darkhorse 1,000+ dentists, Pact-One 3,000+ pros) are
+   standing at every one of them.
+6. **The reachable communities are few, dense, and bookable.** Nifty
+   Thrifty Dentists (~40k; the group's premise IS vendor deals), Dental
+   Nachos (~35k+; 20 tech + 12 marketing sponsors listed), DOMC (20,000+
+   office managers, a new vendor-perk program), AADOM (1,100+ OMs at the
+   conference, chapters), Dentaltown (~120k readers), Voices of Dentistry
+   (7 owner-podcasts bundled: $6k/$10k/$17.5k), the top-5 owner podcasts
+   (10–50k monthly each, ~$1.5–3.5k/host-read INFERENCE), DentistryIQ's
+   Morning Briefing (45k daily). The big halls (Midwinter, Hinman,
+   GNYDM: $15–40k booths) and DSO events are the wrong buyer for now.
+7. **Free tools are wide open in dental.** Every incumbent "free audit"
+   is a sales-appointment request answered by a human in 48h; nobody has
+   a HubSpot-grade instant, ungated, shareable grader built from a
+   practice's real public data (HubSpot Website Grader: 4M grades,
+   ~40k backlinks — FACT), and nobody renders a practice's own content
+   into a better site. We already own the crawler, brand capture,
+   Places, SERP, four templates, and the grader.
+8. **AEO/GEO is real, and it rewards exactly what incumbents refuse to
+   do.** 30–50% of B2B evaluation queries now hit AI engines; 76% of
+   AI-Overview citations come from top-10 organic; comparison pages,
+   dated pricing tables, FAQs, review-site category pages, Reddit and
+   YouTube are what gets cited; freshness drives ~83% of commercial
+   citations; llms.txt is a confirmed dud (3P/FACT). Mangomint paid $2M
+   for an "independent" software-comparison site and calls it their
+   evergreen, AI-cited lead source (FACT).
+9. **Autonomous marketing converged on "drafts, not sends."** Fully
+   autonomous outbound failed in 2026 (11x ~70–80% churn past the break
+   clause; Artisan's LinkedIn ban; "20k messages, zero meetings"), while
+   hybrid propose-then-approve produced ~2.3× the revenue of AI-only at
+   half the cost per opportunity; HubSpot Breeze, Agentforce, Intempt,
+   Brand Brain all converged on approval gates + spend caps + audit
+   trails (3P). That is, verbatim, the Dream Team's model — we already
+   own the spine.
+10. **The compliance lines are bright.** Cold email is CAN-SPAM-legal but
+    banned by Resend/SES/SendGrid/Postmark AUPs (FACT); cold TEXTING a
+    prospect is never legal without consent ($500–1,500/message, and our
+    10DLC registration forbids it); calls must be human-dialed,
+    DNC-scrubbed, no AI voice; California's B2B data exemption expired
+    (2023) so the prospect DB needs a privacy notice; the FTC Consumer
+    Reviews rule (16 CFR 465, active enforcement) bans sentiment-
+    conditioned incentives AND review suppression — which reaches into
+    the product's own star-gate (see 10.3); LinkedIn is suspension-first
+    against automation; Google's 2026 core updates penalize scaled
+    template content site-wide.
+
+### 10.1 The thesis
+
+> **DreamCRM is the only self-serve door in dentistry, and its marketing
+> is run by the same AI staff it sells.**
+
+Every incumbent is demo-gated, quote-priced, contract-bound and sold by
+reps who need a $6k/yr ticket to care. Our product is already the thing
+none of them has; the powerhouse's job is to make that visible at every
+trigger moment, through every trusted human, on every surface a dentist
+or office manager looks at — and to run itself under the owner's veto so
+the whole machine costs one founder ~30 minutes on Monday and ~5 minutes
+a day. The four positioning laws every surface obeys:
+
+- **Say the price. Say "no contract, cancel from Settings, prorated to
+  the day, your data exports." Above the fold, every time.** Every named
+  complaint against a named incumbent (auto-renew, ETFs, non-prorated
+  exits, mid-term hikes, percentage fees) is our headline by contrast.
+- **Bribe for going live, never for a demo.** The market pays $50 gift
+  cards for attention; we pay the front desk $50 when the first review
+  request goes out (activation, not attention).
+- **The consumer surface is the billboard.** More patient-facing surface
+  per clinic than any incumbent (site, booking, portal, reminders,
+  review landing, membership page) — every one carries a credit with a
+  real offer.
+- **Honesty is the moat.** Unknown never scored, no projected reviews or
+  rank, scenarios not promises, cite BBB/Capterra not adjectives. The
+  research says the incumbents' NPS is being spent on contracts; ours is
+  the asset we compound.
+
+### 10.2 The architecture — seven engines
+
+**Engine 1 · THE DOORS (attraction surfaces).** Dozens of attributed
+entrances, all feeding the one channel registry.
+- *The Practice Scan — the spine.* The grader evolves into one canonical
+  object: from a URL or Google listing, in <10s, an ungated 0–100 across
+  Site / Google profile / Reviews / Booking / Reachability, a public,
+  indexable, brand-safe report URL with an OG grade card (the 40k-
+  backlink lesson), the "fix list" and the deeper facets gated on email.
+  Facets bolted onto the same object over time: **"See your practice on
+  DreamCRM"** (their services/team/hours rendered into the best-fit
+  template with their logo and color — the Jane/Shopify viral moment,
+  and "claim this site" boots the trial WITH the mockup as the website
+  draft); **"You vs the 5 dentists nearest you"** (the Patient Prism
+  cohort magnet, instant); the **GBP audit** (reuses the gbp_website_fix
+  detector); the **reputation score with AI reply drafts on their actual
+  unanswered reviews** (reuses review-reply-ai); the **"Does ChatGPT
+  recommend you?" AEO check** (novel, screenshot-able); the **local rank
+  tracker** with a weekly email (the capture); the **new-patient leak
+  calculator** (phone + web + reviews into one number); the booking-
+  readiness test; the dental-cohort speed grade ("faster than 62% of
+  practices in Texas" — cohort framing is the moat); the kind **"roast
+  my website"**; the brand-kit extractor; the delta re-grade (shipped).
+  Design rules: ungated score / gated depth; the output IS the
+  onboarding; every result has its next step inside the page; cost-cap
+  and cache every Serper/LLM/Places call.
+- *The content family.* The comparison layer done completely:
+  `/compare/[x]` for 12 vendors incl. the website agencies (ProSites,
+  PBHS), `/alternatives/[x]` roundups, "X pricing (2026)" pages citing
+  BBB/Capterra with visible "last verified" dates and a monthly refresh
+  law, the consolidation cost calculator; the guides library growing two
+  per session; docs as landing pages; the public template gallery
+  ("pediatric dental website template" is an unowned query family);
+  **programmatic state/city pages backed by REAL Scan cohort stats**
+  (the only programmatic pages that survive 2026 enforcement); the
+  annual **"State of the Independent Practice Online"** report from the
+  Scan corpus (trade press republishes; the DentalPost pattern); the
+  **separate, software-agnostic "honest dental software guide" brand**
+  (Mangomint's $2M lesson, built not bought); contributed articles to
+  Dental Economics (free; their calendar primes Google-reviews in May
+  and recall in Aug–Sep); founder YouTube walkthroughs per comparison
+  page (cited by AI engines; 4–6× the demo yield of brand content);
+  honest, disclosed founder participation in r/Dentistry and Dentaltown
+  (human-only, never automated).
+- *The loops.* Powered-by v2 on every patient surface with a real offer
+  and a dentist-facing landing page (default on, opt-out on request); a
+  `/showcase` of live client sites; "Are you a dental team member?" in
+  the portal footer; the weekly standup email as a forwardable
+  proof-of-work with a "send to a colleague" footer.
+- *The bookable communities.* Deal listings on Nifty Thrifty and Dental
+  Nachos ("first month free + no contract, ever" beats Weave's $50
+  card); DOMC/DOMA vendor perks; AADOM chapters via office managers who
+  already use us; podcast guesting then host-reads on the trigger-dense
+  shows (Making of a Dental Startup, Shared Practices); Voices of
+  Dentistry once references exist; DentistryIQ Morning Briefing eblasts
+  for launches; state meetings ($1.5–4k booths) in 2027.
+
+**Engine 2 · THE PROSPECT BRAIN (identity, capture, nurture, radar).**
+- One identity per email across grader runs, tool uses, pages visited,
+  pipeline stage, partner touches — with ONE suppression list (already
+  true) and one consent ledger.
+- Capture moments at every door: the grader's email, "email me my
+  numbers" on calculators, "send me this comparison" on pricing,
+  "watch my rank weekly", the partner application, the newsletter.
+- Intent-specific WARM sequences only: grader → one-fix/delta (shipped);
+  rank-tracker → monthly movement; pricing viewer → comparison; calculator
+  → matching guide; partner applicant → onboarding; all with cadence
+  dials and a working unsubscribe.
+- **The trigger radar**: NPPES change detection (new NPI-2 orgs = startups;
+  ownership/name changes = transitions), Google-listing change signals
+  (new owner names, closed→open), review-incident detection on scanned
+  practices, PMS-switch signals from the MSP/OD community — each trigger
+  routes to the right partner kit or the right free tool, never to a cold
+  blast.
+- The monthly **practice-growth letter** (opt-in only): Scan cohort
+  insights + what won page one this month — the one newsletter a dentist
+  keeps.
+
+**Engine 3 · THE OUTBOUND THAT IS ALLOWED.**
+- **Direct-mail grade cards** to the top decile of scored prospects (Lob
+  ~$1/piece, Handwrytten $3.75 handwritten via API; NPPES-verified
+  addresses; no consent regime; ~3–4% B2B response benchmarks; Mangomint's
+  only outbound and their one regret is not doing more). The card IS the
+  printed Practice Scan with the mockup on the back.
+- Human-dialed Call Mode (exists): DNC-scrubbed, 8am–9pm local, no
+  autodialer, no AI voice, consent + opt-outs logged.
+- 3–5 dental micro-KOLs on affiliate codes; the Hunter's drip stays
+  demoted (cold email never on the product domain; if ever un-demoted, a
+  separate domain + separate infra + suppression sync).
+- Never: cold texts, LinkedIn automation, scraped lists, person-level
+  visitor de-anonymization.
+
+**Engine 4 · THE PARTNER ENGINE (the trust-transfer layer).**
+- **The $500 referral, paid faster and to anyone**: match the market's
+  number, pay at day 30 by Stripe/ACH, open to non-customers (consultants,
+  hygienists, OMs) — the incumbents cap theirs at their own base.
+- **Customer-refers-customer**: Jobber's 2026 design — referrer 3 months
+  credit, referee 1 month, staff gift cards, milestone bonuses at 3/5/10,
+  payout only after the referee activates (2 logins + setup complete).
+- **Ambassadors** (invite-only, non-monetary: badge, code, roadmap
+  access, a feature slot on www — Jane's 3-person program) and, later, a
+  referral-gated VIP community and a "Dream Practice" consumer-facing
+  badge tied to the readiness resolver.
+- **Consultant/coach track** on NexHealth's shape: self-signed agreement,
+  co-branded kit, portal (exists), recurring commission (20% for 12
+  months beats Podium's 30%-for-one-year in practice because our price is
+  public and the practice keeps it); recruit via ADMC corporate
+  membership, Fortune/Levin/ACT/Dental A Team, AADOM chapter leaders.
+- **Trigger partners with kits**: brokers (ADS, Henry Schein DPT) get a
+  co-branded new-owner kit + preferred-vendor status; lenders' startup
+  teams (BofA PS, Provide, Panacea) get the "90 days before you open"
+  package; MSPs (Darkhorse, Pact-One) get a stack-recommendation deal;
+  dental CPAs get the Q4 subscription-consolidation one-pager.
+- **Ecosystem listings**: Open Dental Authorized Vendor via the OD API
+  (the research's most consequential finding — Open Dental's vendor page
+  lists NexHealth under "Dangerous/Unknown" with warnings dated 2024 and
+  2026; an OD-API-based listing is both a channel and the mitigation),
+  NexHealth's partner directory, Dentrix Ascend API Exchange (needs SOC 2),
+  G2/Capterra/GetApp/Software Advice (one program since the Feb-2026
+  merger), the dental affiliate comparison sites (they list anyone with a
+  public price and a commission).
+- **State-level "ADA move"**: a member rate ($150) with rev-share back to
+  a state association or study club — the same mechanic as Weave's ADA
+  exclusive at our scale, 2027.
+
+**Engine 5 · THE CONVERSION ENGINE (trial→paid is the master variable).**
+- The headline everywhere: self-serve, $200 published, 7-day no-card
+  trial, no contract, free migration, full export, cancel from Settings.
+- **The Scan → signup handoff**: name, city, website, brand color, logo,
+  and the mockup pre-fill the trial — "your site is already half built."
+- Template preselect from the gallery/mockup into onboarding.
+- **An ungated live sandbox** (the resyncing demo clinic) placed on
+  product pages — the 2026 interactive-demo report: ungated beats gated,
+  multi-flow completes 48% more, only 18% of SaaS sites have one.
+- **Light product-led sales**: a founder 15-minute walkthrough offered
+  when a trial connects a PMS or publishes a site (Calendly's routing
+  logic at toy scale, +50% leads at lower spend); "book a setup call" for
+  stalled trials.
+- The go-live bribe ($50 to the front desk at first review request).
+- **An experiments framework**: one experiment a week (copy, CTA, gating
+  position, reverse-trial vs no-card) with hypothesis, sample size and a
+  stop rule, measured in the dials. Benchmarks: no-card trials convert
+  8–22%, card-required 35–55%, reverse trials 18–32% — but every clinic-
+  SaaS winner chose removing switching fear over squeezing trial
+  mechanics; test, don't assume.
+- Founding-cohort framing with a public counter, and a **"founding
+  practices of {metro}"** launch (Zocdoc's 10 NYC dentists, Podium's 10
+  Utah shops, Toast's Boston: ten local logos unlock proof and referral
+  density at once).
+
+**Engine 6 · THE PROOF ENGINE (retention as marketing).**
+- **Review velocity**: in-product G2/Capterra asks at real milestones
+  (first booking, first review reply approved), FTC-clean (pay for a
+  review never a positive one, ≤$100, labeled, no employees); 300 dental
+  reviews puts us above every dental-only incumbent except Adit.
+- Case studies with the owner's numbers (recall booked back, no-shows
+  cut, review count, grader delta) as landing pages once clinics consent;
+  a wall of love on /why; Townie Choice Awards campaign; the annual
+  report; contributed trade-press articles; customer-story podcast later.
+- Support-as-CAC: founder-speed replies in `/messages/support` during
+  beta — referrers cite support first (Jane, Mangomint, Cliniko).
+
+**Engine 7 · THE COCKPIT + THE MARKETING DREAM TEAM (the brain).**
+- **Dials v2**: the funnel with signup-abandon, per-channel CAC/LTV on
+  the 60-day lag, experiment results, content citation share (a fixed
+  panel of ~40 prompts weekly across ChatGPT/Perplexity/Gemini/AIO —
+  "measure citations, not rankings"), nurture performance, partner
+  ledger, per-capability spend caps like `pms_api_usage`, and a **weekly
+  growth standup** to the owner (the Narrator, pointed at the business).
+- **The Marketing Dream Team**: the platform org gets its own
+  `/dream-team` on the EXISTING proposal spine, autonomy ladder, ledger,
+  Cycles, Guardian and standup — new CAPABILITIES, not pages. The roster:
+  the Scout (weekly demand brief from SERPs/Reddit/G2 reviews of
+  incumbents + our own pageview/grader data), the Writer (drafts,
+  comparison pages, quarterly refreshes), the Editor/Critic (fact-check
+  against the product-knowledge brain + policy check; a redline, never a
+  rewrite), the Social Operator (repurposes day-0 auto via official APIs;
+  original takes ask-first), the AEO Watcher (citation share → content
+  requests to the Writer), the Grader Concierge (nurture + personal
+  follow-ups on hot scans), the Hunter (exists; every first touch
+  human-approved), the Mail Clerk (grade cards, budget-capped), the Ad
+  Manager (weekly budget moves + copy variants, ask-first, hard caps,
+  never auto-raises), the CRO Experimenter (one experiment/week), the
+  Newsletter Editor, the Reviewer/Responder (review-ask proposals +
+  replies), the Video Presenter (scripts; avatar video bought, founder on
+  camera for anything trust-bearing), the Partner Desk (kits, applicant
+  triage, commission statements), the Marketing Guardian (silent/blocked/
+  stalled/spend anomalies), the Narrator.
+- **Lanes** (the owner's day-0 rulings, mirrored): AUTO — attribution,
+  AEO monitoring, changelog→drafts, templated nurture touches, mail cards
+  within budget, review-ask triggers, freshness refreshes after N unedited
+  approvals. ASK-FIRST — any spend change, competitor ad copy, any public
+  claim naming HIPAA/ROI/a customer, partner deals, comparison-page
+  publishes, anything under the founder's name. HUMAN-ONLY — Reddit and
+  Facebook groups, calls, demos, podcasts, pricing, signatures, and
+  choosing which stories to tell.
+- **The story is the machine**: every proposal card is a screenshot,
+  every Monday standup is a LinkedIn post — "our marketing is run by the
+  Dream Team we sell."
+
+### 10.3 The Laws (non-negotiable, from the compliance pass)
+
+1. Cold email never leaves the product domain or Resend (AUP). If ever
+   un-demoted: separate domain, separate infra, suppression synced, and
+   Gmail's 0.3% complaint ceiling respected.
+2. Never cold-text a prospect. Calls: human-dialed, DNC-scrubbed,
+   8am–9pm local, no AI voice, consent and opt-outs logged.
+3. California B2B contact data is personal information: publish a
+   privacy notice for the prospect DB (source: NPPES public data + our
+   crawl), honor deletion, consent-gate pixels for CA visitors, never
+   de-anonymize visitors.
+4. FTC 16 CFR 465 + G2/Capterra rules: pay for a review, never for a
+   positive one; ≤$100; labeled; no employees; disclose partner/customer
+   incentives in testimonials. **Product action:** the review loop's
+   optional star-gate must offer private feedback IN ADDITION to the
+   Google link, never as a filter that withholds it — legal review of the
+   flow before the engine promotes "FTC-clean reviews" harder than the
+   product backs it (docs/COMPLIANCE.md).
+5. Ads: competitor keyword bidding is legal, their trademark in our copy
+   is not; pixels and copy stay off patient-facing routes; no HIPAA
+   claims beyond COMPLIANCE.md; Meta's healthcare classification checked
+   early.
+6. No scaled-thin pages (every programmatic page carries real local
+   data), no AI listicles that rank us first, no "X sucks" copy, no
+   bought reviews, no LinkedIn automation, no Wikipedia attempts, llms.txt
+   shipped but never relied on.
+
+### 10.4 The master catalog (the hundred ideas — by engine; ★ shipped, H/M/L fit)
+
+*Engine 1 — Doors.* ★grader · ★ROI calculator · ★delta re-grade · ★compare
+FAQ/schema · ★guides (3) · ★powered-by v1 · H Practice Scan public report
+URL + OG grade card · H "See your practice on DreamCRM" mockup · H "You
+vs the 5 nearest" · H GBP audit · H reputation score + AI reply drafts · H
+AEO "does ChatGPT recommend you" · H local rank tracker (weekly email) · H
+new-patient leak calculator · M booking-readiness test · M cohort speed
+grade · M "roast my site" (kind) · M brand-kit extractor · H public
+template gallery · H `/alternatives/[x]` roundups · H "X pricing (2026)"
+pages for 12 vendors incl. ProSites/PBHS · H consolidation cost calculator
+· H comparison refresh law (monthly, dated) · H programmatic state/city
+pages on real Scan stats · M annual State-of report · H the agnostic
+"honest dental software guide" brand · H DE contributed articles · H
+founder YouTube walkthroughs per comparison · H two guides per session
+(reminder templates, negative-review replies, website checklist, KPIs) ·
+H docs-as-landing-pages · H powered-by v2 (offer + landing + all patient
+surfaces) · H `/showcase` · M portal "dental team member?" footer · H
+standup forward-a-colleague footer · H Nachos/Nifty deal listings · H
+DOMC/DOMA perks · M AADOM via OM customers · H podcast guesting (trigger
+shows first) · M Voices of Dentistry · M DIQ Morning Briefing eblast · L
+big-hall booths · L DSO events · M state meetings (2027) · H membership
+price calculator · M front-desk time calculator · M 30-days-of-posts pack
+· M intake-form templates (COMPLIANCE check first) · M review QR cards.
+
+*Engine 2 — Prospect brain.* H unified identity per email · H capture
+moments on every tool · ★grader nurture · H rank-tracker sequence · H
+pricing-viewer sequence · H calculator→guide sequence · H partner
+onboarding sequence · H trigger radar (NPPES new-org, ownership/name
+change, listing change, review incident) · M "how did you hear about us"
+claimed-vs-observed · H signup-abandon funnel stage · H the monthly
+practice-growth letter · H one consent ledger.
+
+*Engine 3 — Allowed outbound.* H direct-mail grade cards (Lob) · H
+handwritten notes for hot scans (Handwrytten) · ★Call Mode · H micro-KOL
+affiliate codes (3–5) · M gifting for activation, never demos.
+
+*Engine 4 — Partners.* ★partner program door · H $500-at-day-30-to-anyone
+referral · H customer 2-sided credit (Jobber design) · H ambassador tier ·
+M referral-gated VIP community · M "Dream Practice" badge · H consultant
+track (recurring 20%/12mo) + ADMC membership · H broker new-owner kit
+(ADS, HS DPT) · H lender startup package (BofA PS, Provide) · H MSP stack
+deal (Darkhorse, Pact-One) · H dental-CPA Q4 one-pager · H Open Dental
+Authorized Vendor listing via OD API · H NexHealth partner directory · M
+Dentrix Ascend API Exchange (SOC 2) · H G2/Capterra/GetApp/SA listings ·
+H affiliate comparison sites · M state-association member rate + rev-share
+· M study-club partner (Seattle Study Club form) · M agency co-sell (they
+keep SEO, we supply booking/portal).
+
+*Engine 5 — Conversion.* H the headline law on every page · H Scan→signup
+handoff w/ mockup as draft · H template preselect · H ungated live sandbox
+on product pages · H founder walkthrough at PMS-connect/site-publish · H
+setup-call offer for stalled trials · H go-live bribe · H experiments
+framework (variant table + one/week) · M reverse-trial A/B · H
+founding-cohort counter · H "founding practices of {metro}" launch · H
+"we cancel your old vendor for you" concierge + buyout credit for
+contract-locked practices.
+
+*Engine 6 — Proof.* H G2/Capterra asks at milestones · M case-study
+engine (consent-gated) · M wall of love · M Townie Choice campaign · M
+customer-story podcast · H support-as-CAC during beta · M customer
+advisory sessions.
+
+*Engine 7 — Cockpit + Dream Team.* ★dials v1 · H dials v2 (abandon stage,
+CAC/LTV, experiments, citation share, partner ledger, spend caps) · H
+weekly growth standup · H platform `/dream-team` on the proposal spine · H
+Scout · H Writer · H Editor/Critic · H Social Operator · H AEO Watcher · H
+Grader Concierge · ★Hunter (first-touch human) · H Mail Clerk · H Ad
+Manager · H CRO Experimenter · H Newsletter Editor · H Reviewer/Responder
+· M Video Presenter · H Partner Desk · H Marketing Guardian · H Narrator ·
+H the brand brain (voice, claims registry, banned phrases, battlecards,
+policy checklist) · H per-capability budgets.
+
+*Owner-only (not code).* Launch the $1k Google campaign · claim
+G2/Capterra listings · rotate the Serper + AWS keys · legal review of the
+star-gate · OD vendor-relations email · ADMC membership · first three
+consultant conversations · the first podcast guest spots · founder on
+camera for the "vs" walkthroughs.
+
+### 10.5 The roadmap (phases, what each unlocks, the metric that says it worked)
+
+- **M1 · The Scan spine + the doors (now).** Practice Scan as a public
+  object (report URL, OG card, mockup facet, nearest-5, GBP audit,
+  reputation+replies, AEO check, rank tracker), powered-by v2, the
+  complete comparison/alternatives/pricing family with the refresh law,
+  the public template gallery, review-site listings, two guides per
+  session. *Metric:* qualified scans/week and citation share on the
+  40-prompt panel.
+- **M2 · The partner engine.** Referral terms shipped ($500-at-30-to-
+  anyone + customer credit + ambassadors), the four trigger kits (broker,
+  lender, MSP, CPA), consultant track + ADMC, deal listings on
+  Nachos/Nifty/DOMA, OD Authorized listing, NexHealth directory, the
+  direct-mail step for the top decile. *Metric:* partner-sourced trials
+  and referral share of signups (Jane's bar is 85%; year one, aim for a
+  measured 30%).
+- **M3 · The conversion engine.** Scan→signup handoff, sandbox, PLS
+  triggers, go-live bribe, the experiments framework, the metro cohort
+  launch. *Metric:* trial→paid (the master variable) and activation
+  (only a third of PLG companies even measure it).
+- **M4 · The prospect brain + radar + letter.** Unified identity, capture
+  moments, the sequences, the trigger radar, the monthly letter.
+  *Metric:* trigger-sourced trials and nurture→trial rate.
+- **M5 · Cockpit v2 + the Marketing Dream Team.** Dials v2, the weekly
+  standup, the roster as capabilities on the proposal spine with lanes,
+  budgets, the Guardian. *Metric:* founder minutes per week (target: 30
+  on Monday + 5/day) and cards approved without edits.
+- **M6 · The proof engine at scale.** Case studies, the annual report,
+  state-association rates, Voices of Dentistry, the customer-story
+  podcast. *Metric:* review count on G2/Capterra (300 = top of the
+  dental category) and inbound share of signups.
+
+The rhythm inside every phase stays the Part 9 rhythm: pull → ship →
+verify live → next pull, with the honesty laws and the compliance laws as
+the CI of the program.
+
+### 10.6 Owner rulings needed to start M1/M2
+
+1. **The Practice Scan as a PUBLIC, indexable object** (report pages
+   discoverable by practice name; owners can request noindex) — yes/no.
+2. **Referral terms**: $500 at day 30 to anyone (partners) + customer
+   credit (3 months / 1 month, Jobber-shaped) — confirm the numbers.
+3. **The consultant track rate**: recurring 20% for 12 months (vs the
+   current 10%-forever default) — pick one shape; both can coexist per
+   partner.
+4. **Direct mail budget** for the top-decile grade cards (~$1–4/piece;
+   start at ~200/month?).
+5. **The agnostic "honest dental software guide" as a separate brand**
+   (domain + editorial voice independent of DreamCRM) — build it, or
+   keep the comparison layer first-party only.
+6. **The metro for the founding-practices cohort.**
+7. **Video**: founder on camera for the "vs" walkthroughs (trust-bearing)
+   vs avatar video for the rest.
+8. **The star-gate**: authorize the legal review / the product change to
+   an additional private-feedback branch.
+
+### 10.7 Open questions the research could not verify (next pass)
+
+Nachos/Nifty exact sponsorship prices and current member counts; Dentaltown
+sponsorship pricing; NexHealth's actual partner commission % and whether
+Synchronizer developers qualify; ADA Member Advantage royalty structure;
+AADOM exhibit tiers (Cloudflare-gated); whether Adit's "free trial" is
+real; Capterra's own dental-category CPC; observed paid-search coverage
+by incumbents on "Weave alternative"-class terms.
 
 ## Build log
 
