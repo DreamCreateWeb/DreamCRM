@@ -23,26 +23,19 @@ test.describe('public booking', () => {
     // the rescue. This also gives the rescue feature real browser coverage.
     const slot = page.getByRole('button', { name: /— available$/ }).first()
     const rescue = page.getByRole('button', { name: /openings →/ }).first()
-    const emptyDay = page.getByText(/done seeing patients|closed this day|slot is taken/i).first()
-    await expect(slot.or(rescue).or(emptyDay).first()).toBeVisible({ timeout: 20_000 })
+    await expect(slot.or(rescue).first()).toBeVisible({ timeout: 20_000 })
     if (!(await slot.count())) {
-      if (await rescue.count()) {
-        await rescue.click()
-      } else {
-        // The dead-end window (found by CI 2026-09-09, ~15:00–17:00 clinic
-        // time on weekdays): the server's window scan ignores the patient
-        // notice window, names TODAY first-bookable, and thereby suppresses
-        // the rescue button while the picker honestly shows nothing. The
-        // scan fix is a product change owned by stabilization; until it
-        // lands, do what a patient does — walk the day strip.
-        const days = page.getByRole('button', { name: /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+$/ })
-        for (let i = 1; i <= 7 && !(await slot.count()); i++) {
-          await days.nth(i).click()
-          await expect(days.nth(i)).toHaveAttribute('aria-pressed', 'true')
-          // A weekend day answers with the closed empty state — move on.
-          await expect(slot.or(emptyDay).first()).toBeVisible({ timeout: 20_000 })
-        }
-      }
+      // An empty day must ALWAYS offer the rescue. The day-strip walk that used
+      // to stand in here was a workaround for the dead-end window CI found on
+      // 2026-09-09 (the server's scan ignored the patient notice window, named
+      // TODAY first-bookable and so suppressed the button while the picker
+      // honestly showed nothing). That scan now applies the same notice window
+      // the picker does, so asserting the button is the real coverage.
+      await expect(
+        rescue,
+        'an empty day must offer the rescue button, never a dead end',
+      ).toBeVisible({ timeout: 20_000 })
+      await rescue.click()
     }
     await expect(slot, 'the seeded clinic should offer at least one open slot').toBeVisible({
       timeout: 20_000,
