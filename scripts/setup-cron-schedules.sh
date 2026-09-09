@@ -91,6 +91,10 @@ JOBS=(
   # transitions only fire on a provider-status CHANGE; creates carry
   # deterministic ClientTokens). Dark no-op until SMS_DRIVER=aws.
   "sms-registration|sms-registration|rate(6 hours)"
+  # Grader-lead nurture (marketing-engine Part 9 C①): the day-3 one-fix
+  # nudge + day-14 re-grade invite. Daily — wide windows, idempotent
+  # stamps, suppression checked at send time.
+  "grader-nurture|grader-nurture|rate(1 day)"
 )
 
 echo "==> DreamCRM cron schedules (region ${REGION})"

@@ -878,3 +878,30 @@ refreshes the existing row's notes instead of minting a duplicate;
 a best-effort admin email alert rides on top (a mail hiccup never
 fails the applicant). '/partner-program' joined MARKETING_PUBLIC_PATHS
 + the footer's Get-started column. Suite 6,831 green.
+
+**Part 9 C① — grader-lead nurture (SHIPPED 2026-09-09, migration 0158).**
+The warm loop, built so it can never become the cold one: two touches,
+both about the report the person ASKED for, both carrying a one-click
+unsubscribe that writes to the SAME `prospect_suppression` list the
+Hunter obeys (one "never again" covers every machine we run). Day 3 —
+"your report's still here" + THE ONE FIX from their own stored result
+(`topFixFor`: the worst-scored axis's first finding with a shipped
+remedy; a clean report yields no email, because a nudge with nothing
+to offer is noise). Day 14 — the re-grade invite, with B①'s delta
+strip as the payload. Laws in `lib/services/grader-nurture.ts`: a row
+without a prospectId is never emailed (no working unsub target → no
+send, ever); suppression is checked at send time; an account for the
+email means the product's onboarding took over → quiet; a newer grade
+for the same practice supersedes the touch; every considered row is
+STAMPED (0158 `nurture_report_at` / `nurture_regrade_at` — "resolved",
+sent OR skipped) so the daily scan never grinds; a deliver failure
+does NOT stamp, so the next run retries. Windows [3,10) and [14,28)
+days double as the first-deploy guard (old backlog ages out, no
+surprise blast); cap 50/run. Links carry utm_campaign nurture-report /
+nurture-regrade so the acquisition panel shows what the touches
+earn. `grader-nurture` is the 22nd cron (daily; JOBS entry +
+parity-guarded). HONESTY FIX riding along: the courtesy report email
+said "there's nothing to unsubscribe from" — true when it was
+one-time, a lie once follow-ups exist — now "we may check in once or
+twice — every follow-up carries a one-click unsubscribe." Suite 6,838
+green.

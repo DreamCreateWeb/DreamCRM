@@ -503,6 +503,12 @@ export const practiceGrade = pgTable(
     // PracticeGradeResult (lib/practice-grade.ts) — parsed defensively.
     result: jsonb('result').notNull(),
     prospectId: text('prospect_id').references(() => prospect.id, { onDelete: 'set null' }),
+    // Nurture stamps (Part 9 C①) — "this touch was RESOLVED": sent, or
+    // deliberately skipped (suppressed / signed up / superseded by a newer
+    // run). Stamped either way so the daily cron never rescans a row
+    // forever; the run result's counts carry the sent-vs-skipped truth.
+    nurtureReportAt: timestamp('nurture_report_at'),
+    nurtureRegradeAt: timestamp('nurture_regrade_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({

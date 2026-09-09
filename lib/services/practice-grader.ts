@@ -318,7 +318,7 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
         buttonUrl: reportUrl,
         buttonLabel: 'See the full report',
         footnoteHtml:
-          'You asked for this one-time report at dreamcreatestudio.com — there’s nothing to unsubscribe from.',
+          'You asked for this report at dreamcreatestudio.com. We may check in about it once or twice — every follow-up carries a one-click unsubscribe.',
       }),
       tags: [{ name: 'kind', value: 'practice-grade' }],
     })

@@ -491,7 +491,7 @@ sitemap/robots/OG.
 - **Search**: ⌘K palette (`lib/services/global-search.ts`) — searches patients/
   visits/leads/threads/campaigns/applicants/products/reviews/saved views/pages
   and ACTS (add follow-up, tag patient, quick-create).
-- **Crons — 21 routes, all `Authorization: Bearer $CRON_SECRET`:**
+- **Crons — 22 routes, all `Authorization: Bearer $CRON_SECRET`:**
   `pms-sync` (hourly; NexHealth orgs self-gate to a ~2h cadence, pending
   write-ops override the gate) · `send-reminders` (30m, incl. forms reminders) ·
   `send-scheduled-campaigns` (15m, also flushes scheduled messages) ·
@@ -509,8 +509,10 @@ sitemap/robots/OG.
   pass over the whole platform; weekly because send-time behaviour moves on
   the scale of seasons and a faster cadence only chases noise) ·
   `sms-registration` (6h — advances every clinic's A2P registration state
-  machine)
-  — 19 EventBridge rules
+  machine) · `grader-nurture` (daily — marketing-engine Part 9 C①: the
+  day-3 one-fix nudge + day-14 re-grade invite to grader leads,
+  suppression-honoring, stamped)
+  — 20 EventBridge rules
   managed by `scripts/setup-cron-schedules.sh`, which the **deploy re-runs on
   every merge** (idempotent self-heal — a new cron route can't ship un-fired,
   the drift that once left prospecting + 4 other jobs silently dead); the
@@ -659,7 +661,10 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0157** (marketing-engine slice 3: `marketing_spend` — the
+  migration: **0158** (marketing-engine Part 9 C①: `practice_grade.
+  nurture_report_at` + `nurture_regrade_at` — the grader-nurture touch
+  stamps, "resolved: sent or deliberately skipped"). Before it: **0157**
+  (marketing-engine slice 3: `marketing_spend` — the
   dials cockpit's owner-entered monthly spend per channel, unique on
   (month, channel), platform-global). Before it: **0156** (marketing-engine
   slice 2: `practice_grade` — the
