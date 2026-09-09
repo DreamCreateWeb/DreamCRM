@@ -80,7 +80,7 @@ export default async function EventsPage() {
                     ['Scanned', s.scanned],
                   ].map(([k, v]) => (
                     <div key={String(k)} className="rounded-lg bg-white/60 px-2 py-2 dark:bg-gray-900/40">
-                      <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{k}</dt>
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-gray-500">{k}</dt>
                       <dd className="font-mono-num text-lg font-bold text-gray-800 dark:text-gray-100">{v}</dd>
                     </div>
                   ))}

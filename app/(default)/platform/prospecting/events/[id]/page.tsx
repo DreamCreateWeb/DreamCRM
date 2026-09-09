@@ -59,7 +59,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       ) : (
         <div className="overflow-x-auto rounded-[var(--r-md)] shadow-[inset_0_0_0_1px_var(--color-hairline)]">
           <table className="w-full text-sm">
-            <thead className="bg-[color:var(--color-surface-2)] text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+            <thead className="bg-[color:var(--color-surface-2)] text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
               <tr>
                 <th className="px-3 py-2">Person</th>
                 <th className="px-3 py-2">Practice</th>

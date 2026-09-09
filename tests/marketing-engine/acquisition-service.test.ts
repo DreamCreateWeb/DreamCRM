@@ -243,6 +243,7 @@ describe('getAcquisitionReport', () => {
       'ai_assistant',
       'social',
       'email',
+      'association',
       'referral',
       'direct',
     ])
