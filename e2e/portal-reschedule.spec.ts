@@ -96,16 +96,43 @@ test.describe('portal reschedule and cancel', () => {
     await expect(visit.getByText(/no judgment. Want us to cancel this visit\?/)).toBeVisible()
     await visit.getByRole('button', { name: 'Yes, cancel it' }).click()
 
-    // The success notice lives inside the card, and the card leaves "Coming
-    // up" the moment the post-cancel refresh lands — asserting on the notice
-    // is a race the refresh usually wins (CI proved it). The cancellation
-    // itself is what matters: the Filling card disappears, and stays gone on
-    // a fresh load.
-    await expect(page.locator('div.rounded-2xl').filter({ hasText: 'Filling' })).toHaveCount(0, {
-      timeout: 30_000,
-    })
+    // Two outcomes race here and BOTH are correct:
+    //   • the action's revalidate re-renders the list without the cancelled
+    //     visit and the card vanishes, or
+    //   • the card stays put with its in-place confirmation — visit-card's
+    //     run() sets the success message and deliberately does NOT call
+    //     router.refresh(), so the patient gets to read it.
+    // Which one lands first is a coin toss on CI load. An earlier revision of
+    // this spec asserted the notice and lost to the re-render; switching to
+    // assert the disappearance just loses the race the other way, which is
+    // what turned the e2e gate red on 2026-09-09 (the failure screenshot shows
+    // the card present, every button disabled, "Cancelled. Whenever you're
+    // ready, we'll be here." underneath — a cancel that fully succeeded).
+    // So accept either, then let the reload assert the part that is
+    // unconditionally true.
+    //
+    // Debugging a future failure here: this test CONSUMES its seeded row, and
+    // the harness seeds once per RUN, not once per attempt. A Playwright retry
+    // therefore starts with the Filling visit already cancelled and dies on the
+    // first assertion — the retry's error is an artifact of the retry, not a
+    // second data point. Always read attempt #1.
+    const fillingCards = page.locator('div.rounded-2xl').filter({ hasText: 'Filling' })
+    await expect
+      .poll(
+        async () => {
+          if ((await fillingCards.count()) === 0) return 'gone'
+          return (await page.getByText(/Cancelled\. Whenever/).count()) > 0 ? 'confirmed' : 'pending'
+        },
+        {
+          timeout: 30_000,
+          message: 'cancelling should either clear the card or confirm in place',
+        },
+      )
+      .not.toBe('pending')
+
+    // Durable, whichever way it landed: gone from "Coming up" on a fresh load.
     await page.reload()
     await expect(page.getByText('Coming up').first()).toBeVisible({ timeout: 30_000 })
-    await expect(page.locator('div.rounded-2xl').filter({ hasText: 'Filling' })).toHaveCount(0)
+    await expect(fillingCards).toHaveCount(0)
   })
 })

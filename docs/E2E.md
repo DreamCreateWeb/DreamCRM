@@ -125,3 +125,23 @@ file owns its seeded rows outright (Casey belongs to portal + token specs,
 Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
 sign-here). Add new journeys on their own rows, and make the seed reset any
 state a journey consumes.
+
+## Two traps these specs already fell into (DREAMCRM-10)
+
+**A retry cannot fix a test that consumes its fixture.** The harness seeds once
+per RUN, not once per attempt. `portal-reschedule` cancels a visit and
+`sign-here` approves a proposal, so on a Playwright retry those rows are already
+spent and the retry fails at its FIRST assertion — long before reaching whatever
+actually broke. When you read a failure in one of these, **read attempt #1**; the
+retry's error is an artifact of the retry. (`retries: 1` still earns its keep for
+the specs that only read, and for genuine infrastructure noise.)
+
+**Do not assert which side of a revalidate race won.** After a portal action
+succeeds, `components/patient-portal/visit-card.tsx` sets an in-card confirmation
+and deliberately never calls `router.refresh()` — the patient is meant to read
+it. The server action's own revalidate may re-render the list without the row
+anyway. Both outcomes are correct and which lands first depends on CI load, so
+an assertion that the card disappeared is exactly as flaky as an assertion that
+the confirmation is showing. The cancel spec flaked both ways before it settled
+on accepting either and letting a reload assert the durable truth. Assert what is
+unconditionally true — usually the state after a fresh load.
