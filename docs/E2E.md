@@ -96,13 +96,32 @@ which happy-dom can reach.
 It also pins the guard that the submit button stays **disabled until a time is
 picked**, so a half-filled form can never post a booking with no slot.
 
-## The next specs to write
+## The journey specs (added 2026-09-09, DREAMCRM-7)
 
-Each needs more fixture than the two clinics above (a patient, a session, an
-appointment):
+The list that used to live here is written:
 
-1. **Portal** — magic-link sign-in → next visit → reschedule inside the notice
-   window → cancel outside it.
-3. **Staff day** — confirm / complete / cancel from the appointments drawer.
-4. **Sign-here stack** — approve a proposal and see the artifact update.
-5. **Onboarding path B + the go-live lever** — the R4 stranger test, scripted.
+1. **Portal reschedule/cancel** (`e2e/portal-reschedule.spec.ts`) — a second
+   portal patient (Morgan) moves a consultation to a new open time (the new
+   visit comes back unconfirmed, the original retires), cancels a filling, and
+   sees the notice window honestly close self-serve changes on a visit 20
+   hours out. (The doc's old phrasing had the window backwards: the code
+   offers changes OUTSIDE the window and the call-us fallback INSIDE it; and
+   the portal door is email + password, not magic link — the specs mint the
+   signed session cookie either way.)
+2. **Staff day** (`e2e/staff-day.spec.ts`) — Dana at the desk confirms,
+   completes (a past visit, via the Past 30 days chip), and cancels (through
+   the confirm dialog) from the appointments drawer, with the durable status
+   pills asserted past the optimistic flips.
+3. **Sign-here stack** (`e2e/sign-here.spec.ts`) — approve a seeded
+   inquiry-reply proposal on /dream-team and watch the lead flip to Contacted
+   on the Leads board. inquiry_response is the one capability whose executor
+   completes keyless (deliver() silently succeeds for @example.com
+   recipients), so it is the capability the fixture seeds.
+4. **Onboarding path B** — already covered: path B IS the self-serve flow,
+   and `e2e/stranger.spec.ts` walks it end to end.
+
+**Row ownership matters**: spec files run in parallel workers, so every spec
+file owns its seeded rows outright (Casey belongs to portal + token specs,
+Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
+sign-here). Add new journeys on their own rows, and make the seed reset any
+state a journey consumes.
