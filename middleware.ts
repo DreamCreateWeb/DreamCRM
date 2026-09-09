@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
+import { isKnownRoute } from '@/lib/known-routes'
 import { RESERVED_SLUGS } from '@/lib/onboarding/slug'
 import {
   ATTRIBUTION_COOKIE,
@@ -190,6 +191,32 @@ function withAttributionCookie(request: NextRequest, hostname: string, res: Next
   return res
 }
 
+/**
+ * A path the router cannot match, so Next renders app/not-found.tsx with a
+ * real 404 status. The leading underscore keeps it out of the app directory's
+ * routable namespace for good.
+ */
+const NOT_FOUND_REWRITE_PATH = '/_dc-not-found'
+
+/**
+ * Answer a request for a route that does not exist.
+ *
+ * A REWRITE, not `NextResponse.next()`: falling through would serve whatever
+ * the router happens to have at that path with no auth check, so a lib/
+ * known-routes.ts that ever fell behind the app tree would turn a stale list
+ * into an authorization hole. Rewriting fails closed — the worst a stale entry
+ * can do is 404 a page that exists, which the tests catch.
+ */
+function notFoundResponse(request: NextRequest, pathname: string) {
+  // An API caller asked for JSON; hand it a 404, not a rendered HTML page.
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  const url = request.nextUrl.clone()
+  url.pathname = NOT_FOUND_REWRITE_PATH
+  return NextResponse.rewrite(url)
+}
+
 function isPublicPath(pathname: string) {
   // The root is the public marketing site (the page itself routes signed-in
   // users to their dashboard). Exact match only — every other path keeps its
@@ -334,6 +361,14 @@ export async function middleware(request: NextRequest) {
     return withAttributionCookie(request, hostname, NextResponse.next())
   }
   if (pathname.startsWith('/site/')) return siteResponse(request, pathname)
+
+  // No such route → 404. Everything past this line is the auth gate, and
+  // sending an unmatched path to /signin is what made every typo, stale link
+  // and crawler probe answer 200 with the sign-in page (DREAM-164). The public
+  // allowlist and the clinic-site branches returned above, so the only choice
+  // left here is "route exists, sign in" versus "no such route" — and that
+  // choice is the same whether or not the visitor has a session.
+  if (!isKnownRoute(pathname)) return notFoundResponse(request, pathname)
 
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
