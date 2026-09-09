@@ -19,6 +19,28 @@ batch number.
 - ~35 sites still hand-roll `{pending ? 'Sending…' : 'Send'}` ternaries
   instead of `ActionButton pending=`; SIX modals put the shared pending on
   their **Cancel** button, turning the escape hatch into a second spinner.
+- ~~Inter arrived through a render-blocking Google-Fonts `@import` on line 1
+  of `app/css/style.css`~~ [BATCH 51: self-hosted variable woff2 (latin +
+  latin-ext) in public/fonts on the Nunito pattern. It was the worst-case
+  shape — a CSS import is render-blocking AND can't start until the sheet
+  itself has landed, so EVERY first paint in the product waited on a
+  third-party round trip it couldn't preload. Variable 100–900 replaces the
+  four static weights. `tokens.test.ts` now fails on any remote `@import`
+  returning to the sheet, and on a woff2 the CSS names but public/ doesn't
+  ship (a 404 font is silent — it just renders the fallback face)].
+- ~~The shared `Drawer` could open with NO accessible name~~ [BATCH 51: its
+  header — and the only `DialogTitle` in the component — rendered solely
+  when `title || actions`, so a title-less drawer opened as an anonymous
+  "dialog", and an actions-only one got an EMPTY name. A visually-hidden
+  DialogTitle now always supplies the name; the header's own title slot
+  becomes a spacer when there's nothing to put in it].
+- ~~Unannounced error/success nodes on the unauthenticated edge~~ [BATCH 50:
+  `reset-password` announced NEITHER — its error had no role=alert (both
+  sibling auth forms already did) and its success REPLACED the whole form
+  with no role=status; `accept-invite`'s two formError nodes were silent
+  too; the approval inbox's blocking validation complaints (empty subject,
+  bad chair count) and its image-upload error had no role=alert, so the
+  Approve button just appeared to stop working].
 
 ---
 
@@ -187,6 +209,7 @@ Already best-version: CompletedHeartbeat.
 1. ~~Runtime Google-Fonts fetch for Fraunces~~ [BATCH 32: self-hosted variable woff2 (latin + latin-ext) in public/fonts on the Nunito pattern, preloaded — the third-party round trip and the Georgia flash are gone].
 2. ~~portal loading.tsx cool-gray shimmer~~ [BATCH 32: warm sand-tone shimmer blocks on the portal's own cream palette].
 3. ~~Header "Book a visit" self-link~~ [BATCH 32: on /patient/book the pill goes quiet-outline + aria-current instead of a primary that reloads the page you're on].
+4. ~~More-sheet nav carried the current page in tint alone~~ [BATCH 50: the desktop nav and the bottom tab bar both announced aria-current; the More sheet's items did not, so the page you were already on was unmarked. The More TRIGGER also gains aria-expanded (it opens a sheet and never said so) and aria-current when the active page lives inside it].
 
 ### Patient dashboard
 1. ~~Two hand-rolled amber strips~~ [BATCH 32: both task strips ride PortalNotice warn; the one-off #EBDCB8 border retired].
@@ -209,6 +232,10 @@ Already best-version: CompletedHeartbeat.
 3. ~~Submit buttons bypass BrandButton~~ [BATCH 33: book + request submits and the See-my-visits CTA ride BrandButton (tap feedback, disabled states); the .ics download stays a plain anchor by necessity].
 4. ~~request-form lost sibling a11y~~ [BATCH 33: who-for + reason chips get role=group + aria-pressed; the error announces (role=alert); free-text fields ride PortalInput/PortalTextarea with real focus rings].
 5. ~~"No openings" no next step~~ [BATCH 33: when the clinic has a phone, the empty state offers "Call us at (555)… and we'll find you something"].
+6. ~~Slot pickers had aria-pressed but NO group~~ [BATCH 50: batch 33 gave the choice chips role=group + aria-label and left both slot pickers out — the portal picker's day strip and slot grid, and the public form's, are now named groups too ("Pick a day"/"Pick a date" + "Pick a time"). A day chip is no longer a loose toggle belonging to nothing].
+7. ~~Picking a day swapped the whole grid in silence~~ [BATCH 50: one polite role=status region per picker narrates the phase — "Checking openings…" → "6 times available on Sep 12" / "No openings on Sep 12". The portal skeleton's own sr-only "Checking openings…" had been sitting INSIDE an aria-hidden wrapper, so it never spoke at all].
+8. ~~Public day chips spoke a bare number~~ [BATCH 50: the visible label is two split divs ("MON" over "12") with no month; they now carry the same aria-label the portal picker already had].
+9. ~~The public booking payoff was SILENT~~ [BATCH 50: `BookingSuccess` REPLACES the form outright — the submit button unmounts, focus falls back to <body>, and a screen-reader user pressed Book and heard nothing. The funnel's whole endpoint. A live region can't carry this one (it mounts already-populated, the case screen readers don't reliably announce), so the phase-change contract is focus: the "You're booked." heading takes tabIndex=-1 and is focused on mount, which speaks it AND puts the keyboard at the top of the new content].
 
 ### Billing / invoices
 1. ~~pay-form primitive-starved~~ [BATCH 33: PORTAL_* tokens, BrandButton, role=alert on the error, focus-within ring on the amount pill].
