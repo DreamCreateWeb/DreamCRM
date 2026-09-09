@@ -59,7 +59,7 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const FILES = SCAN_DIRS.flatMap((d) => walk(join(ROOT, d)))
-  .map((f) => relative(ROOT, f))
+  .map((f) => relative(ROOT, f).replace(/\\/g, '/'))
   .filter((f) => !ALLOWLIST.some((a) => f.startsWith(a)))
 
 function offenders(pattern: RegExp): string[] {

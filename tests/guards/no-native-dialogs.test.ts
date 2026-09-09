@@ -47,7 +47,7 @@ describe('no native browser dialogs', () => {
     const offenders: string[] = []
     for (const root of ROOTS) {
       for (const file of walk(root)) {
-        if (ALLOWLIST.has(file)) continue
+        if (ALLOWLIST.has(file.replace(/\\/g, '/'))) continue
         const src = stripComments(readFileSync(file, 'utf8'))
         if (NATIVE.test(src)) {
           const line = src.split('\n').findIndex((l) => NATIVE.test(l)) + 1

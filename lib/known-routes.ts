@@ -37,8 +37,11 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'compare',
   'docs',
   'grade',
+  'partner-program',
   'pricing',
   'product',
+  'resources',
+  'roi',
   'why',
   // Root metadata files — app/icon.tsx, opengraph-image.tsx, robots.ts,
   // sitemap.ts. Next mints these as top-level routes.
@@ -97,11 +100,13 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'demo',
   // Token-IS-auth patient/prospect landings (/r review request, /w fast pass,
   // /c confirm, /b balance, /i installments, /n survey, /d demo booking,
-  // /g practice-grade report)
+  // /g practice-grade report, /e event capture, /h headshot page)
   'b',
   'c',
   'd',
+  'e',
   'g',
+  'h',
   'i',
   'n',
   'r',

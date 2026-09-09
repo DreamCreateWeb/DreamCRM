@@ -51,7 +51,7 @@ describe('lib/services is server-only', () => {
   it('every module carries the banner, or is listed with a reason', () => {
     const offenders: string[] = []
     for (const file of files) {
-      const rel = file.slice(root.length + 1)
+      const rel = file.slice(root.length + 1).replace(/\\/g, '/')
       if (ALLOWED.some((a) => a.file === rel)) continue
       // Only the TOP of the file counts — a banner buried below an import
       // that already pulled in the database has protected nothing.

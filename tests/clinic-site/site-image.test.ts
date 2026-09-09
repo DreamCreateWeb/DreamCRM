@@ -167,7 +167,7 @@ describe('the public site renders uploaded photos through SiteImage', () => {
   it('has no raw <img> left outside the documented exceptions', () => {
     const offenders: string[] = []
     for (const full of SCAN.flatMap((d) => walk(d))) {
-      const rel = full.slice(ROOT.length + 1)
+      const rel = full.slice(ROOT.length + 1).replace(/\\/g, '/')
       if (ALLOWLIST[rel]) continue
       if (/<img[\s>]/.test(code(readFileSync(full, 'utf8')))) offenders.push(rel)
     }

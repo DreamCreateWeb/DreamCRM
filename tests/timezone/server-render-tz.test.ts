@@ -109,7 +109,7 @@ describe('server-rendered times name their timezone', () => {
   it('no provably-server file renders a date or time without one', () => {
     const offenders: string[] = []
     for (const file of files) {
-      const rel = file.slice(root.length + 1)
+      const rel = file.slice(root.length + 1).replace(/\\/g, '/')
       const text = readFileSync(file, 'utf8')
       if (!isProvablyServer(rel, text)) continue
       if (ALLOWED.some((a) => a.file === rel)) continue

@@ -18,8 +18,38 @@ permissions:
   contents: read
 
 jobs:
+  # The gate (added with CI, 2026-09-09). Merges to main auto-deploy to prod
+  # with migrations applying on boot, so the full suite + typecheck must pass
+  # BEFORE anything ships. Mirrors ci.yml's job (which gates PRs); it runs
+  # here rather than in ci.yml so the deploy can `needs:` it — a red main
+  # never reaches CodeBuild.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
   deploy:
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
