@@ -859,7 +859,7 @@ camera for the "vs" walkthroughs.
 
 ### 10.5 The roadmap (phases, what each unlocks, the metric that says it worked)
 
-- **M1 · The Scan spine + the doors (now).** Practice Scan as a public
+- **M1 · The Arkansas engine + the Scan spine (now; the conference date is the deadline).** The Headshot Funnel, the statewide pre-scan + keynote report, the member benefit + association site pages (10.8), then the Practice Scan as a public
   object (report URL, OG card, mockup facet, nearest-5, GBP audit,
   reputation+replies, AEO check, rank tracker), powered-by v2, the
   complete comparison/alternatives/pricing family with the refresh law,
@@ -921,6 +921,88 @@ Synchronizer developers qualify; ADA Member Advantage royalty structure;
 AADOM exhibit tiers (Cloudflare-gated); whether Adit's "free trial" is
 real; Capterra's own dental-category CPC; observed paid-search coverage
 by incumbents on "Weave alternative"-class terms.
+
+### 10.8 THE ARKANSAS BEACHHEAD (owner disclosure, 2026-09-09 — the asset that re-sequences the program)
+
+The owner holds an exclusive, no-fee relationship with the **Arkansas
+State Dental Association** (arkansasdentistry.org): he rebuilt and
+manages their entire custom website for $200/mo (any agency would charge
+~$600/mo plus a $30k+ build); in return the association refers ONLY his
+agency, gives him a **free keynote slot at their conferences**, and lets
+him run digital marketing on the conference floor — walking the halls
+with a camera offering **free professional headshots to thousands of
+dentists and staff**, which builds trust and brand awareness and earns an
+elevator pitch with every single attendee in a way no booth vendor can.
+He pays no referral fees; they pay him.
+
+Why this is the single most valuable asset in the program, in the
+research's own terms:
+- Weave's March-2026 ADA exclusive is a PAID affiliate program that
+  became its #2 affiliate channel in five months; state associations
+  relay it. We hold the state-level version for free, with the floor and
+  the podium — the "ADA move" the research scheduled for 2027 is
+  available NOW.
+- The research's strongest sequencing finding was **local density first**
+  (Zocdoc's ten NYC dentists, Podium's ten Utah shops, Toast's Boston).
+  Arkansas IS the founding metro — and the Hunter's territory focus mode
+  (`config.focus.state`) already exists.
+- "Peer recommendation in a room they trust" is the #1 trust signal
+  dentists cite; a keynote from the association's own web partner is the
+  purest form of it.
+- A `.org` state-association domain that the owner controls is an
+  authoritative third-party citation source for AEO/SEO — the
+  "independent source the models cite" Mangomint paid $2M for, obtained
+  as a side effect of goodwill.
+
+**The Arkansas Engine — what to build around it (M1 jumps here):**
+1. **The Headshot Funnel (the conference kit).** A phone-first capture
+   flow for the floor: name + practice + email typed by the attendee on
+   the owner's device (or badge photo), photo taken, and the headshot
+   DELIVERED by email from the platform identity — transactional (they
+   asked for it), with their **Practice Scan pre-run from the practice
+   name** riding along as a gift, and a clearly-labeled opt-in checkbox
+   for the follow-ups (the grader nurture + the member benefit). Photo
+   release + consent captured at the moment; photos to S3; a per-event
+   token-gated capture page; attribution channel `association` with
+   campaign `asda-{year}`. Every headshot is a warm, attributed lead with
+   a grade already attached — the elevator pitch has a report card in it.
+2. **The keynote as a product: "The State of Arkansas Dentistry
+   Online."** Pre-scan EVERY Arkansas practice (the Hunter already has the
+   NPPES roster; the Scan stack does the rest) and open the keynote with
+   the state's real numbers — % with online booking, % answering reviews,
+   average grade, the county map — then a QR code to "find yours." The
+   annual report the research put in year two becomes the first keynote's
+   opening slide, sourced from real cohort data, republishable by the
+   association.
+3. **The member benefit.** An ASDA member rate (owner ruling: e.g. $150/mo
+   or first two months free) delivered as a self-serve promotion code at
+   checkout (the managed-provisioning coupon machinery already exists;
+   Stripe Checkout accepts promotion codes) and a "Member benefit" page ON
+   arkansasdentistry.org linking to a DreamCRM landing page with the
+   association's UTM — the association's own site becomes the endorsement
+   door, and its backlink the authority signal.
+4. **The association site as a distribution surface.** A Technology /
+   Member Resources section featuring the free tools (grader, ROI
+   calculator, the guides), the endorsement badge, and the conference
+   report; the association newsletter carries the grader and the keynote
+   recap; contributed articles in the association's voice.
+5. **Founding Practices of Arkansas.** The metro cohort with a public
+   counter; Hunter focus = AR; direct-mail grade cards to every Arkansas
+   practice framed as the association's web partner; the first ten logos
+   become the proof engine's first case studies; Arkansas consultants,
+   CPAs, brokers and the state's MSPs get the partner kits first.
+6. **The playbook, generalized.** Every artifact above is built as a
+   reusable ASSOCIATION KIT (event capture, member-benefit page, state
+   report, member rate, partner outreach) so the second state association
+   is a configuration, not a build — the research's state-level ADA move
+   as a repeatable program.
+
+Rulings needed for this engine: the next conference date (it sets M1's
+deadline), the Arkansas practice count to pre-scan, the member rate,
+whether the association site can host the benefit + tools pages, the
+photo-consent wording, and whether the association should receive a
+goodwill commission from the partner rails even though none is owed.
+
 
 ## Build log
 
