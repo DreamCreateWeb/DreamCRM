@@ -32,8 +32,16 @@ vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/db/schema/auth', () => ({ organization: {} }))
 vi.mock('@/lib/db/schema/platform', () => ({ clinicProfile: {}, clinicLocation: {} }))
 
-async function resolve(slug: string) {
-  const { resolveSiteBasePath } = await import('@/lib/services/clinic-site')
+// Imported STATICALLY on purpose. This module pulls in a heavy graph (next,
+// drizzle, the schema barrels) and costs ~1.2s to load cold. Behind a dynamic
+// `await import()` inside the first `it()`, that load was billed to that test's
+// 5s budget, so under full-suite load the first test — and only ever the first
+// one — timed out while the other twelve reported 0ms. A static import pays the
+// same cost during collection, which is not on the test clock. vi.mock() is
+// hoisted above imports, so the stubs above still apply.
+import { resolveSiteBasePath } from '@/lib/services/clinic-site'
+
+function resolve(slug: string) {
   return resolveSiteBasePath(slug)
 }
 
