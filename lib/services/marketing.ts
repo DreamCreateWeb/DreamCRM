@@ -421,6 +421,54 @@ export async function resolveCustomerAudience(
 }
 
 /**
+ * The audience resolver's three appointment lookups, as WHERE builders.
+ *
+ * They live outside the resolver so the boundary test can render them
+ * through drizzle's own dialect without duplicating the predicates — and so
+ * the org scope, the clause that keeps one clinic's appointment book out of
+ * another clinic's audience, has exactly one home.
+ *
+ * Each is paired with a `group by patient_id` at the call site: the resolver
+ * needs at most one row PER PATIENT, and asking Postgres for that instead of
+ * for every appointment row is the difference between a constant-size result
+ * and the clinic's whole appointment history crossing the wire on every send.
+ */
+export function audienceLastVisitWhere(organizationId: string, ids: string[], now: Date) {
+  return and(
+    eq(schema.appointment.organizationId, organizationId),
+    inArray(schema.appointment.patientId, ids),
+    lte(schema.appointment.startTime, now),
+    ne(schema.appointment.status, 'cancelled'),
+    ne(schema.appointment.status, 'no_show'),
+  )
+}
+
+export function audienceUpcomingWhere(organizationId: string, ids: string[], now: Date) {
+  return and(
+    eq(schema.appointment.organizationId, organizationId),
+    inArray(schema.appointment.patientId, ids),
+    gte(schema.appointment.startTime, now),
+    ne(schema.appointment.status, 'cancelled'),
+    ne(schema.appointment.status, 'no_show'),
+  )
+}
+
+export function audienceUnconfirmedWhere(
+  organizationId: string,
+  ids: string[],
+  now: Date,
+  withinHours: number,
+) {
+  return and(
+    eq(schema.appointment.organizationId, organizationId),
+    inArray(schema.appointment.patientId, ids),
+    eq(schema.appointment.status, 'scheduled'),
+    gte(schema.appointment.startTime, now),
+    lte(schema.appointment.startTime, new Date(now.getTime() + withinHours * 3600_000)),
+  )
+}
+
+/**
  * Materialize a patient-source filter into recipient rows. Mirrors the
  * derivation logic in `listPatients` so audience previews show the same
  * counts the patient list shows. Channel opt-in (email or sms) is
@@ -429,7 +477,10 @@ export async function resolveCustomerAudience(
  * Derived fields (recall status / has-balance / unconfirmed-next-Nh) are
  * computed in JS after the patient rows are fetched, because they depend
  * on joins to appointment + invoices that are easier to express
- * imperatively than as SQL predicates.
+ * imperatively than as SQL predicates. The appointment lookups themselves
+ * aggregate in Postgres (`max(start_time)` + `group by patient_id`) — the
+ * retention cron hits this 4x a day per clinic on top of every marketing
+ * send, so it must not scale with the size of the appointment book.
  */
 export async function resolvePatientAudience(
   organizationId: string,
@@ -482,63 +533,52 @@ export async function resolvePatientAudience(
     tagMap.forEach((tags, pid) => tagSetByPatient.set(pid, new Set(tags.map((t) => t.id))))
   }
 
+  // Each of these returns at most ONE row per patient — Postgres does the
+  // roll-up. `max(start_time)` is the most recent past visit; the upcoming and
+  // unconfirmed lookups are pure existence checks, so the grouped patient id is
+  // all they need (nothing below reads an upcoming appointment's time or
+  // status — see `hasUpcoming`).
   const [lastVisitRows, upcomingRows, unconfirmedRows] = await Promise.all([
     needLastVisit
       ? db
-          .select({ patientId: schema.appointment.patientId, startTime: schema.appointment.startTime })
+          .select({
+            patientId: schema.appointment.patientId,
+            lastVisitAt: sql<Date>`max(${schema.appointment.startTime})`,
+          })
           .from(schema.appointment)
-          .where(
-            and(
-              eq(schema.appointment.organizationId, organizationId),
-              inArray(schema.appointment.patientId, ids),
-              lte(schema.appointment.startTime, now),
-              ne(schema.appointment.status, 'cancelled'),
-              ne(schema.appointment.status, 'no_show'),
-            ),
-          )
-          .orderBy(desc(schema.appointment.startTime))
-      : Promise.resolve([] as { patientId: string; startTime: Date }[]),
+          .where(audienceLastVisitWhere(organizationId, ids, now))
+          .groupBy(schema.appointment.patientId)
+      : Promise.resolve([] as { patientId: string; lastVisitAt: Date }[]),
     needUpcoming
       ? db
-          .select({ patientId: schema.appointment.patientId, startTime: schema.appointment.startTime, status: schema.appointment.status })
+          .select({ patientId: schema.appointment.patientId })
           .from(schema.appointment)
-          .where(
-            and(
-              eq(schema.appointment.organizationId, organizationId),
-              inArray(schema.appointment.patientId, ids),
-              gte(schema.appointment.startTime, now),
-              ne(schema.appointment.status, 'cancelled'),
-              ne(schema.appointment.status, 'no_show'),
-            ),
-          )
-      : Promise.resolve([] as { patientId: string; startTime: Date; status: string }[]),
+          .where(audienceUpcomingWhere(organizationId, ids, now))
+          .groupBy(schema.appointment.patientId)
+      : Promise.resolve([] as { patientId: string }[]),
     parsed.hasUnconfirmedNextHours != null
       ? db
           .select({ patientId: schema.appointment.patientId })
           .from(schema.appointment)
           .where(
-            and(
-              eq(schema.appointment.organizationId, organizationId),
-              inArray(schema.appointment.patientId, ids),
-              eq(schema.appointment.status, 'scheduled'),
-              gte(schema.appointment.startTime, now),
-              lte(schema.appointment.startTime, new Date(now.getTime() + parsed.hasUnconfirmedNextHours * 3600_000)),
-            ),
+            audienceUnconfirmedWhere(organizationId, ids, now, parsed.hasUnconfirmedNextHours),
           )
+          .groupBy(schema.appointment.patientId)
       : Promise.resolve([] as { patientId: string }[]),
   ])
 
-  // Build per-patient lookup maps. We dedupe last-visit to MAX (most recent) and
-  // upcoming to MIN (next future).
+  // One row in, one entry out. node-postgres hands a timestamp `max()` back as
+  // a Date, but a string would silently poison every date comparison below, so
+  // normalize rather than trust the driver.
   const lastVisitMap = new Map<string, Date>()
   for (const r of lastVisitRows) {
-    if (!lastVisitMap.has(r.patientId)) lastVisitMap.set(r.patientId, r.startTime)
+    if (r.lastVisitAt == null) continue
+    lastVisitMap.set(
+      r.patientId,
+      r.lastVisitAt instanceof Date ? r.lastVisitAt : new Date(r.lastVisitAt),
+    )
   }
-  const upcomingMap = new Map<string, { startTime: Date; status: string }>()
-  for (const r of upcomingRows) {
-    const cur = upcomingMap.get(r.patientId)
-    if (!cur || r.startTime < cur.startTime) upcomingMap.set(r.patientId, { startTime: r.startTime, status: r.status })
-  }
+  const upcomingSet = new Set(upcomingRows.map((r) => r.patientId))
   const unconfirmedSet = new Set(unconfirmedRows.map((r) => r.patientId))
 
   // Recall status: shared helper with the patients list. Prefers the PMS
@@ -547,12 +587,12 @@ export async function resolvePatientAudience(
   return patients
     .map((p) => {
       const lastVisitAt = lastVisitMap.get(p.id) ?? null
-      const upcoming = upcomingMap.get(p.id) ?? null
+      const hasUpcoming = upcomingSet.has(p.id)
       const balance = p.pmsBalanceCents ?? 0
       const recallStatus = derivePatientRecallStatus({
         pmsRecallDueAt: p.pmsRecallDueAt,
-        hasUpcomingAppt: !!upcoming,
-        hasAnyFutureAppt: !!upcoming,
+        hasUpcomingAppt: hasUpcoming,
+        hasAnyFutureAppt: hasUpcoming,
         lastVisitAt,
         now,
       })
@@ -560,7 +600,7 @@ export async function resolvePatientAudience(
       return {
         p,
         lastVisitAt,
-        upcoming,
+        hasUpcoming,
         balance,
         recallStatus,
       }
@@ -599,7 +639,7 @@ export async function resolvePatientAudience(
         const insured = !!r.p.insuranceProvider?.trim()
         if (parsed.hasInsurance !== insured) return false
       }
-      if (parsed.noUpcomingVisit && r.upcoming) return false
+      if (parsed.noUpcomingVisit && r.hasUpcoming) return false
       if (parsed.tagIds?.length) {
         const have = tagSetByPatient.get(r.p.id)
         if (!have || !parsed.tagIds.some((id) => have.has(id))) return false

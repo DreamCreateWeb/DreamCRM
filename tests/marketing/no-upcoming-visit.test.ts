@@ -12,7 +12,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // resolvePatientAudience issues its selects in a fixed order: (1) the patient
 // base query, then (2) the upcoming-appointments query (the last-visit query is
 // skipped — this filter doesn't need it). A simple FIFO queue mocks both.
+//
+// The appointment lookups aggregate in Postgres, so their chain ends in
+// .groupBy() rather than .orderBy(); the thenable answers to either, which
+// keeps this file about the noUpcomingVisit BRANCH and leaves the SQL shape to
+// audience-aggregation.test.ts.
 const queue: unknown[][] = []
+
+type Chain = Promise<unknown[]> & {
+  orderBy: () => Promise<unknown[]>
+  groupBy: () => Promise<unknown[]>
+}
 
 vi.mock('@/lib/db', async () => {
   const schema = await import('@/lib/db/schema')
@@ -22,8 +32,9 @@ vi.mock('@/lib/db', async () => {
         from: () => ({
           where: () => {
             const rows = queue.shift() ?? []
-            const p = Promise.resolve(rows) as Promise<unknown[]> & { orderBy: () => Promise<unknown[]> }
+            const p = Promise.resolve(rows) as Chain
             p.orderBy = () => Promise.resolve(rows)
+            p.groupBy = () => Promise.resolve(rows)
             return p
           },
         }),
