@@ -837,3 +837,22 @@ recall-scripts guide, '/roi' in MARKETING_PUBLIC_PATHS (middleware +
 sitemap in one move), nav + footer. Tests pin the arithmetic, the
 scenario hedging, the break-even edge cases, and the privacy promise
 (tests/marketing/recall-roi.test.tsx). Suite 6,817 green.
+
+**Part 9 B① — the delta re-grade (SHIPPED 2026-09-09).** The flagship
+magnet keeps earning: when a practice re-runs the grader (same email +
+same practice name, both normalized so a retyped capitalization doesn't
+sever the history), the report opens with a "SINCE YOUR LAST GRADE"
+strip — overall and per-axis movement as real numbers (backsliding
+included: ▼ −N in rose, never silence), axes that went unknown→scored
+labeled NEWLY CHECKED (unknown never scored, so unknown never deltas
+either), and scan checks that flipped between runs as FIXED / NOW
+FAILING chips matched by check id. Pure `compareGrades` +
+`deltaIsEmpty` in lib/practice-grade.ts; the previous-run lookup rides
+`getGradeByToken` best-effort (a failed history read or an unparseable
+v1 row costs the strip, never the report); `PublicGradeView.delta` is
+optional so the offline harness needs no mock. Identical runs still
+render ("held steady" is honest information after a re-run); an
+all-unknown pair renders nothing. This is the compounding loop: the
+grader stops being a one-shot report and becomes a progress tracker a
+practice returns to — and the 30-day re-grade nudge email (C①'s warm
+nurture) now has a reason to exist. Suite 6,825 green.

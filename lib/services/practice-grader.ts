@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
-import { eq, sql } from 'drizzle-orm'
+import { and, desc, eq, lt, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { newId } from '@/lib/utils'
 import { extractCrawlSignals } from '@/lib/prospect-signals'
@@ -8,9 +8,12 @@ import { heuristicVerdict } from '@/lib/prospect-scoring'
 import { parseEmail, isJunkEmail } from '@/lib/prospect-email'
 import { findDentalPlace, placesConfigured, type PlaceResult } from '@/lib/google-places'
 import {
+  compareGrades,
+  deltaIsEmpty,
   gradeOnlinePresence,
   parsePracticeGradeResult,
   placeMatchesPractice,
+  type GradeDelta,
   type PracticeGradeResult,
   type SearchCheck,
 } from '@/lib/practice-grade'
@@ -333,6 +336,10 @@ export interface PublicGradeView {
   websiteUrl: string | null
   result: PracticeGradeResult
   createdAt: Date
+  /** The delta re-grade (Part 9 B①): movement since this practice's
+   *  previous run, when one exists with something to say. Optional so
+   *  offline harnesses and old callers need no mock. */
+  delta?: GradeDelta | null
 }
 
 /** Token-IS-auth read for the public /g/[token] report page. Malformed
@@ -347,6 +354,38 @@ export async function getGradeByToken(token: string): Promise<PublicGradeView | 
   if (!row) return null
   const result = parsePracticeGradeResult(row.result)
   if (!result) return null
+
+  // The delta re-grade (Part 9 B①): find this practice's PREVIOUS run —
+  // same email AND same practice name (one owner can honestly grade two
+  // practices, so email alone is not identity here; both normalized so a
+  // retyped capitalization doesn't sever the history). Best-effort: a
+  // failed lookup or an unparseable old row costs the strip, never the
+  // report.
+  let delta: GradeDelta | null = null
+  try {
+    const [prevRow] = await db
+      .select({ result: schema.practiceGrade.result })
+      .from(schema.practiceGrade)
+      .where(
+        and(
+          eq(schema.practiceGrade.email, row.email),
+          sql`lower(trim(${schema.practiceGrade.practiceName})) = ${row.practiceName.trim().toLowerCase()}`,
+          lt(schema.practiceGrade.createdAt, row.createdAt),
+        ),
+      )
+      .orderBy(desc(schema.practiceGrade.createdAt))
+      .limit(1)
+    if (prevRow) {
+      const prev = parsePracticeGradeResult(prevRow.result)
+      if (prev) {
+        const d = compareGrades(prev, result)
+        delta = deltaIsEmpty(d) ? null : d
+      }
+    }
+  } catch {
+    delta = null
+  }
+
   return {
     practiceName: row.practiceName,
     city: row.city,
@@ -354,5 +393,6 @@ export async function getGradeByToken(token: string): Promise<PublicGradeView | 
     websiteUrl: row.websiteUrl,
     result,
     createdAt: row.createdAt,
+    delta,
   }
 }

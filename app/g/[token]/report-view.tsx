@@ -6,6 +6,7 @@ import {
   type AxisGrade,
   type GradeAxis,
   type GradeCheck,
+  type GradeDelta,
   type GradeFacts,
   type PracticeGradeResult,
 } from '@/lib/practice-grade'
@@ -129,6 +130,9 @@ export default function ReportView({ view }: { view: PublicGradeView }) {
           <ScoreRing result={result} />
         </section>
 
+        {/* ── The delta re-grade: what moved since last time ─────────── */}
+        {view.delta && <DeltaStrip delta={view.delta} />}
+
         <p className="dg-in dg-d1 mb-10 max-w-3xl text-sm" style={{ color: INK_3 }}>
           Each section shows <span style={{ color: INK_2 }}>today</span> beside{' '}
           <span style={{ color: '#5eead4' }}>what the same checks read with DreamCRM running</span> — we
@@ -178,6 +182,80 @@ export default function ReportView({ view }: { view: PublicGradeView }) {
         </footer>
       </main>
     </div>
+  )
+}
+
+// ── The delta strip (Part 9 B①): movement since the previous run — real
+//    numbers only, backsliding included; the strip simply doesn't render
+//    when there's no history or nothing comparable. ───────────────────────
+function DeltaStrip({ delta }: { delta: GradeDelta }) {
+  const since = new Date(delta.previousAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC', // public snapshot date — same UTC pin as the header date
+  })
+  const move = (change: number) => ({
+    arrow: change > 0 ? '▲' : change < 0 ? '▼' : '＝',
+    color: change > 0 ? '#34d399' : change < 0 ? '#fb7185' : INK_3,
+    text: change > 0 ? `+${change}` : `${change}`,
+  })
+  return (
+    <section className="dg-in dg-d1 dg-card mb-8 rounded-3xl p-5 sm:p-6" aria-label="Changes since your last grade">
+      <p className="dg-mono" style={{ color: '#5eead4' }}>
+        SINCE YOUR LAST GRADE · {since.toUpperCase()}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {delta.overall && (
+          <span className="dg-chip">
+            <span className="dg-mono" style={{ color: INK_2 }}>OVERALL</span>
+            <span className="dg-mono" style={{ color: INK_3 }}>
+              {delta.overall.from} → {delta.overall.to}
+            </span>
+            <span className="dg-mono" style={{ color: move(delta.overall.change).color }}>
+              {move(delta.overall.change).arrow} {move(delta.overall.change).text}
+            </span>
+          </span>
+        )}
+        {GRADE_AXES.filter((a) => delta.axes[a]).map((axis) => {
+          const d = delta.axes[axis]!
+          const m = move(d.change)
+          return (
+            <span key={axis} className="dg-chip">
+              <span style={{ color: INK_2 }}>{GRADE_AXIS_LABELS[axis].replace('Your ', '')}</span>
+              <span className="dg-mono" style={{ color: INK_3 }}>
+                {d.from} → {d.to}
+              </span>
+              <span className="dg-mono" style={{ color: m.color }}>
+                {m.arrow} {m.text}
+              </span>
+            </span>
+          )
+        })}
+        {delta.newlyGraded.map((axis) => (
+          <span key={axis} className="dg-chip">
+            <span style={{ color: INK_2 }}>{GRADE_AXIS_LABELS[axis].replace('Your ', '')}</span>
+            <span className="dg-mono" style={{ color: INK_3 }}>NEWLY CHECKED</span>
+          </span>
+        ))}
+      </div>
+      {(delta.checksFixed.length > 0 || delta.checksBroken.length > 0) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {delta.checksFixed.map((label) => (
+            <span key={label} className="dg-win">
+              <span style={{ color: '#34d399' }}>✓</span>
+              <span className="dg-mono">FIXED · {label}</span>
+            </span>
+          ))}
+          {delta.checksBroken.map((label) => (
+            <span key={label} className="dg-win" style={{ borderColor: 'rgba(251,113,133,0.3)', background: 'rgba(251,113,133,0.06)' }}>
+              <span style={{ color: '#fb7185' }}>!</span>
+              <span className="dg-mono">NOW FAILING · {label}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 

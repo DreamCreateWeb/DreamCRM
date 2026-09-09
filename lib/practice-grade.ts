@@ -692,3 +692,69 @@ function parseGradeFacts(raw: unknown): GradeFacts | null {
   }
   return Object.keys(facts).length > 0 ? facts : null
 }
+
+// ── The delta re-grade (Part 9 B①): what moved between two runs ─────────
+export interface ScoreDelta {
+  from: number
+  to: number
+  /** to − from; can be negative — honesty includes backsliding. */
+  change: number
+}
+
+export interface GradeDelta {
+  /** Overall movement; null unless BOTH runs had a composite. */
+  overall: ScoreDelta | null
+  /** Per-axis movement — only axes SCORED in both runs. An axis that went
+   *  null→N was newly checkable, not improved by N (unknown never scored,
+   *  so unknown never deltas either). */
+  axes: Partial<Record<GradeAxis, ScoreDelta>>
+  /** Axes scored now that weren't scorable last time. */
+  newlyGraded: GradeAxis[]
+  /** Scan-check labels that flipped fail→pass / pass→fail between runs
+   *  (facts-bearing rows only; matched by check id). */
+  checksFixed: string[]
+  checksBroken: string[]
+  /** When the previous run was computed (ISO). */
+  previousAt: string
+}
+
+/** Pure + total: compares two parsed results; every field degrades to
+ *  empty rather than inventing movement. */
+export function compareGrades(prev: PracticeGradeResult, next: PracticeGradeResult): GradeDelta {
+  const overall =
+    prev.overall != null && next.overall != null
+      ? { from: prev.overall, to: next.overall, change: next.overall - prev.overall }
+      : null
+
+  const axes: Partial<Record<GradeAxis, ScoreDelta>> = {}
+  const newlyGraded: GradeAxis[] = []
+  for (const axis of GRADE_AXES) {
+    const a = prev.axes[axis]?.score ?? null
+    const b = next.axes[axis]?.score ?? null
+    if (a != null && b != null) axes[axis] = { from: a, to: b, change: b - a }
+    else if (a == null && b != null) newlyGraded.push(axis)
+  }
+
+  const checksFixed: string[] = []
+  const checksBroken: string[] = []
+  const prevChecks = new Map((prev.facts?.checks ?? []).map((c) => [c.id, c]))
+  for (const c of next.facts?.checks ?? []) {
+    const was = prevChecks.get(c.id)
+    if (!was) continue
+    if (was.ok === false && c.ok === true) checksFixed.push(c.label)
+    if (was.ok === true && c.ok === false) checksBroken.push(c.label)
+  }
+
+  return { overall, axes, newlyGraded, checksFixed, checksBroken, previousAt: prev.computedAt }
+}
+
+/** A delta strip with nothing to say shouldn't render. */
+export function deltaIsEmpty(d: GradeDelta): boolean {
+  return (
+    d.overall == null &&
+    Object.keys(d.axes).length === 0 &&
+    d.newlyGraded.length === 0 &&
+    d.checksFixed.length === 0 &&
+    d.checksBroken.length === 0
+  )
+}

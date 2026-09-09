@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   GRADE_AXES,
+  compareGrades,
+  deltaIsEmpty,
   gradeOnlinePresence,
   isAxisHidden,
   letterFor,
@@ -277,6 +279,76 @@ describe('the facts block (gadget fuel)', () => {
     const parsed = parsePracticeGradeResult(stored)
     expect(parsed?.facts).toBeNull() // nothing in it survived
     expect(parsed?.overall).toBe(g.overall)
+  })
+})
+
+describe('compareGrades (the delta re-grade)', () => {
+  const deep: DeepSiteSignals = {
+    h1: true, jsonLd: true, jsonLdDentist: true, ogTags: true,
+    phoneVisible: true, canonical: true, robotsTxt: true, sitemap: true, fetchMs: 500,
+  }
+
+  it('deltas only what both runs scored; unknown→scored is NEWLY CHECKED, never +N', () => {
+    const before = gradeOnlinePresence(inputs({ place: null, now: new Date('2026-08-01T00:00:00Z') }))
+    const after = gradeOnlinePresence(inputs({ now: new Date('2026-09-01T00:00:00Z') }))
+    const d = compareGrades(before, after)
+    expect(d.axes.website).toBeDefined()
+    expect(d.axes.listing).toBeUndefined()
+    expect(d.newlyGraded).toEqual(expect.arrayContaining(['listing', 'reviews']))
+    expect(d.previousAt).toBe(before.computedAt)
+  })
+
+  it('backsliding is reported honestly — negative change, not silence', () => {
+    const good = gradeOnlinePresence(inputs())
+    // A lapsed SSL cert both caps the score and flips the HTTPS check.
+    const worse = gradeOnlinePresence(inputs({ signals: goodSignals({ ssl: false, bookingWidget: false }) }))
+    const d = compareGrades(good, worse)
+    expect(d.axes.website!.change).toBeLessThan(0)
+    expect(d.checksBroken).toEqual(expect.arrayContaining(['HTTPS', 'ONLINE BOOKING']))
+    expect(d.checksFixed).toHaveLength(0)
+  })
+
+  it('a check flipping fail→pass lands in checksFixed by id, labeled for the strip', () => {
+    const before = gradeOnlinePresence(inputs({ deep: { ...deep, phoneVisible: false } }))
+    const after = gradeOnlinePresence(inputs({ deep }))
+    const d = compareGrades(before, after)
+    expect(d.checksFixed).toContain('TAP-TO-CALL')
+  })
+
+  it('a v1 previous row (no facts) yields score deltas but no check deltas — and never throws', () => {
+    const after = gradeOnlinePresence(inputs())
+    const v1prev: typeof after = { ...after, facts: null, overall: 50 }
+    const d = compareGrades(v1prev, after)
+    expect(d.checksFixed).toHaveLength(0)
+    expect(d.overall?.from).toBe(50)
+  })
+
+  it('identical runs still render — "held steady" is honest information after a re-run', () => {
+    const g = gradeOnlinePresence(inputs())
+    const d = compareGrades(g, g)
+    expect(deltaIsEmpty(d)).toBe(false)
+    expect(d.axes.website?.change).toBe(0)
+  })
+
+  it('two runs with nothing comparable produce an empty delta the report skips', () => {
+    const nothing = gradeOnlinePresence(inputs({ enteredUrl: null, signals: null, verdict: null, place: null, placesChecked: false }))
+    // Same all-null runs: no overall, no comparable axes, no newly graded, no checks.
+    const d = compareGrades(nothing, nothing)
+    // The website axis IS scored (the no-website 8/100), so compare a run
+    // against one where everything went unknown instead.
+    const unknown: typeof nothing = {
+      ...nothing,
+      overall: null,
+      axes: {
+        website: { score: null, findings: [], wins: [] },
+        listing: { score: null, findings: [], wins: [] },
+        reviews: { score: null, findings: [], wins: [] },
+        search: { score: null, findings: [], wins: [] },
+      },
+      facts: null,
+    }
+    expect(deltaIsEmpty(compareGrades(unknown, unknown))).toBe(true)
+    expect(deltaIsEmpty(d)).toBe(false) // the scored no-website axis still compares
   })
 })
 

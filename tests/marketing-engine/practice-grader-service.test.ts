@@ -11,6 +11,7 @@ vi.mock('@/lib/db', async () => {
     const obj: any = {}
     obj.from = () => obj
     obj.where = () => obj
+    obj.orderBy = () => obj
     obj.limit = async () => state.selectQueue.shift() ?? []
     obj.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
@@ -256,6 +257,48 @@ describe('getGradeByToken', () => {
     expect(await getGradeByToken('Z'.repeat(32))).toBeNull()
     expect(state.selectQueue).toHaveLength(0)
   })
+  it('the delta re-grade: a previous run for the same email + practice yields the movement strip', async () => {
+    const before = gradeOnlinePresence({
+      enteredUrl: 'https://smilebright.com',
+      signals: { ssl: true, mobileViewport: true, copyrightYear: 2026, titleTag: null, metaDescription: null, bookingWidget: false, socialLinks: {}, builder: null, pageWeightKb: 900, emails: [], fetchedAt: new Date().toISOString() },
+      verdict: { hasWebsite: true, websiteQuality: 50, websiteReasons: [], socialPresence: 10, onlineBooking: false, weaknesses: [], summary: '' },
+      place: null,
+      placesChecked: true,
+      now: new Date('2026-08-01T00:00:00Z'),
+    })
+    const after = gradeOnlinePresence({
+      enteredUrl: 'https://smilebright.com',
+      signals: { ssl: true, mobileViewport: true, copyrightYear: 2026, titleTag: 'Smile Bright', metaDescription: 'x', bookingWidget: true, socialLinks: {}, builder: null, pageWeightKb: 900, emails: [], fetchedAt: new Date().toISOString() },
+      verdict: { hasWebsite: true, websiteQuality: 85, websiteReasons: [], socialPresence: 10, onlineBooking: true, weaknesses: [], summary: '' },
+      place: PLACE,
+      placesChecked: true,
+      now: new Date('2026-09-01T00:00:00Z'),
+    })
+    state.selectQueue.push([
+      { practiceName: 'Smile Bright Dental', email: 'dr@smilebright.com', city: null, state: null, websiteUrl: null, result: after, createdAt: new Date('2026-09-01T00:00:00Z') },
+    ])
+    state.selectQueue.push([{ result: before }]) // the previous run
+    const view = await getGradeByToken('c'.repeat(32))
+    expect(view?.delta).not.toBeNull()
+    expect(view?.delta?.axes.website?.change).toBeGreaterThan(0)
+    // Listing/reviews went unknown→scored: NEWLY CHECKED, never a fake +N.
+    expect(view?.delta?.newlyGraded).toContain('listing')
+    // The booking check flipped fail→pass between the runs.
+    expect(view?.delta?.checksFixed).toContain('ONLINE BOOKING')
+    expect(view?.delta?.previousAt).toBe(before.computedAt)
+  })
+
+  it('no previous run = no delta strip, and a broken history read never costs the report', async () => {
+    const grade = gradeOnlinePresence({ enteredUrl: null, signals: null, verdict: null, place: null, placesChecked: false })
+    state.selectQueue.push([
+      { practiceName: 'X Dental', email: 'x@y.com', city: null, state: null, websiteUrl: null, result: grade, createdAt: new Date() },
+    ])
+    state.selectQueue.push([]) // no history
+    const view = await getGradeByToken('d'.repeat(32))
+    expect(view).not.toBeNull()
+    expect(view?.delta).toBeNull()
+  })
+
   it('returns a parsed view for a stored grade, and null for garbage rows', async () => {
     const grade = gradeOnlinePresence({
       enteredUrl: null,
