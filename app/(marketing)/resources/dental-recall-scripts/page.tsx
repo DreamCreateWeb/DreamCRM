@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getResourceGuide } from '@/lib/marketing/resources'
 import { GuideShell, GuideH2, GuideP, GuideList, GuideNote, ScriptCard } from '../guide-ui'
@@ -114,7 +115,11 @@ If mornings, evenings, or a certain day works best, just reply to this email and
         ended up with a visit on the schedule? Track that funnel — due → sent → opened
         → booked — and change one thing at a time. (This is exactly the funnel
         DreamCRM’s recall engine reports out of the box, if you’d rather not build the
-        spreadsheet.)
+        spreadsheet.) Curious what the whole gap is worth in dollars?{' '}
+        <Link href="/roi" className="font-semibold text-teal-700 hover:underline">
+          Run your numbers through the recall ROI calculator
+        </Link>{' '}
+        — it takes thirty seconds and nothing you type leaves your browser.
       </GuideP>
     </GuideShell>
   )

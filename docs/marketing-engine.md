@@ -319,6 +319,111 @@ voicemail · SmileCon · big-hall booths before revenue supports them
    engine (G2/Capterra asks), long-tail library via the platform blog,
    Zernio YouTube/LinkedIn surfaces.
 
+## Part 9 — The idea engine (the standing backlog; owner directive 2026-09-09)
+
+Slices 1–4 were the FOUNDATION, not the program. The owner's framing:
+"the best SaaS in the world doesn't stop at one or two funnels — we're
+building a mega marketing engine." This part is the durable backlog every
+session pulls from and adds to: each idea one line + mechanism, grouped by
+engine role, ranked within its group (①=next, ②=soon, ③=when its gate
+clears). Rules of the road: every new surface plugs into the EXISTING
+spine (channel registry / attribution / dials — never a parallel sensor),
+honesty laws apply to tools exactly as they do to the grader (no invented
+numbers, hedged scenarios, unknown never scored), and anything
+outbound-shaped respects the cold-email demotion.
+
+**A. Attraction tools (free, grader-class link magnets)**
+- ① **Recall-revenue calculator** (/roi) — patients × recall gaps × visit
+  value = dollars left on the table; three honest win-back scenarios; the
+  research's named next tool. → SHIPPED 2026-09-09 (build log).
+- ② **Membership-plan price calculator** — companion to the 4b guide; your
+  fees in, suggested price band + revenue projection out.
+- ② **Software-spend consolidation calculator** — the /compare "math"
+  table as an interactive: check the vendors you pay, see the annual
+  delta vs $200/mo.
+- ③ **Front-desk time calculator** — hours/week on confirmations, forms
+  chasing, review asks → what the employee-not-tool does with them.
+- ③ **Website speed/mobile mini-test** — a one-input teaser that upsells
+  into the full grader (reuses the crawl stack; watch for abuse).
+- ③ **"Best dental websites" template showcase** — the four site
+  templates as an examples listicle with real screenshots (original
+  assets = pSEO that survives); needs a screenshot pipeline.
+
+**B. Grader deepening (the flagship magnet keeps earning)**
+- ① **The delta re-grade** — "re-run your grade in 30 days" email with a
+  before/after diff report; turns one visit into a relationship.
+- ② **Email-me-my-report + forwardable report** — the report is already
+  tokenized; add "send this to my office manager" (a second contact
+  captured, honestly).
+- ② **Competitor peek** — "the practice at #1 for your search scored X"
+  (their PUBLIC signals only, framed as aspiration, never shaming a named
+  practice on our site).
+- ③ **Grader → Hunter enrichment backfill** — a grader run on a practice
+  already in the Hunter enriches its record (partially shipped as the
+  win-loop; deepen with the facts block).
+
+**C. Sensors & attribution depth**
+- ① **Grader-lead nurture** (the warm loop, NOT cold email): 2–3
+  follow-ups to grader opt-ins — day 3 "your report's still here + the
+  one fix that moves it most", day 14 "re-grade and see the delta";
+  unsubscribe honored, sends through the platform identity.
+- ② **Marketing-site conversion events** — signup-started vs
+  signup-completed as funnel stages, so the dials can see form abandons.
+- ② **Pricing-page capture** — "email me this comparison" soft-capture
+  for not-ready-yet visitors (feeds nurture, channel-stamped).
+- ③ **Self-reported "how did you hear about us"** at onboarding — the
+  attribution cross-check for dark channels (podcasts, word of mouth);
+  writes a *claimed* channel beside the *observed* one, never overwrites.
+
+**D. Funnels & virality**
+- ① **Partner-program marketing page** (/partners on www) — the referral
+  partner machinery is BUILT (Stripe Express payouts, commission ledger)
+  but has no public door; consultants/bookkeepers/dental CPAs are a
+  standing referral channel begging for a page + application form.
+- ② **Powered-by v2** — per-template placement polish + "website by
+  DreamCRM" on portfolio-worthy client sites w/ opt-in showcase page.
+- ② **The public template gallery as a funnel** — /templates on www
+  showing the four designs (feeds A's showcase; each "use this design"
+  lands in signup with the template preselected).
+- ③ **Demo-practice guided tour** — the acme demo is public; a "tour
+  mode" overlay (numbered beats, no login) turns it into a self-serve
+  demo funnel with its own channel stamp.
+- ③ **Founding-practice referral credit** — customer-refers-customer
+  ($100 credit both sides class); needs >1 customer to matter, cheap to
+  ship when it does.
+
+**E. Content & AEO (compounding)**
+- ① **More guides on the 4b rails** — next queries: "dental appointment
+  reminder templates", "how to respond to negative dental reviews"
+  (w/ real reply scripts), "dental website checklist", "dental practice
+  KPIs that matter". Two per session keeps the library compounding.
+- ② **Comparison roundups** — "Weave alternatives (2026)" listicle pages
+  (one query family per page, links the per-vendor pages; LLM feedstock).
+- ② **/docs deepening** — setup guides double as long-tail landing pages;
+  audit titles/schema on the existing DOCS registry.
+- ③ **Platform blog cadence** — in-app authoring (owner/session task);
+  the Dream Team content-calendar generator could serve the PLATFORM org
+  too (the machine writes its own marketing plan — needs the tenant-voice
+  pass).
+
+**F. Paid & channels (dials-gated — grow only on results)**
+- ① **Launch the $1k Google competitor campaign** (owner action; land on
+  /compare/*, judge cost/trial <$120 in the dials).
+- ② **Meta custom audiences from the NPPES/Hunter list** — unlocks at the
+  NEXT budget step per ruling #3, not by splitting the first $1k.
+- ③ **Capterra/G2 PPC** — gated on ~10 reviews (which gates on having
+  customers to ask; the review-ask engine ships at ~5 paying clinics).
+- ③ **Podcast/newsletter sponsorships** (Nachos, Nifty Thrifty, Dental
+  Economics) — owner-negotiated flat spots; the dials get a 'referral'
+  spend row + a landing UTM per spot.
+
+**G. Retention-as-marketing (the moat feeds the funnel)**
+- ② **Public case-study engine** — once real clinics consent: the
+  before/after DreamCRM story (grader delta + booked-visit lift) as
+  landing pages; the honesty laws make these unusually credible.
+- ③ **A "wall of love"** — G2/Google review embeds on /why once they
+  exist.
+
 ## Build log
 
 **Slice 1 — the sensor layer + the loop (SHIPPED 2026-08-26, migration
@@ -714,3 +819,21 @@ paying clinics to ask — revisit at ~5 customers); (2) ongoing long-tail
 posts via the platform blog in-app; (3) YouTube long-form + LinkedIn via
 Zernio need content produced first — surfacing the composer for the
 platform org is a small slice once there's something to post.
+
+**Part 9 A① — the recall-revenue calculator (SHIPPED 2026-09-09, the
+idea engine's first pull).** /roi — the research's named second free
+tool, built to the grader's honesty laws: `lib/recall-roi.ts` (pure,
+client-safe — patients × off-schedule share × 2 visits/yr × the
+visitor's own fee = the AT-STAKE headline, explicitly "arithmetic on
+your own numbers, not a projection"; THREE hedged win-back scenarios
+(10/25/40%, all capped well under 100%, called scenarios out loud);
+the break-even line divides the real $200 plan price by the visitor's
+own visit fee; junk inputs degrade to zeros never NaN). The whole
+calculator runs in the browser and the page says so — "nothing you
+type is sent, stored, or seen by us" is part of the pitch. Slider UI
+(roi-calculator.tsx client component), a methodology section showing
+ALL the math, CTAs to signup + the grader, cross-linked from the
+recall-scripts guide, '/roi' in MARKETING_PUBLIC_PATHS (middleware +
+sitemap in one move), nav + footer. Tests pin the arithmetic, the
+scenario hedging, the break-even edge cases, and the privacy promise
+(tests/marketing/recall-roi.test.tsx). Suite 6,817 green.
