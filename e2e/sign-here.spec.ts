@@ -42,9 +42,13 @@ test.describe('the sign-here stack', () => {
     // The card renders its artifact: the inquiry quoted, the reply as the
     // email the patient would get, and the machine-added booking button
     // disclosure.
-    await expect(stack.getByText('Answer website inquiries')).toBeVisible()
-    await expect(stack.getByText('Do you take my insurance, and can I get in next week?')).toBeVisible()
-    await expect(stack.getByText('Robin Inquirer')).toBeVisible()
+    // .first() throughout: the card renders the inquiry twice by design — the
+    // quoted blockquote AND the email artifact addressed to the same person.
+    await expect(stack.getByText('Answer website inquiries').first()).toBeVisible()
+    await expect(
+      stack.getByText('Do you take my insurance, and can I get in next week?').first(),
+    ).toBeVisible()
+    await expect(stack.getByText('Robin Inquirer').first()).toBeVisible()
 
     await stack.getByRole('button', { name: 'Approve — send it' }).click()
 
