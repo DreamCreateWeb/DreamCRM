@@ -105,6 +105,8 @@ interface PatientContext {
 interface Props {
   thread: ThreadHeader
   messages: SerializedMessage[]
+  /** The stream is bounded — true when the conversation runs older. */
+  hasOlderMessages?: boolean
   currentUserName: string | null
   templates: TemplateOption[]
   hasEmail: boolean
@@ -372,6 +374,7 @@ const StripDivider = () => (
 export default function ThreadDetailPanel({
   thread,
   messages,
+  hasOlderMessages = false,
   currentUserName,
   templates,
   hasEmail,
@@ -1064,6 +1067,13 @@ export default function ThreadDetailPanel({
           </div>
         ) : (
           <div className="max-w-3xl mx-auto space-y-5">
+            {/* The read is capped at the newest messages; a conversation that
+                runs longer says so instead of appearing to start here. */}
+            {hasOlderMessages ? (
+              <p className="text-center text-xs text-gray-500 dark:text-gray-400" role="status">
+                Showing the most recent {messages.length} messages in this conversation.
+              </p>
+            ) : null}
             {dayGroups.map((day) => (
               <div key={day.dayKey}>
                 {/* Day separator — a centred hairline pill so the eye can

@@ -24,7 +24,11 @@ vi.mock('@/lib/services/patient-messaging', () => ({
   getPatientThreadById: threadById,
   getThreadPatientContext: patientContext,
   listMessagesInThread: listMessages,
+  listThreadMessagePage: async (...a: unknown[]) => ({ messages: await listMessages(...a), hasOlder: false }),
   listPatientThreads: listThreads,
+  // The view reads the bounded page; wrap the same fake so these tests keep
+  // driving it through listThreads.
+  listPatientThreadsPage: async (...a: unknown[]) => ({ threads: await listThreads(...a), hasMore: false }),
   markThreadRead: markRead,
   renderTemplate: (s: string) => s,
 }))

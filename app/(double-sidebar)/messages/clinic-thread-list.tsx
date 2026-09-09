@@ -80,9 +80,12 @@ function rotBorderClass(direction: string | null, iso: string | null): string {
 export default function ClinicThreadList({
   rows,
   activeThreadId,
+  hasMore = false,
 }: {
   rows: ThreadListRow[]
   activeThreadId: string | null
+  /** The inbox read is bounded — true when older conversations exist. */
+  hasMore?: boolean
 }) {
   const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -308,6 +311,14 @@ export default function ClinicThreadList({
           )
         })}
       </ul>
+
+      {/* The list is capped, so say so rather than let the oldest conversation
+          quietly stop existing. Search reaches anything below the cap. */}
+      {hasMore ? (
+        <p className="px-4 pb-3 pt-1 text-xs text-gray-500 dark:text-gray-400" role="status">
+          Showing the most recent {rows.length} conversations. Search by name, email or phone to find an older one.
+        </p>
+      ) : null}
 
       <BulkBar
         count={selected.size}

@@ -207,15 +207,63 @@ function assertBodyWithinLimit(body: string): void {
 // ── Inbox list ───────────────────────────────────────────────────────
 
 /**
+ * How many conversations one inbox read returns.
+ *
+ * The list had no bound at all: it selected every thread in the org, ran a
+ * correlated preview subquery for each one, then narrowed by search in
+ * JavaScript. A clinic two years in has thousands of conversations and no
+ * staff member scrolls past the first screen — so the cost was paid on every
+ * inbox load and thrown away.
+ *
+ * The number is generous on purpose. This is a defensive ceiling, not a
+ * pagination scheme: nobody triages 200 conversations in one sitting, and the
+ * filter chips plus search are how staff actually reach an older one.
+ */
+export const THREAD_LIST_LIMIT = 200
+
+/** Latest messages returned for one conversation. Same reasoning. */
+export const THREAD_MESSAGE_LIMIT = 200
+
+/**
+ * Escape a user's search text for a SQL LIKE pattern.
+ *
+ * The search used to run in JavaScript with `String.includes`, where `%` and
+ * `_` are ordinary characters. Now that it runs as a LIKE they are wildcards —
+ * a patient searching for a literal `_` would otherwise match everything.
+ */
+export function likePattern(q: string): string {
+  return '%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%'
+}
+
+/**
  * List patient threads in the org's unified inbox, filtered + sorted.
  * Joins patient (for name/contact preview) + assignee + the most-recent
  * patient_message (for body preview). Excludes archived by default.
+ *
+ * Bounded to `THREAD_LIST_LIMIT`. Callers that need to tell staff there are
+ * older conversations should use `listPatientThreadsPage`.
  */
 export async function listPatientThreads(
   organizationId: string,
   currentUserId: string,
   filters: ThreadFilters = {},
 ): Promise<ThreadRow[]> {
+  const page = await listPatientThreadsPage(organizationId, currentUserId, filters)
+  return page.threads
+}
+
+export interface ThreadPage {
+  threads: ThreadRow[]
+  /** True when the org has conversations this page did not return. */
+  hasMore: boolean
+}
+
+export async function listPatientThreadsPage(
+  organizationId: string,
+  currentUserId: string,
+  filters: ThreadFilters = {},
+  limit: number = THREAD_LIST_LIMIT,
+): Promise<ThreadPage> {
   const where = [eq(schema.patientThread.organizationId, organizationId)]
 
   if (filters.status === 'archived') {
@@ -241,6 +289,40 @@ export async function listPatientThreads(
     where.push(eq(schema.patientThread.starred, true))
   }
 
+  // The most recent message's body. Single-homed because the search predicate
+  // below and the selected preview column MUST be the same expression — two
+  // copies would drift and the list would match on text it never shows.
+  const previewExpr = sql<string | null>`(
+        select body from ${schema.patientMessage} m
+        where m.thread_id = ${schema.patientThread.id}
+        order by m.sent_at desc limit 1
+      )`
+
+  // Search runs in SQL, not after the fact. It used to filter the fully
+  // materialized list in JavaScript, which is why the query could not be
+  // bounded: a LIMIT ahead of a JS filter would have searched only the first
+  // page and quietly reported "no matches" for a patient who was there.
+  const searchTerm = filters.search?.trim().toLowerCase() ?? ''
+  if (searchTerm.length > 0) {
+    const like = likePattern(searchTerm)
+    const clauses = [
+      sql`lower(${schema.patient.firstName} || ' ' || ${schema.patient.lastName}) like ${like} escape '\\'`,
+      sql`lower(coalesce(${schema.patient.email}, '')) like ${like} escape '\\'`,
+      sql`lower(coalesce(${previewExpr}, '')) like ${like} escape '\\'`,
+    ]
+    // Strip non-digits from the phone for a forgiving phone search —
+    // "(512) 555-9117" should match a query of "5125559117" or "9117".
+    const qDigits = searchTerm.replace(/\D/g, '')
+    if (qDigits.length > 0) {
+      clauses.push(
+        sql`regexp_replace(coalesce(${schema.patient.phone}, ''), '[^0-9]', '', 'g') like ${'%' + qDigits + '%'}`,
+      )
+    }
+    // or() parenthesises its own output; a bare disjunction spliced into
+    // and()'s flat list would escape the org scope.
+    where.push(or(...clauses)!)
+  }
+
   // Join patient + assignee + latest message preview.
   // Latest preview is fetched in a subquery for efficiency vs. a JS roll-up.
   const rows = await db
@@ -263,11 +345,7 @@ export async function listPatientThreads(
       urgency: schema.patientThread.urgency,
       urgencyReason: schema.patientThread.urgencyReason,
       createdAt: schema.patientThread.createdAt,
-      lastMessagePreview: sql<string | null>`(
-        select body from ${schema.patientMessage} m
-        where m.thread_id = ${schema.patientThread.id}
-        order by m.sent_at desc limit 1
-      )`,
+      lastMessagePreview: previewExpr,
     })
     .from(schema.patientThread)
     .innerJoin(schema.patient, eq(schema.patientThread.patientId, schema.patient.id))
@@ -279,25 +357,14 @@ export async function listPatientThreads(
       sql`case when ${schema.patientThread.urgency} = 'urgent' then 0 else 1 end`,
       desc(schema.patientThread.lastMessageAt),
     )
+    // One over the page, so "there are older conversations" is a fact rather
+    // than the guess `rows.length === limit` would be.
+    .limit(limit + 1)
 
-  let filtered = rows
-  if (filters.search && filters.search.trim().length > 0) {
-    const q = filters.search.trim().toLowerCase()
-    // Strip non-digits from the phone for a forgiving phone search —
-    // "(512) 555-9117" should match a query of "5125559117" or "9117".
-    const qDigits = q.replace(/\D/g, '')
-    filtered = rows.filter((r) => {
-      const name = `${r.patientFirstName} ${r.patientLastName}`.toLowerCase()
-      const preview = (r.lastMessagePreview ?? '').toLowerCase()
-      const phoneDigits = (r.patientPhone ?? '').replace(/\D/g, '')
-      return name.includes(q)
-        || (r.patientEmail ?? '').toLowerCase().includes(q)
-        || preview.includes(q)
-        || (qDigits.length > 0 && phoneDigits.includes(qDigits))
-    })
-  }
+  const hasMore = rows.length > limit
+  const page = hasMore ? rows.slice(0, limit) : rows
 
-  return filtered.map((r) => ({
+  const threads: ThreadRow[] = page.map((r) => ({
     id: r.id,
     patientId: r.patientId,
     patientFirstName: r.patientFirstName,
@@ -318,6 +385,8 @@ export async function listPatientThreads(
     urgencyReason: r.urgencyReason,
     createdAt: r.createdAt,
   }))
+
+  return { threads, hasMore }
 }
 
 // ── Inbox stats (for sidebar badges) ─────────────────────────────────
@@ -553,6 +622,10 @@ export async function getPatientThreadById(
  * email_message rows (linked to the same patient) merged + sorted.
  * Returns ThreadMessage[] in chronological order.
  *
+ * Bounded to the most recent `THREAD_MESSAGE_LIMIT` messages. Callers that
+ * need to tell the reader older messages exist should use
+ * `listThreadMessagePage`.
+ *
  * v1: emails are read-only in the stream. Outbound replies go through
  * patient_message (which the UI calls sendMessageToPatient for).
  */
@@ -560,8 +633,36 @@ export async function listMessagesInThread(
   organizationId: string,
   threadId: string,
 ): Promise<ThreadMessage[]> {
+  const page = await listThreadMessagePage(organizationId, threadId)
+  return page.messages
+}
+
+export interface ThreadMessagePage {
+  /** Chronological, oldest first — the newest `limit` messages of the thread. */
+  messages: ThreadMessage[]
+  /** True when the conversation has messages older than this page. */
+  hasOlder: boolean
+}
+
+/**
+ * The bounded read behind `listMessagesInThread`.
+ *
+ * Both sources are fetched NEWEST-first and capped, then merged and flipped
+ * back to chronological order. That is correct for the union as well as for
+ * each source: the newest N of (A ∪ B) is always a subset of
+ * (newest N of A) ∪ (newest N of B), so nothing that belongs on the page can
+ * be missed by capping the two queries separately.
+ *
+ * Each query takes one row over the cap, so `hasOlder` is a fact rather than
+ * the guess an exact-length check would be.
+ */
+export async function listThreadMessagePage(
+  organizationId: string,
+  threadId: string,
+  limit: number = THREAD_MESSAGE_LIMIT,
+): Promise<ThreadMessagePage> {
   const thread = await getPatientThreadById(organizationId, threadId)
-  if (!thread) return []
+  if (!thread) return { messages: [], hasOlder: false }
 
   const [pMessages, emails] = await Promise.all([
     db
@@ -581,7 +682,8 @@ export async function listMessagesInThread(
       .from(schema.patientMessage)
       .leftJoin(schema.user, eq(schema.patientMessage.sentByUserId, schema.user.id))
       .where(eq(schema.patientMessage.threadId, threadId))
-      .orderBy(asc(schema.patientMessage.sentAt)),
+      .orderBy(desc(schema.patientMessage.sentAt))
+      .limit(limit + 1),
     db
       .select({
         id: schema.emailMessage.id,
@@ -601,7 +703,8 @@ export async function listMessagesInThread(
           eq(schema.emailMessage.patientId, thread.patientId),
         ),
       )
-      .orderBy(asc(schema.emailMessage.receivedAt)),
+      .orderBy(desc(schema.emailMessage.receivedAt))
+      .limit(limit + 1),
   ])
 
   const fromPatientMessages: ThreadMessage[] = pMessages.map((m) => ({
@@ -637,7 +740,13 @@ export async function listMessagesInThread(
     externalId: e.providerMessageId,
   }))
 
-  return [...fromPatientMessages, ...fromEmail].sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime())
+  const merged = [...fromPatientMessages, ...fromEmail].sort(
+    (a, b) => a.sentAt.getTime() - b.sentAt.getTime(),
+  )
+  // Each source was capped at limit+1, so the union can overshoot; keep the
+  // newest `limit` and report the rest as older.
+  const hasOlder = merged.length > limit
+  return { messages: hasOlder ? merged.slice(merged.length - limit) : merged, hasOlder }
 }
 
 // ── Send + mutations ─────────────────────────────────────────────────

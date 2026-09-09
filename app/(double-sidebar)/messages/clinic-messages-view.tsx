@@ -5,12 +5,13 @@ import {
   getMessagesPerDay14,
   getPatientThreadById,
   getThreadPatientContext,
-  listMessagesInThread,
-  listPatientThreads,
+  listThreadMessagePage,
+  listPatientThreadsPage,
   markThreadRead,
   renderTemplate,
   type ThreadFilters,
   type ThreadMessage,
+  type ThreadMessagePage,
   type ThreadPatientContext,
 } from '@/lib/services/patient-messaging'
 import { listMessageTemplates } from '@/lib/services/message-templates'
@@ -88,8 +89,8 @@ export default async function ClinicMessagesView({
     starredOnly: searchParams.starred === '1',
   }
 
-  const [threads, stats, messageTemplates, members, perDay14] = await Promise.all([
-    listPatientThreads(ctx.organizationId, ctx.userId, filters),
+  const [threadPage, stats, messageTemplates, members, perDay14] = await Promise.all([
+    listPatientThreadsPage(ctx.organizationId, ctx.userId, filters),
     getInboxStats(ctx.organizationId, ctx.userId),
     listMessageTemplates(ctx.organizationId),
     listAssignableStaff(ctx.organizationId),
@@ -105,6 +106,7 @@ export default async function ClinicMessagesView({
 
   // Serialize the rows the selectable client list needs (dates → ISO, plus the
   // pre-built ?thread= href so the server keeps ownership of the querystring).
+  const threads = threadPage.threads
   const threadRows: ThreadListRow[] = threads.map((t) => ({
     id: t.id,
     href: buildHref(searchParams, { thread: t.id }),
@@ -130,15 +132,15 @@ export default async function ClinicMessagesView({
   // Pull the message stream + the slim patient context strip in parallel —
   // so staff replying see next/last visit, PMS balance, and missing-intake
   // without leaving the inbox.
-  const [messages, patientContext, patientTags, scheduledMessages, activity]: [
-    ThreadMessage[],
+  const [messagePage, patientContext, patientTags, scheduledMessages, activity]: [
+    ThreadMessagePage,
     ThreadPatientContext | null,
     PatientTagView[],
     ScheduledMessageView[],
     ActivityMarker[],
   ] = activeThread
     ? await Promise.all([
-        listMessagesInThread(ctx.organizationId, activeThread.id),
+        listThreadMessagePage(ctx.organizationId, activeThread.id),
         getThreadPatientContext(ctx.organizationId, activeThread.patientId),
         getTagsForPatient(ctx.organizationId, activeThread.patientId),
         listScheduledForPatient(ctx.organizationId, activeThread.patientId),
@@ -146,7 +148,9 @@ export default async function ClinicMessagesView({
         // contract: a marker-source hiccup must never blank the conversation.
         listThreadActivity(ctx.organizationId, activeThread.patientId).catch(() => []),
       ])
-    : [[], null, [], [], []]
+    : [{ messages: [], hasOlder: false }, null, [], [], []]
+
+  const messages: ThreadMessage[] = messagePage.messages
 
   // Mark the active thread read when it has unread messages on the
   // staff side. Call the service directly (NOT the server action wrapper):
@@ -292,7 +296,7 @@ export default async function ClinicMessagesView({
                 />
               </div>
             ) : (
-              <ClinicThreadList rows={threadRows} activeThreadId={activeThread?.id ?? null} />
+              <ClinicThreadList rows={threadRows} activeThreadId={activeThread?.id ?? null} hasMore={threadPage.hasMore} />
             )}
           </div>
         </aside>
@@ -331,6 +335,7 @@ export default async function ClinicMessagesView({
               patientContext={patientContext}
               patientTags={patientTags}
               backHref={buildHref(searchParams, { thread: undefined })}
+              hasOlderMessages={messagePage.hasOlder}
               messages={messages.map((m) => ({
                 ...m,
                 sentAt: m.sentAt.toISOString(),
