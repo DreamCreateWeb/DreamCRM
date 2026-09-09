@@ -1049,7 +1049,7 @@ function ProposalCard({
                 </span>
               )}
             </div>
-            {imageError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{imageError}</p>}
+            {imageError && <p role="alert" className="mt-1 text-xs text-rose-600 dark:text-rose-400">{imageError}</p>}
           </div>
         ) : artifact?.kind === 'plan' ? (
           <PlanArtifact items={artifact.items} clinicName={clinicName} channel={artifact.channel} />
@@ -1207,7 +1207,10 @@ function ProposalCard({
         </div>
       )}
 
-      {error && <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">{error}</p>}
+      {/* These are the validation complaints that BLOCK the approve — an
+          empty subject, a bad chair count. Unannounced, the button just
+          appears to stop working. */}
+      {error && <p role="alert" className="mt-2 text-xs text-rose-700 dark:text-rose-300">{error}</p>}
 
       {/* THE HAND-BACK, said plainly (round-1 Phase-3 audit): the machine
           tried this one alone, couldn't, and stopped trying. It outranks the

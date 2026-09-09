@@ -112,10 +112,33 @@ export default function SlotPicker({
 
   const visibleSlots = slots.filter((s) => new Date(s.startIso).getTime() >= cutoffMs)
 
+  // Picking a day silently swaps the whole grid — sighted patients see the
+  // times change, screen-reader users get nothing. One polite live region
+  // narrates the phase: checking → what landed. (The skeleton's own sr-only
+  // line used to sit inside an aria-hidden wrapper, so it never spoke.)
+  const availableCount = visibleSlots.filter((s) => s.available).length
+  const selectedDayLabel = `${MONTH_NAME_SHORT[keyParts(selectedDate).m - 1]} ${keyParts(selectedDate).d}`
+  const liveStatus = pending
+    ? 'Checking openings…'
+    : availableCount > 0
+      ? `${availableCount} time${availableCount === 1 ? '' : 's'} available on ${selectedDayLabel}.`
+      : `No openings on ${selectedDayLabel}.`
+
   return (
     <div>
+      <p className="sr-only" role="status">
+        {liveStatus}
+      </p>
       <div className="relative">
-        <div ref={stripRef} className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+        <div
+          ref={stripRef}
+          className="no-scrollbar flex gap-2 overflow-x-auto pb-1"
+          // Parity with the book/request forms' choice chips: a set of
+          // aria-pressed siblings needs a named group, or each day is
+          // announced as a loose toggle with no idea what it belongs to.
+          role="group"
+          aria-label="Pick a day"
+        >
           {days.map((d) => {
             const active = d === selectedDate
             const today = d === clinicDayKey(new Date(), timeZone)
@@ -176,7 +199,6 @@ export default function SlotPicker({
             {Array.from({ length: 8 }).map((_, i) => (
               <span key={i} className="h-10 animate-pulse rounded-xl" style={{ backgroundColor: '#F3EEE7' }} />
             ))}
-            <span className="sr-only">Checking openings…</span>
           </div>
         ) : visibleSlots.filter((s) => s.available).length === 0 ? (
           <div className="py-6 text-center text-[0.88rem]" style={{ color: MUTED }}>
@@ -197,7 +219,7 @@ export default function SlotPicker({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label="Pick a time">
             {visibleSlots.map((slot) => {
               const active = selectedIso === slot.startIso
               if (!slot.available) {

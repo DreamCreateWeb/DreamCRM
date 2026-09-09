@@ -178,6 +178,18 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
   const brandInk = readableInk(brand)
   const whenLabel = formatConfirmationWhen(c.startTimeIso, c.timeZone)
 
+  // This screen REPLACES the form outright, so the funnel's whole payoff was
+  // silent: the submit button unmounts, focus falls back to <body>, and a
+  // screen-reader user hears nothing at all. A live region can't fix it —
+  // it mounts already-populated, which is exactly the case screen readers
+  // don't reliably announce. Moving focus to the heading is the phase-change
+  // contract: it speaks "You're booked." AND puts the keyboard at the top of
+  // the new content instead of back at the document root.
+  const headingRef = useRef<HTMLHeadingElement | null>(null)
+  useEffect(() => {
+    headingRef.current?.focus()
+  }, [])
+
   const calendarHref = useMemo(() => {
     const start = new Date(c.startTimeIso)
     const end = new Date(c.endTimeIso)
@@ -210,7 +222,12 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
-      <h2 className="text-3xl font-bold tracking-[-0.02em] mb-2" style={{ color: INK }}>
+      <h2
+        ref={headingRef}
+        tabIndex={-1}
+        className="text-3xl font-bold tracking-[-0.02em] mb-2 focus:outline-none"
+        style={{ color: INK }}
+      >
         You&rsquo;re booked.
       </h2>
       <p className="leading-relaxed mb-7" style={{ color: INK_MUTED }}>
@@ -475,8 +492,23 @@ export default function BookForm({
 
   const hasAnySlot = slots.some((s) => s.available)
 
+  // Step 2 reloads itself every time step 1 is touched. Sighted patients watch
+  // the grid swap; without a live region a screen-reader user taps a day and
+  // hears silence. One polite region narrates the phase: checking → outcome.
+  const availableCount = slots.filter((s) => s.available).length
+  const slotsLiveStatus = slotsPending
+    ? 'Checking openings…'
+    : slotsError
+      ? 'We couldn’t load available times.'
+      : availableCount > 0
+        ? `${availableCount} time${availableCount === 1 ? '' : 's'} available on ${fmtKeyDate(selectedDate)}.`
+        : `No openings on ${fmtKeyDate(selectedDate)}.`
+
   return (
     <form onSubmit={handleSubmit} className="space-y-10">
+      <p className="sr-only" role="status">
+        {slotsLiveStatus}
+      </p>
       {/* Spam-trust hidden fields — picked up by `new FormData(form)` and
           validated by `looksLikeBot` in submitBookingRequest. */}
       <FormTrustFields />
@@ -538,6 +570,10 @@ export default function BookForm({
             ref={dayStripRef}
             className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scroll-smooth px-12 sm:px-14"
             style={{ scrollbarWidth: 'none' }}
+            // The aria-pressed siblings need a named group, same as the slot
+            // grid below and the portal's choice chips.
+            role="group"
+            aria-label="Pick a date"
           >
             {days.map((d) => {
               const isSelected = d === selectedDate
@@ -553,6 +589,9 @@ export default function BookForm({
                     color: isSelected ? 'white' : INK,
                   }}
                   aria-pressed={isSelected}
+                  // The visible label is two split divs ("MON" over "12") with
+                  // no month at all — spoken, that's a bare number.
+                  aria-label={fmtDayLabel(d, timeZone)}
                 >
                   <div
                     className="text-[11px] font-medium uppercase tracking-wider"
@@ -629,7 +668,7 @@ export default function BookForm({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2" role="group" aria-label="Pick a time">
             {slots.map((s) => {
               const isSelected = s.startIso === selectedSlotIso
               return (
