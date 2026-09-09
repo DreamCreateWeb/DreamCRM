@@ -18,7 +18,7 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
  * makes it public + indexed in one move (a page that exists in nav but is
  * auth-walled has shipped twice before; see middleware.ts history).
  */
-export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/pricing', '/compare', '/docs', '/blog', '/grade', '/resources', '/roi'] as const
+export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/pricing', '/compare', '/docs', '/blog', '/grade', '/resources', '/roi', '/partner-program'] as const
 export const DEMO_URL = `https://acme-dental-demo.${SITE_DOMAIN}`
 
 export interface MarketingNavChild {
@@ -118,6 +118,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
     links: [
       { label: 'Create your account', href: '/signup' },
       { label: 'Sign in', href: '/signin' },
+      { label: 'Partner program', href: '/partner-program' },
     ],
   },
 ]

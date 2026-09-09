@@ -856,3 +856,25 @@ all-unknown pair renders nothing. This is the compounding loop: the
 grader stops being a one-shot report and becomes a progress tracker a
 practice returns to — and the 30-day re-grade nudge email (C①'s warm
 nurture) now has a reason to exist. Suite 6,825 green.
+
+**Part 9 D① — the partner-program public door (SHIPPED 2026-09-09).**
+The referral-partner machinery (10% default of every paid invoice,
+per-partner rate/term, Stripe Express payouts with the $25 floor, the
+live partner portal) was fully built and had NO public door — a
+standing channel (consultants, dental CPAs/bookkeepers, IT providers,
+agencies, study-club leaders — the people practices already ask "what
+software should we use?") waiting on one page. /partner-program: the
+pitch built on the REAL terms only (every number on the page is the
+schema's default, and the FAQ hedges "your exact rate and term are
+written into your partner agreement"), the 3-step mechanism, the
+plain math ("ten practices = $200/mo to you"), FAQ + FAQPage schema
+(one source, rendered verbatim), and an application form wearing the
+full public-form armor (honeypot + time-trap + per-IP rate limit).
+NO NEW TABLE: an application IS a lead —
+`lib/services/partner-applications.ts` files it into the PLATFORM
+org's own pipeline (leadSource 'partner_program', anchored to the
+platform owner) where the owner already works daily; a re-apply
+refreshes the existing row's notes instead of minting a duplicate;
+a best-effort admin email alert rides on top (a mail hiccup never
+fails the applicant). '/partner-program' joined MARKETING_PUBLIC_PATHS
++ the footer's Get-started column. Suite 6,831 green.
