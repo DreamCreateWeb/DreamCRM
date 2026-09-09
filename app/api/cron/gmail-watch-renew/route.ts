@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { renewExpiringWatches } from '@/lib/services/mailbox'
 
 /**
@@ -15,11 +16,8 @@ export async function GET(req: NextRequest) {
   // run unauthenticated — it triggers Gmail API calls for every connected
   // mailbox, so an open endpoint is a quota-exhaustion vector. Matches the
   // guard every other cron/admin route uses.
-  const secret = process.env.CRON_SECRET
-  const got = req.headers.get('authorization') ?? ''
-  if (!secret || got !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(req)
+  if (denied) return denied
 
   if (!process.env.GMAIL_PUBSUB_TOPIC) {
     return NextResponse.json({ skipped: 'GMAIL_PUBSUB_TOPIC not configured' })

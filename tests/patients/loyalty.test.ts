@@ -25,18 +25,37 @@ vi.mock('@/lib/db', () => {
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
     return obj
   }
+  // `sink` is a getter, not the array itself: the vi.mock factory is hoisted
+  // above `state`'s initializer, so it must not touch it at build time.
+  const insertInto =
+    (sink: () => Array<{ table: string; values: Record<string, unknown> }>) => (table: unknown) => ({
+      values: async (values: Record<string, unknown>) => {
+        const name = (table as { _n: string })._n
+        if (state.insertFail?.(name)) throw new Error('duplicate key / boom')
+        sink().push({ table: name, values })
+      },
+    })
   return {
     db: {
       select: () => chain(),
-      insert: (table: unknown) => ({
-        values: async (values: Record<string, unknown>) => {
-          const name = (table as { _n: string })._n
-          if (state.insertFail?.(name)) throw new Error('duplicate key / boom')
-          state.inserts.push({ table: name, values })
-        },
-      }),
+      insert: insertInto(() => state.inserts),
       update: () => ({ set: () => ({ where: async () => {} }) }),
       delete: () => ({ where: async () => { state.deletes++ } }),
+      // Redemption runs check-then-write inside ONE transaction behind a
+      // per-patient advisory lock. Staged writes commit together; a throw
+      // discards them, which is how the coupon-mint rollback works now.
+      transaction: async (cb: (tx: unknown) => Promise<unknown>) => {
+        const staged: Array<{ table: string; values: Record<string, unknown> }> = []
+        const out = await cb({
+          execute: async () => [],
+          select: () => chain(),
+          insert: insertInto(() => staged),
+          update: () => ({ set: () => ({ where: async () => {} }) }),
+          delete: () => ({ where: async () => { state.deletes++ } }),
+        })
+        state.inserts.push(...staged)
+        return out
+      },
     },
     schema: {
       clinicProfile: { organizationId: 'org', loyalty: 'loyalty' },
@@ -155,7 +174,10 @@ describe('redeemLoyaltyPoints', () => {
     state.insertFail = (table) => table === 'shop_coupon'
     const r = await redeemLoyaltyPoints('org_1', 'p1')
     expect(r).toMatchObject({ ok: false })
-    expect(state.deletes).toBe(1) // the negative row was removed
+    // The negative ledger row goes down with the transaction — no compensating
+    // DELETE to get stuck halfway and burn the points.
+    expect(state.inserts).toHaveLength(0)
+    expect(state.deletes).toBe(0)
   })
 
   it('disabled program → no redemption', async () => {

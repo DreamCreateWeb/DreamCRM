@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { runRetentionAutomations } from '@/lib/services/retention-automation'
 import { runBalanceReminderCadence } from '@/lib/services/balance-outreach'
 import { runDuePlanCharges } from '@/lib/services/payment-plans'
@@ -22,11 +23,8 @@ export const maxDuration = 120
  * crons). Returns `{ ok, scanned, created, alreadyCreated, emptyAudience, ... }`.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await runRetentionAutomations()
     // Opt-in balance-reminder cadence rides the same daily tick. Best-effort —

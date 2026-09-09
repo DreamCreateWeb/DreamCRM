@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { runGuardianSweep } from '@/lib/services/guardian-alerts'
 
 export const runtime = 'nodejs'
@@ -18,11 +19,8 @@ export const maxDuration = 300
  * CRON_SECRET-gated; scheduled once daily.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await runGuardianSweep()
     // A BLIND RUN IS NOT A CLEAN ONE (round-9 audit). `{ok:true, scanned:0,

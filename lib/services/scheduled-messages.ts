@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto'
 import { sendMessageToPatient } from '@/lib/services/patient-messaging'
 import { recordAction } from '@/lib/services/action-ledger'
 import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
+import { sanitizeUploadedAttachments } from '@/lib/attachment-hosts'
 
 /**
  * Scheduled (send-later) patient messages. Staff compose a reply now and pick a
@@ -50,7 +51,8 @@ export async function scheduleMessage(input: {
   if (input.channel !== 'in_app' && input.channel !== 'email') {
     throw new Error('Only in-app or email messages can be scheduled.')
   }
-  const attachments = sanitizeAttachments(input.attachments)
+  // Client-supplied list: shape AND host must both check out (lib/attachment-hosts.ts).
+  const attachments = sanitizeUploadedAttachments(input.attachments)
   if (!input.body.trim() && attachments.length === 0) {
     throw new Error('Add a message or an attachment to schedule.')
   }
