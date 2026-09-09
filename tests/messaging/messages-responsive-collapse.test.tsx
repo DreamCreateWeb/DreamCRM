@@ -24,6 +24,16 @@ vi.mock('@/lib/services/patient-messaging', () => ({
   getThreadPatientContext: patientContext,
   listMessagesInThread: listMessages,
   listPatientThreads: listThreads,
+  // The view reads the PAGED variants (the queries are capped now); both wrap
+  // the same fixtures, so the existing stubs stay the source of truth.
+  listMessagesInThreadPage: async (...args: unknown[]) => ({
+    messages: await listMessages(...(args as [])),
+    hasMore: false,
+  }),
+  listPatientThreadsPage: async (...args: unknown[]) => ({
+    rows: await listThreads(...(args as [])),
+    hasMore: false,
+  }),
   markThreadRead: markRead,
   renderTemplate: (s: string) => s,
 }))

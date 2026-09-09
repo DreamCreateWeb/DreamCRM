@@ -46,3 +46,16 @@ export function sanitizeAttachments(value: unknown): MessageAttachment[] {
   }
   return out
 }
+
+/**
+ * List bounds for the messages surface. Pure numbers, so they live here rather
+ * than in the `server-only` service — a client component (and every test that
+ * mocks the service) can read them without pulling the service in.
+ */
+
+/** One inbox screenful of conversations. Generous — a ceiling, not pagination. */
+export const DEFAULT_THREAD_LIMIT = 100
+/** The hard ceiling, so a hand-built query string can't reopen the full scan. */
+export const MAX_THREAD_LIMIT = 500
+/** One conversation screenful. A years-long thread is bounded, not unbounded. */
+export const DEFAULT_THREAD_MESSAGE_LIMIT = 200

@@ -105,6 +105,9 @@ interface PatientContext {
 interface Props {
   thread: ThreadHeader
   messages: SerializedMessage[]
+  /** True when the thread runs further back than the loaded window. The stream
+   *  says so rather than letting the conversation look like it started here. */
+  olderMessagesHidden?: boolean
   currentUserName: string | null
   templates: TemplateOption[]
   hasEmail: boolean
@@ -372,6 +375,7 @@ const StripDivider = () => (
 export default function ThreadDetailPanel({
   thread,
   messages,
+  olderMessagesHidden = false,
   currentUserName,
   templates,
   hasEmail,
@@ -1064,6 +1068,18 @@ export default function ThreadDetailPanel({
           </div>
         ) : (
           <div className="max-w-3xl mx-auto space-y-5">
+            {olderMessagesHidden && (
+              <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+                Showing the most recent messages. Earlier ones are on{' '}
+                <Link
+                  href={`/patients/${thread.patientId}`}
+                  className="underline underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
+                >
+                  {thread.patientFirstName}&rsquo;s timeline
+                </Link>
+                .
+              </p>
+            )}
             {dayGroups.map((day) => (
               <div key={day.dayKey}>
                 {/* Day separator — a centred hairline pill so the eye can
