@@ -105,7 +105,7 @@ test.describe('portal reschedule and cancel', () => {
       timeout: 30_000,
     })
     await page.reload()
-    await expect(page.getByText('Coming up')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Coming up').first()).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('div.rounded-2xl').filter({ hasText: 'Filling' })).toHaveCount(0)
   })
 })

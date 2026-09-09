@@ -52,13 +52,16 @@ test.describe('the sign-here stack', () => {
 
     await stack.getByRole('button', { name: 'Approve — send it' }).click()
 
-    // The ledger summary arrives as the toast; the emptied stack says so.
+    // The ledger summary arrives as the toast. Don't assert the stack's
+    // "that's all of them" note after it: the post-approve refresh re-renders
+    // the page with zero open proposals and the whole section unmounts (CI
+    // proved it) — the card being durably gone is the assertion.
     await expect(page.getByRole('status')).toContainText(/website inquiry by email/, {
       timeout: 30_000,
     })
-    await expect(
-      stack.getByText('That’s all of them — nothing else is waiting on your yes.'),
-    ).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText("Answer Robin's website inquiry")).toHaveCount(0, {
+      timeout: 30_000,
+    })
 
     // The durable artifact update: the lead is now Contacted on the board.
     await page.goto('/leads')
