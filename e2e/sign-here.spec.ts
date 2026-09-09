@@ -63,11 +63,13 @@ test.describe('the sign-here stack', () => {
       timeout: 30_000,
     })
 
-    // The durable artifact update: the lead is now Contacted on the board.
+    // The durable artifact update: the lead moved off the board's default
+    // "New" filter onto the Contacted chip.
     await page.goto('/leads')
-    const lead = page.getByRole('row').filter({ hasText: 'Robin Inquirer' }).first()
-    const leadAnywhere = page.locator('body').getByText('Robin Inquirer').first()
-    await expect(lead.or(leadAnywhere).first()).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText('Contacted', { exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Contacted 1' })).toBeVisible({
+      timeout: 30_000,
+    })
+    await page.getByRole('button', { name: 'Contacted 1' }).click()
+    await expect(page.getByText('Robin Inquirer').first()).toBeVisible({ timeout: 30_000 })
   })
 })
