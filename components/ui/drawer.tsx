@@ -78,14 +78,30 @@ export default function Drawer({
                 SIZES[size],
               )}
             >
+              {/* A Dialog with no DialogTitle has NO accessible name — it
+                  opens as an anonymous "dialog". The header only renders when
+                  there's a title or actions to put in it, so a title-less
+                  drawer needs the name supplied out-of-band. */}
+              {!title && (
+                <DialogTitle as="span" className="sr-only">
+                  Details
+                </DialogTitle>
+              )}
               {(title || actions) && (
                 <div className="sticky top-0 z-10 bg-[color:var(--color-surface-2)]/95 backdrop-blur border-b border-[color:var(--color-hairline)] px-5 py-3 flex items-center gap-3">
-                  <DialogTitle
-                    as="div"
-                    className="min-w-0 grow text-[14px] font-medium text-gray-900 dark:text-gray-100 truncate"
-                  >
-                    {title}
-                  </DialogTitle>
+                  {title ? (
+                    <DialogTitle
+                      as="div"
+                      className="min-w-0 grow text-[14px] font-medium text-gray-900 dark:text-gray-100 truncate"
+                    >
+                      {title}
+                    </DialogTitle>
+                  ) : (
+                    // Actions-only header: the name comes from the sr-only
+                    // DialogTitle above, so this is just the spacer that keeps
+                    // the cluster pinned right.
+                    <div className="min-w-0 grow" />
+                  )}
                   <div className="shrink-0 flex items-center gap-1">
                     {actions}
                     <button

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -80,6 +80,32 @@ describe('v2 color + surface tokens', () => {
     expect(css).toContain("/fonts/nunito-latin-var.woff2")
     expect(css).toContain("/fonts/nunito-latin-ext-var.woff2")
     expect(css).toContain('font-weight: 200 1000')
+  })
+
+  it('self-hosts Inter too — no render-blocking @import anywhere in the sheet', () => {
+    // Inter is the base body face (`font-inter` on <body>). It used to arrive
+    // via `@import url(fonts.googleapis.com/…)` on line 1, which blocks first
+    // paint on a third-party round trip that can't even be preloaded. Same
+    // same-origin variable-woff2 contract as Nunito.
+    expect(css).toContain('/fonts/inter-latin-var.woff2')
+    expect(css).toContain('/fonts/inter-latin-ext-var.woff2')
+    expect(css).toContain('font-weight: 100 900')
+    // The regression this guards: any remote @import returning to the sheet.
+    expect(css).not.toContain('fonts.googleapis.com')
+    expect(css).not.toMatch(/@import\s+url\(/)
+  })
+
+  it('ships every self-hosted woff2 the sheet points at', () => {
+    // A missing font file 404s silently — the page just renders the fallback
+    // face, which is exactly the flash self-hosting was meant to remove.
+    for (const file of [
+      'inter-latin-var.woff2',
+      'inter-latin-ext-var.woff2',
+      'nunito-latin-var.woff2',
+      'nunito-latin-ext-var.woff2',
+    ]) {
+      expect(existsSync(resolve(ROOT, 'public/fonts', file)), file).toBe(true)
+    }
   })
 })
 

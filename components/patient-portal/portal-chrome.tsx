@@ -187,6 +187,10 @@ export function PortalTabBar({
                       onClick={() => setSheetOpen(false)}
                       className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-[0.95rem] font-medium"
                       style={active ? { backgroundColor: '#FAF7F2', color: brand } : { color: '#1C1A17' }}
+                      // The desktop nav and the bottom tab bar both announce
+                      // the current page; the More sheet carried it in tint
+                      // alone, so the page you're already on was unmarked.
+                      aria-current={active ? 'page' : undefined}
                     >
                       <PortalIcon name={item.icon} className="h-5 w-5" />
                       {item.label}
@@ -251,6 +255,10 @@ export function PortalTabBar({
                 onClick={() => setSheetOpen((v) => !v)}
                 className="flex min-h-[56px] w-full flex-col items-center justify-center gap-0.5 py-1.5"
                 style={{ color: moreActive ? brand : '#6B635A' }}
+                // The trigger both opens a sheet and stands in for whichever
+                // page inside it you're on — neither was announced.
+                aria-expanded={sheetOpen}
+                aria-current={moreActive ? 'page' : undefined}
               >
                 <PortalIcon name="dots" className="h-[22px] w-[22px]" />
                 <span className="text-[0.8rem] font-semibold">More</span>

@@ -51,9 +51,11 @@ export default function ResetForm() {
     }
   }
 
+  // Submitting swaps the whole form out for this panel; without a live region
+  // the only feedback that the link went out is visual.
   if (sent) {
     return (
-      <div className="text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-3 rounded">
+      <div role="status" className="text-sm text-green-700 bg-green-50 dark:bg-green-500/10 px-3 py-3 rounded">
         If an account exists for <strong>{email}</strong>, a reset link has been sent.
       </div>
     )
@@ -78,7 +80,7 @@ export default function ResetForm() {
         </div>
       </div>
       {error && (
-        <div className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
+        <div role="alert" className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">
           {error}
         </div>
       )}
