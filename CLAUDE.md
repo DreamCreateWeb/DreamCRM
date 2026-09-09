@@ -605,8 +605,10 @@ sitemap/robots/OG.
 - Vertical slices: schema + service + UI + tests in one PR. Tenant scoping is
   non-negotiable. Tests before merge — the FULL `pnpm test` (~4 min), not a
   module subset: the repo-wide CI guards (legibility floor, tenant scoping,
-  cron parity, token single-homes) only run in the full pass, and deploys
-  don't run tests.
+  cron parity, token single-homes) only run in the full pass. Since
+  2026-09-09 GitHub Actions enforces this: `ci.yml` runs typecheck + the
+  full suite on every PR, and `deploy.yml` runs the same gate on every push
+  to `main` BEFORE the deploy job — a red `main` no longer ships.
 - **The phase-audit gate is a convention (2026-07-27; v2 re-shape same
   day; STOPPING RULE amended 2026-07-31 after Phase 4).**
   **READ THIS BEFORE STARTING PHASE 5's AUDIT.** Phase 4 ran 16 rounds and

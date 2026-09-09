@@ -37,8 +37,10 @@ Nothing here touches the real database, Stripe, Resend, or any vendor.
 ## Deliberately NOT part of `pnpm test`
 
 The merge gate must stay fast (~4 min for the unit suite). The E2E suite needs
-a build and a server, so it is a separate command. Wire it into CI as its own
-job, not into the unit gate.
+a build and a server, so it is a separate command. Wired into CI 2026-09-09:
+the `e2e` job in `.github/workflows/ci.yml` runs the harness on every PR (the
+runner image's own Postgres binaries stand up the throwaway cluster). The
+push-to-main deploy gate in `deploy.yml` stays typecheck + unit only.
 
 ## Environment notes
 

@@ -1032,7 +1032,11 @@ slice's changes touched — load-induced, not a regression.
 It is logged because a test that fails ~1 run in N is a future CI annoyance
 that will eventually be blamed on a real change. Fix shape: raise the
 `findBy*` timeout in that file (or drive the phase change with an explicit
-`waitFor`) as part of R3's suite-stability work. · OPEN.
+`waitFor`) as part of R3's suite-stability work. · CLOSED 2026-09-09: the
+root cause was a real race, not load — the phase flips to `comment` before
+the transition's `pending` flag clears, so a click on the still-disabled
+button was silently swallowed and no later render retried it. The tests now
+wait for the button to be enabled before clicking.
 
 ---
 

@@ -19,7 +19,7 @@
     "test:e2e": "bash scripts/e2e-harness.sh",
     "test:e2e:quick": "bash scripts/e2e-harness.sh --skip-build",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",

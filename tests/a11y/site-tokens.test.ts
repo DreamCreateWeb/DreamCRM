@@ -31,7 +31,7 @@ describe('public-site surface tokens (single source of truth)', () => {
     const hits: string[] = []
     for (const base of SCAN_DIRS) {
       for (const file of walk(join(ROOT, base))) {
-        const rel = relative(ROOT, file)
+        const rel = relative(ROOT, file).replace(/\\/g, '/')
         if (rel === TOKEN_HOME) continue
         const src = readFileSync(file, 'utf8')
         const m = src.match(LOCAL_DECL)

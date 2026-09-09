@@ -49,7 +49,12 @@ describe('SurveyCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rate 7 out of 10' }))
     const box = await screen.findByPlaceholderText(/anything/i)
     fireEvent.change(box, { target: { value: 'Shorter wait please' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send it' }))
+    // The phase flips before the transition's `pending` flag clears, so the
+    // button can render disabled for a tick — a click then is silently
+    // swallowed and the test times out. Wait for it to be clickable.
+    const send = screen.getByRole('button', { name: 'Send it' })
+    await waitFor(() => expect(send).not.toBeDisabled())
+    fireEvent.click(send)
     await waitFor(() => expect(commentMock).toHaveBeenCalledWith('nps_abc', 'Shorter wait please'))
     expect(await screen.findByText(/thank you for helping us do better/i)).toBeInTheDocument()
   })
@@ -58,7 +63,11 @@ describe('SurveyCard', () => {
     answerMock.mockResolvedValueOnce({ ok: true })
     render(<SurveyCard token="nps_abc" brand="#2F6D62" />)
     fireEvent.click(screen.getByRole('button', { name: 'Rate 10 out of 10' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Done' }))
+    // Same pending-flag race as above: clicking Done while the answer
+    // transition is still marked pending is a no-op (the logged flaky run).
+    const done = await screen.findByRole('button', { name: 'Done' })
+    await waitFor(() => expect(done).not.toBeDisabled())
+    fireEvent.click(done)
     expect(commentMock).not.toHaveBeenCalled()
     expect(await screen.findByText(/thank you for helping us do better/i)).toBeInTheDocument()
   })

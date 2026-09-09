@@ -17,26 +17,42 @@ PGPORT="${E2E_PGPORT:-55432}"
 PGDIR="${E2E_PGDIR:-/tmp/e2e-pgdata}"
 DB="dreamcrm_e2e"
 PGBIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -1)"
+# Debian puts the binaries off PATH; anywhere else (CI runner images, a
+# homebrew/apt install on a dev box) initdb is on PATH — use that.
+if [[ -z "$PGBIN" ]] && command -v initdb >/dev/null 2>&1; then
+  PGBIN="$(dirname "$(command -v initdb)")"
+fi
 SKIP_BUILD=0
 # shift so "$@" passed to playwright below never carries our own flag
 [[ "${1:-}" == "--skip-build" ]] && { SKIP_BUILD=1; shift; }
 
 if [[ -z "$PGBIN" ]]; then
-  echo "No local postgres found (expected /usr/lib/postgresql/*/bin)." >&2
+  echo "No local postgres found (expected /usr/lib/postgresql/*/bin or initdb on PATH)." >&2
   exit 1
+fi
+
+# Postgres refuses to run as root, so a root shell (the original dev
+# container) delegates to the `postgres` user. Anywhere else — a GitHub
+# Actions runner, a normal dev box — the current user owns the throwaway
+# cluster directly and no su/chown is needed (or possible).
+if [[ "$(id -u)" == "0" ]]; then
+  as_pg() { su postgres -c "$1"; }
+else
+  as_pg() { bash -c "$1"; }
 fi
 
 cleanup() {
   echo "--- teardown ---"
   [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
-  su postgres -c "$PGBIN/pg_ctl -D $PGDIR stop -m immediate" >/dev/null 2>&1 || true
+  as_pg "$PGBIN/pg_ctl -D $PGDIR stop -m immediate" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 echo "--- postgres ---"
-rm -rf "$PGDIR"; mkdir -p "$PGDIR"; chown -R postgres:postgres "$PGDIR"
-su postgres -c "$PGBIN/initdb -D $PGDIR -U postgres --auth=trust" >/dev/null
-su postgres -c "$PGBIN/pg_ctl -D $PGDIR -o '-p $PGPORT -k /tmp' -l /tmp/e2e-pg.log start" >/dev/null
+rm -rf "$PGDIR"; mkdir -p "$PGDIR"
+[[ "$(id -u)" == "0" ]] && chown -R postgres:postgres "$PGDIR"
+as_pg "$PGBIN/initdb -D $PGDIR -U postgres --auth=trust" >/dev/null
+as_pg "$PGBIN/pg_ctl -D $PGDIR -o '-p $PGPORT -k /tmp' -l /tmp/e2e-pg.log start" >/dev/null
 for i in $(seq 1 30); do pg_isready -h 127.0.0.1 -p "$PGPORT" >/dev/null 2>&1 && break; sleep 1; done
 psql -h 127.0.0.1 -p "$PGPORT" -U postgres -c "CREATE DATABASE $DB;" >/dev/null
 
@@ -67,6 +83,11 @@ done
 curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null || { echo "server never became healthy:"; tail -20 /tmp/e2e-server.log; exit 1; }
 
 echo "--- playwright ---"
-PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}" \
+# The original dev container pre-installs browsers at /opt/pw-browsers; only
+# default to it when it exists — a CI runner uses Playwright's own cache from
+# `playwright install`.
+if [[ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" && -d /opt/pw-browsers ]]; then
+  export PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+fi
 E2E_BASE_URL="http://127.0.0.1:$PORT" \
   npx playwright test "$@"
