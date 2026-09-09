@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readdirSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 
 // Stub getSessionCookie so we can control auth state per case.
@@ -8,6 +10,7 @@ vi.mock('better-auth/cookies', () => ({
 
 import { getSessionCookie } from 'better-auth/cookies'
 import { middleware } from '@/middleware'
+import { KNOWN_API_SEGMENTS, KNOWN_TOP_LEVEL_SEGMENTS, isKnownRoute } from '@/lib/known-routes'
 
 function makeRequest(url: string, host = 'www.dreamcreatestudio.com') {
   return new NextRequest(new URL(url), {
@@ -273,5 +276,149 @@ describe('apex + webhook host handling (Vercel redirector retired)', () => {
     const req = makeRequest('https://dreamcreatestudio.com/api/health', 'dreamcreatestudio.com')
     const res = (await middleware(req)) as NextResponse
     expect(res.status).not.toBe(308)
+  })
+})
+
+describe('unknown routes get a real 404, not the sign-in page (DREAM-164)', () => {
+  // The seven paths from the audit: six plausible, one deliberate nonsense
+  // control. All seven answered 200 with byte-identical sign-in HTML.
+  const AUDITED = [
+    '/privacy',
+    '/terms',
+    '/baa',
+    '/security',
+    '/legal',
+    '/trust',
+    '/definitely-not-a-real-page-zzz9',
+  ]
+
+  it('rewrites an unknown path to the not-found page instead of redirecting to /signin', async () => {
+    for (const path of AUDITED) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('location'), path).toBeNull()
+      expect(res.headers.get('x-middleware-rewrite'), path).toContain('/_dc-not-found')
+    }
+  })
+
+  it('404s an unknown path for a SIGNED-IN visitor too — existence is not an auth question', async () => {
+    vi.mocked(getSessionCookie).mockReturnValue('cookie-value' as unknown as string)
+    const req = makeRequest('https://www.dreamcreatestudio.com/definitely-not-a-real-page-zzz9')
+    const res = (await middleware(req)) as NextResponse
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/_dc-not-found')
+  })
+
+  it('still sends an unauthenticated visitor to /signin for routes that DO exist', async () => {
+    for (const path of ['/dashboard', '/patients', '/settings/team', '/inbox', '/patient/appointments']) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('x-middleware-rewrite'), path).toBeNull()
+      expect(res.headers.get('location') ?? '', path).toMatch(/\/signin\?redirect=/)
+    }
+  })
+
+  it('leaves every public marketing page alone', async () => {
+    for (const path of ['/', '/product', '/why', '/pricing', '/compare', '/compare/weave', '/docs', '/docs/connecting-your-pms', '/blog', '/grade', '/sitemap.xml', '/robots.txt']) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.headers.get('location'), path).toBeNull()
+      expect(res.headers.get('x-middleware-rewrite'), path).toBeNull()
+    }
+  })
+
+  it('answers an unknown /api path with a JSON 404, not a rendered sign-in page', async () => {
+    for (const path of ['/api', '/api/not-a-real-endpoint']) {
+      const req = makeRequest(`https://www.dreamcreatestudio.com${path}`)
+      const res = (await middleware(req)) as NextResponse
+      expect(res.status, path).toBe(404)
+      expect(res.headers.get('location'), path).toBeNull()
+    }
+  })
+
+  it('leaves real API routes to the auth gate', async () => {
+    const req = makeRequest('https://www.dreamcreatestudio.com/api/notifications')
+    const res = (await middleware(req)) as NextResponse
+    expect(res.headers.get('location') ?? '').toMatch(/\/signin/)
+  })
+
+  it('does not 404 a clinic public site (the /site rewrite target)', async () => {
+    const req = makeRequest('https://www.dreamcreatestudio.com/site/acme/book')
+    const res = (await middleware(req)) as NextResponse
+    expect(res.headers.get('location')).toBeNull()
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull()
+  })
+
+  it('does not 404 an unknown path on a clinic subdomain — that is the clinic site’s own 404', async () => {
+    const req = makeRequest(
+      'https://acme.dreamcreatestudio.com/no-such-page',
+      'acme.dreamcreatestudio.com',
+    )
+    const res = (await middleware(req)) as NextResponse
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/site/acme/no-such-page')
+  })
+})
+
+describe('the route census matches the app directory', () => {
+  /**
+   * THE LIST CANNOT DRIFT. lib/known-routes.ts decides whether a path is a
+   * real route or a 404, so a section added to app/ without an entry there
+   * would 404 for signed-out visitors. This walks the app directory and
+   * asserts both sets are exactly what the router serves — when it fails, the
+   * diff names the segment to add.
+   */
+  const isRouteFile = (name: string) => /^(page|route)\.(tsx?|jsx?)$/.test(name)
+  const isRouteGroup = (name: string) => name.startsWith('(') && name.endsWith(')')
+
+  // Next's metadata-file conventions mint top-level routes of their own.
+  const METADATA_ROUTES: Record<string, string> = {
+    icon: 'icon',
+    'apple-icon': 'apple-icon',
+    'opengraph-image': 'opengraph-image',
+    'twitter-image': 'twitter-image',
+    robots: 'robots.txt',
+    sitemap: 'sitemap.xml',
+    manifest: 'manifest.webmanifest',
+  }
+
+  function census() {
+    const top = new Set<string>()
+    const api = new Set<string>()
+    const walk = (dir: string, segments: string[]) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          if (entry.name.startsWith('_')) continue
+          walk(join(dir, entry.name), isRouteGroup(entry.name) ? segments : [...segments, entry.name])
+          continue
+        }
+        const base = entry.name.replace(/\.[^.]+$/, '')
+        if (isRouteFile(entry.name) && segments.length > 0) {
+          top.add(segments[0])
+          if (segments[0] === 'api' && segments.length > 1) api.add(segments[1])
+        } else if (segments.length === 0 && METADATA_ROUTES[base]) {
+          top.add(METADATA_ROUTES[base])
+        }
+      }
+    }
+    walk(resolve(process.cwd(), 'app'), [])
+    return { top, api }
+  }
+
+  it('KNOWN_TOP_LEVEL_SEGMENTS is exactly the app router’s top-level segments', () => {
+    const { top } = census()
+    expect(Array.from(KNOWN_TOP_LEVEL_SEGMENTS).sort()).toEqual(Array.from(top).sort())
+  })
+
+  it('KNOWN_API_SEGMENTS is exactly the second level under app/api', () => {
+    const { api } = census()
+    expect(Array.from(KNOWN_API_SEGMENTS).sort()).toEqual(Array.from(api).sort())
+  })
+
+  it('every real route the census found is treated as a known route', () => {
+    const { top } = census()
+    for (const segment of Array.from(top)) {
+      // /api needs a real second segment; the sets are asserted above.
+      if (segment === 'api') continue
+      expect(isKnownRoute(`/${segment}`), segment).toBe(true)
+    }
   })
 })

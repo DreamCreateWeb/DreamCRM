@@ -754,6 +754,15 @@ sitemap/robots/OG.
 - The domain moved into OUR name.com account 2026-07-23 (the long-awaited
   Replit transfer): apex now ANAMEs straight to App Runner (middleware 308s
   apex→www) — the Vercel/Replit redirect hop is fully retired.
+- **Interim caveat for PR reviewers — Vercel previews cannot reach the
+  database.** RDS is VPC-only and Vercel's build/runtime network isn't in the
+  VPC, so every database-backed page 500s on every PR preview. This is
+  pre-existing on `main`, not something a given PR introduced: before calling
+  a 500 on a preview a regression, load the same path on the preview
+  deployment of `main` and compare. Production is unaffected (App Runner runs
+  inside the VPC). This constraint is temporary — the decision on whether to
+  accept it, provision a preview-reachable database, or open network access
+  is tracked and pending in DREAM-238; delete this bullet once that lands.
 
 ## Open items (priority order)
 
