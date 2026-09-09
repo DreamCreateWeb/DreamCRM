@@ -28,7 +28,7 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
-const { deliverMock } = vi.hoisted(() => ({ deliverMock: vi.fn(async () => {}) }))
+const { deliverMock } = vi.hoisted(() => ({ deliverMock: vi.fn(async (_msg: unknown) => {}) }))
 vi.mock('@/lib/email', () => ({
   deliver: deliverMock,
   authEmailShell: (o: { heading: string; introHtml: string; buttonUrl?: string; footnoteHtml?: string }) =>

@@ -183,7 +183,10 @@ app/
   r/[token]/         Patient review landing — token IS the auth; Google-first
                      (+ optional star-gate triage). Siblings on the same
                      token-IS-auth pattern: w/ (fast-pass claim), c/ (one-click
-                     visit confirm), b/ (email-to-pay balance page)
+                     visit confirm), b/ (email-to-pay balance page), g/ (the
+                     practice-grade report), e/ + h/ (the conference kit:
+                     the floor capture page keyed on the EVENT's token, and
+                     the attendee's headshot page — Part 10.8)
   api/               auth handler · webhooks (stripe, stripe-connect, gmail OIDC,
                      resend/svix, sms) · 21 CRON_SECRET-gated /api/cron/* routes ·
                      4 /api/admin/* (migrate, seed-platform, resync-demo,
@@ -661,7 +664,10 @@ sitemap/robots/OG.
   end-to-end; watch the Actions tab. `NEXT_PUBLIC_*` bake at build time.
 - **Migrations auto-apply on boot** (`scripts/db-migrate.mjs` → POST
   `/api/admin/migrate`; failure keeps the previous version serving). Latest
-  migration: **0158** (marketing-engine Part 9 C①: `practice_grade.
+  migration: **0159** (marketing-engine Part 10.8 M1·1: `marketing_event` +
+  `event_capture` — the conference headshot kit, platform-global; the
+  release timestamp is NOT NULL by law). Before it: **0158**
+  (marketing-engine Part 9 C①: `practice_grade.
   nurture_report_at` + `nurture_regrade_at` — the grader-nurture touch
   stamps, "resolved: sent or deliberately skipped"). Before it: **0157**
   (marketing-engine slice 3: `marketing_spend` — the

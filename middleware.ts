@@ -128,6 +128,10 @@ const PUBLIC_PATHS = [
   // Public practice-grader report — token-IS-auth; the visitor lands from
   // the on-screen redirect or the emailed report link.
   '/g',
+  // The conference kit (Part 10.8): the floor capture page (the EVENT's
+  // token is the auth) and the attendee's headshot page (their own token).
+  '/e',
+  '/h',
   // Subscribable .ics calendar feed (/api/calendar/<token>). Calendar apps
   // (Google/Apple/Outlook) fetch it with no session — the opaque token in the
   // URL is the auth. Must be public or the fetch 302s to /signin.

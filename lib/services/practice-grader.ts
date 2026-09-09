@@ -153,6 +153,14 @@ export interface RunGradeInput {
   city?: string | null
   state?: string | null
   websiteUrl?: string | null
+  /** Skip the courtesy report email — the caller's own email carries the
+   *  report link (the conference headshot delivery, Part 10.8). */
+  quiet?: boolean
+  /** Skip the Hunter hook (prospect mint/promote + the call-list alert) —
+   *  the caller links the prospect itself. Default true. A conference floor
+   *  runs hundreds of scans in a day; each one alerting the owner's inbox
+   *  "X graded their practice" would be noise about people he just met. */
+  hunter?: boolean
 }
 
 export type RunGradeOutcome = { ok: true; token: string } | { ok: false; error: string }
@@ -249,7 +257,7 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
   // linked without a promotion (a shared name is not an email); a stranger
   // is minted as a grader-sourced prospect.
   let prospectId: string | null = null
-  try {
+  if (input.hunter !== false) try {
     const [byEmail] = await db
       .select({ id: schema.prospect.id })
       .from(schema.prospect)
@@ -299,7 +307,7 @@ export async function runPracticeGrade(input: RunGradeInput): Promise<RunGradeOu
 
   // Courtesy copy — the report the visitor asked for, from the platform
   // identity (transactional; the cold-outreach subdomain is for cold mail).
-  try {
+  if (!input.quiet) try {
     const { deliver, authEmailShell } = await import('@/lib/email')
     const base =
       process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, '') ||

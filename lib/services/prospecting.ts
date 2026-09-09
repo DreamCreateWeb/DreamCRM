@@ -109,8 +109,12 @@ export async function addGraderProspect(input: {
   state?: string | null
   websiteUrl?: string | null
   gradeSummary?: string | null
+  /** Where the warm signal came from. Default: the public grader. The
+   *  conference capture (Part 10.8) mints with 'event' / 'event_met'. */
+  intent?: { emailSource: 'grader' | 'event'; signal: 'grader_run' | 'event_met' }
 }): Promise<{ id: string }> {
   const id = newId('pros')
+  const intent = input.intent ?? { emailSource: 'grader', signal: 'grader_run' }
   const rawSite = input.websiteUrl?.trim() || null
   const websiteUrl = rawSite ? (/^https?:\/\//.test(rawSite) ? rawSite : `https://${rawSite}`) : null
   const state = input.state?.trim().toUpperCase().slice(0, 2) || null
@@ -118,14 +122,14 @@ export async function addGraderProspect(input: {
     id,
     name: input.name.trim(),
     email: input.email.trim().toLowerCase(),
-    emailSource: 'grader',
+    emailSource: intent.emailSource,
     city: input.city?.trim() || null,
     state,
     timezone: stateTimeZone(state),
     websiteUrl,
     status: 'call_list',
     scoreBand: 'warm',
-    intentSignal: 'grader_run',
+    intentSignal: intent.signal,
     intentAt: new Date(),
     intentSummary: input.gradeSummary || 'Ran the practice grader on the marketing site.',
   })

@@ -41,6 +41,7 @@ export const PROSPECT_INTENT_SIGNALS = [
   'opens',
   'demo_request',
   'grader_run', // ran the public practice grader (marketing-engine slice 2)
+  'event_met', // met in person at a conference — the headshot capture (Part 10.8)
 ] as const
 export type ProspectIntentSignal = (typeof PROSPECT_INTENT_SIGNALS)[number]
 
@@ -519,3 +520,72 @@ export const practiceGrade = pgTable(
 )
 export type PracticeGrade = typeof practiceGrade.$inferSelect
 export type NewPracticeGrade = typeof practiceGrade.$inferInsert
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The conference capture kit (marketing-engine Part 10.8, M1 slice 1).
+// Platform-global like everything above: an event belongs to Dream Create,
+// and a capture is a stranger met on a floor — no org exists yet.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const marketingEvent = pgTable(
+  'marketing_event',
+  {
+    id: text('id').primaryKey(), // mevt_…
+    // The attribution campaign key ('asda-2026') — every artifact the event
+    // produces is tagged utm_source=association&utm_campaign=<slug>.
+    slug: text('slug').notNull(),
+    name: text('name').notNull(),
+    organizer: text('organizer'), // 'Arkansas State Dental Association'
+    state: text('state'), // 'AR'
+    startsOn: text('starts_on'), // YYYY-MM-DD (a date, not an instant)
+    endsOn: text('ends_on'),
+    // The capture page's auth — /e/<token> on the owner's own device.
+    captureToken: text('capture_token').notNull(),
+    active: integer('active').notNull().default(1),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    slug: uniqueIndex('idx_mevt_slug').on(t.slug),
+    token: uniqueIndex('idx_mevt_token').on(t.captureToken),
+  }),
+)
+export type MarketingEvent = typeof marketingEvent.$inferSelect
+
+export const eventCapture = pgTable(
+  'event_capture',
+  {
+    id: text('id').primaryKey(), // mcap_…
+    eventId: text('event_id')
+      .notNull()
+      .references(() => marketingEvent.id, { onDelete: 'cascade' }),
+    // The attendee's delivery page auth — /h/<token>.
+    token: text('token').notNull(),
+    firstName: text('first_name').notNull(),
+    lastName: text('last_name').notNull().default(''),
+    email: text('email').notNull(), // lowercased
+    practiceName: text('practice_name').notNull(),
+    role: text('role').notNull().default('other'), // CaptureRole
+    city: text('city'),
+    // The headshot — null until the owner attaches it (a real camera's
+    // photos land after the floor, matched by name on the Events tab).
+    photoUrl: text('photo_url'),
+    // Consent, as timestamps + a flag: the release is required (never a
+    // capture without it), the opt-in is optional and defaults to NO.
+    photoReleaseAt: timestamp('photo_release_at').notNull(),
+    optIn: integer('opt_in').notNull().default(0),
+    optInAt: timestamp('opt_in_at'),
+    // The pre-run Practice Scan + the Hunter link — both best-effort.
+    gradeId: text('grade_id').references(() => practiceGrade.id, { onDelete: 'set null' }),
+    prospectId: text('prospect_id').references(() => prospect.id, { onDelete: 'set null' }),
+    // Stamped when the delivery email actually went out.
+    deliveredAt: timestamp('delivered_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    token: uniqueIndex('idx_mcap_token').on(t.token),
+    event: index('idx_mcap_event').on(t.eventId, t.createdAt),
+    email: index('idx_mcap_email').on(t.email),
+  }),
+)
+export type EventCapture = typeof eventCapture.$inferSelect
+export type NewEventCapture = typeof eventCapture.$inferInsert

@@ -15,6 +15,7 @@ const TABS: { href: string; label: string; exact?: boolean }[] = [
   { href: '/platform/prospecting/call-list', label: 'Call list' },
   { href: '/platform/prospecting/sequences', label: 'Sequences' },
   { href: '/platform/prospecting/demos', label: 'Demos' },
+  { href: '/platform/prospecting/events', label: 'Events' },
   { href: '/platform/prospecting/communications', label: 'Communications' },
   { href: '/platform/prospecting/territory', label: 'Territory' },
   { href: '/platform/prospecting/settings', label: 'Settings' },

@@ -1485,3 +1485,50 @@ said "there's nothing to unsubscribe from" — true when it was
 one-time, a lie once follow-ups exist — now "we may check in once or
 twice — every follow-up carries a one-click unsubscribe." Suite 6,838
 green.
+
+**Part 10.8 / M1 slice 1 — THE HEADSHOT FUNNEL, the conference kit
+(SHIPPED 2026-09-09, migration 0159).** The first build of the Arkansas
+engine, and the general association kit underneath it. Two public doors on
+the token-IS-auth pattern: `/e/<token>` — the FLOOR capture page, where
+the EVENT's token is the auth and the page lives on the owner's own phone
+(attendee types name/email/practice/role/city, ticks the required PHOTO
+RELEASE, chooses the OPT-IN — unticked by default, in plain words —
+optionally shoots a phone photo, and the form resets itself for the next
+person) — and `/h/<token>` — the attendee's own page (the photo, its
+download, the scan card, one tagged door to the product). A NEW CLOSED
+CHANNEL `association` (`ASSOCIATION_UTM_SOURCE`; source OR medium marker
+classifies; campaign key = the event slug, so one channel row rolls up
+every association and the campaign column tells them apart). Schema:
+`marketing_event` (slug = campaign key, capture_token, active) +
+`event_capture` (release timestamp NOT NULL — a capture without it cannot
+exist; opt_in + opt_in_at; grade_id, prospect_id, delivered_at), both
+platform-global like prospecting. LAWS in `lib/services/event-capture.ts`:
+(1) the headshot email is TRANSACTIONAL and goes to everyone who asked;
+(2) NOTHING ELSE goes to a "no" — enforced at the machine level: a
+`prospect_suppression` row (reason `no_consent`, the table every
+automated sender already checks) + the grade's nurture stamps resolved
+at capture, never by a person remembering; a "yes" in person is a fresh
+consent that clears a prior unsub/no_consent row (never a bounce or
+complaint — those are facts about the address); (3) the Practice Scan
+PRE-RUNS QUIETLY — `runPracticeGrade` grew `quiet` (no courtesy email;
+the delivery carries the report link) + `hunter:false` (no call-list
+alert; hundreds of "X graded their practice" notes in one afternoon is
+noise about people he just shook hands with) and the prospect link is
+made here with the honest `event_met` intent signal (`addGraderProspect`
+grew an `intent` option); (4) delivery fires the moment a photo is
+DURABLE — at capture when the phone took it, or later when the owner
+attaches the camera's edited file on the platform's new Events tab
+(`/platform/prospecting/events`, per-event capture link + the honest
+counts captured/need-photo/delivered/opted-in/scanned; `/events/[id]`
+lists captures with per-row Attach/Replace/Resend) — stamped
+`delivered_at` only after the send, so a failed send retries and a
+delivered capture gets its photo REPLACED but never a second email.
+Crash order is row → consent → scan → prospect → photo → delivery, so a
+scan that dies never loses the person. Bytes are sniffed (the bucket is
+public-read) on both doors; the floor action's per-IP limit is sized for
+ONE device working a hallway all day (150/hour). Copy is code-owned
+(`lib/event-capture.ts`: subject, the scan line that is SILENT without a
+grade, the consent footnote that says out loud which box was ticked).
+Still owner-gated: the event itself (create it on the Events tab once
+the conference date is known), the member rate + benefit page (10.8
+item 3), the statewide pre-scan (item 2).

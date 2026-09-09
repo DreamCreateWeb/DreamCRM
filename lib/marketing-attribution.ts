@@ -45,6 +45,7 @@ export const MARKETING_CHANNELS = [
   'ai_assistant',
   'social',
   'email',
+  'association',
   'referral',
   'direct',
 ] as const
@@ -60,6 +61,7 @@ export const MARKETING_CHANNEL_LABELS: Record<MarketingChannel, string> = {
   ai_assistant: 'AI assistants',
   social: 'Social',
   email: 'Email',
+  association: 'Associations',
   referral: 'Other sites',
   direct: 'Direct',
 }
@@ -124,6 +126,16 @@ export const POWERED_BY_UTM_SOURCE = 'powered_by'
 /** The utm_source the grader's report email stamps — a report link opened
  *  later (often on another device) classifies as its own channel. */
 export const GRADER_UTM_SOURCE = 'grader'
+
+/**
+ * The utm_source every ASSOCIATION artifact stamps (docs/marketing-engine.md
+ * Part 10.8 — the state-association beachhead): the conference headshot
+ * delivery, the member-benefit page on the association's own site, the
+ * keynote QR. The campaign key names the association + year ('asda-2026'),
+ * so one channel row rolls up every association and the campaign column
+ * tells them apart.
+ */
+export const ASSOCIATION_UTM_SOURCE = 'association'
 
 /**
  * The Powered-by footer's destination: the marketing home, tagged so the
@@ -215,6 +227,7 @@ export function classifyChannel(input: ClassifyInput): MarketingChannel {
   // 1. Our own explicit markers first — they exist to beat inference.
   if (source === POWERED_BY_UTM_SOURCE) return 'powered_by'
   if (source === GRADER_UTM_SOURCE) return 'grader'
+  if (source === ASSOCIATION_UTM_SOURCE || medium === ASSOCIATION_UTM_SOURCE) return 'association'
 
   // 2. Paid click ids / paid UTM intent.
   const paidMedium = medium === 'cpc' || medium === 'ppc' || medium === 'paid' || medium === 'paid_social'

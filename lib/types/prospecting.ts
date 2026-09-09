@@ -38,6 +38,7 @@ export const INTENT_SIGNAL_LABELS: Record<ProspectIntentSignal, string> = {
   opens: 'Opened repeatedly',
   demo_request: 'Requested a demo',
   grader_run: 'Ran the practice grader',
+  event_met: 'Met at a conference',
 }
 
 // ── Crawl signals (prospect.enrichment jsonb) ──────────────────────────────

@@ -24,6 +24,9 @@ export default function robots(): MetadataRoute.Robots {
           // Practice-grader reports: token-auth, one practice's numbers per
           // page — not for the index (pages carry noindex too).
           '/g/',
+          // Conference kit: the capture page + a person's headshot page.
+          '/e/',
+          '/h/',
           '/accept-invite',
         ],
       },
