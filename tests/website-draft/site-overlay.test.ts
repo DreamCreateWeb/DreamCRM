@@ -76,7 +76,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
       {
         id: 'org_1',
         type: 'clinic',
-        brand: '#111111',
+        brandColor: '#111111',
         template: 'modern',
         websiteDraft: { brandColor: '#22C55E', template: 'pediatric' },
       },
@@ -96,7 +96,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
       {
         id: 'org_1',
         type: 'clinic',
-        brand: '#111111',
+        brandColor: '#111111',
         template: 'modern',
         websiteDraft: { brandColor: '#22C55E' },
       },
@@ -113,7 +113,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
   it('a draft without brand/template still flags the banner but changes no theme', async () => {
     canEdit = true
     selectQueue.push([
-      { id: 'org_1', type: 'clinic', brand: '#111111', template: 'modern', websiteDraft: { about: 'x' } },
+      { id: 'org_1', type: 'clinic', brandColor: '#111111', template: 'modern', websiteDraft: { about: 'x' } },
     ])
     const theme = await getClinicThemeBySlug(`acme-${Math.random()}`)
     expect(theme.brand).toBe('#111111')

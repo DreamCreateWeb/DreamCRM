@@ -47,6 +47,28 @@ export interface ActiveSiteTemplate {
  * override. `canEditClinic` re-runs server-side on EVERY request, so a stale
  * or forged cookie/header is inert for anonymous visitors; preview can never
  * leak. React cache()'d per request (layout + page + nested calls dedupe).
+ *
+ * NEVER CACHE THIS ACROSS REQUESTS — and unlike its neighbours, it cannot be
+ * made cacheable by splitting.
+ *
+ * The public read path has three shapes of viewer-dependence, and this is the
+ * third. Stating the CATEGORY rather than the instance, because the next
+ * function on this path will be one of the three:
+ *
+ *  1. A fact about the VIEWER (`hasEditorDraft`). Cannot exist on a published
+ *     side at all — leave it out and compute it per request.
+ *  2. A clinic fact with a viewer-dependent OVERLAY (`brand`, `template`,
+ *     the site profile). Published value inside the cacheable read, overlay
+ *     applied outside it — what `loadPublishedSite` / `loadPublishedTheme` do.
+ *  3. A request-scoped OVERRIDE that selects among clinic facts, driven by
+ *     transport state rather than by the session — this function. The whole
+ *     answer is chosen by a request header and a cookie, so there is no
+ *     published half to lift out. It stays per-request, permanently.
+ *
+ * Caching it would serve one owner's template preview — or a gallery frame's
+ * forced template — as the live design for every visitor to that clinic.
+ * `tests/clinic-site/site-load-dedupe.test.ts` fails if `unstable_cache`
+ * appears in any module on this path, including this one.
  */
 export const resolveActiveSiteTemplate = cache(
   async (slug: string): Promise<ActiveSiteTemplate> => {
