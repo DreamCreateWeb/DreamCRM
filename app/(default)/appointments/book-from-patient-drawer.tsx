@@ -300,7 +300,7 @@ export default function BookFromPatientDrawer({
             Cancel
           </ActionButton>
           <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
-            {pending ? 'Saving…' : 'Book appointment'}
+            Book appointment
           </ActionButton>
         </div>
       </div>

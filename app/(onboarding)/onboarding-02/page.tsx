@@ -171,7 +171,7 @@ export default function Onboarding02() {
                       ← Back
                     </Link>
                     <ActionButton type="submit" variant="primary" pending={pending}>
-                      {pending ? 'Saving…' : 'Next step →'}
+                      Next step →
                     </ActionButton>
                   </div>
                 </form>

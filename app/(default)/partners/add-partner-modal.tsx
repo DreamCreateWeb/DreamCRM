@@ -150,7 +150,7 @@ export default function AddPartnerModal() {
                       <div className="flex items-center justify-end gap-2 pt-1">
                         <ActionButton variant="secondary" onClick={() => setOpen(false)}>Cancel</ActionButton>
                         <ActionButton type="submit" variant="primary" pending={pending}>
-                          {pending ? 'Creating…' : 'Create & send invite'}
+                          Create & send invite
                         </ActionButton>
                       </div>
                     </form>

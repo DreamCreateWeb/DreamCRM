@@ -175,7 +175,7 @@ export default function NewCampaignButton({
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={create} pending={pending}>
-                {pending ? 'Creating…' : 'Create'}
+                Create
               </ActionButton>
             </div>
           </div>

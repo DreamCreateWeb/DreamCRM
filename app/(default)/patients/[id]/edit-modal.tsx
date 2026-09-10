@@ -199,7 +199,7 @@ export default function EditPatientModal({
             Cancel
           </ActionButton>
           <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
-            {pending ? 'Saving…' : 'Save changes'}
+            Save changes
           </ActionButton>
         </div>
       </div>

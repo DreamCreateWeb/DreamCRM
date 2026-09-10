@@ -222,8 +222,8 @@ function NewPlanButton() {
                     <ActionButton variant="secondary" size="sm" onClick={() => setOpen(false)}>
                       Cancel
                     </ActionButton>
-                    <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !name}>
-                      {pending ? 'Creating…' : 'Create plan'}
+                    <ActionButton variant="primary" size="sm" type="submit" pending={pending} disabled={!name}>
+                      Create plan
                     </ActionButton>
                   </div>
                 </form>

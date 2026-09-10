@@ -172,9 +172,10 @@ export default function ComposeButton({ accounts }: Props) {
                     <ActionButton
                       variant="primary"
                       type="submit"
-                      disabled={pending || !accountId || !to || !subject || !body}
+                      pending={pending}
+                      disabled={!accountId || !to || !subject || !body}
                     >
-                      {pending ? 'Sending…' : 'Send'}
+                      Send
                     </ActionButton>
                   </div>
                 </form>

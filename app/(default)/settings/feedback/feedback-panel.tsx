@@ -219,8 +219,8 @@ export default function FeedbackPanel() {
               <ActionButton variant="secondary" onClick={reset} pending={pending}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="primary" type="submit" disabled={pending || !message.trim()}>
-                {pending ? 'Sending…' : 'Send feedback'}
+              <ActionButton variant="primary" type="submit" pending={pending} disabled={!message.trim()}>
+                Send feedback
               </ActionButton>
             </div>
           </div>

@@ -131,8 +131,8 @@ export default function BalanceOutreachCard({
 
       {canManage && (
         <div className="mt-4 flex items-center gap-3">
-          <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !dirty}>
-            {pending ? 'Saving…' : 'Save'}
+          <ActionButton variant="primary" size="sm" onClick={save} pending={pending} disabled={!dirty}>
+            Save
           </ActionButton>
           {dirty && !pending && <StatusPill tone="warn" label="Unsaved changes" />}
           {!dirty && saved && !pending && (

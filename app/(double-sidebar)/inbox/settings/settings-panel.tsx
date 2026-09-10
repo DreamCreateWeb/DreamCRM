@@ -286,9 +286,9 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
                     variant="secondary"
                     size="sm"
                     onClick={() => handleSync(a.id)}
-                    disabled={busy === a.id}
+                    pending={busy === a.id}
                   >
-                    {busy === a.id ? 'Working…' : 'Refresh'}
+                    Refresh
                   </ActionButton>
                   {/* Disconnect removes the mailbox link — genuinely destructive. */}
                   <ActionButton

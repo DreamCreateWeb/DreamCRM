@@ -444,7 +444,7 @@ export default function FormBuilder({ template }: Props) {
             {translating ? 'Translating…' : hasSpanish ? '✨ Update Spanish' : '✨ Add Spanish'}
           </button>
           <ActionButton type="button" variant="primary" onClick={handleSave} pending={pending}>
-            {pending ? 'Saving…' : 'Save'}
+            Save
           </ActionButton>
         </div>
       </div>
