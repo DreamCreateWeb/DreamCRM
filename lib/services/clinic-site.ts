@@ -199,6 +199,11 @@ export const getClinicThemeBySlug = cache(
  * Anyone adding a durable cache must FIRST split the published read out of
  * `loadSite` and apply the draft overlay outside it.
  * `tests/clinic-site/site-load-dedupe.test.ts` carries the reasoning.
+ *
+ * One new rule comes with the memo: every caller in a request now shares ONE
+ * `ClinicSiteData` object. Sorting `data.locations` in place, or assigning to
+ * a `data.profile` field, used to be private to whichever pass did it and now
+ * leaks into the other. Copy before you mutate.
  */
 export const getClinicSiteBySlug = cache(async (slug: string): Promise<ClinicSiteData | null> => {
   const [org] = await db
@@ -212,8 +217,22 @@ export const getClinicSiteBySlug = cache(async (slug: string): Promise<ClinicSit
   return loadSite(org.id, org.slug, org.name)
 })
 
-/** The custom-domain twin of `getClinicSiteBySlug`, deduped the same way and
- *  for the same reason — a custom-domain page runs metadata + body too. */
+/**
+ * The custom-domain twin of `getClinicSiteBySlug`, wrapped the same way so the
+ * two loaders cannot drift apart.
+ *
+ * It has NO production callers today: `middleware.ts:335,356` rewrites custom
+ * domains to `/site/<slug>`, so that traffic goes through the slug loader like
+ * everything else, and only a test references this one. The wrapper is
+ * therefore unexercised rather than load-bearing — said plainly because the
+ * first draft of this comment claimed a metadata-plus-body double-load that no
+ * existing page performs.
+ *
+ * If it ever gains a caller, hoist the `trim().toLowerCase()` ABOVE the
+ * `cache()` boundary: normalizing inside the memoized function means the key
+ * is the raw argument, so `Foo.com` and `foo.com` would be two entries for one
+ * clinic.
+ */
 export const getClinicSiteByDomain = cache(
   async (domain: string): Promise<ClinicSiteData | null> => {
     const host = domain?.trim().toLowerCase()

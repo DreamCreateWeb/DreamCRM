@@ -117,12 +117,28 @@ describe('the loaders are the request-scoped kind', () => {
    * same way `getClinicOrgIdBySlug` and `getClinicThemeBySlug` above already
    * do. The behaviour that actually needs guarding is in the next block.
    */
-  it('both public site loaders are cache()-wrapped', async () => {
+  it('both public site loaders are cache()-wrapped, and NEITHER is durable', async () => {
     const src = await import('node:fs').then((fs) =>
       fs.promises.readFile('lib/services/clinic-site.ts', 'utf8'),
     )
     expect(src).toMatch(/export const getClinicSiteBySlug = cache\(/)
     expect(src).toMatch(/export const getClinicSiteByDomain = cache\(/)
+
+    // THE guard. `loadSite` merges a verified editor's unpublished draft, so a
+    // cache that outlives the request would serve one viewer's render to the
+    // next — a clinic's unpublished words on their live public site. No
+    // behavioural test in this file can catch that swap (see the note on the
+    // last test), so it is checked where the property actually lives.
+    //
+    // Making this durable is legitimate work — it is slice 2 — but only AFTER
+    // the published read is split out of `loadSite` and the overlay applied
+    // outside it. When that lands, this assertion moves to the split loader
+    // rather than being deleted.
+    expect(
+      src,
+      'clinic-site.ts reached for a durable cache. Split the published read ' +
+        'out of loadSite first, or a visitor gets the editor’s draft.',
+    ).not.toMatch(/unstable_cache/)
   })
 
   it('still returns the right site per slug', async () => {
@@ -164,11 +180,20 @@ describe('the draft overlay is still decided per viewer', () => {
     expect(site?.profile.tagline).toBe('UNPUBLISHED tagline')
   })
 
-  it('the editor’s draft does NOT survive into another request', async () => {
-    // THE test that fails if someone swaps `cache()` for a durable cache
-    // without first splitting the published read out of `loadSite`. Same
-    // slug, different viewer, and the visitor must not inherit the render
-    // made for the editor.
+  it('recomputes the overlay per viewer rather than baking it into the payload', async () => {
+    // NOT a cross-request test, and an earlier version of this comment claimed
+    // it was. `freshRequest()` calls `vi.resetModules()`, so each "request"
+    // builds a brand-new wrapper with a virgin memo — of whatever kind. Swap
+    // `cache()` for `unstable_cache` and this still passes, so it cannot
+    // observe the swap it used to advertise. The `freshRequest` docstring said
+    // as much; the two disagreed and the docstring was the honest half.
+    //
+    // What it does prove is worth having on its own terms: the same slug,
+    // asked by two different viewers, yields two different answers — so the
+    // overlay is a function of the session at read time and not something
+    // frozen into the payload. The guard against the durable-cache swap is the
+    // source assertion in the block above, which is where that property can
+    // actually be checked.
     state.profile = { ...state.profile, websiteDraft: DRAFT }
 
     state.canEdit = true
