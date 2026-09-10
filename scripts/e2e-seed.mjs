@@ -179,6 +179,64 @@ async function seedBase(pool) {
      values ('sess_e2e_move', 'e2e-move-session-token', 'user_e2e_move', 'org_e2e_live', now() + interval '7 days')
      on conflict (id) do update set expires_at = now() + interval '7 days'`,
   )
+  // --- the two sides of the tenant boundary (e2e/tenant-boundary.spec.ts) ---
+  //
+  // One patient and one visit in EACH clinic, plus a signed-in owner for the
+  // SECOND clinic. Dana already owns e2e-dental; Avery owns e2e-prelive, so
+  // the spec can drive the boundary from both directions and show it is a
+  // property of the code rather than a fact about one privileged fixture org.
+  //
+  // These live in `base` because the boundary spec never writes: every one of
+  // its assertions is a 404, an absence, or a control read. Nothing here is
+  // spent, so nothing needs restoring — and a read-only spec cannot race the
+  // workers that ARE spending their own scopes.
+  //
+  // The names are deliberately unlike every other fixture name, because half
+  // the spec asserts a string is ABSENT from a page. "Rivalclinic" appearing
+  // anywhere in e2e-dental's HTML is unambiguous; "Casey" would not be.
+  await pool.query(
+    `insert into "user" (id, name, email, email_verified)
+     values ('user_e2e_rival', 'Avery Rivaldesk', 'avery.rivaldesk@example.com', true)
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into member (id, organization_id, user_id, role)
+     values ('mem_e2e_rival', 'org_e2e_prelive', 'user_e2e_rival', 'owner')
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into session (id, token, user_id, active_organization_id, expires_at)
+     values ('sess_e2e_rival', 'e2e-rival-session-token', 'user_e2e_rival', 'org_e2e_prelive', now() + interval '7 days')
+     on conflict (id) do update set expires_at = now() + interval '7 days'`,
+  )
+  await pool.query(
+    `insert into patient (id, organization_id, first_name, last_name, email, phone)
+     values ('pat_e2e_rival', 'org_e2e_prelive', 'Jamie', 'Rivalclinic', 'jamie.rivalclinic@example.com', '+15550100006')
+     on conflict (id) do update set first_name = excluded.first_name, last_name = excluded.last_name`,
+  )
+  await pool.query(
+    `insert into patient (id, organization_id, first_name, last_name, email, phone)
+     values ('pat_e2e_ours', 'org_e2e_live', 'Sam', 'Ourpatient', 'sam.ourpatient@example.com', '+15550100007')
+     on conflict (id) do update set first_name = excluded.first_name, last_name = excluded.last_name`,
+  )
+  // One visit each, so the spec can ask /api/appointments/[id] for a row in
+  // the OTHER clinic and get a 404 rather than somebody else's patient.
+  const boundaryStart = new Date(start)
+  boundaryStart.setUTCDate(boundaryStart.getUTCDate() + 1)
+  boundaryStart.setUTCHours(18, 0, 0, 0)
+  await pool.query(
+    `insert into appointment (id, organization_id, patient_id, title, start_time, type, status)
+     values ('appt_e2e_ours', 'org_e2e_live', 'pat_e2e_ours', 'checkup — Sam', $1, 'checkup', 'scheduled')
+     on conflict (id) do update set start_time = excluded.start_time`,
+    [boundaryStart],
+  )
+  await pool.query(
+    `insert into appointment (id, organization_id, patient_id, title, start_time, type, status)
+     values ('appt_e2e_rival', 'org_e2e_prelive', 'pat_e2e_rival', 'checkup — Jamie', $1, 'checkup', 'scheduled')
+     on conflict (id) do update set start_time = excluded.start_time`,
+    [boundaryStart],
+  )
+
   console.log(`seeded patients + sessions (visit anchor ${start.toISOString()})`)
 }
 
@@ -390,6 +448,58 @@ async function seedSignHere(pool) {
   console.log('seeded sign-here inquiry proposal')
 }
 
+// --- go-live: e2e/go-live.spec.ts ------------------------------------------
+// A THIRD clinic, and it exists because the lever spec SPENDS the thing that
+// makes a clinic pre-live. `e2e-prelive` could not be reused: e2e/clinic-site
+// .spec.ts asserts that clinic serves coming-soon, and the two files run in
+// parallel workers, so a lever pulled over here would turn that spec red over
+// there. Row ownership is not a formality — this is what it is protecting.
+//
+// The whole clinic sits in this scope rather than in `base`, which is the one
+// place the base/consumable split bends. `site_live_at` is the consumable, and
+// it lives on the clinic_profile row; putting the profile in `base` and the
+// nulling in `go-live` would leave the spec's fixture half-owned by a scope
+// that never re-runs. Nothing else reads this clinic, so the whole world it
+// needs — org, profile, owner, session — is restored together.
+async function seedGoLive(pool) {
+  await pool.query(
+    `insert into organization (id, name, slug, type, is_demo)
+     values ('org_e2e_golive', 'E2E Golive', 'e2e-golive', 'clinic', false)
+     on conflict (id) do update set name = excluded.name, slug = excluded.slug`,
+  )
+  // site_live_at NULL on every restore — that IS the reset. A retry (or this
+  // file's second test) must start with the lever un-pulled or the card the
+  // spec clicks is not on the page at all.
+  await pool.query(
+    `insert into clinic_profile (organization_id, display_name, timezone, hours, chair_count, site_live_at)
+     values ('org_e2e_golive', 'E2E Golive Dental', 'America/New_York', $1, 2, null)
+     on conflict (organization_id) do update set
+       display_name = excluded.display_name,
+       timezone = excluded.timezone,
+       hours = excluded.hours,
+       chair_count = excluded.chair_count,
+       site_live_at = null`,
+    [JSON.stringify(HOURS)],
+  )
+  await pool.query(
+    `insert into "user" (id, name, email, email_verified)
+     values ('user_e2e_golive', 'Nico Golive', 'nico.golive@example.com', true)
+     on conflict (id) do nothing`,
+  )
+  // Owner, because the lever's gate is owner/admin only (go-live-actions.ts).
+  await pool.query(
+    `insert into member (id, organization_id, user_id, role)
+     values ('mem_e2e_golive', 'org_e2e_golive', 'user_e2e_golive', 'owner')
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into session (id, token, user_id, active_organization_id, expires_at)
+     values ('sess_e2e_golive', 'e2e-golive-session-token', 'user_e2e_golive', 'org_e2e_golive', now() + interval '7 days')
+     on conflict (id) do update set expires_at = now() + interval '7 days'`,
+  )
+  console.log('seeded the go-live clinic (pre-live)')
+}
+
 /**
  * Every scope, in the order a full seed applies them. `base` first because the
  * consumable scopes reference its patients; the rest are row-disjoint and so
@@ -402,6 +512,7 @@ export const SCOPES = {
   'staff-day': seedStaffDay,
   'portal-reschedule': seedPortalReschedule,
   'sign-here': seedSignHere,
+  'go-live': seedGoLive,
 }
 
 /** Everything except `base` — the rows a spec can spend and a retry must get back. */
@@ -433,12 +544,22 @@ export const SCOPE_ROWS = {
     'mem_e2e_move',
     'pat_e2e_move',
     'sess_e2e_move',
+    // The tenant boundary's two sides. Read-only for the spec that uses them,
+    // which is why they are structure and not a scope of their own.
+    'user_e2e_rival',
+    'mem_e2e_rival',
+    'sess_e2e_rival',
+    'pat_e2e_rival',
+    'pat_e2e_ours',
+    'appt_e2e_ours',
+    'appt_e2e_rival',
   ],
   tokens: ['appt_e2e_confirm', 'nps_e2e_1'],
   portal: ['appt_e2e_portal'],
   'staff-day': ['appt_e2e_staff_confirm', 'appt_e2e_staff_cancel', 'appt_e2e_staff_complete'],
   'portal-reschedule': ['appt_e2e_move', 'appt_e2e_cancelme', 'appt_e2e_soon'],
   'sign-here': ['lead_e2e_inquiry', 'prop_e2e_inquiry'],
+  'go-live': ['org_e2e_golive', 'user_e2e_golive', 'mem_e2e_golive', 'sess_e2e_golive'],
 }
 
 export async function seed(names = Object.keys(SCOPES)) {
