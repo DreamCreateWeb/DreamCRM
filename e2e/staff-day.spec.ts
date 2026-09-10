@@ -58,8 +58,10 @@ test.describe('the staff day (appointments drawer)', () => {
   })
 
   test('complete a past visit from the drawer', async ({ page }) => {
-    // "Mark completed" only appears once the visit is in the past — the
-    // seeded cleaning was yesterday, reachable via the Past 30 days chip.
+    // "Mark completed" only appears once the visit is in the past, and the
+    // Past 30 days chip ends at the CLINIC-LOCAL day start — so the seeded
+    // cleaning sits two UTC days back (scripts/e2e-seed.mjs explains why one
+    // was not enough).
     await page.goto('/appointments?window=past_30d')
     const visit = row(page, 'cleaning')
     await expect(visit).toBeVisible({ timeout: 30_000 })
