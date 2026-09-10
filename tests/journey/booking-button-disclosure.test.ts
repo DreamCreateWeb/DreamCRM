@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { prewarm } from '../prewarm'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { BOOKING_BUTTON_CAPABILITIES, CAPABILITIES } from '@/lib/autonomy'
@@ -20,6 +21,10 @@ import { BOOKING_BUTTON_CAPABILITIES, CAPABILITIES } from '@/lib/autonomy'
  */
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8')
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/proposal-generators'))
 
 describe('the booking-button disclosure', () => {
   it('names only REGISTERED capabilities', () => {

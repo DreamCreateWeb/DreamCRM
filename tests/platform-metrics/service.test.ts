@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 // State the chain mock pulls from. Each select() pulls one row set off
 // selectQueue in order, then the chain resolves it via .limit() or .then().
@@ -62,6 +63,10 @@ import {
   getProjectFunnel,
   getPlatformEngagement,
 } from '@/lib/services/platform-metrics'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/db'))
 
 beforeEach(() => {
   state.selectQueue.length = 0

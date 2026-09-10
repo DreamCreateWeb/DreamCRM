@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * Security + correctness sweep on the patient-messaging service write
@@ -78,6 +79,10 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn(() => ({ _: 'or' })),
   sql: Object.assign(vi.fn(() => ({ _: 'sql' })), { raw: vi.fn() }),
 }))
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/patient-messaging'))
 
 beforeEach(() => {
   state.patientExists = false

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 // Tracks calls into our mocked db + gmail layer so each test can assert
 // against them. The select chain pulls one row set from `selectQueue` per
@@ -80,6 +81,10 @@ vi.mock('@/lib/services/gmail', () => ({
 vi.mock('@/lib/services/ai-mailbox', () => ({
   classifyBatch: async () => new Map(),
 }))
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/mailbox'))
 
 beforeEach(() => {
   state.selectQueue.length = 0

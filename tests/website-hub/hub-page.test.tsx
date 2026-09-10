@@ -12,6 +12,7 @@
  *    (QR cards / Advanced edits / performance popover) and exits to /website.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 import { render, screen, cleanup } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -94,6 +95,10 @@ function makeProfile(over: Record<string, unknown> = {}) {
     ...over,
   }
 }
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/service-library'))
 
 beforeEach(() => {
   ctx = {

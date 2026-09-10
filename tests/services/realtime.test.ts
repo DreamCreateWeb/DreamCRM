@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 // Capture what publishRealtime sends to the DB.
 const calls: Array<unknown> = []
@@ -12,6 +13,10 @@ vi.mock('@/lib/db', () => ({
 }))
 
 import { publishRealtime, REALTIME_CHANNEL } from '@/lib/services/realtime'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/db'))
 
 beforeEach(() => {
   calls.length = 0

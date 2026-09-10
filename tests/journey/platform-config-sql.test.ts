@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 
 /**
@@ -54,6 +55,10 @@ import { setGuardianAudience } from '@/lib/services/platform-config'
 
 const dialect = new PgDialect()
 const render = (frag: unknown) => dialect.sqlToQuery(frag as never)
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('node:fs'))
 
 beforeEach(() => {
   captured.insert = undefined

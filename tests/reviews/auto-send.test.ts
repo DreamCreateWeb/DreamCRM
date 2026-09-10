@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * Orchestration-level coverage for autoSendDueReviewRequests.
@@ -109,6 +110,13 @@ const COMPLETE_CONFIG = {
   autoSendDelayHours: 24,
   privateFeedbackEmail: null,
 }
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(
+  () => import('@/lib/services/reviews'),
+  () => import('drizzle-orm'),
+)
 
 beforeEach(() => {
   state.orgs = []

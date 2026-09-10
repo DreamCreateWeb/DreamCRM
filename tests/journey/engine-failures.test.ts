@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * THE AUTOMATION FAILURE REGISTRY (Phase 4 open item #1).
@@ -30,6 +31,10 @@ import {
 import { getCapability } from '@/lib/autonomy'
 
 const KEYS = Object.keys(AUTOMATION_FAILURE) as AutomationFailureKey[]
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('node:fs'))
 
 beforeEach(() => {
   recorded.calls = []

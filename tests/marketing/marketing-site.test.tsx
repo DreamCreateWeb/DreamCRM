@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { prewarm } from '../prewarm'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 
@@ -34,6 +35,13 @@ import { COMPARISONS, getComparison } from '@/lib/marketing/comparisons'
 import { DOCS, DOC_CATEGORIES, getDoc } from '@/lib/marketing/docs'
 import { MARKETING_NAV, MARKETING_PUBLIC_PATHS } from '@/lib/marketing/site'
 import WhyPage from '@/app/(marketing)/why/page'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(
+  () => import('@/lib/auth/context'),
+  () => import('@/lib/session'),
+)
 
 describe('marketing home', () => {
   it('renders the hero + the single founding-rate teaser for signed-out visitors', async () => {
