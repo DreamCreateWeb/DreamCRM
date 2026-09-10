@@ -440,7 +440,7 @@ function EmailCard({
           {canManage && (
             <div className="flex items-center gap-3">
               <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
-                {pending ? 'Saving…' : 'Save'}
+                Save
               </ActionButton>
               <button
                 type="button"

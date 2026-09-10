@@ -134,7 +134,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
                   Open their record
                 </ActionButton>
                 <ActionButton variant="secondary" size="sm" onClick={addAnyway} pending={pending}>
-                  {pending ? 'Adding…' : 'Add anyway'}
+                  Add anyway
                 </ActionButton>
               </div>
             </div>
@@ -144,7 +144,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
               Cancel
             </ActionButton>
             <ActionButton variant="primary" size="sm" type="submit" pending={pending}>
-              {pending ? 'Saving…' : 'Save & open'}
+              Save & open
             </ActionButton>
           </div>
         </form>

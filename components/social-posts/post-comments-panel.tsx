@@ -370,8 +370,8 @@ function CommentThread({
             aria-label="Write a reply"
             className="form-textarea flex-1 text-sm resize-none"
           />
-          <ActionButton variant="primary" size="sm" onClick={submitReply} disabled={pending || !draft.trim()}>
-            {pending ? 'Sending…' : 'Send'}
+          <ActionButton variant="primary" size="sm" onClick={submitReply} pending={pending} disabled={!draft.trim()}>
+            Send
           </ActionButton>
         </div>
       </div>

@@ -115,7 +115,7 @@ export default function ProposePlanCell({
                   <ActionButton variant="secondary" size="sm" onClick={() => setOpen(false)}>Cancel</ActionButton>
                   {/* The modal's single primary action. */}
                   <ActionButton variant="primary" size="sm" onClick={propose} pending={pending}>
-                    {pending ? 'Sending…' : 'Email the proposal'}
+                    Email the proposal
                   </ActionButton>
                 </div>
               </DialogPanel>

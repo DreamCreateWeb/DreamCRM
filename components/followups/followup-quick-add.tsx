@@ -75,7 +75,7 @@ export default function FollowupQuickAdd({
           aria-label="Due date"
         />
         <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
-          {pending ? 'Adding…' : 'Add'}
+          Add
         </ActionButton>
         <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} pending={pending}>
           Cancel

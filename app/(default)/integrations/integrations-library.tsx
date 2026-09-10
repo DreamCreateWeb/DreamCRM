@@ -856,8 +856,8 @@ function DisconnectedActions({
           {isGbp ? 'Connect Google Business' : 'Connect'}
         </ActionButton>
         {isGbp && (
-          <ActionButton variant="ghost" size="sm" onClick={handlers.onRefresh} disabled={handlers.pending}>
-            {handlers.pending ? 'Checking…' : 'I just connected — refresh'}
+          <ActionButton variant="ghost" size="sm" onClick={handlers.onRefresh} pending={handlers.pending}>
+            I just connected — refresh
           </ActionButton>
         )}
       </div>
@@ -910,7 +910,7 @@ function SocialAddonCard({
       <div className="shrink-0">
         {entitlement.addonActive ? (
           <ActionButton variant="danger" size="sm" onClick={onCancel} pending={pending}>
-            {pending ? 'Working…' : 'Cancel add-on'}
+            Cancel add-on
           </ActionButton>
         ) : !entitlement.addonAvailable ? (
           <ActionButton variant="primary" size="sm" href="/settings/billing">

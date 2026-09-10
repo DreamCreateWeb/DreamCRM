@@ -166,7 +166,7 @@ export default function SignUpForm() {
       )}
       <div className="mt-6">
         <ActionButton type="submit" variant="primary" pending={loading} className="w-full">
-          {loading ? 'Creating your account…' : 'Start free trial'}
+          Start free trial
         </ActionButton>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           7-day free trial — no credit card required. Set up billing anytime in Settings.

@@ -130,7 +130,7 @@ export default function Onboarding04() {
                   )}
 
                   <ActionButton type="submit" variant="primary" pending={pending} className="w-full">
-                    {pending ? 'Setting up your clinic…' : 'Start my free trial →'}
+                    Start my free trial →
                   </ActionButton>
                   <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                     No card required. Cancel anytime — you’re only billed if you set up billing.

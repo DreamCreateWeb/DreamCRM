@@ -118,7 +118,7 @@ function TouchCard({ touch }: { touch: SequenceWithTouches['touches'][number] })
               AI-personalize with the prospect&apos;s gaps
             </label>
             <ActionButton size="sm" variant="primary" pending={pending} onClick={save}>
-              {pending ? 'Saving…' : 'Save touch'}
+              Save touch
             </ActionButton>
           </div>
         </div>

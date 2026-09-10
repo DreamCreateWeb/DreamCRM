@@ -182,8 +182,8 @@ export default function ContactsPanel({
             onChange={(e) => setName(e.target.value)}
           />
           {error && <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p>}
-          <ActionButton size="sm" variant="primary" disabled={pending || !email.trim()} onClick={add}>
-            {pending ? 'Verifying…' : 'Add & pin'}
+          <ActionButton size="sm" variant="primary" pending={pending} disabled={!email.trim()} onClick={add}>
+            Add & pin
           </ActionButton>
         </div>
       )}
