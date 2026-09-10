@@ -203,6 +203,11 @@ export interface OrderRow {
   createdAt: Date
   paidAt: Date | null
   ageHours: number
+  /** Cents Stripe sent back on this order's charge (0 = none). A FULL refund
+   *  also moves `status` to 'refunded'; a partial one cannot, so the board
+   *  reads this to say how much came back. */
+  refundedAmountCents: number
+  refundedAt: Date | null
 }
 
 /** A best-selling product, aggregated across paid orders (Shop hub sales band). */

@@ -1259,6 +1259,12 @@ export const shopOrder = pgTable(
     stripePaymentIntentId: text('stripe_payment_intent_id'),
     trackingNumber: text('tracking_number'),
     notes: text('notes'),
+    // Refund truth, written by the Connect webhook. Cumulative cents Stripe
+    // has sent back on this order's charge; `status` flips to 'refunded' only
+    // on a FULL refund, so a partial refund is recorded without the row
+    // claiming to be something it isn't.
+    refundedAmountCents: integer('refunded_amount_cents').notNull().default(0),
+    refundedAt: timestamp('refunded_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
     fulfilledAt: timestamp('fulfilled_at'),
@@ -1268,6 +1274,8 @@ export const shopOrder = pgTable(
   (t) => [
     index('shop_order_org_status_idx').on(t.organizationId, t.status),
     index('shop_order_patient_idx').on(t.patientId),
+    // The Connect refund webhook's lookup key.
+    index('shop_order_payment_intent_idx').on(t.organizationId, t.stripePaymentIntentId),
   ],
 )
 export type ShopOrder = typeof shopOrder.$inferSelect
@@ -1564,12 +1572,20 @@ export const patientBalancePayment = pgTable(
     // for reconciliation when the PMS balance has since moved.
     balanceCentsAtPayment: integer('balance_cents_at_payment'),
     note: text('note'),
+    // Refund truth, written by the Connect webhook. Cumulative cents Stripe
+    // has sent back on this charge. `status` is NOT touched here — it means
+    // "did the charge succeed" and eight readers filter on 'paid'; the
+    // surfaces read these two columns instead (lib/services/refunds.ts).
+    refundedAmountCents: integer('refunded_amount_cents').notNull().default(0),
+    refundedAt: timestamp('refunded_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
   },
   (t) => [
     index('balance_payment_org_status_idx').on(t.organizationId, t.status),
     index('balance_payment_patient_idx').on(t.patientId, t.createdAt),
+    // The Connect refund webhook's lookup key.
+    index('balance_payment_intent_idx').on(t.organizationId, t.stripePaymentIntentId),
   ],
 )
 export type PatientBalancePayment = typeof patientBalancePayment.$inferSelect
@@ -1760,6 +1776,12 @@ export const bookingDeposit = pgTable(
     stripeCheckoutSessionId: text('stripe_checkout_session_id'),
     stripePaymentIntentId: text('stripe_payment_intent_id'),
     note: text('note'),
+    // Refund truth, written by the Connect webhook. Cumulative cents Stripe
+    // has sent back on this charge. `status` is NOT touched here — it means
+    // "did the charge succeed" and eight readers filter on 'paid'; the
+    // surfaces read these two columns instead (lib/services/refunds.ts).
+    refundedAmountCents: integer('refunded_amount_cents').notNull().default(0),
+    refundedAt: timestamp('refunded_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     paidAt: timestamp('paid_at'),
   },
@@ -1767,6 +1789,8 @@ export const bookingDeposit = pgTable(
     index('booking_deposit_org_status_idx').on(t.organizationId, t.status),
     index('booking_deposit_appt_idx').on(t.appointmentId),
     index('booking_deposit_session_idx').on(t.stripeCheckoutSessionId),
+    // The Connect refund webhook's lookup key.
+    index('booking_deposit_intent_idx').on(t.organizationId, t.stripePaymentIntentId),
   ],
 )
 export type BookingDeposit = typeof bookingDeposit.$inferSelect

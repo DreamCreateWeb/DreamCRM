@@ -49,7 +49,9 @@ beforeEach(() => {
 describe('exportBalancePaymentsCsv', () => {
   it('emits just the header row when there are no payments', async () => {
     const csv = await exportBalancePaymentsCsv('org_1')
-    expect(csv).toBe('Payment ID,Date,Patient,Amount,Balance at payment,Status,Paid at')
+    expect(csv).toBe(
+      'Payment ID,Date,Patient,Amount,Balance at payment,Status,Paid at,Refunded,Refunded at',
+    )
   })
 
   it('maps a paid payment into a dollar-formatted CSV row', async () => {
@@ -64,6 +66,8 @@ describe('exportBalancePaymentsCsv', () => {
         paidAt: new Date('2026-06-01T12:00:00.000Z'),
         createdAt: new Date('2026-06-01T11:59:00.000Z'),
         balanceCentsAtPayment: 20000,
+        refundedAmountCents: 0,
+        refundedAt: null,
       },
     ]
     const csv = await exportBalancePaymentsCsv('org_1')
@@ -74,5 +78,30 @@ describe('exportBalancePaymentsCsv', () => {
     expect(row).toContain('200.00') // balance at payment
     expect(row).toContain('paid')
     expect(row).toContain('2026-06-01T12:00:00.000Z')
+  })
+
+  it('carries a Stripe refund into the row a bookkeeper reconciles from', async () => {
+    // The row stays 'paid' — the front desk has already posted this money to
+    // the PMS, so the reversal has to appear HERE rather than the row leaving.
+    state.rows = [
+      {
+        id: 'pay_2',
+        patientId: 'pat_1',
+        firstName: 'Mia',
+        lastName: 'Hayes',
+        amountCents: 12500,
+        status: 'paid',
+        paidAt: new Date('2026-06-01T12:00:00.000Z'),
+        createdAt: new Date('2026-06-01T11:59:00.000Z'),
+        balanceCentsAtPayment: 20000,
+        refundedAmountCents: 5000,
+        refundedAt: new Date('2026-06-08T09:00:00.000Z'),
+      },
+    ]
+    const csv = await exportBalancePaymentsCsv('org_1')
+    const [, row] = csv.split('\r\n')
+    expect(row).toContain('paid')
+    expect(row).toContain('50.00') // refunded
+    expect(row).toContain('2026-06-08T09:00:00.000Z')
   })
 })

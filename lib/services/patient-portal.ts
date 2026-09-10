@@ -744,6 +744,10 @@ export interface PortalBalancePaymentRow {
   status: string
   createdAt: Date
   paidAt: Date | null
+  /** Cents refunded to the patient on this charge (0 = none). Their own
+   *  history has to say the money came back, not keep reading "Paid online". */
+  refundedAmountCents: number
+  refundedAt: Date | null
 }
 
 /** Past online balance payments (paid + pending) for the billing history list. */
@@ -758,6 +762,8 @@ export async function getMyBalancePayments(
       status: patientBalancePayment.status,
       createdAt: patientBalancePayment.createdAt,
       paidAt: patientBalancePayment.paidAt,
+      refundedAmountCents: patientBalancePayment.refundedAmountCents,
+      refundedAt: patientBalancePayment.refundedAt,
     })
     .from(patientBalancePayment)
     .where(

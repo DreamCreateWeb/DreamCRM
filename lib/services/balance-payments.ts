@@ -316,6 +316,11 @@ export interface PendingBalancePaymentRow {
   paidAt: Date | null
   createdAt: Date
   balanceCentsAtPayment: number | null
+  /** Cents Stripe sent back on this charge (0 = none). The row stays 'paid'
+   *  — the front desk has already posted it to the PMS and needs to see the
+   *  reversal HERE, not have the row vanish. */
+  refundedAmountCents: number
+  refundedAt: Date | null
 }
 
 /**
@@ -339,6 +344,8 @@ export async function listRecentBalancePayments(
       paidAt: schema.patientBalancePayment.paidAt,
       createdAt: schema.patientBalancePayment.createdAt,
       balanceCentsAtPayment: schema.patientBalancePayment.balanceCentsAtPayment,
+      refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
+      refundedAt: schema.patientBalancePayment.refundedAt,
     })
     .from(schema.patientBalancePayment)
     .innerJoin(schema.patient, eq(schema.patient.id, schema.patientBalancePayment.patientId))
@@ -359,6 +366,8 @@ export async function listRecentBalancePayments(
     paidAt: r.paidAt,
     createdAt: r.createdAt,
     balanceCentsAtPayment: r.balanceCentsAtPayment,
+    refundedAmountCents: r.refundedAmountCents ?? 0,
+    refundedAt: r.refundedAt,
   }))
 }
 
@@ -424,7 +433,17 @@ export async function getCollectedPerWeek8(
 /** All collected online balance payments as a CSV for clinic bookkeeping. */
 export async function exportBalancePaymentsCsv(organizationId: string): Promise<string> {
   const rows = await listRecentBalancePayments(organizationId, 100_000)
-  const headers = ['Payment ID', 'Date', 'Patient', 'Amount', 'Balance at payment', 'Status', 'Paid at']
+  const headers = [
+    'Payment ID',
+    'Date',
+    'Patient',
+    'Amount',
+    'Balance at payment',
+    'Status',
+    'Paid at',
+    'Refunded',
+    'Refunded at',
+  ]
   const csvRows = rows.map((r) => [
     r.id,
     r.createdAt.toISOString(),
@@ -433,6 +452,10 @@ export async function exportBalancePaymentsCsv(organizationId: string): Promise<
     csvDollars(r.balanceCentsAtPayment),
     r.status,
     r.paidAt ? r.paidAt.toISOString() : '',
+    // A bookkeeper reconciling this export needs the money that came back in
+    // the same row as the money that went out.
+    r.refundedAmountCents > 0 ? csvDollars(r.refundedAmountCents) : '',
+    r.refundedAt ? r.refundedAt.toISOString() : '',
   ])
   return toCsv(headers, csvRows)
 }

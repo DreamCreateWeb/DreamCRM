@@ -261,6 +261,10 @@ export interface BookingDepositRow {
   status: string
   paidAt: Date | null
   createdAt: Date
+  /** Cents Stripe sent back on this charge (0 = none) — see the balance
+   *  payment row for why the deposit stays 'paid'. */
+  refundedAmountCents: number
+  refundedAt: Date | null
 }
 
 /** Clinic-side reconciliation list (paid deposits, most-recent first). */
@@ -279,6 +283,8 @@ export async function listRecentBookingDeposits(
       status: schema.bookingDeposit.status,
       paidAt: schema.bookingDeposit.paidAt,
       createdAt: schema.bookingDeposit.createdAt,
+      refundedAmountCents: schema.bookingDeposit.refundedAmountCents,
+      refundedAt: schema.bookingDeposit.refundedAt,
     })
     .from(schema.bookingDeposit)
     .innerJoin(schema.patient, eq(schema.patient.id, schema.bookingDeposit.patientId))
@@ -299,13 +305,25 @@ export async function listRecentBookingDeposits(
     status: r.status,
     paidAt: r.paidAt,
     createdAt: r.createdAt,
+    refundedAmountCents: r.refundedAmountCents ?? 0,
+    refundedAt: r.refundedAt,
   }))
 }
 
 /** Collected deposits as CSV for clinic bookkeeping. */
 export async function exportBookingDepositsCsv(organizationId: string): Promise<string> {
   const rows = await listRecentBookingDeposits(organizationId, 100_000)
-  const headers = ['Deposit ID', 'Date', 'Patient', 'Visit type', 'Amount', 'Status', 'Paid at']
+  const headers = [
+    'Deposit ID',
+    'Date',
+    'Patient',
+    'Visit type',
+    'Amount',
+    'Status',
+    'Paid at',
+    'Refunded',
+    'Refunded at',
+  ]
   const csvRows = rows.map((r) => [
     r.id,
     r.createdAt.toISOString(),
@@ -314,6 +332,8 @@ export async function exportBookingDepositsCsv(organizationId: string): Promise<
     csvDollars(r.amountCents),
     r.status,
     r.paidAt ? r.paidAt.toISOString() : '',
+    r.refundedAmountCents > 0 ? csvDollars(r.refundedAmountCents) : '',
+    r.refundedAt ? r.refundedAt.toISOString() : '',
   ])
   return toCsv(headers, csvRows)
 }

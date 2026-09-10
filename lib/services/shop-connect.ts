@@ -97,6 +97,21 @@ export async function syncConnectedAccountStatus(accountId: string): Promise<voi
   await saveConnectedAccount(row.organizationId, accountId)
 }
 
+/**
+ * The clinic that owns a connected Stripe account. `event.account` on a
+ * Connect webhook is Stripe telling us which tenant an event belongs to —
+ * authoritative in a way event metadata is not (a refund issued from the
+ * Stripe dashboard carries none).
+ */
+export async function orgIdForConnectedAccount(accountId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ organizationId: schema.shopConfig.organizationId })
+    .from(schema.shopConfig)
+    .where(eq(schema.shopConfig.stripeAccountId, accountId))
+    .limit(1)
+  return row?.organizationId ?? null
+}
+
 export async function disconnectShopStripe(organizationId: string): Promise<void> {
   const [row] = await db
     .select({ accountId: schema.shopConfig.stripeAccountId })

@@ -487,7 +487,38 @@ binding are all correct. The payment-plan charger was the exception.
   closed WITHOUT it: shop/balance/deposit records still stay `'paid'` after a
   Stripe-side refund (`OrderStatus 'refunded'` is never set), so a refunded
   order reads as fulfilled-and-paid on the clinic's own board. Needs the
-  Connect-side refund case. · OPEN.
+  Connect-side refund case. · **FIXED** (DREAMCRM-23) — `charge.refunded` and
+  `refund.created` now land on the Connect webhook and call
+  `recordConnectRefund` (`lib/services/refunds.ts`), keyed on
+  `stripe_payment_intent_id` (the one id both events carry and all three
+  finalizers stamp). Tenant scoping comes from `event.account`, not event
+  metadata — a refund issued from the Stripe dashboard carries none. Migration
+  0161 adds `refunded_amount_cents` + `refunded_at` to all three tables.
+  A shop order flips to `'refunded'` on a FULL refund only; balance payments
+  and deposits keep `status` (its vocabulary is pending/paid/failed and eight
+  readers filter on 'paid' — a fourth value would vanish a refunded payment
+  out of the reconciliation list the front desk needs it in) and their surfaces
+  read the new columns instead. Monotonic by construction, so unordered
+  webhook delivery cannot walk a refund backwards.
+- S3 · the clinic's "collected" figures do not NET refunds. Everything that
+  sums `patient_balance_payment` / `booking_deposit` filters
+  `status = 'paid'` and sums `amount_cents` — the collections board's
+  "Collected this month", `getCollectedPerWeek8`, loyalty accrual, patient
+  lifetime spend — so a refunded balance payment still counts as money the
+  clinic kept. New in DREAMCRM-23 only in the sense that the refund is now
+  RECORDED (`refunded_amount_cents`) and could be netted; the overstatement
+  itself pre-dates it. Shop-order totals are already right: those filter
+  `status='paid'` and a fully refunded order leaves that set. Fix shape:
+  `sum(amount_cents - refunded_amount_cents)` over
+  `status in ('paid','refunded')`, decided once for all of them so the
+  surfaces cannot disagree. · OPEN.
+- S3 · a refund that later FAILS is never un-recorded. Stripe decrements the
+  charge's `amount_refunded` and fires `charge.refund.updated` with status
+  `failed`; `recordConnectRefund` is monotonic by design, so the record keeps
+  showing money returned that never left. Rare (mostly bank-level failures on
+  older cards), and un-doing it needs an ordering rule the monotonic path
+  deliberately does not have — a non-monotonic write would reopen the
+  out-of-order hazard the rule exists to close. · OPEN.
 - S2 · `referral-payouts.payoutPartner` · double-pay window — after a
   transfer succeeds but the ledger write fails, a manual retry >24h later
   (Stripe idempotency window lapsed) re-derives the same key and sends a
@@ -673,10 +704,24 @@ three cheap high-value classes (fixed) plus loop-hardening (R2).
   automated touches. The S4 sweep and R2 Slice 3 found this same defect
   independently; both records now point at the same fix.
 - S2 · a campaign that crashes mid-`sendCampaign` is stranded `active` with
-  no requeue and no per-recipient resume (partial send, rest dropped);
-  `publish-scheduled-posts` has an unwrapped per-post loop + no
-  `status='scheduled'` guard on the flip (double-ledger under overlap). ·
-  OPEN.
+  no requeue and no per-recipient resume (partial send, rest dropped). ·
+  **FIXED** (R2 Slice 8, `919ee625`) — `requeueStuckCampaigns` re-arms a
+  campaign left `active` and untouched for 30 min, and
+  `dropAlreadySentRecipients` makes that requeue safe: anyone already carrying
+  a 'sent' event is skipped, so the re-run finishes the tail instead of
+  re-mailing. FAILS OPEN — an unreadable events table sends the full list,
+  since treating a failed read as "everyone got it" would silently cancel a
+  real campaign.
+- S2 · `publish-scheduled-posts` has an unwrapped per-post loop + no
+  `status='scheduled'` guard on the flip (one throw aborts every remaining
+  post INCLUDING other clinics'; two overlapping runs both flip and both write
+  a ledger entry, double-reporting the publish). · **FIXED** —
+  `publishDueScheduledPosts` (`lib/services/blog.ts`) wraps each post and
+  claims it with a CAS on `status='scheduled'`; a lost claim is a `continue`,
+  not an error.
+Unbundled 2026-09-10 (DREAMCRM-23) — these shipped as ONE entry and both
+halves were in fact already fixed, which neither could be recorded as while
+they shared a verdict.
 - S2 · a NexHealth outage during an appointment/patient CREATE burns the
   6-attempt write-back cap instead of parking in the WAITING lane (only the
   cancel path classifies offline errors as `PmsWriteWaitingError`). · OPEN.

@@ -4,7 +4,8 @@ import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
 import { finalizeBalancePaymentFromSession } from '@/lib/services/balance-payments'
 import { finalizeBookingDepositFromSession } from '@/lib/services/booking-deposits'
 import { finalizeMembershipFromSession, handleSubscriptionEvent } from '@/lib/services/membership'
-import { syncConnectedAccountStatus } from '@/lib/services/shop-connect'
+import { syncConnectedAccountStatus, orgIdForConnectedAccount } from '@/lib/services/shop-connect'
+import { recordConnectRefund } from '@/lib/services/refunds'
 
 /**
  * Webhook for CONNECTED-ACCOUNT events (registered separately in Stripe for
@@ -14,6 +15,58 @@ import { syncConnectedAccountStatus } from '@/lib/services/shop-connect'
  */
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+/** The Stripe Charge fields the refund path reads. */
+interface RefundedCharge {
+  id?: string
+  payment_intent?: string | { id?: string } | null
+  amount?: number | null
+  amount_refunded?: number | null
+}
+
+/**
+ * Normalize a refund event into the one shape our records need: which
+ * PaymentIntent, how much has come back IN TOTAL, and what the charge was
+ * worth. `charge.refunded` already carries all three. `refund.created`
+ * carries only the single refund, so the charge is fetched for the
+ * cumulative figure — trusting one refund's `amount` would understate a
+ * second partial refund and mis-read it as "not fully refunded".
+ *
+ * Known gap, deliberately not covered: a refund that later FAILS
+ * (`charge.refund.updated`, status `failed`) decrements Stripe's
+ * `amount_refunded`, and our stored total never walks backwards. Rare, and
+ * un-doing it needs an ordering rule this path does not have.
+ */
+async function refundFromEvent(
+  event: { type: string; data: { object: Record<string, any> } },
+  stripeAccount: string,
+): Promise<{ paymentIntentId: string; amountRefundedCents: number; chargeAmountCents: number } | null> {
+  let charge: RefundedCharge | null = null
+
+  if (event.type === 'charge.refunded') {
+    charge = event.data.object as RefundedCharge
+  } else {
+    const refund = event.data.object as {
+      charge?: string | { id?: string } | null
+      status?: string | null
+    }
+    // A refund that never succeeded moved no money back.
+    if (refund.status && refund.status !== 'succeeded' && refund.status !== 'pending') return null
+    const chargeId = typeof refund.charge === 'string' ? refund.charge : refund.charge?.id
+    if (!chargeId) return null
+    charge = (await stripe.charges.retrieve(chargeId, undefined, { stripeAccount })) as RefundedCharge
+  }
+
+  const paymentIntentId =
+    typeof charge?.payment_intent === 'string' ? charge.payment_intent : charge?.payment_intent?.id
+  if (!paymentIntentId) return null
+
+  return {
+    paymentIntentId,
+    amountRefundedCents: charge?.amount_refunded ?? 0,
+    chargeAmountCents: charge?.amount ?? 0,
+  }
+}
 
 export async function POST(request: Request) {
   const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET
@@ -50,6 +103,20 @@ export async function POST(request: Request) {
       const orgId = sub.metadata?.organizationId as string | undefined
       if (orgId && sub.id) {
         await handleSubscriptionEvent(orgId, sub.id as string, sub.status as string, subscriptionPeriodEnd(sub))
+      }
+    } else if (event.type === 'charge.refunded' || event.type === 'refund.created') {
+      // Money that came BACK. Without this the record keeps saying "Paid"
+      // after a clinic refunds in the Stripe dashboard, and the front desk
+      // reconciles its PMS ledger from a record the bank disagrees with.
+      //
+      // Tenant scoping comes from `event.account` — Stripe naming the
+      // connected account — not from event metadata, which a dashboard-issued
+      // refund does not carry. No account, no org, no write.
+      const accountId = (event as { account?: string }).account
+      const orgId = accountId ? await orgIdForConnectedAccount(accountId) : null
+      if (accountId && orgId) {
+        const refund = await refundFromEvent(event, accountId)
+        if (refund) await recordConnectRefund({ organizationId: orgId, ...refund })
       }
     } else if (event.type === 'account.updated') {
       // Stripe enabled/disabled capabilities on a connected account — keep our
