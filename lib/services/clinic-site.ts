@@ -166,7 +166,10 @@ async function loadPublishedTheme(slug: string): Promise<{
    *  non-null assertion: an authorization argument is the last place to put
    *  one. */
   orgId: string
-  brand: string | null
+  /** Real column names, not the public `brand` alias — `mergeWebsiteDraft`
+   *  keys off `WEBSITE_DRAFT_COLUMNS`, so the shape handed to it has to speak
+   *  the schema's vocabulary. */
+  brandColor: string | null
   template: string | null
   websiteDraft: unknown
 } | null> {
@@ -174,7 +177,7 @@ async function loadPublishedTheme(slug: string): Promise<{
     .select({
       id: organization.id,
       type: organization.type,
-      brand: clinicProfile.brandColor,
+      brandColor: clinicProfile.brandColor,
       template: clinicProfile.template,
       websiteDraft: clinicProfile.websiteDraft,
     })
@@ -187,7 +190,7 @@ async function loadPublishedTheme(slug: string): Promise<{
 
   return {
     orgId: row.id,
-    brand: row.brand ?? null,
+    brandColor: row.brandColor ?? null,
     template: row.template ?? null,
     websiteDraft: row.websiteDraft,
   }
@@ -205,21 +208,28 @@ export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTh
   if (draftKeys.length === 0 || !(await canEditClinic(published.orgId))) {
     return {
       orgId: published.orgId,
-      brand: published.brand,
+      brand: published.brandColor,
       template: published.template,
       hasEditorDraft: false,
     }
   }
 
-  const draft = published.websiteDraft as Record<string, unknown>
+  // Routed through `mergeWebsiteDraft` rather than re-implementing its rule.
+  // The rule is not only "override the keys the draft carries" — it is also
+  // `?? null`, so a field the clinic CLEARED in their draft reads as cleared
+  // rather than falling back to the published value. Open-coding that here
+  // made two homes for one rule, and the failure it buys is quiet: change the
+  // null semantics in one place and a clinic previewing their draft gets the
+  // colour under one rule and the tagline under another — two halves of a
+  // single preview disagreeing.
+  const merged = mergeWebsiteDraft(
+    { brandColor: published.brandColor, template: published.template },
+    published.websiteDraft,
+  )
   return {
     orgId: published.orgId,
-    brand: draftKeys.includes('brandColor')
-      ? ((draft.brandColor as string | null) ?? null)
-      : published.brand,
-    template: draftKeys.includes('template')
-      ? ((draft.template as string | null) ?? null)
-      : published.template,
+    brand: merged.brandColor ?? null,
+    template: merged.template ?? null,
     hasEditorDraft: true,
   }
 })

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
 
 /**
  * THE PUBLIC SITE LOADS ITS PROFILE ONCE PER REQUEST, NOT TWICE.
@@ -108,6 +109,16 @@ async function freshRequest(): Promise<typeof import('@/lib/services/clinic-site
   return import('@/lib/services/clinic-site')
 }
 
+/** Every `.ts` file under a directory, as repo-relative paths. */
+function walkTs(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = `${dir}/${entry.name}`
+    if (entry.isDirectory()) walkTs(full, out)
+    else if (entry.name.endsWith('.ts')) out.push(full)
+  }
+  return out
+}
+
 /** Source with comments blanked, so a scan reads code rather than prose. */
 function stripComments(src: string): string {
   return src
@@ -146,34 +157,53 @@ describe('the loaders are the request-scoped kind', () => {
    * same way `getClinicOrgIdBySlug` and `getClinicThemeBySlug` above already
    * do. The behaviour that actually needs guarding is in the next block.
    */
-  it('both public site loaders are cache()-wrapped, and NEITHER is durable', async () => {
-    const src = await import('node:fs').then((fs) =>
-      fs.promises.readFile('lib/services/clinic-site.ts', 'utf8'),
-    )
+  it('both public site loaders are cache()-wrapped', async () => {
+    const src = readFileSync('lib/services/clinic-site.ts', 'utf8')
     expect(src).toMatch(/export const getClinicSiteBySlug = cache\(/)
     expect(src).toMatch(/export const getClinicSiteByDomain = cache\(/)
+  })
 
-    // THE guard. `loadSite` merges a verified editor's unpublished draft, so a
-    // cache that outlives the request would serve one viewer's render to the
-    // next — a clinic's unpublished words on their live public site. No
-    // behavioural test in this file can catch that swap (see the note on the
-    // last test), so it is checked where the property actually lives.
-    //
-    // Making this durable is legitimate work — it is slice 2 — but only AFTER
-    // the published read is split out of `loadSite` and the overlay applied
-    // outside it. When that lands, this assertion moves to the split loader
-    // rather than being deleted.
-    // COMMENTS STRIPPED FIRST. The file's own doc comments discuss
-    // `unstable_cache` at length — explaining exactly why it must not be used
-    // here — so a raw scan flags the explanation as the offence. It did,
-    // the first time the published read was split out. Code only.
-    const code = stripComments(src)
+  /**
+   * NO MODULE ON THE PUBLIC READ PATH HOLDS A DURABLE CACHE.
+   *
+   * The first version of this read ONE file — the loader I had just split —
+   * so the stop sign stood in front of the safest of the three and not the
+   * most dangerous. `lib/site-templates/resolve.ts` had zero coverage, and
+   * caching it would serve one owner's template preview as the live design
+   * for every visitor to that clinic.
+   *
+   * So the set is DERIVED rather than listed: every module under `lib/` that
+   * consumes `canEditClinic` is by definition viewer-dependent, and none of
+   * them may outlive the request. A fourth loader added tomorrow is covered
+   * the moment it reaches for the session — which is the property that made
+   * my last hand-written note incomplete.
+   */
+  it('no viewer-dependent module under lib/ reaches for a durable cache', () => {
+    const viewerDependent = walkTs('lib')
+      .filter((f) => f !== 'lib/clinic-site-edit.ts') // the definition, not a consumer
+      .filter((f) => /\bcanEditClinic\b/.test(readFileSync(f, 'utf8')))
+
+    // A derived set that comes back empty passes forever.
+    expect(viewerDependent.length, 'the scan found no canEditClinic consumers').toBeGreaterThan(0)
+    expect(viewerDependent).toContain('lib/services/clinic-site.ts')
+    expect(viewerDependent).toContain('lib/site-templates/resolve.ts')
+
+    // COMMENTS STRIPPED. These files discuss `unstable_cache` at length —
+    // explaining precisely why it must not be used — so a raw scan reads the
+    // explanation as the offence. It did, the first time the published read
+    // was split out.
+    const offenders = viewerDependent.filter((f) =>
+      /unstable_cache/.test(stripComments(readFileSync(f, 'utf8'))),
+    )
     expect(
-      code,
-      'clinic-site.ts reached for a durable cache. The published read must be ' +
-        'split out of loadSite and the overlay applied outside it, or a ' +
-        'visitor gets the editor’s draft.',
-    ).not.toMatch(/unstable_cache/)
+      offenders,
+      `These read the session and therefore differ per viewer, so a cache that\n` +
+        `outlives the request serves one viewer's answer to the next — a clinic's\n` +
+        `unpublished content, colour or design on their live public site.\n` +
+        `Split the published half out FIRST (loadPublishedSite / loadPublishedTheme\n` +
+        `are the worked examples), or — for resolve.ts — accept that there is no\n` +
+        `published half and it stays per-request:\n${offenders.join('\n')}`,
+    ).toEqual([])
   })
 
   it('still returns the right site per slug', async () => {
@@ -296,7 +326,7 @@ describe('the theme loader is split the same way', () => {
     slug: 'smilebright',
     name: 'SmileBright',
     type: 'clinic',
-    brand: '#0d9488',
+    brandColor: '#0d9488',
     template: 'modern',
     websiteDraft: null as unknown,
   }
@@ -330,6 +360,23 @@ describe('the theme loader is split the same way', () => {
     const theme = await mod.getClinicThemeBySlug('smilebright')
     expect(theme.brand).toBe('#ff0000')
     expect(theme.template).toBe('modern')
+  })
+
+  it('a CLEARED field reads as cleared, not as the published value', async () => {
+    // The subtle half of `mergeWebsiteDraft`'s rule is `value ?? null`: a key
+    // the clinic explicitly emptied in their draft must come back empty, not
+    // fall back to what is published. The theme overlay used to open-code
+    // that, so there were two homes for one rule — and the failure that buys
+    // is a preview where the colour obeys one rule and the tagline the other.
+    // The overlay routes through `mergeWebsiteDraft` now; this pins the
+    // behaviour so a future re-inlining fails here.
+    state.org = { ...THEMED, websiteDraft: { brandColor: null } }
+    state.canEdit = true
+    const mod = await freshRequest()
+    const theme = await mod.getClinicThemeBySlug('smilebright')
+    expect(theme.brand, 'a cleared brand colour fell back to the published one').toBeNull()
+    expect(theme.template).toBe('modern')
+    expect(theme.hasEditorDraft).toBe(true)
   })
 
   it('never touches the session when there is no draft', async () => {
