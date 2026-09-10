@@ -141,9 +141,16 @@ describe('the reschedule journey has a settled signal that a pending action cann
     // poll report the server's own words instead of a bare 30s timeout.
     expect(await screen.findByRole('alert')).toHaveTextContent('That time was just taken')
     expect(screen.getByText(/Pick a new time/)).toBeInTheDocument()
-    // And the pill is back under its idle name — so "the pill is gone" would
-    // not even stay true through a failure.
-    expect(screen.getByRole('button', { name: 'Move my visit' })).toBeInTheDocument()
+    // And the pill comes back under its idle name — so "the pill is gone"
+    // would not even stay true through a failure.
+    //
+    // findBy, not getBy: the error message and the cleared `pending` flag are
+    // two different commits (run() calls setMessage INSIDE the transition), so
+    // the alert can be on screen while the pill still reads "Moving…". A
+    // synchronous read here passed locally and lost the race once on CI — the
+    // same "what does this do while the request is in flight?" mistake this
+    // whole guard exists to pin, one level down.
+    expect(await screen.findByRole('button', { name: 'Move my visit' })).toBeInTheDocument()
   })
 
   it('a successful move closes the panel, and only then', async () => {
