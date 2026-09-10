@@ -1441,14 +1441,17 @@ export async function rescheduleAppointment(input: RescheduleInput) {
  * from the same place, and `tests/automation/reminder-claim.test.ts` renders
  * the statement to check they still agree.
  */
-const AUTO_TOUCH_INDEX_PREDICATE = sql`${schema.appointmentReminderLog.sentByUserId} is null and ${schema.appointmentReminderLog.template} is not null and ${schema.appointmentReminderLog.template} <> ${sql.raw(`'${FORMS_REMINDER_TEMPLATE}'`)}`
-
 /** The conflict clause every automated-shaped write into the reminder log
  *  carries — see `logReminderSent` for why even the writers that are OUTSIDE
- *  the index take it. */
-const autoTouchConflictTarget = {
-  target: [schema.appointmentReminderLog.appointmentId, schema.appointmentReminderLog.template],
-  where: AUTO_TOUCH_INDEX_PREDICATE,
+ *  the index take it. Built per call rather than at module load: a module-level
+ *  `sql` template reaches into the schema the moment the file is imported, and
+ *  this file is imported by plenty of code whose tests stub `@/lib/db`. */
+function autoTouchConflict() {
+  const log = schema.appointmentReminderLog
+  return {
+    target: [log.appointmentId, log.template],
+    where: sql`${log.sentByUserId} is null and ${log.template} is not null and ${log.template} <> ${sql.raw(`'${FORMS_REMINDER_TEMPLATE}'`)}`,
+  }
 }
 
 
@@ -1486,7 +1489,7 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
       sentByUserId: input.sentByUserId,
       providerMessageId: input.providerMessageId ?? null,
     })
-    .onConflictDoNothing(autoTouchConflictTarget)
+    .onConflictDoNothing(autoTouchConflict())
   await recordReminderInActionLedger(input)
   return id
 }
@@ -1592,7 +1595,7 @@ export async function claimAutomatedReminder(input: ClaimReminderInput): Promise
       sentByUserId: null,
       providerMessageId: null,
     })
-    .onConflictDoNothing(autoTouchConflictTarget)
+    .onConflictDoNothing(autoTouchConflict())
     .returning({ id: schema.appointmentReminderLog.id })
   if (inserted.length === 0) return null
   return {
