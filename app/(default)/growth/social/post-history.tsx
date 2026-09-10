@@ -140,12 +140,12 @@ function PostCard({ post }: { post: SocialPostView }) {
                 <ActionButton variant="danger" size="sm" onClick={remove} pending={pending}>
                   Confirm delete
                 </ActionButton>
-                <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(false)} pending={pending}>
+                <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(false)} disabled={pending}>
                   Keep
                 </ActionButton>
               </>
             ) : (
-              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(true)} pending={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
                 Delete
               </ActionButton>
             )}

@@ -216,7 +216,7 @@ export default function FeedbackPanel() {
               <div className="mb-3 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded">{feedback.ok}</div>
             )}
             <div className="flex self-end gap-3">
-              <ActionButton variant="secondary" onClick={reset} pending={pending}>
+              <ActionButton variant="secondary" onClick={reset} disabled={pending}>
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" type="submit" pending={pending} disabled={!message.trim()}>
