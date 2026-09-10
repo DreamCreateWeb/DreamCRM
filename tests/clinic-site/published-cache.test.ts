@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 import { getTableColumns } from 'drizzle-orm'
 import { readFileSync } from 'node:fs'
 
@@ -58,6 +59,14 @@ vi.mock('@/lib/db', async () => {
 const TRIAL_ENDS = new Date('2026-09-15T12:34:56.000Z')
 const SITE_LIVE = new Date('2026-09-01T08:00:00.000Z')
 const CREATED = new Date('2026-08-01T00:00:00.000Z')
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(
+  () => import('@/lib/services/clinic-site-cache'),
+  () => import('@/lib/db/schema/platform'),
+  () => import('@/lib/trial'),
+)
 
 beforeEach(() => {
   state.org = { id: 'org_1', slug: 'smilebright', name: 'SmileBright', type: 'clinic' }

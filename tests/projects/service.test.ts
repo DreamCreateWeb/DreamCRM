@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 // We mock the SQL execution at the chain leaves — each test pre-populates
 // the rows that the next select/insert/update will return.
@@ -98,6 +99,10 @@ import {
   getSubscriptionStats,
   listActiveProjectsForOrg,
 } from '@/lib/services/projects'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/db'))
 
 beforeEach(() => {
   state.inserts.length = 0

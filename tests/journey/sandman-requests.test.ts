@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * PUTTING THE TEAM TO WORK (docs/ai-operations.md, D8). The contract under
@@ -24,6 +25,10 @@ vi.mock('@/lib/services/clinic-timezone', () => ({
 }))
 
 import { runSandmanRequest } from '@/lib/services/sandman-requests'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/clinic-timezone'))
 
 beforeEach(() => {
   for (const m of [mockSocial, mockPlan, mockRecall, mockGap]) {

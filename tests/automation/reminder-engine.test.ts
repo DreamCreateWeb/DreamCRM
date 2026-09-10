@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * runDueReminders — journey touch selection + per-touch idempotency + the
@@ -176,6 +177,10 @@ function seedCandidate(
     status: opts.status,
   })
 }
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/engine-failures'))
 
 beforeEach(() => {
   state.profiles = []

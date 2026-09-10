@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 import { NextRequest } from 'next/server'
 
 /**
@@ -40,6 +41,10 @@ vi.mock('@/lib/services/appointment-waitlist', () => ({ listWaitlist: vi.fn(asyn
 import { parseAttention } from '@/app/(default)/appointments/page'
 import { GET as exportGET } from '@/app/(default)/appointments/export/route'
 import { APPT_ATTENTION_KEYS } from '@/lib/types/appointment-views'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/auth/context'))
 
 beforeEach(() => {
   svc.exportAppointmentsCsv.mockClear()
