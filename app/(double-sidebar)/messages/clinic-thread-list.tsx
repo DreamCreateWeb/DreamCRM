@@ -326,7 +326,7 @@ export default function ClinicThreadList({
           <ActionButton
             size="sm"
             variant="secondary"
-            pending={pending}
+            disabled={pending}
             aria-expanded={showSnooze}
             onClick={() => setShowSnooze((s) => !s)}
           >

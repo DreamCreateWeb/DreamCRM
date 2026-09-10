@@ -257,7 +257,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <ActionButton variant="secondary" size="sm" onClick={() => setEditing(true)} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>
                 Reply
               </ActionButton>
               <ActionButton variant="ghost" size="sm" onClick={aiDraft} pending={drafting} disabled={pending}>
