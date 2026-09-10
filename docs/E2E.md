@@ -235,3 +235,83 @@ those boundaries at every hour, not just the hour you ran it.
 suite — it reads the offset out of the seed and the window definition out of
 `lib/services/appointments.ts`, so tidying either one fails before merge instead
 of at 1 AM.
+
+## Accessibility checks at every stop (added 2026-09-10, DREAMCRM-25)
+
+Every spec that loads a page also runs **axe-core** against it, via
+`expectNoA11yViolations(page, '<stop>')` from `e2e/axe.ts`. About thirty stops
+across the twelve specs — the clinic's public site and booking form, the patient
+portal (including the reschedule panel and the cancel confirmation), the staff
+day and its drawer, the website hub in both lever states, onboarding, the token
+journeys, and the 404.
+
+**Why, when `pnpm lint` already gates accessibility.** The lint gate
+(eslint-plugin-jsx-a11y, DREAMCRM-17) reads JSX source, so it cannot see colour
+contrast, focus order, duplicate ids that only collide once components are
+composed, an accessible name assembled at runtime, or anything inside a portal
+or a dialog. The specs were already standing in front of those pages with a real
+browser; the check is a line per stop on work we were paying for anyway.
+
+Rules and conventions:
+
+- **WCAG 2.1 A + AA only.** Not `best-practice` — those encode axe's house style
+  rather than a standard we committed to, and a gate people have to interpret is
+  a gate people learn to ignore.
+- **Name the STATE, not just the page.** `'portal: reschedule panel open, a new
+  time picked'`, not `'portal'`. An open dialog and a closed one are different
+  pages to a screen reader, and the name is all a reader of a red log has.
+- **Call it after the spec's own assertions** for that stop, so the page is
+  settled and the state under test is really on screen.
+- **The assertion is soft** (`expect.soft`). A run that stopped at the first bad
+  stop would hide the other twenty-odd; every stop reports, and the test still
+  fails at the end. One CI run gives the whole picture.
+- **`@axe-core/playwright` is pinned exactly**, not `^`. A minor bump can add
+  rules, and a dependency nobody chose to change should not be able to turn the
+  suite red on a Tuesday. Bump it deliberately.
+
+### The baseline (`e2e/axe-baseline.ts`)
+
+The first run over real pages found **214 WCAG AA violations across 25 of the
+35 stops**, in exactly three rules — all of them already live on `main`. The
+checks did not create them, they revealed them, and they are defects in UI code
+that the QA lane does not change. Merging a red gate teaches people to ignore
+red; not landing the checks leaves the 214 in quiet company with whatever
+arrives next week. So they are carried in a baseline, as a **ratchet**:
+
+- Each number is a **ceiling**, not an expectation. Exceed it and the suite fails.
+- A rule not listed for a stop has a ceiling of **zero** — a new *kind* of
+  defect fails even at a stop that already carries debt.
+- A stop not listed at all tolerates nothing. New and renamed stops start clean.
+- Numbers only go **down**. Shrink or delete the entry in the same PR as the
+  fix; a run prints a `::warning` naming ceilings that are now too high.
+
+A ceiling rather than an exact match because some counts genuinely wobble by an
+element depending on what is on screen — the agenda stops reported 8
+`nested-interactive` then 7, the booking confirmation 2 then 1, across runs of
+the same tree. Exact-match would have been flaky on day one. For the same
+reason the shrink warning fires on a rule reaching **zero**, or a drop of more
+than one; warning on every wobble would have put a "shrink me" annotation on
+half of all runs within a day, and an annotation that is usually wrong is one
+people stop reading.
+
+`rulesOverBaseline` is the whole ratchet in one pure function, and
+`axe-selftest.spec.ts` pins its direction — at the ceiling passes, one above
+fails, an unlisted rule and an unlisted stop tolerate nothing. Get that
+backwards and every a11y check in the suite silently becomes decorative.
+
+**What is in the baseline today**: 176 `color-contrast` (collapsing to ~24
+distinct token pairs — several at 4.48:1 against a 4.5 requirement), and 25
+`nested-interactive` + 13 `list`, which are one structural pattern: the
+appointments agenda row is an `li[role="button"]` containing its own focusable
+controls. Handed to the UI lane with the full reproduction on DREAMCRM-26.
+
+**`e2e/axe-selftest.spec.ts` is the reason any of this can be trusted.** Every
+other a11y call asserts an ABSENCE, and an absence assertion is
+indistinguishable from a check that has quietly stopped looking. The self-test
+feeds the scanner a document with three defects planted on purpose (missing
+`lang`, missing `alt`, ~1.1:1 contrast) and fails if they are not found, plus a
+clean document that must report nothing. Verified by breaking it on purpose
+before merge: narrowing the tag list to `['wcag2a']` fails the contrast
+assertion by name, and narrowing it to `[]` fails both tests. It uses
+`page.setContent()` rather than a real route because it tests OUR HARNESS — it
+has to keep working when every page in the app is perfect.

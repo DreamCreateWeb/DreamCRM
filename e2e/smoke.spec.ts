@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { expectNoA11yViolations } from './axe'
 
 /**
  * Golden-path smoke — the first browser-level coverage this repo has had.
@@ -24,6 +25,8 @@ test.describe('the marketing site (the storefront)', () => {
     // A real page has a title and a first heading.
     await expect(page).toHaveTitle(/.+/)
     await expect(page.locator('h1').first()).toBeVisible()
+
+    await expectNoA11yViolations(page, 'marketing: home')
   })
 
   test('pricing shows the one purchasable plan at the founding rate', async ({ page }) => {
@@ -31,6 +34,8 @@ test.describe('the marketing site (the storefront)', () => {
     // self-serve plan; the legacy tiers must not resurface on the page.
     await page.goto('/pricing')
     await expect(page.locator('body')).toContainText('$200')
+
+    await expectNoA11yViolations(page, 'marketing: pricing')
   })
 })
 
@@ -51,6 +56,8 @@ test.describe('the auth gate (middleware, invisible to happy-dom)', () => {
     await expect(page.locator('input[type="email"]')).toBeVisible()
     await expect(page.locator('input[type="password"]')).toBeVisible()
     await expect(page.locator('button[type="submit"]')).toBeEnabled()
+
+    await expectNoA11yViolations(page, 'auth: sign-in')
   })
 
   test('a bad sign-in announces the failure to assistive tech', async ({ page }) => {
@@ -61,6 +68,11 @@ test.describe('the auth gate (middleware, invisible to happy-dom)', () => {
     await page.locator('input[type="password"]').fill('definitely-wrong-password')
     await page.locator('button[type="submit"]').click()
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 20_000 })
+
+    // The error STATE, not just the empty form. A failure message is exactly
+    // the kind of runtime-composed node the static gate never sees: it does
+    // not exist in the JSX until a request comes back.
+    await expectNoA11yViolations(page, 'auth: sign-in showing the failure alert')
   })
 })
 
@@ -69,5 +81,9 @@ test.describe('unknown routes', () => {
     const res = await page.goto('/site/no-such-clinic-abc123')
     expect(res?.status()).toBe(404)
     await expect(page.locator('body')).not.toContainText('Application error')
+
+    // 404s are the least-looked-at page in any product and the easiest place
+    // for a heading level or a contrast slip to live undisturbed.
+    await expectNoA11yViolations(page, 'public: unknown clinic 404')
   })
 })

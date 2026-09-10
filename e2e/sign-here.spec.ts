@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
+import { expectNoA11yViolations } from './axe'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -57,6 +58,12 @@ test.describe('the sign-here stack', () => {
     ).toBeVisible()
     await expect(stack.getByText('Robin Inquirer').first()).toBeVisible()
 
+    // The sign-here stack renders an ARTIFACT — the outgoing email drawn as an
+    // email, inside our own chrome. Nested rich content like that is where
+    // heading order and duplicate ids go wrong, and neither is visible from
+    // the JSX of either component alone.
+    await expectNoA11yViolations(page, 'staff: dream team, a proposal waiting on a yes')
+
     await stack.getByRole('button', { name: 'Approve — send it' }).click()
 
     // The ledger summary arrives as the toast. Don't assert the stack's
@@ -78,5 +85,7 @@ test.describe('the sign-here stack', () => {
     })
     await page.getByRole('button', { name: 'Contacted 1' }).click()
     await expect(page.getByText('Robin Inquirer').first()).toBeVisible({ timeout: 30_000 })
+
+    await expectNoA11yViolations(page, 'staff: leads board, filtered to contacted')
   })
 })

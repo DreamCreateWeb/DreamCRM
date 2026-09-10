@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
+import { expectNoA11yViolations } from './axe'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -53,7 +54,17 @@ test.describe('the staff day (appointments drawer)', () => {
     await page.goto('/appointments')
     const visit = row(page, 'checkup')
     await expect(visit).toBeVisible({ timeout: 30_000 })
+
+    await expectNoA11yViolations(page, 'staff: the day agenda')
+
     await visit.click()
+    await expect(drawer(page)).toBeVisible()
+
+    // A drawer is the classic runtime-only a11y surface: it is a portal, so
+    // its markup never sits next to the page's in the source, and everything
+    // that matters about it (its accessible name, whether the rest of the
+    // page is still reachable behind it) only exists once it is open.
+    await expectNoA11yViolations(page, 'staff: appointment drawer open')
 
     await drawer(page).getByRole('button', { name: 'Mark confirmed' }).click()
     await expect(page.getByRole('status')).toContainText('Confirmed.', { timeout: 30_000 })
@@ -93,6 +104,11 @@ test.describe('the staff day (appointments drawer)', () => {
     // button that opened it — scope to the dialog.
     const confirm = page.getByRole('dialog', { name: 'Cancel this appointment?' })
     await expect(confirm.getByText('The patient will not be notified automatically.')).toBeVisible()
+
+    // Two stacked dialogs — the drawer plus the confirm on top of it. Nothing
+    // read from source can tell you what a screen reader finds here.
+    await expectNoA11yViolations(page, 'staff: cancel-appointment confirmation over the drawer')
+
     await confirm.getByRole('button', { name: 'Cancel appointment' }).click()
 
     await expect(page.getByRole('status')).toContainText('Cancelled.', { timeout: 30_000 })

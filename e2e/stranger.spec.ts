@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { expectNoA11yViolations } from './axe'
 
 /**
  * The stranger test (release program R4, run early in R3's harness): a person
@@ -21,6 +22,7 @@ test.describe('the stranger journey', () => {
     test.setTimeout(180_000) // four server-action steps + org provisioning
 
     await page.goto('/signup')
+    await expectNoA11yViolations(page, 'auth: sign-up')
     await page.getByLabel(/Your name/).fill('Sam Stranger')
     await page.getByLabel(/Work email/).fill('sam.stranger@example.com')
     await page.getByLabel(/Practice name/).fill('Stranger Dental')
@@ -30,6 +32,11 @@ test.describe('the stranger journey', () => {
     // Step 1 — identity. Practice name carries over from signup.
     await page.waitForURL('**/onboarding-01', { timeout: 60_000 })
     await expect(page.getByLabel(/Practice name/)).toHaveValue('Stranger Dental')
+
+    // Onboarding is a stranger's first five minutes with the product and has
+    // no other browser a11y coverage anywhere.
+    await expectNoA11yViolations(page, 'onboarding: step 1, practice identity')
+
     await page.getByLabel(/Front-desk phone/).fill('5550100200')
     await page.getByRole('button', { name: /Next step/ }).click()
 
@@ -47,6 +54,11 @@ test.describe('the stranger journey', () => {
     const slugInput = page.getByLabel(/Web address/)
     await slugInput.fill('stranger-dental')
     await expect(page.getByText(/stranger-dental\.[^ ]+ is yours/)).toBeVisible({ timeout: 15_000 })
+
+    // The availability verdict is announced by an element that did not exist
+    // a moment ago — a runtime-composed status if ever there was one.
+    await expectNoA11yViolations(page, 'onboarding: step 3, web address confirmed available')
+
     await page.getByRole('button', { name: /Next step/ }).click()
 
     // Step 4 — the no-card trial.
@@ -59,6 +71,8 @@ test.describe('the stranger journey', () => {
     await expect(page.getByText(/your site is ready/i)).toBeVisible()
     await expect(page.getByText(/site is live/i)).toHaveCount(0)
 
+    await expectNoA11yViolations(page, 'onboarding: the finished page')
+
     // Into the dashboard: their own clinic, by name.
     await page.getByRole('link', { name: 'Go to dashboard' }).click()
     await page.waitForURL(/\/(dashboard)?$/, { timeout: 60_000 })
@@ -69,6 +83,10 @@ test.describe('the stranger journey', () => {
     await expect(page.locator('body')).not.toContainText('Casey Confirmable')
     await expect(page.locator('body')).not.toContainText('E2E Dental')
 
+    // A brand-new clinic's patients list is the EMPTY state — a different
+    // component tree from the populated list the tenant-boundary spec checks.
+    await expectNoA11yViolations(page, 'staff: patients list, brand-new empty clinic')
+
     // FIRST DAY OF WORK: add the clinic's first patient through the real
     // modal and land on their chart — staff CRUD, in a browser, same session.
     await page.getByRole('button', { name: /Add patient/ }).first().click()
@@ -77,6 +95,9 @@ test.describe('the stranger journey', () => {
     await dialog.getByLabel('Last name').fill('First')
     await dialog.getByLabel('Email').fill('pat.first@example.com')
     await dialog.getByLabel('Phone').fill('5550100300')
+
+    await expectNoA11yViolations(page, 'staff: add-patient dialog, filled in')
+
     await dialog.getByRole('button', { name: 'Save & open' }).click()
     await page.waitForURL('**/patients/*', { timeout: 30_000 })
     await expect(page.getByText('Pat First').first()).toBeVisible()
