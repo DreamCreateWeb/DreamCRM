@@ -68,11 +68,18 @@ export default function CartView({
       phone: phone.trim() || null,
       couponCode: discountCents > 0 ? code.trim() : null,
     })
-      .then(({ url }) => {
-        window.location.href = url
+      .then((res) => {
+        if (!res.ok) {
+          setError(res.error)
+          setBusy(false)
+          return
+        }
+        window.location.href = res.url
       })
-      .catch((err) => {
-        setError((err as Error).message)
+      .catch(() => {
+        // The action itself answers with { ok: false } for every failure it can
+        // see; reaching here means the request never completed.
+        setError('We couldn’t reach the shop just now — check your connection and try again.')
         setBusy(false)
       })
   }

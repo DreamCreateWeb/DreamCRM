@@ -59,18 +59,26 @@ export default function MembershipJoin({ slug, brand, plans }: { slug: string; b
       hp: honeypot,
       ts: loadedAt,
     })
-      .then(({ url }) => {
+      .then((res) => {
+        if (!res.ok) {
+          setError(res.error)
+          setBusy(false)
+          return
+        }
         // Guard against an empty/missing URL — never navigate to "" (which
         // would silently reload the page and look like the button did nothing).
-        if (url) {
-          window.location.href = url
+        // The silent spam drop answers ok with a blank url and lands here.
+        if (res.url) {
+          window.location.href = res.url
         } else {
           setError('We couldn’t start checkout. Please try again, or call our front desk.')
           setBusy(false)
         }
       })
-      .catch((err) => {
-        setError((err as Error).message)
+      .catch(() => {
+        // The action itself answers with { ok: false } for every failure it can
+        // see; reaching here means the request never completed.
+        setError('We couldn’t reach the practice just now — check your connection and try again.')
         setBusy(false)
       })
   }

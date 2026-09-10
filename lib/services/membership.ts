@@ -7,6 +7,7 @@ import { slugify } from '@/lib/utils'
 import { notifyOrgMembers } from './notifications'
 import { sendNotificationEmail } from '@/lib/email'
 import { normalizePhone, samePhone } from '@/lib/contact-normalize'
+import { CheckoutError } from './checkout-error'
 import type {
   PlanRow,
   PlanInput,
@@ -210,8 +211,8 @@ export async function createMembershipCheckout(
   input: JoinInput,
 ): Promise<{ url: string }> {
   const accountId = await connectedAccountId(organizationId)
-  if (!accountId) throw new Error('This practice isn’t set up to accept memberships yet.')
-  if (!input.email) throw new Error('An email is required to join.')
+  if (!accountId) throw new CheckoutError('This practice isn’t set up to accept memberships yet.')
+  if (!input.email) throw new CheckoutError('An email is required to join.')
 
   const [plan] = await db
     .select()
@@ -224,7 +225,7 @@ export async function createMembershipCheckout(
       ),
     )
     .limit(1)
-  if (!plan) throw new Error('That plan isn’t available.')
+  if (!plan) throw new CheckoutError('That plan isn’t available.')
 
   const priceId = await ensurePlanPrice(plan, accountId)
 
@@ -299,7 +300,7 @@ export async function createMembershipCheckout(
       (m.status === 'pending' && nowMs - m.createdAt.getTime() < PENDING_REJOIN_WINDOW_MS),
   )
   if (blocking) {
-    throw new Error(
+    throw new CheckoutError(
       blocking.status === 'pending'
         ? 'You already have a join in progress — check your email for the checkout link, or try again shortly.'
         : 'You’re already a member of this plan.',
@@ -315,33 +316,74 @@ export async function createMembershipCheckout(
     status: 'pending',
   })
 
-  // 1% platform fee on recurring membership revenue — same rule as every
-  // other Connect money path (shop_config.platform_fee_bps, percent form
-  // because subscriptions take a percent, not an amount).
-  const [feeRow] = await db
-    .select({ platformFeeBps: schema.shopConfig.platformFeeBps })
-    .from(schema.shopConfig)
-    .where(eq(schema.shopConfig.organizationId, organizationId))
-    .limit(1)
-  const feePercent = (feeRow?.platformFeeBps ?? 0) / 100
+  // The 'pending' row above is what stops a double-submit — and it is also what
+  // punishes a Stripe outage: PENDING_REJOIN_WINDOW_MS says "you already have a
+  // join in progress" for an hour, so a patient whose checkout died through no
+  // fault of their own cannot try again until it expires. If we never reach
+  // Stripe, take the row back out.
+  try {
+    // 1% platform fee on recurring membership revenue — same rule as every
+    // other Connect money path (shop_config.platform_fee_bps, percent form
+    // because subscriptions take a percent, not an amount).
+    const [feeRow] = await db
+      .select({ platformFeeBps: schema.shopConfig.platformFeeBps })
+      .from(schema.shopConfig)
+      .where(eq(schema.shopConfig.organizationId, organizationId))
+      .limit(1)
+    const feePercent = (feeRow?.platformFeeBps ?? 0) / 100
 
-  const session = await stripe.checkout.sessions.create(
-    {
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      customer_email: input.email,
-      success_url: `${baseUrl}/membership/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/membership`,
-      metadata: { membershipId, organizationId },
-      subscription_data: {
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: 1 }],
+        customer_email: input.email,
+        success_url: `${baseUrl}/membership/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/membership`,
         metadata: { membershipId, organizationId },
-        ...(feePercent > 0 ? { application_fee_percent: feePercent } : {}),
-      },
-    } as never,
-    { stripeAccount: accountId },
-  )
-  if (!session.url) throw new Error('We couldn’t start checkout just now — please try again in a moment.')
-  return { url: session.url }
+        subscription_data: {
+          metadata: { membershipId, organizationId },
+          ...(feePercent > 0 ? { application_fee_percent: feePercent } : {}),
+        },
+      } as never,
+      { stripeAccount: accountId },
+    )
+    // A hosted session always carries a URL; no URL means we cannot send the
+    // patient anywhere. Not a message we wrote for them — the caller maps it.
+    if (!session.url) throw new Error('Stripe returned a checkout session with no URL')
+    return { url: session.url }
+  } catch (err) {
+    await discardUnstartedMembership(organizationId, membershipId)
+    throw err
+  }
+}
+
+/**
+ * Remove a just-created 'pending' membership whose checkout never started.
+ *
+ * Same narrow scope as cleanupStalePendingMemberships, plus the exact id: a
+ * pending row that already carries a subscription is mid-activation and the
+ * finalizer is about to flip it, so it is never touched. The auto-created
+ * patient row (if any) is deliberately left in place — that person really did
+ * hand us their details, and the sweep makes the same call.
+ *
+ * Best-effort: a failed cleanup must not replace the real error (a Stripe
+ * outage) with a database one in front of the patient.
+ */
+async function discardUnstartedMembership(organizationId: string, membershipId: string): Promise<void> {
+  try {
+    await db
+      .delete(schema.membership)
+      .where(
+        and(
+          eq(schema.membership.organizationId, organizationId),
+          eq(schema.membership.id, membershipId),
+          eq(schema.membership.status, 'pending'),
+          sql`${schema.membership.stripeSubscriptionId} is null`,
+        ),
+      )
+  } catch (err) {
+    console.warn('[membership] could not clean up an unstarted join', { membershipId }, err)
+  }
 }
 
 /** Idempotently activate a membership once its subscription checkout completes. */
