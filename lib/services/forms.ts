@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, max, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -57,7 +57,12 @@ export async function getSubmissionStatsForTemplates(
     .select({
       formTemplateId: formSubmission.formTemplateId,
       count: sql<number>`count(*)::int`,
-      lastSubmittedAt: sql<Date | string | null>`max(${formSubmission.submittedAt})`,
+      // drizzle's max() carries the COLUMN's driver mapper. The bare `sql`
+      // form loses it, and `submitted_at` is `timestamp` without a zone: its
+      // mapper reads the raw text as UTC, while the `new Date(...)` that used to
+      // follow read the same text in the HOST's zone. The `| string` in the old
+      // annotation was that bug, written down.
+      lastSubmittedAt: max(formSubmission.submittedAt),
     })
     .from(formSubmission)
     .where(eq(formSubmission.organizationId, organizationId))
@@ -67,7 +72,7 @@ export async function getSubmissionStatsForTemplates(
   for (const r of rows) {
     map.set(r.formTemplateId, {
       count: Number(r.count) || 0,
-      lastSubmittedAt: r.lastSubmittedAt ? new Date(r.lastSubmittedAt) : null,
+      lastSubmittedAt: r.lastSubmittedAt ?? null,
     })
   }
   return map
