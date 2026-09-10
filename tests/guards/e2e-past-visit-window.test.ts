@@ -87,6 +87,21 @@ describe('the E2E past-visit fixture lands inside the Past 30 days window', () =
     }
   }
 
+  // The two bounds above are RESTATED from lib/services/appointments.ts, whose
+  // resolveWindow() is module-private and so cannot be imported. That restating
+  // is the one way this guard can rot: redefine the past_30d chip and every
+  // case above keeps happily asserting the old contract. So pin the definition
+  // the same way the seed offset is pinned — by reading it.
+  it('past_30d still means [clinic day start -30, clinic day start)', () => {
+    const src = readFileSync(resolve(process.cwd(), 'lib/services/appointments.ts'), 'utf8')
+    const past30d =
+      /case 'past_30d':\s*return \{\s*from: clinicDayStart\(now, timeZone, -30\),\s*to: clinicDayStart\(now, timeZone\),\s*isPast: true\s*\}/
+    expect(
+      past30d.test(src),
+      'the past_30d window moved — re-derive the seed offset above before trusting this guard',
+    ).toBe(true)
+  })
+
   it('would have caught the original one-day-back seed', () => {
     // The guard is worth nothing if it passes for the value that was broken.
     const now = new Date('2026-09-10T00:30:00Z')
