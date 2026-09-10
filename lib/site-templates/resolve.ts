@@ -67,8 +67,12 @@ export interface ActiveSiteTemplate {
  *
  * Caching it would serve one owner's template preview — or a gallery frame's
  * forced template — as the live design for every visitor to that clinic.
- * `tests/clinic-site/site-load-dedupe.test.ts` fails if `unstable_cache`
- * appears in any module on this path, including this one.
+ * `tests/clinic-site/site-load-dedupe.test.ts` fails if `unstable_cache` or
+ * Next 16's `'use cache'` directive appears in any module that reads request
+ * state, including this one. That scan derives its set from three keys —
+ * the session, a `next/headers` import, and `getTenantContext` — so this
+ * file is covered by the header import alone, not merely because it happens
+ * to re-gate on `canEditClinic` afterwards.
  */
 export const resolveActiveSiteTemplate = cache(
   async (slug: string): Promise<ActiveSiteTemplate> => {

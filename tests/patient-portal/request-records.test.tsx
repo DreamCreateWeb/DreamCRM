@@ -47,7 +47,23 @@ describe('RequestRecordsCard', () => {
     requestMyRecordsAction.mockResolvedValueOnce({ ok: false, error: 'Something broke' })
     render(<RequestRecordsCard brand="#0a7d72" phone={null} />)
     fireEvent.click(screen.getByRole('button', { name: 'Request my records' }))
-    expect(await screen.findByText(/Something broke/)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Request my records' })).toBeTruthy()
+
+    // Wait for the SETTLED button, not just for the error text.
+    //
+    // `setError` is called INSIDE the `useTransition` callback, and while that
+    // transition is pending the button renders 'Sending…' rather than its
+    // label. React can therefore paint the error paragraph with the button
+    // still in its pending name, so `findByText(/Something broke/)` returning
+    // did NOT mean the interaction had finished — and the next line asked for
+    // the button BY its settled name, synchronously. It won on a quiet machine
+    // and lost under full-suite parallel load (isolated: 3/3 green; in the
+    // full run: red).
+    //
+    // Note the file's `asyncUtilTimeout` bump above could never have helped
+    // here: the assertion that failed was synchronous, so there was no timeout
+    // to raise. This is the same defect as `tests/patients/digest-toggle.test.tsx`
+    // — settle on the accessible name, then assert the rest.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Request my records' })).toBeTruthy())
+    expect(screen.getByText(/Something broke/)).toBeTruthy()
   })
 })

@@ -119,13 +119,30 @@ function walkTs(dir: string, out: string[] = []): string[] {
   return out
 }
 
-/** Source with comments blanked, so a scan reads code rather than prose. */
+/**
+ * Source with comments blanked, so a scan reads code rather than prose.
+ *
+ * THE LINE-COMMENT ARM WAS DEAD ON THIS REPO UNTIL NOW. It read
+ * `line.replace(/\/\/.*$/, '')`, and two JS details combine badly on a CRLF
+ * checkout: `.` does not match `\r`, and `$` without the `m` flag anchors to
+ * the end of the STRING. After `split('\n')` every line still ended in `\r`,
+ * so `.*` stopped short of it and `$` could not match — line comments
+ * survived the strip entirely. It went unnoticed because the false positive
+ * this helper was written for was a block comment, and that arm worked.
+ *
+ * Found by using the helper for the derivation below, where three files
+ * (`lib/db/schema/platform.ts:450`, `lib/db/schema/referrals.ts:14`,
+ * `lib/modules/types.ts:11`) joined the viewer-dependent set on the strength
+ * of a `//` mention of `getTenantContext`.
+ *
+ * `[^\n]*` consumes the `\r` too, so both endings behave the same. This is a
+ * token scanner, not a parser: a `//` inside a string or regex literal takes
+ * the rest of that line with it. That can only ever strip too much, which
+ * would drop a file from the derived set — the canary below is what catches
+ * that, and it is the reason the canary exists.
+ */
 function stripComments(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .map((line) => line.replace(/\/\/.*$/, ''))
-    .join('\n')
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
 }
 
 beforeEach(() => {
@@ -164,46 +181,127 @@ describe('the loaders are the request-scoped kind', () => {
   })
 
   /**
-   * NO MODULE ON THE PUBLIC READ PATH HOLDS A DURABLE CACHE.
+   * NO VIEWER-DEPENDENT MODULE UNDER lib/ HOLDS A DURABLE CACHE.
    *
    * The first version of this read ONE file — the loader I had just split —
    * so the stop sign stood in front of the safest of the three and not the
    * most dangerous. `lib/site-templates/resolve.ts` had zero coverage, and
    * caching it would serve one owner's template preview as the live design
-   * for every visitor to that clinic.
+   * for every visitor to that clinic. So the set became DERIVED rather than
+   * listed, keyed on `canEditClinic`.
    *
-   * So the set is DERIVED rather than listed: every module under `lib/` that
-   * consumes `canEditClinic` is by definition viewer-dependent, and none of
-   * them may outlive the request. A fourth loader added tomorrow is covered
-   * the moment it reaches for the session — which is the property that made
-   * my last hand-written note incomplete.
+   * That key was still a CORRELATE rather than the property. What makes a
+   * read viewer-dependent is that it consults REQUEST STATE; the session is
+   * only the most common way to do it. `resolveActiveSiteTemplate` — the
+   * category-3 case, and the most dangerous of the three — is decided by a
+   * request header and a cookie, and it landed in the old set purely because
+   * it happens to re-gate on `canEditClinic` afterwards. A module that read
+   * the header WITHOUT the session check would have been invisible.
+   *
+   * So the derivation is a UNION of three keys, and the cost of widening it
+   * is four files, not dozens (measured, not assumed — see OFF_PATH).
    */
   it('no viewer-dependent module under lib/ reaches for a durable cache', () => {
-    const viewerDependent = walkTs('lib')
-      .filter((f) => f !== 'lib/clinic-site-edit.ts') // the definition, not a consumer
-      .filter((f) => /\bcanEditClinic\b/.test(readFileSync(f, 'utf8')))
+    /**
+     * `unstable_cache` was the entire list until this pass, which aged badly:
+     * this repo is Next 16, and `'use cache'` is the first thing an idiomatic
+     * implementation reaches for. A guard naming only the older API would
+     * have waved through the likelier mistake.
+     */
+    const DURABLE_CACHE = /unstable_cache|['"`]use cache['"`]/
 
-    // A derived set that comes back empty passes forever.
-    expect(viewerDependent.length, 'the scan found no canEditClinic consumers').toBeGreaterThan(0)
+    /** Each key is one way a module's answer can depend on the request. */
+    const KEYS: Array<[string, RegExp]> = [
+      ['the session — canEditClinic', /\bcanEditClinic\b/],
+      ['request transport — next/headers', /from ['"]next\/headers['"]/],
+      ['the tenant resolver — getTenantContext', /\bgetTenantContext\b/],
+    ]
+
+    /**
+     * In the derived set deliberately: they read request state for reasons
+     * that have nothing to do with the public clinic site. Listed so the set
+     * reads as four considered exclusions rather than four surprises — and
+     * as a CANARY: each is asserted to still match, so a derivation that
+     * silently stops finding files fails here instead of passing empty.
+     *
+     * They are NOT exempt from the check below. Durably caching a session
+     * or tenant lookup is its own bug, and none of them do it today, so
+     * exempting them would trade real coverage for nothing.
+     */
+    const OFF_PATH: Record<string, string> = {
+      'lib/auth/context.ts': 'the tenant resolver itself — every request enters here',
+      'lib/session.ts': 'the session layer itself',
+      'lib/services/rate-limit.ts': 'keys on the caller IP; never on the public render path',
+      'lib/demo-skin.ts': "a platform admin's presenter-mode skin, dashboard surfaces only",
+    }
+
+    const scanned: Array<[string, string]> = walkTs('lib').map((f) => [
+      f,
+      stripComments(readFileSync(f, 'utf8')),
+    ])
+
+    // A derived set that comes back empty passes forever — so every key has
+    // to still be finding something, individually. One key rotting out (a
+    // renamed export, a changed import form) must not be covered for by the
+    // other two.
+    for (const [label, re] of KEYS) {
+      const hits = scanned.filter(([, src]) => re.test(src))
+      expect(hits.length, `the "${label}" key matched nothing — it has gone stale`).toBeGreaterThan(0)
+    }
+
+    const derived = scanned.filter(([, src]) => KEYS.some(([, re]) => re.test(src)))
+    const viewerDependent = derived.map(([f]) => f)
+
+    // The three that must never cache, named explicitly: the site payload,
+    // the theme, and the template resolver.
     expect(viewerDependent).toContain('lib/services/clinic-site.ts')
     expect(viewerDependent).toContain('lib/site-templates/resolve.ts')
+    expect(viewerDependent).toContain('lib/clinic-site-edit.ts')
 
-    // COMMENTS STRIPPED. These files discuss `unstable_cache` at length —
-    // explaining precisely why it must not be used — so a raw scan reads the
-    // explanation as the offence. It did, the first time the published read
-    // was split out.
-    const offenders = viewerDependent.filter((f) =>
-      /unstable_cache/.test(stripComments(readFileSync(f, 'utf8'))),
-    )
+    for (const [file, reason] of Object.entries(OFF_PATH)) {
+      expect(
+        viewerDependent,
+        `${file} is allowlisted (${reason}) but the scan no longer finds it —\n` +
+          `the derivation has drifted, and whatever it stopped matching it may\n` +
+          `also have stopped matching on the public site path.`,
+      ).toContain(file)
+    }
+
+    // COMMENTS STRIPPED, on BOTH sides. clinic-site.ts and resolve.ts
+    // discuss `unstable_cache` at length — explaining precisely why it must
+    // not be used — so a raw scan reads the explanation as the offence. It
+    // did, the first time the published read was split out. The derivation
+    // needs the same treatment for the same reason in reverse: three schema
+    // and module files mention `getTenantContext` in a `//` comment and
+    // would otherwise join the set on the strength of prose.
+    const offenders = derived.filter(([, src]) => DURABLE_CACHE.test(src)).map(([f]) => f)
     expect(
       offenders,
-      `These read the session and therefore differ per viewer, so a cache that\n` +
-        `outlives the request serves one viewer's answer to the next — a clinic's\n` +
-        `unpublished content, colour or design on their live public site.\n` +
+      `These depend on the request and therefore differ per viewer, so a cache\n` +
+        `that outlives the request serves one viewer's answer to the next — a\n` +
+        `clinic's unpublished content, colour or design on their live public site.\n` +
         `Split the published half out FIRST (loadPublishedSite / loadPublishedTheme\n` +
         `are the worked examples), or — for resolve.ts — accept that there is no\n` +
-        `published half and it stays per-request:\n${offenders.join('\n')}`,
+        `published half and it stays per-request. If the cache key genuinely\n` +
+        `carries the viewer, say so in the PR and get it reviewed; do not widen\n` +
+        `this list quietly:\n${offenders.join('\n')}`,
     ).toEqual([])
+  })
+
+  /**
+   * THE DERIVATION IS NARROWER THAN "ANY FILE THAT CACHES".
+   *
+   * A scan that swept up every durable cache in the repo would be a guard
+   * against caching, not against caching the WRONG THING, and the first
+   * legitimate cache would get it deleted. `lib/services/guardian.ts` is the
+   * live proof: `cachedEngineHealth` is a platform-wide daily judgement with
+   * no viewer in it at all, correctly cached, and the scan must leave it
+   * alone. If this ever fails, the keys above have gone too broad.
+   */
+  it('leaves a legitimate viewer-independent cache alone', () => {
+    const src = stripComments(readFileSync('lib/services/guardian.ts', 'utf8'))
+    expect(src, 'the negative control no longer caches — pick another').toMatch(/unstable_cache/)
+    expect(/\bcanEditClinic\b|from ['"]next\/headers['"]|\bgetTenantContext\b/.test(src)).toBe(false)
   })
 
   it('still returns the right site per slug', async () => {
