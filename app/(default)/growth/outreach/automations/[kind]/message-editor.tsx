@@ -196,8 +196,8 @@ export default function AutomationMessageEditor({
                 Saving makes this your version — you can always reset.
               </span>
             )}
-            <ActionButton variant="primary" size="sm" onClick={save} disabled={pending || !dirty}>
-              {pending ? 'Saving…' : 'Save message'}
+            <ActionButton variant="primary" size="sm" onClick={save} pending={pending} disabled={!dirty}>
+              Save message
             </ActionButton>
           </>
         ) : (

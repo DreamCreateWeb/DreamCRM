@@ -103,7 +103,7 @@ export default function EligibleList({ rows }: Props) {
                   pending={pending}
                   className="shrink-0"
                 >
-                  {pending ? 'Sending…' : 'Send request'}
+                  Send request
                 </ActionButton>
               )}
             </li>

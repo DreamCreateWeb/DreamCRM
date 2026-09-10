@@ -99,10 +99,11 @@ export default function NotesPanel({
         variant="primary"
         size="sm"
         onClick={add}
-        disabled={pending || !body.trim()}
+        pending={pending}
+        disabled={!body.trim()}
         className="w-full justify-center"
       >
-        {pending ? 'Saving…' : 'Add note'}
+        Add note
       </ActionButton>
     </div>
   )

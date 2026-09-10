@@ -262,7 +262,7 @@ export default function GbpSyncCard({ state }: { state: GbpSyncState }) {
       <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Sync from Google</h3>
         <ActionButton variant="primary" size="sm" onClick={runSync} pending={pending}>
-          {pending ? 'Syncing…' : 'Sync from Google'}
+          Sync from Google
         </ActionButton>
       </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-prose">

@@ -237,9 +237,10 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                           variant="primary"
                           size="sm"
                           type="submit"
-                          disabled={pwBusy || !meetsMin || currentPw.length < MIN_PASSWORD_LENGTH}
+                          pending={pwBusy}
+                          disabled={!meetsMin || currentPw.length < MIN_PASSWORD_LENGTH}
                         >
-                          {pwBusy ? 'Updating…' : 'Update password'}
+                          Update password
                         </ActionButton>
                       </div>
                     </form>

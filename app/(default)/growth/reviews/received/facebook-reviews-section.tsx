@@ -135,8 +135,8 @@ export default function FacebookReviewsSection({
             </span>
           )}
         </div>
-        <ActionButton variant="secondary" size="sm" onClick={refresh} disabled={refreshing}>
-          {refreshing ? 'Refreshing…' : 'Refresh from Facebook'}
+        <ActionButton variant="secondary" size="sm" onClick={refresh} pending={refreshing}>
+          Refresh from Facebook
         </ActionButton>
       </div>
       {error && <p className={`text-xs mb-2 ${TONE_TEXT.urgent}`}>{error}</p>}
@@ -146,8 +146,8 @@ export default function FacebookReviewsSection({
           title="No Facebook recommendations synced yet"
           body="Pull the latest from Facebook, or wait for the hourly sync. Facebook uses a recommend / don't-recommend model rather than star ratings, so these don't affect your website's Google star rating."
           action={
-            <ActionButton variant="secondary" size="sm" onClick={refresh} disabled={refreshing}>
-              {refreshing ? 'Refreshing…' : 'Refresh from Facebook'}
+            <ActionButton variant="secondary" size="sm" onClick={refresh} pending={refreshing}>
+              Refresh from Facebook
             </ActionButton>
           }
         />

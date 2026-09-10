@@ -55,10 +55,11 @@ export function NewsletterCard({ publishedPostCount }: { publishedPostCount: num
           variant="secondary"
           size="sm"
           onClick={draft}
-          disabled={pending || publishedPostCount === 0}
+          pending={pending}
+          disabled={publishedPostCount === 0}
           title={publishedPostCount === 0 ? 'Publish a blog post first — the newsletter is built from your posts' : undefined}
         >
-          {pending ? 'Drafting…' : 'Draft this month’s issue'}
+          Draft this month’s issue
         </ActionButton>
       </div>
     </div>

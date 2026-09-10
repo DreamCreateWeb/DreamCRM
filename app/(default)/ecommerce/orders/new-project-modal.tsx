@@ -186,8 +186,8 @@ export default function NewProjectModal({ clinics }: Props) {
                     >
                       Cancel
                     </ActionButton>
-                    <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !title}>
-                      {pending ? 'Creating…' : 'Create project'}
+                    <ActionButton variant="primary" size="sm" type="submit" pending={pending} disabled={!title}>
+                      Create project
                     </ActionButton>
                   </div>
                 </form>
