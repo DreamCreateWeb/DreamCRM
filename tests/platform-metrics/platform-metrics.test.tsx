@@ -92,12 +92,20 @@ beforeEach(() => {
 })
 
 describe('PlatformMetrics', () => {
-  it('says the money is UNKNOWN when Stripe is unreachable, never $0', async () => {
-    // The owner's own revenue page printing a confident $0 on a Stripe blip
-    // is a worse failure than the stale number this replaced.
+  it('renders an em dash for ARPU and no MRR figure when Stripe is unreachable', async () => {
+    // Assert the NUMBERS, not the captions beside them: a guard that only
+    // reads the caption stays green while $0 sits directly above it, which
+    // IS the bug. `stripeUnavailable` with zeroed money is exactly what
+    // getPlatformMrr returns on a Stripe failure.
     stubs.mrr.stripeUnavailable = true
+    stubs.mrr.monthlyRecurringCents = 0
+    stubs.mrr.arpu = 0
     render(await PlatformMetrics())
-    expect(screen.getAllByText('Couldn’t reach Stripe').length).toBeGreaterThan(0)
+
+    expect(screen.queryByText('$0')).not.toBeInTheDocument()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    // The clinic count comes from our own database and stays real.
+    expect(screen.getByText(/6 active subscribers/)).toBeInTheDocument()
     expect(screen.getByText(/MRR unavailable/)).toBeInTheDocument()
   })
 

@@ -103,9 +103,15 @@ describe('PlatformRevenue page', () => {
     stubs.mrr.stripeUnavailable = false
   })
 
-  it('the MRR tile says unknown, not $0, when Stripe is unreachable', async () => {
+  it('the MRR tile renders an em dash, not $0, when Stripe is unreachable', async () => {
+    // Assert the NUMBER. The caption alone would stay green with $0 above it.
     stubs.mrr.stripeUnavailable = true
+    stubs.mrr.monthlyRecurringCents = 0
+    stubs.mrr.annualRunRateCents = 0
     render(await PlatformRevenue())
+
+    expect(screen.queryByText('$0')).not.toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.getByText(/couldn’t reach Stripe/i)).toBeInTheDocument()
   })
 

@@ -103,15 +103,19 @@ beforeEach(() => {
 })
 
 describe('PlatformOverview', () => {
-  it('the MRR tile says UNKNOWN when Stripe is unreachable, never $0', async () => {
-    // The counts still come from our own database and stay real; only the
-    // money is unknown. Printing $0 on the owner's revenue tile because a
-    // third party blipped is a worse failure than the stale number this
-    // replaced.
+  it('the MRR tile renders an em dash, not $0, when Stripe is unreachable', async () => {
+    // Assert the NUMBER, not the caption underneath it. `stripeUnavailable`
+    // with `monthlyRecurringCents: 0` is exactly what getPlatformMrr returns
+    // on a Stripe failure, and a guard that only reads the caption stays
+    // green while $0 sits directly above it — which IS the bug.
     stubSubs = { ...stubSubs, activeClinics: 4, monthlyRecurringCents: 0, stripeUnavailable: true }
     render(await PlatformOverview())
+
+    expect(screen.queryByText('$0')).not.toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
+    // The counts come from our own database and stay real.
+    expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('Couldn’t reach Stripe')).toBeInTheDocument()
-    expect(screen.queryByText('From live Stripe subscriptions')).not.toBeInTheDocument()
   })
 
   it('and names Stripe as the source when it is reachable', async () => {

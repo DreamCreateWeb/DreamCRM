@@ -124,8 +124,13 @@ async function PlatformMarketingDashboard({
         />
         <KpiStat
           label="MRR"
-          value={subs ? formatMoneyShort(subs.monthlyRecurringCents) : '—'}
-          sub="Active subscriptions"
+          // The em dash has to cover TWO ways of not knowing: the read
+          // rejecting (`subs` null), and Stripe being unreachable —
+          // getPlatformMrr swallows that one and resolves with
+          // stripeUnavailable and a zero, so `subs` is non-null and a bare
+          // read would print a confident $0.
+          value={subs && !subs.stripeUnavailable ? formatMoneyShort(subs.monthlyRecurringCents) : '—'}
+          sub={subs?.stripeUnavailable ? 'Couldn’t reach Stripe' : 'Active subscriptions'}
           href="/ecommerce/invoices"
         />
       </div>

@@ -583,6 +583,14 @@ binding are all correct. The payment-plan charger was the exception.
   Found while fixing this line. · **FIXED** (DREAMCRM-23) — it walks pages to
   a documented 20-page bound; an explicit `limit` still means at most that
   many.
+- S3 · `shop-checkout.ts:378` — the lost-race branch returns
+  `{ ...order, status: 'paid' }`. That was accurate while the only way to fail
+  the claim was another writer setting 'paid'; with the positive
+  `eq(status,'pending')` predicate a 'cancelled' order whose session reads
+  paid also lands there, so the shop success page would tell that shopper
+  "your order is confirmed". Nothing is written and no money moves — a
+  cosmetic lie on one page, in a state that needs a cancellation AFTER payment
+  to reach at all. Returning the row's real status closes it. · OPEN.
 - S3 · `listAdminSubscriptions` reads `s.items.data[0]` only, so a
   subscription with more than one item (a plan plus the social add-on, say)
   contributes ONE line's worth to every MRR figure. Pre-dates the MRR work,
