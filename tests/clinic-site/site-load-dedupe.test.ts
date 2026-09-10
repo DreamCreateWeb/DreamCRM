@@ -429,8 +429,23 @@ describe('the theme loader is split the same way', () => {
     websiteDraft: null as unknown,
   }
 
+  /**
+   * Stage a draft where the SCHEMA actually keeps it.
+   *
+   * `websiteDraft` is a `clinic_profile` column. The theme's published read
+   * joins it in, so the mock serves it from the org row — but since the cache
+   * boundary landed, the draft CONTENT is deliberately not in the cached
+   * payload and is re-read from `clinic_profile` directly, for an editor only.
+   * Two reads, one column: the fixture has to set both or it is describing a
+   * database that cannot exist.
+   */
+  function stageDraft(draft: unknown) {
+    state.org = { ...THEMED, websiteDraft: draft }
+    state.profile = { ...state.profile, websiteDraft: draft }
+  }
+
   it('a visitor gets the published brand and template', async () => {
-    state.org = { ...THEMED, websiteDraft: { brandColor: '#ff0000', template: 'cosmetic' } }
+    stageDraft({ brandColor: '#ff0000', template: 'cosmetic' })
     state.canEdit = false
     const mod = await freshRequest()
     const theme = await mod.getClinicThemeBySlug('smilebright')
@@ -440,7 +455,7 @@ describe('the theme loader is split the same way', () => {
   })
 
   it('a verified editor gets the staged brand and template', async () => {
-    state.org = { ...THEMED, websiteDraft: { brandColor: '#ff0000', template: 'cosmetic' } }
+    stageDraft({ brandColor: '#ff0000', template: 'cosmetic' })
     state.canEdit = true
     const mod = await freshRequest()
     const theme = await mod.getClinicThemeBySlug('smilebright')
@@ -452,7 +467,7 @@ describe('the theme loader is split the same way', () => {
   it('a draft that stages only the colour leaves the template published', async () => {
     // The overlay is per-KEY, not all-or-nothing — a partial draft must not
     // blank the design the clinic is actually serving.
-    state.org = { ...THEMED, websiteDraft: { brandColor: '#ff0000' } }
+    stageDraft({ brandColor: '#ff0000' })
     state.canEdit = true
     const mod = await freshRequest()
     const theme = await mod.getClinicThemeBySlug('smilebright')
@@ -468,7 +483,7 @@ describe('the theme loader is split the same way', () => {
     // is a preview where the colour obeys one rule and the tagline the other.
     // The overlay routes through `mergeWebsiteDraft` now; this pins the
     // behaviour so a future re-inlining fails here.
-    state.org = { ...THEMED, websiteDraft: { brandColor: null } }
+    stageDraft({ brandColor: null })
     state.canEdit = true
     const mod = await freshRequest()
     const theme = await mod.getClinicThemeBySlug('smilebright')

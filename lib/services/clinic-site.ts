@@ -9,6 +9,26 @@ import type { ClinicProfile, ClinicLocation } from '@/lib/db/schema/platform'
 import { expandServedHosts } from '@/lib/services/custom-domain'
 import { canEditClinic } from '@/lib/clinic-site-edit'
 import { mergeWebsiteDraft, websiteDraftKeys } from '@/lib/website-draft'
+import { loadPublishedSite, loadPublishedTheme } from '@/lib/services/clinic-site-cache'
+
+/**
+ * Read a clinic's staged draft — the one thing the cached published payload
+ * deliberately does NOT carry.
+ *
+ * Stripping the draft from the cache (Sentinel's note on #503) means the
+ * overlay has to fetch it, and this is the only path that does. It runs ONLY
+ * after `canEditClinic` has already said yes, so an unpublished draft is read
+ * from the database exclusively on behalf of someone entitled to see it, and
+ * never enters a cache that any visitor's request could read from.
+ */
+async function readWebsiteDraft(orgId: string): Promise<unknown> {
+  const [row] = await db
+    .select({ websiteDraft: clinicProfile.websiteDraft })
+    .from(clinicProfile)
+    .where(eq(clinicProfile.organizationId, orgId))
+    .limit(1)
+  return row?.websiteDraft ?? null
+}
 
 const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.com'
 
@@ -143,59 +163,6 @@ export interface ClinicTheme {
   hasEditorDraft: boolean
 }
 
-/**
- * The PUBLISHED palette + template. No session is read here.
- *
- * The sibling of `loadPublishedSite`, and split for the same reason: the theme
- * loader carried the identical Draft→Publish overlay, and it runs on EVERY
- * public clinic page (`app/site/[slug]/layout.tsx`) and decides which template
- * renders the site (`lib/site-templates/resolve.ts`). Caching it as it stood
- * would have put a clinic's unpublished brand colour and design on their live
- * public site — quieter than leaking page copy, and just as public.
- *
- * `hasEditorDraft` is deliberately NOT part of this return. It means "this
- * viewer is an editor with staged edits", which is a fact about the viewer
- * rather than about the clinic, so it cannot exist on the published side at
- * all. `websiteDraft` rides along because the overlay above needs it; stripping
- * it belongs with the durable cache, where it is one change across both
- * loaders rather than two.
- */
-async function loadPublishedTheme(slug: string): Promise<{
-  /** Non-null by construction — a null return means "no clinic for this slug".
-   *  Typed narrowly so the orgId handed to `canEditClinic` below needs no
-   *  non-null assertion: an authorization argument is the last place to put
-   *  one. */
-  orgId: string
-  /** Real column names, not the public `brand` alias — `mergeWebsiteDraft`
-   *  keys off `WEBSITE_DRAFT_COLUMNS`, so the shape handed to it has to speak
-   *  the schema's vocabulary. */
-  brandColor: string | null
-  template: string | null
-  websiteDraft: unknown
-} | null> {
-  const [row] = await db
-    .select({
-      id: organization.id,
-      type: organization.type,
-      brandColor: clinicProfile.brandColor,
-      template: clinicProfile.template,
-      websiteDraft: clinicProfile.websiteDraft,
-    })
-    .from(organization)
-    .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
-    .where(eq(organization.slug, slug))
-    .limit(1)
-
-  if (!row || row.type !== 'clinic') return null
-
-  return {
-    orgId: row.id,
-    brandColor: row.brandColor ?? null,
-    template: row.template ?? null,
-    websiteDraft: row.websiteDraft,
-  }
-}
-
 export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTheme> => {
   const published = await loadPublishedTheme(slug)
   if (!published) return { orgId: null, brand: null, template: null, hasEditorDraft: false }
@@ -203,9 +170,21 @@ export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTh
   // Draft→Publish overlay for the palette + template — same gate as loadSite's
   // content overlay, so a staged brand color / design shows for the editor
   // (and only the editor) on every page. Applied OUTSIDE the published read,
-  // so the half that can be cached never contains one viewer's answer.
-  const draftKeys = websiteDraftKeys(published.websiteDraft)
-  if (draftKeys.length === 0 || !(await canEditClinic(published.orgId))) {
+  // so the durably-cached half never contains one viewer's answer.
+  //
+  // `hasWebsiteDraft` is a clinic fact and rides in the cache; the draft
+  // CONTENT does not, so it is fetched here, after the session says yes.
+  if (!published.hasWebsiteDraft || !(await canEditClinic(published.orgId))) {
+    return {
+      orgId: published.orgId,
+      brand: published.brandColor,
+      template: published.template,
+      hasEditorDraft: false,
+    }
+  }
+
+  const websiteDraft = await readWebsiteDraft(published.orgId)
+  if (websiteDraftKeys(websiteDraft).length === 0) {
     return {
       orgId: published.orgId,
       brand: published.brandColor,
@@ -224,7 +203,7 @@ export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTh
   // single preview disagreeing.
   const merged = mergeWebsiteDraft(
     { brandColor: published.brandColor, template: published.template },
-    published.websiteDraft,
+    websiteDraft,
   )
   return {
     orgId: published.orgId,
@@ -253,9 +232,13 @@ export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTh
  * cache here would hand one viewer's render to the next — and in the direction
  * that matters, that is a clinic's unpublished words on their live public site.
  *
- * Anyone adding a durable cache must FIRST split the published read out of
- * `loadSite` and apply the draft overlay outside it.
- * `tests/clinic-site/site-load-dedupe.test.ts` carries the reasoning.
+ * The durable cache that this warning was written to gate now exists, one
+ * layer down: `lib/services/clinic-site-cache.ts` caches the PUBLISHED half
+ * across requests, and `loadSite` applies the viewer's overlay on top of it
+ * per request. THIS wrapper stays `cache()` — request-scoped — because its
+ * result still depends on who is asking.
+ * `tests/clinic-site/site-load-dedupe.test.ts` carries the reasoning, and
+ * `tests/clinic-site/published-cache.test.ts` guards the boundary itself.
  *
  * One new rule comes with the memo: every caller in a request now shares ONE
  * `ClinicSiteData` object. Sorting `data.locations` in place, or assigning to
@@ -372,52 +355,6 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
 }
 
 /**
- * The PUBLISHED site — what a visitor sees. No session is read here, and that
- * is the entire point of the function existing separately.
- *
- * Everything on this side of the line depends only on `orgId`, so it is the
- * part that can eventually be cached across requests and invalidated on
- * Draft→Publish. The viewer-dependent overlay lives in `loadSite` below,
- * OUTSIDE it. Keeping the two apart is what makes a durable cache safe to add:
- * caching a function that has already merged someone's draft would serve that
- * draft to the next visitor, which is a clinic's unpublished words on their
- * own live public site.
- *
- * The split is deliberately structural-only for now — nothing is cached yet.
- * `tests/clinic-site/site-load-dedupe.test.ts` fails if `unstable_cache` OR
- * Next 16's `'use cache'` directive appears in this file, and that assertion
- * moves onto THIS function (not `loadSite`) when the durable cache lands.
- */
-async function loadPublishedSite(
-  orgId: string,
-  slug: string,
-  orgName: string,
-): Promise<ClinicSiteData | null> {
-  const [profile] = await db
-    .select()
-    .from(clinicProfile)
-    .where(eq(clinicProfile.organizationId, orgId))
-    .limit(1)
-
-  if (!profile) return null
-
-  const locations = await db
-    .select()
-    .from(clinicLocation)
-    .where(eq(clinicLocation.organizationId, orgId))
-    .orderBy(desc(clinicLocation.isPrimary), clinicLocation.createdAt)
-
-  return {
-    orgId,
-    orgName,
-    slug,
-    profile,
-    primaryLocation: locations.find((l) => l.isPrimary === 1) ?? locations[0] ?? null,
-    locations,
-  }
-}
-
-/**
  * The published site, plus the Draft→Publish overlay when — and only when —
  * the viewer is a verified editor of THIS clinic.
  *
@@ -432,23 +369,32 @@ async function loadPublishedSite(
  * returns a new profile rather than mutating, which is true and misses the
  * path that matters: with no draft, `loadSite` returns `published` UNCHANGED,
  * and that is what essentially all traffic gets. So the object callers hold is
- * usually the one `loadPublishedSite` built — the very object a durable cache
- * would hand to the next request. An in-place `sort()` on `.locations` is a
- * private mistake today and a cross-request corruption tomorrow.
+ * usually the one `loadPublishedSite` built — the very object the durable
+ * cache hands to the NEXT request. An in-place `sort()` on `.locations` used
+ * to be a private mistake; it is now a cross-request corruption.
  *
- * Slice 2 freezes the published payload so that becomes a throw in dev rather
- * than documentation nobody reads.
+ * Which is why this is no longer only documentation: the published payload is
+ * deep-frozen at the cache boundary, so an in-place mutation throws instead of
+ * quietly reordering somebody else's page.
  */
 async function loadSite(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {
   const published = await loadPublishedSite(orgId, slug, orgName)
   if (!published) return null
 
-  const draftKeys = websiteDraftKeys(published.profile.websiteDraft)
-  if (draftKeys.length === 0 || !(await canEditClinic(orgId))) return published
+  // `hasWebsiteDraft` is a clinic fact and rides in the cache; the draft
+  // CONTENT does not. So the session is consulted first and the draft is read
+  // only for someone already entitled to see it.
+  if (!published.hasWebsiteDraft || !(await canEditClinic(orgId))) return published
 
+  const websiteDraft = await readWebsiteDraft(orgId)
+  if (websiteDraftKeys(websiteDraft).length === 0) return published
+
+  // `mergeWebsiteDraft` returns a NEW profile, so the frozen published one is
+  // never written through — which matters now that it is shared across
+  // requests rather than merely across two passes of one render.
   return {
     ...published,
-    profile: mergeWebsiteDraft(published.profile, published.profile.websiteDraft),
+    profile: mergeWebsiteDraft({ ...published.profile, websiteDraft }, websiteDraft),
   }
 }
 
