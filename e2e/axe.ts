@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page } from '@playwright/test'
+import { A11Y_BASELINE } from './axe-baseline'
 
 type Violation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number]
 
@@ -73,12 +74,53 @@ export async function findA11yViolations(
 }
 
 /**
- * Scan the current page state and fail the test if axe finds anything.
+ * Which rules exceed what the baseline carries. THE RATCHET, in one function.
+ *
+ * Takes the allowance rather than the stop name so `e2e/axe-selftest.spec.ts`
+ * can pin the direction against its own literals — otherwise the self-test
+ * would encode today's real numbers and break every time somebody fixes
+ * something, which is the one PR it must never obstruct.
+ *
+ * A rule absent from `allowed` has a ceiling of ZERO, which is what makes a
+ * new kind of violation, and an entirely new stop, fail on arrival.
+ */
+export function rulesOverBaseline(
+  allowed: Record<string, number>,
+  counts: Record<string, number>,
+): string[] {
+  return Object.entries(counts)
+    .filter(([rule, n]) => n > (allowed[rule] ?? 0))
+    .map(([rule]) => rule)
+}
+
+/** Print a violation with every offending element and axe's own explanation. */
+function report(prefix: string, v: Violation): void {
+  console.log(`${prefix} ${v.id} (${v.impact ?? 'unknown'}) ×${v.nodes.length}: ${v.help}`)
+  console.log(`    ${v.helpUrl}`)
+  for (const node of v.nodes) {
+    console.log(`    at: ${node.target.join(' ')}`)
+    for (const line of (node.failureSummary ?? '').split('\n').filter(Boolean)) {
+      console.log(`      ${line}`)
+    }
+  }
+}
+
+/**
+ * Scan the current page state and fail the test on anything the baseline in
+ * `e2e/axe-baseline.ts` does not already account for.
  *
  * `stop` names the page AND the state — "portal: appointments, reschedule
  * panel open", not "portal". The state is the point: an empty dialog and an
  * open one are different pages as far as a screen reader is concerned, and the
- * name is what a reader of a red CI log has to work from.
+ * name is what a reader of a red CI log has to work from. It is also the
+ * baseline's key, so renaming a stop resets it to zero-tolerance — which is
+ * the safe direction to be wrong in.
+ *
+ * THE BASELINE IS A CEILING PER (STOP, RULE) AND ONLY EVER SHRINKS. Read
+ * `e2e/axe-baseline.ts` for what is in it and why it exists at all; the short
+ * version is that the first run over real pages found 214 pre-existing
+ * violations in UI code that QA does not change. Anything above a ceiling,
+ * any rule not listed, and any stop not listed fails.
  *
  * Uses a SOFT assertion on purpose. A run that stops at the first bad stop
  * tells you about one problem and hides the other twenty-odd; every stop
@@ -94,31 +136,50 @@ export async function expectNoA11yViolations(
   options: A11yOptions = {},
 ): Promise<void> {
   const violations = await findA11yViolations(page, options)
+  const allowed = A11Y_BASELINE[stop] ?? {}
 
-  if (violations.length === 0) {
-    console.log(`[a11y] ok — ${stop}`)
-    return
-  }
+  const counts = Object.fromEntries(violations.map((v) => [v.id, v.nodes.length]))
+  const overIds = new Set(rulesOverBaseline(allowed, counts))
+  const over = violations.filter((v) => overIds.has(v.id))
 
-  // Print the detail to stdout before asserting: Playwright's own diff shows
-  // WHICH rules failed, and this shows WHICH ELEMENTS and why, which is what
-  // someone actually needs to fix it. The CI log is the only artefact for a
-  // passing-but-noisy run, so make it worth reading.
-  console.log(`[a11y] FAIL — ${stop}`)
-  for (const v of violations) {
-    console.log(`  ${v.id} (${v.impact ?? 'unknown'}) ×${v.nodes.length}: ${v.help}`)
-    console.log(`    ${v.helpUrl}`)
-    for (const node of v.nodes) {
-      console.log(`    at: ${node.target.join(' ')}`)
-      const why = (node.failureSummary ?? '').split('\n').filter(Boolean)
-      for (const line of why) console.log(`      ${line}`)
+  // Improvements. A fixed rule is not a failure — making somebody's a11y FIX
+  // turn their PR red is how a young gate gets bypassed — but an unshrunk
+  // ceiling is dead weight that quietly re-opens room for regressions, so say
+  // so loudly enough to be seen on the run summary.
+  const found = new Map(violations.map((v) => [v.id, v.nodes.length]))
+  for (const [rule, ceiling] of Object.entries(allowed)) {
+    const now = found.get(rule) ?? 0
+    if (now < ceiling) {
+      console.log(
+        `::warning title=Shrink the a11y baseline::"${stop}" / ${rule} is down to ${now} ` +
+          `from a ceiling of ${ceiling}. Lower it in e2e/axe-baseline.ts (delete the entry at 0) ` +
+          `in the same PR as the fix, or the room stays open for a regression.`,
+      )
     }
   }
 
+  if (over.length === 0) {
+    const carried = violations.reduce((n, v) => n + v.nodes.length, 0)
+    console.log(`[a11y] ok — ${stop}${carried ? ` (${carried} carried by the baseline)` : ''}`)
+    return
+  }
+
+  // Print the detail before asserting: Playwright's own diff shows WHICH rules
+  // failed, and this shows WHICH ELEMENTS and why, which is what someone
+  // actually needs to fix it. The CI log is the only artefact anyone gets.
+  console.log(`[a11y] FAIL — ${stop}`)
+  for (const v of over) report(' ', v)
+
   // Compare a summary array against [] rather than asserting a count: the
   // failure message then names the rules instead of saying "expected 0, got 3".
-  const summary = violations.map((v) => `${v.id} (${v.impact ?? 'unknown'}) ×${v.nodes.length}`)
+  const summary = over.map(
+    (v) => `${v.id} ×${v.nodes.length} (baseline allows ${allowed[v.id] ?? 0})`,
+  )
   expect
-    .soft(summary, `accessibility violations at "${stop}" — see the [a11y] block above for elements`)
+    .soft(
+      summary,
+      `NEW accessibility violations at "${stop}" — see the [a11y] block above for the elements. ` +
+        `These are above what e2e/axe-baseline.ts already carries; fix them rather than raising it.`,
+    )
     .toEqual([])
 }

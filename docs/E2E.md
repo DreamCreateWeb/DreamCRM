@@ -269,6 +269,37 @@ Rules and conventions:
   rules, and a dependency nobody chose to change should not be able to turn the
   suite red on a Tuesday. Bump it deliberately.
 
+### The baseline (`e2e/axe-baseline.ts`)
+
+The first run over real pages found **214 WCAG AA violations across 25 of the
+35 stops**, in exactly three rules — all of them already live on `main`. The
+checks did not create them, they revealed them, and they are defects in UI code
+that the QA lane does not change. Merging a red gate teaches people to ignore
+red; not landing the checks leaves the 214 in quiet company with whatever
+arrives next week. So they are carried in a baseline, as a **ratchet**:
+
+- Each number is a **ceiling**, not an expectation. Exceed it and the suite fails.
+- A rule not listed for a stop has a ceiling of **zero** — a new *kind* of
+  defect fails even at a stop that already carries debt.
+- A stop not listed at all tolerates nothing. New and renamed stops start clean.
+- Numbers only go **down**. Shrink or delete the entry in the same PR as the
+  fix; a run prints a `::warning` naming every ceiling that is now too high.
+
+A ceiling rather than an exact match because one stop genuinely varies (the
+booking confirmation reported 2 then 1 across two attempts of the same run,
+depending on which slot was free). Exact-match would have been flaky on day one.
+
+`rulesOverBaseline` is the whole ratchet in one pure function, and
+`axe-selftest.spec.ts` pins its direction — at the ceiling passes, one above
+fails, an unlisted rule and an unlisted stop tolerate nothing. Get that
+backwards and every a11y check in the suite silently becomes decorative.
+
+**What is in the baseline today**: 176 `color-contrast` (collapsing to ~24
+distinct token pairs — several at 4.48:1 against a 4.5 requirement), and 25
+`nested-interactive` + 13 `list`, which are one structural pattern: the
+appointments agenda row is an `li[role="button"]` containing its own focusable
+controls. Handed to the UI lane with the full reproduction on DREAMCRM-26.
+
 **`e2e/axe-selftest.spec.ts` is the reason any of this can be trusted.** Every
 other a11y call asserts an ABSENCE, and an absence assertion is
 indistinguishable from a check that has quietly stopped looking. The self-test

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { findA11yViolations } from './axe'
+import { findA11yViolations, rulesOverBaseline } from './axe'
 
 /**
  * THE RED RUN FOR THE ACCESSIBILITY CHECKS, kept permanently.
@@ -72,5 +72,40 @@ test.describe('the accessibility checks can actually fail', () => {
     // The other half: without this, a scanner that returned every rule id
     // unconditionally would satisfy the test above.
     expect(await findA11yViolations(page)).toEqual([])
+  })
+})
+
+/**
+ * The baseline in `e2e/axe-baseline.ts` carries 214 pre-existing violations so
+ * the checks could land without merging red. That makes its comparison the
+ * most safety-critical line in this harness: get the direction wrong and every
+ * a11y check in the suite silently becomes decorative.
+ *
+ * Written against literal allowances rather than real entries on purpose — a
+ * self-test coupled to today's numbers would break on the one PR it must never
+ * obstruct, the one that FIXES something.
+ */
+test.describe('the baseline ratchets down, never up', () => {
+  const allowed = { 'color-contrast': 7 }
+
+  test('at the ceiling is allowed, one above is not', () => {
+    expect(rulesOverBaseline(allowed, { 'color-contrast': 7 })).toEqual([])
+    expect(rulesOverBaseline(allowed, { 'color-contrast': 6 })).toEqual([])
+    expect(rulesOverBaseline(allowed, { 'color-contrast': 8 })).toEqual(['color-contrast'])
+  })
+
+  test('a rule the baseline does not list has a ceiling of zero', () => {
+    // The property that stops the baseline becoming a blanket pardon: a stop
+    // that already carries a contrast debt still fails on a NEW kind of defect.
+    expect(rulesOverBaseline(allowed, { 'color-contrast': 7, 'image-alt': 1 })).toEqual([
+      'image-alt',
+    ])
+  })
+
+  test('a stop with no entry at all tolerates nothing', () => {
+    // A new stop, or a renamed one, starts at zero rather than inheriting a
+    // pardon. Renaming a stop is therefore safe in the strict direction.
+    expect(rulesOverBaseline({}, { 'color-contrast': 1 })).toEqual(['color-contrast'])
+    expect(rulesOverBaseline({}, {})).toEqual([])
   })
 })
