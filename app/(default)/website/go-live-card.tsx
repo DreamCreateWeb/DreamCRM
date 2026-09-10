@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { goLiveAction } from './go-live-actions'
 
@@ -23,6 +23,7 @@ export default function GoLiveCard({ siteHost, attention, openRequired, waiting 
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [live, setLive] = useState(false)
   const [pending, startTransition] = useTransition()
 
   const clean = attention.length === 0 && openRequired.length === 0
@@ -31,13 +32,59 @@ export default function GoLiveCard({ siteHost, attention, openRequired, waiting 
     setError(null)
     startTransition(async () => {
       const res = await goLiveAction()
-      if (res.ok) {
-        router.refresh()
-      } else {
+      if (!res.ok) {
         setError(res.error)
         setConfirming(false)
+        return
       }
+      // The site is live NOW — the action has already stamped site_live_at and
+      // busted the site cache, and the public page serves for real within
+      // ~300ms. Say so here rather than waiting for the server to re-render
+      // this hub, which is a different clock entirely (see below).
+      setLive(true)
     })
+  }
+
+  // THE REFRESH GOES OUTSIDE THE ACTION'S TRANSITION, ON PURPOSE.
+  //
+  // It used to be `router.refresh()` in the same async `startTransition`
+  // callback, straight after awaiting the action. `router.refresh()` opens a
+  // transition of its own, and nesting it inside one that is itself still
+  // pending starved it: measured twice in a browser (e2e/go-live.spec.ts),
+  // the button read "Going live…" for up to SIXTY SECONDS with no
+  // `GET /website` going out at all, while the site had been live the whole
+  // time. Sometimes it landed immediately — a race, which is worse than a
+  // consistent delay, because the one thing a clinic reliably does with a
+  // button that looks stuck is press it again.
+  //
+  // Scheduling it from an effect puts it after this render commits, in its
+  // own transition, where it can actually flush. The success panel above does
+  // not depend on it: the refresh only decides WHEN this card unmounts, never
+  // whether the clinic is told the truth.
+  useEffect(() => {
+    if (live) router.refresh()
+  }, [live, router])
+
+  if (live) {
+    return (
+      <section className="mb-6">
+        <div
+          role="status"
+          className="v2-card rounded-[var(--r-lg)] border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 p-5"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 mb-1">
+            Live
+          </p>
+          <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+            Your site is online.
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <span className="font-medium">{siteHost}</span> is public now — booking included.
+            Anyone who visits sees the real thing.
+          </p>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -138,15 +185,54 @@ export default function GoLiveCard({ siteHost, attention, openRequired, waiting 
 export function TakeOfflineLink() {
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [offline, setOffline] = useState(false)
   const [pending, startTransition] = useTransition()
 
   function pull() {
+    setError(null)
     startTransition(async () => {
       const { takeSiteOfflineAction } = await import('./go-live-actions')
       const res = await takeSiteOfflineAction()
-      if (res.ok) router.refresh()
+      if (!res.ok) {
+        // It used to throw this away: the result was never read, so a refused
+        // or failed take-offline closed the confirm and left the link looking
+        // exactly like a success. A deliberate-breakage run found the site
+        // still serving with the hub reporting nothing at all. The one thing
+        // this control must never do is imply a site is hidden when it isn't.
+        setError(res.error)
+        setConfirming(false)
+        return
+      }
+      setOffline(true)
       setConfirming(false)
     })
+  }
+
+  // Same reason as GoLiveCard's: a refresh nested inside the action's own
+  // transition can be starved for a minute.
+  useEffect(() => {
+    if (offline) router.refresh()
+  }, [offline, router])
+
+  if (error) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-2 text-sm">
+        <span role="alert" className="font-medium text-rose-600 dark:text-rose-400">
+          {error}. Your site is still live.
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setError(null)
+            setConfirming(true)
+          }}
+          className="font-semibold text-gray-600 underline hover:text-gray-800 dark:text-gray-300"
+        >
+          Try again
+        </button>
+      </span>
+    )
   }
 
   if (confirming) {

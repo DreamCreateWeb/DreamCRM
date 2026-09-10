@@ -256,10 +256,13 @@ export default function PortalBookForm({
       <BrandButton
         brand={brand}
         onClick={submit}
-        disabled={!slotIso || pending}
+        disabled={!slotIso}
+        pending={pending}
         className="w-full py-3.5 text-[0.95rem] sm:w-auto sm:px-8"
       >
-        {!slotIso ? 'Pick a time to continue' : pending ? 'Booking…' : 'Book this visit'}
+        {/* The no-slot-yet label is guidance, not a busy state — it keeps its
+            own words; only the SUBMIT swaps for the spinner. */}
+        {slotIso ? 'Book this visit' : 'Pick a time to continue'}
       </BrandButton>
     </div>
   )

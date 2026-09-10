@@ -3,7 +3,13 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { redeemMyPointsAction } from '@/app/(portal)/patient/actions'
-import { PORTAL_DANGER_INK, PortalCard, PORTAL_INK, PORTAL_MUTED } from '@/components/patient-portal/ui'
+import {
+  PORTAL_DANGER_INK,
+  PortalCard,
+  PORTAL_INK,
+  PORTAL_MUTED,
+  BrandButton,
+} from '@/components/patient-portal/ui'
 
 /**
  * The portal's rewards card: points balance + redeem-for-shop-discount when
@@ -86,15 +92,9 @@ export default function LoyaltyCard({
           : ` At ${redeemPoints.toLocaleString()} points, you can trade them for ${money(redeemValueCents)} off in our shop.`}
       </p>
       {canRedeem && (
-        <button
-          type="button"
-          onClick={redeem}
-          disabled={pending}
-          className="mt-4 rounded-full px-5 py-2.5 text-[0.9rem] font-semibold text-white disabled:opacity-60"
-          style={{ backgroundColor: brand }}
-        >
-          {pending ? 'One sec…' : `Redeem ${redeemPoints.toLocaleString()} pts → ${money(redeemValueCents)} off`}
-        </button>
+        <BrandButton brand={brand} onClick={redeem} pending={pending} className="mt-4">
+          {`Redeem ${redeemPoints.toLocaleString()} pts → ${money(redeemValueCents)} off`}
+        </BrandButton>
       )}
       {error && <p role="alert" className="mt-2 text-[0.85rem] font-medium" style={{ color: PORTAL_DANGER_INK }}>{error}</p>}
     </PortalCard>

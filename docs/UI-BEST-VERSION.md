@@ -98,13 +98,36 @@ batch number.
   control in the tree), `SiteImage` spreading its required `alt` through
   `{...rest}` where no reader or tool could see it, and a redundant "photo"
   alt].
-- **The branded primitives have no busy state at all.** `BrandButton`,
-  `ActionPill` and `GhostButton` in `components/patient-portal/ui.tsx` take
-  `disabled` and nothing else, so the seven portal / public-site / token-page
-  buttons on them still hand-roll a label swap — and cannot adopt
-  `ActionButton`, whose teal gradient would overwrite the clinic's own brand
-  colour. The busy affordance belongs IN those primitives, spinner tinted
-  from `brand`, on the `ActionButton pending=` contract.
+- ~~The branded primitives have no busy state at all~~ [BATCH 53. Two of the
+  entry's own facts were wrong and worth recording: `ActionPill` is NOT in
+  `components/patient-portal/ui.tsx` — it is file-local to
+  `visit-card.tsx` — and the count was 7, not the 16 patient-facing buttons
+  actually hand-rolling a label swap. `BrandButton` and `GhostButton` now
+  take `pending` on the `ActionButton` contract, and so does `ActionPill`.
+  The affordance itself is single-homed in `components/ui/busy-label.tsx`:
+  the label stays in the layout at `opacity-0` so the button's width never
+  jumps under a thumb that is still on it, a `.btn-spinner` overlays it, and
+  a screen reader hears "Working…" — which a `{pending ? 'Sending…' : …}`
+  ternary never said at all. It carries NO colour: `.btn-spinner` rings in
+  `currentColor`, so a clinic's own brand tints it and the dashboard's teal
+  never reaches the portal, which is the whole reason these primitives exist.
+  `ActionButton` was re-pointed at the same component, so there is one busy
+  affordance in the repo rather than four. Adopted at all 16: book, request,
+  pay a bill, payment plan, messages Send, profile Save, records, loyalty
+  redeem, family link request, survey note, and the visit card's
+  Confirm / Move / Cancel. The four public-site submits (job application,
+  membership join, cart checkout, review) take the shared BusyLabel but KEEP
+  their own skins — they live in the clinic-site token system
+  (`rounded-xl`, `--c-*`), and importing the portal's pill would have been a
+  visual change wearing an accessibility fix's clothes. Three GhostButton /
+  ActionPill exits (Never mind, Cancel) went `disabled`, per the
+  escape-hatch rule. En route the guard caught the visit card's Confirm,
+  whose ternary already carried the discriminating `active === 'confirm'`
+  shape — and revealed that `run()`'s reschedule and cancel calls had never
+  passed their `active` key, so all three pills spun together. They pass it
+  now. `tests/design-system/pending-feedback.test.ts` holds the three
+  branded primitives at ZERO alongside ActionButton, and its raw-`<button>`
+  ceiling drops 78 → 71].
 - ~~Inter arrived through a render-blocking Google-Fonts `@import` on line 1
   of `app/css/style.css`~~ [BATCH 51: self-hosted variable woff2 (latin +
   latin-ext) in public/fonts on the Nunito pattern. It was the worst-case
@@ -396,6 +419,7 @@ Already best-version: CompletedHeartbeat.
 2. ~~Delta detached from its tile~~ [BATCH 25: the ▲/▼ moves under the visits number it describes]. The trio stays hand-shaped like the Growth hero (deliberate hub layout).
 3. ~~Go-live checklist fake radio circles~~ [BATCH 25: the circle stays a to-do marker but hovers an → inside — the row navigates, it doesn't tick].
 4. ~~Utility footer repeats hero facts~~ [BATCH 25: Design/Pages footer doors drop their fact echoes (the hero carries them); Domain keeps its address (its only editable home); all four links get py-2 tap height].
+5. ~~The go-live lever lies in both directions~~ [BATCH 53, from Quinn's browser run at DREAMCRM-15 — a pending-state honesty problem, so it came here rather than staying in the product-defect lane. (a) After "Go live" the site is public in ~300ms, but the hub sat on "Going live…" for up to SIXTY SECONDS with no `GET /website` going out at all — `router.refresh()` was called inside the same async `startTransition` that awaited the action, and the router's own transition was starved by the one waiting on it. Sometimes it landed instantly, which is worse than a consistent stall: nobody can tell a slow success from a failure, and the reliable response to a stuck button is to press it again — on the button that publishes a practice's website. The refresh now runs from an effect, outside that transition, and the card stops depending on it entirely: it confirms "Your site is online." in a role=status the moment the action returns. (b) "Take site offline" could not fail — `TakeOfflineLink` never read its action's result, so a refusal or a DB error closed the confirm and looked exactly like a success; a deliberate-breakage run found the site still serving with the hub reporting nothing. It now says what went wrong AND what is true ("… — your site is still live") in a role=alert, with a Try again. Six rendering tests in `tests/website/go-live-feedback.test.tsx`; the E2E spec header that reported the stall is updated, its reloads deliberately kept].
 
 ### Quick edits
 1. ~~Save = raw bg-teal-500~~ [BATCH 13: ActionButton primary + pending].
