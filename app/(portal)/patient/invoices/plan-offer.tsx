@@ -106,10 +106,14 @@ export default function PlanOffer({
           )}
           {error && <PortalErrorText>{error}</PortalErrorText>}
           <div className="mt-3 flex items-center gap-3">
-            <BrandButton brand={brand} onClick={start} disabled={!chosen || pending}>
-              {pending ? 'Setting up…' : 'Review my plan'}
+            <BrandButton brand={brand} onClick={start} disabled={!chosen} pending={pending}>
+              Review my plan
             </BrandButton>
-            <GhostButton onClick={() => setOpen(false)}>Never mind</GhostButton>
+            {/* The exit is unavailable while the plan is being set up — it is
+                not the thing that is busy (the escape-hatch rule). */}
+            <GhostButton onClick={() => setOpen(false)} disabled={pending}>
+              Never mind
+            </GhostButton>
           </div>
         </div>
       )}

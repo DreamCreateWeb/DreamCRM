@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { BusyLabel } from '@/components/ui/busy-label'
 
 export type ActionButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost'
 
@@ -92,14 +93,7 @@ export function ActionButton({
         aria-busy="true"
         className={`relative ${classes}`}
       >
-        {/* Label stays in the layout (invisible) so width doesn't jump. */}
-        <span className="opacity-0" aria-hidden>
-          {children}
-        </span>
-        <span className="absolute inset-0 flex items-center justify-center">
-          <span className="btn-spinner" aria-hidden />
-          <span className="sr-only">Working…</span>
-        </span>
+        <BusyLabel>{children}</BusyLabel>
       </button>
     )
   }

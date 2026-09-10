@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from 'react'
 import { requestMyRecordsAction } from '../actions'
-import { PortalCard, PortalNotice, PortalErrorText, PORTAL_INK, PORTAL_MUTED } from '@/components/patient-portal/ui'
+import {
+  PortalCard,
+  PortalNotice,
+  PortalErrorText,
+  PORTAL_INK,
+  PORTAL_MUTED,
+  BrandButton,
+} from '@/components/patient-portal/ui'
 
 /**
  * "Request my records" — turns the old passive "call us" card into a real,
@@ -46,15 +53,9 @@ export default function RequestRecordsCard({ brand, phone }: { brand: string; ph
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={submit}
-              disabled={pending}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[0.88rem] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ backgroundColor: brand }}
-            >
-              {pending ? 'Sending…' : 'Request my records'}
-            </button>
+            <BrandButton brand={brand} onClick={submit} pending={pending} small>
+              Request my records
+            </BrandButton>
             {phone && (
               <span className="text-[0.84rem]" style={{ color: PORTAL_MUTED }}>
                 or call{' '}

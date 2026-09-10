@@ -5,6 +5,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { pickPlatformAction, recordGateRatingAction, submitPrivateFeedbackAction } from './actions'
+import { BusyLabel } from '@/components/ui/busy-label'
 
 const INK = 'var(--c-ink, #1C1A17)'
 const INK_MUTED = 'var(--c-ink-muted, #6B635A)'
@@ -307,10 +308,11 @@ export default function ReviewForm({
           <button
             type="submit"
             disabled={pending || !text.trim()}
-            className="mt-3 w-full inline-flex items-center justify-center px-5 py-3 rounded-full text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition hover:opacity-95"
+            aria-busy={pending || undefined}
+            className="relative mt-3 w-full inline-flex items-center justify-center px-5 py-3 rounded-full text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition hover:opacity-95"
             style={{ backgroundColor: brand }}
           >
-            {pending ? 'Sending…' : 'Send to the team'}
+            {pending ? <BusyLabel>Send to the team</BusyLabel> : 'Send to the team'}
           </button>
         </form>
       )}
