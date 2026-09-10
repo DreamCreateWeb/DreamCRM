@@ -71,19 +71,42 @@ test.describe('portal reschedule and cancel', () => {
       ).toBeVisible({ timeout: 20_000 })
     }
     await expect(slot, 'some weekday in the window should have an opening').toBeVisible()
+    // Remember the time the patient actually picked ("9:00 AM"), so the
+    // durable assertion below can prove THAT time is what got booked rather
+    // than just that some Consultation still exists.
+    const pickedTime = ((await slot.getAttribute('aria-label')) ?? '').replace(/\s*—\s*available$/, '').trim()
+    expect(pickedTime, 'the slot button should name its time').not.toBe('')
     await slot.click()
 
     await visit.getByRole('button', { name: 'Move my visit' }).click()
-    await expect(page.getByText('All moved — your new time is confirmed in email too.')).toBeVisible({
-      timeout: 30_000,
-    })
 
-    // Durable: the reschedule mints a NEW visit (unconfirmed) and retires the
-    // original — after a fresh load exactly one Consultation card remains and
-    // it needs confirming again.
+    // NOT asserted here: the "All moved — …" notice. It renders as the last
+    // child of the card for the OLD visit, and a reschedule RETIRES that
+    // visit — so the action's own revalidate unmounts the very element
+    // carrying the message. Whether the browser paints it before that payload
+    // lands is a pure race with CI load on one side, and on 2026-09-10 it lost
+    // twice in a row: the attempt AND the retry both timed out here while the
+    // move had in fact SUCCEEDED both times. The failure snapshots show
+    // appt_e2e_move gone and a freshly-minted Consultation sitting at the
+    // picked slot — a green journey reported red. Same trap as the cancel spec
+    // below; see docs/E2E.md.
+    //
+    // The settled signal that does NOT race: run() closes the panel only on
+    // success, so "Move my visit" detaches either way — with the panel or with
+    // the whole card. On a failed action the panel stays open and this times
+    // out, which is what we want.
+    await expect(visit.getByRole('button', { name: 'Move my visit' })).toHaveCount(0, { timeout: 30_000 })
+
+    // Durable, and the part that actually proves the journey: the seeded visit
+    // is retired, and in its place sits a Consultation at the chosen time that
+    // needs confirming again. (Asserting only "a Consultation needs
+    // confirming" would have passed even if the move had silently done
+    // nothing — the seeded row is unconfirmed too.)
     await page.reload()
     const moved = card(page, 'Consultation')
     await expect(moved).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('a[href*="appt_e2e_move"]')).toHaveCount(0)
+    await expect(moved).toContainText(pickedTime)
     await expect(moved.getByText('Needs confirming')).toBeVisible()
   })
 

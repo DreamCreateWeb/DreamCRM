@@ -5,8 +5,8 @@ import {
   getMessagesPerDay14,
   getPatientThreadById,
   getThreadPatientContext,
-  listMessagesInThread,
-  listPatientThreads,
+  listMessagesInThreadPage,
+  listPatientThreadsPage,
   markThreadRead,
   renderTemplate,
   type ThreadFilters,
@@ -26,6 +26,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { CHANNEL_LEGEND } from './channel-meta'
 import ThreadDetailPanel from './clinic-thread-detail-panel'
+import { DEFAULT_THREAD_LIMIT, MAX_THREAD_LIMIT } from '@/lib/types/messaging'
 import ClinicThreadList, { type ThreadListRow } from './clinic-thread-list'
 import { trimPreConversationMarkers } from './message-grouping'
 import MessagesSurfaceTabs from './surface-tabs'
@@ -56,6 +57,9 @@ interface SP {
   q?: string
   unread?: string
   starred?: string
+  /** How many threads to show. The list is capped so the query stays bounded;
+   *  "Show more conversations" widens it a page at a time. */
+  show?: string
 }
 
 const STATUS_FILTERS: { key: ThreadFilters['status']; label: string }[] = [
@@ -80,16 +84,25 @@ export default async function ClinicMessagesView({
 }) {
   if (ctx.tenantType !== 'clinic') redirect('/messages')
 
+  // The list is capped (the query used to fetch every thread in the org, each
+  // with a correlated preview subquery). "Show more" widens it a page at a
+  // time; the service clamps anything hand-typed to MAX_THREAD_LIMIT.
+  const requestedShow = Number.parseInt(searchParams.show ?? '', 10)
+  const threadLimit = Number.isFinite(requestedShow)
+    ? Math.min(Math.max(requestedShow, DEFAULT_THREAD_LIMIT), MAX_THREAD_LIMIT)
+    : DEFAULT_THREAD_LIMIT
+
   const filters: ThreadFilters = {
     status: (STATUS_FILTERS.find((f) => f.key === searchParams.status)?.key as ThreadFilters['status']) ?? 'open',
     assignedTo: (ASSIGN_FILTERS.find((f) => f.key === searchParams.assignedTo)?.key as ThreadFilters['assignedTo']) ?? 'all',
     search: searchParams.q,
     hasUnread: searchParams.unread === '1',
     starredOnly: searchParams.starred === '1',
+    limit: threadLimit,
   }
 
-  const [threads, stats, messageTemplates, members, perDay14] = await Promise.all([
-    listPatientThreads(ctx.organizationId, ctx.userId, filters),
+  const [threadPage, stats, messageTemplates, members, perDay14] = await Promise.all([
+    listPatientThreadsPage(ctx.organizationId, ctx.userId, filters),
     getInboxStats(ctx.organizationId, ctx.userId),
     listMessageTemplates(ctx.organizationId),
     listAssignableStaff(ctx.organizationId),
@@ -105,6 +118,7 @@ export default async function ClinicMessagesView({
 
   // Serialize the rows the selectable client list needs (dates → ISO, plus the
   // pre-built ?thread= href so the server keeps ownership of the querystring).
+  const threads = threadPage.rows
   const threadRows: ThreadListRow[] = threads.map((t) => ({
     id: t.id,
     href: buildHref(searchParams, { thread: t.id }),
@@ -130,15 +144,15 @@ export default async function ClinicMessagesView({
   // Pull the message stream + the slim patient context strip in parallel —
   // so staff replying see next/last visit, PMS balance, and missing-intake
   // without leaving the inbox.
-  const [messages, patientContext, patientTags, scheduledMessages, activity]: [
-    ThreadMessage[],
+  const [messagePage, patientContext, patientTags, scheduledMessages, activity]: [
+    { messages: ThreadMessage[]; hasMore: boolean },
     ThreadPatientContext | null,
     PatientTagView[],
     ScheduledMessageView[],
     ActivityMarker[],
   ] = activeThread
     ? await Promise.all([
-        listMessagesInThread(ctx.organizationId, activeThread.id),
+        listMessagesInThreadPage(ctx.organizationId, activeThread.id),
         getThreadPatientContext(ctx.organizationId, activeThread.patientId),
         getTagsForPatient(ctx.organizationId, activeThread.patientId),
         listScheduledForPatient(ctx.organizationId, activeThread.patientId),
@@ -146,7 +160,9 @@ export default async function ClinicMessagesView({
         // contract: a marker-source hiccup must never blank the conversation.
         listThreadActivity(ctx.organizationId, activeThread.patientId).catch(() => []),
       ])
-    : [[], null, [], [], []]
+    : [{ messages: [], hasMore: false }, null, [], [], []]
+
+  const messages = messagePage.messages
 
   // Mark the active thread read when it has unread messages on the
   // staff side. Call the service directly (NOT the server action wrapper):
@@ -292,7 +308,31 @@ export default async function ClinicMessagesView({
                 />
               </div>
             ) : (
-              <ClinicThreadList rows={threadRows} activeThreadId={activeThread?.id ?? null} />
+              <>
+                <ClinicThreadList rows={threadRows} activeThreadId={activeThread?.id ?? null} />
+                {threadPage.hasMore && (
+                  <div className="px-3 py-3 text-center">
+                    {threadLimit < MAX_THREAD_LIMIT ? (
+                      <ActionButton
+                        variant="secondary"
+                        size="sm"
+                        href={buildHref(searchParams, {
+                          show: String(Math.min(threadLimit + DEFAULT_THREAD_LIMIT, MAX_THREAD_LIMIT)),
+                          thread: undefined,
+                        })}
+                      >
+                        Show more conversations
+                      </ActionButton>
+                    ) : (
+                      // Saying nothing here would imply the list is complete.
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Showing the {MAX_THREAD_LIMIT} most recent. Search by name, email or phone
+                        to find an older conversation.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </aside>
@@ -310,6 +350,7 @@ export default async function ClinicMessagesView({
               // selector sticks on whatever the first-opened thread had —
               // and any in-progress draft text leaks across patients.
               key={activeThread.id}
+              olderMessagesHidden={messagePage.hasMore}
               thread={{
                 id: activeThread.id,
                 patientId: activeThread.patientId,
