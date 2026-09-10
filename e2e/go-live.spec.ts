@@ -33,15 +33,22 @@ import { createHmac } from 'node:crypto'
  * lever pulled here would turn that spec red over there. See "Row ownership
  * matters" in docs/E2E.md.
  *
- * WHY EVERY HUB ASSERTION COMES AFTER A RELOAD. Clicking the lever can leave
- * the Website hub's own button reading "Going live…" for up to about SIXTY
- * SECONDS before the page catches up — measured, twice, with no `GET /website`
- * going out at all in that window — even though the server action itself
- * finishes in ~100ms and the public site is live ~300ms after that. Sometimes
- * `router.refresh()` lands promptly instead. That variability is a real product
- * defect in `go-live-card.tsx` and is reported as one; it is NOT this spec's
- * job to encode it as expected behaviour, and waiting it out would cost the
- * suite a minute per test for nothing.
+ * WHY EVERY HUB ASSERTION COMES AFTER A RELOAD. Clicking the lever used to
+ * leave the Website hub's own button reading "Going live…" for up to about
+ * SIXTY SECONDS before the page caught up — measured, twice, with no
+ * `GET /website` going out at all in that window — even though the server
+ * action itself finishes in ~100ms and the public site is live ~300ms after
+ * that. Sometimes `router.refresh()` landed promptly instead. That defect was
+ * reported from here and FIXED in batch 53 (DREAMCRM-26): the refresh was
+ * nested inside the action's own `startTransition`, where the router's
+ * transition could be starved, and the card now confirms "Your site is
+ * online." the moment the action returns rather than waiting on any refresh
+ * at all (`tests/website/go-live-feedback.test.tsx`).
+ *
+ * The reloads STAY. They were never a workaround for the stall — they are how
+ * this spec asserts the lever's effect where it is unconditionally true, with
+ * no dependence on client-side refresh timing of any kind. Keeping them means
+ * this file cannot start passing for a reason it did not intend.
  *
  * So the lever's effect is asserted only where it is unconditionally true: on
  * the public site's next request, and on the hub after a fresh load. Nothing
