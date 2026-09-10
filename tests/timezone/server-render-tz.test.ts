@@ -45,10 +45,6 @@ const ALLOWED: Array<{ file: string; why: string }> = [
     why: 'the platform’s own order list, read by the platform owner',
   },
   {
-    file: 'app/(default)/ecommerce/(cart)/cart-3/page.tsx',
-    why: 'template checkout page, not a clinic surface',
-  },
-  {
     file: 'app/(default)/partners/[id]/page.tsx',
     why: 'a referral partner’s payout history — a partner is not in a clinic',
   },

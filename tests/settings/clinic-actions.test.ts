@@ -49,6 +49,8 @@ vi.mock('@/lib/db', async () => {
 })
 
 import { updateClinicProfile } from '@/app/(default)/settings/clinic/actions'
+import { revalidateTag } from 'next/cache'
+import { clinicSiteTag, clinicSiteSlugTag } from '@/lib/services/clinic-site-cache'
 
 beforeEach(() => {
   ops.length = 0
@@ -203,6 +205,32 @@ describe('updateClinicProfile', () => {
     for (const col of ['displayName', 'phone', 'email', 'logoUrl', 'hours', 'timezone']) {
       expect(col in set, `identity column '${col}' missing from the payload`).toBe(true)
     }
+  })
+
+  /**
+   * THE WRITER ACTUALLY CALLS IT, WITH THE RIGHT TAG AND THE RIGHT PROFILE.
+   *
+   * The mock above was added because `revalidateTag` being absent made the
+   * save throw — which proved only that the export exists. That is a weaker
+   * claim than it looks: a writer that never invalidated at all would pass it
+   * just as happily, and the whole "Publish takes effect immediately" promise
+   * rests on this call being made with these arguments.
+   *
+   * `{ expire: 0 }` is load-bearing, not decoration. Next 16's `revalidateTag`
+   * takes a cache-life profile, and only an immediate expiry sets
+   * `pathWasRevalidated` to `ActionDidRevalidateStaticAndDynamic` — the
+   * read-your-own-writes flag. Drop the argument and Next warns and
+   * deprecates; pass a non-zero profile and the entry goes
+   * stale-while-revalidate instead, so the clinic's next page load can still
+   * serve the old copy. Both tags, because the site payload is keyed on orgId
+   * and the theme on slug.
+   */
+  it('drops BOTH cache tags with an immediate-expiry profile', async () => {
+    vi.mocked(revalidateTag).mockClear()
+    await updateClinicProfile(form({ displayName: 'Acme Dental' }))
+
+    expect(revalidateTag).toHaveBeenCalledWith(clinicSiteTag('org_1'), { expire: 0 })
+    expect(revalidateTag).toHaveBeenCalledWith(clinicSiteSlugTag('acme'), { expire: 0 })
   })
 
   it('flags hours/address/phone source as manual (so a later Google sync respects the edit)', async () => {

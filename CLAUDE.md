@@ -167,7 +167,6 @@ app/
   (portal)/          Patient portal /patient/* — clinic-branded chrome
   (partner)/         Referral-partner portal /partner (minimal single-column)
   (partner-accept)/  /partner/accept — public token-auth invite acceptance
-  (pay)/             /ecommerce/pay (bare checkout page)
   (preview)/         /settings/portal/preview (watermarked portal replica)
   site/[slug]/       Public clinic sites — MULTI-TEMPLATE (clinic_profile.
                      template picks the design: 'modern' Tend-style family

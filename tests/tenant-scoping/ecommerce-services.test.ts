@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
  * Regression test for multi-tenant isolation on the legacy Mosaic-template
- * services (customers / orders / invoices / products / cart). Each service
+ * services that survive: customers (the platform's Clinics list), orders (its
+ * Projects board) and invoices (Subscriptions). The `products` and `cart`
+ * services were deleted with the Mosaic shop/cart/product pages — their only
+ * callers — so their sections went with them rather than being kept green
+ * against code nothing runs. Each surviving service
  * must:
  *   1. Set organizationId on every INSERT
  *   2. Include an organizationId clause on every UPDATE / DELETE WHERE
@@ -126,23 +130,6 @@ import {
   listInvoices,
   invoiceCountsByStatus,
 } from '@/lib/services/invoices'
-import {
-  createProduct,
-  deleteProduct,
-  listProducts,
-  getProductBySlug,
-  getProductById,
-  getProductsByIds,
-} from '@/lib/services/products'
-import {
-  addToCart,
-  removeFromCart,
-  updateCartQuantity,
-  clearCart,
-  listCart,
-  cartTotal,
-  checkoutCart,
-} from '@/lib/services/cart'
 
 const ORG_A = 'org_a_acme_dental'
 const ORG_B = 'org_b_bright_dental'
@@ -248,96 +235,6 @@ describe('invoices service — tenant scoping', () => {
 
   it('deleteInvoices scopes WHERE to organizationId', async () => {
     await deleteInvoices([1, 2], ORG_A)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-})
-
-describe('products service — tenant scoping', () => {
-  it('createProduct writes organizationId on insert', async () => {
-    await createProduct(
-      { name: 'Cleaning', priceCents: 12000, currency: 'USD', stock: 0 },
-      ORG_A,
-    )
-    expect(state.inserts[0].values.organizationId).toBe(ORG_A)
-  })
-
-  it('listProducts filters by organizationId', async () => {
-    await listProducts(ORG_A)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('getProductBySlug scopes WHERE to organizationId', async () => {
-    await getProductBySlug(ORG_A, 'cleaning')
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('getProductById scopes WHERE to organizationId', async () => {
-    await getProductById(ORG_A, 1)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('getProductsByIds scopes WHERE to organizationId', async () => {
-    await getProductsByIds(ORG_A, [1, 2, 3])
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('deleteProduct scopes WHERE to organizationId', async () => {
-    await deleteProduct(1, ORG_A)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-})
-
-describe('cart service — tenant scoping', () => {
-  it('addToCart writes organizationId on insert when new line', async () => {
-    state.selectRows.push([]) // no existing line
-    await addToCart('user_1', ORG_A, 5, 1)
-    expect(state.inserts[0].values.organizationId).toBe(ORG_A)
-  })
-
-  it('addToCart scopes WHERE to organizationId on upsert path', async () => {
-    state.selectRows.push([{ userId: 'user_1', productId: 5 }])
-    await addToCart('user_1', ORG_A, 5, 2)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('listCart filters by organizationId', async () => {
-    await listCart('user_1', ORG_A)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('removeFromCart scopes WHERE to organizationId', async () => {
-    await removeFromCart('user_1', ORG_A, 5)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('updateCartQuantity scopes WHERE to organizationId', async () => {
-    await updateCartQuantity('user_1', ORG_A, 5, 3)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('clearCart scopes WHERE to organizationId', async () => {
-    await clearCart('user_1', ORG_A)
-    expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
-  })
-
-  it('checkoutCart writes organizationId on the resulting order', async () => {
-    state.selectRows.push([
-      {
-        productId: 1,
-        quantity: 1,
-        name: 'X',
-        slug: 'x',
-        priceCents: 100,
-        currency: 'USD',
-        imageUrl: null,
-      },
-    ])
-    await checkoutCart('user_1', ORG_A)
-    expect(state.inserts[0].values.organizationId).toBe(ORG_A)
-  })
-
-  it('cartTotal filters cart lines by organizationId', async () => {
-    await cartTotal('user_1', ORG_A)
     expect(state.wheres.some((w) => w.sql.includes(ORG_A))).toBe(true)
   })
 })
