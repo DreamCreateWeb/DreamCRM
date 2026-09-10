@@ -219,7 +219,7 @@ export function TakeOfflineLink() {
     return (
       <span className="inline-flex flex-wrap items-center gap-2 text-sm">
         <span role="alert" className="font-medium text-rose-600 dark:text-rose-400">
-          {error} — your site is still live.
+          {error}. Your site is still live.
         </span>
         <button
           type="button"

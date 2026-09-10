@@ -140,7 +140,7 @@ describe('Take site offline reports its failures', () => {
     expect(alert).toHaveTextContent('Could not take the site offline')
     // The half that matters: not just "an error happened", but what is
     // actually true about the clinic's public site right now.
-    expect(alert).toHaveTextContent('your site is still live')
+    expect(alert).toHaveTextContent('Your site is still live')
     expect(refresh).not.toHaveBeenCalled()
   })
 
