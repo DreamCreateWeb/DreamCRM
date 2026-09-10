@@ -25,28 +25,35 @@ vi.mock('@/lib/db', () => {
       Promise.resolve(state.selectQueue.shift() ?? []).then(onF, onR)
     return obj
   }
-  return {
-    db: {
-      select: () => selectChain(),
-      insert: (table: unknown) => ({
-        values: async (values: Record<string, unknown> | Array<Record<string, unknown>>) => {
-          const name = (table as { _n: string })._n
-          for (const v of Array.isArray(values) ? values : [values]) {
-            state.inserts.push({ table: name, values: v })
-          }
+  const db: any = {
+    select: () => selectChain(),
+    insert: (table: unknown) => ({
+      values: async (values: Record<string, unknown> | Array<Record<string, unknown>>) => {
+        const name = (table as { _n: string })._n
+        for (const v of Array.isArray(values) ? values : [values]) {
+          state.inserts.push({ table: name, values: v })
+        }
+      },
+    }),
+    update: (table: unknown) => ({
+      set: (values: Record<string, unknown>) => ({
+        where: () => {
+          state.updates.push({ table: (table as { _n: string })._n, values })
+          const p: any = Promise.resolve(undefined)
+          p.returning = async () => state.updateReturning.shift() ?? [{ id: 'row' }]
+          return p
         },
       }),
-      update: (table: unknown) => ({
-        set: (values: Record<string, unknown>) => ({
-          where: () => {
-            state.updates.push({ table: (table as { _n: string })._n, values })
-            const p: any = Promise.resolve(undefined)
-            p.returning = async () => state.updateReturning.shift() ?? [{ id: 'row' }]
-            return p
-          },
-        }),
-      }),
-    },
+    }),
+  }
+  // proposePaymentPlan claims "one open plan per patient" inside ONE
+  // transaction behind a per-patient advisory lock, so the open-plan check and
+  // the insert can no longer interleave. The handle mirrors `db`; `execute` is
+  // the lock statement, which is a no-op with a single caller.
+  db.transaction = (cb: (tx: unknown) => Promise<unknown>) =>
+    cb({ execute: async () => [], select: db.select, insert: db.insert, update: db.update })
+  return {
+    db,
     schema: {
       patient: {
         _n: 'patient', id: 'id', organizationId: 'org', firstName: 'fn', lastName: 'ln',
@@ -68,6 +75,7 @@ vi.mock('drizzle-orm', () => ({
   desc: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
   isNotNull: vi.fn(() => ({})),
+  sql: Object.assign((..._a: unknown[]) => ({}), { raw: () => ({}) }),
 }))
 
 const { paymentIntentCreateMock, customersCreateMock, sessionsCreateMock, sessionsRetrieveMock } =

@@ -106,7 +106,57 @@ export interface ShopConfigPatch {
   membershipEnabled?: boolean
   flatShippingCents?: number | null
   freeShippingThresholdCents?: number | null
+  /** PLATFORM-OWNED — Dream Create's Connect application fee on this clinic's
+   *  charges. Never accept this from a clinic-reachable caller; see
+   *  `pickClinicShopConfigPatch`. */
   platformFeeBps?: number
+}
+
+/**
+ * The subset of `ShopConfigPatch` a CLINIC may set: everything except the
+ * platform's own take. Server actions are public RPC endpoints, so the TS type
+ * alone is not a control — `pickClinicShopConfigPatch` is the runtime gate.
+ */
+export type ClinicShopConfigPatch = Omit<ShopConfigPatch, 'platformFeeBps'>
+
+/** Field names a clinic-reachable caller may set. Anything absent here is
+ *  platform-owned and is dropped, not rejected — a stale/hostile client
+ *  sending extra keys still gets its legitimate toggles applied. */
+const CLINIC_SHOP_CONFIG_FIELDS = [
+  'pickupEnabled',
+  'shippingEnabled',
+  'taxEnabled',
+  'storefrontEnabled',
+  'membershipEnabled',
+  'flatShippingCents',
+  'freeShippingThresholdCents',
+] as const satisfies readonly (keyof ClinicShopConfigPatch)[]
+
+/**
+ * Re-build a shop-config patch from an UNTRUSTED client payload, keeping only
+ * clinic-owned fields with the right runtime shape. `platformFeeBps` — the
+ * Connect application fee Dream Create collects on every clinic sale — is
+ * structurally unreachable from here: a crafted request can no longer zero it.
+ */
+export function pickClinicShopConfigPatch(patch: unknown): ClinicShopConfigPatch {
+  const out: ClinicShopConfigPatch = {}
+  if (!patch || typeof patch !== 'object') return out
+  const src = patch as Record<string, unknown>
+  for (const key of CLINIC_SHOP_CONFIG_FIELDS) {
+    const value = src[key]
+    if (value === undefined) continue
+    if (key === 'flatShippingCents' || key === 'freeShippingThresholdCents') {
+      // Nullable money fields: null clears them; otherwise a non-negative int.
+      if (value === null) {
+        out[key] = null
+      } else if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
+        out[key] = value
+      }
+      continue
+    }
+    if (typeof value === 'boolean') out[key] = value
+  }
+  return out
 }
 
 export async function updateShopConfig(organizationId: string, patch: ShopConfigPatch): Promise<void> {

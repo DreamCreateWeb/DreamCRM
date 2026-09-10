@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { syncAllGoogleBusinessProfiles } from '@/lib/services/gbp-sync'
 
 export const runtime = 'nodejs'
@@ -21,11 +22,8 @@ export const maxDuration = 120
  * Returns: `{ ok, scanned, applied, failed, errors }` JSON.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await syncAllGoogleBusinessProfiles()
     return NextResponse.json({ ok: true, ...result })

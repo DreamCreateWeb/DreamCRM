@@ -7,8 +7,9 @@ import {
   setProductStatus,
   deleteProduct,
   updateShopConfig,
+  pickClinicShopConfigPatch,
   setOrderFulfillment,
-  type ShopConfigPatch,
+  type ClinicShopConfigPatch,
 } from '@/lib/services/shop'
 import { disconnectShopStripe } from '@/lib/services/shop-connect'
 import type { ProductInput, ProductStatus, FulfillmentStatus } from '@/lib/types/shop'
@@ -44,9 +45,13 @@ export async function deleteProductAction(id: string) {
   revalidatePath('/shop')
 }
 
-export async function updateShopConfigAction(patch: ShopConfigPatch) {
+/** Shop settings toggles. The incoming patch is untrusted (a server action is
+ *  a public RPC endpoint), so it is re-built from a field allowlist before it
+ *  reaches the DB — a clinic cannot set `platformFeeBps` and zero the fee
+ *  Dream Create collects on its sales. */
+export async function updateShopConfigAction(patch: ClinicShopConfigPatch) {
   const ctx = await ensureClinicAdmin()
-  await updateShopConfig(ctx.organizationId, patch)
+  await updateShopConfig(ctx.organizationId, pickClinicShopConfigPatch(patch))
   revalidatePath('/shop')
 }
 

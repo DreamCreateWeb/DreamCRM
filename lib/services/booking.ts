@@ -264,8 +264,13 @@ export async function hasBookableSlotsInWindow(
   fromDateKey: string,
   days = 14,
   durationMinutes?: number,
+  /** Patient-facing notice window — see getSlotsForDay. MUST be passed on
+   *  public/portal paths or the scan disagrees with the picker. */
+  minNoticeHours?: number,
 ): Promise<boolean> {
-  return (await firstBookableDayInWindow(organizationId, fromDateKey, days, durationMinutes)) !== null
+  return (
+    (await firstBookableDayInWindow(organizationId, fromDateKey, days, durationMinutes, minNoticeHours)) !== null
+  )
 }
 
 /**
@@ -273,12 +278,23 @@ export async function hasBookableSlotsInWindow(
  * hasBookableSlotsInWindow always ran — but keeping WHICH day it found lets
  * the booking form turn its dead-end empty state ("try another day") into a
  * one-tap "See Thursday's openings →" instead of a 14-day fishing expedition.
+ *
+ * `minNoticeHours` is NOT optional in spirit on patient-facing paths. The scan
+ * and the picker must apply the SAME rules, or they disagree about today: the
+ * picker (via `listBookingSlots`) applies the clinic's "Earliest online
+ * booking" window, so on a weekday afternoon — between the last slot still
+ * outside the notice window and closing — a scan without it names TODAY as the
+ * first bookable day. The form only renders its rescue button when the scanned
+ * day DIFFERS from the selected one, so it stayed hidden and the patient hit
+ * "We're done seeing patients for today" with no way forward, on the product's
+ * top conversion path.
  */
 export async function firstBookableDayInWindow(
   organizationId: string,
   fromDateKey: string,
   days = 14,
   durationMinutes?: number,
+  minNoticeHours?: number,
 ): Promise<string | null> {
   if (!DATE_KEY_RE.test(fromDateKey)) return null
   const [y, m, d] = fromDateKey.split('-').map((n) => parseInt(n, 10))
@@ -288,7 +304,7 @@ export async function firstBookableDayInWindow(
   for (let i = 0; i < Math.max(1, days); i++) {
     const day = new Date(anchor + i * 86_400_000)
     const key = `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, '0')}-${String(day.getUTCDate()).padStart(2, '0')}`
-    const { slots } = await getSlotsForDay(organizationId, key, undefined, durationMinutes)
+    const { slots } = await getSlotsForDay(organizationId, key, undefined, durationMinutes, minNoticeHours)
     if (slots.some((s) => s.available)) return key
   }
   return null

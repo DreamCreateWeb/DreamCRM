@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { runEnrichment } from '@/lib/services/prospect-enrich'
 import { backfillProspectContacts } from '@/lib/services/prospect-contacts'
 
@@ -14,11 +15,8 @@ export const maxDuration = 300
  * Returns `{ ok, scanned, enriched, placesLookups, crawls, aiScored, errors }`.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await runEnrichment()
     // Self-heal: backfill contacts for prospects enriched before the
