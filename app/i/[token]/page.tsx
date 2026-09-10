@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getPlanLandingByToken, finalizePlanSetup } from '@/lib/services/payment-plans'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import PlanForm from './plan-form'
+import { portalBrand } from '@/lib/portal-brand'
 
 export const metadata = {
   title: 'Your payment plan',
@@ -48,7 +49,7 @@ export default async function PaymentPlanPage({
   const ctx = await getPlanLandingByToken(token)
   if (!ctx) notFound()
 
-  const brand = ctx.brandColor || '#9CAF9F'
+  const brand = portalBrand(ctx.brandColor)
 
   return (
     <>

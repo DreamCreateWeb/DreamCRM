@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getNpsByToken } from '@/lib/services/nps'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import SurveyForm from './survey-form'
+import { portalBrand } from '@/lib/portal-brand'
 
 export const metadata = {
   title: 'One quick question',
@@ -29,7 +30,7 @@ export default async function NpsSurveyPage({
   const ctx = await getNpsByToken(token)
   if (!ctx) notFound()
 
-  const brand = ctx.brandColor || '#9CAF9F'
+  const brand = portalBrand(ctx.brandColor)
 
   return (
     <>

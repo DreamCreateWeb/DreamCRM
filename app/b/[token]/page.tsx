@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getPayLandingByToken, finalizePayTokenReturn } from '@/lib/services/balance-outreach'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import PayForm from './pay-form'
+import { portalBrand } from '@/lib/portal-brand'
 
 export const metadata = {
   title: 'Pay your balance',
@@ -48,7 +49,7 @@ export default async function PayBalancePage({
   const ctx = await getPayLandingByToken(token)
   if (!ctx) notFound()
 
-  const brand = ctx.brandColor || '#9CAF9F'
+  const brand = portalBrand(ctx.brandColor)
 
   return (
     <>

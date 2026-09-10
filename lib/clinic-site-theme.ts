@@ -109,9 +109,16 @@ export function readableInk(
   if (contrastRatio(brand, ground) >= minRatio) return toHex(brand)
 
   // Darken toward black, preserving hue, until we clear the floor.
+  //
+  // Measure the ROUNDED candidate, not the fractional one. `brand.r * f` is a
+  // float; the color that actually ships is `toHex`'s 8-bit rounding of it, and
+  // rounding up costs contrast. Checking the float and returning the rounded
+  // value landed a whole band of brands at 4.48–4.50 against a 4.5 floor —
+  // passing here and failing in the browser, which is exactly the kind of
+  // one-hundredth-under miss axe reports and a person never spots.
   for (let f = 0.92; f >= 0; f -= 0.06) {
-    const candidate = { r: brand.r * f, g: brand.g * f, b: brand.b * f }
-    if (contrastRatio(candidate, ground) >= minRatio) return toHex(candidate)
+    const candidateHex = toHex({ r: brand.r * f, g: brand.g * f, b: brand.b * f })
+    if (contrastRatio(parseHex(candidateHex)!, ground) >= minRatio) return candidateHex
   }
 
   // The hue can't carry the contrast (e.g. a bright yellow against near-white).

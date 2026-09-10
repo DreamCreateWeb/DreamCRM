@@ -153,6 +153,65 @@ batch number.
   too; the approval inbox's blocking validation complaints (empty subject,
   bad chair count) and its image-upload error had no role=alert, so the
   Approve button just appeared to stop working].
+- **214 WCAG AA violations were live on `main` the whole time, in three
+  rules.** The runtime accessibility checks (batch 53's sibling, DREAMCRM-25)
+  found them on their first pass over real pages; they did not create them.
+  QA carries them as a RATCHET in `e2e/axe-baseline.ts` — a ceiling per
+  (stop, rule), numbers only ever going down — so the gate is green and closed
+  against regressions rather than red and ignored. **176 `color-contrast`,
+  25 `nested-interactive`, 13 `list`, across 25 of 35 stops; 62 of the
+  contrast instances are on stops a patient or a visitor reaches.** Ten stops
+  were already clean (both auth forms, all three onboarding steps, the
+  published clinic home, coming-soon, the 404, the confirmed token page, the
+  post-visit survey) — this is not systemic. Working notes for whoever takes
+  the rest: the raw counts mislead in two places. The 4.48–4.49 cluster is
+  68 of the 176 and is three token pairs sitting one hundredth under the
+  requirement (cheapest ~40% of the contrast work), and `#5e6e8c` on
+  `#10182e` (3.42:1, 16) is `--color-ink-500`'s LIGHT value rendering on a
+  dark surface when the dark override already exists at
+  `app/css/style.css:375` — that row needs a diagnosis, not a token change,
+  and editing `--color-ink-500` would be fixing the wrong thing. Tracked as
+  DREAMCRM-28. Remaining after batch 54: the design-system token pairs, and
+  the agenda row (`nested-interactive` + `list` are ONE structural pattern —
+  an `li[role="button"]` containing its own focusable controls, so both
+  clear together when it becomes a non-interactive `li` around a button).
+- ~~The patient portal used the clinic's brand colour RAW, as text and as a
+  button fill~~ [BATCH 54, and it was a product defect rather than the
+  palette correction the 176 contrast instances made it look like. The
+  clinic public site derives a whole contrast-checked palette from the one
+  brand colour (`buildClinicPalette` — `heading` for brand-as-text,
+  `brandStrong` for a fill under white text) and every guarded token clears
+  4.5:1. **The portal never adopted it.** It read
+  `clinicProfile.brandColor` raw and used it the two ways that carry text:
+  as a fill on the #FAF7F2 ground and on white cards (`PortalHeading`, the
+  phone links, Reschedule) and as a `BrandButton` background under a
+  hard-coded `text-white`. A dark brand hides that; the seeded sage lands at
+  2.17:1 as text and 2.32:1 under white, a pale pink at 1.64:1 — so it was
+  never a fixture artefact, it was every clinic that picks a light brand.
+  The five token pages a patient reaches from a text or an email (confirm a
+  visit, pay a balance, set up a plan, the survey, the review request) had
+  the same shape. `lib/portal-brand.ts`'s `portalBrand()` now sits on all
+  eight paths the brand takes to a patient. ONE derived value, not the two
+  the clinic site uses, because one provably covers both roles: a colour
+  dark enough to clear 4.5:1 as text on the cream has luminance ≤ 0.170, and
+  white on anything that dark clears 4.5:1 too — which is what let this land
+  as an eight-line change instead of threading a second colour through
+  ~100 call sites. Hue is preserved (a sage clinic reads deep sage, not
+  slate), a brand that already clears the floor passes through verbatim, and
+  the cream rather than white is the derivation ground because it is the
+  darker of the two surfaces involved. En route the new guard's hue-wheel
+  sweep caught a live bug in `readableInk` ITSELF, which the clinic site has
+  used since the palette shipped: it measured contrast on the FRACTIONAL
+  rgb and then let `toHex` round, so a whole band of brands came out at
+  4.48–4.50 — passing in the unit test, failing in the browser, and the
+  same one-hundredth-under shape as the biggest cluster in the axe baseline.
+  It now measures the colour that actually ships. `tests/clinic-site/
+  palette.test.ts` asserted the right floor and missed it for the ordinary
+  reason: nine named fixtures, none of them on the boundary.
+  `tests/a11y/portal-brand.test.ts` sweeps 2,880 brands across the hue wheel
+  at every plausible lightness, pins the one-value implication, and guards
+  the eight entry points by source so a new patient surface cannot read the
+  brand raw].
 
 ---
 

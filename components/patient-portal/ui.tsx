@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { BusyLabel } from '@/components/ui/busy-label'
+import { PORTAL_GROUND } from '@/lib/portal-brand'
 
 /**
  * Presentational primitives for the patient portal — warm-neutral cards,
@@ -10,7 +11,9 @@ import { BusyLabel } from '@/components/ui/busy-label'
 export const PORTAL_INK = '#1C1A17'
 export const PORTAL_MUTED = '#6B635A'
 export const PORTAL_BORDER = '#E8E2D9'
-export const PORTAL_BG = '#FAF7F2'
+// The warm ground. Single-homed in lib/portal-brand.ts, where the brand's
+// contrast derivation is defined against it — the two cannot drift.
+export const PORTAL_BG = PORTAL_GROUND
 
 // Semantic tones — meaning-first names so "what error looks like" is decided
 // HERE, once. Raw hexes for these meanings are banned outside this file

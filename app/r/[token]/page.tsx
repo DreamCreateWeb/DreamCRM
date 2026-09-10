@@ -3,6 +3,7 @@ import { getPublicReviewContext, recordReviewClick } from '@/lib/services/review
 import { publicSiteUrl } from '@/lib/services/clinic-site'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import ReviewForm from './review-form'
+import { portalBrand } from '@/lib/portal-brand'
 
 export const metadata = {
   title: 'Leave a review',
@@ -49,7 +50,7 @@ export default async function ReviewLandingPage({
   // Fire-and-forget click recording. Idempotent — re-visits don't downgrade.
   await recordReviewClick(token)
 
-  const brand = ctx.clinic.brandColor || '#9CAF9F'
+  const brand = portalBrand(ctx.clinic.brandColor)
   const name = ctx.clinic.displayName || ctx.clinicName
   // Link logo + footer back to the clinic's public site when resolvable.
   const homeHref = ctx.clinic.slug
