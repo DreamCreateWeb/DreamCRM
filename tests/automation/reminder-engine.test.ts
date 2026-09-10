@@ -606,7 +606,10 @@ describe('runDueReminders — the reminder claim (no double-sends)', () => {
 
     const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(0)
-    expect(r.alreadyReminded).toBe(1)
+    // Counted as CONTENDED, not already-reminded: those mean different things
+    // to whoever reads batch health.
+    expect(r.claimContended).toBe(1)
+    expect(r.alreadyReminded).toBe(0)
     expect(deliverMock).not.toHaveBeenCalled()
     expect(sendNotificationEmailMock).not.toHaveBeenCalled()
     expect(confirmReminderSentMock).not.toHaveBeenCalled()
@@ -635,7 +638,7 @@ describe('runDueReminders — the reminder claim (no double-sends)', () => {
 
     const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(0)
-    expect(r.alreadyReminded).toBe(1)
+    expect(r.claimContended).toBe(1)
     expect(deliverMock).not.toHaveBeenCalled()
   })
 
@@ -673,7 +676,7 @@ describe('runDueReminders — the reminder claim (no double-sends)', () => {
     claimLosses = new Set(['kid2'])
 
     const r = await runDueReminders({ now: NOW })
-    expect(r.alreadyReminded).toBe(1)
+    expect(r.claimContended).toBe(1)
     // One visit left in the bucket → the single-visit email, not a household
     // one that would name a sibling this tick doesn't own.
     expect(r.sent).toBe(1)

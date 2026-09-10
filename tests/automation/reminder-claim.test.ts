@@ -22,6 +22,8 @@ import { join } from 'path'
 const captured: Array<{ sql: string; params: unknown[] }> = []
 /** Rows the next statement resolves with (a claim insert returns [] on conflict). */
 let nextRows: unknown[] = []
+/** When set, the next statement rejects with it — the DB going away mid-write. */
+let failNext: Error | null = null
 
 vi.mock('@/lib/db', async () => {
   const schema = await vi.importActual<typeof import('@/lib/db/schema')>('@/lib/db/schema')
@@ -29,6 +31,11 @@ vi.mock('@/lib/db', async () => {
   const db = drizzle(
     async (sql: string, params: unknown[]) => {
       captured.push({ sql, params })
+      if (failNext) {
+        const err = failNext
+        failNext = null
+        throw err
+      }
       return { rows: nextRows as never }
     },
     { schema },
@@ -47,8 +54,10 @@ vi.mock('@/lib/services/pms', () => ({
 import {
   claimAutomatedReminder,
   confirmReminderSent,
+  logReminderSent,
   releaseReminderClaim,
 } from '@/lib/services/appointments'
+import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
 
 const INPUT = {
   organizationId: 'org_1',
@@ -60,6 +69,7 @@ const INPUT = {
 beforeEach(() => {
   captured.length = 0
   nextRows = []
+  failNext = null
 })
 
 describe('claimAutomatedReminder — the statement Postgres actually receives', () => {
@@ -72,8 +82,11 @@ describe('claimAutomatedReminder — the statement Postgres actually receives', 
     expect(sql).toContain('insert into "appointment_reminder_log"')
     // The target columns, in the index's order.
     expect(sql).toMatch(/on conflict \(\s*"appointment_id",\s*"template"\s*\)/)
-    // The index predicate, without which this is a 42P10 on every tick.
-    expect(sql).toContain('"sent_by_user_id" is null and "appointment_reminder_log"."template" is not null')
+    // The index predicate — ALL of it. A conflict clause that omits any part
+    // of it is a 42P10 on every tick, and reminders stop entirely.
+    expect(sql).toContain('"sent_by_user_id" is null')
+    expect(sql).toContain('"template" is not null')
+    expect(sql).toContain(`"template" <> '${FORMS_REMINDER_TEMPLATE}'`)
     expect(sql).toContain('do nothing')
     // It must return the row, or a lost claim is indistinguishable from a won
     // one and the engine would send on both.
@@ -151,6 +164,78 @@ describe('confirmReminderSent / releaseReminderClaim', () => {
     expect(del).toBeDefined()
     expect(del!.params).toEqual(expect.arrayContaining(['org_1', 'rem_1']))
   })
+
+  it('a failed provider-id stamp NEVER unwinds into the caller', async () => {
+    // If this threw, it would unwind into the SMS send helper's catch, the
+    // engine would read `{ ok: false }` and RELEASE a claim for a text the
+    // carrier already took — then send the patient a second one next tick.
+    // Exactly the duplicate the whole mechanism exists to prevent.
+    failNext = new Error('connection terminated')
+    await expect(
+      confirmReminderSent(claim, { providerMessageId: 'sms_abc' }),
+    ).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * THE WRITER GUARD.
+ *
+ * `claimAutomatedReminder` is not the only thing that writes an
+ * automated-shaped row into this table — `logReminderSent` does too, and the
+ * forms nudge logs through it with `sentByUserId: null`. A bare INSERT there is
+ * the worst failure this table can produce: the message goes out, the write
+ * raises 23505, the engine records nothing, and it does the whole thing again
+ * on the next tick. Forever — because the forms dedup is a time WINDOW and the
+ * row it would have to see is the one that never got written.
+ */
+describe('every automated-shaped write carries the conflict clause', () => {
+  async function logForms() {
+    nextRows = []
+    await logReminderSent({
+      organizationId: 'org_1',
+      appointmentId: 'appt_1',
+      channel: 'email',
+      template: FORMS_REMINDER_TEMPLATE,
+      sentByUserId: null,
+    })
+    return captured.find((c) =>
+      c.sql.toLowerCase().startsWith('insert into "appointment_reminder_log"'),
+    )!
+  }
+
+  it('logReminderSent does not send a bare INSERT', async () => {
+    const insert = await logForms()
+    expect(insert).toBeDefined()
+    expect(insert.sql.toLowerCase()).toContain('on conflict')
+    expect(insert.sql.toLowerCase()).toContain('do nothing')
+  })
+
+  it('the forms nudge sits OUTSIDE the index, so its windowed repeat still records', async () => {
+    // PMS sync moves an appointment's start_time IN PLACE, so a visit pushed a
+    // week out comes back around and a patient who still has not filled the
+    // form is legitimately nudged again. Under the index that second write
+    // would be an error; the index excludes the template by name.
+    const insert = await logForms()
+    expect(insert.sql).toContain(`"template" <> '${FORMS_REMINDER_TEMPLATE}'`)
+    expect(insert.params).toContain(FORMS_REMINDER_TEMPLATE)
+  })
+
+  it('a manual staff send is outside the index too — repeat sends stay legal', async () => {
+    nextRows = []
+    await logReminderSent({
+      organizationId: 'org_1',
+      appointmentId: 'appt_1',
+      channel: 'email',
+      template: 'default_reminder',
+      sentByUserId: 'user_1',
+    })
+    const insert = captured.find((c) =>
+      c.sql.toLowerCase().startsWith('insert into "appointment_reminder_log"'),
+    )!
+    // sent_by_user_id is set, so the row falls outside the partial predicate.
+    expect(insert.params).toContain('user_1')
+    expect(insert.sql.toLowerCase()).toContain('"sent_by_user_id" is null')
+  })
 })
 
 /**
@@ -160,7 +245,7 @@ describe('confirmReminderSent / releaseReminderClaim', () => {
  * The de-duplication has to be in the same file, ahead of the index.
  */
 describe('migration 0160 — the de-dup runs before the guard', () => {
-  const sql = readFileSync(join(process.cwd(), 'lib/db/migrations/0160_lucky_dark_beast.sql'), 'utf8')
+  const sql = readFileSync(join(process.cwd(), 'lib/db/migrations/0160_damp_luckman.sql'), 'utf8')
 
   it('deletes duplicate automated rows before creating the unique index', () => {
     const deleteAt = sql.indexOf('DELETE FROM "appointment_reminder_log"')
@@ -175,9 +260,22 @@ describe('migration 0160 — the de-dup runs before the guard', () => {
   it('de-dups exactly the rows the index covers — never a staff or ad-hoc send', () => {
     const dedup = sql.slice(0, sql.indexOf('CREATE UNIQUE INDEX'))
     expect(dedup).toContain('PARTITION BY "appointment_id", "template"')
-    expect(dedup).toContain('WHERE "sent_by_user_id" IS NULL AND "template" IS NOT NULL')
+    expect(dedup).toContain('WHERE "sent_by_user_id" IS NULL')
+    expect(dedup).toContain('AND "template" IS NOT NULL')
+    // And never a forms nudge: those repeat legitimately inside their window,
+    // so a "duplicate" there is real history, not a bug's leftovers.
+    expect(dedup).toContain(`AND "template" <> '${FORMS_REMINDER_TEMPLATE}'`)
     // Keeps one row per group, deletes the rest.
     expect(dedup).toContain('rn > 1')
+  })
+
+  it('the index it builds and the rows it cleans describe the SAME set', () => {
+    const dedup = sql.slice(0, sql.indexOf('CREATE UNIQUE INDEX'))
+    const index = sql.slice(sql.indexOf('CREATE UNIQUE INDEX'))
+    for (const clause of ['sent_by_user_id', 'template', FORMS_REMINDER_TEMPLATE]) {
+      expect(dedup, clause).toContain(clause)
+      expect(index, clause).toContain(clause)
+    }
   })
 
   it('keeps the row carrying downstream state, then the earliest send', () => {

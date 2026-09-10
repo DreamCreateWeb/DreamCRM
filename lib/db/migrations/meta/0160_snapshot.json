@@ -1,5 +1,5 @@
 {
-  "id": "509ac2b1-e033-4a14-975e-8d4954896b7b",
+  "id": "cbf28534-6169-4449-af64-cba67d4dd13a",
   "prevId": "ff4d24f1-5d23-4cb8-a9ed-8f4dd6dd4461",
   "version": "7",
   "dialect": "postgresql",
@@ -1197,7 +1197,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"appointment_reminder_log\".\"sent_by_user_id\" is null and \"appointment_reminder_log\".\"template\" is not null",
+          "where": "\"appointment_reminder_log\".\"sent_by_user_id\" is null and \"appointment_reminder_log\".\"template\" is not null and \"appointment_reminder_log\".\"template\" <> 'forms_intake'",
           "concurrently": false,
           "method": "btree",
           "with": {}

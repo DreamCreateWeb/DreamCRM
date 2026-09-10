@@ -13,6 +13,7 @@ import { clinicDayKey, formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { isBirthdayThisWeek, lapsedCutoff as lapsedCutoffDate } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
 
 /**
  * Appointments service — the relationship-view of the schedule.
@@ -1431,6 +1432,26 @@ export async function rescheduleAppointment(input: RescheduleInput) {
 
 // ----- Reminder log -----------------------------------------------------
 
+/**
+ * The `appt_reminder_auto_touch_uq` index predicate, written once.
+ *
+ * An `ON CONFLICT` target has to match a real unique index INCLUDING its
+ * predicate — a mismatch is not a subtle bug, it is 42P10 on every claim and
+ * no reminder ever goes out again. So the conflict clause and the index read
+ * from the same place, and `tests/automation/reminder-claim.test.ts` renders
+ * the statement to check they still agree.
+ */
+const AUTO_TOUCH_INDEX_PREDICATE = sql`${schema.appointmentReminderLog.sentByUserId} is null and ${schema.appointmentReminderLog.template} is not null and ${schema.appointmentReminderLog.template} <> ${sql.raw(`'${FORMS_REMINDER_TEMPLATE}'`)}`
+
+/** The conflict clause every automated-shaped write into the reminder log
+ *  carries — see `logReminderSent` for why even the writers that are OUTSIDE
+ *  the index take it. */
+const autoTouchConflictTarget = {
+  target: [schema.appointmentReminderLog.appointmentId, schema.appointmentReminderLog.template],
+  where: AUTO_TOUCH_INDEX_PREDICATE,
+}
+
+
 export interface LogReminderInput {
   organizationId: string
   appointmentId: string
@@ -1444,15 +1465,28 @@ export interface LogReminderInput {
 
 export async function logReminderSent(input: LogReminderInput): Promise<string> {
   const id = newReminderLogId()
-  await db.insert(schema.appointmentReminderLog).values({
-    id,
-    organizationId: input.organizationId,
-    appointmentId: input.appointmentId,
-    channel: input.channel,
-    template: input.template ?? null,
-    sentByUserId: input.sentByUserId,
-    providerMessageId: input.providerMessageId ?? null,
-  })
+  // Log-AFTER-send, which is right for the writers that use it: a staff member
+  // clicking send (one click, one send), and the forms nudge, whose dedup is a
+  // WINDOW rather than a row and which is excluded from the uniqueness index
+  // for exactly that reason.
+  //
+  // It still carries the conflict clause. Both of today's writers sit outside
+  // the index, so this can never fire for them — it is there so the NEXT
+  // automated writer cannot turn a duplicate row into a 23505 raised AFTER the
+  // message has gone out, which is the shape that makes an engine send an
+  // email and then fail to record it, every tick, forever.
+  await db
+    .insert(schema.appointmentReminderLog)
+    .values({
+      id,
+      organizationId: input.organizationId,
+      appointmentId: input.appointmentId,
+      channel: input.channel,
+      template: input.template ?? null,
+      sentByUserId: input.sentByUserId,
+      providerMessageId: input.providerMessageId ?? null,
+    })
+    .onConflictDoNothing(autoTouchConflictTarget)
   await recordReminderInActionLedger(input)
   return id
 }
@@ -1558,10 +1592,7 @@ export async function claimAutomatedReminder(input: ClaimReminderInput): Promise
       sentByUserId: null,
       providerMessageId: null,
     })
-    .onConflictDoNothing({
-      target: [schema.appointmentReminderLog.appointmentId, schema.appointmentReminderLog.template],
-      where: sql`${schema.appointmentReminderLog.sentByUserId} is null and ${schema.appointmentReminderLog.template} is not null`,
-    })
+    .onConflictDoNothing(autoTouchConflictTarget)
     .returning({ id: schema.appointmentReminderLog.id })
   if (inserted.length === 0) return null
   return {
@@ -1582,15 +1613,27 @@ export async function confirmReminderSent(
   opts?: { providerMessageId?: string | null },
 ): Promise<void> {
   if (opts?.providerMessageId) {
-    await db
-      .update(schema.appointmentReminderLog)
-      .set({ providerMessageId: opts.providerMessageId })
-      .where(
-        and(
-          eq(schema.appointmentReminderLog.organizationId, claim.organizationId),
-          eq(schema.appointmentReminderLog.id, claim.id),
-        ),
-      )
+    // Best-effort, and this one matters more than it looks. The text is
+    // already with the carrier; if this stamp threw, the exception would
+    // unwind into the send helper's catch, the engine would read `{ ok: false
+    // }` and RELEASE the claim — and the next tick would send the patient a
+    // second text. The convention three functions up says it plainly: the
+    // reminder is already out, bookkeeping must never throw after it. A lost
+    // providerMessageId costs one delivery receipt; a released claim costs the
+    // patient a duplicate.
+    try {
+      await db
+        .update(schema.appointmentReminderLog)
+        .set({ providerMessageId: opts.providerMessageId })
+        .where(
+          and(
+            eq(schema.appointmentReminderLog.organizationId, claim.organizationId),
+            eq(schema.appointmentReminderLog.id, claim.id),
+          ),
+        )
+    } catch (e) {
+      console.error('[reminders] stamping the provider message id failed:', e)
+    }
   }
   await recordReminderInActionLedger({
     organizationId: claim.organizationId,

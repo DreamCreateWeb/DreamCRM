@@ -22,6 +22,7 @@ import {
   reminderSmsBody,
   familyReminderSmsBody,
   FORMS_REMINDER_WINDOW_HOURS,
+  FORMS_REMINDER_TEMPLATE,
   REMINDER_MIN_GAP_HOURS,
   type ReminderSettings,
 } from '@/lib/types/reminders'
@@ -602,6 +603,12 @@ export interface ReminderRunResult {
   sentSms: number
   /** Skipped because a reminder already went out within the window (idempotency). */
   alreadyReminded: number
+  /** Skipped because ANOTHER tick held the claim on this touch — it is being
+   *  sent right now, elsewhere. Counted apart from `alreadyReminded` on
+   *  purpose: that one means "the patient already has this", this one means
+   *  "two ticks overlapped", and a batch-health surface reading a rising
+   *  number here is looking at a scheduling problem, not a quiet clinic. */
+  claimContended: number
   /** Skipped for an expected reason (no email, etc.). */
   skipped: number
   /** Sends that errored (worth alerting on). */
@@ -639,6 +646,7 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     sent: 0,
     sentSms: 0,
     alreadyReminded: 0,
+    claimContended: 0,
     skipped: 0,
     failed: 0,
     errors: [],
@@ -898,7 +906,7 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       // read, and two ticks can both pass it. This is the write that decides:
       // whoever inserts the log row owns the send, everyone else skips.
       const { claimed: bucketItems, lost } = await claimDueItems(profile.organizationId, rawBucket)
-      result.alreadyReminded += lost
+      result.claimContended += lost
       if (bucketItems.length === 0) continue
 
       const isSms = bucketItems[0].channel === 'sms'
@@ -960,8 +968,6 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
   return result
 }
 
-const FORMS_REMINDER_TEMPLATE = 'forms_intake'
-
 /**
  * Forms-completion reminders: nudge a patient with an upcoming LIVE visit who
  * hasn't completed any intake form yet. Distinct from the visit reminder above
@@ -971,7 +977,7 @@ const FORMS_REMINDER_TEMPLATE = 'forms_intake'
  */
 export async function runDueFormReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
   const now = opts?.now ?? new Date()
-  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, sentSms: 0, alreadyReminded: 0, skipped: 0, failed: 0, errors: [] }
+  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, sentSms: 0, alreadyReminded: 0, claimContended: 0, skipped: 0, failed: 0, errors: [] }
 
   const profiles = await db
     .select({ organizationId: schema.clinicProfile.organizationId, reminderSettings: schema.clinicProfile.reminderSettings })
