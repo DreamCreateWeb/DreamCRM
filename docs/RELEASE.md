@@ -557,10 +557,47 @@ binding are all correct. The payment-plan charger was the exception.
   row — one transfer can no longer produce two payout records.
 - S2 · `getMrrSnapshot` stale tier constant duplicated in `projects.ts` +
   `clinics.ts` — single-source the tier→price map (ideally derive from live
-  Stripe amounts as `/ecommerce/invoices` already does). · OPEN.
+  Stripe amounts as `/ecommerce/invoices` already does). · **FIXED**
+  (DREAMCRM-23) — the map is GONE rather than deduplicated. The three copies
+  disagreed (`{9900, 14900, 19900}` twice vs `{15000, 25000, 20000}` with
+  premium priced BELOW pro), so two dashboards computed different MRR from the
+  same tenants and neither matched an invoice. `lib/services/platform-mrr.ts`
+  is now the one derivation: WHO COUNTS comes from `clinic_profile` (which
+  orgs, what tier, demo or not), WHAT THEY PAY comes from the clinic's live
+  Stripe subscription. `getMrrSnapshot`, `projects.getSubscriptionStats`, the
+  Clinics list column and the Clinics page MRR tile all read it; the two
+  dashboards still answer different questions (recognized vs including
+  trials) but can no longer disagree about a clinic's amount. A comped clinic
+  now contributes a real 0 instead of its tier's list price. Guarded by
+  `tests/guards/one-mrr-number.test.ts` (no tier→price map, no second
+  summing module, no hand-rolled ÷12).
+- S3 · `stripe-admin.monthlyContributionCents` ignores `quantity` /
+  `interval_count`, so a multi-seat or every-3-months subscription
+  contributes the wrong MRR. · **FIXED** (DREAMCRM-23) — the cadence + seat
+  math single-homes in `lib/mrr.ts` (`normalizedMonthlyCents`) and
+  `monthlyContributionCents` keeps only its status gate. A quarterly price
+  was counted as monthly (3× overstated) and seats were dropped entirely.
+- S3 · `listAdminSubscriptions` asked Stripe for ONE page of 100 and stopped,
+  so every MRR figure that sums it would have silently omitted the 101st
+  paying clinic — the same defect class as the collections header above.
+  Found while fixing this line. · **FIXED** (DREAMCRM-23) — it walks pages to
+  a documented 20-page bound; an explicit `limit` still means at most that
+  many.
+- S3 · `lib/prospect-vendors.ts:108` — a FOURTH tier→price map
+  (`PLAN_PRICE = { basic: 150, pro: 250, premium: 500 }`) whose comment says
+  it mirrors `stripe-config` PLANS, and which has drifted: PLANS prices
+  premium at $200 (the founding rate; $500 is the struck-through LIST price),
+  so the prospecting deal room quotes a prospect $500/mo for a plan that
+  costs $200. Repro: any prospect whose detected vendors include marketing or
+  3+ categories → `consolidationEstimate` returns `ourPlanPrice: 500`, which
+  renders on the deal room and in the outbound pitch. Not folded into the MRR
+  fix: this is prospecting's lane and changing what a prospect is quoted is a
+  product decision, not a cleanup. Allowlisted in the new one-MRR guard with
+  this reason. · OPEN.
 Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
-line unresolvable: four are still open and the fifth is gone, and neither fact
-was recordable while they shared a verdict.
+line unresolvable while they shared a verdict. Since unbundling, three have
+closed on their own evidence (the demo cart, the MRR cadence math, and the
+collections header) and two remain open below.
 
 - S3 · stripe-webhook release-and-retry re-fires non-idempotent in-app
   notifications. · OPEN.
@@ -574,9 +611,6 @@ was recordable while they shared a verdict.
   int4 column already returns one; the old `::int` would have ERRORED, not
   wrapped, above ~$21M), and the page says when it is showing fewer rows than
   the totals count.
-- S3 · `stripe-admin.monthlyContributionCents` ignores `quantity` /
-  `interval_count`, so a multi-seat or every-3-months subscription
-  contributes the wrong MRR. · OPEN.
 - S3 · legacy `billing_profiles` vanity write (`lib/services/settings.ts`) —
   a table nothing reads back for billing. · OPEN.
 - S3 · `(pay)/ecommerce/pay` demo cart accepts an arbitrary amount (moves no

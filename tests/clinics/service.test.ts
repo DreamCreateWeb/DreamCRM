@@ -18,6 +18,29 @@ const stripeStubs: {
   throwOn: null,
 }
 
+// The Clinics list column now reads what each clinic ACTUALLY pays, from the
+// one shared MRR derivation (tested in
+// tests/platform-metrics/platform-mrr.test.ts) rather than a hardcoded
+// tier→price map. Three of those maps existed and they disagreed.
+const mrrState: { byOrg: Map<string, number>; stripeUnavailable: boolean } = {
+  byOrg: new Map(),
+  stripeUnavailable: false,
+}
+vi.mock('@/lib/services/platform-mrr', () => ({
+  getPlatformMrr: async () => ({
+    recognized: { clinics: 0, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 0 } },
+    withTrialing: { clinics: 0, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 0 } },
+    stripeUnavailable: mrrState.stripeUnavailable,
+    monthlyCentsByOrg: mrrState.byOrg,
+  }),
+  emptyPlatformMrr: (stripeUnavailable = false) => ({
+    recognized: { clinics: 0, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 0 } },
+    withTrialing: { clinics: 0, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 0 } },
+    stripeUnavailable,
+    monthlyCentsByOrg: new Map(),
+  }),
+}))
+
 vi.mock('@/lib/stripe', () => ({
   stripe: {
     invoices: {
@@ -57,6 +80,8 @@ beforeEach(() => {
   dbState.selectQueue.length = 0
   stripeStubs.invoices = []
   stripeStubs.throwOn = null
+  mrrState.byOrg = new Map()
+  mrrState.stripeUnavailable = false
 })
 
 describe('listClinics', () => {
@@ -116,11 +141,14 @@ describe('listClinics', () => {
     // Active project counts
     dbState.selectQueue.push([{ orgId: 'org_a', count: 2 }])
 
+    mrrState.byOrg = new Map([['org_a', 14_900]])
+
     const out = await listClinics()
     expect(out).toHaveLength(2)
     const a = out.find((c) => c.orgId === 'org_a')!
     const b = out.find((c) => c.orgId === 'org_b')!
-    expect(a.monthlyContributionCents).toBe(14_900) // pro × active
+    // What Stripe says this clinic pays — not a tier lookup.
+    expect(a.monthlyContributionCents).toBe(14_900)
     expect(a.memberCount).toBe(3)
     expect(a.patientCount).toBe(42)
     expect(a.activeProjectCount).toBe(2)
@@ -156,8 +184,72 @@ describe('listClinics', () => {
     dbState.selectQueue.push([])
     dbState.selectQueue.push([])
     dbState.selectQueue.push([])
+    mrrState.byOrg = new Map([['org_t', 19_900]])
     const out = await listClinics()
-    expect(out[0].monthlyContributionCents).toBe(19_900) // premium
+    expect(out[0].monthlyContributionCents).toBe(19_900)
+  })
+
+  it('a clinic with no live Stripe subscription contributes a real 0, not a tier price', async () => {
+    // Comped and platform-managed clinics pay nothing. The old constant
+    // credited them their tier's list price.
+    dbState.selectQueue.push([
+      {
+        orgId: 'org_comped',
+        name: 'Comped Clinic',
+        slug: 'comped',
+        createdAt: new Date(),
+        displayName: null,
+        logoUrl: null,
+        brandColor: null,
+        email: null,
+        phone: null,
+        city: null,
+        state: null,
+        tagline: null,
+        about: null,
+        planTier: 'premium',
+        subscriptionStatus: 'active',
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+      },
+    ])
+    dbState.selectQueue.push([])
+    dbState.selectQueue.push([])
+    dbState.selectQueue.push([])
+    mrrState.byOrg = new Map()
+    const out = await listClinics()
+    expect(out[0].monthlyContributionCents).toBe(0)
+  })
+
+  it('reports UNKNOWN, not zero, when Stripe could not be reached', async () => {
+    dbState.selectQueue.push([
+      {
+        orgId: 'org_u',
+        name: 'Unknown Clinic',
+        slug: 'unknown',
+        createdAt: new Date(),
+        displayName: null,
+        logoUrl: null,
+        brandColor: null,
+        email: null,
+        phone: null,
+        city: null,
+        state: null,
+        tagline: null,
+        about: null,
+        planTier: 'premium',
+        subscriptionStatus: 'active',
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+      },
+    ])
+    dbState.selectQueue.push([])
+    dbState.selectQueue.push([])
+    dbState.selectQueue.push([])
+    mrrState.stripeUnavailable = true
+    const out = await listClinics()
+    // null is the column's "we could not ask" — the page renders an em dash.
+    expect(out[0].monthlyContributionCents).toBeNull()
   })
 
   it('defaults plan_tier to premium when null (the single-plan default)', async () => {
@@ -185,6 +277,7 @@ describe('listClinics', () => {
     dbState.selectQueue.push([])
     dbState.selectQueue.push([])
     dbState.selectQueue.push([])
+    mrrState.byOrg = new Map([['org_x', 19_900]])
     const out = await listClinics()
     expect(out[0].planTier).toBe('premium')
     expect(out[0].monthlyContributionCents).toBe(19_900)

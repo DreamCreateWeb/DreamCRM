@@ -22,6 +22,8 @@ function sub(overrides: Partial<AdminSubscription> = {}): AdminSubscription {
     unitAmountCents: 14_900,
     currency: 'usd',
     interval: 'month',
+    intervalCount: 1,
+    quantity: 1,
     trialEnd: null,
     ...overrides,
   }

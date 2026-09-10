@@ -4,11 +4,7 @@ import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
 import { clinicProfile, agencyProject } from '@/lib/db/schema/platform'
 import { patient, appointment } from '@/lib/db/schema/clinic'
-
-// Premium is the one purchasable plan at $200/mo (basic/pro are legacy managed
-// rows). Recognized MRR counts PAID clinics only — see the 'active' filter below;
-// trialing clinics are on the no-card trial and are not yet revenue.
-const TIER_PRICES_CENTS = { basic: 15000, pro: 25000, premium: 20000 } as const
+import { getPlatformMrr } from './platform-mrr'
 
 // "Already missing" Postgres error codes — return zero state instead of crashing
 // when migrations haven't run yet on a fresh environment.
@@ -131,42 +127,31 @@ export interface MrrSnapshot {
   monthlyRecurringCents: number
   annualRunRateCents: number
   arpu: number
+  /** True when Stripe was unreachable: the money above is unknown, not zero. */
+  stripeUnavailable: boolean
 }
 
+/**
+ * RECOGNIZED revenue — clinics we record as `active`. Trialing clinics are on
+ * the no-card trial and are not revenue yet, which is the one thing that
+ * legitimately differs from `projects.getSubscriptionStats`; both now take
+ * their money from the same place, so they can no longer disagree about it.
+ */
 export async function getMrrSnapshot(): Promise<MrrSnapshot> {
   try {
-    const rows = await db
-      .select({
-        planTier: clinicProfile.planTier,
-        count: sql<number>`count(${clinicProfile.organizationId})::int`,
-      })
-      .from(clinicProfile)
-      .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
-      .where(and(sql`${clinicProfile.subscriptionStatus} = 'active'`, eq(organization.isDemo, false)))
-      .groupBy(clinicProfile.planTier)
-
-    const byTier = { basic: 0, pro: 0, premium: 0 }
-    for (const r of rows) {
-      if (r.planTier === 'basic') byTier.basic = r.count
-      else if (r.planTier === 'pro') byTier.pro = r.count
-      else if (r.planTier === 'premium') byTier.premium = r.count
-    }
-    const activeClinics = byTier.basic + byTier.pro + byTier.premium
-    const monthlyRecurringCents =
-      byTier.basic * TIER_PRICES_CENTS.basic +
-      byTier.pro * TIER_PRICES_CENTS.pro +
-      byTier.premium * TIER_PRICES_CENTS.premium
-
+    const mrr = await getPlatformMrr()
+    const { clinics: activeClinics, monthlyCents, byTier } = mrr.recognized
     return {
       activeClinics,
       byTier,
-      monthlyRecurringCents,
-      annualRunRateCents: monthlyRecurringCents * 12,
-      arpu: activeClinics === 0 ? 0 : Math.round(monthlyRecurringCents / activeClinics),
+      monthlyRecurringCents: monthlyCents,
+      annualRunRateCents: monthlyCents * 12,
+      arpu: activeClinics === 0 ? 0 : Math.round(monthlyCents / activeClinics),
+      stripeUnavailable: mrr.stripeUnavailable,
     }
   } catch (err) {
     if (isMissingSchema(err)) {
-      return { activeClinics: 0, byTier: { basic: 0, pro: 0, premium: 0 }, monthlyRecurringCents: 0, annualRunRateCents: 0, arpu: 0 }
+      return { activeClinics: 0, byTier: { basic: 0, pro: 0, premium: 0 }, monthlyRecurringCents: 0, annualRunRateCents: 0, arpu: 0, stripeUnavailable: false }
     }
     throw err
   }

@@ -1,5 +1,6 @@
 import { listClinics } from '@/lib/services/clinics'
 import { listActivePartners } from '@/lib/services/referrals'
+import { getPlatformMrr, emptyPlatformMrr } from '@/lib/services/platform-mrr'
 import { formatMoneyShort, formatNumberShort } from '@/lib/utils/format'
 import { PageHeader } from '@/components/ui/page-header'
 import { ActionButton } from '@/components/ui/action-button'
@@ -24,7 +25,14 @@ const STATUS_PILLS: PillLegendRow[] = [
 ]
 
 export default async function PlatformClinics() {
-  const [rows, partners] = await Promise.all([listClinics(), listActivePartners()])
+  const [rows, partners, mrr] = await Promise.all([
+    listClinics(),
+    listActivePartners(),
+    // The SAME derivation the platform Overview and Revenue pages read, so
+    // this tile cannot disagree with them. Summing the rows here would be a
+    // fourth place that computes MRR.
+    getPlatformMrr().catch(() => emptyPlatformMrr(true)),
+  ])
 
   // Aggregate top-line numbers from the rows we already have. The demo
   // clinic stays in the LIST (it's the "View as" entry point) but never in
@@ -34,12 +42,11 @@ export default async function PlatformClinics() {
   let activeCount = 0
   let pastDueCount = 0
   let newIn30d = 0
-  let mrrCents = 0
+  const mrrCents = mrr.withTrialing.monthlyCents
   const thirtyDaysAgo = Date.now() - 30 * 86_400_000
   for (const r of realRows) {
     if (r.subscriptionStatus === 'active' || r.subscriptionStatus === 'trialing') {
       activeCount++
-      mrrCents += r.monthlyContributionCents
     }
     if (
       r.subscriptionStatus === 'past_due' ||
@@ -80,7 +87,11 @@ export default async function PlatformClinics() {
           sub={pastDueCount > 0 ? 'Needs intervention' : 'All paid up'}
           tone={pastDueCount > 0 ? 'warn' : undefined}
         />
-        <KpiStat label="Combined MRR" value={formatMoneyShort(mrrCents)} sub="From active clinics" />
+        <KpiStat
+          label="Combined MRR"
+          value={mrr.stripeUnavailable ? '—' : formatMoneyShort(mrrCents)}
+          sub={mrr.stripeUnavailable ? 'Couldn’t reach Stripe' : 'From active clinics'}
+        />
       </div>
 
       <ClinicsList rows={rows} />

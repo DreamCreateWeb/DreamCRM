@@ -10,6 +10,7 @@ import {
   type ClinicProfile,
 } from '@/lib/db/schema/platform'
 import { patient, appointment } from '@/lib/db/schema/clinic'
+import { getPlatformMrr, emptyPlatformMrr } from './platform-mrr'
 
 function isMissingSchema(err: unknown): boolean {
   const code = (err as { code?: string; cause?: { code?: string } } | null)?.code
@@ -22,8 +23,6 @@ function isStripeUnavailable(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
   return /STRIPE_SECRET_KEY|Stripe(Authentication|Connection)Error|fetch failed/i.test(msg)
 }
-
-const TIER_PRICES_CENTS = { basic: 9900, pro: 14900, premium: 19900 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clinic list — one row per clinic org, joined with profile + counts
@@ -52,8 +51,11 @@ export interface ClinicListRow {
   /** The demo clinic — shown in the list (it's the demo entry point) but
    *  excluded from every top-line aggregate (MRR, active, new-in-30d). */
   isDemo: boolean
-  /** Monthly recurring revenue this clinic contributes (cents). */
-  monthlyContributionCents: number
+  /** Monthly recurring revenue this clinic contributes (cents), from its LIVE
+   *  Stripe subscription. `null` = we could not ask Stripe, so the amount is
+   *  unknown — never render it as 0. A comped or platform-managed clinic with
+   *  no subscription is a real 0. */
+  monthlyContributionCents: number | null
   memberCount: number
   patientCount: number
   activeProjectCount: number
@@ -143,11 +145,22 @@ export async function listClinics(): Promise<ClinicListRow[]> {
       if (!isMissingSchema(err)) throw err
     }
 
+    // What each clinic actually pays, from its live Stripe subscription —
+    // the same derivation the platform MRR dashboards read, so this column
+    // and those tiles can never tell two different stories. Three hardcoded
+    // tier→price maps used to answer this, and they disagreed with each
+    // other and with Stripe.
+    const mrr = await getPlatformMrr().catch(() => emptyPlatformMrr(true))
+
     return rows.map<ClinicListRow>((r) => {
       const planTier = (r.planTier ?? 'premium') as ClinicListRow['planTier']
       const isActive =
         r.subscriptionStatus === 'active' || r.subscriptionStatus === 'trialing'
-      const monthlyContributionCents = isActive ? TIER_PRICES_CENTS[planTier] : 0
+      const monthlyContributionCents = !isActive
+        ? 0
+        : mrr.stripeUnavailable
+          ? null
+          : mrr.monthlyCentsByOrg.get(r.orgId) ?? 0
       const hasWebsiteContent =
         !!(r.tagline || r.about || r.email || r.phone)
 

@@ -42,6 +42,7 @@ const ALLOWLIST = [
   'app/(onboarding)', // signup writes premium
   'app/(marketing)', // public pricing page
   'lib/services/platform-metrics.ts', // platform reporting: clinics by tier
+  'lib/services/platform-mrr.ts', // platform reporting: buckets clinics by tier
   'lib/prospect-vendors.ts', // outbound sales copy naming OUR plan
   'lib/services/billing.ts', // maps a Stripe price back to its plan
   'lib/services/clinics.ts', // platform clinic-list row display

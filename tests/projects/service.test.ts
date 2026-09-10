@@ -91,6 +91,30 @@ vi.mock('@/lib/db', async () => {
   }
 })
 
+// getSubscriptionStats is a THIN read over the one shared MRR derivation now
+// — the derivation itself is tested in
+// tests/platform-metrics/platform-mrr.test.ts. What belongs here is that this
+// one reads the WITH-TRIALING slice (the pipeline view) and pairs it with the
+// new-clinics count.
+const mrrState: { value: unknown } = { value: null }
+vi.mock('@/lib/services/platform-mrr', () => ({
+  getPlatformMrr: async () => mrrState.value,
+}))
+
+function slice(over: Record<string, unknown> = {}) {
+  return { clinics: 0, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 0 }, ...over }
+}
+
+function mrr(over: Record<string, unknown> = {}) {
+  return {
+    recognized: slice(),
+    withTrialing: slice(),
+    stripeUnavailable: false,
+    monthlyCentsByOrg: new Map(),
+    ...over,
+  }
+}
+
 import {
   createProject,
   updateProject,
@@ -308,23 +332,47 @@ describe('graceful degradation when migrations are pending', () => {
 })
 
 describe('getSubscriptionStats', () => {
-  it('computes MRR from active clinics at each tier', async () => {
-    state.selectQueue.push([
-      { planTier: 'basic', count: 2 },
-      { planTier: 'pro', count: 3 },
-      { planTier: 'premium', count: 1 },
-    ])
+  it('reports the with-trialing slice — clinics, tiers, and live Stripe money', async () => {
+    mrrState.value = mrr({
+      recognized: slice({ clinics: 4, monthlyCents: 80_000, byTier: { basic: 1, pro: 2, premium: 1 } }),
+      withTrialing: slice({ clinics: 6, monthlyCents: 120_000, byTier: { basic: 2, pro: 3, premium: 1 } }),
+    })
     state.selectQueue.push([{ count: 4 }])
     const stats = await getSubscriptionStats()
     expect(stats.activeClinics).toBe(6)
     expect(stats.byTier).toEqual({ basic: 2, pro: 3, premium: 1 })
-    // 2 × $99 + 3 × $149 + 1 × $199 = 198 + 447 + 199 = 844 → 84400 cents
-    expect(stats.monthlyRecurringCents).toBe(2 * 9900 + 3 * 14900 + 1 * 19900)
+    // No tier→price table any more: this is what Stripe says they pay.
+    expect(stats.monthlyRecurringCents).toBe(120_000)
     expect(stats.newClinics30d).toBe(4)
   })
 
+  it('and the RECOGNIZED slice is the one the Revenue page reads — they differ by trials only', async () => {
+    // The two dashboards are allowed to answer different questions. What they
+    // may NOT do is disagree about what a clinic pays, which is why both read
+    // the same derivation.
+    mrrState.value = mrr({
+      recognized: slice({ clinics: 4, monthlyCents: 80_000 }),
+      withTrialing: slice({ clinics: 6, monthlyCents: 120_000 }),
+    })
+    state.selectQueue.push([{ count: 0 }])
+    const stats = await getSubscriptionStats()
+    expect(stats.monthlyRecurringCents).toBe(120_000)
+    expect(stats.monthlyRecurringCents).not.toBe(80_000)
+  })
+
+  it('carries the Stripe-unreachable flag so a surface can say "unknown", not "$0"', async () => {
+    mrrState.value = mrr({
+      withTrialing: slice({ clinics: 6 }),
+      stripeUnavailable: true,
+    })
+    state.selectQueue.push([{ count: 0 }])
+    const stats = await getSubscriptionStats()
+    expect(stats.activeClinics).toBe(6)
+    expect(stats.stripeUnavailable).toBe(true)
+  })
+
   it('returns zeros when no clinics are active', async () => {
-    state.selectQueue.push([])
+    mrrState.value = mrr()
     state.selectQueue.push([{ count: 0 }])
     const stats = await getSubscriptionStats()
     expect(stats.activeClinics).toBe(0)
