@@ -1367,6 +1367,16 @@ async function ensurePatientExternalId(
   // lasts, minting a fresh row each pass would write one audit entry per hour
   // per queued booking for the whole outage. Reuse the open one and let its
   // attempt counter tell the truth instead.
+  //
+  // 'pending' and 'error' are the OPEN lanes — the same pair every other reader
+  // of this table treats as outstanding (the pms-sync cadence override, the
+  // integration page's pending count). A 'skipped' op is deliberately NOT
+  // reused: that lane means "this write has no vocabulary in their API", which
+  // is a settled answer, not an attempt in flight. Today that cannot happen on
+  // this path (NexHealth's createPatient never throws NotSupported), so the
+  // "one row per patient write" property holds; a provider that DID refuse a
+  // patient create that way would mint one fresh row per pass, which is the
+  // one seam in it.
   const [openOp] = await db
     .select({ id: schema.pmsWriteOp.id, attempts: schema.pmsWriteOp.attempts })
     .from(schema.pmsWriteOp)

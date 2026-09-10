@@ -1164,6 +1164,25 @@ Four tests in `tests/integrations/write-back.test.ts` pin all of it. Red run:
 restored the swallow — the two parking tests and the real-reason test failed;
 restored the row-per-retry insert — the reuse test failed.
 
+**Left open on purpose, from the review:** `MAX_WRITE_ATTEMPTS` no longer
+bounds how long a booking can sit un-written, because parking is the point. A
+parked op is visible — `lib/services/pms/connection.ts:196` counts pending/error
+ops for the integration page — but nothing ALERTS on "op pending for N days",
+so a practice whose bridge stays down doesn't get told. Recorded as its own
+entry below rather than hedging this one's verdict.
+
+### Open — a PMS write-op can sit parked with nobody told (found 2026-09-10)
+
+Found reviewing Slice 7b. Since the WAITING lane preserves the attempt counter,
+a write-op parks for as long as the practice system is unreachable — which is
+the intended behaviour and strictly better than failing terminally. But
+`MAX_WRITE_ATTEMPTS` was doing double duty as a crude "give up and be visible"
+timer, and nothing replaced that second job. `getPmsHealth`
+(`lib/services/pms/connection.ts:196`) counts pending/error ops on the
+integration page, so it is visible to somebody who looks; nothing alerts on
+"op pending for N days", so nobody is told. A practice whose bridge stays down
+over a holiday week has bookings queued and no prompt to go and look. · OPEN.
+
 ### Slice 8 — stranded-campaign recovery · DONE
 
 The claim flips a campaign `scheduled` → `active` BEFORE `sendCampaign` walks
