@@ -1,0 +1,147 @@
+name: Nightly
+
+# A SCHEDULED run of the same gates CI runs on demand.
+#
+# Why this exists: until now nothing ran the suite except a PR or a merge, so
+# a clock- or race-dependent failure could only be discovered by accident, on
+# somebody else's unrelated PR, at whatever hour they happened to push. Both
+# flakes found this cycle were found exactly that way. A nightly run turns
+# "someone stumbles into it" into "we are told, on a schedule, before anyone
+# is mid-change".
+#
+# Nothing here gates a merge — a red nightly is a signal to investigate, not a
+# blocked branch. That is the point: it can afford to run the slower, noisier,
+# more informative shape of the suite.
+#
+# NOTE: GitHub only runs `schedule` from the DEFAULT branch, and it disables
+# scheduled workflows in a repository with 60 days of no activity. If nightly
+# runs go quiet, check the Actions tab for the re-enable banner before
+# assuming the suite is fine.
+on:
+  schedule:
+    # 07:00 UTC = 03:00 ET — after the day's merges have landed, long before
+    # anyone starts work, so a red result is waiting at the start of the day
+    # rather than landing in the middle of one.
+    - cron: '0 7 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Deliberately NOT named `test` / `e2e`. Those two names are the required
+  # status-check contexts on `main`'s branch protection, and a name collision
+  # from a hand-dispatched run of this workflow could report a green context
+  # onto a commit that the real gate never ran against.
+  nightly-test:
+    name: nightly-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+  nightly-e2e:
+    name: nightly-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run the E2E harness
+        run: bash scripts/e2e-harness.sh
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-nightly
+          path: playwright-report/
+          retention-days: 7
+
+  # --- The timezone canary (NON-BLOCKING) ----------------------------------
+  #
+  # `vitest.config.ts` pins TZ=UTC on purpose: prod's clock is UTC, and an
+  # unpinned suite flips results on a developer machine in a US timezone. That
+  # pin is correct, and it is also the exact reason CI is blind to a whole bug
+  # class — a timestamp mapper that buckets into *local* days is invisible in a
+  # process whose local day IS the UTC day (DREAMCRM-13, #500/#509).
+  #
+  # So: run the suite once a night under America/New_York, where local days and
+  # UTC days genuinely disagree, and treat a failure as an EARLY WARNING rather
+  # than a verdict. `continue-on-error` keeps the nightly's overall conclusion
+  # honest — this job going red must never be mistaken for "the suite broke".
+  # A red canary means: some test reads the local clock. Go find out whether
+  # that test is wrong, or the code under it is.
+  #
+  # It runs the unit suite only. E2E already exercises real clinic-local time
+  # (the fixtures are America/New_York against a UTC server), so a second
+  # browser pass buys nothing for four more minutes of runner.
+  tz-canary:
+    name: tz-canary (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      # vitest.config.ts reads TEST_TZ and falls back to UTC, so this is the
+      # ONLY way the pin gets overridden — no ambient TZ from a dev box or a
+      # runner image can reach the suite by accident.
+      TEST_TZ: America/New_York
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test under America/New_York
+        run: pnpm test
+
+      - name: Explain a red canary
+        if: failure()
+        run: |
+          echo "::warning title=Timezone canary failed::The suite is green under TZ=UTC but red under America/New_York. This is an EARLY WARNING, not a broken build: something read the LOCAL clock. Find whether the test's expectation is UTC-shaped or the code under it buckets timestamps into local days (the DREAMCRM-13 bug class)."

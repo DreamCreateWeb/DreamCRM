@@ -191,11 +191,22 @@ describe('Thread detail — activity markers', () => {
   })
 
   it('collapses a run of 4+ markers behind a summary line', () => {
+    // The five markers have to land on ONE day in the VIEWER's calendar, or
+    // message-grouping.ts splits them across two day separators and neither
+    // run reaches the 4 that collapse. They used to sit at 01:00–05:00 UTC,
+    // which is one day only in UTC — in every US timezone that span straddles
+    // local midnight, so this assertion passed purely because the suite pins
+    // TZ=UTC (vitest.config.ts). The nightly `tz-canary` job caught it under
+    // America/New_York; 10:00–14:00 UTC is the same local day from UTC-10
+    // through UTC+9, which is every clock a reader of this suite will have.
+    // localDayKey's use of the viewer's clock is CORRECT here — this is a
+    // client component and staff sit in their clinic — so the fixture is what
+    // had to change, not the grouping.
     renderPanel(
-      [serMsg({ id: 'a', body: 'hello', sentAt: '2026-06-14T15:00:00.000Z' })],
+      [serMsg({ id: 'a', body: 'hello', sentAt: '2026-06-14T18:00:00.000Z' })],
       {
         activity: [1, 2, 3, 4, 5].map((n) =>
-          marker({ id: `k${n}`, occurredAt: `2026-06-14T0${n}:00:00.000Z`, label: `Touch ${n}` }),
+          marker({ id: `k${n}`, occurredAt: `2026-06-14T${9 + n}:00:00.000Z`, label: `Touch ${n}` }),
         ),
       },
     )

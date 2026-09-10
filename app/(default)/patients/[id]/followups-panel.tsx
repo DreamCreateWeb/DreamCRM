@@ -251,7 +251,7 @@ function FollowupForm({
         )}
       </div>
       <div className="flex items-center justify-end gap-2">
-        <ActionButton variant="ghost" size="sm" onClick={onCancel} pending={pending}>Cancel</ActionButton>
+        <ActionButton variant="ghost" size="sm" onClick={onCancel} disabled={pending}>Cancel</ActionButton>
         <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
           Add follow-up
         </ActionButton>

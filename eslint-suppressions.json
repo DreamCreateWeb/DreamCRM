@@ -1,0 +1,117 @@
+{
+  "app/(auth)/accept-invite/page.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 2
+    }
+  },
+  "app/(default)/ecommerce/invoices/add-invoice-modal.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 4
+    }
+  },
+  "app/(default)/ecommerce/invoices/plans-panel.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 4
+    }
+  },
+  "app/(default)/ecommerce/orders/new-project-modal.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 6
+    }
+  },
+  "app/(default)/growth/audiences/audiences-client.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 8
+    }
+  },
+  "app/(default)/growth/reviews/review-config-panel.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 2
+    }
+  },
+  "app/(default)/intake-forms/[id]/form-builder.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 2
+    }
+  },
+  "app/(default)/integrations/google-business/location-picker.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  },
+  "app/(default)/patients/[id]/patient-detail.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  },
+  "app/(default)/payments/memberships/plan-form.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 7
+    }
+  },
+  "app/(default)/settings/automations/emails/emails-hub.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 3
+    }
+  },
+  "app/(default)/settings/clinic/clinic-profile-panel.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  },
+  "app/(default)/settings/clinic/services-library-picker.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  },
+  "app/(default)/shop/product-form.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 7
+    }
+  },
+  "app/(default)/website/careers/job-form.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 13
+    }
+  },
+  "app/(default)/website/editor/website-studio.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 2
+    }
+  },
+  "app/(default)/website/forms/forms-panel.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  },
+  "app/(double-sidebar)/inbox/compose-button.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 5
+    }
+  },
+  "app/(double-sidebar)/messages/new-conversation-button.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 2
+    }
+  },
+  "app/(partner-accept)/partner/accept/page.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 2
+    }
+  },
+  "app/r/[token]/review-form.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  },
+  "app/site/[slug]/careers/apply-form.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  },
+  "app/site/[slug]/shop/add-to-cart.tsx": {
+    "jsx-a11y/label-has-associated-control": {
+      "count": 1
+    }
+  }
+}

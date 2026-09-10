@@ -40,6 +40,22 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The automated accessibility gate (2026-09-10). eslint-plugin-jsx-a11y
+      # on a curated rule set — see eslint.config.mjs for what is on, what is
+      # deliberately off, and why. Before this every a11y defect in the repo
+      # was found by a person reading components one at a time.
+      #
+      # It runs BEFORE the suite on purpose: it takes seconds where the suite
+      # takes minutes, so a missing label fails fast.
+      #
+      # PR-side only, like the e2e job below and unlike typecheck+test: every
+      # write to main goes through a PR, so this gate is complete in practice,
+      # and deploy.yml's mirror stays a pure production-safety gate. A missing
+      # accessible name is a quality defect, not something that should be able
+      # to hold up a deploy that has already passed here.
+      - name: Accessibility lint
+        run: pnpm lint
+
       - name: Test
         run: pnpm test
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { restoresSeedScope } from './reseed'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -25,6 +26,12 @@ function signedSessionCookie(): string {
   const sig = createHmac('sha256', secret).update(SESSION_TOKEN).digest('base64')
   return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
 }
+
+// This spec CONSUMES its seeded rows, so restore them before every attempt
+// (DREAMCRM-19). Without this a Playwright retry starts with the fixture
+// already spent and dies on its first assertion, burying the real failure.
+// 'portal-reschedule' is the scope THIS file owns — see scripts/e2e-seed.mjs.
+restoresSeedScope('portal-reschedule')
 
 test.describe('portal reschedule and cancel', () => {
   test.beforeEach(async ({ context }) => {
@@ -134,11 +141,14 @@ test.describe('portal reschedule and cancel', () => {
     // So accept either, then let the reload assert the part that is
     // unconditionally true.
     //
-    // Debugging a future failure here: this test CONSUMES its seeded row, and
-    // the harness seeds once per RUN, not once per attempt. A Playwright retry
-    // therefore starts with the Filling visit already cancelled and dies on the
-    // first assertion — the retry's error is an artifact of the retry, not a
-    // second data point. Always read attempt #1.
+    // Debugging a future failure here: this test CONSUMES its seeded row. It
+    // used to be that the harness seeded once per RUN, so a retry started with
+    // the Filling visit already cancelled, died on the first assertion, and
+    // buried the real error under an artifact of the retry — the advice was to
+    // read attempt #1 and ignore the second. That is fixed (DREAMCRM-19): the
+    // restoresSeedScope('portal-reschedule') at the top of this file puts the
+    // row back before every attempt, so BOTH attempts are now real data points
+    // and a retry failing the same way means the failure is real.
     const fillingCards = page.locator('div.rounded-2xl').filter({ hasText: 'Filling' })
     await expect
       .poll(
