@@ -283,11 +283,16 @@ arrives next week. So they are carried in a baseline, as a **ratchet**:
   defect fails even at a stop that already carries debt.
 - A stop not listed at all tolerates nothing. New and renamed stops start clean.
 - Numbers only go **down**. Shrink or delete the entry in the same PR as the
-  fix; a run prints a `::warning` naming every ceiling that is now too high.
+  fix; a run prints a `::warning` naming ceilings that are now too high.
 
-A ceiling rather than an exact match because one stop genuinely varies (the
-booking confirmation reported 2 then 1 across two attempts of the same run,
-depending on which slot was free). Exact-match would have been flaky on day one.
+A ceiling rather than an exact match because some counts genuinely wobble by an
+element depending on what is on screen — the agenda stops reported 8
+`nested-interactive` then 7, the booking confirmation 2 then 1, across runs of
+the same tree. Exact-match would have been flaky on day one. For the same
+reason the shrink warning fires on a rule reaching **zero**, or a drop of more
+than one; warning on every wobble would have put a "shrink me" annotation on
+half of all runs within a day, and an annotation that is usually wrong is one
+people stop reading.
 
 `rulesOverBaseline` is the whole ratchet in one pure function, and
 `axe-selftest.spec.ts` pins its direction — at the ceiling passes, one above

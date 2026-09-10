@@ -146,10 +146,21 @@ export async function expectNoA11yViolations(
   // turn their PR red is how a young gate gets bypassed — but an unshrunk
   // ceiling is dead weight that quietly re-opens room for regressions, so say
   // so loudly enough to be seen on the run summary.
+  //
+  // NOT on any drop, though. Some counts wobble by an element depending on
+  // what is on screen: the first baselined run reported 8 nested-interactive
+  // at the three agenda stops and 7 on the next, and the booking confirmation
+  // went 2 then 1. Warning on those would have put a "shrink me" annotation on
+  // roughly half of all runs within a day of shipping, and an annotation that
+  // is usually wrong is one people stop reading — the exact failure this file
+  // argues against everywhere else. So: a rule reaching ZERO is unambiguous
+  // (it is fixed, the ceiling is dead weight), and below that only a drop
+  // bigger than the observed wobble counts as evidence of a real fix.
+  const WOBBLE = 1
   const found = new Map(violations.map((v) => [v.id, v.nodes.length]))
   for (const [rule, ceiling] of Object.entries(allowed)) {
     const now = found.get(rule) ?? 0
-    if (now < ceiling) {
+    if (now === 0 || now <= ceiling - WOBBLE - 1) {
       console.log(
         `::warning title=Shrink the a11y baseline::"${stop}" / ${rule} is down to ${now} ` +
           `from a ceiling of ${ceiling}. Lower it in e2e/axe-baseline.ts (delete the entry at 0) ` +

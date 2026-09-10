@@ -26,11 +26,13 @@
  *     in the same PR; the run prints a note telling you which ones are now
  *     lower than their ceiling.
  *
- * A ceiling rather than an exact match on purpose: one stop genuinely varies
- * (the booking confirmation reported 2 and then 1 across two attempts of the
- * same run, because what is on screen depends on which slot was free). An
- * exact-match baseline would have made that stop flaky on day one, and a flaky
- * gate is worse than a loose one.
+ * A ceiling rather than an exact match on purpose: some counts genuinely wobble
+ * by an element because what is on screen depends on the data — the three
+ * agenda stops reported 8 nested-interactive and then 7, and the booking
+ * confirmation 2 and then 1, across runs of the same tree. Every number here is
+ * therefore the HIGHEST observed, not the latest. An exact-match baseline would
+ * have made those stops flaky on day one, and a flaky gate is worse than a
+ * loose one.
  *
  * WHAT IS ACTUALLY BROKEN, so nobody has to re-derive it from a CI log:
  *
