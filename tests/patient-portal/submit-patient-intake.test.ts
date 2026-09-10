@@ -62,6 +62,21 @@ const baseInput = {
   submitterPhone: '555-0100',
 }
 
+
+/**
+ * A public form action REFUSES by returning `{ ok: false, error }`, never by
+ * throwing — a thrown server-action message is replaced by an opaque digest in
+ * production, so asserting the RESULT is asserting what the patient reads.
+ */
+async function expectRefusal(
+  promise: Promise<{ ok: true; data: unknown } | { ok: false; error: string }>,
+  message: RegExp,
+) {
+  const res = await promise
+  expect(res.ok, 'expected the action to refuse, but it succeeded').toBe(false)
+  expect((res as { ok: false; error: string }).error).toMatch(message)
+}
+
 describe('submitPatientIntakeAction', () => {
   it('submits on the happy path with session-bound orgId + patientId', async () => {
     getFormTemplate.mockResolvedValueOnce({ id: 'ft_1', archivedAt: null })
@@ -80,13 +95,13 @@ describe('submitPatientIntakeAction', () => {
 
   it('rejects when the tenant context is not a patient', async () => {
     tenantCtx.tenantType = 'clinic'
-    await expect(call(baseInput)).rejects.toThrow(/Only patients can submit/i)
+    await expectRefusal(call(baseInput), /Only patients can submit/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
 
   it('rejects when patient identity is missing', async () => {
     tenantCtx.patientId = null
-    await expect(call(baseInput)).rejects.toThrow(/Missing patient identity/i)
+    await expectRefusal(call(baseInput), /Missing patient identity/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
 
@@ -101,13 +116,13 @@ describe('submitPatientIntakeAction', () => {
 
   it('rejects when the template is archived', async () => {
     getFormTemplate.mockResolvedValueOnce({ id: 'ft_1', archivedAt: new Date() })
-    await expect(call(baseInput)).rejects.toThrow(/no longer accepting/i)
+    await expectRefusal(call(baseInput), /no longer accepting/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
 
   it('rejects when the template does not belong to the session org', async () => {
     getFormTemplate.mockResolvedValueOnce(null)
-    await expect(call(baseInput)).rejects.toThrow(/no longer accepting/i)
+    await expectRefusal(call(baseInput), /no longer accepting/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
 
@@ -129,13 +144,13 @@ describe('submitPatientIntakeAction', () => {
       },
     })
     // baseInput.data has 'name' but not the required 'consent'.
-    await expect(call(baseInput)).rejects.toThrow(/Consent is required/i)
+    await expectRefusal(call(baseInput), /Consent is required/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
 
   it('rejects when the clinic toggled portal forms off', async () => {
     portalSettings.features.forms = false
-    await expect(call(baseInput)).rejects.toThrow(/Forms aren’t available/i)
+    await expectRefusal(call(baseInput), /Forms aren’t available/i)
     expect(submitForm).not.toHaveBeenCalled()
   })
 

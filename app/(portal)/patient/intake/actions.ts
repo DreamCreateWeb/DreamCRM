@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/context'
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { getPortalSettings } from '@/lib/services/portal-settings'
+import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
 import {
   firstMissingRequiredField,
   sanitizeSubmissionData,
@@ -27,22 +28,35 @@ interface PatientIntakeInput {
  *   • sources orgId from the SESSION (never the client prop) so a curious
  *     patient can't post against another clinic,
  *   • attaches patientId so the submission lands on their record.
+ *
+ * Returns `{ ok }` for the same reason the public twin does — it shares the
+ * IntakeFormRunner component, and a digested error message is no more use to a
+ * signed-in patient than to a stranger.
  */
-export async function submitPatientIntakeAction(input: PatientIntakeInput) {
+export async function submitPatientIntakeAction(input: PatientIntakeInput): Promise<PublicFormResult> {
+  try {
+    await runPatientIntakeSubmission(input)
+    return { ok: true, data: null }
+  } catch (err) {
+    return publicFormFailure('portal.intake', err)
+  }
+}
+
+async function runPatientIntakeSubmission(input: PatientIntakeInput) {
   const ctx = await requireTenant()
-  if (ctx.tenantType !== 'patient') throw new Error('Only patients can submit through the portal')
-  if (!ctx.patientId) throw new Error('Missing patient identity')
+  if (ctx.tenantType !== 'patient') throw new PublicFormError('Only patients can submit through the portal')
+  if (!ctx.patientId) throw new PublicFormError('Missing patient identity')
 
   const settings = await getPortalSettings(ctx.organizationId)
-  if (!settings.features.forms) throw new Error('Forms aren’t available in the portal right now')
+  if (!settings.features.forms) throw new PublicFormError('Forms aren’t available in the portal right now')
 
   const template = await getFormTemplate(ctx.organizationId, input.templateId)
-  if (!template || template.archivedAt) throw new Error('Form is no longer accepting submissions')
+  if (!template || template.archivedAt) throw new PublicFormError('Form is no longer accepting submissions')
 
   const schema = template.schema as FormTemplateSchema
   const data = sanitizeSubmissionData(schema, input.data)
   const missing = firstMissingRequiredField(schema, data)
-  if (missing) throw new Error(`${missing} is required`)
+  if (missing) throw new PublicFormError(`${missing} is required`)
 
   await submitForm({
     organizationId: ctx.organizationId,

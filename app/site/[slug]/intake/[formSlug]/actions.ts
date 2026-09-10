@@ -2,6 +2,7 @@
 
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
+import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
 import {
   firstMissingRequiredField,
   sanitizeSubmissionData,
@@ -72,11 +73,25 @@ interface Input {
  * Public form submission. No auth — anyone with the form URL can fill
  * it. Re-validates the templateId actually belongs to the org so a
  * curious user can't post against an arbitrary org's templates.
+ *
+ * Returns `{ ok }` rather than throwing: in production Next.js replaces a
+ * server-action error message with an opaque digest, so "This form is no
+ * longer accepting responses" reached the patient as an internal-render
+ * sentence with nothing to act on. See `lib/services/public-form-error.ts`.
  */
-export async function submitIntakeForm(input: Input) {
-  if (!input.orgId || !input.templateId) throw new Error('Something went wrong. Please refresh and try again.')
+export async function submitIntakeForm(input: Input): Promise<PublicFormResult> {
+  try {
+    await runIntakeSubmission(input)
+    return { ok: true, data: null }
+  } catch (err) {
+    return publicFormFailure('clinic-site.intake', err)
+  }
+}
+
+async function runIntakeSubmission(input: Input) {
+  if (!input.orgId || !input.templateId) throw new PublicFormError('Something went wrong. Please refresh and try again.')
   const template = await getFormTemplate(input.orgId, input.templateId)
-  if (!template || template.archivedAt) throw new Error('This form is no longer accepting responses.')
+  if (!template || template.archivedAt) throw new PublicFormError('This form is no longer accepting responses.')
 
   // Clamp file/insurance fields to clean refs (client could POST arbitrary
   // URLs) + drop display-only values, then re-validate required fields
@@ -84,7 +99,7 @@ export async function submitIntakeForm(input: Input) {
   const schema = template.schema as FormTemplateSchema
   const data = sanitizeSubmissionData(schema, input.data)
   const missing = firstMissingRequiredField(schema, data)
-  if (missing) throw new Error(`${missing} is required`)
+  if (missing) throw new PublicFormError(`${missing} is required`)
 
   await submitForm({
     organizationId: input.orgId,
