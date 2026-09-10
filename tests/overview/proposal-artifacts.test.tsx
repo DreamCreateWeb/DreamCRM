@@ -150,6 +150,6 @@ describe('SocialArtifact with a photo', () => {
         imageUrl="https://cdn.example.io/smile.jpg"
       />,
     )
-    expect(screen.getByAltText('Attached photo')).toHaveAttribute('src', 'https://cdn.example.io/smile.jpg')
+    expect(screen.getByAltText('Attached to this post')).toHaveAttribute('src', 'https://cdn.example.io/smile.jpg')
   })
 })

@@ -795,6 +795,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                     preload="metadata"
                     className="block w-full h-auto max-h-[560px] object-contain"
                     aria-hidden="true"
+                    tabIndex={-1}
                   >
                     <source src={profile.differenceVideoUrl} />
                   </video>

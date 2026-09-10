@@ -28,8 +28,10 @@ type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'srcSet'> & {
  * Plain function component (no hooks) so server AND client templates can use
  * it. Every caller keeps its own `width`/`height`/`loading`/`className`.
  */
-export default function SiteImage({ src, displayWidth, ...rest }: Props) {
+export default function SiteImage({ src, alt, displayWidth, ...rest }: Props) {
   const source = siteImageSource(src, displayWidth)
+  // `alt` is required by Props, but spread through {...rest} it is invisible
+  // to a reader and to the a11y lint — so it is passed by name.
   // eslint-disable-next-line @next/next/no-img-element
-  return <img {...rest} src={source.src} srcSet={source.srcSet} />
+  return <img {...rest} alt={alt} src={source.src} srcSet={source.srcSet} />
 }
