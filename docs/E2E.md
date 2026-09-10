@@ -193,6 +193,36 @@ seeded appointment id is gone from the page and the surviving card carries the
 time the patient picked. When you write the durable half, ask what it would do if
 the button did nothing.
 
+**A signal a PENDING action already satisfies is not a settled signal
+(DREAMCRM-21).** The durable half above only means anything if the reload
+underneath it happens AFTER the action landed, so between the two sits a wait.
+The reschedule spec's wait was "the 'Move my visit' button is gone" — which
+looks exactly like "the action finished" and is not: `visit-card.tsx` renders
+that pill as `{pending ? 'Moving…' : 'Move my visit'}`, so its accessible name
+disappears on the CLICK, with the request still in the air. The reload then
+raced the server action, and under parallel load on the shared throwaway
+Postgres the reload won: the page re-rendered from a database where the move had
+not landed, and the durable assertion — the line furthest from the cause —
+reported a working journey red. Three full-suite runs failed, three isolated
+runs passed, and each failure spent ~10s re-polling a post-reload DOM that could
+never change. `retries: 1` absorbed it, which is how it survived.
+
+The wait now polls for the reschedule PANEL to close, which `run()` does only on
+`res.ok` — so it stays true while "Moving…" shows, and on a refusal it reports
+the server's own words (the action re-checks the slot at submit, and the
+e2e-dental chairs are shared with `booking.spec.ts`) instead of a bare timeout.
+Two rules fall out of this, and they generalise past this one spec:
+
+- **Before waiting on the absence of something, ask what it does while the
+  request is in flight.** A disabled button, a relabelled pill, a spinner
+  swapping out the label — all of them make an element "gone" the instant you
+  click it.
+- **A wait before a reload is load-bearing.** `tests/guards/e2e-reschedule-settled-signal.test.tsx`
+  pins both halves in the normal vitest suite: it proves in happy-dom that the
+  pill loses its name mid-flight while the panel does not, and it fails if the
+  spec drifts back to waiting on that name. The E2E job is the wrong place to
+  find out an E2E assertion was vacuous.
+
 **A fixture pinned in UTC against a window bounded in clinic time goes red on
 the clock.** `staff-day`'s past visit was seeded one UTC day back while the
 `past_30d` chip ends at the clinic-local day start (`America/New_York`), so for

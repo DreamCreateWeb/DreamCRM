@@ -98,11 +98,38 @@ test.describe('portal reschedule and cancel', () => {
     // picked slot — a green journey reported red. Same trap as the cancel spec
     // below; see docs/E2E.md.
     //
-    // The settled signal that does NOT race: run() closes the panel only on
-    // success, so "Move my visit" detaches either way — with the panel or with
-    // the whole card. On a failed action the panel stays open and this times
-    // out, which is what we want.
-    await expect(visit.getByRole('button', { name: 'Move my visit' })).toHaveCount(0, { timeout: 30_000 })
+    // The settled signal. It used to be "the 'Move my visit' button is gone",
+    // and that is the whole of DREAMCRM-21: the pill RELABELS to "Moving…"
+    // the instant the transition starts (visit-card.tsx), so its accessible
+    // name disappears while the action is still in flight. The assertion
+    // therefore passed on the CLICK, the reload below raced the server
+    // action, and on a loaded box the reload won — re-rendering the page out
+    // of a database where the move had not landed yet. Three full-suite runs
+    // red at the durable assertion, three isolated runs green, and ~10s of
+    // each failing run spent re-polling a post-reload DOM that could never
+    // change. A signal that a PENDING action satisfies is not a settled
+    // signal; ask what it does while the request is in the air.
+    //
+    // What is genuinely settled: run() leaves the panel open until the action
+    // RETURNS and closes it only on res.ok, and nothing else closes it. So
+    // the panel is still there while "Moving…" shows, gone once the move
+    // landed (with the panel, or with the whole retired card), and still
+    // there carrying the server's own reason if the move was refused — which
+    // the poll reports instead of a bare timeout. Refusal is a real
+    // possibility under parallel load: the action re-checks the slot at
+    // submit ("That time was just taken — pick another one."), and the
+    // e2e-dental chairs are shared with e2e/booking.spec.ts.
+    const stillPicking = visit.getByText(/Pick a new time/)
+    const refusal = visit.getByRole('alert')
+    await expect
+      .poll(
+        async () => {
+          if (await refusal.count()) return (await refusal.first().innerText()).trim()
+          return (await stillPicking.count()) === 0 ? 'moved' : 'in flight'
+        },
+        { timeout: 30_000, message: 'the move should settle — the panel closes only on success' },
+      )
+      .toBe('moved')
 
     // Durable, and the part that actually proves the journey: the seeded visit
     // is retired, and in its place sits a Consultation at the chosen time that
