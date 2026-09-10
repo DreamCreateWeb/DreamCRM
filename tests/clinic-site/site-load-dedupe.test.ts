@@ -32,9 +32,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * loaders above it that were already wrapped.
  *
  * What is checkable, and what matters more, is the SAFETY property: that the
- * draft is still decided per viewer. The last test is the one that fails if
- * someone swaps `cache()` for `unstable_cache` without first splitting the
- * published read out of `loadSite`.
+ * draft is still decided per viewer, in BOTH loaders on this path — the site
+ * payload and the theme. The guard against a durable swap is the source
+ * assertion in the first block; the behavioural tests below prove the overlay
+ * is a function of the viewer rather than something baked into the payload.
  */
 
 const state = {
@@ -71,6 +72,25 @@ vi.mock('@/lib/db', async () => {
     },
   }
 })
+
+/**
+ * REQUEST STATE IS A LANDMINE, SO MAKE IT ONE.
+ *
+ * The published loaders must depend on the database and nothing else — that is
+ * the whole basis for caching them across requests. Asserting "it didn't call
+ * `canEditClinic`" only covers the one door I already knew about. Making
+ * `headers()` and `cookies()` THROW covers the doors I haven't thought of: any
+ * published path that reaches for request state now fails loudly instead of
+ * quietly working in a test that has no request.
+ */
+vi.mock('next/headers', () => ({
+  headers: () => {
+    throw new Error('the published read touched headers() — it must read only the database')
+  },
+  cookies: () => {
+    throw new Error('the published read touched cookies() — it must read only the database')
+  },
+}))
 
 vi.mock('@/lib/clinic-site-edit', () => ({
   canEditClinic: vi.fn(async () => state.canEdit),
@@ -259,5 +279,79 @@ describe('the draft overlay is still decided per viewer', () => {
       visitorView?.profile.tagline,
       'a visitor was served the render made for the editor — unpublished content is live',
     ).toBe('Published tagline')
+  })
+})
+
+describe('the theme loader is split the same way', () => {
+  /**
+   * `getClinicThemeBySlug` carried the identical Draft->Publish overlay and
+   * was NOT split by the first pass — the review caught it. It matters more
+   * than its size suggests: `app/site/[slug]/layout.tsx` calls it on every
+   * public clinic page, and `lib/site-templates/resolve.ts` uses it to choose
+   * which template renders the site. Caching it as it stood would have put a
+   * clinic's unpublished brand colour and design on their live public site.
+   */
+  const THEMED = {
+    id: 'org_1',
+    slug: 'smilebright',
+    name: 'SmileBright',
+    type: 'clinic',
+    brand: '#0d9488',
+    template: 'modern',
+    websiteDraft: null as unknown,
+  }
+
+  it('a visitor gets the published brand and template', async () => {
+    state.org = { ...THEMED, websiteDraft: { brandColor: '#ff0000', template: 'cosmetic' } }
+    state.canEdit = false
+    const mod = await freshRequest()
+    const theme = await mod.getClinicThemeBySlug('smilebright')
+    expect(theme.brand).toBe('#0d9488')
+    expect(theme.template).toBe('modern')
+    expect(theme.hasEditorDraft).toBe(false)
+  })
+
+  it('a verified editor gets the staged brand and template', async () => {
+    state.org = { ...THEMED, websiteDraft: { brandColor: '#ff0000', template: 'cosmetic' } }
+    state.canEdit = true
+    const mod = await freshRequest()
+    const theme = await mod.getClinicThemeBySlug('smilebright')
+    expect(theme.brand).toBe('#ff0000')
+    expect(theme.template).toBe('cosmetic')
+    expect(theme.hasEditorDraft).toBe(true)
+  })
+
+  it('a draft that stages only the colour leaves the template published', async () => {
+    // The overlay is per-KEY, not all-or-nothing — a partial draft must not
+    // blank the design the clinic is actually serving.
+    state.org = { ...THEMED, websiteDraft: { brandColor: '#ff0000' } }
+    state.canEdit = true
+    const mod = await freshRequest()
+    const theme = await mod.getClinicThemeBySlug('smilebright')
+    expect(theme.brand).toBe('#ff0000')
+    expect(theme.template).toBe('modern')
+  })
+
+  it('never touches the session when there is no draft', async () => {
+    const { canEditClinic } = await import('@/lib/clinic-site-edit')
+    vi.mocked(canEditClinic).mockClear()
+    state.org = { ...THEMED }
+
+    const mod = await freshRequest()
+    const theme = await mod.getClinicThemeBySlug('smilebright')
+
+    expect(theme.brand).toBe('#0d9488')
+    expect(
+      vi.mocked(canEditClinic),
+      'the published theme read asked who the viewer is — it must not need to',
+    ).not.toHaveBeenCalled()
+  })
+
+  it('an unknown or non-clinic slug is all-null, not a crash', async () => {
+    const mod = await freshRequest()
+    state.org = { ...THEMED, type: 'platform' }
+    expect((await mod.getClinicThemeBySlug('dream-create')).orgId).toBeNull()
+    state.org = null
+    expect((await mod.getClinicThemeBySlug('nope')).orgId).toBeNull()
   })
 })
