@@ -4,9 +4,10 @@
 // clinic-site.ts) and `jobPostingJsonLd` (lib/types/careers.ts) but live in a
 // dependency-free module so every public page (server component) can call them
 // without pulling a server-only import. Each returns a plain object; the page
-// renders it via the standard
-//   <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
-// pattern.
+// renders it with the shared component
+//   <JsonLdScript data={ld} />          (components/json-ld.tsx)
+// which owns the `</script>`-in-clinic-content escaping. Never hand-roll the
+// script tag — a guard test fails CI if a second one appears.
 //
 // Honesty rules carried over from clinicJsonLd: we never fabricate ratings,
 // availability, or prices. A field is emitted only when we hold real data for

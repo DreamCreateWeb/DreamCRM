@@ -5,6 +5,7 @@ import { excerptFromHtml } from '@/lib/utils'
 import type { BlogFaqItem } from '@/lib/types/clinic-content'
 import BlogViewBeacon from '@/components/clinic-site/blog-view-beacon'
 import { PrimaryCta } from '@/components/marketing/ui'
+import JsonLdScript from '@/components/json-ld'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,9 +103,9 @@ export default async function MarketingBlogPostPage({ params }: Props) {
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(blogPostingLd) }} />
+      <JsonLdScript data={blogPostingLd} />
       {faqLd && (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+        <JsonLdScript data={faqLd} />
       )}
       <BlogViewBeacon postId={post.id} />
 
