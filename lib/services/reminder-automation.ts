@@ -7,13 +7,22 @@ import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { getOrCreateConfirmToken } from '@/lib/services/appointment-confirm'
 import { queueCommLogWriteBack } from '@/lib/services/pms/sync'
-import { getAppointmentDetail, logReminderSent, type AppointmentDetail } from '@/lib/services/appointments'
+import {
+  claimAutomatedReminder,
+  confirmReminderSent,
+  getAppointmentDetail,
+  logReminderSent,
+  releaseReminderClaim,
+  type AppointmentDetail,
+  type ReminderClaim,
+} from '@/lib/services/appointments'
 import {
   resolveReminderSettings,
   reminderTouchTemplate,
   reminderSmsBody,
   familyReminderSmsBody,
   FORMS_REMINDER_WINDOW_HOURS,
+  FORMS_REMINDER_TEMPLATE,
   REMINDER_MIN_GAP_HOURS,
   type ReminderSettings,
 } from '@/lib/types/reminders'
@@ -102,6 +111,11 @@ export async function sendReminderEmail(
     /** Recipient override — a dependent without their own email gets the
      *  reminder at their guardian's address. */
     to?: string
+    /** The automated engine already reserved this touch's log row before
+     *  calling in (see `claimAutomatedReminder`); confirm that row instead of
+     *  writing a second one. A manual staff send passes nothing and logs
+     *  after the fact exactly as before. */
+    claim?: ReminderClaim
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const to = opts?.to ?? detail.patient.email
@@ -194,13 +208,17 @@ export async function sendReminderEmail(
       note: `Appointment reminder sent for ${startStr}.`,
       mode: 'Email',
     })
-    await logReminderSent({
-      organizationId,
-      appointmentId: detail.id,
-      channel: 'email',
-      template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
-      sentByUserId,
-    })
+    if (opts?.claim) {
+      await confirmReminderSent(opts.claim)
+    } else {
+      await logReminderSent({
+        organizationId,
+        appointmentId: detail.id,
+        channel: 'email',
+        template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
+        sentByUserId,
+      })
+    }
     return { ok: true }
   } catch (err) {
     return { ok: false, error: (err as Error).message }
@@ -250,6 +268,8 @@ export async function sendReminderSms(
     /** E.164 recipient override — a dependent without a phone gets the text
      *  at their guardian's number. */
     to?: string
+    /** See `sendReminderEmail` — the engine's pre-send claim on this touch. */
+    claim?: ReminderClaim
   },
 ): Promise<{ ok: true } | { ok: false; error: string; expected?: boolean }> {
   const to = opts?.to ?? toE164(detail.patient.phone)
@@ -323,14 +343,18 @@ export async function sendReminderSms(
       note: `Appointment reminder texted for ${startStr}.`,
       mode: 'Text',
     })
-    await logReminderSent({
-      organizationId,
-      appointmentId: detail.id,
-      channel: 'sms',
-      template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
-      sentByUserId,
-      providerMessageId: r.messageId,
-    })
+    if (opts?.claim) {
+      await confirmReminderSent(opts.claim, { providerMessageId: r.messageId })
+    } else {
+      await logReminderSent({
+        organizationId,
+        appointmentId: detail.id,
+        channel: 'sms',
+        template: opts?.template ?? (sentByUserId ? 'default_reminder' : 'auto_reminder'),
+        sentByUserId,
+        providerMessageId: r.messageId,
+      })
+    }
     return { ok: true }
   } catch (err) {
     return { ok: false, error: (err as Error).message }
@@ -390,14 +414,7 @@ async function sendFamilyReminderSms(
         note: `Family visit reminder texted for ${startStr} (one text covering ${sorted.length} same-day family visits).`,
         mode: 'Text',
       })
-      await logReminderSent({
-        organizationId,
-        appointmentId: d.id,
-        channel: 'sms',
-        template: item.template,
-        sentByUserId: null,
-        providerMessageId: r.messageId,
-      })
+      await confirmClaimedItem(item, { providerMessageId: r.messageId })
     }
     return { ok: true }
   } catch (err) {
@@ -411,12 +428,64 @@ async function sendFamilyReminderSms(
 interface DueReminderItem {
   detail: AppointmentDetail
   template: string
+  /** Set by `claimDueItems` immediately before the send: the reserved log row
+   *  this touch owns. Present on every item that actually reaches a send. */
+  claim?: ReminderClaim
   /** Resolved recipient: an email address, or an E.164 number for the SMS
    *  fallback (the patient's own, or their guardian's). */
   recipient: string
   /** Email stays the primary channel; 'sms' means the patient had no
    *  reachable inbox anywhere and a textable phone. */
   channel: 'email' | 'sms'
+}
+
+/**
+ * Reserve every touch in a bucket before a single byte goes out, and hand back
+ * only the ones this tick owns. An item whose claim is already held belongs to
+ * another tick that is sending it right now — dropping it here is exactly the
+ * double-send the engine used to commit.
+ *
+ * A claim that THROWS is treated as lost. The claim is the idempotency write,
+ * so an unreadable outcome must never be read as "safe to send".
+ */
+async function claimDueItems(
+  organizationId: string,
+  items: DueReminderItem[],
+): Promise<{ claimed: DueReminderItem[]; lost: number }> {
+  const claimed: DueReminderItem[] = []
+  let lost = 0
+  for (const item of items) {
+    let claim: ReminderClaim | null = null
+    try {
+      claim = await claimAutomatedReminder({
+        organizationId,
+        appointmentId: item.detail.id,
+        channel: item.channel,
+        template: item.template,
+      })
+    } catch (e) {
+      console.error('[reminders] claiming a touch failed; skipping it this tick:', e)
+      claim = null
+    }
+    if (claim) claimed.push({ ...item, claim })
+    else lost++
+  }
+  return { claimed, lost }
+}
+
+/** Give back every claim in a bucket whose send did not go out. */
+async function releaseDueItems(items: DueReminderItem[]): Promise<void> {
+  for (const item of items) {
+    if (item.claim) await releaseReminderClaim(item.claim)
+  }
+}
+
+/** Confirm a claimed item's send. Family helpers call this per visit. */
+async function confirmClaimedItem(
+  item: DueReminderItem,
+  opts?: { providerMessageId?: string | null },
+): Promise<void> {
+  if (item.claim) await confirmReminderSent(item.claim, opts)
 }
 
 /**
@@ -512,13 +581,7 @@ async function sendFamilyReminderEmail(
         note: `Family visit reminder sent for ${startStr} (one email covering ${sorted.length} same-day family visits).`,
         mode: 'Email',
       })
-      await logReminderSent({
-        organizationId,
-        appointmentId: d.id,
-        channel: 'email',
-        template: item.template,
-        sentByUserId: null,
-      })
+      await confirmClaimedItem(item)
     }
     return { ok: true }
   } catch (err) {
@@ -540,6 +603,12 @@ export interface ReminderRunResult {
   sentSms: number
   /** Skipped because a reminder already went out within the window (idempotency). */
   alreadyReminded: number
+  /** Skipped because ANOTHER tick held the claim on this touch — it is being
+   *  sent right now, elsewhere. Counted apart from `alreadyReminded` on
+   *  purpose: that one means "the patient already has this", this one means
+   *  "two ticks overlapped", and a batch-health surface reading a rising
+   *  number here is looking at a scheduling problem, not a quiet clinic. */
+  claimContended: number
   /** Skipped for an expected reason (no email, etc.). */
   skipped: number
   /** Sends that errored (worth alerting on). */
@@ -577,6 +646,7 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
     sent: 0,
     sentSms: 0,
     alreadyReminded: 0,
+    claimContended: 0,
     skipped: 0,
     failed: 0,
     errors: [],
@@ -830,18 +900,28 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
       else buckets.set(key, [item])
     }
 
-    for (const bucket of Array.from(buckets.values())) {
-      const isSms = bucket[0].channel === 'sms'
-      if (bucket.length === 1) {
-        const item = bucket[0]
+    for (const rawBucket of Array.from(buckets.values())) {
+      // CLAIM BEFORE SEND. The prior-log read above is a cheap filter (it also
+      // carries the min-gap rule, which no index can express) — but it is a
+      // read, and two ticks can both pass it. This is the write that decides:
+      // whoever inserts the log row owns the send, everyone else skips.
+      const { claimed: bucketItems, lost } = await claimDueItems(profile.organizationId, rawBucket)
+      result.claimContended += lost
+      if (bucketItems.length === 0) continue
+
+      const isSms = bucketItems[0].channel === 'sms'
+      if (bucketItems.length === 1) {
+        const item = bucketItems[0]
         const r = isSms
           ? await sendReminderSms(profile.organizationId, item.detail, sender, null, {
               template: item.template,
               to: item.recipient,
+              claim: item.claim,
             })
           : await sendReminderEmail(profile.organizationId, item.detail, sender, null, {
               template: item.template,
               to: item.recipient,
+              claim: item.claim,
             })
         if (r.ok) {
           result.sent++
@@ -851,8 +931,11 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
           r.error.includes('no email') ||
           r.error.includes('disabled')
         ) {
+          // Nothing went out — hand the touch back so a later tick can try.
+          await releaseDueItems(bucketItems)
           result.skipped++
         } else {
+          await releaseDueItems(bucketItems)
           result.failed++
           result.errors.push({ organizationId: profile.organizationId, appointmentId: item.detail.id, error: r.error })
           // TELL THE GUARDIAN (Phase 4 open item #1). Reminders are the
@@ -864,16 +947,18 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
         }
       } else {
         const r = isSms
-          ? await sendFamilyReminderSms(profile.organizationId, bucket, sender, bucket[0].recipient)
-          : await sendFamilyReminderEmail(profile.organizationId, bucket, sender, bucket[0].recipient)
+          ? await sendFamilyReminderSms(profile.organizationId, bucketItems, sender, bucketItems[0].recipient)
+          : await sendFamilyReminderEmail(profile.organizationId, bucketItems, sender, bucketItems[0].recipient)
         if (r.ok) {
-          result.sent += bucket.length
-          if (isSms) result.sentSms += bucket.length
+          result.sent += bucketItems.length
+          if (isSms) result.sentSms += bucketItems.length
         } else if ('expected' in r && r.expected) {
-          result.skipped += bucket.length
+          await releaseDueItems(bucketItems)
+          result.skipped += bucketItems.length
         } else {
-          result.failed += bucket.length
-          result.errors.push({ organizationId: profile.organizationId, appointmentId: bucket[0].detail.id, error: r.error })
+          await releaseDueItems(bucketItems)
+          result.failed += bucketItems.length
+          result.errors.push({ organizationId: profile.organizationId, appointmentId: bucketItems[0].detail.id, error: r.error })
           await reportAutomationFailure(profile.organizationId, 'reminders')
         }
       }
@@ -882,8 +967,6 @@ export async function runDueReminders(opts?: { now?: Date }): Promise<ReminderRu
 
   return result
 }
-
-const FORMS_REMINDER_TEMPLATE = 'forms_intake'
 
 /**
  * Forms-completion reminders: nudge a patient with an upcoming LIVE visit who
@@ -894,7 +977,7 @@ const FORMS_REMINDER_TEMPLATE = 'forms_intake'
  */
 export async function runDueFormReminders(opts?: { now?: Date }): Promise<ReminderRunResult> {
   const now = opts?.now ?? new Date()
-  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, sentSms: 0, alreadyReminded: 0, skipped: 0, failed: 0, errors: [] }
+  const result: ReminderRunResult = { orgsScanned: 0, candidates: 0, sent: 0, sentSms: 0, alreadyReminded: 0, claimContended: 0, skipped: 0, failed: 0, errors: [] }
 
   const profiles = await db
     .select({ organizationId: schema.clinicProfile.organizationId, reminderSettings: schema.clinicProfile.reminderSettings })

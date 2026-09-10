@@ -37,6 +37,7 @@ function renderList(perWeek12?: Array<{ bucket: string; value: number }>) {
   return render(
     <PatientsList
       rows={[]}
+      total={0}
       meta={meta}
       filters={filters}
       sort={sort}
@@ -60,13 +61,14 @@ describe('PatientsList — 12-week heartbeat sparkline (law 7)', () => {
   it('stays hidden without the series or with fewer than 2 nonzero weeks', () => {
     // No prop at all (default []) — nothing renders.
     const { container, rerender } = render(
-      <PatientsList rows={[]} meta={meta} filters={filters} sort={sort} orgName="Dream Dental" />,
+      <PatientsList rows={[]} total={0} meta={meta} filters={filters} sort={sort} orgName="Dream Dental" />,
     )
     expect(screen.queryByText('New patients · 12 weeks')).not.toBeInTheDocument()
     // A single blip is not a trend — still hidden.
     rerender(
       <PatientsList
         rows={[]}
+        total={0}
         meta={meta}
         filters={filters}
         sort={sort}

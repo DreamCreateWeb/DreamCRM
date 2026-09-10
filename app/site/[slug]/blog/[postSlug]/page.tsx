@@ -10,6 +10,7 @@ import type { BlogFaqItem } from '@/lib/types/clinic-content'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
 import BlogArticle from '@/components/clinic-site/blog-article'
 import BlogViewBeacon from '@/components/clinic-site/blog-view-beacon'
+import JsonLdScript from '@/components/json-ld'
 
 interface Props {
   params: Promise<{ slug: string; postSlug: string }>
@@ -132,10 +133,10 @@ export default async function ClinicBlogPostPage({ params }: Props) {
 
   return (
     <BlogChrome data={data} basePath={basePath}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      <JsonLdScript data={jsonLd} />
+      <JsonLdScript data={breadcrumbLd} />
       {faqLd && (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+        <JsonLdScript data={faqLd} />
       )}
       <BlogViewBeacon postId={post.id} />
       <div data-edit-field="blog" data-edit-kind="modal" data-edit-label="blog posts">

@@ -8,9 +8,11 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { requireTenant } from '@/lib/auth/context'
 import {
-  listPatients,
+  listPatientsPage,
   getPatientListMeta,
   getNewPatientsPerWeek12,
+  DEFAULT_PATIENT_LIMIT,
+  MAX_PATIENT_LIMIT,
   type PatientListFilters,
   type PatientListSort,
 } from '@/lib/services/patients'
@@ -30,6 +32,15 @@ function parseSort(raw: string | string[] | undefined): PatientListSort {
     field: (validFields as string[]).includes(field) ? (field as PatientListSort['field']) : 'name',
     direction: direction === 'desc' ? 'desc' : 'asc',
   }
+}
+
+/** `?show=N` — how many rows this render asks for. The roster is bounded by
+ *  default and grows in DEFAULT_PATIENT_LIMIT steps up to MAX_PATIENT_LIMIT;
+ *  past that the answer is a filter, not a longer page. */
+function parseLimit(raw: string | string[] | undefined): number {
+  const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : NaN
+  if (!Number.isFinite(n)) return DEFAULT_PATIENT_LIMIT
+  return Math.max(DEFAULT_PATIENT_LIMIT, Math.min(n, MAX_PATIENT_LIMIT))
 }
 
 function parseStatus(raw: string | string[] | undefined): PatientListFilters['status'] {
@@ -54,9 +65,10 @@ export default async function PatientsPage({ searchParams }: PageProps) {
     tagIds: typeof params.tags === 'string' ? params.tags.split(',').filter(Boolean) : undefined,
   }
   const sort = parseSort(params.sort)
+  const limit = parseLimit(params.show)
 
-  const [rows, meta, views, perWeek12] = await Promise.all([
-    listPatients(ctx.organizationId, filters, sort),
+  const [page, meta, views, perWeek12] = await Promise.all([
+    listPatientsPage(ctx.organizationId, filters, sort, { limit }),
     getPatientListMeta(ctx.organizationId),
     listPatientViews(ctx.organizationId),
     getNewPatientsPerWeek12(ctx.organizationId),
@@ -68,7 +80,10 @@ export default async function PatientsPage({ searchParams }: PageProps) {
         <ModuleHint id="patients" />
       </div>
     <PatientsList
-      rows={rows}
+      rows={page.rows}
+      total={page.total}
+      hasMore={page.hasMore}
+      limit={limit}
       meta={meta}
       perWeek12={perWeek12}
       filters={filters}

@@ -10,6 +10,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import { blogIndexJsonLd } from '@/lib/clinic-site-jsonld'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import SiteImage from '@/components/clinic-site/site-image'
+import JsonLdScript from '@/components/json-ld'
 
 
 interface Props {
@@ -98,10 +99,7 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
   return (
     <BlogChrome data={data} basePath={basePath}>
       {blogLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(blogLd) }}
-        />
+        <JsonLdScript data={blogLd} />
       )}
       {/* ── Hero ──────────────────────────────────────────────────────── */}
       <section className="relative pt-14 sm:pt-20 pb-10 sm:pb-14 overflow-hidden">

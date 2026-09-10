@@ -10,6 +10,7 @@ import type {
   PatientFilterMeta,
   NewPatientsPerWeekPoint,
 } from '@/lib/services/patients'
+import { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT } from '@/lib/types/patient-views'
 import { MiniTrend } from '@/components/ui/charts'
 import { patientFlagGlyphs, type PillLegendRow } from '@/lib/ui/encodings'
 import { PageHeader } from '@/components/ui/page-header'
@@ -110,6 +111,9 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export default function PatientsList({
   rows,
+  total,
+  hasMore = false,
+  limit = DEFAULT_PATIENT_LIMIT,
   meta,
   perWeek12 = [],
   filters,
@@ -120,6 +124,12 @@ export default function PatientsList({
   canMarket = false,
 }: {
   rows: PatientListRow[]
+  /** Patients matching the filter — the whole set, not this page. */
+  total: number
+  /** More matched than this page shows. */
+  hasMore?: boolean
+  /** Rows this render asked for (the `?show=` bound). */
+  limit?: number
   meta: PatientFilterMeta
   /** New patients per clinic-local week, last 12 weeks — the page's one heartbeat. */
   perWeek12?: NewPatientsPerWeekPoint[]
@@ -301,7 +311,7 @@ export default function PatientsList({
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
         eyebrow={`Daily · ${orgName}`}
-        title={`${rows.length} ${rows.length === 1 ? 'patient' : 'patients'}`}
+        title={`${total} ${total === 1 ? 'patient' : 'patients'}`}
         subtitle="The people your clinic has a relationship with — who's due, who needs a nudge, and who to greet by name."
         legend={
           <EncodingLegend
@@ -352,7 +362,7 @@ export default function PatientsList({
           search: filters.search,
         }}
         tags={meta.tags}
-        matchCount={rows.length}
+        matchCount={total}
         canMarket={canMarket}
       />
 
@@ -549,6 +559,35 @@ export default function PatientsList({
           </div>
         )}
       </div>
+
+      {/* ── The page bound ───────────────────────────────────────────────
+          The roster is loaded a page at a time — a clinic with thousands of
+          patients used to pull every one of them to render the first screen.
+          The count in the header is the whole filtered set, so this line is
+          the only place the two numbers differ, and it says so plainly. */}
+      {rows.length > 0 && total > rows.length && (
+        <div className="mt-4 flex flex-col items-center gap-2 text-center">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {`Showing ${rows.length} of ${total} patients.`}
+          </p>
+          {hasMore && limit < MAX_PATIENT_LIMIT ? (
+            <ActionButton
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                setParam('show', String(Math.min(limit + DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT)))
+              }
+            >
+              Show more patients
+            </ActionButton>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              That&rsquo;s as far as one page goes — narrow it with a filter or search to find
+              someone specific.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Bulk action bar ──────────────────────────────────────────── */}
       <BulkBar

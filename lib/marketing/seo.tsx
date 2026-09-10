@@ -1,11 +1,12 @@
 import { MARKETING } from './site'
+import JsonLdScript from '@/components/json-ld'
 
 /**
  * SEO helpers for the public marketing site: canonical site URL + schema.org
  * JSON-LD builders. The product sells SEO to clinics, so the marketing site
  * models the same best practice (Organization, SoftwareApplication + Offers,
  * FAQPage, BreadcrumbList). Builders are pure + return plain objects; `JsonLd`
- * renders them as <script type="application/ld+json"> tags.
+ * renders them through the shared `JsonLdScript`, which owns the escaping.
  */
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.dreamcreatestudio.com').replace(/\/+$/, '')
@@ -107,7 +108,7 @@ export function JsonLd({ data }: { data: object | object[] }) {
   return (
     <>
       {items.map((d, i) => (
-        <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(d) }} />
+        <JsonLdScript key={i} data={d} />
       ))}
     </>
   )

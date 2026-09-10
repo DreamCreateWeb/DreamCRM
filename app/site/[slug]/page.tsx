@@ -17,6 +17,7 @@ import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import { isSelfBookingEnabled, hasColoringPages } from '@/lib/clinic-site-helpers'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import { siteImageSource, HERO_IMAGE_DISPLAY_WIDTH } from '@/lib/site-image'
+import JsonLdScript from '@/components/json-ld'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -136,10 +137,7 @@ export default async function ClinicSitePage({ params }: Props) {
       {/* JSON-LD for Google rich results / Knowledge Panel. Embedded as a
           plain script tag rather than next/script so it's part of the
           initial HTML and indexed without a JS roundtrip. */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLdScript data={jsonLd} />
       <Home
         data={data}
         basePath={basePath}
