@@ -76,8 +76,11 @@ export function RouteError({
         >
           Reload the page
         </button>
+        {/* gray-500/-400, not gray-400/-600: this reference is the one thing a
+            person is meant to read off a broken page and quote back to us, and
+            it was the least legible text on it — 2.62:1 light, 2.18:1 dark. */}
         {error.digest && (
-          <p className="mt-4 text-xs font-mono text-gray-400 dark:text-gray-600">Ref: {error.digest}</p>
+          <p className="mt-4 text-xs font-mono text-gray-500 dark:text-gray-400">Ref: {error.digest}</p>
         )}
       </div>
     </div>

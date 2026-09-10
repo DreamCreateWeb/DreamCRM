@@ -166,7 +166,7 @@ export default async function MarketingHome() {
               <PortalMock />
             </div>
           </div>
-          <p className="mt-4 text-center text-[0.78rem] font-medium text-gray-400">
+          <p className="mt-4 text-center text-[0.78rem] font-medium text-gray-500">
             The front desk&apos;s morning huddle — and the portal your patients see.
           </p>
         </div>
@@ -335,7 +335,7 @@ export default async function MarketingHome() {
                   href={`/compare/${c.slug}`}
                   className="block h-full rounded-xl border border-gray-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md hover:shadow-teal-100"
                 >
-                  <p className="text-[0.78rem] font-semibold text-gray-400">DreamCRM vs</p>
+                  <p className="text-[0.78rem] font-semibold text-gray-500">DreamCRM vs</p>
                   <p className="mt-0.5 text-[1.05rem] font-bold text-gray-950">{c.name}</p>
                   <p className="mt-1 text-[0.78rem] leading-snug text-gray-500">{c.category}</p>
                 </Link>
@@ -355,7 +355,7 @@ export default async function MarketingHome() {
             Founding practice rate
           </p>
           <p className="mt-2 flex items-baseline justify-center gap-3">
-            <span className="text-[1.2rem] font-semibold text-gray-400 line-through decoration-2">$500</span>
+            <span className="text-[1.2rem] font-semibold text-gray-500 line-through decoration-2">$500</span>
             <span className="text-[2.6rem] font-extrabold tracking-tight text-gray-950">$200</span>
             <span className="text-[0.9rem] font-medium text-gray-500">/mo</span>
           </p>

@@ -92,12 +92,12 @@ export default function RoiCalculator() {
         <div className="grid gap-3 sm:grid-cols-3">
           {r.scenarios.map((s) => (
             <div key={s.key} className="rounded-xl border border-gray-200 bg-white p-4">
-              <p className="text-[0.72rem] font-bold uppercase tracking-wider text-gray-400">
+              <p className="text-[0.72rem] font-bold uppercase tracking-wider text-gray-500">
                 {s.label} · {s.ratePct}%
               </p>
               <p className="mt-1.5 text-[1.35rem] font-extrabold tracking-tight text-gray-950">
                 {money(s.revenuePerYear)}
-                <span className="text-[0.8rem] font-semibold text-gray-400">/yr</span>
+                <span className="text-[0.8rem] font-semibold text-gray-500">/yr</span>
               </p>
               <p className="mt-1 text-[0.78rem] text-gray-500">
                 {s.visitsPerYear.toLocaleString('en-US')} visits back on the books
@@ -105,7 +105,7 @@ export default function RoiCalculator() {
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[0.75rem] leading-relaxed text-gray-400">
+        <p className="mt-3 text-[0.75rem] leading-relaxed text-gray-500">
           Scenarios, not promises — real win-back depends on your list, your area, and how long
           patients have been away. Practices that never ask win back close to none of it.
         </p>
@@ -156,7 +156,7 @@ function Field({
           {suffix}
         </span>
       </span>
-      <span className="mt-0.5 block text-[0.75rem] text-gray-400">{hint}</span>
+      <span className="mt-0.5 block text-[0.75rem] text-gray-500">{hint}</span>
       <input
         type="range"
         min={min}
