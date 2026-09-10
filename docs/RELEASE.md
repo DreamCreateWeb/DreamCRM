@@ -359,21 +359,52 @@ as confirmed defects yet.
   own org; no cross-tenant read). · **FIXED** (patient-in-org guard).
 - S2 · `shop.updateShopConfigAction` · accepts `platformFeeBps` in the
   client patch → a clinic owner could zero Dream Create's Connect
-  application fee on their own charges. · OPEN.
+  application fee on their own charges. · **FIXED** — the patch is rebuilt
+  from a field allowlist (`pickClinicShopConfigPatch`) before it reaches the
+  DB, and the client-facing type `ClinicShopConfigPatch` omits the field
+  outright, so the fee column has no path in from a server action.
 - S2 · patient-portal `loyalty` redeem + `payment-plans` propose · read-then-
-  insert TOCTOU (concurrent double-spend / two open plans). · OPEN.
+  insert TOCTOU (concurrent double-spend / two open plans). · **FIXED** —
+  both now use the advisory-lock-then-check idiom the booking path already
+  used against slot double-booking: one transaction, a per-patient
+  `pg_advisory_xact_lock`, and the balance / open-plan check re-read INSIDE
+  it, so the second tap blocks until the first commits and is then turned
+  away. The loyalty coupon mint moved inside the transaction too — a failed
+  mint rolls the ledger row back instead of relying on a compensating delete.
 - S2 · portal message attachments (`sanitizeAttachments`) · accept arbitrary
   `http(s)` URLs (no host allowlist) → staff-inbox tracking-pixel/IP-leak;
-  non-TLS accepted. Same class: insurance-OCR URL (no SSRF — Anthropic
-  fetches — but burns the OCR allowance). · OPEN.
+  non-TLS accepted. · **FIXED** — `lib/attachment-hosts.ts` derives the
+  allowed hosts from the same env the storage drivers read, and
+  `sanitizeUploadedAttachments` drops anything else at every WRITE (portal
+  action, staff send, scheduled send). Deliberately not applied on READ: a
+  URL stored under an older configuration should still render for the staff
+  who received it.
+- S2 · insurance-OCR image URLs · same class as the attachment hosts above,
+  unbundled from it because it was NOT closed with it: `runInsuranceOcr`
+  still accepts any `http(s)` URL. No SSRF (Anthropic does the fetching),
+  but an outsider can burn the clinic's OCR allowance on someone else's
+  bytes. Wants the same `isAllowedAttachmentUrl` gate. · OPEN.
 - S2 · `patient-followups` `assignedUserId` (create/update/bulk) · assignee
   not verified as an org member (integrity only). · **FIXED**
   (`assertAssignableInOrg`).
 - S2 · all 25 `CRON_SECRET` routes · non-constant-time `!==` secret compare
   (theoretical timing oracle) + 25× copy-paste (drift risk); a shared
-  `lib/cron-auth.ts` with `timingSafeEqual` fixes all. · OPEN.
+  `lib/cron-auth.ts` with `timingSafeEqual` fixes all. · **FIXED** —
+  `lib/cron-auth.ts` is that shared gate (`requireCronAuth`), adopted by all
+  25 routes. Both sides are SHA-256'd before `timingSafeEqual` so the
+  compared buffers are always 32 bytes — comparing raw strings would leak the
+  secret's LENGTH through the length-mismatch throw. Fails closed on an unset
+  or empty secret, and `tests/cron-auth-adoption.test.ts` fails CI on a new
+  hand-rolled copy.
 - S2 · `api/internal/custom-domains` · public + cacheable enumeration of
-  every custom-domain clinic (data already public; convenient scraper). · OPEN.
+  every custom-domain clinic (data already public; convenient scraper). ·
+  **ACCEPTED BY DESIGN** (2026-09-10 reconciliation) — the route documents
+  the verdict in place: `middleware.ts` runs on the edge and cannot reach the
+  DB, so it fetches this host→slug map to route custom domains, and the
+  response is only pairs of facts that are already public (the domain
+  resolves publicly; the slug is the clinic's public site path). No PHI, no
+  auth to add without breaking the middleware fetch it exists to serve. Not a
+  defect — recorded here so the next sweep doesn't re-report it.
 - S3/housekeeping · `uploadPatientDocumentAction` writes the S3 blob before
   the patient-in-org check (forged id orphans a blob; no row, no access);
   `enterDemoMode` doesn't validate the target org (self-only, re-validated
@@ -444,25 +475,50 @@ binding are all correct. The payment-plan charger was the exception.
 
 **Reported by the S2 sweep — R2 burn-down candidates (money):**
 
-- S2 · `stripe` + `stripe-connect` webhooks · no `charge.refunded` /
-  `charge.dispute.created` handler, so an accrued/paid referral commission is
-  never reversed on a refunded/disputed invoice (platform eats it), and
-  shop/balance/deposit records stay `'paid'` after a Stripe-side refund
-  (`OrderStatus 'refunded'` is never set). Needs a new webhook case. · OPEN.
+- S2 · `stripe` webhook · no `charge.refunded` / `charge.dispute.created`
+  handler, so an accrued/paid referral commission is never reversed on a
+  refunded/disputed invoice (platform eats it). · **FIXED** (R2 Slice 2) —
+  both cases land on the platform webhook and call
+  `reverseCommissionForInvoice` (a dispute resolves its charge → invoice
+  first). An `accrued` row flips to `reversed` and is kept as audit; an
+  already-`paid` row is NOT rewritten — settled money surfaces for a human
+  clawback decision instead. Idempotent, never throws.
+- S2 · `stripe-connect` webhook · unbundled from the reversal above, which
+  closed WITHOUT it: shop/balance/deposit records still stay `'paid'` after a
+  Stripe-side refund (`OrderStatus 'refunded'` is never set), so a refunded
+  order reads as fulfilled-and-paid on the clinic's own board. Needs the
+  Connect-side refund case. · OPEN.
 - S2 · `referral-payouts.payoutPartner` · double-pay window — after a
   transfer succeeds but the ledger write fails, a manual retry >24h later
   (Stripe idempotency window lapsed) re-derives the same key and sends a
   SECOND real transfer; concurrent payouts also duplicate the payout ledger
-  row. Needs persist-key-before-charge + a transactional accrued-set claim. ·
-  OPEN.
+  row. · **FIXED** (R2 Slice 2, migration 0150 — `referral_payout.
+  idempotency_key` unique). The key is CLAIMED as a `pending` payout row
+  BEFORE the money moves and stamped with the transfer id the moment it
+  lands, so a later retry sees the transfer already went out and RECONCILES
+  the ledger instead of paying again. The failure path marks the claim
+  `failed` (next attempt retries cleanly) and success finalizes the SAME
+  row — one transfer can no longer produce two payout records.
 - S2 · `getMrrSnapshot` stale tier constant duplicated in `projects.ts` +
   `clinics.ts` — single-source the tier→price map (ideally derive from live
   Stripe amounts as `/ecommerce/invoices` already does). · OPEN.
+Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
+line unresolvable: four are still open and the fifth is gone, and neither fact
+was recordable while they shared a verdict.
+
 - S3 · stripe-webhook release-and-retry re-fires non-idempotent in-app
-  notifications; collections board header total truncated at 200 rows;
-  `stripe-admin.monthlyContributionCents` ignores `quantity`/`interval_count`;
-  legacy `billing_profiles` vanity write; `(pay)/ecommerce/pay` demo cart
-  accepts an arbitrary amount (moves no real money). · OPEN.
+  notifications. · OPEN.
+- S3 · collections board header total truncated at 200 rows. · OPEN.
+- S3 · `stripe-admin.monthlyContributionCents` ignores `quantity` /
+  `interval_count`, so a multi-seat or every-3-months subscription
+  contributes the wrong MRR. · OPEN.
+- S3 · legacy `billing_profiles` vanity write (`lib/services/settings.ts`) —
+  a table nothing reads back for billing. · OPEN.
+- S3 · `(pay)/ecommerce/pay` demo cart accepts an arbitrary amount (moves no
+  real money). · **FIXED** — the page is gone. The whole `(pay)` route group
+  went with the Mosaic commerce template it belonged to (DREAMCRM-5, #508): a
+  parallel shop nothing linked to, whose fake checkout was the only reason
+  this defect existed. Nothing to harden when there is no page.
 
 **S2 sweep CLOSED (2026-08-17):** 1 S1 + 5 S2 fixed and verified; the
 refund/dispute reversal and payout double-pay hardening are the two
@@ -559,9 +615,13 @@ three cheap high-value classes (fixed) plus loop-hardening (R2).
 - S2 · `send-reminders` has no per-ORG try around the candidate/priorLogs
   queries, so one org's query throw 500s the route and silences the tick for
   everyone (near-S1); and its idempotency is a read-before-send with the log
-  written AFTER `deliver`, so an overlap/retry can double-send. Needs a
-  per-iteration try + an atomic claim (unique on appointmentId+template,
-  `onConflictDoNothing().returning()`) before sending. · OPEN.
+  written AFTER `deliver`, so an overlap/retry can double-send. · **FIXED** —
+  both halves, in two slices. The per-org (and per-appointment) isolation
+  landed in R2 Slice 3; the atomic claim landed in R2 Slice 9 as exactly the
+  shape prescribed here — `onConflictDoNothing().returning()` against a
+  unique index on `(appointmentId, template)`, PARTIAL so it covers only
+  automated touches. The S4 sweep and R2 Slice 3 found this same defect
+  independently; both records now point at the same fix.
 - S2 · a campaign that crashes mid-`sendCampaign` is stranded `active` with
   no requeue and no per-recipient resume (partial send, rest dropped);
   `publish-scheduled-posts` has an unwrapped per-post loop + no
@@ -611,10 +671,18 @@ clinic, none breaking at the current one-beta-clinic scale.
   Needs a UI pagination change too, so it's a dedicated slice with tests. · OPEN.
 - S2 · `resolvePatientAudience` has the same JS-aggregation-of-all-appointments
   anti-pattern (shared root cause), and it's hit by the retention cron (×4/day
-  per clinic), the marketing send path, and the proposal generators. Fold the
-  MAX/MIN-in-SQL fix in with the Patients rework. · OPEN.
+  per clinic), the marketing send path, and the proposal generators. ·
+  **FIXED** — the last-visit / upcoming / unconfirmed lookups now roll up in
+  Postgres (`max(start_time)` for the last visit; the other two are pure
+  existence checks, so the grouped patient id is all they need). Each returns
+  at most ONE row per patient instead of every appointment in the org, and
+  each is skipped entirely unless the filter actually asks for it.
 - S2 · `/messages` `listPatientThreads` has no `LIMIT` and filters search in JS
-  over the full set — LIMIT + keyset paging + SQL `ILIKE`/phone search. · OPEN.
+  over the full set. · **FIXED** — a clamped `LIMIT` (`clampRowLimit` over
+  DEFAULT/MAX_THREAD_LIMIT) fetching one extra row to learn `hasMore` without
+  a count query, and the whole search pushed into SQL: name/email/preview via
+  `like` on lowered columns, plus a forgiving digits-only phone compare so
+  "(512) 555-9117" still matches "9117".
 - S2 · `campaign_events` frequency-cap query filters by `patientId`/`recipientEmail`
   but every index is `campaignId`-leading — a partial index
   `(patientId, occurredAt) where type='sent'` if it shows in slow logs. · OPEN.
@@ -626,8 +694,10 @@ clinic, none breaking at the current one-beta-clinic scale.
 - S3/watch · `daily-digest` / `generate-proposals` / `retention-automations`
   fan out per-clinic SEQUENTIALLY (by design, to spare the t4g.micro), so the
   risk is cron wall-clock OVERRUN as clinic count grows, not DB overload —
-  give them a wall-clock budget + resumability before onboarding many clinics;
-  `listMessagesInThread` loads a whole thread with no limit. · OPEN.
+  give them a wall-clock budget + resumability before onboarding many clinics.
+  · OPEN. (The `listMessagesInThread` clause bundled here is **FIXED** — it
+  reads through `listMessagesInThreadPage` with a clamped limit; the cron
+  wall-clock half is what remains open.)
 
 **S5 sweep CLOSED (2026-08-17):** 1 S2 fixed (index, migration 0149); the
 Patients-list scale rework (S1) is THE headline R2 perf slice, plus the
@@ -808,13 +878,16 @@ malformed row for ONE clinic threw past both loops to the route's catch → HTTP
   treated as "nothing sent yet" (which would re-send a reminder the patient
   already got) and must not abort the org's whole batch.
 
-**Still open:** the atomic reminder CLAIM (the double-send window — the log is
-written AFTER `deliver`, so an overlap/crash can re-send). Deferred
-deliberately: it needs a unique index on `(appointmentId, template)`, but
-`template` is NULLABLE (Postgres treats NULLs as distinct) and existing prod
-rows may already contain duplicates from the very bug being fixed — a failed
-migration blocks deploys, since migrations auto-apply on boot. Needs a dedup
-step + a partial unique index, as its own careful slice. · OPEN.
+**The atomic reminder CLAIM (the double-send window):** the log was written
+AFTER `deliver`, so two overlapping ticks — or one retried — both read
+"nothing sent yet" and both sent. · **FIXED** (R2 Slice 9, migration 0160).
+Both blockers named here are handled: the unique index is PARTIAL
+(`sent_by_user_id is null and template is not null`), which sidesteps the
+NULL-template problem by covering only the automated touches that are
+supposed to fire once — a staff drawer send may legitimately repeat and stays
+outside it — and the migration DE-DUPLICATES existing rows in the same file,
+ahead of the index, so it cannot fail on boot and block every deploy. See
+Slice 9 below for the shape.
 
 ### Slice 4 — the doors are not the marketing site · DONE
 
@@ -911,6 +984,53 @@ Two halves, because either alone is wrong:
   silently cancel a legitimate campaign, which is worse than a duplicate.
 
 10 tests across both halves.
+
+### Slice 9 — the reminder CLAIM: a reminder can only go out once · DONE
+
+The last open defect that reached a patient's phone, deferred out of Slice 3
+for exactly the two reasons this slice had to handle first.
+
+The log row was written AFTER `deliver`, so two overlapping 30-minute cron
+ticks — or one tick retried after a partial failure — both read "nothing sent
+yet" and both sent. Same patient, same visit, two messages.
+
+- **Claim before send.** The engine inserts the log row FIRST and only sends if
+  it won the insert. `claimAutomatedReminder` /`confirmReminderSent` /
+  `releaseReminderClaim` (`lib/services/appointments.ts`) are the three steps:
+  a claim that comes back empty means another tick owns this send, a send that
+  lands stamps the SMS `providerMessageId` and writes the action-ledger entry,
+  and a send that does NOT go out drops the claim so the next tick retries.
+  The ledger entry deliberately waits for the confirm — an append-only ledger
+  must never narrate a message that hasn't gone out.
+- **The NULL-template blocker, answered by making the index PARTIAL.** The
+  unique index `appt_reminder_auto_touch_uq` on `(appointment_id, template)`
+  carries `WHERE sent_by_user_id is null and template is not null`, so it
+  covers exactly the automated touches — the only sends that are supposed to
+  fire at most once per visit. A staff member sending from the drawer may
+  legitimately send twice and stays outside it; an ad-hoc NULL-template row
+  Postgres would treat as distinct anyway is excluded rather than relied on.
+- **The failed-migration blocker, answered by de-duplicating in the same
+  file.** Migrations auto-apply on boot, so an index that trips over existing
+  duplicates blocks EVERY deploy — and the rows it would trip over are the
+  ones this bug wrote. Migration 0160 deletes them first, ahead of the index,
+  scoped to the rows the index covers. The survivor is the row already
+  carrying downstream state (a delivery receipt or a patient reply), then the
+  earliest send — the one the patient actually got.
+
+The trade is deliberate and worth writing down: **at-most-once, not
+at-least-once.** A crash between the claim and the send spends that touch and
+the patient doesn't get it (the next touch in the journey still fires). Every
+failure path we can SEE releases the claim; the one we can't is a crash, and
+sending a patient the same reminder twice is the louder failure.
+
+18 tests. The engine harness pins the orchestration (a losing tick sends
+nothing; the claim strictly precedes `deliver` and the confirm strictly
+follows; a claim that THROWS is treated as lost; family buckets claim and
+release as a set). `tests/automation/reminder-claim.test.ts` renders the real
+statement through drizzle's own dialect via the pg-proxy driver — no database
+— because the one property no JS mock can see is that an `ON CONFLICT` target
+must match the index INCLUDING its predicate, and getting it wrong is a 42P10
+on every claim, which would stop reminders entirely.
 
 ---
 
