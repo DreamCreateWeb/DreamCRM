@@ -1,6 +1,7 @@
 import { test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
+import { existsSync } from 'node:fs'
 
 /**
  * Restore a spec file's own seeded rows before every attempt (DREAMCRM-19).
@@ -36,6 +37,37 @@ import path from 'node:path'
  * level down, and the restore is a handful of idempotent upserts.
  */
 
+/**
+ * Where `scripts/e2e-seed.mjs` lives, and the directory to run it from.
+ *
+ * Not computed from this file's own location: spec files are transpiled to
+ * CJS, so `import.meta` is a syntax error here. And NOT `config.rootDir`,
+ * which was the first attempt and was wrong — Playwright derives rootDir from
+ * `testDir`, so it is `<repo>/e2e`, not the repo root. `configFile` is the
+ * absolute path of playwright.config.ts, which does sit at the root.
+ *
+ * The existsSync check is the point of the function. Guessing wrong the first
+ * way produced a MODULE_NOT_FOUND from a subprocess, nested inside a hook
+ * failure, in every seeded spec at once — true, but three layers away from
+ * "the helper looked in the wrong directory". Fail here instead, naming what
+ * was tried.
+ */
+function locateSeed(): { repoRoot: string; seedScript: string } {
+  const { configFile } = test.info().config
+  const candidates = configFile
+    ? [path.dirname(configFile), process.cwd()]
+    : [process.cwd(), path.resolve(test.info().config.rootDir, '..')]
+
+  for (const root of candidates) {
+    const script = path.join(root, 'scripts', 'e2e-seed.mjs')
+    if (existsSync(script)) return { repoRoot: root, seedScript: script }
+  }
+  throw new Error(
+    'could not find scripts/e2e-seed.mjs, so the seeded rows cannot be restored. Looked under: ' +
+      candidates.join(', '),
+  )
+}
+
 /** Declare the seed scope a spec file owns, restored before each of its tests. */
 export function restoresSeedScope(...scopes: string[]): void {
   test.beforeEach(async () => {
@@ -51,12 +83,7 @@ export function restoresSeedScope(...scopes: string[]): void {
       )
     }
 
-    // The repo root, taken from Playwright's own resolved config rather than
-    // computed from this file's location: spec files are transpiled to CJS, so
-    // `import.meta` is a syntax error here, and `__dirname` would tie us to
-    // that staying true.
-    const repoRoot = test.info().config.rootDir
-    const seedScript = path.join(repoRoot, 'scripts', 'e2e-seed.mjs')
+    const { repoRoot, seedScript } = locateSeed()
 
     // Run the seed as the harness runs it — a subprocess, same script, same
     // arguments — rather than importing it. Two reasons: what a retry restores
