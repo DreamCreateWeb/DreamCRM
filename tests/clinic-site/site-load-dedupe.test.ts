@@ -88,6 +88,15 @@ async function freshRequest(): Promise<typeof import('@/lib/services/clinic-site
   return import('@/lib/services/clinic-site')
 }
 
+/** Source with comments blanked, so a scan reads code rather than prose. */
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/, ''))
+    .join('\n')
+}
+
 beforeEach(() => {
   state.org = { id: 'org_1', slug: 'smilebright', name: 'SmileBright', type: 'clinic' }
   state.profile = {
@@ -134,10 +143,16 @@ describe('the loaders are the request-scoped kind', () => {
     // the published read is split out of `loadSite` and the overlay applied
     // outside it. When that lands, this assertion moves to the split loader
     // rather than being deleted.
+    // COMMENTS STRIPPED FIRST. The file's own doc comments discuss
+    // `unstable_cache` at length — explaining exactly why it must not be used
+    // here — so a raw scan flags the explanation as the offence. It did,
+    // the first time the published read was split out. Code only.
+    const code = stripComments(src)
     expect(
-      src,
-      'clinic-site.ts reached for a durable cache. Split the published read ' +
-        'out of loadSite first, or a visitor gets the editor’s draft.',
+      code,
+      'clinic-site.ts reached for a durable cache. The published read must be ' +
+        'split out of loadSite and the overlay applied outside it, or a ' +
+        'visitor gets the editor’s draft.',
     ).not.toMatch(/unstable_cache/)
   })
 
@@ -158,6 +173,42 @@ describe('the loaders are the request-scoped kind', () => {
     expect(await mod.getClinicSiteBySlug('dream-create')).toBeNull()
     state.org = null
     expect(await mod.getClinicSiteBySlug('nope')).toBeNull()
+  })
+})
+
+describe('the published read is separable from the viewer', () => {
+  /**
+   * `loadPublishedSite` is module-private, so it cannot be called directly.
+   * What IS observable is the property that makes it separable: the published
+   * path reads no session at all. If a future edit reached for
+   * `canEditClinic` (or anything else session-shaped) inside the published
+   * read, this fails — and that matters because the whole safety case for
+   * caching that half rests on it depending only on `orgId`.
+   */
+  it('never touches the session when there is no draft', async () => {
+    const { canEditClinic } = await import('@/lib/clinic-site-edit')
+    vi.mocked(canEditClinic).mockClear()
+
+    const mod = await freshRequest()
+    const site = await mod.getClinicSiteBySlug('smilebright')
+
+    expect(site?.profile.tagline).toBe('Published tagline')
+    expect(
+      vi.mocked(canEditClinic),
+      'the published read asked who the viewer is — it must not need to',
+    ).not.toHaveBeenCalled()
+  })
+
+  it('asks exactly once when a draft exists', async () => {
+    const { canEditClinic } = await import('@/lib/clinic-site-edit')
+    vi.mocked(canEditClinic).mockClear()
+    state.profile = { ...state.profile, websiteDraft: { tagline: 'draft' } }
+
+    const mod = await freshRequest()
+    await mod.getClinicSiteBySlug('smilebright')
+
+    // One session lookup per load, not one per query on the published side.
+    expect(vi.mocked(canEditClinic)).toHaveBeenCalledTimes(1)
   })
 })
 

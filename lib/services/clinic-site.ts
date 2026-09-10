@@ -314,24 +314,35 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
   return map
 }
 
-async function loadSite(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {
-  let [profile] = await db
+/**
+ * The PUBLISHED site — what a visitor sees. No session is read here, and that
+ * is the entire point of the function existing separately.
+ *
+ * Everything on this side of the line depends only on `orgId`, so it is the
+ * part that can eventually be cached across requests and invalidated on
+ * Draft→Publish. The viewer-dependent overlay lives in `loadSite` below,
+ * OUTSIDE it. Keeping the two apart is what makes a durable cache safe to add:
+ * caching a function that has already merged someone's draft would serve that
+ * draft to the next visitor, which is a clinic's unpublished words on their
+ * own live public site.
+ *
+ * The split is deliberately structural-only for now — nothing is cached yet.
+ * `tests/clinic-site/site-load-dedupe.test.ts` fails if `unstable_cache`
+ * appears in this file, and that assertion moves onto THIS function (not
+ * `loadSite`) when the durable cache lands.
+ */
+async function loadPublishedSite(
+  orgId: string,
+  slug: string,
+  orgName: string,
+): Promise<ClinicSiteData | null> {
+  const [profile] = await db
     .select()
     .from(clinicProfile)
     .where(eq(clinicProfile.organizationId, orgId))
     .limit(1)
 
   if (!profile) return null
-
-  // Draft→Publish overlay: a verified editor of THIS clinic sees their staged
-  // (unpublished) edits merged over the live columns — everywhere on the site,
-  // including generateMetadata / OG / JSON-LD, because every render flows
-  // through this one load. `canEditClinic` re-verifies the session on every
-  // request, so a visitor can never see a draft; and we only pay the session
-  // lookup when a draft actually exists.
-  if (websiteDraftKeys(profile.websiteDraft).length > 0 && (await canEditClinic(orgId))) {
-    profile = mergeWebsiteDraft(profile, profile.websiteDraft)
-  }
 
   const locations = await db
     .select()
@@ -346,6 +357,34 @@ async function loadSite(orgId: string, slug: string, orgName: string): Promise<C
     profile,
     primaryLocation: locations.find((l) => l.isPrimary === 1) ?? locations[0] ?? null,
     locations,
+  }
+}
+
+/**
+ * The published site, plus the Draft→Publish overlay when — and only when —
+ * the viewer is a verified editor of THIS clinic.
+ *
+ * A verified editor sees their staged (unpublished) edits merged over the live
+ * columns everywhere on the site, including generateMetadata / OG / JSON-LD,
+ * because every render flows through this one load. `canEditClinic` re-verifies
+ * the session on every request, so a visitor can never see a draft; and the
+ * session lookup is only paid when a draft actually exists.
+ *
+ * The merge returns a NEW profile object rather than mutating the one
+ * `loadPublishedSite` returned — required today because `getClinicSiteBySlug`
+ * memoizes per request and every caller shares that object, and required
+ * doubly once the published read is cached across requests.
+ */
+async function loadSite(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {
+  const published = await loadPublishedSite(orgId, slug, orgName)
+  if (!published) return null
+
+  const draftKeys = websiteDraftKeys(published.profile.websiteDraft)
+  if (draftKeys.length === 0 || !(await canEditClinic(orgId))) return published
+
+  return {
+    ...published,
+    profile: mergeWebsiteDraft(published.profile, published.profile.websiteDraft),
   }
 }
 
