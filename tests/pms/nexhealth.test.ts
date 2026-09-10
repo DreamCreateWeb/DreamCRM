@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { prewarm } from '../prewarm'
 import { mapNexAppointmentStatus, NexHealthProvider } from '@/lib/services/pms/nexhealth'
 
 /**
@@ -7,6 +8,10 @@ import { mapNexAppointmentStatus, NexHealthProvider } from '@/lib/services/pms/n
  * in the env (local verification against the sandbox demo practice — CI
  * skips it, network tests never gate the merge).
  */
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/nexhealth'))
 
 describe('mapNexAppointmentStatus', () => {
   const future = new Date(Date.now() + 7 * 24 * 3600_000).toISOString()

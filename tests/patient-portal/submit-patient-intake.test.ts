@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * Tenant + cross-org guards for submitPatientIntakeAction. The patient
@@ -33,6 +34,10 @@ const portalSettings = { features: { forms: true } as Record<string, boolean> }
 vi.mock('@/lib/services/portal-settings', () => ({
   getPortalSettings: vi.fn(async () => portalSettings),
 }))
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/app/(portal)/patient/intake/actions'))
 
 beforeEach(() => {
   tenantCtx.tenantType = 'patient'

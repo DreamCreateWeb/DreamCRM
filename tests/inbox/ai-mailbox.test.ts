@@ -1,4 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/ai-mailbox'))
 
 beforeEach(() => {
   // Make sure no key leaks in from the real env during tests.

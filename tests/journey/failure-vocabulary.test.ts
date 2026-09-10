@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * THE FAILURE VOCABULARY, DE-DUPED (Phase 4 slice 4).
@@ -102,6 +103,10 @@ import { recordEngineFailure, isWorkEntry } from '@/lib/services/action-ledger'
 
 const NOW = new Date('2026-07-29T14:00:00Z')
 const DAY_MS = 24 * 60 * 60 * 1000
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/action-ledger'))
 
 beforeEach(() => {
   store.rows = []

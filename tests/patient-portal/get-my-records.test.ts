@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * Shape coverage for getMyRecords. The CRM "My Records" page shows
@@ -81,6 +82,10 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn(() => ({ _: 'isNull' })),
   lt: vi.fn(() => ({ _: 'lt' })),
 }))
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/patient-portal'))
 
 beforeEach(() => {
   state.patient = null

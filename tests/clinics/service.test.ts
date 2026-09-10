@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 const dbState: { selectQueue: unknown[][] } = { selectQueue: [] }
 
@@ -47,6 +48,10 @@ vi.mock('@/lib/db', () => {
 })
 
 import { listClinics, getClinicDetail } from '@/lib/services/clinics'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/db'))
 
 beforeEach(() => {
   dbState.selectQueue.length = 0

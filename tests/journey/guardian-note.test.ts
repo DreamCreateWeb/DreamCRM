@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * THE HEADS-UP THE CLINIC ACTUALLY READS (Phase 4 slice 3).
@@ -115,6 +116,14 @@ function note(guardianState: string, summary = 'a heads up', detail: Record<stri
 /** A stall note as the writer records it — with the numbers the sentence was
  *  built from, so the reader can re-derive rather than replay. */
 const stallNote = (summary: string) => note('stalled', summary, { seated30: 3, seatedPrev30: 12 })
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(
+  () => import('@/lib/services/engine-switches'),
+  () => import('@/lib/services/patient-journey'),
+  () => import('@/lib/services/action-ledger'),
+)
 
 beforeEach(() => {
   state.rows = []

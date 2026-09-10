@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * The weekly standup (Transformation Phase 2 — the Narrator). Pins:
@@ -200,6 +201,13 @@ const MONDAY = new Date('2026-07-27T15:00:00Z')
 // the prior week = Jul 19 05:00Z.
 const THIS_WEEK_START = new Date('2026-07-26T05:00:00Z')
 const PRIOR_WEEK_START = new Date('2026-07-19T05:00:00Z')
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(
+  () => import('@/lib/services/action-ledger'),
+  () => import('@/lib/autonomy'),
+)
 
 beforeEach(() => {
   vi.clearAllMocks()

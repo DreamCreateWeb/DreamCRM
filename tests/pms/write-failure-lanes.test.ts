@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * settleWriteFailure — the queue's three failure lanes (write-back v1,
@@ -42,6 +43,10 @@ import { settleWriteFailure } from '@/lib/services/pms/sync'
 import { PmsWriteWaitingError, PmsWriteNotSupportedError } from '@/lib/services/pms/provider'
 
 const OP = { id: 'op_1', attempts: 3 }
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/pms/sync'))
 
 beforeEach(() => {
   state.updates = []

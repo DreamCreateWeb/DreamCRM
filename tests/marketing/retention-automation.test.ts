@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * Orchestration tests for the retention auto-send engine
@@ -135,6 +136,15 @@ const NOW = new Date('2026-06-18T15:00:00.000Z')
 function recipients(n: number) {
   return Array.from({ length: n }, (_, i) => ({ id: `p${i}`, patientId: `p${i}`, firstName: 'Mia', email: `m${i}@x.com`, emailOptIn: true }))
 }
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(
+  () => import('@/lib/services/action-ledger'),
+  () => import('@/lib/services/retention-automation'),
+  () => import('@/lib/shared-brain'),
+  () => import('@/lib/services/shared-brain'),
+)
 
 beforeEach(async () => {
   h.resolveMock.mockReset().mockResolvedValue(recipients(3))
