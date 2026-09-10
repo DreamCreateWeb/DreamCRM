@@ -677,13 +677,19 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
         )
         .limit(1)
       if (futureAppt) {
-        await db.insert(schema.appointmentReminderLog).values({
-          id: newId('rem'),
-          organizationId: existing.id,
-          appointmentId: futureAppt.id,
-          channel: 'email',
-          template: 'default_reminder',
-        })
+        // Automated-shaped rows (no sentByUserId) live under the
+        // appt_reminder_auto_touch_uq guard — a re-seed defers to whatever is
+        // already there rather than tripping the boot-time resync.
+        await db
+          .insert(schema.appointmentReminderLog)
+          .values({
+            id: newId('rem'),
+            organizationId: existing.id,
+            appointmentId: futureAppt.id,
+            channel: 'email',
+            template: 'default_reminder',
+          })
+          .onConflictDoNothing()
       }
     }
 
@@ -1393,16 +1399,19 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
   ]
   for (const r of reminderSeeds) {
     if (!r.apptId) continue
-    await db.insert(schema.appointmentReminderLog).values({
-      id: newId('rem'),
-      organizationId: orgId,
-      appointmentId: r.apptId,
-      channel: r.channel,
-      template: 'default_reminder',
-      sentAt: new Date(now.getTime() - r.minutesAgo * 60 * 1000),
-      repliedAt: r.repliedMinutesAgo ? new Date(now.getTime() - r.repliedMinutesAgo * 60 * 1000) : null,
-      replyBody: r.replyBody ?? null,
-    })
+    await db
+      .insert(schema.appointmentReminderLog)
+      .values({
+        id: newId('rem'),
+        organizationId: orgId,
+        appointmentId: r.apptId,
+        channel: r.channel,
+        template: 'default_reminder',
+        sentAt: new Date(now.getTime() - r.minutesAgo * 60 * 1000),
+        repliedAt: r.repliedMinutesAgo ? new Date(now.getTime() - r.repliedMinutesAgo * 60 * 1000) : null,
+        replyBody: r.replyBody ?? null,
+      })
+      .onConflictDoNothing()
   }
 
   // A couple of tasks to populate the Tasks board

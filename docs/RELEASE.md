@@ -1004,11 +1004,28 @@ yet" and both sent. Same patient, same visit, two messages.
   must never narrate a message that hasn't gone out.
 - **The NULL-template blocker, answered by making the index PARTIAL.** The
   unique index `appt_reminder_auto_touch_uq` on `(appointment_id, template)`
-  carries `WHERE sent_by_user_id is null and template is not null`, so it
-  covers exactly the automated touches — the only sends that are supposed to
-  fire at most once per visit. A staff member sending from the drawer may
-  legitimately send twice and stays outside it; an ad-hoc NULL-template row
-  Postgres would treat as distinct anyway is excluded rather than relied on.
+  carries `WHERE sent_by_user_id is null and template is not null and template
+  <> 'forms_intake'`, so it covers exactly the automated VISIT touches — the
+  only sends that are supposed to fire at most once per appointment. A staff
+  member sending from the drawer may legitimately send twice and stays outside
+  it; an ad-hoc NULL-template row Postgres would treat as distinct anyway is
+  excluded rather than relied on.
+- **The forms nudge is excluded BY NAME, and that exclusion is the review's
+  find.** The first cut of this slice let the index cover it, and the pre-merge
+  gate caught what that would do. `runDueFormReminders` logs through
+  `logReminderSent`, whose idempotency is a 48-hour WINDOW rather than a row —
+  and PMS sync updates an appointment's `start_time` IN PLACE (no new id,
+  unlike a portal reschedule), so a visit pushed a week out comes back inside
+  the forms window with its original nudge row now older than the dedup read.
+  Under the index the engine would have sent the email, raised 23505, recorded
+  nothing, and repeated every 30 minutes until the visit passed — because the
+  row it needed to see is the one that never got written. The nudge SHOULD
+  repeat there; it is the uniqueness rule that was wrong. The exclusion runs
+  through the predicate, the `ON CONFLICT` clause and the migration's de-dup,
+  which would otherwise have deleted legitimate repeat nudges as the bug's
+  leftovers. `logReminderSent` carries the conflict clause regardless — both of
+  today's writers sit outside the index, so it exists to stop the NEXT
+  automated writer raising 23505 after a message has gone out.
 - **The failed-migration blocker, answered by de-duplicating in the same
   file.** Migrations auto-apply on boot, so an index that trips over existing
   duplicates blocks EVERY deploy — and the rows it would trip over are the
@@ -1023,14 +1040,25 @@ the patient doesn't get it (the next touch in the journey still fires). Every
 failure path we can SEE releases the claim; the one we can't is a crash, and
 sending a patient the same reminder twice is the louder failure.
 
-18 tests. The engine harness pins the orchestration (a losing tick sends
+One more thing the gate caught: the SMS provider-id stamp in
+`confirmReminderSent` was an unguarded UPDATE, and a throw there unwound into
+the send helper's catch → `{ ok: false }` → the engine RELEASED the claim for a
+text the carrier had already accepted, and the next tick sent a second one.
+Wrapped, on the same reasoning the file states three functions up: the reminder
+is already out, bookkeeping must never throw after it. Lost claims also count
+as `claimContended` rather than `alreadyReminded` — "the patient already has
+this" and "two ticks overlapped" are different facts.
+
+23 tests. The engine harness pins the orchestration (a losing tick sends
 nothing; the claim strictly precedes `deliver` and the confirm strictly
 follows; a claim that THROWS is treated as lost; family buckets claim and
 release as a set). `tests/automation/reminder-claim.test.ts` renders the real
-statement through drizzle's own dialect via the pg-proxy driver — no database
-— because the one property no JS mock can see is that an `ON CONFLICT` target
-must match the index INCLUDING its predicate, and getting it wrong is a 42P10
-on every claim, which would stop reminders entirely.
+statement through drizzle's own dialect via the pg-proxy driver — no database —
+because two properties no JS mock can see: an `ON CONFLICT` target must match
+the index INCLUDING its predicate (getting it wrong is a 42P10 on every claim,
+which stops reminders entirely), and every automated-shaped INSERT into the
+table must carry that clause — the guard that fails on a bare one, red-run
+against the pre-fix code.
 
 ---
 

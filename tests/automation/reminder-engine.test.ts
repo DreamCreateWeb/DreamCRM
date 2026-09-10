@@ -119,11 +119,26 @@ vi.mock('@/lib/services/appointment-confirm', () => ({
   getOrCreateConfirmToken: vi.fn(async () => 'ct_test_token'),
 }))
 
-const { logReminderSentMock } = vi.hoisted(() => ({
-  logReminderSentMock: vi.fn(async () => 'rem_1'),
-}))
+// The reminder CLAIM (the double-send guard). The engine reserves a log row
+// BEFORE it sends and confirms it after, so the harness models all three
+// steps: `claimAutomatedReminder` hands back a claim (or null when a racing
+// tick already holds it — `claimLosses` seeds those refusals), and the engine
+// is expected to confirm exactly what landed and release exactly what didn't.
+const { claimAutomatedReminderMock, confirmReminderSentMock, releaseReminderClaimMock, logReminderSentMock } =
+  vi.hoisted(() => ({
+    claimAutomatedReminderMock: vi.fn(),
+    confirmReminderSentMock: vi.fn(async () => {}),
+    releaseReminderClaimMock: vi.fn(async () => {}),
+    logReminderSentMock: vi.fn(async () => 'rem_1'),
+  }))
+/** Appointment ids whose claim the next tick must lose (another tick owns it). */
+let claimLosses = new Set<string>()
+let claimSeq = 0
 vi.mock('@/lib/services/appointments', () => ({
   logReminderSent: logReminderSentMock,
+  claimAutomatedReminder: claimAutomatedReminderMock,
+  confirmReminderSent: confirmReminderSentMock,
+  releaseReminderClaim: releaseReminderClaimMock,
   getAppointmentDetail: vi.fn(async (_org: string, id: string) => {
     const d = state.details.get(id)
     if (!d) return null
@@ -188,7 +203,17 @@ beforeEach(() => {
   state.details = new Map()
   state.guardianQueue = []
   logQueue = []
+  claimLosses = new Set()
+  claimSeq = 0
   vi.clearAllMocks()
+  claimAutomatedReminderMock.mockImplementation(
+    async (input: { organizationId: string; appointmentId: string; channel: string; template: string }) =>
+      claimLosses.has(input.appointmentId)
+        ? null
+        : { id: `rem_${++claimSeq}`, ...input },
+  )
+  confirmReminderSentMock.mockImplementation(async () => {})
+  releaseReminderClaimMock.mockImplementation(async () => {})
   // Re-pin the SMS defaults — clearAllMocks clears calls, not implementations,
   // so a test that flipped texting on must not leak it into the next.
   getClinicSmsIdentityMock.mockImplementation(async () => ({ ok: false, reason: 'driver_off' }))
@@ -210,9 +235,12 @@ describe('runDueReminders — journeys', () => {
 
     const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(1)
-    expect(logReminderSentMock).toHaveBeenCalledWith(
-      expect.objectContaining({ template: 'auto_reminder_24h', sentByUserId: null }),
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 'org_1', appointmentId: 'a1', template: 'auto_reminder_24h' }),
     )
+    // Claimed before the send, confirmed after it — never the other way round.
+    expect(confirmReminderSentMock).toHaveBeenCalledTimes(1)
+    expect(releaseReminderClaimMock).not.toHaveBeenCalled()
     // Unconfirmed → the email ships through the confirm-button shell.
     expect(deliverMock).toHaveBeenCalledTimes(1)
     expect(sendNotificationEmailMock).not.toHaveBeenCalled()
@@ -225,7 +253,7 @@ describe('runDueReminders — journeys', () => {
 
     const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(1)
-    expect(logReminderSentMock).toHaveBeenCalledWith(
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
       expect.objectContaining({ template: 'auto_reminder_72h' }),
     )
   })
@@ -258,7 +286,7 @@ describe('runDueReminders — journeys', () => {
 
     const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(1)
-    expect(logReminderSentMock).toHaveBeenCalledWith(
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
       expect.objectContaining({ template: 'auto_reminder_24h' }),
     )
   })
@@ -279,7 +307,7 @@ describe('runDueReminders — journeys', () => {
 
     const r = await runDueReminders({ now: NOW })
     expect(r.sent).toBe(1)
-    expect(logReminderSentMock).toHaveBeenCalledWith(
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
       expect.objectContaining({ template: 'auto_reminder_48h' }),
     )
   })
@@ -325,11 +353,11 @@ describe('runDueReminders — family consolidation', () => {
     expect(r.sent).toBe(2) // both visits count as reminded…
     expect(deliverMock).toHaveBeenCalledTimes(1) // …through a single email
     expect(sendNotificationEmailMock).not.toHaveBeenCalled()
-    expect(logReminderSentMock).toHaveBeenCalledTimes(2) // per-touch idempotency intact
-    expect(logReminderSentMock).toHaveBeenCalledWith(
+    expect(claimAutomatedReminderMock).toHaveBeenCalledTimes(2) // per-touch idempotency intact
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
       expect.objectContaining({ appointmentId: 'kid1', template: 'auto_reminder_24h' }),
     )
-    expect(logReminderSentMock).toHaveBeenCalledWith(
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
       expect.objectContaining({ appointmentId: 'kid2', template: 'auto_reminder_24h' }),
     )
   })
@@ -414,15 +442,15 @@ describe('runDueReminders — the SMS fallback (Phase 5 limb 3: the channel choi
     expect(input.kind).toBe('transactional')
     // Unconfirmed → the same one-click confirm token the email journey uses.
     expect(String(input.body)).toContain('/c/ct_test_token')
-    expect(logReminderSentMock).toHaveBeenCalledWith(
-      // providerMessageId is the DLR correlation key — a delivery receipt
-      // finds this row by it (lib/services/sms-dlr.ts).
-      expect.objectContaining({
-        channel: 'sms',
-        template: 'auto_reminder_24h',
-        sentByUserId: null,
-        providerMessageId: 'sms_1',
-      }),
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'sms', template: 'auto_reminder_24h' }),
+    )
+    // providerMessageId is the DLR correlation key — a delivery receipt finds
+    // the claimed row by it (lib/services/sms-dlr.ts), so it's stamped on at
+    // confirm time, once the carrier has actually taken the message.
+    expect(confirmReminderSentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'sms', template: 'auto_reminder_24h' }),
+      { providerMessageId: 'sms_1' },
     )
     expect(deliverMock).not.toHaveBeenCalled()
     expect(sendNotificationEmailMock).not.toHaveBeenCalled()
@@ -495,11 +523,11 @@ describe('runDueReminders — the SMS fallback (Phase 5 limb 3: the channel choi
     expect(deliverSmsMock).toHaveBeenCalledTimes(1)
     const body = String((deliverSmsMock.mock.calls[0] as unknown as [string, Record<string, unknown>])[1].body)
     expect(body).toContain('family')
-    expect(logReminderSentMock).toHaveBeenCalledTimes(2)
-    expect(logReminderSentMock).toHaveBeenCalledWith(
+    expect(claimAutomatedReminderMock).toHaveBeenCalledTimes(2)
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
       expect.objectContaining({ appointmentId: 'kid1', channel: 'sms' }),
     )
-    expect(logReminderSentMock).toHaveBeenCalledWith(
+    expect(claimAutomatedReminderMock).toHaveBeenCalledWith(
       expect.objectContaining({ appointmentId: 'kid2', channel: 'sms' }),
     )
   })
@@ -538,7 +566,11 @@ describe('runDueReminders — the SMS fallback (Phase 5 limb 3: the channel choi
     expect(r.sent).toBe(0)
     const { reportAutomationFailure } = await import('@/lib/services/engine-failures')
     expect(vi.mocked(reportAutomationFailure)).toHaveBeenCalledWith('org_1', 'reminders')
-    expect(logReminderSentMock).not.toHaveBeenCalled()
+    // The claim was taken before the attempt — and handed straight back, so
+    // the next tick can try again and the drawer never shows a phantom send.
+    expect(claimAutomatedReminderMock).toHaveBeenCalledTimes(1)
+    expect(confirmReminderSentMock).not.toHaveBeenCalled()
+    expect(releaseReminderClaimMock).toHaveBeenCalledTimes(1)
   })
 
   it('an unapproved-mid-run refusal is a state, not a break — skipped, Guardian untouched', async () => {
@@ -558,5 +590,119 @@ describe('runDueReminders — the SMS fallback (Phase 5 limb 3: the channel choi
     expect(r.failed).toBe(0)
     const { reportAutomationFailure } = await import('@/lib/services/engine-failures')
     expect(vi.mocked(reportAutomationFailure)).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * THE DOUBLE-SEND GUARD (the ranked #1 defect: the only open bug that reached
+ * a patient's phone). The engine used to record a reminder AFTER it went out,
+ * so two overlapping 30-minute ticks — or one tick retried — both read "not
+ * sent yet" and both sent. Now the log row is CLAIMED first, on a partial
+ * unique index, and the loser of that race sends nothing.
+ */
+describe('runDueReminders — the reminder claim (no double-sends)', () => {
+  it('a tick that loses the claim sends nothing at all', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20)
+    // The prior-log read is EMPTY — exactly the overlapping-tick case: both
+    // ticks pass the read, and only the claim can tell them apart.
+    logQueue = [[]]
+    claimLosses = new Set(['a1'])
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(0)
+    // Counted as CONTENDED, not already-reminded: those mean different things
+    // to whoever reads batch health.
+    expect(r.claimContended).toBe(1)
+    expect(r.alreadyReminded).toBe(0)
+    expect(deliverMock).not.toHaveBeenCalled()
+    expect(sendNotificationEmailMock).not.toHaveBeenCalled()
+    expect(confirmReminderSentMock).not.toHaveBeenCalled()
+    // Nothing was written, so there is nothing to give back.
+    expect(releaseReminderClaimMock).not.toHaveBeenCalled()
+  })
+
+  it('claims BEFORE the send, not after — the whole point of the fix', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+
+    await runDueReminders({ now: NOW })
+    const claimedAt = claimAutomatedReminderMock.mock.invocationCallOrder[0]
+    const sentAt = deliverMock.mock.invocationCallOrder[0]
+    const confirmedAt = confirmReminderSentMock.mock.invocationCallOrder[0]
+    expect(claimedAt).toBeLessThan(sentAt)
+    expect(sentAt).toBeLessThan(confirmedAt)
+  })
+
+  it('a claim that THROWS is treated as lost — an unreadable outcome never sends', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+    claimAutomatedReminderMock.mockRejectedValueOnce(new Error('connection terminated'))
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(0)
+    expect(r.claimContended).toBe(1)
+    expect(deliverMock).not.toHaveBeenCalled()
+  })
+
+  it('a failed send hands the claim back, so the next tick can retry', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20)
+    logQueue = [[]]
+    deliverMock.mockRejectedValueOnce(new Error('mailer down'))
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.failed).toBe(1)
+    expect(confirmReminderSentMock).not.toHaveBeenCalled()
+    expect(releaseReminderClaimMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a family bucket claims every visit, and releases every one when the send fails', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('kid1', 20)
+    seedCandidate('kid2', 22)
+    logQueue = [[], []]
+    deliverMock.mockRejectedValueOnce(new Error('mailer down'))
+
+    const r = await runDueReminders({ now: NOW })
+    expect(claimAutomatedReminderMock).toHaveBeenCalledTimes(2)
+    expect(r.failed).toBe(2)
+    expect(releaseReminderClaimMock).toHaveBeenCalledTimes(2)
+    expect(confirmReminderSentMock).not.toHaveBeenCalled()
+  })
+
+  it('a family bucket drops only the visit another tick already owns', async () => {
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('kid1', 20)
+    seedCandidate('kid2', 22)
+    logQueue = [[], []]
+    claimLosses = new Set(['kid2'])
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.claimContended).toBe(1)
+    // One visit left in the bucket → the single-visit email, not a household
+    // one that would name a sibling this tick doesn't own.
+    expect(r.sent).toBe(1)
+    expect(deliverMock).toHaveBeenCalledTimes(1)
+    expect(confirmReminderSentMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('an EXPECTED non-send gives the claim back too — a standing STOP is not a spent touch', async () => {
+    getClinicSmsIdentityMock.mockImplementation(async () => ({ ok: true, fromNumber: '+14155550100' }))
+    state.profiles = [{ organizationId: 'org_1', reminderSettings: null }]
+    seedCandidate('a1', 20, { email: null, phone: '(415) 555-0142' })
+    logQueue = [[]]
+    // The STOP scan finds the number opted out: nothing goes out, so the touch
+    // must not be burned — a START tomorrow should still get a reminder.
+    state.guardianQueue = [[{ phone: '415-555-0142', optOutAt: new Date('2026-06-01') }]]
+
+    const r = await runDueReminders({ now: NOW })
+    expect(r.sent).toBe(0)
+    expect(r.skipped).toBe(1)
+    expect(deliverSmsMock).not.toHaveBeenCalled()
+    expect(releaseReminderClaimMock).toHaveBeenCalledTimes(1)
+    expect(confirmReminderSentMock).not.toHaveBeenCalled()
   })
 })
