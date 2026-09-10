@@ -640,7 +640,14 @@ describe('createDemoClinic', () => {
     expect(counts.appointment_reminder_log).toBe(4)
     expect(counts.tasks).toBe(3)
     expect(counts.customers).toBe(10)
-    expect(counts.products).toBe(4)
+    // `products` (the Mosaic table) is deliberately NOT seeded any more: its
+    // only readers were the template's shop/cart/product pages, deleted in the
+    // Mosaic deletion pass. The dental catalog the demo actually shows is
+    // `shop_product` — asserted on the next line, so "we stopped seeding the
+    // dead one" and "we still seed the live one" are both pinned rather than
+    // one being inferred from the other.
+    expect(counts.products ?? 0).toBe(0)
+    expect(counts.shop_product).toBe(6)
     expect(counts.form_template).toBe(2) // default new-patient + returning-patient (for the Send-intake dropdown)
     expect(counts.orders).toBe(5)
     expect(counts.invoices).toBe(6)

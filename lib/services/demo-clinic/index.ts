@@ -1,7 +1,7 @@
 import 'server-only'
 import { and, eq, gte, isNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
-import { newId, slugify } from '@/lib/utils'
+import { newId } from '@/lib/utils'
 import { seedDefaultIntakeForm } from '@/lib/services/forms'
 import { seedServiceLibrary } from '@/lib/services/service-library'
 import { seedDemoPms } from '@/lib/services/pms'
@@ -1471,22 +1471,11 @@ export async function createDemoClinic(): Promise<DemoClinicResult> {
     .values([...patientLinkedCustomers, ...leadCustomers])
     .returning({ id: schema.customers.id })
 
-  // Sample products (treatments offered as "products" in the catalog).
-  const productRows = [
-    { name: 'Routine Cleaning', priceCents: 15000, stock: 999 },
-    { name: 'Comprehensive Exam', priceCents: 9500, stock: 999 },
-    { name: 'Composite Filling', priceCents: 22500, stock: 999 },
-    { name: 'Teeth Whitening', priceCents: 45000, stock: 50 },
-  ].map((p) => ({
-    organizationId: orgId,
-    name: p.name,
-    slug: slugify(p.name) + '-' + newId().slice(0, 4),
-    priceCents: p.priceCents,
-    currency: 'USD',
-    stock: p.stock,
-    active: true,
-  }))
-  await db.insert(schema.products).values(productRows)
+  // The Mosaic `products` table is no longer seeded. Its only readers were the
+  // template's own /ecommerce/shop, /product and /cart pages, deleted in the
+  // Mosaic deletion pass — the real dental catalog is `shopProduct`, seeded by
+  // `seedDemoShop`. Writing four rows nothing renders is the "no fake content"
+  // rule inverted: not a placeholder without data, but data without a surface.
 
   // A handful of product orders + invoices, evenly distributed across statuses.
   const orderStatuses = ['pending', 'processing', 'delivered', 'delivered', 'shipped'] as const

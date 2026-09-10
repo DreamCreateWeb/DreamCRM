@@ -1,11 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * Raw Mosaic routes (orders / product / shop / cart / tasks) must 308-style
- * redirect CLINIC tenants to their dental-correct surface — but leave platform
- * tenants on the existing page. We mock requireTenant to drive the tenant type
- * and make redirect() throw a sentinel (as real Next does, so execution stops
- * at the preamble) to assert where each tenant is sent.
+ * What survives of the Mosaic template's routes, and where it sends people.
+ *
+ * The generic shop / cart / product / pay pages are GONE (Mosaic deletion
+ * pass) — they had zero inbound links from any nav or module registry, and
+ * they sat on a parallel commerce stack (`services/products`, `services/cart`,
+ * the `products`/`cart_items` tables) that the real dental Shop never touched.
+ * A route only kept alive by the test that asserts it redirects is not a
+ * migration path, it is a maintained museum.
+ *
+ * What DOES stay is the pattern this file was written for: routes that still
+ * exist under a Mosaic-shaped URL because something real lives there
+ * (`/ecommerce/orders` is the platform's Projects board; `/ecommerce/customers`
+ * and `/ecommerce/invoices` are Clinics and Subscriptions), plus the retired
+ * `tasks/*` stubs that keep an old bookmark from dead-ending.
+ *
+ * We mock requireTenant to drive the tenant type and make redirect() throw a
+ * sentinel (as real Next does, so execution stops at the preamble) to assert
+ * where each tenant is sent.
  */
 
 type Ctx = { tenantType: 'platform' | 'clinic' | 'patient'; role: string; planTier: string; organizationId: string; userId: string }
@@ -26,22 +39,12 @@ vi.mock('@/lib/services/tasks', () => ({
   listTagsForOrg: vi.fn().mockResolvedValue([]),
   listSubtasks: vi.fn().mockResolvedValue([]),
 }))
-vi.mock('@/lib/services/products', () => ({
-  listProducts: vi.fn().mockResolvedValue([]),
-  getProductBySlug: vi.fn().mockResolvedValue(undefined),
-}))
 vi.mock('@/lib/services/orders', () => ({ listOrders: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/services/customers', () => ({ listCustomers: vi.fn().mockResolvedValue([]) }))
-vi.mock('@/lib/services/cart', () => ({ cartTotal: vi.fn().mockResolvedValue({ subtotalCents: 0, itemCount: 0, lines: [] }) }))
 
 import Kanban from '@/app/(default)/tasks/kanban/page'
 import TasksList from '@/app/(default)/tasks/list/page'
 import OrdersOrPipeline from '@/app/(default)/ecommerce/orders/page'
-import Product from '@/app/(default)/ecommerce/product/page'
-import Shop from '@/app/(default)/ecommerce/(shop)/shop/page'
-import Cart from '@/app/(default)/ecommerce/(cart)/cart/page'
-
-const sp = Promise.resolve({})
 
 beforeEach(() => {
   redirect.mockClear()
@@ -60,10 +63,6 @@ describe('raw Mosaic route clinic redirects', () => {
   it('tasks/list → /dashboard for clinic', () => expectRedirect(() => TasksList(), '/dashboard'))
   it('ecommerce/orders → /shop/orders for clinic', () =>
     expectRedirect(() => OrdersOrPipeline(), '/shop/orders'))
-  it('ecommerce/product → /shop for clinic', () =>
-    expectRedirect(() => Product({ searchParams: Promise.resolve({}) }), '/shop'))
-  it('ecommerce/shop → /shop for clinic', () => expectRedirect(() => Shop(), '/shop'))
-  it('ecommerce/cart → /shop for clinic', () => expectRedirect(() => Cart(), '/shop'))
 })
 
 describe('retired Mosaic routes redirect platform tenants too', () => {
@@ -76,14 +75,9 @@ describe('retired Mosaic routes redirect platform tenants too', () => {
   it('tasks/list → /dashboard for platform', () =>
     expectRedirect(() => TasksList(), '/dashboard'))
 
-  // Sales Pipeline (/ecommerce/orders) + the platform shop stay real — no redirect.
+  // Sales Pipeline (/ecommerce/orders) stays real — no redirect.
   it('ecommerce/orders renders the pipeline (no redirect) for platform', async () => {
     await OrdersOrPipeline()
-    expect(redirect).not.toHaveBeenCalled()
-  })
-
-  it('ecommerce/shop does not redirect a platform tenant', async () => {
-    await Shop()
     expect(redirect).not.toHaveBeenCalled()
   })
 })
