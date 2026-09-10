@@ -116,7 +116,22 @@ export async function POST(request: Request) {
       const orgId = accountId ? await orgIdForConnectedAccount(accountId) : null
       if (accountId && orgId) {
         const refund = await refundFromEvent(event, accountId)
-        if (refund) await recordConnectRefund({ organizationId: orgId, ...refund })
+        if (refund) {
+          const updated = await recordConnectRefund({ organizationId: orgId, ...refund })
+          // A refund we could not attach to anything is not an error — a
+          // membership or payment-plan charge on the same connected account
+          // has no row in the three tables we own, and neither does a charge
+          // that has not been finalized yet (the lookup key is stamped by the
+          // finalizer). Both are silent otherwise: Stripe gets its 200 and
+          // never retries, so leave a trail worth grepping.
+          if (updated.length === 0) {
+            console.warn('[stripe-connect webhook] refund matched no money record', {
+              organizationId: orgId,
+              paymentIntentId: refund.paymentIntentId,
+              amountRefundedCents: refund.amountRefundedCents,
+            })
+          }
+        }
       }
     } else if (event.type === 'account.updated') {
       // Stripe enabled/disabled capabilities on a connected account — keep our

@@ -512,6 +512,31 @@ binding are all correct. The payment-plan charger was the exception.
   `sum(amount_cents - refunded_amount_cents)` over
   `status in ('paid','refunded')`, decided once for all of them so the
   surfaces cannot disagree. · OPEN.
+- S2 · `finalizeOrderFromSession` did not know 'refunded' was a terminal
+  state, so a refunded shop order could be written back to `'paid'` by a page
+  RELOAD. `app/site/[slug]/shop/success/page.tsx` finalizes on every load (an
+  unauthenticated GET the shopper keeps in browser history) and a Stripe
+  refund does not change the Checkout Session's `payment_status` — so the
+  early return at `:302` and the CAS at `:365` (`ne(status,'paid')`) both let
+  it through, resetting `paidAt`, burning a single-use coupon a second time,
+  decrementing stock a second time, and alerting the clinic about money it had
+  just sent back. Introduced by the refund work above and caught at the review
+  gate before merge. · **FIXED** (DREAMCRM-23) — 'refunded' joins 'paid' in the
+  early return, and the CAS became the POSITIVE `eq(status,'pending')`: the
+  negative predicate had to be widened by hand every time a status value was
+  added and had already been letting 'cancelled' through.
+- S3 · membership and payment-plan refunds still reach no record.
+  `recordConnectRefund` looks in `shop_order`, `patient_balance_payment` and
+  `booking_deposit`; a refund on a membership subscription or a payment-plan
+  installment runs through the same connected account, matches none of the
+  three, and is discarded. Now at least logged
+  ("refund matched no money record") rather than silent. · OPEN.
+- S3 · `shop_config.stripe_account_id` has no unique constraint, and
+  `orgIdForConnectedAccount` resolves a TENANT from it with `.limit(1)` on a
+  money write path (matching what `syncConnectedAccountStatus` already did).
+  Two rows sharing an account id would route one clinic's refund to another's
+  records. A unique index would make the isolation structural instead of
+  assumed. · OPEN.
 - S3 · a refund that later FAILS is never un-recorded. Stripe decrements the
   charge's `amount_refunded` and fires `charge.refund.updated` with status
   `failed`; `recordConnectRefund` is monotonic by design, so the record keeps
