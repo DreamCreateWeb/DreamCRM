@@ -22,7 +22,7 @@ import React from 'react'
 const listBookingSlots = vi.fn()
 vi.mock('@/app/site/[slug]/actions', () => ({
   listBookingSlots: (...args: unknown[]) => listBookingSlots(...args),
-  submitBookingRequest: vi.fn(),
+  submitBookingRequest: vi.fn(async () => ({ ok: true as const, data: null })),
 }))
 
 import SlotPicker from '@/components/patient-portal/slot-picker'
