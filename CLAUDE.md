@@ -1245,6 +1245,12 @@ pnpm dev                  # local dev
 pnpm build                # next build (REQUIRED for UI/font/config changes)
 pnpm db:generate          # drizzle-kit generate (after schema changes)
 pnpm typecheck            # tsc --noEmit
+pnpm lint                 # the accessibility gate (jsx-a11y over app/ +
+                          # components/; curated rules — eslint.config.mjs
+                          # says what is on and what is deliberately off).
+                          # CI runs it on every PR.
+pnpm lint:prune           # after fixing suppressed hits: shrink
+                          # eslint-suppressions.json to what is still true
 pnpm test                 # vitest run (~6,400 tests, ~4 min)
 pnpm test:watch
 ```

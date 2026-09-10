@@ -114,7 +114,7 @@ function GenericFeedCard({
       <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap">{body}</p>
       {imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="Attached photo" className="mt-2 w-full rounded-lg object-cover max-h-64" />
+        <img src={imageUrl} alt="Attached to this post" className="mt-2 w-full rounded-lg object-cover max-h-64" />
       )}
     </div>
   )

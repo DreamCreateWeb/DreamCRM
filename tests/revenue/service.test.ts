@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 // Stripe mock — we control what each .list() call returns.
 interface PaidInvoiceStub {
@@ -72,6 +73,10 @@ import {
   getTopRevenueClinics,
   getRecentRevenueTransactions,
 } from '@/lib/services/revenue'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/db'))
 
 beforeEach(() => {
   stripeStubs.paid = []

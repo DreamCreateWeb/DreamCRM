@@ -126,15 +126,53 @@ Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
 sign-here). Add new journeys on their own rows, and make the seed reset any
 state a journey consumes.
 
+Since DREAMCRM-19 that ownership is **named in the seed itself**, as a scope
+(`scripts/e2e-seed.mjs`). Two kinds:
+
+- **`base`** is structure — clinics, patients, auth users, sessions. No spec
+  consumes any of it, so the harness seeds it once per run and nothing
+  re-runs it.
+- Every other scope is one spec file's **consumable** rows, and the scopes are
+  row-disjoint by construction.
+
+A spec declares the scope it owns at the top of the file, and that scope is
+restored before each of its tests:
+
+```ts
+import { restoresSeedScope } from './reseed'
+restoresSeedScope('sign-here')
+```
+
+Name only your OWN scope. Restoring one you don't own resets rows another
+worker may be halfway through spending — which trades a retry-only trap for a
+genuine cross-worker race. Adding a journey means adding a scope, not widening
+an existing one.
+
+You can restore a scope by hand too:
+
+```bash
+node scripts/e2e-seed.mjs sign-here     # just that spec's rows
+node scripts/e2e-seed.mjs               # everything (what the harness runs)
+```
+
 ## Traps these specs already fell into (DREAMCRM-10)
 
-**A retry cannot fix a test that consumes its fixture.** The harness seeds once
-per RUN, not once per attempt. `portal-reschedule` cancels a visit and
-`sign-here` approves a proposal, so on a Playwright retry those rows are already
-spent and the retry fails at its FIRST assertion — long before reaching whatever
-actually broke. When you read a failure in one of these, **read attempt #1**; the
-retry's error is an artifact of the retry. (`retries: 1` still earns its keep for
-the specs that only read, and for genuine infrastructure noise.)
+**A retry cannot fix a test that consumes its fixture — FIXED in DREAMCRM-19,
+and worth knowing about because the shape recurs.** The harness seeds once per
+RUN, not once per attempt. `portal-reschedule` cancels a visit and `sign-here`
+approves a proposal, so a Playwright retry started with those rows already
+spent and died at its FIRST assertion — long before reaching whatever actually
+broke. The retry's error was an artifact of the retry, and it was the error a
+reader saw first: it buried the real failure under a fixture complaint. That is
+a test lying about WHY it failed, which is worse than a test that simply fails.
+It also meant `retries: 1` could not do its job for half the suite, because the
+second attempt could never pass.
+
+`e2e/reseed.ts` now restores the owning spec's scope before every attempt (see
+"Row ownership matters" above), so a retry starts from the same world attempt
+#1 did. **Keep the property when you add a journey**: if a spec spends a row,
+its scope has to put that row back, and the scope has to stay disjoint from
+every other spec's.
 
 **Do not assert which side of a revalidate race won.** After a portal action
 succeeds, `components/patient-portal/visit-card.tsx` sets an in-card confirmation

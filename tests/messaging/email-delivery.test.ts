@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * The "email" channel of the Patient Communications inbox must actually deliver
@@ -84,6 +85,10 @@ vi.mock('@/lib/services/clinic-sender', () => ({
     name: 'Acme Dental',
   })),
 }))
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/patient-messaging'))
 
 beforeEach(() => {
   state.patient = { id: 'pat_1', email: 'mia@example.com', firstName: 'Mia' }

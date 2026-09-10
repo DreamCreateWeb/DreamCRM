@@ -304,7 +304,7 @@ export default function LeadDrawer({
                 <ActionButton variant="secondary" size="sm" onClick={onConvert} pending={pending}>
                   Convert to patient
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} pending={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
                   Archive
                 </ActionButton>
               </>
@@ -314,7 +314,7 @@ export default function LeadDrawer({
                 <ActionButton variant="primary" size="sm" onClick={onConvert} pending={pending}>
                   Convert to patient
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} pending={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
                   Archive
                 </ActionButton>
               </>
@@ -349,7 +349,7 @@ export default function LeadDrawer({
                 <ActionButton variant="secondary" size="sm" onClick={() => runConvert(true)} pending={pending}>
                   Create separate patient
                 </ActionButton>
-                <ActionButton variant="ghost" size="sm" onClick={() => setDedupeMatch(null)} pending={pending}>
+                <ActionButton variant="ghost" size="sm" onClick={() => setDedupeMatch(null)} disabled={pending}>
                   Cancel
                 </ActionButton>
               </div>
@@ -414,7 +414,7 @@ export default function LeadDrawer({
               </select>
             </div>
             <div className="px-5 py-4 border-t border-[color:var(--color-hairline)] flex justify-end gap-2">
-              <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)} pending={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)} disabled={pending}>
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={onArchive} pending={pending}>

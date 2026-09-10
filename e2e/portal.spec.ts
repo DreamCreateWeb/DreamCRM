@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { restoresSeedScope } from './reseed'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -26,6 +27,12 @@ function signedSessionCookie(): string {
 }
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100'
+
+// This spec CONSUMES its seeded rows, so restore them before every attempt
+// (DREAMCRM-19). Without this a Playwright retry starts with the fixture
+// already spent and dies on its first assertion, burying the real failure.
+// 'portal' is the scope THIS file owns — see scripts/e2e-seed.mjs.
+restoresSeedScope('portal')
 
 test.describe('patient portal', () => {
   test('without a session, the portal door bounces to sign-in', async ({ page }) => {

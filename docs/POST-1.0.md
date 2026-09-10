@@ -35,8 +35,30 @@ memory.
   never started; GBP shipped, these siblings didn't).
 - Intake: appointment-type + annual-refresh auto-send rules (audience
   rules shipped; these didn't), an address field type (cut from v2).
-- The refer-a-friend door on Growth (docs/STRUCTURE-AUDIT.md change list
-  item 2 — the one never-built recommendation).
+- **The daily metrics snapshot** — one per-day history series behind the
+  numbers the KPI tiles already show. Recorded here 2026-09-10 under
+  bias-to-action, from the DREAMCRM-14 planning meeting: it is NEW DATA
+  MACHINERY (a stored series, a writer, a retention policy), not
+  presentation, so the freeze puts it here rather than in a UI batch.
+  What it unblocks, all currently DEFERRED in docs/UI-BEST-VERSION.md for
+  exactly this reason: the Overview's two spark-less trend tiles · the
+  recall funnel heartbeats (`getRecallStats` keeps no weekly history) ·
+  the analytics page's sixteen heartbeat-less KPIs · the outstanding-
+  balance heartbeat · Overview MRR + Needs-Attention (`getMrrSnapshot` is
+  a point-in-time tier count) · the demo-prep KpiStats · the lead-count
+  KPIs on the marketing home. Seven punch-list entries, one blocker.
+  NOT unblocked by it: the prospecting Hunt panel, which needs an HOURLY
+  aggregate — `HuntStats` stores 24h totals.
+- **The deferred IA change list** (docs/STRUCTURE-AUDIT.md) — reclassified
+  2026-09-10 from floating deferrals to scheduled post-1.0 work, same
+  meeting, same reason: these are information-architecture changes, which
+  the UI-quality program has no mandate to make and keeps correctly
+  punting. The remainder is the change list's item 2 (the refer-a-friend
+  door on Growth — the one never-built recommendation; items 1, 3 and 4
+  shipped) plus the platform settings taxonomy: two tiles, with Service
+  Library / Blog / Prospecting settings unlinked from Settings because
+  those areas keep their own in-module doors by design. Decide the
+  taxonomy once, post-1.0, rather than re-litigating it every batch.
 - Facebook review reply (no Zernio endpoint), per-staff booking widgets,
   patient-view audit log, 2FA, per-location booking (CLAUDE.md item 8).
 - Dentistry-type site templates expansion (CLAUDE.md item 0b — design

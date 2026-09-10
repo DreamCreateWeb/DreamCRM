@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * Guard coverage for sendPortalMessageAction — the only write path a
@@ -56,6 +57,10 @@ vi.mock('@/lib/services/booking', () => ({
 }))
 vi.mock('@/lib/services/pms', () => ({ queueAppointmentWriteBack: vi.fn() }))
 vi.mock('@/lib/services/booking-confirmation', () => ({ sendBookingConfirmation: vi.fn() }))
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/app/(portal)/patient/actions'))
 
 beforeEach(() => {
   tenantCtx.tenantType = 'patient'

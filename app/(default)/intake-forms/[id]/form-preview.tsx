@@ -59,15 +59,17 @@ export default function FormPreview({
                   </div>
                 </section>
               ))}
-              {/* Echo the real form's submit affordance, inert in the preview. */}
-              <button
-                type="button"
-                disabled
+              {/* Echo the real form's submit affordance, inert in the preview.
+                  A <div>, not a disabled <button>: a preview should not put a
+                  real control in the tree at all, and aria-hidden on a genuine
+                  button is a focus sink the moment somebody drops the
+                  `disabled`. */}
+              <div
                 aria-hidden="true"
-                className="w-full cursor-default rounded-full bg-teal-600/60 py-3 text-sm font-semibold text-white"
+                className="w-full cursor-default rounded-full bg-teal-600/60 py-3 text-center text-sm font-semibold text-white"
               >
                 Submit
-              </button>
+              </div>
             </div>
           )}
         </div>

@@ -77,7 +77,7 @@ export default function FollowupQuickAdd({
         <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
           Add
         </ActionButton>
-        <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} pending={pending}>
+        <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
           Cancel
         </ActionButton>
       </div>

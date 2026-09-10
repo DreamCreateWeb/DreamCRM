@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * Channel connect/disconnect server actions — now consolidated into the
@@ -45,6 +46,13 @@ vi.mock('@/lib/services/social-billing', () => ({
 }))
 
 import { refreshChannelsAction, disconnectChannelAction } from '@/app/(default)/integrations/actions'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(
+  () => import('@/app/(default)/integrations/actions'),
+  () => import('@/lib/services/social-billing'),
+)
 
 beforeEach(() => {
   zernioSvc.syncConnectedAccounts.mockClear()
