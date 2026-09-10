@@ -8,6 +8,7 @@ import { productJsonLd } from '@/lib/clinic-site-jsonld'
 import AddToCart from '../add-to-cart'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import SiteImage from '@/components/clinic-site/site-image'
+import JsonLdScript from '@/components/json-ld'
 
 
 interface Props {
@@ -61,10 +62,7 @@ export default async function ClinicProductPage({ params }: Props) {
 
   return (
     <BlogChrome data={data} basePath={basePath}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }}
-      />
+      <JsonLdScript data={productLd} />
       <div className="max-w-[1100px] mx-auto px-5 sm:px-8 py-14 sm:py-20">
         <a
           href={`${basePath}/shop`}

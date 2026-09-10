@@ -24,6 +24,7 @@ import ClosingCTA from '@/components/clinic-site/closing-cta'
 import ApplyForm from '../apply-form'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
+import JsonLdScript from '@/components/json-ld'
 
 
 interface Props {
@@ -165,8 +166,8 @@ export default async function ClinicJobDetailPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      <JsonLdScript data={jsonLd} />
+      <JsonLdScript data={breadcrumbLd} />
       <SiteHeader
         data={data}
         basePath={basePath}

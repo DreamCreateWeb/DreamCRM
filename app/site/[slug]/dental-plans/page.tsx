@@ -26,6 +26,7 @@ import ClosingCTA from '@/components/clinic-site/closing-cta'
 import MembershipJoin from '../membership/membership-join'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
+import JsonLdScript from '@/components/json-ld'
 
 /**
  * `/dental-plans` — Tend-style nav copy for what is functionally our
@@ -161,10 +162,7 @@ export default async function DentalPlansPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(plansLd) }}
-      />
+      <JsonLdScript data={plansLd} />
       <SiteHeader
         data={data}
         basePath={basePath}

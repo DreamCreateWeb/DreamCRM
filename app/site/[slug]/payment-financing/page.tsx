@@ -36,6 +36,7 @@ import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import SiteImage from '@/components/clinic-site/site-image'
+import JsonLdScript from '@/components/json-ld'
 
 
 interface Props {
@@ -225,10 +226,7 @@ export default async function PaymentFinancingPage({ params }: Props) {
       }}
     >
       {faqLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }}
-        />
+        <JsonLdScript data={faqLd} />
       )}
       <SiteHeader
         data={data}
