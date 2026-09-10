@@ -42,8 +42,17 @@ beforeEach(() => {
 const org = { id: 'org_1', slug: 'acme', name: 'Acme Dental', type: 'clinic' }
 
 describe('getClinicSiteBySlug — draft overlay', () => {
+  /**
+   * org → profile → locations → (draft).
+   *
+   * The fourth read is new with the cache boundary: the published payload no
+   * longer carries the draft CONTENT (it would be a clinic's unpublished words
+   * sitting in a shared cache), so the overlay re-reads it from clinic_profile
+   * — and only after `canEditClinic` has said yes. Queued unconditionally; a
+   * visitor's load never reaches it and simply leaves it unused.
+   */
   function queueSite(profile: Record<string, unknown>) {
-    selectQueue.push([org], [profile], []) // org → profile → locations
+    selectQueue.push([org], [profile], [], [{ websiteDraft: profile.websiteDraft ?? null }])
   }
 
   it('a verified editor sees the merged draft', async () => {
@@ -81,6 +90,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
         websiteDraft: { brandColor: '#22C55E', template: 'pediatric' },
       },
     ])
+    selectQueue.push([{ websiteDraft: { brandColor: '#22C55E', template: 'pediatric' } }])
     const theme = await getClinicThemeBySlug(`acme-${Math.random()}`)
     expect(theme).toEqual({
       orgId: 'org_1',
@@ -101,6 +111,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
         websiteDraft: { brandColor: '#22C55E' },
       },
     ])
+    selectQueue.push([{ websiteDraft: { brandColor: '#22C55E' } }])
     const theme = await getClinicThemeBySlug(`acme-${Math.random()}`)
     expect(theme).toEqual({
       orgId: 'org_1',
@@ -115,6 +126,7 @@ describe('getClinicThemeBySlug — brand/template overlay + banner flag', () => 
     selectQueue.push([
       { id: 'org_1', type: 'clinic', brandColor: '#111111', template: 'modern', websiteDraft: { about: 'x' } },
     ])
+    selectQueue.push([{ websiteDraft: { about: 'x' } }])
     const theme = await getClinicThemeBySlug(`acme-${Math.random()}`)
     expect(theme.brand).toBe('#111111')
     expect(theme.template).toBe('modern')

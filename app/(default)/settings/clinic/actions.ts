@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { invalidateClinicSiteEverywhere } from '@/lib/services/clinic-site-cache'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { publishRealtime } from '@/lib/services/realtime'
@@ -127,4 +128,7 @@ export async function updateClinicProfile(formData: FormData) {
   // /payment-financing, /services/*, …) — without it only the home page
   // refreshed, so a hours/tagline/about/staff edit looked stale everywhere else.
   revalidatePath(`/site/${ctx.organizationSlug}`, 'layout')
+  // Same reason, one layer deeper: the public payload is cached by tag now, so
+  // a path revalidation alone would re-render the page around a stale profile.
+  invalidateClinicSiteEverywhere(orgId, ctx.organizationSlug)
 }

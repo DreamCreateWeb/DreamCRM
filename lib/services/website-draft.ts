@@ -10,6 +10,7 @@ import {
   type WebsiteDraftChange,
 } from '@/lib/website-draft'
 import { recordWebsiteEdit } from './website-history'
+import { invalidateClinicSiteForOrg } from './clinic-site-cache'
 
 /**
  * Server plumbing for the website Draft→Publish layer (pure core:
@@ -40,6 +41,9 @@ export async function stageWebsiteValues(
     .update(clinicProfile)
     .set(update as Partial<typeof clinicProfile.$inferInsert>)
     .where(eq(clinicProfile.organizationId, organizationId))
+  // The public site caches `hasWebsiteDraft` and every live-immediate column
+  // written above, so the editor must not read a stale copy of their own save.
+  await invalidateClinicSiteForOrg(organizationId)
   return { stagedKeys: Object.keys(staged) }
 }
 
@@ -111,6 +115,7 @@ export async function publishWebsiteDraft(
         .update(clinicProfile)
         .set({ websiteDraft: null })
         .where(eq(clinicProfile.organizationId, organizationId))
+      await invalidateClinicSiteForOrg(organizationId)
     }
     return { published: 0 }
   }
@@ -136,6 +141,9 @@ export async function publishWebsiteDraft(
     .update(clinicProfile)
     .set(apply as Partial<typeof clinicProfile.$inferInsert>)
     .where(eq(clinicProfile.organizationId, organizationId))
+  // The whole point of Publish: the very next render of the live site shows
+  // the new words. `updateTag` gives read-your-own-writes for exactly this.
+  await invalidateClinicSiteForOrg(organizationId)
   return { published: changes.length }
 }
 

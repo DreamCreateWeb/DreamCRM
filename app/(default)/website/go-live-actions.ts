@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { requireTenant } from '@/lib/auth/context'
+import { invalidateClinicSiteEverywhere } from '@/lib/services/clinic-site-cache'
 
 /**
  * THE GO-LIVE LEVER's two actions (onboarding overhaul, owner ruling: "one
@@ -32,10 +33,16 @@ async function gate(): Promise<
   return { ok: true, organizationId: ctx.organizationId, slug: ctx.organizationSlug }
 }
 
-function revalidateSite(slug: string) {
+function revalidateSite(organizationId: string, slug: string) {
   revalidatePath('/website')
   revalidatePath('/dashboard')
   revalidatePath(`/site/${slug}`, 'layout')
+  // `revalidatePath` alone is not enough any more: the published payload is
+  // cached by TAG in lib/services/clinic-site-cache.ts, and `siteLiveAt` —
+  // the column these two actions write — is what the coming-soon gate reads.
+  // Without this, taking a site offline would leave it serving for up to the
+  // cache TTL, which is the wrong direction to be slow in.
+  invalidateClinicSiteEverywhere(organizationId, slug)
 }
 
 export async function goLiveAction(): Promise<GoLiveResult> {
@@ -46,7 +53,7 @@ export async function goLiveAction(): Promise<GoLiveResult> {
       .update(clinicProfile)
       .set({ siteLiveAt: new Date(), updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, g.organizationId))
-    revalidateSite(g.slug)
+    revalidateSite(g.organizationId, g.slug)
     return { ok: true }
   } catch {
     return { ok: false, error: 'Could not take the site live — try again' }
@@ -61,7 +68,7 @@ export async function takeSiteOfflineAction(): Promise<GoLiveResult> {
       .update(clinicProfile)
       .set({ siteLiveAt: null, updatedAt: new Date() })
       .where(eq(clinicProfile.organizationId, g.organizationId))
-    revalidateSite(g.slug)
+    revalidateSite(g.organizationId, g.slug)
     return { ok: true }
   } catch {
     return { ok: false, error: 'Could not take the site offline — try again' }
