@@ -3,6 +3,19 @@
  * shape, a URL query string, and a marketing audience filter.
  */
 
+/**
+ * The roster's page bounds. Pure numbers, so they live here rather than in the
+ * `server-only` patients service — the list component reads them directly, the
+ * same reason the messages bounds live in `lib/types/messaging.ts`.
+ */
+
+/** Rows on the first load of /patients. */
+export const DEFAULT_PATIENT_LIMIT = 100
+/** The ceiling "Show more" walks up to. Past this the answer is a filter, not
+ *  a longer page — and it is what stops a hand-typed `?show=` reopening the
+ *  full-roster scan the bound exists to close. */
+export const MAX_PATIENT_LIMIT = 1000
+
 /** The serializable subset of PatientListFilters a saved view captures. */
 export interface SavedViewFilters {
   status?: 'all' | 'new' | 'recall_due' | 'inactive' | 'archived'

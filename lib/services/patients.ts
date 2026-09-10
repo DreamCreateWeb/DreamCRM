@@ -1,21 +1,19 @@
 import 'server-only'
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
-import { derivePatientRecallStatus } from '@/lib/services/recall-status'
+import { derivePatientRecallStatus, recallDueWhereSql, RECALL_DEFAULT_MONTHS } from '@/lib/services/recall-status'
 import { getTagsForPatients, listPatientTags } from '@/lib/services/patient-tags'
 import type { PatientTagView } from '@/lib/types/patient-tags'
 import { normalizeEmail, normalizePhone } from '@/lib/contact-normalize'
 import {
-  startOfDay,
-  startOfMonth,
-  endOfMonth,
   ageFromDob,
   isBirthdayThisWeek,
-  isBirthdayThisMonth,
   lapsedCutoff as lapsedCutoffDate,
 } from '@/lib/dates'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
+import { clampRowLimit } from '@/lib/types/messaging'
+import { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT } from '@/lib/types/patient-views'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { BACKFILL_PATIENT_SOURCES } from '@/lib/patient-acquisition'
@@ -154,17 +152,61 @@ export function newPatientNoteId(): string {
 
 // ----- List page --------------------------------------------------------
 
+/** One page of the roster, plus the honest size of the whole filtered set. */
+export interface PatientListPage {
+  rows: PatientListRow[]
+  /** Patients matching the filter, ignoring the page bound. */
+  total: number
+  /** True when `total` exceeds what this page returned. */
+  hasMore: boolean
+}
+
+export { DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT }
+
+/**
+ * The whole filtered roster, unbounded. For consumers that genuinely need
+ * every row — bulk actions over a saved view, the recall analytics count, the
+ * follow-up rules cron. The LIST PAGE must use `listPatientsPage`.
+ */
 export async function listPatients(
   organizationId: string,
   filters: PatientListFilters = {},
   sort: PatientListSort = { field: 'name', direction: 'asc' },
 ): Promise<PatientListRow[]> {
+  return (await listPatientsPage(organizationId, filters, sort, { limit: null })).rows
+}
+
+/**
+ * One page of the roster.
+ *
+ * Every filter and the sort run in POSTGRES, which is what makes the bound
+ * correct: the deferred half of the R2 Slice 1 rework was pagination, and it
+ * was deferred precisely because the derived filters ran in JavaScript AFTER
+ * the load — a `LIMIT` there would have truncated before filtering and
+ * returned "the recall-due patients among the first hundred" rather than "the
+ * first hundred recall-due patients". So `hasBalance`, `missingIntake`, the
+ * birthday month, the tag filter and `recall_due` are all SQL predicates now,
+ * and the three derived sorts are scalar subqueries.
+ *
+ * What stays in JavaScript is only what nothing filters or sorts on: the flag
+ * cluster and the displayed recall status, composed from per-page aggregates
+ * over the ids this page actually returned.
+ */
+export async function listPatientsPage(
+  organizationId: string,
+  filters: PatientListFilters = {},
+  sort: PatientListSort = { field: 'name', direction: 'asc' },
+  opts: { limit?: number | null } = {},
+): Promise<PatientListPage> {
+  // `null` is the explicit "give me everything" of the whole-set consumers;
+  // anything else is clamped, so a hand-typed `?show=` can't reopen the scan.
+  const limit =
+    opts.limit === null
+      ? null
+      : clampRowLimit(opts.limit, DEFAULT_PATIENT_LIMIT, MAX_PATIENT_LIMIT)
   const now = new Date()
-  const today = startOfDay(now)
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const in7d = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-  const monthBirthStart = startOfMonth(now)
-  const monthBirthEnd = endOfMonth(now)
 
   const where = [eq(schema.patient.organizationId, organizationId)]
   // Merged tombstones are no longer real patients — never list them.
@@ -199,9 +241,82 @@ export async function listPatients(
     )
   }
 
+  // Clinic-wide cadence settings: recall default (per-patient overrides win;
+  // both fall through to RECALL_DEFAULT_MONTHS) + the lapsed threshold (the 💤
+  // cutoff, clinic-configurable, default 18mo). Read BEFORE the roster query —
+  // the recall-due predicate below is built from the recall default.
+  const cadence = await getClinicCadence(organizationId)
+  const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
+  const recallDefaultMonths =
+    cadence.recallMonths && cadence.recallMonths > 0 ? cadence.recallMonths : RECALL_DEFAULT_MONTHS
+
+  // ── The derived filters, in SQL ──────────────────────────────────────────
+  // Each of these used to run over the fully-composed rows in JavaScript.
+  // Every one is a predicate Postgres can answer, and it has to answer them:
+  // a page bound applied before the filter returns the wrong hundred patients.
+  if (filters.hasBalance) {
+    // Mirrors `(outstandingBalanceCents ?? 0) > 0` — a NULL balance (no PMS
+    // figure on file) is not a balance, exactly as the composer treats it.
+    where.push(sql`coalesce(${schema.patient.pmsBalanceCents}, 0) > 0`)
+  }
+  if (filters.birthdayThisMonth) {
+    // date_of_birth is ISO text 'YYYY-MM-DD'; the JS helper compares the month
+    // component the same way, against the SERVER's month (unchanged here).
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    where.push(sql`substring(${schema.patient.dateOfBirth} from 6 for 2) = ${month}`)
+  }
+  if (filters.missingIntake) {
+    // `!!next && next.startTime <= in7d && !intakeSet.has(id)` — the earliest
+    // live future visit landing inside 7 days is the same question as "any
+    // live visit in [now, in7d]", with no form submission on file.
+    where.push(sql`exists (
+      select 1 from ${schema.appointment} a
+      where a.${sql.raw('"organization_id"')} = ${organizationId}
+        and a.${sql.raw('"patient_id"')} = ${schema.patient.id}
+        and a.${sql.raw('"start_time"')} >= ${now}
+        and a.${sql.raw('"start_time"')} <= ${in7d}
+        and a.${sql.raw('"status"')} not in ('cancelled', 'no_show')
+    )`)
+    where.push(sql`not exists (
+      select 1 from ${schema.formSubmission} fs
+      where fs.${sql.raw('"organization_id"')} = ${organizationId}
+        and fs.${sql.raw('"patient_id"')} = ${schema.patient.id}
+    )`)
+  }
+  if (filters.tagIds?.length) {
+    // OR semantics, same as the JS `tags.some(t => want.has(t.id))`.
+    where.push(sql`exists (
+      select 1 from ${schema.patientTagAssignment} pta
+      where pta.${sql.raw('"organization_id"')} = ${organizationId}
+        and pta.${sql.raw('"patient_id"')} = ${schema.patient.id}
+        and pta.${sql.raw('"tag_id"')} in ${filters.tagIds}
+    )`)
+  }
+  if (filters.status === 'recall_due') {
+    where.push(
+      recallDueWhereSql({
+        organizationId,
+        now,
+        nearWindowEnd: in7d,
+        defaultIntervalMonths: recallDefaultMonths,
+      }),
+    )
+  }
+
+  // ── The sort, in SQL ─────────────────────────────────────────────────────
+  const orderBy = patientListOrderBy(sort, organizationId, now)
+
+  // The honest count of the whole filtered set — the list's "N patients" and
+  // its "showing X of Y". One indexed count, not a second page of rows.
+  const totalRows = await db
+    .select({ total: count() })
+    .from(schema.patient)
+    .where(and(...where))
+  const total = Number(totalRows[0]?.total ?? 0)
+
   // Project ONLY the columns the row composer below reads. A bare select()
   // pulls every column (including large jsonb) for the whole roster.
-  const patients = await db
+  const rosterQuery = db
     .select({
       id: schema.patient.id,
       firstName: schema.patient.firstName,
@@ -221,15 +336,12 @@ export async function listPatients(
     })
     .from(schema.patient)
     .where(and(...where))
+    .orderBy(...orderBy)
 
-  if (patients.length === 0) return []
+  const patients = await (limit === null ? rosterQuery : rosterQuery.limit(limit))
+
+  if (patients.length === 0) return { rows: [], total, hasMore: false }
   const ids = patients.map((p) => p.id)
-
-  // Clinic-wide cadence settings: recall default (per-patient overrides win;
-  // both fall through to RECALL_DEFAULT_MONTHS) + the lapsed threshold (the 💤
-  // cutoff, clinic-configurable, default 18mo).
-  const cadence = await getClinicCadence(organizationId)
-  const lapsedCutoff = lapsedCutoffDate(now, cadence.lapsedMonths)
 
   // Pull joined data in parallel.
   const [lastVisits, nextVisits, unconfirmedNear, shopSpendRows, intakeRows, lastMessages, recallScheduledNear, tagsByPatient] =
@@ -443,51 +555,77 @@ export async function listPatients(
     }
   })
 
-  // Apply post-query filters that need derived fields.
-  let filtered = rows
-  if (filters.hasBalance) filtered = filtered.filter((r) => (r.outstandingBalanceCents ?? 0) > 0)
-  if (filters.missingIntake) filtered = filtered.filter((r) => r.flags.missingIntakeBeforeAppt)
-  if (filters.birthdayThisMonth) {
-    filtered = filtered.filter((r) => isBirthdayThisMonth(r.dateOfBirth, now))
-  }
-  if (filters.status === 'recall_due') {
-    filtered = filtered.filter((r) => r.recallStatus === 'due' || r.recallStatus === 'overdue')
-  }
-  if (filters.tagIds?.length) {
-    const want = new Set(filters.tagIds)
-    filtered = filtered.filter((r) => r.tags.some((t) => want.has(t.id)))
-  }
+  // Everything the list filters or sorts on is settled in SQL above, so the
+  // page is already the right page: no post-query filter can shrink it and no
+  // re-sort can reorder it. That is the whole point — a JS pass here would
+  // silently make `total`, `hasMore` and the page bound disagree.
+  return { rows, total, hasMore: rows.length < total }
+}
 
-  // Sort.
-  const dir = sort.direction === 'asc' ? 1 : -1
-  filtered.sort((a, b) => {
-    switch (sort.field) {
-      case 'name':
-        return dir * (a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
-      case 'lastVisit':
-        return dir * (
-          (a.lastVisitAt?.getTime() ?? 0) - (b.lastVisitAt?.getTime() ?? 0)
-        )
-      case 'nextVisit':
-        return dir * (
-          (a.nextVisitAt?.getTime() ?? Number.MAX_SAFE_INTEGER) -
-          (b.nextVisitAt?.getTime() ?? Number.MAX_SAFE_INTEGER)
-        )
-      case 'balance':
-        return dir * ((a.outstandingBalanceCents ?? 0) - (b.outstandingBalanceCents ?? 0))
-      case 'lastActivity':
-        return dir * (
-          (a.lastContactAt?.getTime() ?? 0) - (b.lastContactAt?.getTime() ?? 0)
-        )
-      case 'created':
-      default:
-        return dir * (
-          (a.firstSeenAt?.getTime() ?? 0) - (b.firstSeenAt?.getTime() ?? 0)
-        )
-    }
-  })
+/**
+ * The ORDER BY for a patient-list sort.
+ *
+ * Three of the six sorts are derived (last visit, next visit, last contact) —
+ * they were computed per row and sorted in JavaScript, which cannot survive a
+ * page bound. Each becomes a scalar subquery over the same rows the composer
+ * reads, so the ordering and the displayed value can't disagree.
+ *
+ * NULL placement reproduces the JS comparators exactly: they coerced a missing
+ * last visit / last contact / balance to 0 (sorts first ascending) and a
+ * missing NEXT visit to +∞ (sorts last ascending) — a patient with nothing on
+ * the books belongs at the bottom of "soonest first", not the top. Every sort
+ * ends on the patient id so a page boundary is stable between requests.
+ */
+function patientListOrderBy(sort: PatientListSort, organizationId: string, now: Date): SQL[] {
+  const dir = (col: SQL, nullsForAsc: 'first' | 'last'): SQL => {
+    const nulls = sort.direction === 'asc' ? nullsForAsc : nullsForAsc === 'first' ? 'last' : 'first'
+    return sql`${col} ${sql.raw(sort.direction === 'asc' ? 'asc' : 'desc')} nulls ${sql.raw(nulls)}`
+  }
+  const a = schema.appointment
+  const liveVisit = sql`${a.status} not in ('cancelled', 'no_show')`
+  // `.mapWith` on every hand-built aggregate: these bodies are more than one
+  // column so drizzle's max()/min() can't wrap them, and without the column's
+  // own mapper the driver hands back raw text that would parse in the host's
+  // zone (tests/guards/timestamp-aggregate-mapping.test.ts).
+  const lastVisitAt = sql`(
+    select max(${a.startTime}) from ${a}
+    where ${a.organizationId} = ${organizationId}
+      and ${a.patientId} = ${schema.patient.id}
+      and ${a.startTime} <= ${now} and ${liveVisit}
+  )`.mapWith(a.startTime)
+  const nextVisitAt = sql`(
+    select min(${a.startTime}) from ${a}
+    where ${a.organizationId} = ${organizationId}
+      and ${a.patientId} = ${schema.patient.id}
+      and ${a.startTime} >= ${now} and ${liveVisit}
+  )`.mapWith(a.startTime)
+  const lastContactAt = sql`(
+    select max(${schema.messages.createdAt}) from ${schema.messages}
+    inner join ${schema.conversationMembers}
+      on ${schema.messages.conversationId} = ${schema.conversationMembers.conversationId}
+    where ${schema.conversationMembers.userId} = ${schema.patient.userId}
+  )`.mapWith(schema.messages.createdAt)
+  const tiebreak = sql`${schema.patient.id} asc`
 
-  return filtered
+  switch (sort.field) {
+    case 'lastVisit':
+      return [dir(lastVisitAt, 'first'), tiebreak]
+    case 'nextVisit':
+      return [dir(nextVisitAt, 'last'), tiebreak]
+    case 'lastActivity':
+      return [dir(lastContactAt, 'first'), tiebreak]
+    case 'balance':
+      return [dir(sql`coalesce(${schema.patient.pmsBalanceCents}, 0)`, 'first'), tiebreak]
+    case 'created':
+      return [dir(sql`${schema.patient.firstSeenAt}`, 'first'), tiebreak]
+    case 'name':
+    default:
+      return [
+        dir(sql`lower(${schema.patient.lastName})`, 'first'),
+        dir(sql`lower(${schema.patient.firstName})`, 'first'),
+        tiebreak,
+      ]
+  }
 }
 
 export async function getPatientListMeta(organizationId: string): Promise<PatientFilterMeta> {

@@ -38,7 +38,10 @@ vi.mock('@/lib/db', async () => {
   return { db: { select: () => chain([]), selectDistinctOn: () => chain([]) }, schema }
 })
 
-vi.mock('@/lib/services/recall-status', () => ({
+vi.mock('@/lib/services/recall-status', async (importOriginal) => ({
+  // Keep the real constants + the SQL twin (the service builds a predicate
+  // from them); only the per-row derivation is pinned flat for these cases.
+  ...(await importOriginal<typeof import('@/lib/services/recall-status')>()),
   derivePatientRecallStatus: () => 'na',
 }))
 
