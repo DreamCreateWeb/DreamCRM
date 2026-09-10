@@ -668,7 +668,10 @@ clinic, none breaking at the current one-beta-clinic scale.
   slice** — server keyset/LIMIT pagination + column projection + SQL-side
   `DISTINCT ON`/`MAX…GROUP BY` aggregation + push filters/sort into SQL,
   mirroring the already-correct windowed+projected+batched `listAppointments`.
-  Needs a UI pagination change too, so it's a dedicated slice with tests. · OPEN.
+  Needs a UI pagination change too, so it's a dedicated slice with tests. ·
+  **FIXED** across two slices: R2 Slice 1 took the projection and the unbounded
+  fan-outs, R2 Slice 10 the page bound with the filters and sort that had to
+  precede it. THE headline perf slice is closed.
 - S2 · `resolvePatientAudience` has the same JS-aggregation-of-all-appointments
   anti-pattern (shared root cause), and it's hit by the retention cron (×4/day
   per clinic), the marketing send path, and the proposal generators. ·
@@ -836,12 +839,11 @@ Scale effect for a 3,000-patient clinic with history: tens of thousands of
 appointment + message rows into Node per page render → ~3,000 projected rows
 plus three one-row-per-patient aggregates.
 
-**Still open (deliberately deferred):** pagination itself. The derived filters
-(`hasBalance`, `missingIntake`, birthday, recall) and the sort still run in JS
-after the load, so a `LIMIT` would silently truncate BEFORE filtering and
-return wrong results. Correct pagination requires pushing those filters + sort
-into SQL first, plus a UI change — a follow-up slice. With the fan-outs fixed
-the remaining cost is bounded by the patient table alone.
+**Deferred to Slice 10 (now DONE):** pagination itself. The derived filters
+(`hasBalance`, `missingIntake`, birthday, recall) and the sort still ran in JS
+after the load, so a `LIMIT` would have silently truncated BEFORE filtering and
+returned wrong results. Correct pagination required pushing those filters +
+sort into SQL first, plus a UI change.
 
 ### Slice 2 — money hardening (the two S2 money items) · DONE
 
@@ -1031,6 +1033,57 @@ statement through drizzle's own dialect via the pg-proxy driver — no database
 — because the one property no JS mock can see is that an `ON CONFLICT` target
 must match the index INCLUDING its predicate, and getting it wrong is a 42P10
 on every claim, which would stop reminders entirely.
+
+### Slice 10 — the Patients-list page bound (Slice 1's deferred half) · DONE
+
+Slice 1 wrote down why a `LIMIT` could not simply be added: the derived filters
+and the whole sort ran in JavaScript AFTER the load, so a bound would have
+truncated before filtering — "the recall-due patients among the first hundred"
+rather than "the first hundred recall-due patients". So the bound ships with
+what makes it correct.
+
+- **Every filter is a SQL predicate now.** `hasBalance` is
+  `coalesce(pms_balance_cents, 0) > 0` (a NULL PMS figure is not a balance, as
+  the composer already treats it); the birthday month reads the ISO text
+  column; `missingIntake` is `exists` a live visit inside the week `and not
+  exists` a form submission; the tag filter is an `exists` over the assignment
+  table; `recall_due` is `recallDueWhereSql`.
+- **All six sorts are ORDER BY**, the three derived ones (last visit, next
+  visit, last contact) as scalar subqueries, with the NULL placement the JS
+  comparators had — a missing last visit sorted as 0 (NULLS FIRST ascending), a
+  missing NEXT visit as +∞ (NULLS LAST), because a patient with nothing on the
+  books belongs at the bottom of "soonest first". Every sort ends on the patient
+  id so a page boundary is stable between requests.
+- **Two entry points, one implementation.** `listPatientsPage` returns a page
+  plus `total` — one indexed `count(*)` over the same predicate, so the header
+  still counts every match rather than the page. `listPatients` keeps its
+  signature and stays unbounded for the consumers that need every row (bulk
+  actions over a saved view, the recall analytics count, the follow-up rules
+  cron) and gains the SQL filtering.
+- **On screen:** the header count is the filtered total, a footer says which
+  slice is showing, and "Show more patients" walks `?show=` up in 100-row steps
+  to a 1,000 ceiling, past which it points at a filter instead of a longer
+  page — the same `ActionButton` + URL-param shape the `/messages` bound uses.
+  Choosing that over page-by-page navigation is the one open UI judgment call;
+  it follows the in-repo precedent rather than inventing a primitive.
+
+**The one duplicated rule, recorded deliberately:** `recallDueWhereSql` is a
+second expression of `derivePatientRecallStatus`. The same derivation cannot
+run in SQL and in JavaScript from one body, and a recall filter applied after
+the load cannot survive a page bound. It lives beside its twin, reads the same
+constants, mirrors the near-window read INCLUDING its cancelled visits (the
+list's own near-window query does not exclude them), and
+`tests/patients/recall-sql-parity.test.ts` walks a case matrix through the
+derivation and pins that the SQL's bounds are COMPUTED from the shared
+constants rather than typed in. If the rule moves and only one side follows,
+that file fails.
+
+41 tests. The service half renders the real statement through drizzle's own
+dialect via the pg-proxy driver — no database — and asserts every filter is
+present in BOTH the page statement and its count, since they have to describe
+the same set or "showing 100 of 4,213" is a lie. Two of them count
+`organization_id` predicates against the number of subqueries, so a new
+correlated subquery cannot be added without its tenant filter.
 
 ---
 
