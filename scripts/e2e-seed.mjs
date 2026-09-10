@@ -176,11 +176,23 @@ await pool.query(
 // Future rows ride the agenda's default next-14-days window: the day after
 // the /c fixture's "next Wednesday" is always 2–8 days out. The complete row
 // must be PAST (the drawer only offers "Mark completed" once startTime < now)
-// — yesterday 15:00 UTC, reachable via the "Past 30 days" window chip.
+// AND inside the "Past 30 days" window chip the spec navigates to.
+//
+// Those are two different bars, and the second one is why this is TWO days
+// back rather than one. `past_30d` ends at the CLINIC-LOCAL day start
+// (lib/services/appointments.ts — `to: clinicDayStart(now, timeZone)`), and
+// these clinics are America/New_York. So for the four hours between UTC
+// midnight and 04:00 UTC, "yesterday 15:00 UTC" is TODAY in New York, the
+// chip's window excludes it, and the visit is in the past but not on the
+// page — a spec that goes red every night on the clock alone.
+//
+// Two days back at 15:00 UTC clears the bound at every hour: the window's
+// upper edge is never earlier than 04:00 UTC of the previous UTC day, and
+// day−2 15:00 is always before that, in EDT and EST alike.
 const staffFuture = new Date(start)
 staffFuture.setUTCDate(staffFuture.getUTCDate() + 1)
 const staffPast = new Date()
-staffPast.setUTCDate(staffPast.getUTCDate() - 1)
+staffPast.setUTCDate(staffPast.getUTCDate() - 2)
 staffPast.setUTCHours(15, 0, 0, 0)
 const STAFF_VISITS = [
   { id: 'appt_e2e_staff_confirm', type: 'checkup', start: staffFuture, hour: 15 },
