@@ -15,10 +15,11 @@ const stubs = {
   },
   mrr: {
     activeClinics: 6,
-    byTier: { basic: 2, pro: 3, premium: 1 },
+    byTier: { basic: 2, pro: 3, premium: 1 } as { basic: number; pro: number; premium: number },
     monthlyRecurringCents: 2 * 9900 + 3 * 14900 + 1 * 19900,
     annualRunRateCents: (2 * 9900 + 3 * 14900 + 1 * 19900) * 12,
     arpu: Math.round((2 * 9900 + 3 * 14900 + 1 * 19900) / 6),
+    stripeUnavailable: false,
   },
   churn: { canceled30d: 1, pastDue: 0, approxChurnRate30d: 14.3 },
   velocity: {
@@ -85,9 +86,36 @@ import PlatformMetrics from '@/app/(default)/dashboard/analytics/platform-metric
 
 beforeEach(() => {
   // restore stubs to defaults before each test
+  stubs.mrr.stripeUnavailable = false
+  stubs.mrr.activeClinics = 6
+  stubs.mrr.byTier = { basic: 2, pro: 3, premium: 1 }
 })
 
 describe('PlatformMetrics', () => {
+  it('says the money is UNKNOWN when Stripe is unreachable, never $0', async () => {
+    // The owner's own revenue page printing a confident $0 on a Stripe blip
+    // is a worse failure than the stale number this replaced.
+    stubs.mrr.stripeUnavailable = true
+    render(await PlatformMetrics())
+    expect(screen.getAllByText('Couldn’t reach Stripe').length).toBeGreaterThan(0)
+    expect(screen.getByText(/MRR unavailable/)).toBeInTheDocument()
+  })
+
+  it('the mix bars divide by the BUCKETED clinics, not every active one', async () => {
+    // A clinic on a tier we do not recognise counts as active (it is a real
+    // paying clinic) but sits in no bucket; dividing by the larger number
+    // leaves the row visibly unfilled.
+    stubs.mrr.activeClinics = 8
+    stubs.mrr.byTier = { basic: 1, pro: 1, premium: 2 }
+    const { container } = render(await PlatformMetrics())
+    const bars = Array.from(
+      container.querySelectorAll('[title^="Basic:"], [title^="Pro:"], [title^="Premium:"]'),
+    )
+    expect(bars).toHaveLength(3)
+    const total = bars.reduce((sum, el) => sum + parseFloat((el as HTMLElement).style.width), 0)
+    expect(Math.round(total)).toBe(100)
+  })
+
   it('renders the four health-ratio KPIs', async () => {
     const ui = await PlatformMetrics()
     render(ui)
@@ -169,6 +197,7 @@ describe('PlatformMetrics', () => {
       monthlyRecurringCents: 2 * 9900 + 3 * 14900 + 1 * 19900,
       annualRunRateCents: (2 * 9900 + 3 * 14900 + 1 * 19900) * 12,
       arpu: Math.round((2 * 9900 + 3 * 14900 + 1 * 19900) / 6),
+      stripeUnavailable: false,
     }
   })
 

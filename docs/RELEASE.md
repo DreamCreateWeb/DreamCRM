@@ -583,6 +583,14 @@ binding are all correct. The payment-plan charger was the exception.
   Found while fixing this line. · **FIXED** (DREAMCRM-23) — it walks pages to
   a documented 20-page bound; an explicit `limit` still means at most that
   many.
+- S3 · `listAdminSubscriptions` reads `s.items.data[0]` only, so a
+  subscription with more than one item (a plan plus the social add-on, say)
+  contributes ONE line's worth to every MRR figure. Pre-dates the MRR work,
+  but it now sits under a comment claiming one derivation, and it is the same
+  "we only counted the first" shape as the pagination fix directly above it.
+  Fix shape: sum `normalizedMonthlyCents` across every item rather than
+  reading the head, which also makes `priceId`/`productName` on the row
+  explicitly "the primary item" rather than accidentally so. · OPEN.
 - S3 · `lib/prospect-vendors.ts:108` — a FOURTH tier→price map
   (`PLAN_PRICE = { basic: 150, pro: 250, premium: 500 }`) whose comment says
   it mirrors `stripe-config` PLANS, and which has drifted: PLANS prices
