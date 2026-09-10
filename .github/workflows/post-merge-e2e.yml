@@ -1,0 +1,90 @@
+name: Post-merge E2E
+
+# THE DEPLOY-PATH RESIDUAL (DREAMCRM-19 item 4).
+#
+# The gap: `e2e` gates a PR against that PR's own head commit, but `main`'s
+# deploy gate (the `test` job in deploy.yml) is typecheck + unit only. So the
+# browser suite has never run against the tree that actually ships. Two PRs
+# that are each green alone can merge into a main neither of them tested, and
+# that merged tree is what auto-deploys to production.
+#
+# The decision, and the cost it declines: closing this by adding `e2e` to
+# deploy.yml's gate would put ~4 blocking minutes in front of EVERY deploy, on
+# a suite young enough to still be earning trust. A young E2E suite blocking
+# production is how people learn to bypass a gate. So this runs post-merge, as
+# an ALERT rather than a gate: the deploy proceeds on the unit gate exactly as
+# it does today, and this tells us within minutes if the merged tree broke a
+# browser journey. Flip it to blocking later if the alert proves noisy-free
+# and the wait is worth it.
+#
+# NOTE: this is deliberately its OWN workflow rather than a job inside
+# deploy.yml.
+#   * deploy.yml is the production path and stays untouched — nothing here can
+#     wedge, queue behind, or cancel a rollout.
+#   * a red run here means exactly one thing ("a browser journey broke on
+#     main"). As a non-blocking job inside deploy.yml it would paint the whole
+#     deploy run red while the deploy itself succeeded, which is precisely the
+#     kind of ambiguous signal people stop reading.
+#
+# Once branch protection requires branches to be up to date before merging
+# (DREAMCRM-19 item 3), most of this gap closes at the PR instead: a PR forced
+# current with main runs `e2e` against what is effectively the merged tree.
+# This stays as the backstop for the rest — a merge queue race, an admin
+# override, a direct push.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Its own group, NOT `deploy-main`. Sharing the deploy's group would let this
+# job's queueing interact with a rollout, which is the one thing a non-blocking
+# alert must never do. cancel-in-progress: a superseded commit's result is
+# noise — the newer commit's run is the one that matters.
+concurrency:
+  group: post-merge-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # NOT named `e2e`: that is a required status-check context on main's branch
+  # protection, and a second producer of that name reporting onto a commit is
+  # exactly the kind of thing that makes a green check mean nothing.
+  e2e-post-merge:
+    name: e2e-post-merge (alert, does not gate the deploy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run the E2E harness against the merged tree
+        run: bash scripts/e2e-harness.sh
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-post-merge
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Say plainly what a red run here means
+        if: failure()
+        run: |
+          echo "::error title=A browser journey broke on main::The unit gate passed and the deploy ran — production was NOT held back by this. What failed is the E2E suite against the merged tree, which is the code now shipping. Check the uploaded playwright-report, then decide: fix forward, or revert the merge."
