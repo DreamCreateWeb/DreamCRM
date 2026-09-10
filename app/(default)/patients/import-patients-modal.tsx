@@ -314,7 +314,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
           )}
           {stage.type === 'mapping' && (
             <>
-              <ActionButton variant="secondary" size="sm" onClick={() => setStage({ type: 'upload' })} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={() => setStage({ type: 'upload' })} disabled={pending}>
                 Back
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={doImport} pending={pending}>

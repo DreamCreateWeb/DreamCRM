@@ -318,7 +318,7 @@ function LocationForm({
         <ActionButton variant="primary" type="submit" pending={pending}>
           {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Save location'}
         </ActionButton>
-        <ActionButton variant="secondary" onClick={() => { onClose(); setError(null) }} pending={pending}>
+        <ActionButton variant="secondary" onClick={() => { onClose(); setError(null) }} disabled={pending}>
           Cancel
         </ActionButton>
       </div>

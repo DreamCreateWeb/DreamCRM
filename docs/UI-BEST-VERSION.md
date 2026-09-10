@@ -12,13 +12,71 @@ checks items off. New findings append; done items get ~~struck~~ with the
 batch number.
 
 **System-level finds:**
-- `--color-brand-600`/`--color-brand-50` are referenced but DEFINED NOWHERE —
-  every `var(--color-brand-600, sky.600)` call site silently renders sky.
-  (Approve button fixed in batch 10; `proposal-artifacts.tsx` renderings left
-  as facsimiles.)
-- ~35 sites still hand-roll `{pending ? 'Sending…' : 'Send'}` ternaries
-  instead of `ActionButton pending=`; SIX modals put the shared pending on
-  their **Cancel** button, turning the escape hatch into a second spinner.
+- ~~`--color-brand-600`/`--color-brand-50` referenced but DEFINED NOWHERE~~
+  [CLOSED — this entry was STALE, struck in batch 52 after re-verification.
+  Not one live call site remains: the two files that still spell the token
+  do so inside comments explaining why it was removed. It is not merely
+  fixed but PINNED — `tests/a11y/css-var-definitions.test.ts` fails on any
+  `var(--token)` the sheet never defines, and names these three spellings
+  (`--color-brand-600`, `--color-brand`, `--color-primary`) as tokens that
+  must stay undefined. A punch-list entry the guards had overtaken.]
+- ~~Hand-rolled `{pending ? 'Sending…' : 'Send'}` ternaries + Cancel buttons
+  carrying the shared pending~~ [BATCH 52, both halves — and both counts in
+  this entry were low. Ternaries: 67 on `ActionButton`, not ~35, on buttons
+  that in most cases were ALREADY passed the same flag; the swap reflowed
+  the button under the cursor and told a screen reader nothing, where the
+  prop disables, sets aria-busy and holds the label's width under a
+  spinner. Escape hatches: 17, not six — the original count had only looked
+  in MODALS, and the shape is everywhere (drawer Cancels, wizard Backs,
+  confirm Keeps, a Snooze disclosure, an Edit-first mode toggle). All 17
+  become `disabled`, which is the honest state: the exit is unavailable, it
+  is not the thing that is busy. `tests/design-system/pending-feedback.test.ts`
+  pins zero on `ActionButton`, a lowerable ceiling on the raw-`<button>`
+  remainder, and the escape-hatch rule mechanically (an onClick that is only
+  a state setter, or a bare Cancel/Back/Keep/Close label, may never carry
+  `pending`)].
+- **Sibling actions sharing one `pending` flag all spin together.** Distinct
+  from the escape-hatch class above and NOT closed by batch 52: where a
+  surface runs several real actions off one `useTransition`, pressing one
+  spins all of them (lead-drawer's Mark contacted / Convert / Archive row;
+  every row of the review-request eligible list; the two payout
+  dispositions in delete-partner-modal). The repo already has the fix
+  named — `referral-card.tsx:202`'s `pending={pending && active === 'save'}
+  disabled={pending}` — and batches 46/47/49 applied it per-surface. What is
+  missing is the sweep. The guard test deliberately exempts the
+  discriminating shape, so adopting it is already unblocked.
+- **77 form fields have no accessible name** — a `<label>` that is a SIBLING
+  of its input, with neither `htmlFor` nor nesting, so nothing connects the
+  two. To a screen reader those fields are unnamed: "edit text, blank". 23
+  files, the biggest of them whole forms (careers job-form 13, product-form
+  7, plan-form 7, audiences 8, new-project-modal 6, compose 5). Found by the
+  jsx-a11y gate on the day it landed (batch 52) — NOT by reading, which is
+  the point of the gate. Suppressed by count in `eslint-suppressions.json`
+  so the class cannot grow while it is burned down; `pnpm lint:prune` shrinks
+  the file as batches land. **This is the next accessibility batch.**
+- ~~No automated accessibility gate~~ [BATCH 52: the repo had no
+  `eslint-plugin-jsx-a11y`, no axe run, and no ESLint config at all — Next 16
+  removed `next lint` and nothing replaced it, so even the 74 existing
+  `eslint-disable` comments were inert. `eslint.config.mjs` now runs a
+  CURATED set over `app/` + `components/` on every PR: accessible names,
+  role/aria validity (the silent-failure class — a misspelled role is simply
+  ignored by AT), text alternatives, and focus traps. Deliberately NOT the
+  recommended preset: its interaction rules fire on hundreds of clickable
+  rows and cards, and `prefer-tag-over-role` wants `<dialog>`/`<output>` for
+  111 correct `role=` uses — an allowlist that size is the rule being off,
+  with maintenance. Four real defects fell out on day one and are fixed: a
+  `<video>` and a disabled `<button>` carrying `aria-hidden` while focusable
+  (the preview button becomes a `<div>` — a facsimile should not put a real
+  control in the tree), `SiteImage` spreading its required `alt` through
+  `{...rest}` where no reader or tool could see it, and a redundant "photo"
+  alt].
+- **The branded primitives have no busy state at all.** `BrandButton`,
+  `ActionPill` and `GhostButton` in `components/patient-portal/ui.tsx` take
+  `disabled` and nothing else, so the seven portal / public-site / token-page
+  buttons on them still hand-roll a label swap — and cannot adopt
+  `ActionButton`, whose teal gradient would overwrite the clinic's own brand
+  colour. The busy affordance belongs IN those primitives, spinner tinted
+  from `brand`, on the `ActionButton pending=` contract.
 - ~~Inter arrived through a render-blocking Google-Fonts `@import` on line 1
   of `app/css/style.css`~~ [BATCH 51: self-hosted variable woff2 (latin +
   latin-ext) in public/fonts on the Nunito pattern. It was the worst-case
@@ -58,7 +116,7 @@ Already best-version: TodayChairRow, MorningReveal, ring+text pairing, GrantsStr
 8. ~~Raw inputs/selects in the inbox~~ [BATCH 29: form-input/form-textarea/form-select — the sky focus rings are gone].
 9. ~~Three amber notice dialects stacked~~ [BATCH 29: readiness banner, site-health banner and guardian note all on the standard warn recipe bg-amber-500/10 + ring-inset].
 10. ~~Sign-here stack keyboard path~~ [BATCH 29: →/n next, ←/p previous; guarded against typing targets and view-all].
-11. Two of five trend tiles have no spark/delta (:719, :726). DEFERRED — those metrics have no per-day history series in getOverview; same reason class as the heartbeat deferrals (data-path work, not UI polish).
+11. Two of five trend tiles have no spark/delta (:719, :726). DEFERRED — those metrics have no per-day history series in getOverview; same reason class as the heartbeat deferrals (data-path work, not UI polish). → **POST-1.0** (`docs/POST-1.0.md`, daily metrics snapshot).
 12. ~~ComingSoonCard permanent dead chrome~~ [BATCH 29: component deleted; a one-line texting footnote inside the Reviews card, gated on !smsLive].
 
 ### My Day
@@ -281,11 +339,11 @@ Already best-version: CompletedHeartbeat.
 ### Growth hub
 1. Hero KPI + FunnelStat → KpiStat. DEFERRED: the v3 hub's hero scoreboard and inline funnel row are deliberate owner-approved layouts (2026-07-26) — KpiStat's tile chrome would box what was designed to flow.
 2. ~~NewsCard duplicated verbatim across two hubs~~ [BATCH 24: hoisted to components/ui/news-card.tsx (valueSuffix kept); both hubs import the one recipe].
-3. Funnel heartbeats. DEFERRED: getRecallStats carries no weekly history — a new data series is server work beyond presentation; post-1.0 candidate.
+3. Funnel heartbeats. DEFERRED: getRecallStats carries no weekly history — a new data series is server work beyond presentation. → **POST-1.0** (`docs/POST-1.0.md`, daily metrics snapshot).
 4. ~~Utility footer links ~20px hit height~~ [BATCH 24: py-2 tap height on all three].
 
 ### Reviews
-1. Sixteen KPIs, zero heartbeats. DEFERRED: every tile already rides KpiStat; sparks need per-metric history series the services don't keep — post-1.0 candidate.
+1. Sixteen KPIs, zero heartbeats. DEFERRED: every tile already rides KpiStat; sparks need per-metric history series the services don't keep. → **POST-1.0** (`docs/POST-1.0.md`, daily metrics snapshot).
 2. ~~Four identical bands~~ [BATCH 24: each band now leads with its own header — the ask→review funnel · On Google right now · Where they reviewed · Patient pulse].
 3. ~~Google-link gate hand-rolled amber panel~~ [BATCH 24: the standard warn recipe (amber-500/10 + inset ring)].
 4. ~~Secondary competes with breath primary~~ [BATCH 24: Edit-request-email demotes to ghost].
@@ -355,7 +413,7 @@ Already best-version: CompletedHeartbeat.
 
 ### Payments hub
 1. ~~Doors restate the KPI band verbatim~~ [BATCH 28: doors drop the duplicated stats — only Online payments keeps its connect STATE (a door fact); tests pin the absence].
-2. Outstanding heartbeat. DEFERRED: needs a balance-history series the services don't keep — post-1.0 candidate.
+2. Outstanding heartbeat. DEFERRED: needs a balance-history series the services don't keep. → **POST-1.0** (`docs/POST-1.0.md`, daily metrics snapshot).
 3. ~~Doors bespoke hover~~ [BATCH 28: v2-card-interactive].
 4. ~~Stripe notice hand-rolled violet~~ — already the standard info recipe; scout stale.
 
@@ -388,7 +446,7 @@ reads clinic-voiced copy.
 3. ~~Honesty banners amber-50~~ [BATCH 37: standard warn recipe on both].
 4. ~~Etched card recipe in guardian/brain panels~~ [BATCH 37: .v2-card everywhere].
 5. ~~Engine/brain state chips hand-rolled + no legend~~ [BATCH 37: StatusPill tones (urgent/warn/neutral/ok) + an EncodingLegend in the panel header rendered FROM the same table].
-6. KPI heartbeats. PARTIAL [BATCH 37: Revenue page's Total + Project KPIs gained sparks from their existing weekly buckets]. Overview MRR/Needs-Attention DEFERRED — getMrrSnapshot is a point-in-time tier count with no stored monthly series; a spark needs new history bookkeeping (post-1.0 data-path).
+6. KPI heartbeats. PARTIAL [BATCH 37: Revenue page's Total + Project KPIs gained sparks from their existing weekly buckets]. Overview MRR/Needs-Attention DEFERRED — getMrrSnapshot is a point-in-time tier count with no stored monthly series; a spark needs new history bookkeeping. → **POST-1.0** (`docs/POST-1.0.md`, daily metrics snapshot).
 7. ~~Stripe-unavailable banner raw + silent~~ [BATCH 37: standard warn recipe + role=status on both pages].
 8. ~~PMS-demand clinic chips dead~~ [BATCH 37: each chip opens its clinic page (service now carries the org id)].
 9. ~~Activity rows title-only targets~~ [BATCH 37: the whole row is the link]. QuickLink duplication resolved by the header restructure — Revenue's only top door is now the quick-link grid.
@@ -456,7 +514,7 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 ### Daily briefing / hunt panel / focus banner
 1. ~~Briefing empties + amber card~~ [BATCH 43: Empty lifts to gray-500 and grows per-column CTAs (see demos / browse prospects / see hot); the follow-ups card moves onto the standard amber recipe; the count onto font-mono-num gray-500].
 2. Hero CTA + overnight rows. PARTIAL [BATCH 43: 🎯 New-overnight arrivals now carry ids from the service and deep-link to their deal rooms]. The hero's white-on-teal pill DELIBERATELY stays a styled Link — no ActionButton variant expresses white-fill-on-brand-gradient, and matching Call Mode's dial-block language is the point.
-3. Hunt panel. PARTIAL [BATCH 43: the five engine pills gain an EncodingLegend; tile subs lift to gray-500]. KpiStat+MiniTrend heartbeats DEFERRED — HuntStats stores 24h totals only; sparks need a new hourly aggregate (post-program depth item).
+3. Hunt panel. PARTIAL [BATCH 43: the five engine pills gain an EncodingLegend; tile subs lift to gray-500]. KpiStat+MiniTrend heartbeats DEFERRED — HuntStats stores 24h totals only; sparks need a new HOURLY aggregate, so the daily snapshot in `docs/POST-1.0.md` would NOT unblock this one. Post-1.0 in its own right.
 4. ~~Focus banner~~ [BATCH 43: both controls become ActionButtons (view=secondary, clear=ghost w/ pending); clearing announces via toast; banner onto the ring recipe].
 
 ### Copilot bar
@@ -482,7 +540,7 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 2. ~~prep-actions shared pending~~ [BATCH 42: per-action keys ('demo'/'enrich'); the re-enrich note gains role=status].
 3. ~~track-picker teal-50 selected~~ [BATCH 42: selected state onto the token recipe].
 4. ~~brief-panel ternaries + alert~~ [BATCH 42: dead ternaries under the pending prop removed; AI failure carries role=alert].
-5. Demo-prep heartbeats + empty. PARTIAL [BATCH 44: the "no verified gaps" line now points at the header's ↻ Re-enrich control by name — an inline duplicate of that button would double its per-action state]. KpiStat heartbeats DEFERRED — no stored per-day series behind those numbers.
+5. Demo-prep heartbeats + empty. PARTIAL [BATCH 44: the "no verified gaps" line now points at the header's ↻ Re-enrich control by name — an inline duplicate of that button would double its per-action state]. KpiStat heartbeats DEFERRED — no stored per-day series behind those numbers. → **POST-1.0** (`docs/POST-1.0.md`, daily metrics snapshot).
 
 ### Add-a-clinic modal
 1. ~~Add-a-clinic modal~~ [BATCH 41: Cancel no longer spins; trigger demoted to secondary] [BATCH 42: focus trap + Esc (guarded while pending) + aria-labelledby onto the dialog; success panel + duplicate warning gain role=status (the warning also drops a broken dark-mode class for the standard amber recipe); submit ternary removed under the pending prop; footer Cancel disabled-only; ✕ grows a 32px target. The success panel's two buttons were already one-primary-at-a-time by condition].
@@ -495,7 +553,7 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 
 ### Marketing home + legacy pipeline (/marketing)
 1. ~~Stage accents sky + -50 + stone~~ [BATCH 45: the terminology accent contract moves onto registry tones — new=gray, contacted=fuchsia (matches the prospecting board's Communicated), demo=violet (demos are violet everywhere), trial=amber (a countdown), customer=emerald, lost=rose — and stageAccentClasses emits token recipes (bg-*-500/10, no -50s, no stone)].
-2. Home deep-links. PARTIAL [BATCH 45: funnel rows link to the pipeline, recent-activity rows open the lead's drawer (?lead=), audience items link to /growth/audiences; the funnel track onto surface-sunk + aria-hidden]. KPI heartbeats DEFERRED (no stored time series for lead counts); the stage chip keeps the stage-accent language (now tokened via the terminology contract) — StatusPill's six tones can't carry the six-stage identity the board columns share.
+2. Home deep-links. PARTIAL [BATCH 45: funnel rows link to the pipeline, recent-activity rows open the lead's drawer (?lead=), audience items link to /growth/audiences; the funnel track onto surface-sunk + aria-hidden]. KPI heartbeats DEFERRED (no stored time series for lead counts) → **POST-1.0** (`docs/POST-1.0.md`, daily metrics snapshot). — the stage chip keeps the stage-accent language (now tokened via the terminology contract) — StatusPill's six tones can't carry the six-stage identity the board columns share.
 3. ~~Board move failure / drawer / add-lead modal~~ [BATCH 45: a failed drag announces "snapped back" via urgent toast (refresh reverts it); the drawer gets per-action keys (save/archive/opt-out — Revert disabled-only), error toasts on every path, an optimistic opt-out that rolls back on failure, and the global toast replaces its FlashToast; the add-lead modal gains focus trap + Esc (guarded while pending) + role=dialog/aria-labelledby + a 32px ✕, Cancel stops spinning, the submit ternary drops for the pending prop, the error carries role=alert, and its FlashToast goes global].
 4. ~~Zero-state / tab stops / loading~~ [BATCH 45: an all-empty board renders an EmptyState handing over the Add-lead button; the sortable wrapper drops dnd-kit's role=button/tabIndex so each card is ONE tab stop (keyboard users change stages through the drawer's Stage select — keyboard DRAG deferred with that rationale); /marketing/pipeline gains a kanban-shaped loading.tsx]. Card/column surfaces already ride tokens; the source chip is a neutral medium chip, kept.
 
@@ -513,7 +571,7 @@ Already best-version reference: delete-partner-modal, tone-aware toasts, per-row
 
 ### Platform settings
 1. ~~Settings home search~~ [BATCH 48: verified against batch 27 — the hand-rolled search box + 28px clear were still there; both become the shared SearchInput (serves both tenants). The aura hero stays DELIBERATELY — batch 27 established it as the one sanctioned brand-chrome moment].
-2. Platform taxonomy (two tiles; Service Library/Blog/Prospecting settings unlinked) — DEFERRED as an information-architecture change (docs/STRUCTURE-AUDIT.md territory, not a polish batch): those areas keep their own in-module settings doors by design.
+2. Platform taxonomy (two tiles; Service Library/Blog/Prospecting settings unlinked) — **DEFERRED TO POST-1.0** (recorded 2026-09-10, batch 52). An information-architecture change, not a polish batch: `docs/STRUCTURE-AUDIT.md` territory, and those areas keep their own in-module settings doors by design. It stopped being a floating deferral and became a scheduled one — `docs/POST-1.0.md` now carries the whole STRUCTURE-AUDIT change-list remainder as one line, so nobody re-litigates it batch by batch.
 3. ~~Notifications panel~~ [BATCH 48: Pause-all note onto the standard amber ring recipe; Includes lines lift to gray-500; the footer becomes the shared SaveBar with a ghost Reset — dirty now compares against a baseline that MOVES on save (before this the form read dirty forever after saving); local FlashToast → global toast; the two panel test files wrap in ToastProvider].
 
 ### Shared growth surfaces (platform orientation)

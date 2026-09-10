@@ -171,7 +171,7 @@ export default function NewCampaignButton({
 
             {error && <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">{error}</p>}
             <div className="flex justify-end gap-2">
-              <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} pending={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={create} pending={pending}>
