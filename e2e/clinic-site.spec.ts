@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { expectNoA11yViolations } from './axe'
 
 /**
  * Seeded public-site journeys (fixture: scripts/e2e-seed.mjs).
@@ -19,6 +20,12 @@ test.describe('a published clinic site', () => {
     await expect(page.locator('body')).not.toContainText('Application error')
     // A published site must never show the pre-live gate.
     await expect(page.locator('body')).not.toContainText('on its way')
+
+    // A clinic's public home is the page a patient meets the practice on, and
+    // it is rendered from clinic-authored content and clinic-chosen brand
+    // colours — so it is the single most likely place for a contrast failure
+    // that no amount of reading our own JSX would reveal.
+    await expectNoA11yViolations(page, 'clinic site: published home')
   })
 
   test('the booking page renders (the top conversion path)', async ({ page }) => {
@@ -28,6 +35,8 @@ test.describe('a published clinic site', () => {
     // The visit-type field carries a real accessible name (R2 a11y fix) —
     // it used to announce only its current option, not what it was for.
     await expect(page.getByLabel('Visit type')).toBeVisible()
+
+    await expectNoA11yViolations(page, 'clinic site: booking page')
   })
 
   test('the booking form fields are reachable by their names, not placeholders', async ({ page }) => {
@@ -44,6 +53,8 @@ test.describe('the go-live lever', () => {
   test('an unpublished clinic shows coming-soon instead of its marketing site', async ({ page }) => {
     await page.goto(PRELIVE)
     await expect(page.locator('body')).toContainText(/on its way|coming soon/i)
+
+    await expectNoA11yViolations(page, 'clinic site: pre-live coming-soon page')
   })
 
   test('…but its PORTAL DOOR still opens (R2 slice 4)', async ({ page }) => {
@@ -55,6 +66,8 @@ test.describe('the go-live lever', () => {
     await expect(page.locator('body')).not.toContainText(/on its way/i)
     await expect(page.locator('input[type="email"]')).toBeVisible()
     await expect(page.locator('input[type="password"]')).toBeVisible()
+
+    await expectNoA11yViolations(page, 'clinic site: portal door on a pre-live clinic')
   })
 
   test('a published clinic serves the same portal door', async ({ page }) => {

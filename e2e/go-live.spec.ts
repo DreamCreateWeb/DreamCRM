@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
+import { expectNoA11yViolations } from './axe'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -131,6 +132,11 @@ test.describe('the go-live lever', () => {
     await page.goto('/website')
     const card = goLiveCard(page)
     await expect(card).toBeVisible({ timeout: 30_000 })
+
+    // The website hub before the lever is pulled: a checklist, a progress
+    // ring and a scaled preview frame, all built from the clinic's own data.
+    await expectNoA11yViolations(page, 'staff: website hub, site not yet published')
+
     await card.getByRole('button', { name: 'Go live' }).click()
     // Two-step on purpose — both directions of this lever are deliberate acts.
     await pullAndWait(page, 'Yes — put my site online')
@@ -163,6 +169,9 @@ test.describe('the go-live lever', () => {
       timeout: 30_000,
     })
     await expect(goLiveCard(page)).toHaveCount(0)
+
+    // The same hub in its other state — a different card, a different lever.
+    await expectNoA11yViolations(page, 'staff: website hub, site published')
   })
 
   test('and the reverse gear takes it back down', async ({ page, browser }) => {

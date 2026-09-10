@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
+import { expectNoA11yViolations } from './axe'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -57,6 +58,9 @@ test.describe('patient portal', () => {
     await expect(page.getByText('Your next visit')).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('body')).toContainText('Casey')
 
+    // The portal is themed per clinic, so its palette is data, not source.
+    await expectNoA11yViolations(page, 'portal: patient dashboard')
+
     // The visits page: the seeded cleaning is waiting to be confirmed.
     // (div.rounded-2xl is the VisitCard root — filtering generic divs picks
     // an inner wrapper that excludes the action row.)
@@ -64,6 +68,8 @@ test.describe('patient portal', () => {
     const card = page.locator('div.rounded-2xl').filter({ hasText: /Cleaning/i }).first()
     await expect(card).toBeVisible()
     await expect(card.getByText('Needs confirming')).toBeVisible()
+
+    await expectNoA11yViolations(page, 'portal: visits list, a visit needing confirmation')
 
     // The WRITE: confirm it from the portal.
     await card.getByRole('button', { name: 'Confirm visit' }).click()
@@ -77,6 +83,9 @@ test.describe('patient portal', () => {
     await expect(cleaningCard).toBeVisible()
     await expect(cleaningCard.getByText('Confirmed')).toBeVisible()
     await expect(cleaningCard.getByRole('button', { name: 'Confirm visit' })).toHaveCount(0)
+
+    // The confirmed state: different badge, different actions, same page.
+    await expectNoA11yViolations(page, 'portal: visits list after confirming')
 
     await context.close()
   })

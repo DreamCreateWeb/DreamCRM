@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { expectNoA11yViolations } from './axe'
 
 /**
  * The public booking journey — the product's top conversion path, and the one
@@ -50,6 +51,12 @@ test.describe('public booking', () => {
 
     const submit = page.locator('button[type="submit"]')
     await expect(submit).toBeEnabled() // enabled only once a slot is chosen
+
+    // The filled-in, slot-chosen state — aria-pressed is live, the submit has
+    // flipped from disabled to enabled, and the form carries real values. None
+    // of that exists in the source the lint gate reads.
+    await expectNoA11yViolations(page, 'booking: slot chosen, details filled in')
+
     await submit.click()
 
     // The patient's own record of the booking.
@@ -57,6 +64,8 @@ test.describe('public booking', () => {
       timeout: 30_000,
     })
     await expect(page.locator('body')).not.toContainText('Application error')
+
+    await expectNoA11yViolations(page, 'booking: the confirmation a patient lands on')
   })
 
   test('the submit button stays disabled until a time is picked', async ({ page }) => {

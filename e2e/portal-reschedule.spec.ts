@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
+import { expectNoA11yViolations } from './axe'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -55,6 +56,8 @@ test.describe('portal reschedule and cancel', () => {
     await expect(soon.getByText(/Need to change it\?/)).toBeVisible()
     await expect(soon.getByRole('button', { name: 'Reschedule' })).toHaveCount(0)
     await expect(soon.getByRole('button', { name: 'Cancel' })).toHaveCount(0)
+
+    await expectNoA11yViolations(page, 'portal: visit inside the notice window')
   })
 
   test('a patient moves a visit to a new open time', async ({ page }) => {
@@ -83,6 +86,13 @@ test.describe('portal reschedule and cancel', () => {
     // than just that some Consultation still exists.
     const pickedTime = ((await slot.getAttribute('aria-label')) ?? '').replace(/\s*—\s*available$/, '').trim()
     expect(pickedTime, 'the slot button should name its time').not.toBe('')
+
+    // The open reschedule panel: a day strip and a slot grid that only exist
+    // once the patient asks for them, driving aria-pressed on two axes. This
+    // is the densest interactive state in the portal and the one a static
+    // gate has the least to say about.
+    await expectNoA11yViolations(page, 'portal: reschedule panel open, a new time picked')
+
     await slot.click()
 
     await visit.getByRole('button', { name: 'Move my visit' }).click()
@@ -151,6 +161,9 @@ test.describe('portal reschedule and cancel', () => {
 
     await visit.getByRole('button', { name: 'Cancel' }).click()
     await expect(visit.getByText(/no judgment. Want us to cancel this visit\?/)).toBeVisible()
+
+    await expectNoA11yViolations(page, 'portal: cancel confirmation showing')
+
     await visit.getByRole('button', { name: 'Yes, cancel it' }).click()
 
     // Two outcomes race here and BOTH are correct:

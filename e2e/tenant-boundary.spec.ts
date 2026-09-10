@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { createHmac } from 'node:crypto'
+import { expectNoA11yViolations } from './axe'
 
 /**
  * THE MULTI-TENANT BOUNDARY, IN A REAL BROWSER.
@@ -130,6 +131,12 @@ test.describe('one clinic cannot reach another clinic (signed in as E2E Dental)'
     const ours = await page.goto(`/patients/${DENTAL.patientId}`)
     expect(ours?.status()).toBe(200)
     await expect(page.locator('body')).toContainText(DENTAL.patientEmail, { timeout: 30_000 })
+
+    // Now that the control has proved the chart really rendered: the populated
+    // patient chart is the densest staff surface in the product and the one
+    // with the most runtime-composed labels. Checked here rather than in a
+    // spec of its own — this is already a stop the suite makes.
+    await expectNoA11yViolations(page, 'staff: patient chart')
   })
 
   test('the patient list is this clinic’s list and no one else’s', async ({ page }) => {
@@ -139,6 +146,10 @@ test.describe('one clinic cannot reach another clinic (signed in as E2E Dental)'
     // Not just the link — the name must not appear anywhere on the page, which
     // also covers a leak into a count, a chart, or an autocomplete payload.
     await expect(page.locator('body')).not.toContainText(PRELIVE.patientName)
+
+    // A POPULATED patients list — a different component tree from the empty
+    // one e2e/stranger.spec.ts walks, and already loaded here.
+    await expectNoA11yViolations(page, 'staff: patients list, populated')
   })
 
   test('search cannot reach across the boundary', async ({ page }) => {

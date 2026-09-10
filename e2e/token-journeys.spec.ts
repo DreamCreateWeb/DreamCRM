@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { restoresSeedScope } from './reseed'
+import { expectNoA11yViolations } from './axe'
 
 /**
  * The token-IS-auth patient journeys — the two email touches a patient acts on
@@ -30,6 +31,11 @@ test.describe('one-click visit confirm (/c)', () => {
     // confirm the visit.
     const button = page.getByRole('button', { name: 'Confirm my visit' })
     await expect(button).toBeVisible()
+
+    // A page a patient reaches straight from an email, with no sign-in and no
+    // chrome around it. If anything here is unreadable there is no fallback.
+    await expectNoA11yViolations(page, 'token: confirm-my-visit page, still pending')
+
     await page.reload()
     await expect(page.getByRole('button', { name: 'Confirm my visit' })).toBeVisible()
 
@@ -44,6 +50,8 @@ test.describe('one-click visit confirm (/c)', () => {
     await page.reload()
     await expect(page.getByText(/You.re confirmed, Casey/i)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Confirm my visit' })).toHaveCount(0)
+
+    await expectNoA11yViolations(page, 'token: confirm-my-visit page, confirmed')
   })
 
   test('an unknown token 404s instead of leaking a shell', async ({ page }) => {
@@ -55,6 +63,11 @@ test.describe('one-click visit confirm (/c)', () => {
 test.describe('post-visit survey (/n)', () => {
   test('a patient can tap a score and it is recorded', async ({ page }) => {
     await page.goto('/n/e2e-nps-token')
+
+    // The 0-10 scale is a custom radio group — eleven controls whose names and
+    // checked state are built at runtime. Exactly the shape a static gate has
+    // to take on trust.
+    await expectNoA11yViolations(page, 'token: post-visit survey, unanswered')
 
     await page.getByRole('radio', { name: '9 out of 10' }).click()
     await expect(page.getByText(/Got it — 9\/10/)).toBeVisible({ timeout: 30_000 })
