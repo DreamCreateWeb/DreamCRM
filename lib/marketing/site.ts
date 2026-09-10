@@ -18,7 +18,7 @@ const SITE_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN ?? 'dreamcreatestudio.co
  * makes it public + indexed in one move (a page that exists in nav but is
  * auth-walled has shipped twice before; see middleware.ts history).
  */
-export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/pricing', '/compare', '/docs', '/blog', '/grade', '/resources', '/roi', '/partner-program'] as const
+export const MARKETING_PUBLIC_PATHS = ['/product', '/why', '/pricing', '/compare', '/docs', '/blog', '/grade', '/resources', '/roi', '/partner-program', '/changelog'] as const
 export const DEMO_URL = `https://acme-dental-demo.${SITE_DOMAIN}`
 
 export interface MarketingNavChild {
@@ -72,6 +72,7 @@ export const MARKETING_NAV: MarketingNavItem[] = [
       { label: 'Practice growth library', href: '/resources', description: 'Recall scripts, membership math, patient growth' },
       { label: 'Help docs', href: '/docs', description: 'Setup guides in front-desk language' },
       { label: 'Blog', href: '/blog', description: 'Announcements & essays from the team' },
+      { label: 'Changelog', href: '/changelog', description: 'What shipped, summarized every week' },
       { label: 'Your first 30 minutes', href: '/docs/your-first-30-minutes', description: 'The setup order that works' },
       { label: 'Connect your PMS', href: '/docs/connecting-your-pms', description: 'One bridge, set up with you' },
       { label: 'Live demo practice', href: DEMO_URL, description: 'Browse a fully-populated clinic', external: true },
@@ -111,6 +112,7 @@ export const FOOTER_COLUMNS: Array<{ title: string; links: Array<{ label: string
       { label: 'Get more dental patients', href: '/resources/how-to-get-more-dental-patients' },
       { label: 'Help docs', href: '/docs' },
       { label: 'Blog', href: '/blog' },
+      { label: 'Changelog', href: '/changelog' },
     ],
   },
   {

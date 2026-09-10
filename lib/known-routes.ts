@@ -34,6 +34,7 @@ export const KNOWN_TOP_LEVEL_SEGMENTS: ReadonlySet<string> = new Set([
   'signup',
   // Public marketing site — app/(marketing)
   'blog',
+  'changelog',
   'compare',
   'docs',
   'grade',
