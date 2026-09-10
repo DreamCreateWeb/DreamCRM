@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { restoresSeedScope } from './reseed'
 
 /**
  * The token-IS-auth patient journeys — the two email touches a patient acts on
@@ -13,6 +14,12 @@ import { test, expect } from '@playwright/test'
  * be a POST (a GET/prefetch must never confirm), and the confirmed state must
  * offer Add-to-calendar (polish batch 3).
  */
+
+// This spec CONSUMES its seeded rows, so restore them before every attempt
+// (DREAMCRM-19). Without this a Playwright retry starts with the fixture
+// already spent and dies on its first assertion, burying the real failure.
+// 'tokens' is the scope THIS file owns — see scripts/e2e-seed.mjs.
+restoresSeedScope('tokens')
 
 test.describe('one-click visit confirm (/c)', () => {
   test('landing on the page does NOT confirm — the button does', async ({ page }) => {
