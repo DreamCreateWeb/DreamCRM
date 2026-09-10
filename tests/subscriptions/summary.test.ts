@@ -29,6 +29,8 @@ function sub(overrides: Partial<AdminSubscription> = {}): AdminSubscription {
     unitAmountCents: 14_900,
     currency: 'usd',
     interval: 'month',
+    intervalCount: 1,
+    quantity: 1,
     trialEnd: null,
     ...overrides,
   }
@@ -62,6 +64,23 @@ describe('monthlyContributionCents', () => {
   it('returns 0 when unit amount is null', () => {
     expect(monthlyContributionCents(sub({ unitAmountCents: null }))).toBe(0)
   })
+
+  // The two dimensions this function used to ignore outright.
+  it('counts SEATS — quantity multiplies the unit amount', () => {
+    expect(
+      monthlyContributionCents(sub({ unitAmountCents: 20_000, interval: 'month', quantity: 3 })),
+    ).toBe(60_000)
+  })
+
+  it('a QUARTERLY price is not a monthly one', () => {
+    // interval 'month' with interval_count 3 bills every three months;
+    // counting it as monthly overstated that subscription threefold.
+    expect(
+      monthlyContributionCents(
+        sub({ unitAmountCents: 60_000, interval: 'month', intervalCount: 3 }),
+      ),
+    ).toBe(20_000)
+  })
 })
 
 describe('summarizeSubscriptions', () => {
@@ -70,6 +89,14 @@ describe('summarizeSubscriptions', () => {
     expect(stats.total).toBe(0)
     expect(stats.mrrCents).toBe(0)
     expect(stats.planMix).toEqual([])
+  })
+
+  it('a multi-seat quarterly subscription lands in the summary at its true MRR', () => {
+    const stats = summarizeSubscriptions([
+      sub({ unitAmountCents: 15_000, interval: 'month', intervalCount: 3, quantity: 4 }),
+    ])
+    expect(stats.mrrCents).toBe(20_000)
+    expect(stats.planMix[0].mrrCents).toBe(20_000)
   })
 
   it('aggregates counts and MRR across statuses', () => {

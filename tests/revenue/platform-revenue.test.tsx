@@ -76,6 +76,7 @@ const stubs = {
     monthlyRecurringCents: 2 * 9_900 + 3 * 14_900 + 1 * 19_900,
     annualRunRateCents: (2 * 9_900 + 3 * 14_900 + 1 * 19_900) * 12,
     arpu: Math.round((2 * 9_900 + 3 * 14_900 + 1 * 19_900) / 6),
+    stripeUnavailable: false,
   },
 }
 
@@ -99,6 +100,19 @@ describe('PlatformRevenue page', () => {
     stubs.stripe.stripeUnavailable = false
     stubs.outstanding.stripeUnavailable = false
     stubs.recent.stripeUnavailable = false
+    stubs.mrr.stripeUnavailable = false
+  })
+
+  it('the MRR tile renders an em dash, not $0, when Stripe is unreachable', async () => {
+    // Assert the NUMBER. The caption alone would stay green with $0 above it.
+    stubs.mrr.stripeUnavailable = true
+    stubs.mrr.monthlyRecurringCents = 0
+    stubs.mrr.annualRunRateCents = 0
+    render(await PlatformRevenue())
+
+    expect(screen.queryByText('$0')).not.toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.getByText(/couldn’t reach Stripe/i)).toBeInTheDocument()
   })
 
   it('renders the four top-line stat cards', async () => {

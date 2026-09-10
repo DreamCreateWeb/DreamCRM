@@ -155,8 +155,11 @@ export default async function PlatformOverview() {
         />
         <KpiStat
           label="MRR"
-          value={formatMoneyShort(subs.monthlyRecurringCents)}
-          sub="From active plan tiers"
+          // Stripe unreachable means the amount is UNKNOWN, not zero. A
+          // confident $0 on the owner's own revenue tile is worse than the
+          // stale number this replaced.
+          value={subs.stripeUnavailable ? '—' : formatMoneyShort(subs.monthlyRecurringCents)}
+          sub={subs.stripeUnavailable ? 'Couldn’t reach Stripe' : 'From live Stripe subscriptions'}
           href="/ecommerce/invoices"
         />
         <KpiStat

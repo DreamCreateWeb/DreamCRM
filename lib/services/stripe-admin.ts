@@ -3,6 +3,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { stripe, subscriptionPeriodEnd } from '@/lib/stripe'
 import type Stripe from 'stripe'
 import { db, schema } from '@/lib/db'
+import { normalizedMonthlyCents } from '@/lib/mrr'
 
 /**
  * Server-only Stripe management surface for platform admins. Every read
@@ -29,17 +30,45 @@ export interface AdminSubscription {
   unitAmountCents: number | null
   currency: string | null
   interval: string | null
+  /** `price.recurring.interval_count` — 3 months is QUARTERLY, not monthly. */
+  intervalCount: number | null
+  /** Seats on the subscription item. */
+  quantity: number | null
   trialEnd: number | null
 }
 
+/** Stripe's own per-request ceiling. */
+const STRIPE_PAGE_SIZE = 100
+/**
+ * Pages we are willing to walk. Every MRR figure on the platform sums these
+ * rows, so stopping at the first 100 would understate revenue the moment the
+ * platform outgrows one page — the same defect class as a board total that
+ * reduces over its visible page. 20 pages is 2,000 subscriptions; well past
+ * anything this business has, and a bound rather than an unbounded loop
+ * against a third party.
+ */
+const MAX_SUBSCRIPTION_PAGES = 20
+
 export async function listAdminSubscriptions(opts: { status?: string; limit?: number } = {}): Promise<AdminSubscription[]> {
-  const subs = await stripe.subscriptions.list({
-    status: (opts.status as any) ?? 'all',
-    limit: opts.limit ?? 100,
-    // Stripe caps expand depth at 4 levels — `data.items.data.price.product`
-    // would be 5. Fetch products separately below.
-    expand: ['data.customer', 'data.items.data.price'],
-  })
+  const rows: Stripe.Subscription[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < MAX_SUBSCRIPTION_PAGES; page++) {
+    const batch = await stripe.subscriptions.list({
+      status: (opts.status as any) ?? 'all',
+      limit: Math.min(opts.limit ?? STRIPE_PAGE_SIZE, STRIPE_PAGE_SIZE),
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+      // Stripe caps expand depth at 4 levels — `data.items.data.price.product`
+      // would be 5. Fetch products separately below.
+      expand: ['data.customer', 'data.items.data.price'],
+    })
+    rows.push(...batch.data)
+    // An explicit limit means "at most this many", not "at least".
+    if (opts.limit != null && rows.length >= opts.limit) break
+    if (!batch.has_more) break
+    startingAfter = batch.data[batch.data.length - 1]?.id
+    if (!startingAfter) break
+  }
+  const subs = { data: opts.limit != null ? rows.slice(0, opts.limit) : rows }
 
   const customerIds = subs.data
     .map((s: Stripe.Subscription) => (typeof s.customer === 'string' ? s.customer : s.customer?.id))
@@ -117,6 +146,8 @@ export async function listAdminSubscriptions(opts: { status?: string; limit?: nu
       unitAmountCents: price?.unit_amount ?? null,
       currency: price?.currency ?? null,
       interval: price?.recurring?.interval ?? null,
+      intervalCount: price?.recurring?.interval_count ?? null,
+      quantity: item?.quantity ?? null,
       trialEnd: s.trial_end ?? null,
     }
   })
@@ -142,13 +173,19 @@ export interface SubscriptionAttention {
   scheduledCancel: AdminSubscription[]
 }
 
-export function monthlyContributionCents(sub: Pick<AdminSubscription, 'unitAmountCents' | 'interval' | 'status'>): number {
+/**
+ * What this subscription adds to MRR. Only a LIVE subscription contributes —
+ * a canceled or past-due one is not revenue we can recognize.
+ *
+ * The cadence + seat math lives in `lib/mrr.ts` so every MRR surface
+ * normalizes identically. This function's own job is the status gate.
+ */
+export function monthlyContributionCents(
+  sub: Pick<AdminSubscription, 'unitAmountCents' | 'interval' | 'status'> &
+    Partial<Pick<AdminSubscription, 'intervalCount' | 'quantity'>>,
+): number {
   if (sub.status !== 'active' && sub.status !== 'trialing') return 0
-  if (sub.unitAmountCents == null) return 0
-  if (sub.interval === 'year') return Math.round(sub.unitAmountCents / 12)
-  if (sub.interval === 'week') return sub.unitAmountCents * 4
-  if (sub.interval === 'day') return sub.unitAmountCents * 30
-  return sub.unitAmountCents
+  return normalizedMonthlyCents(sub)
 }
 
 export function summarizeSubscriptions(

@@ -5,7 +5,23 @@ import { prewarm } from '../prewarm'
 // selectQueue in order, then the chain resolves it via .limit() or .then().
 // Where clauses are captured so scoping tests can grep the SQL fragments
 // (same pattern as tests/tenant-scoping/ecommerce-services.test.ts).
-const state: { selectQueue: unknown[][]; wheres: unknown[] } = { selectQueue: [], wheres: [] }
+const state: {
+  selectQueue: unknown[][]
+  wheres: unknown[]
+  mrr: unknown
+  mrrThrows: Error | null
+} = { selectQueue: [], wheres: [], mrr: null, mrrThrows: null }
+
+// getMrrSnapshot is a THIN read over the one shared MRR derivation now — the
+// derivation itself is tested in tests/platform-metrics/platform-mrr.test.ts.
+// What belongs here is that this snapshot reads the RECOGNIZED slice (paying
+// clinics only) and derives ARR/ARPU from it.
+vi.mock('@/lib/services/platform-mrr', () => ({
+  getPlatformMrr: async () => {
+    if (state.mrrThrows) throw state.mrrThrows
+    return state.mrr
+  },
+}))
 
 vi.mock('@/lib/db', () => {
   const chain = () => {
@@ -68,53 +84,87 @@ import {
 // billed for the cold module graph (see tests/prewarm.ts).
 prewarm(() => import('@/lib/db'))
 
+function slice(over: Record<string, unknown> = {}) {
+  return { clinics: 0, monthlyCents: 0, byTier: { basic: 0, pro: 0, premium: 0 }, ...over }
+}
+
 beforeEach(() => {
   state.selectQueue.length = 0
   state.wheres.length = 0
+  state.mrrThrows = null
+  state.mrr = {
+    recognized: slice(),
+    withTrialing: slice(),
+    stripeUnavailable: false,
+    monthlyCentsByOrg: new Map(),
+  }
 })
 
 describe('getMrrSnapshot', () => {
-  it('aggregates plan mix and computes derived values', async () => {
-    state.selectQueue.push([
-      { planTier: 'basic', count: 4 },
-      { planTier: 'pro', count: 6 },
-      { planTier: 'premium', count: 2 },
-    ])
+  it('reports the plan mix and derives ARR + ARPU from the recognized slice', async () => {
+    state.mrr = {
+      // The money is whatever Stripe says these clinics pay — there is no
+      // tier→price table any more, which is the whole point: three of them
+      // disagreed with each other and with what anyone was charged.
+      recognized: slice({ clinics: 12, monthlyCents: 240_000, byTier: { basic: 4, pro: 6, premium: 2 } }),
+      withTrialing: slice({ clinics: 15, monthlyCents: 300_000, byTier: { basic: 4, pro: 6, premium: 5 } }),
+      stripeUnavailable: false,
+      monthlyCentsByOrg: new Map(),
+    }
     const m = await getMrrSnapshot()
     expect(m.activeClinics).toBe(12)
-    // Premium is the one purchasable plan at $200 (basic/pro are legacy
-    // managed rows): 4×15000 + 6×25000 + 2×20000.
-    expect(m.monthlyRecurringCents).toBe(4 * 15000 + 6 * 25000 + 2 * 20000)
-    expect(m.annualRunRateCents).toBe(m.monthlyRecurringCents * 12)
-    expect(m.arpu).toBe(Math.round(m.monthlyRecurringCents / 12))
+    expect(m.byTier).toEqual({ basic: 4, pro: 6, premium: 2 })
+    expect(m.monthlyRecurringCents).toBe(240_000)
+    expect(m.annualRunRateCents).toBe(240_000 * 12)
+    expect(m.arpu).toBe(20_000)
+  })
+
+  it('recognizes PAYING clinics only — a trial is not revenue', async () => {
+    state.mrr = {
+      recognized: slice({ clinics: 1, monthlyCents: 20_000, byTier: { basic: 0, pro: 0, premium: 1 } }),
+      withTrialing: slice({ clinics: 9, monthlyCents: 180_000, byTier: { basic: 0, pro: 0, premium: 9 } }),
+      stripeUnavailable: false,
+      monthlyCentsByOrg: new Map(),
+    }
+    const m = await getMrrSnapshot()
+    expect(m.activeClinics).toBe(1)
+    expect(m.monthlyRecurringCents).toBe(20_000)
   })
 
   it('zeroes out when no clinics are active', async () => {
-    state.selectQueue.push([])
     const m = await getMrrSnapshot()
     expect(m.activeClinics).toBe(0)
     expect(m.monthlyRecurringCents).toBe(0)
     expect(m.arpu).toBe(0)
   })
 
+  it('carries the Stripe-unreachable flag so a surface can say "unknown", not "$0"', async () => {
+    state.mrr = {
+      recognized: slice({ clinics: 3, byTier: { basic: 0, pro: 0, premium: 3 } }),
+      withTrialing: slice({ clinics: 3, byTier: { basic: 0, pro: 0, premium: 3 } }),
+      stripeUnavailable: true,
+      monthlyCentsByOrg: new Map(),
+    }
+    const m = await getMrrSnapshot()
+    // The COUNTS are real (they come from our own database); the money is not.
+    expect(m.activeClinics).toBe(3)
+    expect(m.stripeUnavailable).toBe(true)
+  })
+
   it('returns zero state when the table is missing (42P01)', async () => {
-    const { db } = await import('@/lib/db')
-    const orig = db.select
-    ;(db as { select: () => unknown }).select = () => {
-      throw Object.assign(new Error('relation "clinic_profile" does not exist'), { code: '42P01' })
-    }
-    try {
-      const m = await getMrrSnapshot()
-      expect(m).toEqual({
-        activeClinics: 0,
-        byTier: { basic: 0, pro: 0, premium: 0 },
-        monthlyRecurringCents: 0,
-        annualRunRateCents: 0,
-        arpu: 0,
-      })
-    } finally {
-      ;(db as { select: unknown }).select = orig
-    }
+    state.mrrThrows = Object.assign(
+      new Error('relation "clinic_profile" does not exist'),
+      { code: '42P01' },
+    )
+    const m = await getMrrSnapshot()
+    expect(m).toEqual({
+      activeClinics: 0,
+      byTier: { basic: 0, pro: 0, premium: 0 },
+      monthlyRecurringCents: 0,
+      annualRunRateCents: 0,
+      arpu: 0,
+      stripeUnavailable: false,
+    })
   })
 })
 

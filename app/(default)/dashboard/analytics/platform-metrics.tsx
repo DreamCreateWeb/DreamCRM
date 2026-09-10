@@ -44,6 +44,12 @@ export default async function PlatformMetrics() {
     getProjectStats(),
   ])
 
+  // The mix bars must divide by what is actually BUCKETED, not by every
+  // active clinic: a clinic on a tier we do not recognise counts toward
+  // activeClinics (it is a real paying clinic) but sits in no bucket, and
+  // dividing by the larger number leaves the row visibly unfilled.
+  const bucketedClinics = mrr.byTier.basic + mrr.byTier.pro + mrr.byTier.premium
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">
       <PageHeader
@@ -74,8 +80,12 @@ export default async function PlatformMetrics() {
         />
         <KpiStat
           label="ARPU"
-          value={mrr.activeClinics === 0 ? '—' : formatMoneyShort(mrr.arpu)}
-          sub={`Average per clinic · ${mrr.activeClinics} active`}
+          value={mrr.activeClinics === 0 || mrr.stripeUnavailable ? '—' : formatMoneyShort(mrr.arpu)}
+          sub={
+            mrr.stripeUnavailable
+              ? 'Couldn’t reach Stripe'
+              : `Average per clinic · ${mrr.activeClinics} active`
+          }
         />
         <KpiStat
           label="Completion Rate"
@@ -96,10 +106,11 @@ export default async function PlatformMetrics() {
             Subscription Mix
           </h3>
           <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-            {mrr.activeClinics} active subscribers · {formatMoneyShort(mrr.monthlyRecurringCents)} MRR
+            {mrr.activeClinics} active subscribers ·{' '}
+            {mrr.stripeUnavailable ? 'MRR unavailable' : `${formatMoneyShort(mrr.monthlyRecurringCents)} MRR`}
           </span>
         </div>
-        {mrr.activeClinics === 0 ? (
+        {bucketedClinics === 0 ? (
           <EmptyState
             title="No active subscriptions yet"
             body="Plan distribution will appear once clinics start paying."
@@ -108,17 +119,17 @@ export default async function PlatformMetrics() {
           <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/60 mb-4">
             <div
               className="bg-gray-400"
-              style={{ width: `${(mrr.byTier.basic / mrr.activeClinics) * 100}%` }}
+              style={{ width: `${(mrr.byTier.basic / bucketedClinics) * 100}%` }}
               title={`Basic: ${mrr.byTier.basic}`}
             />
             <div
               className="bg-[color:var(--color-chart-1)]"
-              style={{ width: `${(mrr.byTier.pro / mrr.activeClinics) * 100}%` }}
+              style={{ width: `${(mrr.byTier.pro / bucketedClinics) * 100}%` }}
               title={`Pro: ${mrr.byTier.pro}`}
             />
             <div
               className="bg-[color:var(--color-chart-4)]"
-              style={{ width: `${(mrr.byTier.premium / mrr.activeClinics) * 100}%` }}
+              style={{ width: `${(mrr.byTier.premium / bucketedClinics) * 100}%` }}
               title={`Premium: ${mrr.byTier.premium}`}
             />
           </div>

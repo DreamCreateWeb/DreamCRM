@@ -393,9 +393,9 @@ export interface SubscriptionStats {
   byTier: { basic: number; pro: number; premium: number }
   monthlyRecurringCents: number
   newClinics30d: number
+  /** True when Stripe was unreachable: the money above is unknown, not zero. */
+  stripeUnavailable: boolean
 }
-
-const TIER_PRICES_CENTS = { basic: 9900, pro: 14900, premium: 19900 } as const
 
 export async function getSubscriptionStats(): Promise<SubscriptionStats> {
   try {
@@ -403,46 +403,24 @@ export async function getSubscriptionStats(): Promise<SubscriptionStats> {
   } catch (err) {
     if (isMissingSchemaError(err)) {
       console.warn('[projects] clinic_profile or organization columns missing')
-      return { activeClinics: 0, byTier: { basic: 0, pro: 0, premium: 0 }, monthlyRecurringCents: 0, newClinics30d: 0 }
+      return { activeClinics: 0, byTier: { basic: 0, pro: 0, premium: 0 }, monthlyRecurringCents: 0, newClinics30d: 0, stripeUnavailable: false }
     }
     throw err
   }
 }
 
+/**
+ * Clinics on an active OR trialing subscription — the pipeline view, and the
+ * one thing that legitimately differs from `platform-metrics.getMrrSnapshot`
+ * (which recognizes paying clinics only). The MONEY now comes from the same
+ * place for both, so the two dashboards can no longer disagree about what a
+ * clinic pays. The demo clinic is excluded from both: it is flagged
+ * active/premium to showcase features and is not revenue.
+ */
 async function getSubscriptionStatsRaw(): Promise<SubscriptionStats> {
-  const { clinicProfile } = await import('@/lib/db/schema/platform')
-
-  // Count clinics with an active subscription, grouped by plan tier.
-  // Excludes the seeded demo clinic — it's flagged active/premium to
-  // showcase features but isn't real revenue, so it must not inflate MRR
-  // or the active-subscriber count on the platform dashboards.
-  const rows = await db
-    .select({
-      planTier: clinicProfile.planTier,
-      count: sql<number>`count(${clinicProfile.organizationId})::int`,
-    })
-    .from(clinicProfile)
-    .innerJoin(organization, eq(clinicProfile.organizationId, organization.id))
-    .where(
-      and(
-        sql`${clinicProfile.subscriptionStatus} in ('active','trialing')`,
-        eq(organization.isDemo, false),
-      ),
-    )
-    .groupBy(clinicProfile.planTier)
-
-  const byTier = { basic: 0, pro: 0, premium: 0 }
-  for (const r of rows) {
-    if (r.planTier === 'basic') byTier.basic = r.count
-    else if (r.planTier === 'pro') byTier.pro = r.count
-    else if (r.planTier === 'premium') byTier.premium = r.count
-  }
-
-  const activeClinics = byTier.basic + byTier.pro + byTier.premium
-  const monthlyRecurringCents =
-    byTier.basic * TIER_PRICES_CENTS.basic +
-    byTier.pro * TIER_PRICES_CENTS.pro +
-    byTier.premium * TIER_PRICES_CENTS.premium
+  const { getPlatformMrr } = await import('./platform-mrr')
+  const mrr = await getPlatformMrr()
+  const { clinics: activeClinics, monthlyCents: monthlyRecurringCents, byTier } = mrr.withTrialing
 
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const [newCount] = await db
@@ -461,5 +439,6 @@ async function getSubscriptionStatsRaw(): Promise<SubscriptionStats> {
     byTier,
     monthlyRecurringCents,
     newClinics30d: newCount?.count ?? 0,
+    stripeUnavailable: mrr.stripeUnavailable,
   }
 }

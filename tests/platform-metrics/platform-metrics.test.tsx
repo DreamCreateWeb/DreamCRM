@@ -15,10 +15,11 @@ const stubs = {
   },
   mrr: {
     activeClinics: 6,
-    byTier: { basic: 2, pro: 3, premium: 1 },
+    byTier: { basic: 2, pro: 3, premium: 1 } as { basic: number; pro: number; premium: number },
     monthlyRecurringCents: 2 * 9900 + 3 * 14900 + 1 * 19900,
     annualRunRateCents: (2 * 9900 + 3 * 14900 + 1 * 19900) * 12,
     arpu: Math.round((2 * 9900 + 3 * 14900 + 1 * 19900) / 6),
+    stripeUnavailable: false,
   },
   churn: { canceled30d: 1, pastDue: 0, approxChurnRate30d: 14.3 },
   velocity: {
@@ -85,9 +86,44 @@ import PlatformMetrics from '@/app/(default)/dashboard/analytics/platform-metric
 
 beforeEach(() => {
   // restore stubs to defaults before each test
+  stubs.mrr.stripeUnavailable = false
+  stubs.mrr.activeClinics = 6
+  stubs.mrr.byTier = { basic: 2, pro: 3, premium: 1 }
 })
 
 describe('PlatformMetrics', () => {
+  it('renders an em dash for ARPU and no MRR figure when Stripe is unreachable', async () => {
+    // Assert the NUMBERS, not the captions beside them: a guard that only
+    // reads the caption stays green while $0 sits directly above it, which
+    // IS the bug. `stripeUnavailable` with zeroed money is exactly what
+    // getPlatformMrr returns on a Stripe failure.
+    stubs.mrr.stripeUnavailable = true
+    stubs.mrr.monthlyRecurringCents = 0
+    stubs.mrr.arpu = 0
+    render(await PlatformMetrics())
+
+    expect(screen.queryByText('$0')).not.toBeInTheDocument()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    // The clinic count comes from our own database and stays real.
+    expect(screen.getByText(/6 active subscribers/)).toBeInTheDocument()
+    expect(screen.getByText(/MRR unavailable/)).toBeInTheDocument()
+  })
+
+  it('the mix bars divide by the BUCKETED clinics, not every active one', async () => {
+    // A clinic on a tier we do not recognise counts as active (it is a real
+    // paying clinic) but sits in no bucket; dividing by the larger number
+    // leaves the row visibly unfilled.
+    stubs.mrr.activeClinics = 8
+    stubs.mrr.byTier = { basic: 1, pro: 1, premium: 2 }
+    const { container } = render(await PlatformMetrics())
+    const bars = Array.from(
+      container.querySelectorAll('[title^="Basic:"], [title^="Pro:"], [title^="Premium:"]'),
+    )
+    expect(bars).toHaveLength(3)
+    const total = bars.reduce((sum, el) => sum + parseFloat((el as HTMLElement).style.width), 0)
+    expect(Math.round(total)).toBe(100)
+  })
+
   it('renders the four health-ratio KPIs', async () => {
     const ui = await PlatformMetrics()
     render(ui)
@@ -169,6 +205,7 @@ describe('PlatformMetrics', () => {
       monthlyRecurringCents: 2 * 9900 + 3 * 14900 + 1 * 19900,
       annualRunRateCents: (2 * 9900 + 3 * 14900 + 1 * 19900) * 12,
       arpu: Math.round((2 * 9900 + 3 * 14900 + 1 * 19900) / 6),
+      stripeUnavailable: false,
     }
   })
 

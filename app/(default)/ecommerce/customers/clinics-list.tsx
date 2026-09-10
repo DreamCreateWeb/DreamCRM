@@ -93,7 +93,8 @@ export default function ClinicsList({ rows }: Props) {
         case 'name':
           return (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name)
         case 'revenue':
-          return b.monthlyContributionCents - a.monthlyContributionCents
+          // Unknown (Stripe unreachable) sorts last — it is not "$0".
+          return (b.monthlyContributionCents ?? -1) - (a.monthlyContributionCents ?? -1)
         case 'patients':
           return b.patientCount - a.patientCount
         case 'projects':
@@ -304,7 +305,13 @@ function ClinicRow({ clinic: c }: { clinic: ClinicListRow }) {
         )}
       </td>
       <td className="px-3 py-3 text-right font-medium text-gray-800 dark:text-gray-100 tabular-nums">
-        {moneyShort(c.monthlyContributionCents)}
+        {c.monthlyContributionCents == null ? (
+          <span className="text-gray-400" title="Couldn’t reach Stripe — this clinic’s amount is unknown, not zero">
+            —
+          </span>
+        ) : (
+          moneyShort(c.monthlyContributionCents)
+        )}
       </td>
       <td className="px-3 py-3 text-right text-gray-700 dark:text-gray-200 tabular-nums">
         {c.patientCount}

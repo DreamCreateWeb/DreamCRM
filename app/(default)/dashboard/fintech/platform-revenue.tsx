@@ -75,8 +75,12 @@ export default async function PlatformRevenue() {
         />
         <KpiStat
           label="MRR"
-          value={formatMoneyShort(mrr.monthlyRecurringCents)}
-          sub={`${mrr.activeClinics} active subs · ARR ${formatMoneyShort(mrr.annualRunRateCents)}`}
+          value={mrr.stripeUnavailable ? '—' : formatMoneyShort(mrr.monthlyRecurringCents)}
+          sub={
+            mrr.stripeUnavailable
+              ? `${mrr.activeClinics} active subs · couldn’t reach Stripe`
+              : `${mrr.activeClinics} active subs · ARR ${formatMoneyShort(mrr.annualRunRateCents)}`
+          }
         />
         <KpiStat
           label="Project Revenue (12w)"
