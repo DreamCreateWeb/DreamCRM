@@ -1,10 +1,11 @@
 import 'server-only'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { priceCart, newOrderId } from './shop'
-import { validateCoupon, markCouponUsed, claimSingleUseCoupon } from './coupons'
+import { validateCoupon, markCouponUsed, claimSingleUseCoupon, releaseSingleUseCoupon } from './coupons'
+import { CheckoutError } from './checkout-error'
 import { notifyOrgMembers } from './notifications'
 import { sendNotificationEmail } from '@/lib/email'
 import { normalizePhone, samePhone } from '@/lib/contact-normalize'
@@ -54,17 +55,17 @@ export async function createShopCheckoutSession(
 ): Promise<{ url: string }> {
   const cfg = await connectedAccount(organizationId)
   if (!cfg?.accountId || cfg.status !== 'active' || cfg.charges !== 1) {
-    throw new Error('This shop isn’t set up to accept payments yet.')
+    throw new CheckoutError('This shop isn’t set up to accept payments yet.')
   }
-  if (!input.email) throw new Error('An email is required to check out.')
+  if (!input.email) throw new CheckoutError('An email is required to check out.')
 
   const fulfillmentType = input.fulfillmentType === 'ship' && cfg.shippingEnabled === 1 ? 'ship' : 'pickup'
   if (input.fulfillmentType === 'ship' && cfg.shippingEnabled !== 1) {
-    throw new Error('Shipping isn’t available — choose in-office pickup.')
+    throw new CheckoutError('Shipping isn’t available — choose in-office pickup.')
   }
 
   const { lines, subtotalCents } = await priceCart(organizationId, input.items)
-  if (lines.length === 0) throw new Error('Your cart is empty.')
+  if (lines.length === 0) throw new CheckoutError('Your cart is empty.')
 
   // Block oversell before charging. The only stock gate was the storefront's
   // client-side `inStock` boolean (stale + bypassable); checkout itself never
@@ -74,7 +75,7 @@ export async function createShopCheckoutSession(
   const oversold = lines.find((l) => l.inventoryQty != null && l.qty > l.inventoryQty)
   if (oversold) {
     const left = oversold.inventoryQty ?? 0
-    throw new Error(
+    throw new CheckoutError(
       left <= 0
         ? `${oversold.productName} is out of stock.`
         : `Only ${left} of ${oversold.productName} ${left === 1 ? 'is' : 'are'} left — please lower the quantity and try again.`,
@@ -94,7 +95,7 @@ export async function createShopCheckoutSession(
   let couponSingleUse = false
   if (input.couponCode?.trim()) {
     const v = await validateCoupon(organizationId, input.couponCode, subtotalCents)
-    if (!v.ok) throw new Error(v.error ?? 'That code isn’t valid.')
+    if (!v.ok) throw new CheckoutError(v.error ?? 'That code isn’t valid.')
     discountCents = v.discountCents ?? 0
     couponId = v.couponId ?? null
     couponSingleUse = v.singleUse ?? false
@@ -111,100 +112,180 @@ export async function createShopCheckoutSession(
   if (couponId && couponSingleUse) {
     const reserved = await claimSingleUseCoupon(organizationId, couponId, orderId)
     if (!reserved) {
-      throw new Error('That promo code has just been used — remove it to continue.')
+      throw new CheckoutError('That promo code has just been used — remove it to continue.')
     }
   }
-  await db.insert(schema.shopOrder).values({
-    id: orderId,
-    organizationId,
-    email: input.email,
-    name: input.name ?? null,
-    phone: input.phone ?? null,
-    fulfillmentType,
-    status: 'pending',
-    fulfillmentStatus: 'unfulfilled',
-    subtotalCents,
-    shippingCents,
-    taxCents: 0,
-    discountCents,
-    couponId,
-    totalCents: Math.max(subtotalCents + shippingCents - discountCents, 0),
-  })
-  await db.insert(schema.shopOrderItem).values(
-    lines.map((l) => ({
-      id: `oi_${randomBytes(8).toString('hex')}`,
-      orderId,
+
+  // Everything from here writes the order into OUR database before it exists at
+  // Stripe, so a failure in between leaves a half-finished sale behind: a
+  // 'pending' order sitting in the clinic's Orders list looking real, and a
+  // single-use promo code locked to it for a full day. A Stripe outage is
+  // exactly that failure. Undo both, then rethrow — the caller decides what the
+  // patient reads.
+  try {
+    await db.insert(schema.shopOrder).values({
+      id: orderId,
       organizationId,
-      variantId: l.variantId,
-      productName: l.productName,
-      variantName: l.variantName === 'Default' ? null : l.variantName,
-      unitPriceCents: l.unitPriceCents,
-      quantity: l.qty,
-    })),
-  )
-
-  const currency = cfg.currency || 'usd'
-  // Fee is computed on the DISCOUNTED subtotal — the customer is charged
-  // subtotal + shipping − discount, so a fee on the pre-discount subtotal could
-  // exceed the charge (Stripe rejects application_fee_amount > amount, blocking
-  // checkout) or skim a fee on money never collected.
-  const feeBaseCents = Math.max(subtotalCents - discountCents, 0)
-  const feeAmount = cfg.platformFeeBps > 0 ? Math.round((feeBaseCents * cfg.platformFeeBps) / 10000) : 0
-
-  const lineItems = lines.map((l) => ({
-    quantity: l.qty,
-    price_data: {
-      currency,
-      unit_amount: l.unitPriceCents,
-      product_data: { name: l.variantName === 'Default' ? l.productName : `${l.productName} — ${l.variantName}` },
-    },
-  }))
-
-  const params: Record<string, unknown> = {
-    mode: 'payment',
-    line_items: lineItems,
-    customer_email: input.email,
-    success_url: `${baseUrl}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/shop`,
-    metadata: { orderId, organizationId },
-    payment_intent_data: {
-      metadata: { orderId, organizationId },
-      ...(feeAmount > 0 ? { application_fee_amount: feeAmount } : {}),
-    },
-    // Sales tax only computes with an address → ship orders only, when enabled.
-    automatic_tax: { enabled: cfg.taxEnabled === 1 && fulfillmentType === 'ship' },
-  }
-  if (fulfillmentType === 'ship') {
-    params.shipping_address_collection = { allowed_countries: ['US'] }
-    params.shipping_options = [
-      {
-        shipping_rate_data: {
-          type: 'fixed_amount',
-          fixed_amount: { amount: shippingCents, currency },
-          display_name: shippingCents === 0 ? 'Free shipping' : 'Standard shipping',
-        },
-      },
-    ]
-  }
-  // Apply the discount as a one-time Stripe coupon on the connected account
-  // (exact computed amount, so percent/amount codes behave identically).
-  if (discountCents > 0) {
-    const stripeCoupon = await stripe.coupons.create(
-      { amount_off: discountCents, currency, duration: 'once', max_redemptions: 1 },
-      { stripeAccount: cfg.accountId },
+      email: input.email,
+      name: input.name ?? null,
+      phone: input.phone ?? null,
+      fulfillmentType,
+      status: 'pending',
+      fulfillmentStatus: 'unfulfilled',
+      subtotalCents,
+      shippingCents,
+      taxCents: 0,
+      discountCents,
+      couponId,
+      totalCents: Math.max(subtotalCents + shippingCents - discountCents, 0),
+    })
+    await db.insert(schema.shopOrderItem).values(
+      lines.map((l) => ({
+        id: `oi_${randomBytes(8).toString('hex')}`,
+        orderId,
+        organizationId,
+        variantId: l.variantId,
+        productName: l.productName,
+        variantName: l.variantName === 'Default' ? null : l.variantName,
+        unitPriceCents: l.unitPriceCents,
+        quantity: l.qty,
+      })),
     )
-    params.discounts = [{ coupon: stripeCoupon.id }]
+
+    const currency = cfg.currency || 'usd'
+    // Fee is computed on the DISCOUNTED subtotal — the customer is charged
+    // subtotal + shipping − discount, so a fee on the pre-discount subtotal could
+    // exceed the charge (Stripe rejects application_fee_amount > amount, blocking
+    // checkout) or skim a fee on money never collected.
+    const feeBaseCents = Math.max(subtotalCents - discountCents, 0)
+    const feeAmount = cfg.platformFeeBps > 0 ? Math.round((feeBaseCents * cfg.platformFeeBps) / 10000) : 0
+
+    const lineItems = lines.map((l) => ({
+      quantity: l.qty,
+      price_data: {
+        currency,
+        unit_amount: l.unitPriceCents,
+        product_data: { name: l.variantName === 'Default' ? l.productName : `${l.productName} — ${l.variantName}` },
+      },
+    }))
+
+    const params: Record<string, unknown> = {
+      mode: 'payment',
+      line_items: lineItems,
+      customer_email: input.email,
+      success_url: `${baseUrl}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/shop`,
+      metadata: { orderId, organizationId },
+      payment_intent_data: {
+        metadata: { orderId, organizationId },
+        ...(feeAmount > 0 ? { application_fee_amount: feeAmount } : {}),
+      },
+      // Sales tax only computes with an address → ship orders only, when enabled.
+      automatic_tax: { enabled: cfg.taxEnabled === 1 && fulfillmentType === 'ship' },
+    }
+    if (fulfillmentType === 'ship') {
+      params.shipping_address_collection = { allowed_countries: ['US'] }
+      params.shipping_options = [
+        {
+          shipping_rate_data: {
+            type: 'fixed_amount',
+            fixed_amount: { amount: shippingCents, currency },
+            display_name: shippingCents === 0 ? 'Free shipping' : 'Standard shipping',
+          },
+        },
+      ]
+    }
+    // Apply the discount as a one-time Stripe coupon on the connected account
+    // (exact computed amount, so percent/amount codes behave identically).
+    if (discountCents > 0) {
+      const stripeCoupon = await stripe.coupons.create(
+        { amount_off: discountCents, currency, duration: 'once', max_redemptions: 1 },
+        { stripeAccount: cfg.accountId },
+      )
+      params.discounts = [{ coupon: stripeCoupon.id }]
+    }
+
+    const session = await stripe.checkout.sessions.create(params as never, { stripeAccount: cfg.accountId })
+
+    await db
+      .update(schema.shopOrder)
+      .set({ stripeCheckoutSessionId: session.id, updatedAt: new Date() })
+      .where(eq(schema.shopOrder.id, orderId))
+
+    // A hosted session always carries a URL; no URL means we cannot send the
+    // patient anywhere. Not a message we wrote for them — the caller maps it.
+    if (!session.url) throw new Error('Stripe returned a checkout session with no URL')
+    return { url: session.url }
+  } catch (err) {
+    await discardUnstartedOrder(organizationId, orderId, couponSingleUse ? couponId : null)
+    throw err
   }
+}
 
-  const session = await stripe.checkout.sessions.create(params as never, { stripeAccount: cfg.accountId })
+/**
+ * Undo an order that never made it to Stripe.
+ *
+ * WHY THIS IS SAFE, precisely: not because of the `IS NULL` predicate below.
+ * If `sessions.create` succeeds and the id-stamp UPDATE then throws, the column
+ * is still NULL and this DOES delete a row with a live Stripe session behind
+ * it. That is harmless for a different reason — the caller throws instead of
+ * returning, so the checkout URL never reaches the patient and the session can
+ * never be paid. `finalizeOrderFromSession` will never be called for it. THE
+ * GUARANTEE IS "NO URL WAS EVER HANDED OUT", not the predicate. Anyone widening
+ * the catch block above (returning a URL on some failure path, say) breaks that
+ * guarantee and has to re-earn it here.
+ *
+ * The scope is still worth having: `status='pending'` keeps a paid or refunded
+ * order out of reach entirely, and `stripe_checkout_session_id IS NULL` keeps
+ * this narrow enough that it cannot collide with the finalizer's lookup key.
+ * `shop_order_item.order_id` cascades, so the lines go with the order.
+ *
+ * Best-effort: a failed cleanup must never replace the real error (a Stripe
+ * outage) with a database one in front of the patient. The worst case is the
+ * phantom order we already had.
+ */
+async function discardUnstartedOrder(
+  organizationId: string,
+  orderId: string,
+  singleUseCouponId: string | null,
+): Promise<void> {
+  try {
+    const removed = await db
+      .delete(schema.shopOrder)
+      .where(
+        and(
+          eq(schema.shopOrder.organizationId, organizationId),
+          eq(schema.shopOrder.id, orderId),
+          eq(schema.shopOrder.status, 'pending'),
+          isNull(schema.shopOrder.stripeCheckoutSessionId),
+        ),
+      )
+      .returning({ id: schema.shopOrder.id })
 
-  await db
-    .update(schema.shopOrder)
-    .set({ stripeCheckoutSessionId: session.id, updatedAt: new Date() })
-    .where(eq(schema.shopOrder.id, orderId))
-
-  if (!session.url) throw new Error('We couldn’t start checkout just now — please try again in a moment.')
-  return { url: session.url }
+    // Give the code back only once the order it was held for is really gone —
+    // which is EITHER because we just deleted it, OR because it was never
+    // written at all. The claim happens before the order insert, so a failure
+    // of that insert (the DB blip the generic message anticipates) leaves a
+    // reservation pointing at an order id that does not exist: the delete
+    // matches nothing, and gating on that alone would re-create the same 24h
+    // "already used" lockout via Postgres instead of Stripe.
+    let orderIsGone = removed.length > 0
+    if (!orderIsGone) {
+      const [survivor] = await db
+        .select({ id: schema.shopOrder.id })
+        .from(schema.shopOrder)
+        .where(
+          and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.id, orderId)),
+        )
+        .limit(1)
+      orderIsGone = !survivor
+    }
+    if (orderIsGone && singleUseCouponId) {
+      await releaseSingleUseCoupon(organizationId, singleUseCouponId, orderId)
+    }
+  } catch (err) {
+    console.warn('[shop-checkout] could not clean up an unstarted order', { orderId }, err)
+  }
 }
 
 /**

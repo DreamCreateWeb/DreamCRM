@@ -33,7 +33,9 @@ vi.mock('@/app/site/[slug]/shop/cart-store', () => ({
 }))
 
 vi.mock('@/app/site/[slug]/shop/actions', () => ({
-  startCheckout: vi.fn(async () => ({ url: 'https://checkout.example' })),
+  // Must match the action's real CheckoutStart shape — a bare { url } makes
+  // res.ok undefined, so CartView would take the failure branch.
+  startCheckout: vi.fn(async () => ({ ok: true, url: 'https://checkout.example' })),
   applyCoupon: vi.fn(async () => ({ ok: true, discountCents: 0 })),
 }))
 

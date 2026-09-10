@@ -5,6 +5,7 @@ import { getPortalSettings } from '@/lib/services/portal-settings'
 import { getMyPatientRecord } from '@/lib/services/patient-portal'
 import { createBalancePaymentSession } from '@/lib/services/balance-payments'
 import { appBaseUrl } from '@/lib/services/clinic-site'
+import { checkoutFailure } from '@/lib/services/checkout-error'
 
 export type StartPaymentResult = { ok: true; url: string } | { ok: false; error: string }
 
@@ -39,6 +40,8 @@ export async function startBalancePaymentAction(amountCents: number): Promise<St
     })
     return { ok: true, url }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Something went wrong.' }
+    // Anything we didn't write for the patient (a Stripe outage, a DB blip)
+    // becomes one written sentence rather than the SDK's own text.
+    return checkoutFailure('balance-payments', err)
   }
 }
