@@ -6,7 +6,17 @@ import { fileURLToPath } from 'url'
 // bucket timestamps into local days flip results on a developer machine in a
 // US timezone, so the suite runs pinned to the clock it was written against.
 // Set here (before any Date use) so vitest workers inherit it on every OS.
-process.env.TZ = 'UTC'
+//
+// TEST_TZ is the ONE deliberate way past the pin, and it exists for exactly
+// one caller: the non-blocking `tz-canary` job in .github/workflows/nightly.yml.
+// Pinning UTC is correct AND it makes CI structurally blind to the bug class
+// where a mapper buckets timestamps into LOCAL days — in a UTC process the
+// local day and the UTC day are the same day, so the bug cannot show
+// (DREAMCRM-13, #500/#509). The canary runs the suite once a night under
+// America/New_York, where those two days genuinely disagree, as an early
+// warning. Note it must be TEST_TZ and not ambient TZ: an inherited TZ from a
+// dev box or a runner image must never silently unpin the suite.
+process.env.TZ = process.env.TEST_TZ || 'UTC'
 
 // Attachment URLs are host-allowlisted against the storage env the blob driver
 // reads (lib/attachment-hosts.ts). Pin the prod-shaped values so fixtures use a
