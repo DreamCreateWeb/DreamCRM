@@ -384,9 +384,9 @@ export async function listActiveCustomDomains(): Promise<Record<string, string>>
  * own live public site.
  *
  * The split is deliberately structural-only for now — nothing is cached yet.
- * `tests/clinic-site/site-load-dedupe.test.ts` fails if `unstable_cache`
- * appears in this file, and that assertion moves onto THIS function (not
- * `loadSite`) when the durable cache lands.
+ * `tests/clinic-site/site-load-dedupe.test.ts` fails if `unstable_cache` OR
+ * Next 16's `'use cache'` directive appears in this file, and that assertion
+ * moves onto THIS function (not `loadSite`) when the durable cache lands.
  */
 async function loadPublishedSite(
   orgId: string,
