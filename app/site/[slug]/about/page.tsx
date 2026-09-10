@@ -36,6 +36,7 @@ import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import { resolveActiveSiteTemplate } from '@/lib/site-templates/resolve'
 import SiteImage from '@/components/clinic-site/site-image'
+import JsonLdScript from '@/components/json-ld'
 
 
 interface Props {
@@ -166,10 +167,7 @@ export default async function AboutPage({ params }: Props) {
         fontFamily: 'var(--font-sans, Inter, sans-serif)',
       }}
     >
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutLd) }}
-      />
+      <JsonLdScript data={aboutLd} />
       <SiteHeader
         data={data}
         basePath={basePath}
