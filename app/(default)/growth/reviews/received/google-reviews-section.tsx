@@ -84,8 +84,8 @@ function SectionHeader({
           />
         )}
       </div>
-      <ActionButton variant="secondary" size="sm" onClick={onRefresh} disabled={refreshing}>
-        {refreshing ? 'Refreshing…' : 'Refresh from Google'}
+      <ActionButton variant="secondary" size="sm" onClick={onRefresh} pending={refreshing}>
+        Refresh from Google
       </ActionButton>
     </div>
   )
@@ -222,7 +222,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                   Edit reply
                 </ActionButton>
                 <ActionButton variant="danger" size="sm" onClick={deleteReply} pending={pending}>
-                  {pending ? 'Working…' : 'Delete reply'}
+                  Delete reply
                 </ActionButton>
               </div>
             </div>
@@ -236,11 +236,11 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                 className="w-full rounded-[var(--r-md)] border border-[color:var(--color-hairline-strong)] bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-800 dark:text-gray-100"
               />
               <div className="mt-2 flex items-center gap-2">
-                <ActionButton variant="primary" size="sm" onClick={saveReply} disabled={pending || !draft.trim()}>
-                  {pending ? 'Posting…' : 'Post reply'}
+                <ActionButton variant="primary" size="sm" onClick={saveReply} pending={pending} disabled={!draft.trim()}>
+                  Post reply
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={aiDraft} disabled={pending || drafting}>
-                  {drafting ? 'Drafting…' : '✨ Draft with AI'}
+                <ActionButton variant="secondary" size="sm" onClick={aiDraft} pending={drafting} disabled={pending}>
+                  ✨ Draft with AI
                 </ActionButton>
                 <ActionButton
                   variant="ghost"
@@ -260,8 +260,8 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
               <ActionButton variant="secondary" size="sm" onClick={() => setEditing(true)} pending={pending}>
                 Reply
               </ActionButton>
-              <ActionButton variant="ghost" size="sm" onClick={aiDraft} disabled={pending || drafting}>
-                {drafting ? 'Drafting…' : '✨ Draft with AI'}
+              <ActionButton variant="ghost" size="sm" onClick={aiDraft} pending={drafting} disabled={pending}>
+                ✨ Draft with AI
               </ActionButton>
             </div>
           )}
@@ -277,14 +277,14 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
             <>
               <StatusPill tone="neutral" label="Hidden from website" title="You hid this review from your public site" />
               <ActionButton variant="secondary" size="sm" onClick={() => toggleHidden(false)} pending={pending}>
-                {pending ? 'Working…' : 'Show on website'}
+                Show on website
               </ActionButton>
             </>
           ) : (
             <>
               <StatusPill tone="ok" label="Featured on website ✓" title="Auto-featured on your public site" />
               <ActionButton variant="ghost" size="sm" onClick={() => toggleHidden(true)} pending={pending}>
-                {pending ? 'Working…' : 'Hide from website'}
+                Hide from website
               </ActionButton>
             </>
           )}
@@ -340,8 +340,8 @@ export default function GoogleReviewsSection({
           title="No Google reviews synced yet"
           body="Pull the latest from Google, or wait for the hourly sync."
           action={
-            <ActionButton variant="secondary" size="sm" onClick={refresh} disabled={refreshing}>
-              {refreshing ? 'Refreshing…' : 'Refresh from Google'}
+            <ActionButton variant="secondary" size="sm" onClick={refresh} pending={refreshing}>
+              Refresh from Google
             </ActionButton>
           }
         />

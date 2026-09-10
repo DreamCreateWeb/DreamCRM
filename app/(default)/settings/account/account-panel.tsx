@@ -203,8 +203,8 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                 <div className="mt-4 flex items-center justify-end gap-3">
                   {feedback?.error && <span className="mr-auto text-sm text-rose-600 dark:text-rose-400">{feedback.error}</span>}
                   {feedback?.ok && <span className="mr-auto text-sm text-emerald-600 dark:text-emerald-400">{feedback.ok}</span>}
-                  <ActionButton variant="primary" type="submit" form="account-form" disabled={pending || uploading || !dirty}>
-                    {pending ? 'Saving…' : 'Save profile'}
+                  <ActionButton variant="primary" type="submit" form="account-form" pending={pending} disabled={uploading || !dirty}>
+                    Save profile
                   </ActionButton>
                 </div>
               </SettingsSection>
@@ -273,9 +273,10 @@ export default function AccountPanel({ initialUser }: { initialUser: InitialUser
                           variant="secondary"
                           type="submit"
                           form="email-form"
-                          disabled={emailPending || email.trim().toLowerCase() === currentEmail.toLowerCase()}
+                          pending={emailPending}
+                          disabled={email.trim().toLowerCase() === currentEmail.toLowerCase()}
                         >
-                          {emailPending ? 'Sending…' : 'Change email'}
+                          Change email
                         </ActionButton>
                       </form>
                     )

@@ -93,7 +93,7 @@ export default function MergeDuplicate({
                 <div className="mt-3 flex items-center justify-end gap-2">
                   <ActionButton variant="ghost" size="sm" onClick={() => setPicked(null)} pending={pending}>Back</ActionButton>
                   <ActionButton variant="danger" size="sm" onClick={() => doMerge(picked.id)} pending={pending}>
-                    {pending ? 'Merging…' : 'Merge + archive'}
+                    Merge + archive
                   </ActionButton>
                 </div>
               </div>

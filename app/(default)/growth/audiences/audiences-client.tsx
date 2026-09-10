@@ -792,7 +792,7 @@ function PatientAudienceEditor({
                 Live preview
               </span>
               <ActionButton variant="secondary" size="sm" onClick={refreshPreview} pending={pending}>
-                {pending ? 'Counting…' : 'Refresh'}
+                Refresh
               </ActionButton>
             </div>
             {preview ? (

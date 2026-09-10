@@ -238,13 +238,13 @@ export default function DeletePartnerModal({
 
               {!loading && disposition === 'clean' && (
                 <ActionButton variant="danger" size="sm" onClick={doDelete} pending={pending}>
-                  {pending ? 'Deleting…' : 'Permanently delete'}
+                  Permanently delete
                 </ActionButton>
               )}
 
               {!loading && disposition === 'archive' && (
                 <ActionButton variant="danger" size="sm" onClick={() => doArchive()} pending={pending}>
-                  {pending ? 'Archiving…' : 'Archive partner'}
+                  Archive partner
                 </ActionButton>
               )}
 
@@ -254,13 +254,14 @@ export default function DeletePartnerModal({
                     variant="secondary"
                     size="sm"
                     onClick={() => doArchive('pay')}
-                    disabled={pending || !payoutsEnabled}
+                    pending={pending}
+                    disabled={!payoutsEnabled}
                     title={payoutsEnabled ? undefined : 'Partner hasn’t set up a payout method yet'}
                   >
-                    {pending ? 'Working…' : `Pay out ${moneyExact(accruedCents)} now, then archive`}
+                    {`Pay out ${moneyExact(accruedCents)} now, then archive`}
                   </ActionButton>
                   <ActionButton variant="danger" size="sm" onClick={() => doArchive('void')} pending={pending}>
-                    {pending ? 'Working…' : `Void ${moneyExact(accruedCents)} and archive`}
+                    {`Void ${moneyExact(accruedCents)} and archive`}
                   </ActionButton>
                 </div>
               )}

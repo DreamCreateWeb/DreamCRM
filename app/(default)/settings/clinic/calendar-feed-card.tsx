@@ -115,7 +115,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
             )}
             {canManage && (
               <ActionButton variant="ghost" size="sm" onClick={generate} pending={pending}>
-                {pending ? 'Working…' : 'Regenerate link'}
+                Regenerate link
               </ActionButton>
             )}
             {canManage && (
@@ -139,7 +139,7 @@ export default function CalendarFeedCard({ initialToken, baseUrl, canManage }: P
       ) : canManage ? (
         <div className="mt-3">
           <ActionButton variant="primary" size="sm" onClick={generate} pending={pending}>
-            {pending ? 'Generating…' : 'Generate calendar link'}
+            Generate calendar link
           </ActionButton>
         </div>
       ) : (

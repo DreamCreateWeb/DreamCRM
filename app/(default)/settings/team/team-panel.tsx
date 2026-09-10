@@ -354,8 +354,8 @@ export default function TeamPanel({ members, invitations, canManage = false }: P
                             onChange={(e) => setEmail(e.target.value)}
                           />
                           <RolePicker value={role} onChange={setRole} disabled={pending} ariaLabel="Role for the new teammate" />
-                          <ActionButton variant="primary" size="sm" type="submit" disabled={pending || !email}>
-                            {pending ? 'Sending…' : 'Send invite'}
+                          <ActionButton variant="primary" size="sm" type="submit" pending={pending} disabled={!email}>
+                            Send invite
                           </ActionButton>
                         </div>
                       </form>

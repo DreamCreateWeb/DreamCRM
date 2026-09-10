@@ -208,8 +208,8 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
               disabled={pending}
             />
           </div>
-          <ActionButton type="submit" variant="primary" disabled={pending || !domain.trim()}>
-            {pending ? 'Connecting…' : 'Connect'}
+          <ActionButton type="submit" variant="primary" pending={pending} disabled={!domain.trim()}>
+            Connect
           </ActionButton>
         </form>
       ) : (
@@ -321,7 +321,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
 
           <div className="flex flex-wrap items-center gap-3">
             <ActionButton variant="secondary" onClick={check} pending={pending}>
-              {pending ? 'Checking…' : 'Check now'}
+              Check now
             </ActionButton>
             <ActionButton variant="danger" onClick={remove} pending={pending}>
               Remove

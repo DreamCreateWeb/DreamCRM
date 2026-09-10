@@ -203,7 +203,7 @@ function ScheduleControl({ id, onDone }: { id: string; onDone: () => void }) {
         className="text-xs px-2 py-1 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
       />
       <ActionButton variant="primary" size="sm" onClick={schedule} pending={pending}>
-        {pending ? 'Scheduling…' : 'Schedule'}
+        Schedule
       </ActionButton>
       {error && <span className="text-xs text-rose-600 dark:text-rose-400">{error}</span>}
     </div>
@@ -283,7 +283,7 @@ function GenerateIdeasModal({ onClose, onAdded, isPlatform = false }: { onClose:
 
         {!generated ? (
           <ActionButton variant="primary" onClick={generate} pending={busy} className="w-full">
-            {busy ? 'Thinking up ideas…' : 'Generate 6 ideas'}
+            Generate 6 ideas
           </ActionButton>
         ) : ideas && ideas.length > 0 ? (
           <>

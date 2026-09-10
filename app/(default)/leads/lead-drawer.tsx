@@ -418,7 +418,7 @@ export default function LeadDrawer({
                 Cancel
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={onArchive} pending={pending}>
-                {pending ? 'Archiving…' : 'Confirm archive'}
+                Confirm archive
               </ActionButton>
             </div>
           </div>

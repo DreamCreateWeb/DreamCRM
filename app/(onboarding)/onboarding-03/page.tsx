@@ -217,8 +217,8 @@ export default function Onboarding03() {
                     <Link className="text-sm underline hover:no-underline text-gray-600 dark:text-gray-400" href="/onboarding-02">
                       ← Back
                     </Link>
-                    <ActionButton type="submit" variant="primary" disabled={pending || blocked || !slug}>
-                      {pending ? 'Saving…' : 'Next step →'}
+                    <ActionButton type="submit" variant="primary" pending={pending} disabled={blocked || !slug}>
+                      Next step →
                     </ActionButton>
                   </div>
                 </form>
