@@ -17,6 +17,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
+import { readDemoSeederSource } from '../fixtures/demo-seeder-source'
 
 vi.mock('@/lib/db', () => ({
   db: { select: () => ({}), insert: () => ({}), update: () => ({}) },
@@ -117,5 +118,34 @@ describe('the demo-clinic module keeps its shape', () => {
       readFileSync(join(MODULE_DIR, f), 'utf8').includes("from '@/lib/services/demo-clinic'"),
     )
     expect(offenders).toEqual([])
+  })
+
+  it('the source fixture sees every file, at every depth', () => {
+    // The grep guards (review distribution, coloring slugs) read the seeder
+    // through tests/fixtures/demo-seeder-source.ts. If that read ever stops
+    // descending, a file in a future `demo-clinic/<sub>/` drops out of the
+    // string silently — and one of those guards is a NEGATIVE assertion, which
+    // then passes on source it can no longer see. Comparing against a walk
+    // done here, independently, is what makes that visible.
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) walk(full, out)
+        else if (entry.name.endsWith('.ts')) out.push(full)
+      }
+      return out
+    }
+    const src = readDemoSeederSource()
+    const missed = walk(MODULE_DIR).filter((full) => {
+      // A line unique enough to identify the file: its first real declaration.
+      const decl = readFileSync(full, 'utf8')
+        .split('\n')
+        .map((l) => l.replace(/\r$/, ''))
+        .find((l) => /^(export )?(async )?(function|const|interface|type) /.test(l))
+      return decl ? !src.includes(decl) : false
+    })
+    expect(missed, `these seeder files are invisible to the grep guards:\n${missed.join('\n')}`).toEqual(
+      [],
+    )
   })
 })

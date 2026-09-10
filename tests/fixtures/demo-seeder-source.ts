@@ -17,7 +17,15 @@ import { join, resolve } from 'node:path'
 const SEEDER_DIR = resolve(__dirname, '../..', 'lib/services/demo-clinic')
 
 export function readDemoSeederSource(): string {
-  return readdirSync(SEEDER_DIR)
+  // RECURSIVE on purpose. A flat read stops at the top level, so the day
+  // somebody adds `demo-clinic/site/` those files drop out of this string
+  // silently — and one of the guards reading it is a NEGATIVE assertion
+  // (feature-testimonial.test.ts: the seeder no longer mints a free-text
+  // testimonial). A negative assertion over source that has quietly gone
+  // missing passes forever. That is the same defect this fixture exists to
+  // prevent, one directory level up.
+  return readdirSync(SEEDER_DIR, { recursive: true })
+    .map(String)
     .filter((f) => f.endsWith('.ts'))
     .sort()
     .map((f) => readFileSync(join(SEEDER_DIR, f), 'utf8'))
