@@ -98,15 +98,10 @@ interface Candidate {
  * the scan broke — and both of those deserve a red test rather than silence.
  */
 const ALLOWED: Array<{ file: string; why: string }> = [
-  {
-    file: 'lib/services/patient-journey.ts',
-    why:
-      'Eight `min(case when … end)` aggregates. The body is not a bare column, so ' +
-      'drizzle\'s min() cannot take them — each needs its own .mapWith() plus a test, ' +
-      'and two are compared against each other in suppressIfImportedEarlier where both ' +
-      'sides shift together. Tracked as DREAMCRM-13; harmless today because the ' +
-      'server and the test runner both run UTC.',
-  },
+  // Empty, and that is the point: `patient-journey.ts` was the last entry and
+  // DREAMCRM-13 fixed its ten aggregates, so the entry went with it. The
+  // `candidates > 0` floor below does NOT rest on this list being non-empty —
+  // those ten sites are still FOUND by the scan, just found already-mapped.
 ]
 
 /**

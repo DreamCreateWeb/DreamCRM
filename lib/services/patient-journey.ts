@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import * as schema from '@/lib/db/schema'
 import {
@@ -51,6 +51,37 @@ const IMPORTED = sql`${schema.appointment.source} = 'pms_import'`
 const BOOKED_MINTABLE = sql`${schema.appointment.source} is distinct from 'pms_import' and ${schema.appointment.source} is distinct from 'pms_live'`
 const IMPORTED_OR_LIVE = sql`(${schema.appointment.source} = 'pms_import' or ${schema.appointment.source} = 'pms_live')`
 
+/**
+ * WHY EVERY AGGREGATE BELOW ENDS IN `.mapWith(...)`.
+ *
+ * `start_time`, `created_at` and `completed_at` are `timestamp` WITHOUT a time
+ * zone. Drizzle's mapper for that type reads the raw text node-postgres hands
+ * back as UTC — literally `new Date(value + '+0000')`. A bare `sql` expression
+ * is not a column, so it carries no mapper: the same text arrives as a plain
+ * string, and whatever `new Date(...)` consumes it parses it in the HOST's zone
+ * instead. Same string, different instant, no error — and on a UTC server the
+ * two readings agree, which is why this stayed quiet (production is UTC and
+ * vitest.config.ts pins TZ=UTC). It bites on a developer's machine and in any
+ * future non-UTC runtime.
+ *
+ * Drizzle's `min()` helper IS `sql`min(...)`.mapWith(column)`, but it only
+ * works where the aggregate's whole body is one column. Every body here is a
+ * `case` — two of them wrapping a `least()` over TWO columns — so each site
+ * names its column explicitly. Both compared pairs must be mapped or neither:
+ * `suppressIfImportedEarlier` weighs a minted timestamp against an imported
+ * one, and one mapped side against one unmapped side is a comparison between
+ * two different clocks.
+ *
+ * The `as SQL<Date | null>` is the widening drizzle's own `min()` does for the
+ * same reason: `.mapWith(column)` re-types the expression to the column's data
+ * type, which is never null, while a `min()` over zero matching rows is. The
+ * cast keeps the null in the type so the callers below still have to handle it.
+ *
+ * tests/guards/timestamp-aggregate-mapping.test.ts fails if one of these loses
+ * its `.mapWith`; tests/journey/journey-timestamp-mapping.test.ts runs these
+ * exact decoders over the driver's real text shape under a non-UTC clock.
+ */
+
 /** Null out a minted transition when imported history predates it. */
 function suppressIfImportedEarlier(minted: Date | null, importedAt: Date | null): Date | null {
   if (!minted) return null
@@ -100,18 +131,23 @@ export async function getJourneyForPatients(
   const appts = await db
     .select({
       patientId: schema.appointment.patientId,
-      firstBookedAt: sql<Date | null>`min(case when ${BOOKED_MINTABLE} then ${schema.appointment.createdAt} end)`,
+      firstBookedAt: sql`min(case when ${BOOKED_MINTABLE} then ${schema.appointment.createdAt} end)`
+        .mapWith(schema.appointment.createdAt) as SQL<Date | null>,
       hasLiveAppointment: sql<boolean>`bool_or(${schema.appointment.status} <> 'cancelled')`,
       hasCompletedEver: sql<boolean>`bool_or(${schema.appointment.status} = 'completed')`,
       // Seated anchors on the EARLIER of completedAt and startTime: startTime
       // is the honest visit time when staff mark late (the catch-net
       // institutionalizes up to 30-day catch-up marking — round-3 audit),
       // while completedAt covers legacy rows and early completions.
-      firstSeatedAt: sql<Date | null>`min(
+      // `least()` mixes completedAt and startTime, so the mapper is named
+      // rather than inferred: startTime is the leg that is always present (it
+      // is the floor of the least(), and NOT NULL), and both columns are the
+      // same zone-less `timestamp` type, so it decodes either side correctly.
+      firstSeatedAt: sql`min(
         case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
              then least(coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime}), ${schema.appointment.startTime})
         end
-      )`,
+      )`.mapWith(schema.appointment.startTime) as SQL<Date | null>,
       // Imported-history anchors for the inverse law. Booked anchors on the
       // EARLIER of startTime and the row's own createdAt: a backfilled
       // UPCOMING appointment (future startTime) still proves the person was
@@ -119,8 +155,12 @@ export async function getJourneyForPatients(
       // createdAt leg it couldn't suppress an earlier organic mint
       // (round-3 audit). Seated keeps startTime (the honest visit time; a
       // completed imported row's completedAt is sync-corrupted).
-      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED_OR_LIVE} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
-      importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
+      // Mapped for the same reason, and it MUST be: this is the side
+      // suppressIfImportedEarlier weighs firstBookedAt against.
+      importedBookedAt: sql`min(case when ${IMPORTED_OR_LIVE} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`
+        .mapWith(schema.appointment.startTime) as SQL<Date | null>,
+      importedSeatedAt: sql`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`
+        .mapWith(schema.appointment.startTime) as SQL<Date | null>,
     })
     .from(schema.appointment)
     .where(
@@ -135,13 +175,16 @@ export async function getJourneyForPatients(
   for (const p of patients) {
     const a = apptByPatient.get(p.id)
     const isBackfilled = BACKFILL_PATIENT_SOURCES.has(p.source ?? '')
+    // No `new Date(...)` on the way out: the aggregates carry the column
+    // mapper now, so these ARE Dates at the UTC instant. Re-parsing them was
+    // what made a wrong value look like it worked.
     const firstBookedAt = suppressIfImportedEarlier(
-      a?.firstBookedAt ? new Date(a.firstBookedAt) : null,
-      a?.importedBookedAt ? new Date(a.importedBookedAt) : null,
+      a?.firstBookedAt ?? null,
+      a?.importedBookedAt ?? null,
     )
     const firstSeatedAt = suppressIfImportedEarlier(
-      a?.firstSeatedAt ? new Date(a.firstSeatedAt) : null,
-      a?.importedSeatedAt ? new Date(a.importedSeatedAt) : null,
+      a?.firstSeatedAt ?? null,
+      a?.importedSeatedAt ?? null,
     )
     out.set(p.id, {
       patientId: p.id,
@@ -156,7 +199,7 @@ export async function getJourneyForPatients(
         // only — round-3 audit).
         importedRoster: isBackfilled,
       }),
-      firstSeenAt: p.firstSeenAt ? new Date(p.firstSeenAt) : null,
+      firstSeenAt: p.firstSeenAt,
       firstBookedAt,
       firstSeatedAt,
       isBackfilled,
@@ -249,19 +292,28 @@ export async function getJourneyFunnel(
       patientId: schema.patient.id,
       source: schema.patient.source,
       firstSeenAt: schema.patient.firstSeenAt,
-      firstBookedAt: sql<Date | null>`min(case when ${BOOKED_MINTABLE} then ${schema.appointment.createdAt} end)`,
+      firstBookedAt: sql`min(case when ${BOOKED_MINTABLE} then ${schema.appointment.createdAt} end)`
+        .mapWith(schema.appointment.createdAt) as SQL<Date | null>,
       // Same anchor rules as getJourneyForPatients above (round-3 audit):
       // seated takes the earlier of completedAt/startTime (late marking must
       // not shift the seat date); imported-booked takes the earlier of
       // startTime/createdAt (an upcoming imported row proves the person was
       // booked by import time).
-      firstSeatedAt: sql<Date | null>`min(
+      // `least()` mixes completedAt and startTime, so the mapper is named
+      // rather than inferred: startTime is the leg that is always present (it
+      // is the floor of the least(), and NOT NULL), and both columns are the
+      // same zone-less `timestamp` type, so it decodes either side correctly.
+      firstSeatedAt: sql`min(
         case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
              then least(coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime}), ${schema.appointment.startTime})
         end
-      )`,
-      importedBookedAt: sql<Date | null>`min(case when ${IMPORTED_OR_LIVE} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`,
-      importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
+      )`.mapWith(schema.appointment.startTime) as SQL<Date | null>,
+      // Mapped for the same reason, and it MUST be: this is the side
+      // suppressIfImportedEarlier weighs firstBookedAt against.
+      importedBookedAt: sql`min(case when ${IMPORTED_OR_LIVE} then least(${schema.appointment.startTime}, ${schema.appointment.createdAt}) end)`
+        .mapWith(schema.appointment.startTime) as SQL<Date | null>,
+      importedSeatedAt: sql`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`
+        .mapWith(schema.appointment.startTime) as SQL<Date | null>,
     })
     .from(schema.patient)
     .leftJoin(
@@ -282,15 +334,9 @@ export async function getJourneyFunnel(
   const funnel: JourneyFunnelWindow = { inquiries: 0, booked: 0, seated: 0 }
   for (const r of rows) {
     if (BACKFILL_PATIENT_SOURCES.has(r.source ?? '')) continue
-    const firstBookedAt = suppressIfImportedEarlier(
-      r.firstBookedAt ? new Date(r.firstBookedAt) : null,
-      r.importedBookedAt ? new Date(r.importedBookedAt) : null,
-    )
-    const firstSeatedAt = suppressIfImportedEarlier(
-      r.firstSeatedAt ? new Date(r.firstSeatedAt) : null,
-      r.importedSeatedAt ? new Date(r.importedSeatedAt) : null,
-    )
-    if (r.firstSeenAt && new Date(r.firstSeenAt) >= since) funnel.inquiries++
+    const firstBookedAt = suppressIfImportedEarlier(r.firstBookedAt, r.importedBookedAt)
+    const firstSeatedAt = suppressIfImportedEarlier(r.firstSeatedAt, r.importedSeatedAt)
+    if (r.firstSeenAt && r.firstSeenAt >= since) funnel.inquiries++
     if (firstBookedAt && firstBookedAt >= since) funnel.booked++
     if (firstSeatedAt && firstSeatedAt >= since) funnel.seated++
   }
@@ -314,12 +360,17 @@ export async function countSeatedBetween(
   const rows = await db
     .select({
       source: schema.patient.source,
-      firstSeatedAt: sql<Date | null>`min(
+      // `least()` mixes completedAt and startTime, so the mapper is named
+      // rather than inferred: startTime is the leg that is always present (it
+      // is the floor of the least(), and NOT NULL), and both columns are the
+      // same zone-less `timestamp` type, so it decodes either side correctly.
+      firstSeatedAt: sql`min(
         case when ${schema.appointment.status} = 'completed' and ${NOT_IMPORTED}
              then least(coalesce(${schema.appointment.completedAt}, ${schema.appointment.startTime}), ${schema.appointment.startTime})
         end
-      )`,
-      importedSeatedAt: sql<Date | null>`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`,
+      )`.mapWith(schema.appointment.startTime) as SQL<Date | null>,
+      importedSeatedAt: sql`min(case when ${schema.appointment.status} = 'completed' and ${IMPORTED} then ${schema.appointment.startTime} end)`
+        .mapWith(schema.appointment.startTime) as SQL<Date | null>,
     })
     .from(schema.patient)
     .leftJoin(
@@ -340,10 +391,7 @@ export async function countSeatedBetween(
   let seated = 0
   for (const r of rows) {
     if (BACKFILL_PATIENT_SOURCES.has(r.source ?? '')) continue
-    const firstSeatedAt = suppressIfImportedEarlier(
-      r.firstSeatedAt ? new Date(r.firstSeatedAt) : null,
-      r.importedSeatedAt ? new Date(r.importedSeatedAt) : null,
-    )
+    const firstSeatedAt = suppressIfImportedEarlier(r.firstSeatedAt, r.importedSeatedAt)
     if (firstSeatedAt && firstSeatedAt >= since && firstSeatedAt < until) seated++
   }
   return seated
