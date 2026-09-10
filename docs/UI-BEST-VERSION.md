@@ -256,6 +256,36 @@ batch number.
   (pinned against canvas-read values, so a wrong matrix cannot make it pass),
   and asserts every ink × surface and every tone-ink × its-own-wash pair in
   both themes. Nothing in it is transcribed].
+- ~~The agenda row was an `li[role="button"]` wrapped around its own
+  controls~~ [BATCH 56 — the whole `nested-interactive` (25) + `list` (13)
+  count, and it was ONE shape, not two rules. The appointments agenda row and
+  the leads board row were both `<li role="button" tabIndex={0}>` containing a
+  checkbox, a link to the patient and inline Confirm / Mark-done actions. That
+  broke two things at once: a button may not contain focusable controls, so a
+  screen-reader user tabbing in landed on controls inside something announced
+  as a single button; and an element carrying `role="button"` is no longer a
+  `listitem`, so the `<ul>` around it had no list items in it at all — the
+  list was not a list. Both clear together. The row is now a plain clickable
+  list item whose keyboard door is a REAL button on its primary label (the
+  visit type, and the lead's name), which is also the better reading:
+  "cleaning, button" inside a list item beats one giant "Open Riley's visit,
+  button" with the controls buried in it. The accessible name leads with the
+  visible label so it still satisfies Label-in-Name (WCAG 2.5.3) while saying
+  whose visit it opens — "cleaning" alone is not enough when six rows say
+  cleaning. Whole-row click is preserved: a bare `onClick` on a
+  non-interactive element, which is the established pattern on these surfaces
+  (`eslint.config.mjs` turns the interaction rules off precisely because
+  hundreds of rows and cards do this) and is legitimate now that the keyboard
+  has its own door. `tests/a11y/clickable-rows.test.tsx` re-implements BOTH
+  axe rules over the rendered DOM — no focusable element may have a focusable
+  ancestor, no list may have a non-list-item child — so the pattern cannot
+  come back between E2E runs, and pins the two behaviours the restructure had
+  to preserve (the row still opens on click; the row-level controls are still
+  first-class). Red-verified by putting the old shape back: four of its six
+  tests fail and the nested check names all eight trapped controls.
+  `e2e/staff-day.spec.ts` located rows via `getByRole('button', { name: "Open
+  Riley Staffday's visit" })`, which only worked BECAUSE of the broken shape;
+  it now locates a `listitem` and opens it through the row's own button].
 
 ---
 

@@ -12,8 +12,9 @@ import { createHmac } from 'node:crypto'
  * Signs in as Dana Frontdesk (owner of the live clinic, seeded session).
  * One patient, three visits, one per action — confirm and cancel are
  * terminal-adjacent, so a single row cannot be walked through all three. The
- * rows share an aria-label ("Open Riley Staffday's visit"); the visit TYPE
- * text tells them apart.
+ * rows all name the same patient; the visit TYPE tells them apart, which is
+ * also how each row's open button is named ("cleaning — open Riley
+ * Staffday's visit").
  */
 
 const SESSION_TOKEN = 'e2e-staff-session-token'
@@ -39,12 +40,30 @@ test.describe('the staff day (appointments drawer)', () => {
     ])
   })
 
-  /** An agenda row: the <li role="button"> carrying the whole row's text. */
+  /**
+   * An agenda row — a real `listitem` again, so that is what we locate.
+   *
+   * It used to be an `li[role="button"]`, which is why this used to read
+   * `getByRole('button', …)`. That shape put the row's checkbox, patient link
+   * and inline actions inside a button (`nested-interactive`) and left the
+   * surrounding list with no list items in it (`list`); the row is now a plain
+   * clickable list item whose keyboard door is a button on the visit type.
+   */
   function row(page: import('@playwright/test').Page, type: string) {
     return page
-      .getByRole('button', { name: "Open Riley Staffday's visit" })
+      .getByRole('listitem')
+      .filter({ hasText: 'Riley Staffday' })
       .filter({ hasText: type })
       .first()
+  }
+
+  /** Open a row's drawer through its own button, not by clicking the row's
+   *  centre — the intent is "activate the row", and the button is where a
+   *  keyboard user activates it too. */
+  function openRow(page: import('@playwright/test').Page, type: string) {
+    return row(page, type)
+      .getByRole('button', { name: /open Riley Staffday's visit/i })
+      .click()
   }
 
   const drawer = (page: import('@playwright/test').Page) =>
@@ -57,7 +76,7 @@ test.describe('the staff day (appointments drawer)', () => {
 
     await expectNoA11yViolations(page, 'staff: the day agenda')
 
-    await visit.click()
+    await openRow(page, 'checkup')
     await expect(drawer(page)).toBeVisible()
 
     // A drawer is the classic runtime-only a11y surface: it is a portal, so
@@ -81,9 +100,8 @@ test.describe('the staff day (appointments drawer)', () => {
     // cleaning sits two UTC days back (scripts/e2e-seed.mjs explains why one
     // was not enough).
     await page.goto('/appointments?window=past_30d')
-    const visit = row(page, 'cleaning')
-    await expect(visit).toBeVisible({ timeout: 30_000 })
-    await visit.click()
+    await expect(row(page, 'cleaning')).toBeVisible({ timeout: 30_000 })
+    await openRow(page, 'cleaning')
 
     await drawer(page).getByRole('button', { name: 'Mark completed' }).click()
     await expect(page.getByRole('status')).toContainText('Marked completed.', { timeout: 30_000 })
@@ -95,9 +113,8 @@ test.describe('the staff day (appointments drawer)', () => {
 
   test('cancel a visit from the drawer, through the confirm dialog', async ({ page }) => {
     await page.goto('/appointments')
-    const visit = row(page, 'consultation')
-    await expect(visit).toBeVisible({ timeout: 30_000 })
-    await visit.click()
+    await expect(row(page, 'consultation')).toBeVisible({ timeout: 30_000 })
+    await openRow(page, 'consultation')
 
     await drawer(page).getByRole('button', { name: 'Cancel appointment' }).click()
     // The dialog's confirm button shares its accessible name with the drawer
