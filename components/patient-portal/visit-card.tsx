@@ -8,6 +8,7 @@ import {
   rescheduleMyVisitAction,
   getPortalSlotsAction,
 } from '@/app/(portal)/patient/actions'
+import { BusyLabel } from '@/components/ui/busy-label'
 import SlotPicker from './slot-picker'
 import { fmtVisitDayTime, visitProximityLabel } from './format'
 import {
@@ -70,6 +71,7 @@ function ActionPill({
   brand,
   variant = 'quiet',
   disabled,
+  pending = false,
 }: {
   children: React.ReactNode
   onClick?: () => void
@@ -77,6 +79,10 @@ function ActionPill({
   brand?: string
   variant?: 'brand' | 'quiet' | 'danger'
   disabled?: boolean
+  /** Busy state on the BrandButton contract — holds the label's width under
+   *  a spinner in the pill's own ink, announces aria-busy, and disables so a
+   *  second tap can't move or cancel the visit twice. */
+  pending?: boolean
 }) {
   // 44px tap floor + pressed feedback: these pills carry the portal's
   // highest-stakes taps (Confirm/Reschedule/Cancel) for the oldest-skewing
@@ -93,6 +99,13 @@ function ActionPill({
       <a href={href} className={cls} style={style} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer">
         {children}
       </a>
+    )
+  }
+  if (pending) {
+    return (
+      <button type="button" className={`relative ${cls}`} style={style} disabled aria-busy="true">
+        <BusyLabel>{children}</BusyLabel>
+      </button>
     )
   }
   return (
@@ -215,10 +228,11 @@ export default function VisitCard({
           <ActionPill
             brand={brand}
             variant="brand"
+            pending={pending && active === 'confirm'}
             disabled={pending}
             onClick={() => run(() => confirmMyVisitAction(visit.id), 'See you then — you’re confirmed.', 'confirm')}
           >
-            {pending && active === 'confirm' ? 'Confirming…' : 'Confirm visit'}
+            Confirm visit
           </ActionPill>
         )}
         <ActionPill href={`/patient/appointments/${visit.id}/ics`}>Add to calendar</ActionPill>
@@ -293,10 +307,11 @@ export default function VisitCard({
               <ActionPill
                 brand={brand}
                 variant="brand"
+                pending={pending && active === 'reschedule'}
                 disabled={pending}
-                onClick={() => run(() => rescheduleMyVisitAction(visit.id, newSlotIso), 'All moved — your new time is confirmed in email too.')}
+                onClick={() => run(() => rescheduleMyVisitAction(visit.id, newSlotIso), 'All moved — your new time is confirmed in email too.', 'reschedule')}
               >
-                {pending ? 'Moving…' : 'Move my visit'}
+                Move my visit
               </ActionPill>
               <ActionPill onClick={() => setPanel('none')} disabled={pending}>
                 Never mind
@@ -314,10 +329,11 @@ export default function VisitCard({
           <div className="mt-3 flex gap-2">
             <ActionPill
               variant="danger"
+              pending={pending && active === 'cancel'}
               disabled={pending}
-              onClick={() => run(() => cancelMyVisitAction(visit.id), 'Cancelled. Whenever you’re ready, we’ll be here.')}
+              onClick={() => run(() => cancelMyVisitAction(visit.id), 'Cancelled. Whenever you’re ready, we’ll be here.', 'cancel')}
             >
-              {pending ? 'Cancelling…' : 'Yes, cancel it'}
+              Yes, cancel it
             </ActionPill>
             <ActionPill onClick={() => setPanel('none')} disabled={pending}>
               Keep my visit

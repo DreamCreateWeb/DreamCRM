@@ -10,6 +10,7 @@ import {
   PORTAL_INK as INK,
   PORTAL_MUTED as MUTED,
   PORTAL_BORDER as BORDER,
+  BrandButton,
 } from '@/components/patient-portal/ui'
 import { PortalIcon } from '@/components/patient-portal/portal-chrome'
 import { uploadFileWithProgress } from '@/lib/upload-with-progress'
@@ -326,14 +327,15 @@ export default function PortalMessagesView({
               className="flex-1 resize-none rounded-2xl px-4 py-3 text-[0.92rem] outline-none disabled:opacity-50"
               style={{ border: `1px solid ${BORDER}`, color: INK, backgroundColor: '#FAF7F2' }}
             />
-            <button
+            <BrandButton
+              brand={brand}
               type="submit"
-              disabled={pending || uploading > 0 || (!draft.trim() && attachments.length === 0)}
-              className="shrink-0 rounded-full px-5 py-3 text-[0.88rem] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ backgroundColor: brand }}
+              disabled={uploading > 0 || (!draft.trim() && attachments.length === 0)}
+              pending={pending}
+              className="shrink-0 px-5 py-3 text-[0.88rem] disabled:cursor-not-allowed"
             >
-              {pending ? 'Sending…' : 'Send'}
-            </button>
+              Send
+            </BrandButton>
           </div>
           {feedback && (
             <p

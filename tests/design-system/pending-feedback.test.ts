@@ -30,6 +30,13 @@ import { resolve, join } from 'node:path'
  *    should be `ActionButton`. Converting them is judgement per site, so the
  *    guard ratchets rather than forbids: every batch that converts a few
  *    lowers CEILING, and nobody can add a new one in the meantime.
+ *
+ * BATCH 53 added rule 1's siblings. `BrandButton`, `GhostButton` and the
+ * visit card's `ActionPill` now take `pending` too — the affordance is the
+ * shared `BusyLabel` (components/ui/busy-label.tsx), whose spinner rings in
+ * `currentColor` so a clinic's own brand tints it and the dashboard's teal
+ * never reaches the portal. Those three are held at ZERO for the same reason
+ * ActionButton is: the primitive is right there.
  */
 
 const ROOTS = ['app', 'components']
@@ -38,8 +45,16 @@ const ROOTS = ['app', 'components']
  *  literals and whose busy arm carries an ellipsis. */
 const LABEL_TERNARY = /\{\s*([^{}?]{1,80}?)\s*\?\s*'([^']*)'\s*:\s*'([^']*)'\s*\}/g
 
-/** Raw `<button>` sites still hand-rolling the swap. Only ever lower this. */
-const RAW_BUTTON_CEILING = 78
+/** Raw `<button>` sites still hand-rolling the swap. Only ever lower this.
+ *  78 → 71 in batch 53 (the portal's Send / Save changes / Request my records
+ *  / Redeem became BrandButton; the four public-site submits kept their own
+ *  skins and took the shared BusyLabel). */
+const RAW_BUTTON_CEILING = 71
+
+/** The branded primitives that now carry `pending`, held at zero like
+ *  ActionButton. `ActionPill` is file-local to visit-card.tsx — it is a
+ *  patient-facing pill on the same contract, so it plays by the same rule. */
+const BRANDED_PRIMITIVES = ['BrandButton', 'GhostButton', 'ActionPill']
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -119,6 +134,22 @@ describe('pending feedback comes from the primitive', () => {
       .filter((s) => s.tag === 'ActionButton')
       .map((s) => `${s.rel}:${s.line} → {…? '${s.busyLabel}' : …}`)
     expect(offenders).toEqual([])
+  })
+
+  it('no branded primitive hand-rolls a pending label either', () => {
+    // The portal and the public site could not adopt ActionButton (its teal
+    // gradient would paint over the clinic's own colour), which is exactly
+    // why every patient-facing button used to swap its own label. Now that
+    // the three branded primitives take `pending`, a ternary on one of them
+    // is the same duplication rule 1 forbids on ActionButton.
+    const offenders = sites
+      .filter((s) => BRANDED_PRIMITIVES.includes(s.tag))
+      .map((s) => `${s.rel}:${s.line} <${s.tag}> → {…? '${s.busyLabel}' : …}`)
+    expect(
+      offenders,
+      `Pass pending= instead — a label swap reflows the button under the ` +
+        `patient's thumb and announces nothing:\n  ${offenders.join('\n  ')}`,
+    ).toEqual([])
   })
 
   it(`raw <button> pending ternaries only ever go down (ceiling ${RAW_BUTTON_CEILING})`, () => {

@@ -218,10 +218,10 @@ export default function PortalRequestForm({
       <BrandButton
         brand={brand}
         onClick={submit}
-        disabled={pending}
+        pending={pending}
         className="w-full py-3.5 text-[0.95rem] sm:w-auto sm:px-8"
       >
-        {pending ? 'Sending…' : 'Send request'}
+        Send request
       </BrandButton>
     </div>
   )

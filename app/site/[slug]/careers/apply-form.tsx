@@ -9,6 +9,7 @@ import {
   RESUME_ACCEPT,
 } from '@/lib/types/careers'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { BusyLabel } from '@/components/ui/busy-label'
 
 const FIELD =
   'w-full text-[15px] px-3.5 py-3 rounded-xl border bg-[var(--c-surface,#FFFFFF)] focus:outline-none focus:ring-2 focus:ring-offset-0'
@@ -117,10 +118,11 @@ export default function ApplyForm({ orgId, jobPostingId, brand }: { orgId: strin
 
       <button
         disabled={pending}
-        className="w-full sm:w-auto text-[15px] font-semibold px-6 py-3 rounded-xl text-white disabled:opacity-60"
+        aria-busy={pending || undefined}
+        className="relative w-full sm:w-auto text-[15px] font-semibold px-6 py-3 rounded-xl text-white disabled:opacity-60"
         style={{ backgroundColor: brand }}
       >
-        {pending ? 'Submitting…' : 'Submit application'}
+        {pending ? <BusyLabel>Submit application</BusyLabel> : 'Submit application'}
       </button>
       <p className="text-[12px]" style={{ color: INK_MUTED }}>
         We only use this to reach you about the role — never spam.
