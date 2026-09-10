@@ -20,6 +20,7 @@ import {
 import { publicVisitTypes } from '@/lib/types/visit-types'
 import { readableInk } from '@/lib/clinic-site-theme'
 import { firstBookableDayInWindow } from '@/lib/services/booking'
+import { getPortalSettings } from '@/lib/services/portal-settings'
 import {
   canTakeBookingDeposits,
   finalizeBookingDepositFromSession,
@@ -164,13 +165,21 @@ export default async function BookPage({ params, searchParams }: Props) {
   // When self-scheduling is OFF the page shows a request form (no slot grid), so
   // skip the 14-day availability scan entirely.
   const selfBooking = isSelfBookingEnabled(data.profile)
+  // The scan MUST apply the same "Earliest online booking" notice window the
+  // slot picker does (listBookingSlots). Without it the scan counted today's
+  // already-too-soon slots, named TODAY as the first bookable day, and so
+  // suppressed the form's rescue button — leaving a weekday-afternoon visitor
+  // on "We're done seeing patients for today" with nowhere to go.
+  const { booking: publicBooking } = await getPortalSettings(data.orgId)
   const [publishedPosts, membershipPlans, openJobs, firstAvailableDayKey] = await Promise.all([
     listPublishedPosts(data.orgId, { limit: 1 }),
     listActivePlans(data.orgId),
     getOpenJobs(data.orgId),
     // The scan we already ran — but keeping WHICH day it found lets the form
     // turn an empty day into a one-tap jump instead of a fishing expedition.
-    selfBooking ? firstBookableDayInWindow(data.orgId, todayKey, 14) : Promise.resolve(null),
+    selfBooking
+      ? firstBookableDayInWindow(data.orgId, todayKey, 14, undefined, publicBooking.minNoticeHours)
+      : Promise.resolve(null),
   ])
   const windowHasAvailability = selfBooking ? firstAvailableDayKey !== null : true
   // Deposits only surface when the clinic can actually charge (Connect active)

@@ -5,7 +5,14 @@ import { db, schema } from '@/lib/db'
 import { recordAction } from '@/lib/services/action-ledger'
 import { sendPatientMessageEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
-import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
+import {
+  sanitizeAttachments,
+  DEFAULT_THREAD_LIMIT,
+  MAX_THREAD_LIMIT,
+  DEFAULT_THREAD_MESSAGE_LIMIT,
+  type MessageAttachment,
+} from '@/lib/types/messaging'
+import { sanitizeUploadedAttachments } from '@/lib/attachment-hosts'
 import { resolvePortalSettings, DEFAULT_AUTO_REPLY_MESSAGE } from '@/lib/types/portal'
 import { clinicDayStart, isWithinOfficeHours, type ClinicHours } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -119,6 +126,16 @@ export interface ThreadFilters {
   starredOnly?: boolean
   /** Default: open + non-snoozed first */
   sort?: 'recent' | 'oldest_unanswered'
+  /** How many threads to return. Defaults to DEFAULT_THREAD_LIMIT, capped at
+   *  MAX_THREAD_LIMIT — the query is unbounded otherwise. */
+  limit?: number
+}
+
+export interface ThreadPage {
+  rows: ThreadRow[]
+  /** More threads match than were returned — the UI says so rather than
+   *  quietly pretending the list is complete. */
+  hasMore: boolean
 }
 
 export interface InboxStats {
@@ -216,6 +233,24 @@ export async function listPatientThreads(
   currentUserId: string,
   filters: ThreadFilters = {},
 ): Promise<ThreadRow[]> {
+  return (await listPatientThreadsPage(organizationId, currentUserId, filters)).rows
+}
+
+/**
+ * The same query, plus whether more threads matched than were returned.
+ *
+ * This used to select EVERY thread in the organization — each one carrying a
+ * correlated subquery for its message preview — and then filter the search
+ * term in JavaScript over the whole result. Fine for one beta clinic; at a few
+ * thousand patients it is a full scan and a per-row subquery on every inbox
+ * page load. The search now runs in Postgres (so it still searches everything,
+ * not just a fetched page) and the result is capped.
+ */
+export async function listPatientThreadsPage(
+  organizationId: string,
+  currentUserId: string,
+  filters: ThreadFilters = {},
+): Promise<ThreadPage> {
   const where = [eq(schema.patientThread.organizationId, organizationId)]
 
   if (filters.status === 'archived') {
@@ -241,8 +276,42 @@ export async function listPatientThreads(
     where.push(eq(schema.patientThread.starred, true))
   }
 
+  // The thread's latest message body — shown as the preview AND searched, so
+  // it is defined once and reused. (Searching only the latest body is the
+  // behaviour the JS filter had; matching the whole history would change which
+  // threads a staff search returns.)
+  const latestBody = sql<string | null>`(
+        select body from ${schema.patientMessage} m
+        where m.thread_id = ${schema.patientThread.id}
+        order by m.sent_at desc limit 1
+      )`
+
+  // Search moved out of JavaScript and into the WHERE clause. Filtering after
+  // the fetch meant the query could never be capped without silently searching
+  // just the first page — this way the cap and the search are compatible.
+  const term = filters.search?.trim() ?? ''
+  if (term.length > 0) {
+    const like = `%${term.toLowerCase()}%`
+    const digits = term.replace(/\D/g, '')
+    const clauses = [
+      sql`lower(${schema.patient.firstName} || ' ' || ${schema.patient.lastName}) like ${like}`,
+      sql`lower(coalesce(${schema.patient.email}, '')) like ${like}`,
+      sql`lower(coalesce(${latestBody}, '')) like ${like}`,
+    ]
+    // Forgiving phone search: "(512) 555-9117" must match "5125559117" or
+    // "9117", so compare digits-only on both sides.
+    if (digits.length > 0) {
+      clauses.push(
+        sql`regexp_replace(coalesce(${schema.patient.phone}, ''), '[^0-9]', '', 'g') like ${`%${digits}%`}`,
+      )
+    }
+    where.push(or(...clauses)!)
+  }
+
+  // Fetch one extra row to learn whether there IS more, without a count query.
+  const limit = Math.min(Math.max(1, Math.trunc(filters.limit ?? DEFAULT_THREAD_LIMIT)), MAX_THREAD_LIMIT)
+
   // Join patient + assignee + latest message preview.
-  // Latest preview is fetched in a subquery for efficiency vs. a JS roll-up.
   const rows = await db
     .select({
       id: schema.patientThread.id,
@@ -263,11 +332,7 @@ export async function listPatientThreads(
       urgency: schema.patientThread.urgency,
       urgencyReason: schema.patientThread.urgencyReason,
       createdAt: schema.patientThread.createdAt,
-      lastMessagePreview: sql<string | null>`(
-        select body from ${schema.patientMessage} m
-        where m.thread_id = ${schema.patientThread.id}
-        order by m.sent_at desc limit 1
-      )`,
+      lastMessagePreview: latestBody,
     })
     .from(schema.patientThread)
     .innerJoin(schema.patient, eq(schema.patientThread.patientId, schema.patient.id))
@@ -279,25 +344,12 @@ export async function listPatientThreads(
       sql`case when ${schema.patientThread.urgency} = 'urgent' then 0 else 1 end`,
       desc(schema.patientThread.lastMessageAt),
     )
+    .limit(limit + 1)
 
-  let filtered = rows
-  if (filters.search && filters.search.trim().length > 0) {
-    const q = filters.search.trim().toLowerCase()
-    // Strip non-digits from the phone for a forgiving phone search —
-    // "(512) 555-9117" should match a query of "5125559117" or "9117".
-    const qDigits = q.replace(/\D/g, '')
-    filtered = rows.filter((r) => {
-      const name = `${r.patientFirstName} ${r.patientLastName}`.toLowerCase()
-      const preview = (r.lastMessagePreview ?? '').toLowerCase()
-      const phoneDigits = (r.patientPhone ?? '').replace(/\D/g, '')
-      return name.includes(q)
-        || (r.patientEmail ?? '').toLowerCase().includes(q)
-        || preview.includes(q)
-        || (qDigits.length > 0 && phoneDigits.includes(qDigits))
-    })
-  }
+  const hasMore = rows.length > limit
+  const page = hasMore ? rows.slice(0, limit) : rows
 
-  return filtered.map((r) => ({
+  const mapped: ThreadRow[] = page.map((r) => ({
     id: r.id,
     patientId: r.patientId,
     patientFirstName: r.patientFirstName,
@@ -318,6 +370,8 @@ export async function listPatientThreads(
     urgencyReason: r.urgencyReason,
     createdAt: r.createdAt,
   }))
+
+  return { rows: mapped, hasMore }
 }
 
 // ── Inbox stats (for sidebar badges) ─────────────────────────────────
@@ -559,9 +613,37 @@ export async function getPatientThreadById(
 export async function listMessagesInThread(
   organizationId: string,
   threadId: string,
+  limit: number = DEFAULT_THREAD_MESSAGE_LIMIT,
 ): Promise<ThreadMessage[]> {
+  return (await listMessagesInThreadPage(organizationId, threadId, limit)).messages
+}
+
+export interface ThreadMessagePage {
+  /** Oldest → newest, as the UI renders them. */
+  messages: ThreadMessage[]
+  /** Older messages exist above the window — the UI must say so rather than
+   *  let the conversation look like it began there. */
+  hasMore: boolean
+}
+
+/**
+ * The same stream, plus whether it was truncated.
+ *
+ * Both source queries were unbounded: every patient_message on the thread AND
+ * every email_message for the patient, merged and sorted in JS. A long-running
+ * patient relationship therefore made the inbox slower every year, and the AI
+ * draft path pulled the entire history to write one reply. Each source now
+ * fetches only the newest `limit` rows, and the merge keeps the newest `limit`
+ * overall — which is what the UI shows anyway, scrolled to the bottom.
+ */
+export async function listMessagesInThreadPage(
+  organizationId: string,
+  threadId: string,
+  limit: number = DEFAULT_THREAD_MESSAGE_LIMIT,
+): Promise<ThreadMessagePage> {
+  const cap = Math.max(1, Math.trunc(limit))
   const thread = await getPatientThreadById(organizationId, threadId)
-  if (!thread) return []
+  if (!thread) return { messages: [], hasMore: false }
 
   const [pMessages, emails] = await Promise.all([
     db
@@ -581,7 +663,10 @@ export async function listMessagesInThread(
       .from(schema.patientMessage)
       .leftJoin(schema.user, eq(schema.patientMessage.sentByUserId, schema.user.id))
       .where(eq(schema.patientMessage.threadId, threadId))
-      .orderBy(asc(schema.patientMessage.sentAt)),
+      // Newest-first + one extra so the window is the RECENT end of a long
+      // thread; re-sorted ascending for rendering below.
+      .orderBy(desc(schema.patientMessage.sentAt))
+      .limit(cap + 1),
     db
       .select({
         id: schema.emailMessage.id,
@@ -601,7 +686,8 @@ export async function listMessagesInThread(
           eq(schema.emailMessage.patientId, thread.patientId),
         ),
       )
-      .orderBy(asc(schema.emailMessage.receivedAt)),
+      .orderBy(desc(schema.emailMessage.receivedAt))
+      .limit(cap + 1),
   ])
 
   const fromPatientMessages: ThreadMessage[] = pMessages.map((m) => ({
@@ -637,7 +723,13 @@ export async function listMessagesInThread(
     externalId: e.providerMessageId,
   }))
 
-  return [...fromPatientMessages, ...fromEmail].sort((a, b) => a.sentAt.getTime() - b.sentAt.getTime())
+  const merged = [...fromPatientMessages, ...fromEmail].sort(
+    (a, b) => a.sentAt.getTime() - b.sentAt.getTime(),
+  )
+  // Either source over-filling, or the merge exceeding the cap, means there is
+  // history above the window.
+  const hasMore = merged.length > cap || pMessages.length > cap || emails.length > cap
+  return { messages: hasMore ? merged.slice(-cap) : merged, hasMore }
 }
 
 // ── Send + mutations ─────────────────────────────────────────────────
@@ -774,7 +866,8 @@ export async function sendMessageToPatient(input: {
   /** Optional image attachments (uploaded to S3 via /api/upload first). */
   attachments?: MessageAttachment[]
 }): Promise<{ threadId: string; messageId: string }> {
-  const attachments = sanitizeAttachments(input.attachments)
+  // Client-supplied list: shape AND host must both check out (lib/attachment-hosts.ts).
+  const attachments = sanitizeUploadedAttachments(input.attachments)
   // A photo-only message is valid — require text OR at least one attachment.
   if (!input.body.trim() && attachments.length === 0) {
     throw new Error('Add a message or an attachment to send.')
@@ -1133,7 +1226,8 @@ export async function recordInboundMessage(input: {
   /** Optional image attachments (e.g. a patient photo from the portal). */
   attachments?: MessageAttachment[]
 }): Promise<{ threadId: string; messageId: string }> {
-  const attachments = sanitizeAttachments(input.attachments)
+  // Client-supplied list: shape AND host must both check out (lib/attachment-hosts.ts).
+  const attachments = sanitizeUploadedAttachments(input.attachments)
   if (!input.body.trim() && attachments.length === 0) {
     throw new Error('Message body cannot be empty')
   }

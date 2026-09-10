@@ -1,6 +1,6 @@
 import 'server-only'
 import { randomBytes } from 'crypto'
-import { and, desc, eq, inArray, isNotNull, lte, ne } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
 import { authEmailShell, deliver, sendNotificationEmail } from '@/lib/email'
@@ -127,33 +127,50 @@ export async function proposePaymentPlan(
     return { ok: false, error: 'Connect your Stripe account first (Integrations) so the card can be charged.' }
   }
 
-  // One open plan per patient — a second concurrent plan is a bookkeeping trap.
-  const [openPlan] = await db
-    .select({ id: schema.paymentPlan.id })
-    .from(schema.paymentPlan)
-    .where(
-      and(
-        eq(schema.paymentPlan.organizationId, organizationId),
-        eq(schema.paymentPlan.patientId, patientId),
-        inArray(schema.paymentPlan.status, ['proposed', 'active', 'past_due']),
-      ),
-    )
-    .limit(1)
-  if (openPlan) return { ok: false, error: 'This patient already has an open payment plan — cancel it first to start over.' }
-
+  // One open plan per patient — a second concurrent plan is a bookkeeping trap
+  // AND a money bug: each plan carries its own acceptance link, so a patient
+  // sent two proposals can accept both and be charged the full balance twice
+  // over. The check and the insert used to be separate statements, so two
+  // near-simultaneous proposals (a double-clicked "Propose", or two staff on
+  // the same patient) both read "no open plan" and both inserted.
+  //
+  // Same advisory-lock-then-check idiom the booking path uses against slot
+  // double-booking (`insertAppointmentIfBookable`): one transaction, a
+  // per-patient lock, the open-plan check re-run INSIDE it. The loser blocks
+  // until the winner commits, then sees the winner's row and is turned away.
   const planId = newId('ppl')
   const token = `pl_${randomBytes(18).toString('base64url')}`
-  await db.insert(schema.paymentPlan).values({
-    id: planId,
-    organizationId,
-    patientId,
-    token,
-    totalCents,
-    installmentCents: per,
-    installments,
-    status: 'proposed',
-    proposedByUserId,
+  const lockText = `payment-plan:${organizationId}:${patientId}`
+  const claimed = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockText}))`)
+    const [openPlan] = await tx
+      .select({ id: schema.paymentPlan.id })
+      .from(schema.paymentPlan)
+      .where(
+        and(
+          eq(schema.paymentPlan.organizationId, organizationId),
+          eq(schema.paymentPlan.patientId, patientId),
+          inArray(schema.paymentPlan.status, ['proposed', 'active', 'past_due']),
+        ),
+      )
+      .limit(1)
+    if (openPlan) return false
+    await tx.insert(schema.paymentPlan).values({
+      id: planId,
+      organizationId,
+      patientId,
+      token,
+      totalCents,
+      installmentCents: per,
+      installments,
+      status: 'proposed',
+      proposedByUserId,
+    })
+    return true
   })
+  if (!claimed) {
+    return { ok: false, error: 'This patient already has an open payment plan — cancel it first to start over.' }
+  }
 
   // The proposal email — accepting happens on the public /i/[token] page.
   try {

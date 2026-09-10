@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { runDailyDigest } from '@/lib/services/daily-digest'
 import { runProspectingDigest } from '@/lib/services/prospecting-digest'
 import { sendWeeklyStandups } from '@/lib/services/standup'
@@ -14,11 +15,8 @@ export const maxDuration = 300
  * has nothing waiting. CRON_SECRET-gated. Scheduled once daily (early morning).
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await runDailyDigest()
     // The platform's own hunt digest rides the same daily tick (separate

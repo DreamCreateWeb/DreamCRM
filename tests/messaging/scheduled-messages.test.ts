@@ -121,7 +121,7 @@ describe('scheduleMessage — validation', () => {
     await scheduleMessage({
       ...base,
       body: '',
-      attachments: [{ url: 'https://cdn/x.jpg', name: 'x', contentType: 'image/jpeg' }],
+      attachments: [{ url: 'https://dreamcrm-uploads-test.s3.us-east-1.amazonaws.com/x.jpg', name: 'x', contentType: 'image/jpeg' }],
       scheduledFor: when,
     })
     expect(inserted).toHaveLength(1)
