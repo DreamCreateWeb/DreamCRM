@@ -106,7 +106,7 @@ export default function PartnerPayout({
             and you’ll be ready to withdraw.
           </p>
           <ActionButton variant="primary" breath onClick={connect} pending={pending}>
-            {pending ? 'Opening…' : 'Finish payout setup'}
+            Finish payout setup
           </ActionButton>
         </>
       ) : (
@@ -116,7 +116,7 @@ export default function PartnerPayout({
             banking details — Stripe handles it securely.
           </p>
           <ActionButton variant="primary" breath onClick={connect} pending={pending}>
-            {pending ? 'Opening…' : 'Set up payouts'}
+            Set up payouts
           </ActionButton>
         </>
       )}

@@ -71,7 +71,7 @@ export default function GbpDetailControls({
         {connected ? (
           <>
             <ActionButton variant="secondary" size="sm" onClick={refresh} pending={pending}>
-              {pending ? 'Refreshing…' : 'Refresh from Google'}
+              Refresh from Google
             </ActionButton>
             <ActionButton variant="danger" size="sm" onClick={disconnect} pending={pending} className="ml-auto">
               Disconnect
@@ -92,7 +92,7 @@ export default function GbpDetailControls({
               Connect Google Business
             </ActionButton>
             <ActionButton variant="ghost" size="sm" onClick={refresh} pending={pending}>
-              {pending ? 'Checking…' : 'I just connected — refresh'}
+              I just connected — refresh
             </ActionButton>
           </>
         ) : (

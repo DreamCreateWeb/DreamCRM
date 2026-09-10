@@ -731,7 +731,7 @@ function RescheduleSubDrawer({
           Cancel
         </ActionButton>
         <ActionButton variant="primary" size="sm" onClick={submit} pending={pending}>
-          {pending ? 'Rescheduling…' : 'Confirm reschedule'}
+          Confirm reschedule
         </ActionButton>
       </div>
     </div>

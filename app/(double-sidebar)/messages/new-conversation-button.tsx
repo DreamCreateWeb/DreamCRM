@@ -91,8 +91,8 @@ export default function NewConversationButton({ users }: { users: { id: string; 
                   <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/60 flex justify-end space-x-2">
                     <ActionButton variant="secondary" size="sm" onClick={() => setOpen(false)}>Cancel</ActionButton>
                     {/* The modal's single primary action. */}
-                    <ActionButton variant="primary" size="sm" type="submit" disabled={pending || participantIds.length === 0}>
-                      {pending ? 'Creating…' : 'Start'}
+                    <ActionButton variant="primary" size="sm" type="submit" pending={pending} disabled={participantIds.length === 0}>
+                      Start
                     </ActionButton>
                   </div>
                 </form>

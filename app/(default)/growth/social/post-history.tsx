@@ -138,7 +138,7 @@ function PostCard({ post }: { post: SocialPostView }) {
             {confirming ? (
               <>
                 <ActionButton variant="danger" size="sm" onClick={remove} pending={pending}>
-                  {pending ? 'Deleting…' : 'Confirm delete'}
+                  Confirm delete
                 </ActionButton>
                 <ActionButton variant="ghost" size="sm" onClick={() => setConfirming(false)} pending={pending}>
                   Keep

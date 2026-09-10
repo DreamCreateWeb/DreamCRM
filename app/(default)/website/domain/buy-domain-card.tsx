@@ -111,8 +111,8 @@ export default function BuyDomainCard({
           aria-label="Search for a domain"
           className="form-input flex-1"
         />
-        <ActionButton variant="primary" size="md" onClick={search} disabled={searching || query.trim().length < 3}>
-          {searching ? 'Searching…' : 'Search'}
+        <ActionButton variant="primary" size="md" onClick={search} pending={searching} disabled={query.trim().length < 3}>
+          Search
         </ActionButton>
       </div>
 

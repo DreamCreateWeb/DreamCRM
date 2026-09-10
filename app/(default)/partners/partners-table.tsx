@@ -209,7 +209,7 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
                       <div className="flex items-center justify-end gap-2">
                         {p.status === 'invited' && (
                           <ActionButton variant="ghost" size="sm" onClick={() => resend(p.id)} pending={busy}>
-                            {busy ? '…' : 'Resend'}
+                            Resend
                           </ActionButton>
                         )}
                         {(p.status === 'active' || p.status === 'suspended') && (
@@ -224,7 +224,7 @@ export default function PartnersTable({ partners }: { partners: PartnerTableRow[
                         )}
                         {archived ? (
                           <ActionButton variant="secondary" size="sm" onClick={() => reactivate(p.id)} pending={busy}>
-                            {busy ? '…' : 'Reactivate'}
+                            Reactivate
                           </ActionButton>
                         ) : (
                           <ActionButton variant="secondary" size="sm" href={`/partners/${p.id}`}>

@@ -298,7 +298,7 @@ export default function ReviewConfigPanel({ config }: Props) {
           {saved ? '✓ Saved' : 'Changes apply to new sends. Existing queued requests are unaffected.'}
         </p>
         <ActionButton variant="primary" size="sm" onClick={save} pending={pending}>
-          {pending ? 'Saving…' : 'Save settings'}
+          Save settings
         </ActionButton>
       </div>
 

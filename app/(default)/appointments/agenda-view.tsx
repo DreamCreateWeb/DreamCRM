@@ -861,8 +861,8 @@ function BulkFollowupComposer({
           className="form-input text-xs py-1 flex-1"
           aria-label="Due date"
         />
-        <ActionButton variant="primary" size="sm" onClick={() => onSubmit(title, dueDate)} disabled={pending || !title.trim() || count === 0}>
-          {pending ? 'Adding…' : 'Add'}
+        <ActionButton variant="primary" size="sm" onClick={() => onSubmit(title, dueDate)} pending={pending} disabled={!title.trim() || count === 0}>
+          Add
         </ActionButton>
       </div>
     </div>

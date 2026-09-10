@@ -459,7 +459,7 @@ export default function PortalSettingsForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <ActionButton variant="primary" onClick={save} pending={pending}>
-          {pending ? 'Saving…' : 'Save portal settings'}
+          Save portal settings
         </ActionButton>
         <ActionButton href="/settings/portal/preview" variant="secondary" target="_blank">
           Preview as a patient ↗

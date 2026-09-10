@@ -307,8 +307,8 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
               <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={doPreview} disabled={pending || !file}>
-                {pending ? 'Reading…' : 'Next: match columns'}
+              <ActionButton variant="primary" size="sm" onClick={doPreview} pending={pending} disabled={!file}>
+                Next: match columns
               </ActionButton>
             </>
           )}
