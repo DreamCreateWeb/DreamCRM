@@ -1276,9 +1276,12 @@ async function processAppointmentWriteOp(
         .where(eq(schema.pmsWriteOp.id, op.id))
       return
     }
+    // A THROW here (the PMS unreachable, a chart that can't be minted) reaches
+    // this function's catch and is laned by settleWriteFailure. A null means
+    // only one thing now: the patient row is gone on our side.
     const patientExternalId = await ensurePatientExternalId(organizationId, client, appt.patientId)
     if (!patientExternalId) {
-      await failOp(op.id, op.attempts + 1, 'Patient could not be created in the PMS yet')
+      await failOp(op.id, op.attempts + 1, 'Patient no longer exists in DreamCRM')
       return
     }
     const providerExternalId = appt.providerId ? await mapInternalToExternal(organizationId, 'provider', appt.providerId) : null
@@ -1358,18 +1361,46 @@ async function ensurePatientExternalId(
     .limit(1)
   if (!pat) return null
 
-  const opId = randomUUID()
+  // ONE op row per patient write, not one per attempt. The queue re-drives this
+  // function every sync for as long as the appointment op it serves is
+  // unsettled — and since a WAITING appointment op waits as long as the outage
+  // lasts, minting a fresh row each pass would write one audit entry per hour
+  // per queued booking for the whole outage. Reuse the open one and let its
+  // attempt counter tell the truth instead.
+  const [openOp] = await db
+    .select({ id: schema.pmsWriteOp.id, attempts: schema.pmsWriteOp.attempts })
+    .from(schema.pmsWriteOp)
+    .where(
+      and(
+        eq(schema.pmsWriteOp.organizationId, organizationId),
+        eq(schema.pmsWriteOp.entityType, 'patient'),
+        eq(schema.pmsWriteOp.internalId, patientId),
+        inArray(schema.pmsWriteOp.status, ['pending', 'error']),
+      ),
+    )
+    .orderBy(desc(schema.pmsWriteOp.createdAt))
+    .limit(1)
+
+  const opId = openOp?.id ?? randomUUID()
+  const priorAttempts = openOp?.attempts ?? 0
   const payload = { firstName: pat.firstName, lastName: pat.lastName, email: pat.email, phone: pat.phone, dateOfBirth: pat.dateOfBirth }
-  await db.insert(schema.pmsWriteOp).values({
-    id: opId,
-    organizationId,
-    entityType: 'patient',
-    internalId: patientId,
-    operation: 'create',
-    status: 'pending',
-    attempts: 1,
-    requestPayload: payload,
-  })
+  if (openOp) {
+    await db
+      .update(schema.pmsWriteOp)
+      .set({ status: 'pending', attempts: priorAttempts + 1, requestPayload: payload })
+      .where(eq(schema.pmsWriteOp.id, opId))
+  } else {
+    await db.insert(schema.pmsWriteOp).values({
+      id: opId,
+      organizationId,
+      entityType: 'patient',
+      internalId: patientId,
+      operation: 'create',
+      status: 'pending',
+      attempts: priorAttempts + 1,
+      requestPayload: payload,
+    })
+  }
   try {
     const res = await client.createPatient({
       firstName: pat.firstName,
@@ -1392,11 +1423,28 @@ async function ensurePatientExternalId(
       .where(eq(schema.pmsWriteOp.id, opId))
     return res.externalId
   } catch (e) {
-    await db
-      .update(schema.pmsWriteOp)
-      .set({ status: 'error', error: (e as Error).message })
-      .where(eq(schema.pmsWriteOp.id, opId))
-    return null
+    // Lane the PATIENT op the same way the queue lanes every other write, so a
+    // practice server that sleeps overnight doesn't read as a failed write in
+    // the audit log. `priorAttempts` (not the count we just wrote) is what the
+    // lanes expect: WAITING restores it, the error lane advances past it.
+    await settleWriteFailure({ id: opId, attempts: priorAttempts }, e)
+    // …and RETHROW, so the APPOINTMENT op this patient write serves is laned by
+    // the same rules. This used to swallow the error and return null, and the
+    // caller turned that into failOp('Patient could not be created in the PMS
+    // yet') — the counted error lane, unconditionally. So an outage or a
+    // not-yet-synced provider during the patient leg burned one of the
+    // appointment's six attempts every sync; six of those over one closed
+    // weekend and the booking fails TERMINALLY: the visit exists in DreamCRM
+    // and never reaches the practice's schedule. That is precisely what the
+    // WAITING lane exists to prevent, and the cancel path one lane over has
+    // said so since write-back v1.
+    //
+    // Rethrowing also hands the op the REAL reason. A genuinely wrong write
+    // ("their practice system requires an email … to create a patient chart")
+    // still takes the counted error lane and still surfaces — it just does so
+    // naming the field the front desk has to fill in, instead of an opaque
+    // sentence that fit every cause equally badly.
+    throw e
   }
 }
 

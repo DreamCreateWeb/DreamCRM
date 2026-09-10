@@ -799,7 +799,10 @@ halves were in fact already fixed, which neither could be recorded as while
 they shared a verdict.
 - S2 · a NexHealth outage during an appointment/patient CREATE burns the
   6-attempt write-back cap instead of parking in the WAITING lane (only the
-  cancel path classifies offline errors as `PmsWriteWaitingError`). · OPEN.
+  cancel path classifies offline errors as `PmsWriteWaitingError`). ·
+  **FIXED** — R2 Slice 7 covered the appointment leg centrally in
+  `settleWriteFailure`; DREAMCRM-24 closed the PATIENT leg, which had gone on
+  swallowing its failure and reporting it to the queue as a counted error.
 - S3 · staff billing actions unwrapped; upload route raw 500; `pms-sync`
   config-throw skips the Guardian signal; optimistic `emailSent` flag;
   trial-reminders milestone stamped after send; scheduled-message requeue
@@ -1129,6 +1132,37 @@ network/timeout/abort shapes and 5xx/429 responses and routes them to
 `pending` with attempts PRESERVED. Deliberately conservative — anything it
 cannot positively identify as transient (a 422, "slot no longer available")
 still exhausts its retries and surfaces. Tests pin both directions.
+
+### Slice 7b — the WAITING lane reaches the PATIENT leg too · DONE
+
+Slice 7 fixed the write path that calls `createAppointment` and stopped there,
+because that is where the burned attempts were visible. One leg over,
+`ensurePatientExternalId` still caught EVERY failure of `createPatient`,
+recorded a bare `status: 'error'` on the patient op, and returned `null` — and
+its caller turned that `null` into
+`failOp('Patient could not be created in the PMS yet')` unconditionally. So a
+booking whose patient was not yet mapped went on burning an attempt per sync
+through an outage, and after six the visit existed in DreamCRM and never
+reached the practice's schedule. Slice 7's own words for why that is the wrong
+lane applied verbatim; the code just never reached it.
+
+`ensurePatientExternalId` now settles its own op through `settleWriteFailure`
+(same three lanes as every other write) and RETHROWS, so the appointment op it
+serves is laned by the same rules — WAITING and transient park with attempts
+preserved, a genuinely wrong write still counts its attempt and still
+surfaces. `null` now means one thing only: the patient row is gone on our side.
+
+Two things fall out of it. The op carries the REAL reason ("their practice
+system requires an email, a date of birth to create a patient chart") instead
+of an opaque sentence that fit every cause equally badly — the front desk can
+act on the first and not the second. And because a parked appointment op
+retries for as long as the outage lasts, the patient write now REUSES its open
+op row rather than inserting a fresh one per pass; otherwise the fix would
+have traded a lost booking for one audit row per hour per queued booking.
+
+Four tests in `tests/integrations/write-back.test.ts` pin all of it. Red run:
+restored the swallow — the two parking tests and the real-reason test failed;
+restored the row-per-retry insert — the reuse test failed.
 
 ### Slice 8 — stranded-campaign recovery · DONE
 
