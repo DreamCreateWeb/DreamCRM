@@ -37,6 +37,16 @@ const monthsAgo = (m: number) => new Date(NOW.getTime() - m * RECALL_MONTH_MS)
 
 const isDue = (s: string) => s === 'due' || s === 'overdue'
 
+/** A patient whose clinic stored `0` as their recall interval. */
+const ZERO_OVERRIDE = {
+  now: NOW,
+  hasUpcomingAppt: false,
+  hasAnyFutureAppt: false,
+  pmsRecallDueAt: null as Date | null,
+  lastVisitAt: null as Date | null,
+  intervalMonths: 0,
+}
+
 describe('the rule the SQL twin has to reproduce', () => {
   const base = {
     now: NOW,
@@ -127,7 +137,10 @@ describe('recallDueWhereSql — bounds computed from the shared constants', () =
   it('carries the PMS window as a bound param, not a literal', () => {
     const q = render()
     const expected = new Date(NOW.getTime() + RECALL_WINDOW_DAYS * DAY)
-    expect(q.params).toContainEqual(expected)
+    // Bound THROUGH the column's encoder (drizzle's `lte`, not a bare
+    // interpolation), so what reaches Postgres is the column's own wire
+    // format rather than the host process's local offset.
+    expect(q.params).toContain(expected.toISOString())
     // A patient BEYOND the window must not be swept in: the comparison is
     // `<=`, so the bound itself is the whole story.
     expect(q.sql).toContain('"pms_recall_due_at" is not null')
@@ -149,14 +162,42 @@ describe('recallDueWhereSql — bounds computed from the shared constants', () =
     expect(sql).toContain('"recall_interval_months" > 0')
   })
 
+  it('a ZERO override means six months, not the clinic cadence', () => {
+    // The trap: JS reads `p.recallIntervalMonths ?? cadence.recallMonths`, and
+    // `??` does not fall through on 0 — so a stored 0 reaches the derivation,
+    // fails its `> 0` test, and lands on RECALL_DEFAULT_MONTHS. A SQL `else`
+    // that fell back to the cadence would filter a patient by one rule and
+    // label them by the other, for every clinic not on a 6-month cadence.
+    expect(
+      derivePatientRecallStatus({
+        ...ZERO_OVERRIDE,
+        lastVisitAt: monthsAgo(RECALL_DEFAULT_MONTHS + 1),
+      }),
+    ).not.toBe('na')
+    expect(
+      derivePatientRecallStatus({
+        ...ZERO_OVERRIDE,
+        lastVisitAt: monthsAgo(RECALL_DEFAULT_MONTHS - 1),
+      }),
+    ).toBe('na')
+
+    // The SQL has to carry a THIRD branch for it — a two-branch case would
+    // hand a zero override the clinic's cadence.
+    const q = render(24)
+    expect(q.sql).toContain('when "patient"."recall_interval_months" > 0')
+    expect(q.sql).toContain('when "patient"."recall_interval_months" is not null')
+    // Both the default and the cadence are bound, and they are different.
+    expect(q.params).toContain(RECALL_DEFAULT_MONTHS)
+    expect(q.params).toContain(24)
+  })
+
   it('mirrors the near-window read INCLUDING its cancelled visits', () => {
     // The list's own near-window query does not exclude cancelled visits, and
     // `hasUpcomingAppt` is fed from it. The twin must copy that rather than
     // quietly improve on it, or the filter and the displayed pill disagree.
-    const sql = render().sql
-    const nearWindow = sql.slice(0, sql.indexOf('and not exists'))
+    const nearWindow = render().sql.slice(0, render().sql.indexOf('and not exists'))
     expect(nearWindow).toContain('"start_time"')
-    expect(nearWindow).not.toContain('cancelled')
+    expect(nearWindow).not.toContain('"status"')
   })
 
   it('scopes every subquery to the organization', () => {

@@ -1,5 +1,5 @@
 import 'server-only'
-import { sql, type SQL } from 'drizzle-orm'
+import { sql, gte, lte, eq, notInArray, type SQL } from 'drizzle-orm'
 import { schema } from '@/lib/db'
 
 /**
@@ -114,8 +114,13 @@ export function derivePatientRecallStatus(opts: DeriveOpts): RecallStatus {
  *   - `hasAnyFutureAppt` → 'na': any live future booking.
  *   - PMS branch: 'due' is at or before `now + RECALL_WINDOW_DAYS`, 'overdue'
  *     is further back still, so their union is the single `<=` bound here.
- *   - heuristic branch: a last visit at least `interval` months old, where
- *     interval is the patient's own override when usable, else the clinic's.
+ *   - heuristic branch: a last visit at least `interval` months old. The
+ *     interval resolves through the SAME three steps the derivation walks —
+ *     and the third one is easy to miss: JS reads `p.recallIntervalMonths ??
+ *     cadence.recallMonths`, and `??` does NOT fall through on `0`, so a
+ *     stored `0` reaches the derivation, fails its `> 0` test, and lands on
+ *     RECALL_DEFAULT_MONTHS — never on the clinic's cadence. A zero override
+ *     therefore means "six months", not "whatever the clinic uses".
  *     A patient with NO last visit derives 'na', and the `max()` here is NULL,
  *     so the comparison is NULL and the row drops out — which is why it is
  *     deliberately not coalesced to a sentinel date.
@@ -136,33 +141,39 @@ export function recallDueWhereSql(opts: {
   const monthDays = RECALL_MONTH_MS / DAY_MS
   const p = schema.patient
   const a = schema.appointment
+  // Every timestamp goes through drizzle's own comparison helpers rather than
+  // a bare `${now}` interpolation, so the column's encoder formats it — a raw
+  // Param carries the process's local offset, which agrees with the column
+  // only because production runs in UTC. The write-side mirror of what
+  // tests/guards/timestamp-aggregate-mapping.test.ts guards on reads.
+  const live = notInArray(a.status, ['cancelled', 'no_show'])
   return sql`
     not exists (
       select 1 from ${a}
-      where ${a.organizationId} = ${organizationId}
-        and ${a.patientId} = ${p.id}
-        and ${a.startTime} >= ${now}
-        and ${a.startTime} <= ${nearWindowEnd}
+      where ${eq(a.organizationId, organizationId)}
+        and ${eq(a.patientId, p.id)}
+        and ${gte(a.startTime, now)}
+        and ${lte(a.startTime, nearWindowEnd)}
     )
     and not exists (
       select 1 from ${a}
-      where ${a.organizationId} = ${organizationId}
-        and ${a.patientId} = ${p.id}
-        and ${a.startTime} >= ${now}
-        and ${a.status} not in ('cancelled', 'no_show')
+      where ${eq(a.organizationId, organizationId)}
+        and ${eq(a.patientId, p.id)}
+        and ${gte(a.startTime, now)}
+        and ${live}
     )
     and case
-      when ${p.pmsRecallDueAt} is not null then ${p.pmsRecallDueAt} <= ${pmsCutoff}
+      when ${p.pmsRecallDueAt} is not null then ${lte(p.pmsRecallDueAt, pmsCutoff)}
       else (
         select max(${a.startTime}) from ${a}
-        where ${a.organizationId} = ${organizationId}
-          and ${a.patientId} = ${p.id}
-          and ${a.startTime} <= ${now}
-          and ${a.status} not in ('cancelled', 'no_show')
-      ) <= ${now}::timestamp - (
+        where ${eq(a.organizationId, organizationId)}
+          and ${eq(a.patientId, p.id)}
+          and ${lte(a.startTime, now)}
+          and ${live}
+      ) <= ${sql.param(now, a.startTime)}::timestamp - (
         (case
-          when ${p.recallIntervalMonths} is not null and ${p.recallIntervalMonths} > 0
-            then ${p.recallIntervalMonths}
+          when ${p.recallIntervalMonths} > 0 then ${p.recallIntervalMonths}
+          when ${p.recallIntervalMonths} is not null then ${RECALL_DEFAULT_MONTHS}::int
           else ${defaultIntervalMonths}::int
         end)::int * interval '${sql.raw(String(monthDays))} days'
       )

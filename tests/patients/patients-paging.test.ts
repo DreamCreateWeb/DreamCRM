@@ -101,10 +101,22 @@ describe('listPatientsPage — the bound', () => {
     expect(captured[1].params).toContain(DEFAULT_PATIENT_LIMIT)
   })
 
-  it('the whole-set entry point sends NO limit — bulk actions get the segment', async () => {
-    seed(3, 3)
+  it('the whole-set entry point sends NO limit, and no count it would throw away', async () => {
+    // `listPatients` returns only `.rows`, so counting there is a second full
+    // pass — with every correlated subquery — whose answer is discarded. Three
+    // consumers take this path, one of them a per-org cron. ONE statement.
+    nextRows = [
+      Array.from({ length: 3 }, (_, i) => [
+        `pat_${i}`, 'Mia', 'Hayes', null, null, null, 'booking', 'active',
+        new Date('2026-01-01'), null, 1, null, null, null, null,
+      ]),
+    ]
     const rows = await listPatients('org_1')
-    expect(rosterSql()).not.toContain('limit $')
+    // The roster is the FIRST statement — no count ahead of it — and nothing
+    // in the run counts at all.
+    expect(captured[0].sql.toLowerCase()).toContain('from "patient"')
+    expect(captured.some((c) => c.sql.toLowerCase().includes('count(*)'))).toBe(false)
+    expect(captured[0].sql.toLowerCase()).not.toContain('limit $')
     expect(rows).toHaveLength(3)
   })
 
@@ -144,7 +156,11 @@ describe('listPatientsPage — every filter is in the statement, not after it', 
     const sql = rosterSql()
     expect(sql).toContain('exists (')
     expect(sql).toContain('from "appointment"')
-    expect(sql).toContain(`not in ('cancelled', 'no_show')`)
+    expect(sql).toContain('"status" not in (')
+    // Bound, not inlined — the whole predicate goes through drizzle's helpers
+    // so every timestamp beside them rides the column's own encoder.
+    expect(captured[1].params).toContain('cancelled')
+    expect(captured[1].params).toContain('no_show')
     expect(sql).toContain('not exists (')
     expect(sql).toContain('from "form_submission"')
   })
@@ -161,8 +177,9 @@ describe('listPatientsPage — every filter is in the statement, not after it', 
     const sql = rosterSql()
     // 'scheduled' (near window, any status) and 'na' (any live future visit).
     expect(sql).toContain('not exists (')
-    // The PMS branch and the last-visit heuristic branch.
+    // The PMS branch and both fallbacks of the heuristic branch.
     expect(sql).toContain('"patient"."pms_recall_due_at" is not null')
+    expect(sql).toContain('"patient"."recall_interval_months" > 0')
     expect(sql).toContain('"patient"."recall_interval_months" is not null')
     expect(sql).toContain(`interval '30 days'`)
     // No `--` line comment may reach a rendered statement: one flattening and
@@ -170,13 +187,43 @@ describe('listPatientsPage — every filter is in the statement, not after it', 
     expect(sql).not.toContain('--')
   })
 
-  it('every subquery it adds is tenant-scoped', async () => {
-    await run({ status: 'recall_due', missingIntake: true, tagIds: ['tag_a'] })
+  it('every subquery it adds is tenant-scoped — exactly, not loosely', async () => {
+    // An earlier cut of this asserted `>=`, which tolerated one unscoped
+    // subquery (the surplus was the OUTER patient filter, not a subquery's),
+    // and its subquery regex missed `select min(` entirely. Equality against
+    // subqueries + 1, run under every sort, so a new correlated read cannot
+    // arrive without its own filter.
+    for (const field of ['name', 'lastVisit', 'nextVisit', 'balance', 'created'] as const) {
+      captured.length = 0
+      seed(1, 1)
+      await listPatientsPage(
+        'org_1',
+        { status: 'recall_due', missingIntake: true, tagIds: ['tag_a'] },
+        { field, direction: 'asc' },
+        { limit: 100 },
+      )
+      const sql = rosterSql()
+      const subqueries = (sql.match(/select 1 from|select max\(|select min\(/g) ?? []).length
+      const orgFilters = (sql.match(/"organization_id" = \$/g) ?? []).length
+      expect(subqueries, field).toBeGreaterThan(0)
+      // +1 for the outer patient.organization_id the whole query hangs on.
+      expect(orgFilters, field).toBe(subqueries + 1)
+    }
+  })
+
+  it('the ONE subquery with no org filter is the one that cannot have it', async () => {
+    // `messages` and `conversation_members` carry no organization_id column.
+    // The last-contact sort correlates on the patient's user id, exactly as
+    // the composer's own last-contact read does — the tenant boundary is the
+    // outer patient filter in both. Pinned so it stays a known exception.
+    captured.length = 0
+    seed(1, 1)
+    await listPatientsPage('org_1', {}, { field: 'lastActivity', direction: 'desc' }, { limit: 100 })
     const sql = rosterSql()
-    // Each correlated subquery names an organization_id filter of its own.
-    const orgFilters = sql.match(/"organization_id" = \$/g) ?? []
-    const subqueries = sql.match(/select 1 from|select max\(/g) ?? []
-    expect(orgFilters.length).toBeGreaterThanOrEqual(subqueries.length)
+    expect(sql).toContain('select max("messages"."created_at")')
+    expect(sql).toContain('"conversation_members"."user_id" = "patient"."user_id"')
+    // One org filter in the whole statement: the outer one.
+    expect((sql.match(/"organization_id" = \$/g) ?? []).length).toBe(1)
   })
 })
 

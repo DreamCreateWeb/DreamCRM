@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
 import { derivePatientRecallStatus, recallDueWhereSql, RECALL_DEFAULT_MONTHS } from '@/lib/services/recall-status'
@@ -270,26 +270,26 @@ export async function listPatientsPage(
     // live future visit landing inside 7 days is the same question as "any
     // live visit in [now, in7d]", with no form submission on file.
     where.push(sql`exists (
-      select 1 from ${schema.appointment} a
-      where a.${sql.raw('"organization_id"')} = ${organizationId}
-        and a.${sql.raw('"patient_id"')} = ${schema.patient.id}
-        and a.${sql.raw('"start_time"')} >= ${now}
-        and a.${sql.raw('"start_time"')} <= ${in7d}
-        and a.${sql.raw('"status"')} not in ('cancelled', 'no_show')
+      select 1 from ${schema.appointment}
+      where ${eq(schema.appointment.organizationId, organizationId)}
+        and ${eq(schema.appointment.patientId, schema.patient.id)}
+        and ${gte(schema.appointment.startTime, now)}
+        and ${lte(schema.appointment.startTime, in7d)}
+        and ${liveVisit()}
     )`)
     where.push(sql`not exists (
-      select 1 from ${schema.formSubmission} fs
-      where fs.${sql.raw('"organization_id"')} = ${organizationId}
-        and fs.${sql.raw('"patient_id"')} = ${schema.patient.id}
+      select 1 from ${schema.formSubmission}
+      where ${eq(schema.formSubmission.organizationId, organizationId)}
+        and ${eq(schema.formSubmission.patientId, schema.patient.id)}
     )`)
   }
   if (filters.tagIds?.length) {
     // OR semantics, same as the JS `tags.some(t => want.has(t.id))`.
     where.push(sql`exists (
-      select 1 from ${schema.patientTagAssignment} pta
-      where pta.${sql.raw('"organization_id"')} = ${organizationId}
-        and pta.${sql.raw('"patient_id"')} = ${schema.patient.id}
-        and pta.${sql.raw('"tag_id"')} in ${filters.tagIds}
+      select 1 from ${schema.patientTagAssignment}
+      where ${eq(schema.patientTagAssignment.organizationId, organizationId)}
+        and ${eq(schema.patientTagAssignment.patientId, schema.patient.id)}
+        and ${inArray(schema.patientTagAssignment.tagId, filters.tagIds)}
     )`)
   }
   if (filters.status === 'recall_due') {
@@ -308,11 +308,22 @@ export async function listPatientsPage(
 
   // The honest count of the whole filtered set — the list's "N patients" and
   // its "showing X of Y". One indexed count, not a second page of rows.
-  const totalRows = await db
-    .select({ total: count() })
-    .from(schema.patient)
-    .where(and(...where))
-  const total = Number(totalRows[0]?.total ?? 0)
+  //
+  // Skipped entirely on the unbounded path: `listPatients` returns only
+  // `.rows`, so counting there is a second full pass — with every correlated
+  // subquery — whose answer is thrown away. Three consumers take that path,
+  // one of them a per-org cron. Unbounded means the rows ARE the count.
+  const total =
+    limit === null
+      ? null
+      : Number(
+          (
+            await db
+              .select({ total: count() })
+              .from(schema.patient)
+              .where(and(...where))
+          )[0]?.total ?? 0,
+        )
 
   // Project ONLY the columns the row composer below reads. A bare select()
   // pulls every column (including large jsonb) for the whole roster.
@@ -340,7 +351,7 @@ export async function listPatientsPage(
 
   const patients = await (limit === null ? rosterQuery : rosterQuery.limit(limit))
 
-  if (patients.length === 0) return { rows: [], total, hasMore: false }
+  if (patients.length === 0) return { rows: [], total: total ?? 0, hasMore: false }
   const ids = patients.map((p) => p.id)
 
   // Pull joined data in parallel.
@@ -559,7 +570,8 @@ export async function listPatientsPage(
   // page is already the right page: no post-query filter can shrink it and no
   // re-sort can reorder it. That is the whole point — a JS pass here would
   // silently make `total`, `hasMore` and the page bound disagree.
-  return { rows, total, hasMore: rows.length < total }
+  const matched = total ?? rows.length
+  return { rows, total: matched, hasMore: rows.length < matched }
 }
 
 /**
@@ -576,34 +588,44 @@ export async function listPatientsPage(
  * the books belongs at the bottom of "soonest first", not the top. Every sort
  * ends on the patient id so a page boundary is stable between requests.
  */
+/** A visit that still counts — the same exclusion every roster read uses.
+ *  A function, not a const: reaching into the schema at module load breaks
+ *  every test that stubs `@/lib/db` with a partial schema. */
+const liveVisit = () => notInArray(schema.appointment.status, ['cancelled', 'no_show'])
+
 function patientListOrderBy(sort: PatientListSort, organizationId: string, now: Date): SQL[] {
   const dir = (col: SQL, nullsForAsc: 'first' | 'last'): SQL => {
     const nulls = sort.direction === 'asc' ? nullsForAsc : nullsForAsc === 'first' ? 'last' : 'first'
     return sql`${col} ${sql.raw(sort.direction === 'asc' ? 'asc' : 'desc')} nulls ${sql.raw(nulls)}`
   }
   const a = schema.appointment
-  const liveVisit = sql`${a.status} not in ('cancelled', 'no_show')`
   // `.mapWith` on every hand-built aggregate: these bodies are more than one
   // column so drizzle's max()/min() can't wrap them, and without the column's
   // own mapper the driver hands back raw text that would parse in the host's
-  // zone (tests/guards/timestamp-aggregate-mapping.test.ts).
+  // zone (tests/guards/timestamp-aggregate-mapping.test.ts). The comparisons
+  // go through drizzle's helpers for the write-side half of the same problem —
+  // a bare interpolation binds a raw Param that skips the column's encoder.
   const lastVisitAt = sql`(
     select max(${a.startTime}) from ${a}
-    where ${a.organizationId} = ${organizationId}
-      and ${a.patientId} = ${schema.patient.id}
-      and ${a.startTime} <= ${now} and ${liveVisit}
+    where ${eq(a.organizationId, organizationId)}
+      and ${eq(a.patientId, schema.patient.id)}
+      and ${lte(a.startTime, now)} and ${liveVisit()}
   )`.mapWith(a.startTime)
   const nextVisitAt = sql`(
     select min(${a.startTime}) from ${a}
-    where ${a.organizationId} = ${organizationId}
-      and ${a.patientId} = ${schema.patient.id}
-      and ${a.startTime} >= ${now} and ${liveVisit}
+    where ${eq(a.organizationId, organizationId)}
+      and ${eq(a.patientId, schema.patient.id)}
+      and ${gte(a.startTime, now)} and ${liveVisit()}
   )`.mapWith(a.startTime)
+  // No organization_id filter here and there cannot be one: neither `messages`
+  // nor `conversation_members` carries that column. It correlates on the
+  // patient's own user id, which is exactly what the composer's last-contact
+  // read does — the tenant boundary is the outer `patient` filter in both.
   const lastContactAt = sql`(
     select max(${schema.messages.createdAt}) from ${schema.messages}
     inner join ${schema.conversationMembers}
-      on ${schema.messages.conversationId} = ${schema.conversationMembers.conversationId}
-    where ${schema.conversationMembers.userId} = ${schema.patient.userId}
+      on ${eq(schema.messages.conversationId, schema.conversationMembers.conversationId)}
+    where ${eq(schema.conversationMembers.userId, schema.patient.userId)}
   )`.mapWith(schema.messages.createdAt)
   const tiebreak = sql`${schema.patient.id} asc`
 

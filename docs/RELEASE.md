@@ -1078,6 +1078,16 @@ derivation and pins that the SQL's bounds are COMPUTED from the shared
 constants rather than typed in. If the rule moves and only one side follows,
 that file fails.
 
+The pre-merge gate found one place they had already diverged, and it is the
+kind only a branch-for-branch read catches: a patient whose
+`recall_interval_months` is stored as **0**. JS reads `p.recallIntervalMonths
+?? cadence.recallMonths`, and `??` does NOT fall through on `0` — so the zero
+reaches the derivation, fails its `> 0` test, and lands on
+RECALL_DEFAULT_MONTHS. The SQL's two-branch `else` handed it the clinic's
+cadence instead, so for any clinic not on a six-month cadence that patient was
+filtered by one rule and labelled by the other. Third branch added, case added
+to the matrix.
+
 41 tests. The service half renders the real statement through drizzle's own
 dialect via the pg-proxy driver — no database — and asserts every filter is
 present in BOTH the page statement and its count, since they have to describe
