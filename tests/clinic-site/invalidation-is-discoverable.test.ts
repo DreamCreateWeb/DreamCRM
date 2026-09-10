@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 
 /**
  * A FAILED INVALIDATION MUST BE DISCOVERABLE.
@@ -40,6 +41,10 @@ vi.mock('@/lib/db', () => ({ db: { select: () => ({}) } }))
 function nextError(code: string, message: string): Error {
   return Object.assign(new Error(message), { __NEXT_ERROR_CODE: code })
 }
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/clinic-site-cache'))
 
 beforeEach(() => {
   nextCache.willThrow = null

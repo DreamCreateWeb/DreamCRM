@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 import { readDemoSeederSource } from '../fixtures/demo-seeder-source'
 
 /**
@@ -73,6 +74,10 @@ vi.mock('@/lib/services/pms/sync', () => ({
 vi.mock('resend', () => ({
   Resend: class { emails = { send: async () => ({ id: 'mock' }) } }
 }))
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/reviews'))
 
 beforeEach(() => {
   state.profile = null

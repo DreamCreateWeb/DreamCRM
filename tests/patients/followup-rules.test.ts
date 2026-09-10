@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 import {
   resolveFollowupRules,
   anyFollowupRuleEnabled,
   DEFAULT_FOLLOWUP_RULES,
 } from '@/lib/types/followup-rules'
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/patients'))
 
 describe('resolveFollowupRules', () => {
   it('defaults everything off for null/garbage', () => {

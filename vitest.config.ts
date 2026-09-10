@@ -52,20 +52,49 @@ export default defineConfig({
     },
     globals: true,
     // A timeout is a HANG detector, not an assertion — raising it relaxes no
-    // check. vitest's 5s default was too tight for this suite's shape: 111 test
-    // files load the module under test with `await import()` INSIDE the first
-    // it() (usually required, because they pair it with vi.resetModules()), so
-    // that one test is billed for a cold module graph — next + drizzle + the
-    // schema barrels — while its siblings report 0ms. With 691 files across
-    // parallel workers, which file eats the scheduler's bad luck is a lottery,
-    // and the loser fails with a timeout that looks like a real regression in
-    // whatever change happens to be in flight.
+    // check, and lowering it tightens none. The 20s here was a BANDAGE over a
+    // structural problem; DREAMCRM-19 went after the problem.
     //
-    // Measured on a full local run (2026-09-09): the slowest such first-test
-    // spent 4619ms of the 5000ms budget AND PASSED (tests/reviews/auto-send),
-    // with six more between 2.1s and 3.5s. Two different files tipped over on
-    // two consecutive runs of the same green tree. 20s keeps a genuine hang
-    // caught quickly while putting ~4x headroom over the worst real load.
+    // The problem: a test file that loads the module under test with `await
+    // import()` INSIDE a test bills that ONE test for a cold module graph —
+    // next + drizzle + the schema barrels — while its siblings report 0ms.
+    // Across ~710 files on parallel workers, which file eats the scheduler's
+    // bad luck is a lottery, and the loser failed with a timeout that read as
+    // a real regression in whatever change happened to be in flight. Two
+    // different files tipped over on two consecutive runs of the same green
+    // tree.
+    //
+    // What changed: 43 files actually did this — the old note's "111" counted
+    // `await import()` inside vi.mock factories, which are hoisted and cost a
+    // test nothing. 35 of them had no reason to defer the load (no
+    // vi.resetModules(), no vi.doMock(), no env set before the import) and now
+    // pre-load during collection via tests/prewarm.ts. So the set of files
+    // that CAN be the unlucky one went from 43 to 8.
+    //
+    // Measured back-to-back on one machine, same load, full runs:
+    //                          worst first-test   over 2s   over 1s
+    //   before                       6125ms           9        12
+    //   after                   2383-4342ms         1-3       3-5
+    // (Absolute numbers here move ~2.5x with machine load, which is why these
+    // are same-session comparisons and not the 4619ms in the note this
+    // replaces. Compare shapes, not milliseconds.)
+    //
+    // What this does NOT do is make the suite faster in wall clock. The module
+    // graph still has to load; it is billed to collection and a beforeAll
+    // instead of to one unlucky assertion. The win is that a test's budget is
+    // no longer a lottery.
+    //
+    // AND THE TIMEOUT STAYS AT 20s, deliberately. The whole remaining tail is
+    // the 8 files that still defer on purpose — tests/automation/cron-auth
+    // (8 route graphs behind a describe.each), tests/inbox/gmail-parser and
+    // tests/inbox/classification lead it — and under load their first test
+    // still reaches ~4.3s. Cutting to 10s would leave those barely 2x
+    // headroom, which trades a rare flake for a more likely one; that is not
+    // a win, it is a different bandage. Lowering this is earned by pre-loading
+    // those 8 too, and each needs its own judgement about whether the module
+    // reads its env at IMPORT time or at CALL time — a per-file product
+    // question, not a mechanical edit. Until someone does that work and
+    // re-measures, 20s is the honest number.
     testTimeout: 20_000,
     hookTimeout: 20_000,
     setupFiles: ['./tests/setup.ts'],

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { prewarm } from '../prewarm'
 import { QueryBuilder } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import * as schema from '@/lib/db/schema'
@@ -27,6 +28,10 @@ import * as schema from '@/lib/db/schema'
 const qb = new QueryBuilder()
 const IDS = ['pat_1', 'pat_2']
 const NOW = new Date('2026-09-09T15:00:00Z')
+
+// Load the module(s) under test during COLLECTION, so no single test is
+// billed for the cold module graph (see tests/prewarm.ts).
+prewarm(() => import('@/lib/services/marketing'))
 
 describe('the aggregated lookups as Postgres receives them', () => {
   it('rolls the last visit up with max(start_time) grouped by patient', async () => {
