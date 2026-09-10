@@ -1,5 +1,5 @@
 import 'server-only'
-import { unstable_cache, updateTag } from 'next/cache'
+import { unstable_cache, revalidateTag } from 'next/cache'
 import { getTableColumns, eq, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { organization } from '@/lib/db/schema/auth'
@@ -41,26 +41,77 @@ export function clinicSiteTag(orgId: string): string {
 }
 
 /**
- * Drop a clinic's cached public site after a write to their `clinic_profile`
- * or `clinic_location` rows.
+ * Immediate expiry, expressed as `revalidateTag(tag, { expire: 0 })`.
  *
- * `updateTag`, not `revalidateTag` — Next 16 split the two. `updateTag` gives
- * READ-YOUR-OWN-WRITES and may only be called from a Server Action, which is
- * exactly the shape of the writers this is for: a clinic taps Publish and the
- * very next render of their site must show the new words, not the previous
- * cache entry. (Next 16 also changed `revalidateTag` to require a cache-life
- * profile argument; it is the wrong primitive here regardless.)
+ * THE FIRST VERSION USED `updateTag`, AND THAT WAS A CLAIM I HADN'T CHECKED.
+ * Review asked the fair question: `updateTag` is the Cache Components partner
+ * to `'use cache'`, `unstable_cache` is the legacy Data Cache, and
+ * `next.config.js` enables neither `cacheComponents` nor `dynamicIO` — so does
+ * the pairing do anything at all? I read the installed Next (16.2.10) rather
+ * than reasoning about the docs, and the chain is:
  *
- * Deliberately never throws. A caller outside a Server Action — a cron, the
- * demo re-seeder, a script — gets a no-op and falls back to the TTL, and a
- * failed invalidation must never turn a successful save into an error the
- * clinic sees. That degradation is bounded by design: see CACHE_TTL_SECONDS.
+ *   revalidateTag / updateTag
+ *     -> revalidate()                       (both, same function)
+ *     -> workStore.pendingRevalidatedTags
+ *     -> executeRevalidates -> revalidateTags()
+ *     -> incrementalCache.revalidateTag(tags, durations)
+ *     -> cacheHandler.revalidateTag(...)
+ *
+ * and `unstable_cache` writes its entries through `incrementalCache.set(key,
+ * { ..., tags })` on that same handler. So BOTH primitives do invalidate an
+ * `unstable_cache` entry; Cache Components being off only makes the separate
+ * `getCacheHandlers()` loop (the `'use cache'` handlers) a no-op, while the
+ * `incrementalCache` branch runs unconditionally.
+ *
+ * The pairing was therefore not broken — but the investigation found a real
+ * defect next to it. `updateTag` THROWS unless it is called from a Server
+ * Action (and also throws when `workStore.page` ends in `/route`), whereas
+ * these writers are reachable from route handlers and crons as well. Paired
+ * with the blanket `catch` this function used to have, invalidation would have
+ * silently not happened on those paths, forever, with no signal.
+ *
+ * `revalidateTag(tag, { expire: 0 })` has identical effect and no such
+ * restriction: `revalidate()` treats `cacheLife.expire === 0` exactly as it
+ * treats `updateTag`'s absent profile, setting `pathWasRevalidated` to
+ * `ActionDidRevalidateStaticAndDynamic` — the read-your-own-writes flag — and
+ * passing `{ expire: 0 }` down as immediate expiry. It is also
+ * `unstable_cache`'s documented partner. `tests/clinic-site/next-cache-
+ * contract.test.ts` pins the parts of this that are observable against the
+ * real module, so the next reader does not have to take the trace on trust.
  */
 export function invalidateClinicSite(orgId: string): void {
+  invalidateTag(clinicSiteTag(orgId))
+}
+
+/**
+ * Next's error code for "there is no request scope here" — thrown by
+ * `revalidate()` as `Invariant: static generation store missing in ...`.
+ */
+const NO_REQUEST_SCOPE = 'E263'
+
+/**
+ * Swallow ONLY "we are not inside a request", and let everything else out.
+ *
+ * The previous version was a blanket `catch {}` with a comment asserting the
+ * benign case. That is the exact pattern four PRs of this series have been
+ * removing from tests, sitting in production code around the single call that
+ * delivers the stated contract: a genuine breakage would have been
+ * byte-identical to the expected no-op, in every environment, forever.
+ *
+ * Outside a request (a cron, the demo re-seeder, a boot script) there is
+ * legitimately nothing to revalidate against and the TTL is the answer. Every
+ * other throw Next can raise here — calling this during render (E7), inside a
+ * `'use cache'` (E181), inside an `unstable_cache` callback (E306), inside
+ * `generateStaticParams` (E1127) — is a real bug in a call site, and each one
+ * means this clinic's site is not being invalidated. Those must surface.
+ */
+function invalidateTag(tag: string): void {
   try {
-    updateTag(clinicSiteTag(orgId))
-  } catch {
-    // Not in a Server Action. The TTL covers it.
+    revalidateTag(tag, { expire: 0 })
+  } catch (err) {
+    const code = (err as { __NEXT_ERROR_CODE?: string })?.__NEXT_ERROR_CODE
+    if (code === NO_REQUEST_SCOPE) return
+    throw err
   }
 }
 
@@ -315,10 +366,16 @@ export async function loadPublishedSite(
  * calls it on EVERY public clinic page, and `lib/site-templates/resolve.ts`
  * uses it to choose which template renders the site.
  *
- * Keyed on `slug` because that is its only argument, and tagged on the orgId
- * it resolves to — so a clinic's publish drops its theme and its site payload
- * in one call. The tag is only known AFTER the read, which is why the theme's
- * miss has to resolve the org before it can name its own tag.
+ * Keyed AND tagged on the SLUG, not the orgId — this loader resolves the org
+ * FROM the slug, so at the moment `unstable_cache` needs a tag list the orgId
+ * is not yet known, and a tag cannot be added after the entry is written.
+ *
+ * (An earlier version of this comment claimed the opposite — that it was
+ * "tagged on the orgId it resolves to" — which the code never did. The
+ * consequence is real rather than cosmetic: the site payload and the theme
+ * live under DIFFERENT tags, so a writer holding only an orgId has to resolve
+ * the slug to drop both. That is exactly why `invalidateClinicSiteForOrg`
+ * pays for a database round trip.)
  */
 export async function loadPublishedTheme(slug: string): Promise<PublishedTheme | null> {
   // The org lookup is itself cached and globally tagged-by-slug, so the theme
@@ -345,11 +402,7 @@ export function clinicSiteSlugTag(slug: string): string {
  * both. `invalidateClinicSiteEverywhere` is the one callers should reach for.
  */
 export function invalidateClinicSiteBySlug(slug: string): void {
-  try {
-    updateTag(clinicSiteSlugTag(slug))
-  } catch {
-    // See invalidateClinicSite.
-  }
+  invalidateTag(clinicSiteSlugTag(slug))
 }
 
 /** Drop a clinic's cached site AND theme. The call writers should make. */
@@ -381,9 +434,17 @@ export async function invalidateClinicSiteForOrg(organizationId: string): Promis
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
-    if (org?.slug) invalidateClinicSiteBySlug(org.slug)
-  } catch {
-    // A failed lookup must never fail the save that triggered it.
+    if (!org?.slug) return
+    invalidateClinicSiteBySlug(org.slug)
+  } catch (err) {
+    // Same shape as the blocking fix above, lower stakes: a failed lookup
+    // must not fail the save that triggered it, but it must not be invisible
+    // either — the theme entry then survives until the TTL and the clinic
+    // sees a stale brand colour with nothing anywhere saying why.
+    console.error('[clinic-site-cache] could not resolve slug to invalidate theme', {
+      organizationId,
+      error: err,
+    })
   }
 }
 

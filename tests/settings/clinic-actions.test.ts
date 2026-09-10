@@ -14,7 +14,12 @@ vi.mock('@/lib/auth/context', () => ({
   }),
 }))
 
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+// `revalidateTag` too: the clinic-site cache boundary invalidates a tag on
+// every writer this file exercises, and its catch deliberately only
+// swallows "no request scope". An absent export therefore surfaces as a
+// failed save rather than a silently skipped invalidation — which is the
+// whole point of that narrowing.
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 const ops: Array<{ kind: 'insert' | 'update'; table: string; values: unknown }> = []
 

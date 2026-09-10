@@ -67,15 +67,49 @@ export function unstable_cache<T extends (...args: never[]) => Promise<unknown>>
   }) as unknown as T
 }
 
-/** Drops every entry carrying the tag, like an on-demand revalidation. */
-export function updateTag(tag: string): void {
+/**
+ * WHAT IS MODELLED HERE, AND ON WHAT AUTHORITY.
+ *
+ * The serialization above is a FACT: a hit really does come back through JSON.
+ * The invalidation below is a MODEL — "drops every entry carrying the tag" is
+ * our reading of Next, not something this file can prove, and a test that
+ * calls it is confirming the model rather than Next. Review caught that
+ * distinction when the two halves of this file were presented as equally
+ * solid; they are not, and saying so here is the point.
+ *
+ * The model is grounded rather than assumed. Read against Next 16.2.10's own
+ * source, `revalidateTag`/`updateTag` both reach
+ * `incrementalCache.revalidateTag(tags, durations)`, which is the same
+ * incremental cache `unstable_cache` writes its tagged entries to — so
+ * dropping tagged entries is the right shape. `tests/clinic-site/
+ * next-cache-contract.test.ts` pins the observable parts of that chain
+ * against the REAL module, and fails on a Next upgrade that moves them.
+ *
+ * What is still NOT modelled, deliberately: eviction timing, the `expire`
+ * duration, stale-while-revalidate, and the distinction between "expired" and
+ * "gone". Immediate removal is the strictest reading, so a test that passes
+ * here would also pass against a slower real cache; nothing in this suite
+ * should be read as proving latency.
+ */
+export function revalidateTag(tag: string, _profile?: string | { expire?: number }): void {
   for (const [key, entry] of Array.from(store.entries())) {
     if (entry.tags.includes(tag)) store.delete(key)
   }
 }
 
-export function revalidateTag(tag: string): void {
-  updateTag(tag)
+/**
+ * Real `updateTag` THROWS unless called from a Server Action — which is why
+ * production moved off it. Kept here only so an accidental reintroduction
+ * fails the way Next would, rather than quietly working in tests.
+ */
+export function updateTag(_tag: string): void {
+  throw Object.assign(
+    new Error(
+      'updateTag can only be called from within a Server Action. ' +
+        'To invalidate cache tags in Route Handlers or other contexts, use revalidateTag instead.',
+    ),
+    { __NEXT_ERROR_CODE: 'E872' },
+  )
 }
 
 export function revalidatePath(): void {}
