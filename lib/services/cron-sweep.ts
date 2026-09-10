@@ -38,6 +38,13 @@ import {
  *                       loyalty). Bounding this walk is what leaves them room;
  *                       today an unbounded retention walk can eat the tick and
  *                       silently take the charges down with it.
+ *
+ * `retention-automations` is the one to watch. It ticks DAILY, so a clinic
+ * pushed past its cut-off waits 24 hours where `generate-proposals` waits one
+ * — and for the date-keyed birthday campaign that wait is a SKIP, not a delay
+ * (see the cost table in `lib/cron-budget.ts`). If that walk ever genuinely
+ * reaches 60s, raise the budget or split the route; do not let it start
+ * shedding days.
  */
 export const SWEEP_BUDGET_MS = {
   'daily-digest': 180_000,

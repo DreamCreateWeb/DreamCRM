@@ -15,9 +15,30 @@
  * The fix is not to go faster or wider — the instance can't take parallelism,
  * and the risk here is cron overrun, not database load. It is to make the
  * sweep (a) stop on purpose before the platform stops it, and (b) start where
- * it left off. Then an overrun costs a clinic a delay measured in ticks, and
- * every clinic is reached within `ceil(N / clinics-per-run)` runs no matter
- * how big N gets.
+ * it left off. Every clinic is then reached within `ceil(N / clinics-per-run)`
+ * runs no matter how big N gets, instead of the tail being reached never.
+ *
+ * WHAT AN OVERRUN COSTS A DEFERRED CLINIC — and it is NOT the same for all
+ * three, so `completed: false` must not be read as uniformly benign:
+ *
+ *  - `generate-proposals` — a DELAY of one hour. Proposals file by `sourceKey`
+ *    against windows measured in days or months, so the next tick does the
+ *    work that this one didn't.
+ *  - `retention-automations` — a DELAY of 24 hours for the month-keyed and
+ *    week-keyed automations (reactivation, benefits, welcome), but a SKIP for
+ *    the birthday campaign: its key is `birthday:<org>:<YYYY-MM-DD>`, so
+ *    tomorrow's key is a different day and yesterday's birthday patients no
+ *    longer match the audience. That campaign is not sent late; it is not sent.
+ *  - `daily-digest` — a SKIP, for the same reason: `daily_digest_log.sentOn`
+ *    is today's date, so a deferred clinic gets no digest that morning at all
+ *    rather than a late one.
+ *
+ * The rotation is what makes the skips acceptable: it turns "the tail misses
+ * EVERY night" into "every clinic misses OCCASIONALLY", which is a fair
+ * schedule rather than a silent cliff. It does not turn a skip into a delay.
+ * So if `retention-automations` (daily, and the tightest budget of the three)
+ * ever genuinely runs out of time, the answer is a bigger budget or a split
+ * route — never a shrug at `completed: false`.
  */
 
 /** A wall-clock deadline for one sweep. */

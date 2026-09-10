@@ -1340,6 +1340,22 @@ Every clinic is now reached within `ceil(N / clinics-per-run)` runs however big
 N gets, and the cron JSON says `sweep: { swept, remaining, completed, resumeAt }`
 so an overrun is visible instead of silent.
 
+**What an overrun costs a deferred clinic is NOT the same for all three**, and
+`completed: false` must not be read as uniformly benign (Sentinel's note on the
+review):
+
+| Job | Tick | A deferred clinic gets |
+|---|---|---|
+| `generate-proposals` | hourly | a **delay** of an hour — `sourceKey` windows are days or months |
+| `retention-automations` | daily | a **delay** of a day for the month/week-keyed automations, but a **SKIP** for the birthday campaign — its key is `birthday:<org>:<YYYY-MM-DD>`, so tomorrow's key is a different day and yesterday's birthday patients no longer match |
+| `daily-digest` | daily | a **SKIP** — `daily_digest_log.sentOn` is today's date, so there is no late digest, only no digest |
+
+The rotation is what makes the skips acceptable: it turns "the tail misses
+EVERY night" into "every clinic misses OCCASIONALLY". It does not turn a skip
+into a delay. If `retention-automations` — daily, and the tightest budget of
+the three — ever genuinely runs out of time, the answer is a bigger budget or a
+split route, not a shrug at `completed: false`.
+
 Red run: reintroduced each of the five decisions in turn (no budget; no resume;
 truncate instead of rotate; no per-clinic isolation; no minimum of one) and
 watched 7 / 3 / 6 / 2 / 6 tests fail respectively.
