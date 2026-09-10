@@ -126,7 +126,7 @@ Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
 sign-here). Add new journeys on their own rows, and make the seed reset any
 state a journey consumes.
 
-## Two traps these specs already fell into (DREAMCRM-10)
+## Traps these specs already fell into (DREAMCRM-10)
 
 **A retry cannot fix a test that consumes its fixture.** The harness seeds once
 per RUN, not once per attempt. `portal-reschedule` cancels a visit and
@@ -145,3 +145,25 @@ an assertion that the card disappeared is exactly as flaky as an assertion that
 the confirmation is showing. The cancel spec flaked both ways before it settled
 on accepting either and letting a reload assert the durable truth. Assert what is
 unconditionally true — usually the state after a fresh load.
+
+**A "durable" assertion that would also pass if nothing happened is not one.**
+The reschedule spec closed with "after a reload, a Consultation card exists and
+needs confirming" — but the SEEDED consultation is unconfirmed too, so that held
+whether or not the move ever ran. The only thing actually proving the journey was
+the in-card success notice, i.e. the raciest line in the test. It now asserts the
+seeded appointment id is gone from the page and the surviving card carries the
+time the patient picked. When you write the durable half, ask what it would do if
+the button did nothing.
+
+**A fixture pinned in UTC against a window bounded in clinic time goes red on
+the clock.** `staff-day`'s past visit was seeded one UTC day back while the
+`past_30d` chip ends at the clinic-local day start (`America/New_York`), so for
+the four hours after UTC midnight the visit was in the past but outside the
+window — deterministic nightly red that looked intermittent because nobody
+opened a PR at 1 AM. It is `CLAUDE.md`'s timezone rule seen from the fixture
+side: product code obeys clinic-local day boundaries, so fixtures must clear
+those boundaries at every hour, not just the hour you ran it.
+`tests/guards/e2e-past-visit-window.test.ts` pins this in the normal vitest
+suite — it reads the offset out of the seed and the window definition out of
+`lib/services/appointments.ts`, so tidying either one fails before merge instead
+of at 1 AM.
