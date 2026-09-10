@@ -32,6 +32,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { declaredFieldOf, sqlTemplates } from '../helpers/sql-templates'
 
 const state = {
   queue: [] as Array<Record<string, unknown>[]>,
@@ -250,11 +251,20 @@ describe('the windowed readers compare aggregate instants against JS-built bound
 
 describe('each aggregate names its mapper column at the source', () => {
   // The repo-wide guard (tests/guards/timestamp-aggregate-mapping.test.ts) asks
-  // only whether SOME `.mapWith` follows. Which column it names is a per-site
+  // only whether SOME `.mapWith` follows. WHICH column it names is a per-site
   // choice — `least()` mixes two of them — so it is pinned here, where the
-  // reason lives. Counted rather than hard-coded: a new aggregate for an
-  // existing field has to arrive mapped or this fails.
+  // reason lives.
+  //
+  // This walks the same `sqlTemplates()` the guard does rather than matching a
+  // regex across the source. The first version did the latter, with a lazy
+  // `[\s\S]*?` between the opening and closing backtick, and Sentinel showed
+  // on PR #509 that the span is unbounded: delete `countSeatedBetween`'s
+  // `.mapWith` and the match starting there ran on to the NEXT aggregate's
+  // closing backtick, found ITS `.mapWith(startTime)`, and the pin stayed green
+  // while the guard and the boundary test went red. A template's end is one
+  // question with one answer, so both files now ask the helper.
   const src = readFileSync(resolve(__dirname, '../../lib/services/patient-journey.ts'), 'utf8')
+  const templates = sqlTemplates(src)
 
   const EXPECTED: Array<{ field: string; column: string }> = [
     { field: 'firstBookedAt', column: 'createdAt' },
@@ -265,19 +275,32 @@ describe('each aggregate names its mapper column at the source', () => {
 
   for (const { field, column } of EXPECTED) {
     it(`${field} maps with appointment.${column}`, () => {
-      // `${field}: sql` and not `${field}: sql\`` on purpose: the shape being
-      // ruled out is `sql<Date | null>\`…\`` with no .mapWith, and a pattern
-      // that required the backtick would stop COUNTING the site the moment it
-      // regressed — declared and mapped would both drop to one and agree.
-      const declared = src.match(new RegExp(`${field}: sql`, 'g'))?.length ?? 0
-      expect(declared, `${field} is declared as an aggregate somewhere`).toBeGreaterThan(0)
-      const mapped =
-        src.match(
-          new RegExp(`${field}: sql\`[\\s\\S]*?\`\\s*\\.mapWith\\(schema\\.appointment\\.${column}\\)`, 'g'),
-        )?.length ?? 0
-      expect(mapped, `every ${field} aggregate maps with appointment.${column}`).toBe(declared)
+      const sites = templates.filter((t) => declaredFieldOf(src, t) === field)
+      expect(sites.length, `${field} is declared as an aggregate somewhere`).toBeGreaterThan(0)
+      // Every site, not a count that two sites can satisfy between them.
+      expect(
+        sites.map((t) => t.mapWithArg),
+        `every ${field} aggregate maps with appointment.${column}`,
+      ).toEqual(sites.map(() => `schema.appointment.${column}`))
     })
   }
+
+  it('all ten aggregates are accounted for — the floor the per-field pins rest on', () => {
+    // If `declaredFieldOf` ever stopped resolving, every filter above would
+    // return an empty list and only its `length > 0` guard would stand between
+    // that and four vacuously green tests. Ten is the count DREAMCRM-13 fixed:
+    // four in getJourneyForPatients, four in getJourneyFunnel, two in
+    // countSeatedBetween.
+    const fields = EXPECTED.map((e) => e.field)
+    const aggregates = templates.filter((t) => fields.includes(declaredFieldOf(src, t) ?? ''))
+    expect(aggregates).toHaveLength(10)
+    // Deliberately NOT asserting anything about the templates declaredFieldOf
+    // returns null for. Most are the module's `const NOT_IMPORTED = sql`…``
+    // predicates, but PROSE lands there too — the module's own doc comment
+    // explains the fix with the words ``sql`min(...)`.mapWith(column)`` in it,
+    // which the walker reads as a mapped template, correctly and uselessly.
+    // Only the ten declarations above are claims about running code.
+  })
 
   it('no aggregate is left annotated as a bare sql<Date> — the shape that carried the bug', () => {
     expect(src).not.toMatch(/sql<Date/)

@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join, sep } from 'node:path'
 import { max, min, sql } from 'drizzle-orm'
 import * as schema from '@/lib/db/schema'
+import { sqlTemplates } from '../helpers/sql-templates'
 
 /**
  * AN AGGREGATE OVER A TIMESTAMP COLUMN KEEPS THAT COLUMN'S DRIVER MAPPER.
@@ -192,31 +193,16 @@ function aggregateInterpolations(template: string): string[] {
   return out
 }
 
-/**
- * Every `sql` tagged template in a file, plus whether `.mapWith` follows it.
- *
- * Hand-written rather than regexed as a whole, because these templates nest:
- * `${}` can hold parens and the body can span lines. A regex for the closing
- * backtick is how the first version ended up only matching one-liners.
+/*
+ * `sqlTemplates()` used to live here. It now lives in
+ * `tests/helpers/sql-templates.ts`, because the per-site pin in
+ * `tests/journey/journey-timestamp-mapping.test.ts` needs the same answer to
+ * "where does this template end?" and its own attempt at it was wrong — an
+ * unbounded lazy span that ran past its template onto the next one's
+ * `.mapWith`. Same walker, same `mapped` rule; the helper additionally reports
+ * each template's span and the argument of the `.mapWith` that follows.
  */
-function sqlTemplates(src: string): Array<{ body: string; mapped: boolean }> {
-  const out: Array<{ body: string; mapped: boolean }> = []
-  const tag = /\bsql\s*(?:<[^`]*?>)?\s*`/g
-  for (let m = tag.exec(src); m; m = tag.exec(src)) {
-    let i = m.index + m[0].length
-    let depth = 0
-    for (; i < src.length; i++) {
-      const c = src[i]
-      if (c === '\\') { i++; continue }
-      if (c === '$' && src[i + 1] === '{') { depth++; i++; continue }
-      if (c === '}' && depth > 0) { depth--; continue }
-      if (c === '`' && depth === 0) break
-    }
-    out.push({ body: src.slice(m.index, i), mapped: /^\s*\.mapWith\s*\(/.test(src.slice(i + 1)) })
-    tag.lastIndex = i + 1
-  }
-  return out
-}
+
 
 /**
  * Everything the scan considers, before the allowlist is applied.
