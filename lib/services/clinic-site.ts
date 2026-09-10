@@ -134,48 +134,95 @@ export const getClinicOrgIdBySlug = cache(async (slug: string): Promise<string |
  * request. Returns all-null for a non-clinic / unknown slug so the layout can
  * fall back to the neutral default.
  */
-export const getClinicThemeBySlug = cache(
-  async (
-    slug: string,
-  ): Promise<{
-    orgId: string | null
-    brand: string | null
-    template: string | null
-    /** True when THIS viewer is a verified editor with staged (unpublished)
-     *  edits — the layout mounts the "you're seeing your draft" banner. */
-    hasEditorDraft: boolean
-  }> => {
-    const [row] = await db
-      .select({
-        id: organization.id,
-        type: organization.type,
-        brand: clinicProfile.brandColor,
-        template: clinicProfile.template,
-        websiteDraft: clinicProfile.websiteDraft,
-      })
-      .from(organization)
-      .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
-      .where(eq(organization.slug, slug))
-      .limit(1)
-    if (!row || row.type !== 'clinic') {
-      return { orgId: null, brand: null, template: null, hasEditorDraft: false }
+export interface ClinicTheme {
+  orgId: string | null
+  brand: string | null
+  template: string | null
+  /** True when THIS viewer is a verified editor with staged (unpublished)
+   *  edits — the layout mounts the "you're seeing your draft" banner. */
+  hasEditorDraft: boolean
+}
+
+/**
+ * The PUBLISHED palette + template. No session is read here.
+ *
+ * The sibling of `loadPublishedSite`, and split for the same reason: the theme
+ * loader carried the identical Draft→Publish overlay, and it runs on EVERY
+ * public clinic page (`app/site/[slug]/layout.tsx`) and decides which template
+ * renders the site (`lib/site-templates/resolve.ts`). Caching it as it stood
+ * would have put a clinic's unpublished brand colour and design on their live
+ * public site — quieter than leaking page copy, and just as public.
+ *
+ * `hasEditorDraft` is deliberately NOT part of this return. It means "this
+ * viewer is an editor with staged edits", which is a fact about the viewer
+ * rather than about the clinic, so it cannot exist on the published side at
+ * all. `websiteDraft` rides along because the overlay above needs it; stripping
+ * it belongs with the durable cache, where it is one change across both
+ * loaders rather than two.
+ */
+async function loadPublishedTheme(slug: string): Promise<{
+  /** Non-null by construction — a null return means "no clinic for this slug".
+   *  Typed narrowly so the orgId handed to `canEditClinic` below needs no
+   *  non-null assertion: an authorization argument is the last place to put
+   *  one. */
+  orgId: string
+  brand: string | null
+  template: string | null
+  websiteDraft: unknown
+} | null> {
+  const [row] = await db
+    .select({
+      id: organization.id,
+      type: organization.type,
+      brand: clinicProfile.brandColor,
+      template: clinicProfile.template,
+      websiteDraft: clinicProfile.websiteDraft,
+    })
+    .from(organization)
+    .leftJoin(clinicProfile, eq(clinicProfile.organizationId, organization.id))
+    .where(eq(organization.slug, slug))
+    .limit(1)
+
+  if (!row || row.type !== 'clinic') return null
+
+  return {
+    orgId: row.id,
+    brand: row.brand ?? null,
+    template: row.template ?? null,
+    websiteDraft: row.websiteDraft,
+  }
+}
+
+export const getClinicThemeBySlug = cache(async (slug: string): Promise<ClinicTheme> => {
+  const published = await loadPublishedTheme(slug)
+  if (!published) return { orgId: null, brand: null, template: null, hasEditorDraft: false }
+
+  // Draft→Publish overlay for the palette + template — same gate as loadSite's
+  // content overlay, so a staged brand color / design shows for the editor
+  // (and only the editor) on every page. Applied OUTSIDE the published read,
+  // so the half that can be cached never contains one viewer's answer.
+  const draftKeys = websiteDraftKeys(published.websiteDraft)
+  if (draftKeys.length === 0 || !(await canEditClinic(published.orgId))) {
+    return {
+      orgId: published.orgId,
+      brand: published.brand,
+      template: published.template,
+      hasEditorDraft: false,
     }
-    let brand = row.brand ?? null
-    let template = row.template ?? null
-    let hasEditorDraft = false
-    // Draft→Publish overlay for the palette + template — same gate as
-    // loadSite's content overlay, so a staged brand color / design shows for
-    // the editor (and only the editor) on every page.
-    const draftKeys = websiteDraftKeys(row.websiteDraft)
-    if (draftKeys.length > 0 && (await canEditClinic(row.id))) {
-      hasEditorDraft = true
-      const draft = row.websiteDraft as Record<string, unknown>
-      if (draftKeys.includes('brandColor')) brand = (draft.brandColor as string | null) ?? null
-      if (draftKeys.includes('template')) template = (draft.template as string | null) ?? null
-    }
-    return { orgId: row.id, brand, template, hasEditorDraft }
-  },
-)
+  }
+
+  const draft = published.websiteDraft as Record<string, unknown>
+  return {
+    orgId: published.orgId,
+    brand: draftKeys.includes('brandColor')
+      ? ((draft.brandColor as string | null) ?? null)
+      : published.brand,
+    template: draftKeys.includes('template')
+      ? ((draft.template as string | null) ?? null)
+      : published.template,
+    hasEditorDraft: true,
+  }
+})
 
 /**
  * The full public-site payload for a slug, deduped WITHIN a request.
@@ -370,10 +417,17 @@ async function loadPublishedSite(
  * the session on every request, so a visitor can never see a draft; and the
  * session lookup is only paid when a draft actually exists.
  *
- * The merge returns a NEW profile object rather than mutating the one
- * `loadPublishedSite` returned — required today because `getClinicSiteBySlug`
- * memoizes per request and every caller shares that object, and required
- * doubly once the published read is cached across requests.
+ * NOBODY MAY MUTATE THE RETURNED PAYLOAD — not the merged one, and not the
+ * published one. An earlier version of this note said only that the merge
+ * returns a new profile rather than mutating, which is true and misses the
+ * path that matters: with no draft, `loadSite` returns `published` UNCHANGED,
+ * and that is what essentially all traffic gets. So the object callers hold is
+ * usually the one `loadPublishedSite` built — the very object a durable cache
+ * would hand to the next request. An in-place `sort()` on `.locations` is a
+ * private mistake today and a cross-request corruption tomorrow.
+ *
+ * Slice 2 freezes the published payload so that becomes a throw in dev rather
+ * than documentation nobody reads.
  */
 async function loadSite(orgId: string, slug: string, orgName: string): Promise<ClinicSiteData | null> {
   const published = await loadPublishedSite(orgId, slug, orgName)
