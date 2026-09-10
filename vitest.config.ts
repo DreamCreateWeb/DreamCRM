@@ -8,6 +8,13 @@ import { fileURLToPath } from 'url'
 // Set here (before any Date use) so vitest workers inherit it on every OS.
 process.env.TZ = 'UTC'
 
+// Attachment URLs are host-allowlisted against the storage env the blob driver
+// reads (lib/attachment-hosts.ts). Pin the prod-shaped values so fixtures use a
+// realistic upload host instead of a placeholder the gate would (correctly)
+// drop. Tests that exercise the gate itself set these themselves.
+process.env.S3_BUCKET ??= 'dreamcrm-uploads-test'
+process.env.S3_REGION ??= 'us-east-1'
+
 export default defineConfig({
   plugins: [react()],
   resolve: {

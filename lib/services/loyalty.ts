@@ -43,8 +43,17 @@ export async function updateLoyaltySettings(
 
 // ── Balance + history ────────────────────────────────────────────────────────
 
-export async function getPointsBalance(organizationId: string, patientId: string): Promise<number> {
-  const [row] = await db
+/** The executor a query runs on: the pool, or an open transaction. */
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+export async function getPointsBalance(
+  organizationId: string,
+  patientId: string,
+  /** Pass the transaction handle when the balance must be read under the same
+   *  lock that will spend it (see `redeemLoyaltyPoints`). */
+  executor: Executor = db,
+): Promise<number> {
+  const [row] = await executor
     .select({ total: sql<number>`coalesce(sum(${schema.loyaltyEvent.points}), 0)::int` })
     .from(schema.loyaltyEvent)
     .where(
@@ -239,8 +248,25 @@ export type RedeemResult =
   | { ok: true; couponCode: string; valueCents: number; newBalance: number }
   | { ok: false; error: string }
 
-/** Redeem points for a single-use, patient-bound shop coupon. Called from the
- *  portal (the patient) or the patient record (staff on their behalf). */
+/**
+ * Redeem points for a single-use, patient-bound shop coupon. Called from the
+ * portal (the patient) or the patient record (staff on their behalf).
+ *
+ * CONCURRENCY: reading the balance and spending it must be one atomic step.
+ * Without that, a patient with exactly one reward's worth of points who
+ * double-taps "Redeem" (or opens the portal on their phone and laptop at once)
+ * gets TWO coupons off ONE balance, driving the ledger negative and handing out
+ * money the clinic never agreed to. Both requests read the same balance before
+ * either writes its negative row.
+ *
+ * The fix is the same advisory-lock-then-check idiom the booking path uses for
+ * slot double-booking (`insertAppointmentIfBookable`): one transaction, a
+ * per-patient `pg_advisory_xact_lock`, and the balance re-read INSIDE it. The
+ * second request blocks until the first commits, then sees the spent balance
+ * and is turned away. The coupon mint moved inside the transaction too, so a
+ * failed mint rolls the ledger row back with the transaction instead of via a
+ * compensating delete that could itself fail and burn the points.
+ */
 export async function redeemLoyaltyPoints(
   organizationId: string,
   patientId: string,
@@ -248,48 +274,54 @@ export async function redeemLoyaltyPoints(
   const settings = await getLoyaltySettings(organizationId)
   if (!settings.enabled) return { ok: false, error: 'The rewards program isn’t active right now.' }
 
-  const balance = await getPointsBalance(organizationId, patientId)
-  if (balance < settings.redeemPoints) {
-    return { ok: false, error: `You need ${settings.redeemPoints} points to redeem — you have ${balance}.` }
-  }
-
-  // Write the NEGATIVE ledger row first (its unique event id is the coupon's
-  // anchor); if the coupon insert then fails, remove the row again so points
-  // are never burned without a coupon in hand.
-  const eventId = newId('loy')
-  const code = `REWARD-${newId('x').slice(-6).toUpperCase()}`
-  await db.insert(schema.loyaltyEvent).values({
-    id: eventId,
-    organizationId,
-    patientId,
-    kind: 'redeem',
-    points: -settings.redeemPoints,
-    sourceId: eventId,
-    note: `Redeemed for ${fmtDollars(settings.redeemValueCents)} off in the shop (${code})`,
-  })
+  const lockText = `loyalty:${organizationId}:${patientId}`
   try {
-    await db.insert(schema.shopCoupon).values({
-      id: newId('coupon'),
-      organizationId,
-      code,
-      discountType: 'amount',
-      discountValue: settings.redeemValueCents,
-      patientId,
-      source: 'loyalty',
-      singleUse: 1,
-      expiresAt: new Date(Date.now() + 365 * DAY_MS),
+    return await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockText}))`)
+
+      // Re-read under the lock — this is the value that gets spent.
+      const balance = await getPointsBalance(organizationId, patientId, tx)
+      if (balance < settings.redeemPoints) {
+        return {
+          ok: false as const,
+          error: `You need ${settings.redeemPoints} points to redeem — you have ${balance}.`,
+        }
+      }
+
+      const eventId = newId('loy')
+      const code = `REWARD-${newId('x').slice(-6).toUpperCase()}`
+      await tx.insert(schema.loyaltyEvent).values({
+        id: eventId,
+        organizationId,
+        patientId,
+        kind: 'redeem',
+        points: -settings.redeemPoints,
+        sourceId: eventId,
+        note: `Redeemed for ${fmtDollars(settings.redeemValueCents)} off in the shop (${code})`,
+      })
+      await tx.insert(schema.shopCoupon).values({
+        id: newId('coupon'),
+        organizationId,
+        code,
+        discountType: 'amount',
+        discountValue: settings.redeemValueCents,
+        patientId,
+        source: 'loyalty',
+        singleUse: 1,
+        expiresAt: new Date(Date.now() + 365 * DAY_MS),
+      })
+
+      return {
+        ok: true as const,
+        couponCode: code,
+        valueCents: settings.redeemValueCents,
+        newBalance: balance - settings.redeemPoints,
+      }
     })
   } catch (err) {
-    await db.delete(schema.loyaltyEvent).where(eq(schema.loyaltyEvent.id, eventId))
-    console.warn('[loyalty] coupon mint failed; redemption rolled back', err)
+    // Nothing was committed — the points are still on the card.
+    console.warn('[loyalty] redemption failed; nothing was spent', err)
     return { ok: false, error: 'Could not create your reward code — please try again.' }
-  }
-
-  return {
-    ok: true,
-    couponCode: code,
-    valueCents: settings.redeemValueCents,
-    newBalance: balance - settings.redeemPoints,
   }
 }
 

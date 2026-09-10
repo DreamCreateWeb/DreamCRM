@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { runDiscovery } from '@/lib/services/prospect-discovery'
 
 export const runtime = 'nodejs'
@@ -13,11 +14,8 @@ export const maxDuration = 300
  * `{ ok, tasksWorked, found, imported, split, errors }`.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await runDiscovery()
     return NextResponse.json({ ok: true, ...result })

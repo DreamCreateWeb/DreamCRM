@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { runOutreach, runAutoEnroll } from '@/lib/services/prospect-outreach'
 import {
   processInboundForOutreach,
@@ -19,11 +20,8 @@ export const maxDuration = 300
  * `{ ok, scanned, sent, dryRun, windowSkipped, guardSkipped, completed, errors }`.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     // Intent first (a reply that arrived overnight must stop today's touch),
     // then engagement rollup, then the hunter auto-enrolls fresh prospects,

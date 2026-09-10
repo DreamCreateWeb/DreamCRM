@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { sendDueScheduledCampaigns, requeueStuckCampaigns } from '@/lib/services/marketing-scheduled'
 import { sendDueScheduledMessages, requeueStuckScheduledMessages } from '@/lib/services/scheduled-messages'
 
@@ -24,11 +25,8 @@ export const maxDuration = 120
  * Returns `{ ok, due, claimed, skipped, failed, results, errors, messages }`.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     // Re-arm any rows stuck mid-send from a prior crashed run, then flush.
     // Campaigns need this as much as messages: the claim flips a campaign

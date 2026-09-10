@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { syncAllGoogleReviews } from '@/lib/services/google-reviews'
 import { syncAllFacebookReviews } from '@/lib/services/facebook-reviews'
 
@@ -24,11 +25,8 @@ export const maxDuration = 120
  * errors }`).
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     // Run both sweeps; each is internally best-effort, so a settled pair is fine.
     const [google, facebook] = await Promise.all([syncAllGoogleReviews(), syncAllFacebookReviews()])
