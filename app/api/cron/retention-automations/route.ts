@@ -22,6 +22,13 @@ export const maxDuration = 120
  * Triggered by EventBridge; guarded by CRON_SECRET (same pattern as the other
  * crons). Returns `{ ok, scanned, created, alreadyCreated, emptyAudience, ... }`.
  */
+/**
+ * The per-clinic walk inside is BUDGETED and RESUMABLE (lib/cron-budget.ts):
+ * it stops before this route's maxDuration does and the next tick picks up
+ * after the last clinic served. `sweep.completed: false` in the response means
+ * the tick ran out of time, not that anything failed — read `sweep.remaining`
+ * for how many are waiting.
+ */
 async function run(request: Request) {
   const denied = requireCronAuth(request)
   if (denied) return denied
