@@ -1328,7 +1328,7 @@ function ProposalCard({
           </a>
         )}
         {!isSetup && (
-          <ActionButton variant="ghost" onClick={() => setEditing((v) => !v)} pending={pending}>
+          <ActionButton variant="ghost" onClick={() => setEditing((v) => !v)} disabled={pending}>
             {editing ? 'Done editing' : 'Edit first'}
           </ActionButton>
         )}
