@@ -640,7 +640,28 @@ three cheap high-value classes (fixed) plus loop-hardening (R2).
   to `paid`). Repro: make `stripe.checkout.sessions.create` throw a
   `StripeConnectionError` for a portal balance payment, then load
   `/patient/invoices`. Found by Sentinel reviewing the DREAMCRM-16 fix;
-  deliberately not folded into that money PR. · OPEN.
+  deliberately not folded into that money PR. · **FIXED** (DREAMCRM-20 under
+  DREAMCRM-23) — `createBalancePaymentSession` wraps everything from the
+  Stripe call to the return, and `discardUnstartedBalancePayment` deletes the
+  row scoped to (org, this exact id, `status='pending'`), best-effort, never
+  masking the original Stripe error. Decided at the DREAMCRM-22 planning
+  meeting: DELETE rather than a terminal `failed` status, so all three money
+  paths share one rule — a row every future query must remember to exclude is
+  how this bug happened.
+  Deliberately NARROWER than `discardUnstartedOrder`: no
+  `stripe_checkout_session_id IS NULL` predicate. Nothing is keyed off a
+  balance-payment row the way a coupon reservation is keyed off an order, and
+  leaving it out closes the `!session.url` case (see the next line).
+- S3 · `discardUnstartedOrder` (`lib/services/shop-checkout.ts`) cannot clean
+  up its OWN `!session.url` path. That throw fires one line after the id-stamp
+  UPDATE, so `stripe_checkout_session_id` is set and the cleanup's
+  `IS NULL` predicate matches nothing — the phantom 'pending' order survives
+  in the clinic's Orders list. Repro: make `sessions.create` return a session
+  with `url: null`, start a shop checkout, look at /shop/orders. Narrow (the
+  hosted session always carries a URL in practice; this is the defensive
+  branch), and the predicate is load-bearing for the coupon release's
+  "was it deleted or never written" question, so the fix needs that reasoning
+  re-earned rather than the predicate simply dropped. · OPEN.
 - S2 · `send-reminders` has no per-ORG try around the candidate/priorLogs
   queries, so one org's query throw 500s the route and silences the tick for
   everyone (near-S1); and its idempotency is a read-before-send with the log
