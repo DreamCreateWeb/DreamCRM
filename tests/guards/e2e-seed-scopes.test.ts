@@ -64,6 +64,7 @@ const FN_FOR_SCOPE: Record<string, string> = {
   'staff-day': 'seedStaffDay',
   'portal-reschedule': 'seedPortalReschedule',
   'sign-here': 'seedSignHere',
+  'go-live': 'seedGoLive',
 }
 
 /** `SCOPE_ROWS` is a literal, so reading it by a runtime scope name needs a widened view. */
