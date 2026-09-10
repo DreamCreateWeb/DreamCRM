@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readDemoSeederSource } from '../fixtures/demo-seeder-source'
 
 /**
  * Coverage for the legacy first-party "reviews → public-site testimonials"
@@ -111,9 +112,7 @@ describe('demo review distribution', () => {
   it('demo seeds at least 5 completed review_requests across multiple platforms', async () => {
     // We grep the source rather than running the seeder; the file is a
     // pure-config block.
-    const src = await import('node:fs').then((fs) =>
-      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
-    )
+    const src = readDemoSeederSource()
     const completedLines = src
       .split('\n')
       .filter((l) => l.includes("status: 'completed'") && l.includes('selectedSite'))
@@ -129,9 +128,7 @@ describe('demo review distribution', () => {
   })
 
   it('demo seeds at least 4 patient-linked testimonials (legacy "Featured" state)', async () => {
-    const src = await import('node:fs').then((fs) =>
-      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
-    )
+    const src = readDemoSeederSource()
     // DEMO_FEATURED_PATIENT_IDXS is the source of truth for which patient
     // reviews are pre-promoted onto the public site.
     const block = src.match(/DEMO_FEATURED_PATIENT_IDXS[^=]*=\s*\[([^\]]+)\]/)?.[1] ?? ''
@@ -143,9 +140,7 @@ describe('demo review distribution', () => {
     // The DEMO_REVIEW_TEXTS map keys every patientIdx whose review_request
     // is seeded as `status='completed'`. Without this, the legacy patient-
     // linked testimonials would build with an empty quote.
-    const src = await import('node:fs').then((fs) =>
-      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
-    )
+    const src = readDemoSeederSource()
     const reviewTextsBlock = src.match(/DEMO_REVIEW_TEXTS[^=]*=\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
     const keys = Array.from(reviewTextsBlock.matchAll(/^\s*(\d+):/gm)).map((m) => Number(m[1]))
     const completedIdxs = Array.from(
@@ -159,9 +154,7 @@ describe('demo review distribution', () => {
   })
 
   it('leaves at least 2 completed reviews unfeatured (legacy first-party rows)', async () => {
-    const src = await import('node:fs').then((fs) =>
-      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
-    )
+    const src = readDemoSeederSource()
     const completedIdxs = new Set<number>()
     const reviewBlock = src.match(/const REVIEW_SEEDS[^=]*=\s*\[([\s\S]*?)\n  \]/)?.[1] ?? ''
     for (const m of Array.from(reviewBlock.matchAll(/patientIdx:\s*(\d+),\s*status:\s*'completed'/g))) {
@@ -174,9 +167,7 @@ describe('demo review distribution', () => {
   })
 
   it('no longer seeds a free-text (unlinked) testimonial — Reviews is the only system', async () => {
-    const src = await import('node:fs').then((fs) =>
-      fs.promises.readFile('lib/services/demo-clinic.ts', 'utf8'),
-    )
+    const src = readDemoSeederSource()
     expect(src).not.toMatch(/DEMO_FREE_TEXT_TESTIMONIAL/)
   })
 })

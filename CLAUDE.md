@@ -203,7 +203,8 @@ lib/
                      requireTenant/requireRole/requirePartner)
   services/          ~190 server-only modules (import 'server-only') — one per
                      entity/subsystem (incl. pms/ — the PMS provider layer);
-                     demo-clinic.ts is the demo seeder
+                     demo-clinic/ is the demo seeder (createDemoClinic in
+                     index.ts; one sibling module per thing it seeds)
   modules/           Sidebar registries per tenant type (clinic/platform/patient/
                      partner) — ModuleDef w/ roles + requiresBundle +
                      pinned/shortcut gating
@@ -298,7 +299,7 @@ in `lib/services/booking.ts`.
 ## Demo-org data rules (critical — real patients exist in the demo org)
 
 The demo org contains REAL patients (the owner tests booking/portal flows).
-`lib/services/demo-clinic.ts` therefore anchors every seeded artifact to the
+`lib/services/demo-clinic/` therefore anchors every seeded artifact to the
 15 seeded personas **by identity** — their deterministic
 `first.last@example.com` emails via `getPersonaAlignedPatientIds` — never by
 positional index or arbitrary query. Persona missing → skip the seed (never

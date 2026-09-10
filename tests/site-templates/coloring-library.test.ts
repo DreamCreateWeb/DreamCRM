@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readDemoSeederSource } from '../fixtures/demo-seeder-source'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { COLORING_LIBRARY, coloringLibraryUrl } from '@/lib/types/coloring-library'
@@ -72,7 +73,7 @@ describe('coloring library SVGs are sanitized (served from clinic origins)', () 
 
 describe('demo clinic coloring seed', () => {
   it('every seeded slug exists in the library (seed source-scan)', () => {
-    const seeder = readFileSync(resolve(__dirname, '../..', 'lib/services/demo-clinic.ts'), 'utf8')
+    const seeder = readDemoSeederSource()
     const block = seeder.match(/const DEMO_COLORING_PAGES = \[([\s\S]*?)\]\.map/)
     expect(block, 'DEMO_COLORING_PAGES missing from the seeder').toBeTruthy()
     const slugs = Array.from(block![1].matchAll(/'([a-z0-9-]+)'/g)).map((m) => m[1])
