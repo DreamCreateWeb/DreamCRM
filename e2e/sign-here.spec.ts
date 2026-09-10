@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { restoresSeedScope } from './reseed'
 import { createHmac } from 'node:crypto'
 
 /**
@@ -24,6 +25,12 @@ function signedSessionCookie(): string {
   const sig = createHmac('sha256', secret).update(SESSION_TOKEN).digest('base64')
   return encodeURIComponent(`${SESSION_TOKEN}.${sig}`)
 }
+
+// This spec CONSUMES its seeded rows, so restore them before every attempt
+// (DREAMCRM-19). Without this a Playwright retry starts with the fixture
+// already spent and dies on its first assertion, burying the real failure.
+// 'sign-here' is the scope THIS file owns — see scripts/e2e-seed.mjs.
+restoresSeedScope('sign-here')
 
 test.describe('the sign-here stack', () => {
   test.beforeEach(async ({ context }) => {
