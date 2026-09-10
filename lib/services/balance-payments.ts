@@ -105,46 +105,99 @@ export async function createBalancePaymentSession(input: {
   })
 
   const currency = cfg.currency || 'usd'
-  const session = await stripe.checkout.sessions.create(
-    {
-      mode: 'payment',
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency,
-            unit_amount: input.amountCents,
-            product_data: { name: `Account balance payment — ${input.clinicName}` },
+  // Everything from here to the return is inside the rollback's guarantee:
+  // any throw means no URL reached the patient, so the row we just wrote is
+  // a payment that can never happen. See discardUnstartedBalancePayment.
+  try {
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency,
+              unit_amount: input.amountCents,
+              product_data: { name: `Account balance payment — ${input.clinicName}` },
+            },
           },
-        },
-      ],
-      ...(input.patientEmail ? { customer_email: input.patientEmail } : {}),
-      success_url: input.returnUrl
-        ? `${input.returnUrl}?session_id={CHECKOUT_SESSION_ID}`
-        : `${input.baseUrl}/patient/invoices?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: input.returnUrl || `${input.baseUrl}/patient/invoices`,
-      metadata: { kind: 'balance_payment', paymentId, organizationId: input.organizationId },
-      payment_intent_data: {
+        ],
+        ...(input.patientEmail ? { customer_email: input.patientEmail } : {}),
+        success_url: input.returnUrl
+          ? `${input.returnUrl}?session_id={CHECKOUT_SESSION_ID}`
+          : `${input.baseUrl}/patient/invoices?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: input.returnUrl || `${input.baseUrl}/patient/invoices`,
         metadata: { kind: 'balance_payment', paymentId, organizationId: input.organizationId },
-        // 1% platform fee (shop_config.platform_fee_bps) — same rule on every
-        // Connect money path.
-        ...(platformFeeCents(input.amountCents, cfg.platformFeeBps) > 0
-          ? { application_fee_amount: platformFeeCents(input.amountCents, cfg.platformFeeBps) }
-          : {}),
-      },
-    } as never,
-    { stripeAccount: cfg.accountId },
-  )
+        payment_intent_data: {
+          metadata: { kind: 'balance_payment', paymentId, organizationId: input.organizationId },
+          // 1% platform fee (shop_config.platform_fee_bps) — same rule on every
+          // Connect money path.
+          ...(platformFeeCents(input.amountCents, cfg.platformFeeBps) > 0
+            ? { application_fee_amount: platformFeeCents(input.amountCents, cfg.platformFeeBps) }
+            : {}),
+        },
+      } as never,
+      { stripeAccount: cfg.accountId },
+    )
 
-  await db
-    .update(schema.patientBalancePayment)
-    .set({ stripeCheckoutSessionId: session.id })
-    .where(eq(schema.patientBalancePayment.id, paymentId))
+    await db
+      .update(schema.patientBalancePayment)
+      .set({ stripeCheckoutSessionId: session.id })
+      .where(eq(schema.patientBalancePayment.id, paymentId))
 
-  // A hosted session always carries a URL; no URL means we cannot send the
-  // patient anywhere. Not a message we wrote for them — the caller maps it.
-  if (!session.url) throw new Error('Stripe returned a checkout session with no URL')
-  return { url: session.url }
+    // A hosted session always carries a URL; no URL means we cannot send the
+    // patient anywhere. Not a message we wrote for them — the caller maps it.
+    if (!session.url) throw new Error('Stripe returned a checkout session with no URL')
+    return { url: session.url }
+  } catch (err) {
+    await discardUnstartedBalancePayment(input.organizationId, paymentId)
+    throw err
+  }
+}
+
+/**
+ * Undo a balance payment that never made it to Stripe.
+ *
+ * WHY IT IS SAFE: not the predicates — THE CALLER THROWS INSTEAD OF
+ * RETURNING, so the checkout URL never reaches the patient and the session
+ * can never be paid. `finalizeBalancePaymentFromSession` will never be called
+ * for it. Anyone widening the catch above (returning a URL on some failure
+ * path) breaks that guarantee and has to re-earn it here.
+ *
+ * The scope is still worth having: `status='pending'` puts a paid row out of
+ * reach entirely, and the org + id pair means this can only ever touch the
+ * row this call wrote.
+ *
+ * DELIBERATELY NARROWER than `discardUnstartedOrder`'s
+ * (`lib/services/shop-checkout.ts`), which also demands
+ * `stripe_checkout_session_id IS NULL`. That extra predicate stops the shop
+ * from cleaning up its own `!session.url` path — the id was stamped one line
+ * earlier, so the delete matches nothing and the phantom order survives.
+ * There is no coupon reservation keyed off this row, so nothing here needs
+ * to distinguish "never written" from "deleted", and the narrower scope
+ * closes that case instead of reproducing it.
+ *
+ * Best-effort: a failed cleanup must never replace the real error (a Stripe
+ * outage, which the patient sees as a written sentence) with a database one.
+ * The worst case is the phantom row we already had.
+ */
+async function discardUnstartedBalancePayment(
+  organizationId: string,
+  paymentId: string,
+): Promise<void> {
+  try {
+    await db
+      .delete(schema.patientBalancePayment)
+      .where(
+        and(
+          eq(schema.patientBalancePayment.organizationId, organizationId),
+          eq(schema.patientBalancePayment.id, paymentId),
+          eq(schema.patientBalancePayment.status, 'pending'),
+        ),
+      )
+  } catch (err) {
+    console.warn('[balance-payments] could not clean up an unstarted payment', { paymentId }, err)
+  }
 }
 
 /**

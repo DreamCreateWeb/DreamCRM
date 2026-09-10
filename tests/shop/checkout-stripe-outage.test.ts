@@ -1,21 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 
 /**
- * Checkout during a Stripe outage — shop + membership.
+ * Checkout during a Stripe outage — shop + membership + portal balance payment.
  *
- * Both paths write the sale into OUR database BEFORE it exists at Stripe: the
- * shop inserts a 'pending' order (and reserves any single-use promo code to
- * it), membership inserts a 'pending' row. When the Stripe call then fails —
- * an outage is exactly this — the half-finished sale used to stay behind:
+ * All three paths write the sale into OUR database BEFORE it exists at Stripe:
+ * the shop inserts a 'pending' order (and reserves any single-use promo code to
+ * it), membership inserts a 'pending' row, the portal balance payment inserts a
+ * 'pending' payment. When the Stripe call then fails — an outage is exactly
+ * this — the half-finished sale used to stay behind:
  *
  *   - a phantom 'pending' order in the clinic's Orders list, looking real;
  *   - the shopper's one-time promo code locked to that dead order for the full
  *     24h COUPON_RESERVATION_TTL_MS, reading "already used" on every retry;
  *   - a pending membership blocking a re-join for PENDING_REJOIN_WINDOW_MS, so
- *     the patient is told "you already have a join in progress" for an hour.
+ *     the patient is told "you already have a join in progress" for an hour;
+ *   - a phantom balance payment in the PATIENT's own portal history
+ *     (`listPortalPayments` hides only 'failed'), so they read a payment they
+ *     never made.
  *
- * These tests drive a real Stripe failure through both services and pin the
- * rollback AND its scope — the scope is the load-bearing half, because a
+ * These tests drive a real Stripe failure through all three services and pin
+ * the rollback AND its scope — the scope is the load-bearing half, because a
  * cleanup that reached one row too far would delete a real sale.
  */
 
@@ -24,9 +28,14 @@ const state = {
   claimResult: [] as unknown[],
   deleteReturn: [] as Array<{ id: string }>,
   deleteCount: 0,
+  deleteWheres: [] as unknown[],
   updateCount: 0,
   stripeFailsWith: null as Error | null,
   insertFailsWith: null as Error | null,
+  /** Stripe answers, but with a session carrying no hosted URL. */
+  stripeReturnsNoUrl: false,
+  /** Make the cleanup DELETE itself blow up. */
+  deleteThrows: null as Error | null,
 }
 
 vi.mock('@/lib/db', () => {
@@ -58,9 +67,15 @@ vi.mock('@/lib/db', () => {
         }),
       }),
       delete: () => ({
-        where: () => {
+        where: (clause: unknown) => {
           state.deleteCount++
-          return { returning: async () => state.deleteReturn }
+          state.deleteWheres.push(clause)
+          if (state.deleteThrows) throw state.deleteThrows
+          const p = Promise.resolve(undefined) as Promise<unknown> & {
+            returning?: () => Promise<unknown>
+          }
+          p.returning = async () => state.deleteReturn
+          return p
         },
       }),
     },
@@ -114,6 +129,7 @@ vi.mock('@/lib/stripe', () => ({
       sessions: {
         create: async () => {
           if (state.stripeFailsWith) throw state.stripeFailsWith
+          if (state.stripeReturnsNoUrl) return { id: 'cs_test_1', url: null }
           return { id: 'cs_test_1', url: 'https://checkout.stripe.test/cs_test_1' }
         },
       },
@@ -130,6 +146,7 @@ vi.mock('@/lib/contact-normalize', () => ({ normalizePhone: () => null, samePhon
 
 import { createShopCheckoutSession } from '@/lib/services/shop-checkout'
 import { createMembershipCheckout } from '@/lib/services/membership'
+import { createBalancePaymentSession } from '@/lib/services/balance-payments'
 import { releaseSingleUseCoupon } from '@/lib/services/coupons'
 
 /** What the Stripe SDK actually throws when it can't reach Stripe. */
@@ -188,9 +205,12 @@ beforeEach(() => {
   state.claimResult = []
   state.deleteReturn = []
   state.deleteCount = 0
+  state.deleteWheres.length = 0
   state.updateCount = 0
   state.stripeFailsWith = null
   state.insertFailsWith = null
+  state.stripeReturnsNoUrl = false
+  state.deleteThrows = null
   eqCalls.length = 0
   isNullCols.length = 0
   sqlFragments.length = 0
@@ -424,6 +444,118 @@ describe('createMembershipCheckout — Stripe outage', () => {
     })
 
     expect(res.url).toBe('https://checkout.stripe.test/cs_test_1')
+    expect(state.deleteCount).toBe(0)
+  })
+})
+
+// ── Portal balance payment (DREAMCRM-20) ─────────────────────────────────────
+
+/** connected account config → the patient's PMS balance row. */
+function balancePaymentSelects(balanceCents: number | null = 20_000) {
+  return [[ACTIVE_CONFIG], [{ pmsBalanceCents: balanceCents }]]
+}
+
+function startBalancePayment() {
+  return createBalancePaymentSession({
+    organizationId: 'org_1',
+    patientId: 'pat_1',
+    amountCents: 5_000,
+    patientEmail: 'a@x.com',
+    clinicName: 'Dream Dental',
+    baseUrl: 'https://x',
+  })
+}
+
+/** Every condition the cleanup DELETE was scoped by, flattened. */
+function deleteConditions(): Array<{ col: unknown; val: unknown }> {
+  const out: Array<{ col: unknown; val: unknown }> = []
+  const walk = (v: unknown) => {
+    if (!v || typeof v !== 'object') return
+    const o = v as Record<string, unknown>
+    if (o._kind === 'eq') out.push({ col: o.col, val: o.val })
+    if (Array.isArray(o.conds)) o.conds.forEach(walk)
+  }
+  state.deleteWheres.forEach(walk)
+  return out
+}
+
+describe('createBalancePaymentSession — Stripe outage', () => {
+  it('THE PHANTOM ROW: deletes the pending payment it had already written', async () => {
+    state.selectQueue.push(...balancePaymentSelects())
+    state.stripeFailsWith = stripeOutage()
+
+    await expect(startBalancePayment()).rejects.toThrow(/connection to Stripe/)
+
+    // Without this the 'pending' row survives, and the portal's history filter
+    // hides only 'failed' — so the patient reads a payment they never made.
+    expect(state.deleteCount).toBe(1)
+  })
+
+  it('scopes that delete to org + this exact payment + pending', async () => {
+    state.selectQueue.push(...balancePaymentSelects())
+    state.stripeFailsWith = stripeOutage()
+
+    await expect(startBalancePayment()).rejects.toThrow()
+
+    const conds = deleteConditions()
+    expect(conds.some((c) => c.col === 'organizationId' && c.val === 'org_1')).toBe(true)
+    expect(conds.some((c) => c.col === 'id' && String(c.val).startsWith('bp_'))).toBe(true)
+    // A paid payment can never match — this only ever removes a row that
+    // never made it to Stripe.
+    expect(conds.some((c) => c.col === 'status' && c.val === 'pending')).toBe(true)
+  })
+
+  it('does NOT also demand a null session id — that is what strands the shop', async () => {
+    // discardUnstartedOrder adds `stripe_checkout_session_id IS NULL`, which
+    // means the shop cannot clean up its own !session.url path (the id was
+    // stamped one line earlier). There is no coupon reservation keyed off a
+    // balance payment, so nothing here needs that predicate — and leaving it
+    // out is what closes the no-URL case below.
+    state.selectQueue.push(...balancePaymentSelects())
+    state.stripeFailsWith = stripeOutage()
+    isNullCols.length = 0
+
+    await expect(startBalancePayment()).rejects.toThrow()
+
+    expect(isNullCols).not.toContain('stripeCheckoutSessionId')
+  })
+
+  it('cleans up when STRIPE ANSWERED but gave us no URL to send the patient to', async () => {
+    // The session exists at Stripe and its id is already stamped on our row —
+    // but nobody can ever reach it, because the URL never left this function.
+    state.selectQueue.push(...balancePaymentSelects())
+    state.stripeReturnsNoUrl = true
+
+    await expect(startBalancePayment()).rejects.toThrow(/no URL/)
+
+    expect(state.deleteCount).toBe(1)
+  })
+
+  it('still surfaces the original Stripe failure when the cleanup itself fails', async () => {
+    state.selectQueue.push(...balancePaymentSelects())
+    state.stripeFailsWith = stripeOutage()
+    state.deleteThrows = new Error('db is gone')
+
+    // The patient must hear about the outage, not about our bookkeeping.
+    await expect(startBalancePayment()).rejects.toThrow(/connection to Stripe/)
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it('leaves the payment alone on a successful start', async () => {
+    state.selectQueue.push(...balancePaymentSelects())
+
+    const res = await startBalancePayment()
+
+    expect(res.url).toBe('https://checkout.stripe.test/cs_test_1')
+    expect(state.deleteCount).toBe(0)
+  })
+
+  it('a refusal BEFORE the row is written deletes nothing', async () => {
+    // Over the patient's balance — CheckoutError is thrown before the insert,
+    // so there is nothing to roll back and the catch must not be reached.
+    state.selectQueue.push(...balancePaymentSelects(1_000))
+
+    await expect(startBalancePayment()).rejects.toThrow(/more than your current balance/)
     expect(state.deleteCount).toBe(0)
   })
 })
