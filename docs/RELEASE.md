@@ -611,7 +611,27 @@ three cheap high-value classes (fixed) plus loop-hardening (R2).
 - S2 · public `site/[slug]/shop` + `membership` checkout actions throw raw
   to the patient on a Stripe outage AND orphan a `pending` row (the
   balance-payment path already wraps correctly) — fix needs the action to
-  return a typed error + the client to surface it. · OPEN.
+  return a typed error + the client to surface it. · **FIXED**
+  (DREAMCRM-16) — `lib/services/checkout-error.ts` splits messages written
+  FOR the patient (`CheckoutError`, passed through) from everything else
+  (logged, replaced with one written sentence); both actions return
+  `CheckoutStart` and both clients branch on it. Rollback on the way out:
+  the shop deletes the never-started `pending` order and releases any
+  single-use coupon reservation, membership deletes the `pending` row that
+  would otherwise answer the retry with "you already have a join in
+  progress" for an hour. The same raw-message leak on the balance path
+  (`err.message` straight onto the public `/b/[token]` page) closed with it.
+- S2 · the balance-payment path orphans its own `pending` row on the same
+  outage — `createBalancePaymentSession` inserts
+  `patient_balance_payment` (`lib/services/balance-payments.ts`) before the
+  Stripe call with no rollback, and `listPortalPayments`
+  (`lib/services/patient-portal.ts`) lists everything except `status='failed'`,
+  so a phantom payment shows in the PATIENT's own portal history. No money
+  moves and no clinic-side surface reads it (the reconciliation list filters
+  to `paid`). Repro: make `stripe.checkout.sessions.create` throw a
+  `StripeConnectionError` for a portal balance payment, then load
+  `/patient/invoices`. Found by Sentinel reviewing the DREAMCRM-16 fix;
+  deliberately not folded into that money PR. · OPEN.
 - S2 · `send-reminders` has no per-ORG try around the candidate/priorLogs
   queries, so one org's query throw 500s the route and silences the tick for
   everyone (near-S1); and its idempotency is a read-before-send with the log

@@ -225,13 +225,20 @@ export async function createShopCheckoutSession(
 /**
  * Undo an order that never made it to Stripe.
  *
- * Deliberately scoped to `status='pending'` AND `stripe_checkout_session_id IS
- * NULL` — we only delete an order we never managed to attach a Stripe session
- * to. Once a session id is recorded the row is the local half of something that
- * exists at Stripe, and deleting it would strand a payment the finalizer looks
- * up BY that session id. An order in this state has no financial meaning: no
- * card was shown it, no money moved, and nobody was ever given a URL for it.
- * `shop_order_item.order_id` cascades, so the lines go with it.
+ * WHY THIS IS SAFE, precisely: not because of the `IS NULL` predicate below.
+ * If `sessions.create` succeeds and the id-stamp UPDATE then throws, the column
+ * is still NULL and this DOES delete a row with a live Stripe session behind
+ * it. That is harmless for a different reason — the caller throws instead of
+ * returning, so the checkout URL never reaches the patient and the session can
+ * never be paid. `finalizeOrderFromSession` will never be called for it. THE
+ * GUARANTEE IS "NO URL WAS EVER HANDED OUT", not the predicate. Anyone widening
+ * the catch block above (returning a URL on some failure path, say) breaks that
+ * guarantee and has to re-earn it here.
+ *
+ * The scope is still worth having: `status='pending'` keeps a paid or refunded
+ * order out of reach entirely, and `stripe_checkout_session_id IS NULL` keeps
+ * this narrow enough that it cannot collide with the finalizer's lookup key.
+ * `shop_order_item.order_id` cascades, so the lines go with the order.
  *
  * Best-effort: a failed cleanup must never replace the real error (a Stripe
  * outage) with a database one in front of the patient. The worst case is the
@@ -254,8 +261,26 @@ async function discardUnstartedOrder(
         ),
       )
       .returning({ id: schema.shopOrder.id })
-    // Only give the code back if the order it was held for is really gone.
-    if (removed.length > 0 && singleUseCouponId) {
+
+    // Give the code back only once the order it was held for is really gone —
+    // which is EITHER because we just deleted it, OR because it was never
+    // written at all. The claim happens before the order insert, so a failure
+    // of that insert (the DB blip the generic message anticipates) leaves a
+    // reservation pointing at an order id that does not exist: the delete
+    // matches nothing, and gating on that alone would re-create the same 24h
+    // "already used" lockout via Postgres instead of Stripe.
+    let orderIsGone = removed.length > 0
+    if (!orderIsGone) {
+      const [survivor] = await db
+        .select({ id: schema.shopOrder.id })
+        .from(schema.shopOrder)
+        .where(
+          and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.id, orderId)),
+        )
+        .limit(1)
+      orderIsGone = !survivor
+    }
+    if (orderIsGone && singleUseCouponId) {
       await releaseSingleUseCoupon(organizationId, singleUseCouponId, orderId)
     }
   } catch (err) {

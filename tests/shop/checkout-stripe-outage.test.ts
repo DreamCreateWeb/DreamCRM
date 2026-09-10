@@ -26,6 +26,7 @@ const state = {
   deleteCount: 0,
   updateCount: 0,
   stripeFailsWith: null as Error | null,
+  insertFailsWith: null as Error | null,
 }
 
 vi.mock('@/lib/db', () => {
@@ -41,7 +42,11 @@ vi.mock('@/lib/db', () => {
   return {
     db: {
       select: () => chain(),
-      insert: () => ({ values: async () => {} }),
+      insert: () => ({
+        values: async () => {
+          if (state.insertFailsWith) throw state.insertFailsWith
+        },
+      }),
       update: () => ({
         set: () => ({
           where: () => {
@@ -185,6 +190,7 @@ beforeEach(() => {
   state.deleteCount = 0
   state.updateCount = 0
   state.stripeFailsWith = null
+  state.insertFailsWith = null
   eqCalls.length = 0
   isNullCols.length = 0
   sqlFragments.length = 0
@@ -260,6 +266,32 @@ describe('createShopCheckoutSession — Stripe outage', () => {
     expect(isNullCols).toContain('usedAt')
   })
 
+  it('hands the code back when the ORDER INSERT is what failed (nothing to delete)', async () => {
+    // The claim runs BEFORE the order insert. If the insert is what blows up,
+    // the delete matches nothing — and gating the release on "we deleted a row"
+    // alone would leave the code locked for 24h via Postgres instead of Stripe.
+    // The order-absent lookup is what closes that.
+    state.selectQueue.push([ACTIVE_CONFIG], [variantRow()], [singleUseCoupon()])
+    state.claimResult = [{ id: 'coupon_1' }]
+    state.insertFailsWith = new Error('relation "shop_order" does not exist')
+    state.deleteReturn = []
+    // The order-absent lookup finds nothing → the order was never written.
+    state.selectQueue.push([])
+
+    await expect(
+      createShopCheckoutSession('org_1', 'https://x', {
+        items: [{ variantId: 'v1', qty: 1 }],
+        fulfillmentType: 'pickup',
+        email: 'a@x.com',
+        couponCode: 'BIRTHDAY',
+      }),
+    ).rejects.toThrow(/shop_order/)
+
+    // The claim, then the release.
+    expect(state.updateCount).toBe(2)
+    expect(eqCalls.some((c) => c.col === 'usedOrderId')).toBe(true)
+  })
+
   it('does NOT hand the code back when the order was not actually removed', async () => {
     // The delete matched nothing — the order had already moved on. Giving the
     // code back here would free a discount that is still attached to a live
@@ -268,6 +300,8 @@ describe('createShopCheckoutSession — Stripe outage', () => {
     state.claimResult = [{ id: 'coupon_1' }]
     state.stripeFailsWith = stripeOutage()
     state.deleteReturn = []
+    // ...and the order is still sitting there, so it was NOT ours to free.
+    state.selectQueue.push([{ id: 'order_1' }])
 
     await expect(
       createShopCheckoutSession('org_1', 'https://x', {
