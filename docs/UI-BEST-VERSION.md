@@ -45,6 +45,31 @@ batch number.
   disabled={pending}` — and batches 46/47/49 applied it per-surface. What is
   missing is the sweep. The guard test deliberately exempts the
   discriminating shape, so adopting it is already unblocked.
+- **77 form fields have no accessible name** — a `<label>` that is a SIBLING
+  of its input, with neither `htmlFor` nor nesting, so nothing connects the
+  two. To a screen reader those fields are unnamed: "edit text, blank". 23
+  files, the biggest of them whole forms (careers job-form 13, product-form
+  7, plan-form 7, audiences 8, new-project-modal 6, compose 5). Found by the
+  jsx-a11y gate on the day it landed (batch 52) — NOT by reading, which is
+  the point of the gate. Suppressed by count in `eslint-suppressions.json`
+  so the class cannot grow while it is burned down; `pnpm lint:prune` shrinks
+  the file as batches land. **This is the next accessibility batch.**
+- ~~No automated accessibility gate~~ [BATCH 52: the repo had no
+  `eslint-plugin-jsx-a11y`, no axe run, and no ESLint config at all — Next 16
+  removed `next lint` and nothing replaced it, so even the 74 existing
+  `eslint-disable` comments were inert. `eslint.config.mjs` now runs a
+  CURATED set over `app/` + `components/` on every PR: accessible names,
+  role/aria validity (the silent-failure class — a misspelled role is simply
+  ignored by AT), text alternatives, and focus traps. Deliberately NOT the
+  recommended preset: its interaction rules fire on hundreds of clickable
+  rows and cards, and `prefer-tag-over-role` wants `<dialog>`/`<output>` for
+  111 correct `role=` uses — an allowlist that size is the rule being off,
+  with maintenance. Four real defects fell out on day one and are fixed: a
+  `<video>` and a disabled `<button>` carrying `aria-hidden` while focusable
+  (the preview button becomes a `<div>` — a facsimile should not put a real
+  control in the tree), `SiteImage` spreading its required `alt` through
+  `{...rest}` where no reader or tool could see it, and a redundant "photo"
+  alt].
 - **The branded primitives have no busy state at all.** `BrandButton`,
   `ActionPill` and `GhostButton` in `components/patient-portal/ui.tsx` take
   `disabled` and nothing else, so the seven portal / public-site / token-page
