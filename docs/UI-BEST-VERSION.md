@@ -171,7 +171,8 @@ batch number.
   dark surface when the dark override already exists at
   `app/css/style.css:375` — that row needs a diagnosis, not a token change,
   and editing `--color-ink-500` would be fixing the wrong thing. Tracked as
-  DREAMCRM-28. Remaining after batch 54: the design-system token pairs, and
+  DREAMCRM-28; batch 54 took it to 166, and the baseline file carries a
+  running burn-down log. Remaining: the design-system token pairs, and
   the agenda row (`nested-interactive` + `list` are ONE structural pattern —
   an `li[role="button"]` containing its own focusable controls, so both
   clear together when it becomes a non-interactive `li` around a button).

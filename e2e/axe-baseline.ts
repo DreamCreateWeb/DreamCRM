@@ -55,6 +55,30 @@
  *
  * Owned by the UI lane and handed over with this reproduction — see the
  * comment thread on DREAMCRM-26. QA owns the checks; the pixels are not ours.
+ *
+ * ── BURNED DOWN SO FAR (append one line per batch; DREAMCRM-28) ──────────────
+ *
+ *   2026-09-10 · UI batch 54 · **214 → 166**, all 48 `color-contrast`.
+ *     The patient portal was using the clinic's brand colour RAW — as a text
+ *     fill on the #FAF7F2 ground and as a button fill under a hard-coded
+ *     `text-white` — while the clinic public site had derived a contrast-safe
+ *     value from it since the palette shipped. Not 48 separate mistakes: ONE
+ *     missing derivation, now on all eight paths the brand takes to a patient
+ *     (`portalBrand()`, lib/portal-brand.ts). Six portal stops went 8/10/11/
+ *     8/7/8 → 1 and `token: confirm-my-visit page, still pending` reached
+ *     ZERO and left the file. The remaining 1 per portal stop is NOT the
+ *     brand — it is a separate pair, still to be identified.
+ *     En route it also fixed `readableInk` measuring contrast on fractional
+ *     rgb before `toHex` rounded it, which had been landing brands at
+ *     4.48–4.50 against a 4.5 floor on the PUBLIC site: the same
+ *     one-hundredth-under shape as the #bb4d00-on-#fff0d9 cluster below, and
+ *     invisible to a unit test that checks the value it was handed.
+ *
+ * Two drops in that run were the documented WOBBLE, not fixes, and their
+ * ceilings deliberately stayed put: `booking: the confirmation a patient
+ * lands on` reported 1 against its ceiling of 2, and the three agenda stops
+ * reported one fewer `nested-interactive` than their 8. Both are the
+ * data-dependent counts this file's header warns about.
  */
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
@@ -64,12 +88,12 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'clinic site: portal door on a pre-live clinic': { 'color-contrast': 2 },
   'marketing: home': { 'color-contrast': 45 },
   'marketing: pricing': { 'color-contrast': 7 },
-  'portal: cancel confirmation showing': { 'color-contrast': 8 },
-  'portal: patient dashboard': { 'color-contrast': 10 },
-  'portal: reschedule panel open, a new time picked': { 'color-contrast': 11 },
-  'portal: visit inside the notice window': { 'color-contrast': 8 },
-  'portal: visits list after confirming': { 'color-contrast': 7 },
-  'portal: visits list, a visit needing confirmation': { 'color-contrast': 8 },
+  'portal: cancel confirmation showing': { 'color-contrast': 1 },
+  'portal: patient dashboard': { 'color-contrast': 1 },
+  'portal: reschedule panel open, a new time picked': { 'color-contrast': 1 },
+  'portal: visit inside the notice window': { 'color-contrast': 1 },
+  'portal: visits list after confirming': { 'color-contrast': 1 },
+  'portal: visits list, a visit needing confirmation': { 'color-contrast': 1 },
   'staff: add-patient dialog, filled in': { 'color-contrast': 2 },
   'staff: appointment drawer open': { 'color-contrast': 15, 'list': 4, 'nested-interactive': 8 },
   'staff: cancel-appointment confirmation over the drawer': { 'color-contrast': 15, 'list': 4, 'nested-interactive': 8 },
@@ -81,5 +105,4 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'staff: the day agenda': { 'color-contrast': 5, 'list': 4, 'nested-interactive': 8 },
   'staff: website hub, site not yet published': { 'color-contrast': 1 },
   'staff: website hub, site published': { 'color-contrast': 4 },
-  'token: confirm-my-visit page, still pending': { 'color-contrast': 2 },
 }
