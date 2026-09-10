@@ -9,6 +9,7 @@ import { toCsv, csvDollars } from '@/lib/csv'
 import { platformFeeCents } from '@/lib/types/shop'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from './clinic-timezone'
+import { CheckoutError } from './checkout-error'
 
 /**
  * Online balance payments from the patient portal. Money moves through the
@@ -66,13 +67,13 @@ export async function createBalancePaymentSession(input: {
 }): Promise<{ url: string }> {
   const cfg = await connectedAccount(input.organizationId)
   if (!cfg?.accountId || cfg.status !== 'active' || cfg.charges !== 1) {
-    throw new Error('Online payment isn’t available right now — give us a call and we’ll take it over the phone.')
+    throw new CheckoutError('Online payment isn’t available right now — give us a call and we’ll take it over the phone.')
   }
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_PAYMENT_CENTS) {
-    throw new Error('The minimum online payment is $1.')
+    throw new CheckoutError('The minimum online payment is $1.')
   }
   if (input.amountCents > MAX_PAYMENT_CENTS) {
-    throw new Error('That payment is over the online limit — give us a call and we’ll take it over the phone.')
+    throw new CheckoutError('That payment is over the online limit — give us a call and we’ll take it over the phone.')
   }
 
   // What the patient saw at pay time — reconciliation aid when the PMS
@@ -90,7 +91,7 @@ export async function createBalancePaymentSession(input: {
   if (!patientRow) throw new Error('Patient not found')
   const balance = patientRow.pmsBalanceCents
   if (balance != null && input.amountCents > balance) {
-    throw new Error('That’s more than your current balance — pay up to the balance shown.')
+    throw new CheckoutError('That’s more than your current balance — pay up to the balance shown.')
   }
 
   const paymentId = newPaymentId()
@@ -140,7 +141,9 @@ export async function createBalancePaymentSession(input: {
     .set({ stripeCheckoutSessionId: session.id })
     .where(eq(schema.patientBalancePayment.id, paymentId))
 
-  if (!session.url) throw new Error('We couldn’t start checkout just now — please try again in a moment.')
+  // A hosted session always carries a URL; no URL means we cannot send the
+  // patient anywhere. Not a message we wrote for them — the caller maps it.
+  if (!session.url) throw new Error('Stripe returned a checkout session with no URL')
   return { url: session.url }
 }
 

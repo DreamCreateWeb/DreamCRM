@@ -127,6 +127,36 @@ export async function claimSingleUseCoupon(
   return claimed.length > 0
 }
 
+/**
+ * Hand a single-use reservation back when the checkout it was claimed for never
+ * reached Stripe (an outage, a rejected session). Without this the code stays
+ * locked to a dead order for the full COUPON_RESERVATION_TTL_MS — 24 hours in
+ * which a patient's one-time birthday code reads "already used" through no
+ * fault of theirs.
+ *
+ * Narrow on purpose, so it can never un-burn a real discount: it clears only a
+ * reservation STILL held by this order and NOT yet burned by a payment
+ * (`usedAt is null`). If the order paid in the meantime, or another checkout
+ * has since reclaimed the stale reservation, this matches nothing.
+ */
+export async function releaseSingleUseCoupon(
+  organizationId: string,
+  couponId: string,
+  orderId: string,
+): Promise<void> {
+  await db
+    .update(schema.shopCoupon)
+    .set({ usedOrderId: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.shopCoupon.organizationId, organizationId),
+        eq(schema.shopCoupon.id, couponId),
+        eq(schema.shopCoupon.usedOrderId, orderId),
+        isNull(schema.shopCoupon.usedAt),
+      ),
+    )
+}
+
 /** Validate a code against a cart subtotal + compute the discount in cents. */
 export async function validateCoupon(
   organizationId: string,

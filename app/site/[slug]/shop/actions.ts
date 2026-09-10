@@ -3,6 +3,7 @@
 import { getClinicSiteBySlug, publicSiteUrl } from '@/lib/services/clinic-site'
 import { createShopCheckoutSession } from '@/lib/services/shop-checkout'
 import { validateCoupon } from '@/lib/services/coupons'
+import { checkoutFailure, type CheckoutStart } from '@/lib/services/checkout-error'
 
 export async function startCheckout(
   slug: string,
@@ -14,10 +15,19 @@ export async function startCheckout(
     phone?: string | null
     couponCode?: string | null
   },
-): Promise<{ url: string }> {
+): Promise<CheckoutStart> {
+  // Never THROW out of here. Next.js replaces a server-action error message
+  // with an opaque digest in production, so the storefront's catch would show
+  // the shopper "An error occurred in the Server Components render" — the raw
+  // error a patient saw whenever Stripe was down.
   const site = await getClinicSiteBySlug(slug)
-  if (!site) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
-  return createShopCheckoutSession(site.orgId, publicSiteUrl(site), input)
+  if (!site) return { ok: false, error: 'We couldn’t find this clinic. Please refresh and try again.' }
+  try {
+    const { url } = await createShopCheckoutSession(site.orgId, publicSiteUrl(site), input)
+    return { ok: true, url }
+  } catch (err) {
+    return checkoutFailure('shop-checkout', err)
+  }
 }
 
 export async function applyCoupon(

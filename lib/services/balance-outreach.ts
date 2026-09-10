@@ -9,6 +9,7 @@ import { authEmailShell, deliver } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { renderAutomatedEmail } from '@/lib/services/email-automations'
 import { canTakeBalancePayments, createBalancePaymentSession, finalizeBalancePaymentFromSession } from '@/lib/services/balance-payments'
+import { checkoutFailure } from '@/lib/services/checkout-error'
 import { queueCommLogWriteBack } from '@/lib/services/pms'
 import {
   resolveBalanceOutreachSettings,
@@ -378,7 +379,9 @@ export async function createCheckoutForPayToken(
     })
     return { ok: true, url }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not start the payment.' }
+    // Anything we didn't write for the patient (a Stripe outage, a DB blip)
+    // becomes one written sentence rather than the SDK's own text.
+    return checkoutFailure('balance-payments', err)
   }
 }
 
