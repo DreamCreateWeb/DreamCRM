@@ -23,7 +23,7 @@ export default function DocsIndexPage() {
         <div className="grid gap-10 md:grid-cols-2">
           {groups.map((group) => (
             <div key={group.category}>
-              <h2 className="text-[0.8rem] font-bold uppercase tracking-wider text-gray-400">
+              <h2 className="text-[0.8rem] font-bold uppercase tracking-wider text-gray-500">
                 {group.category}
               </h2>
               <ul className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200">
@@ -34,7 +34,7 @@ export default function DocsIndexPage() {
                         <span className="text-[0.95rem] font-semibold text-gray-900 group-hover:text-teal-700">
                           {a.title}
                         </span>
-                        <span className="shrink-0 text-[0.72rem] font-medium text-gray-400">
+                        <span className="shrink-0 text-[0.72rem] font-medium text-gray-500">
                           {a.minutes} min
                         </span>
                       </p>

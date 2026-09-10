@@ -66,7 +66,7 @@ export default function ChangelogPage() {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <Link
                 href={`/changelog#${entry.weekOf}`}
-                className="text-[0.8rem] font-bold uppercase tracking-wider text-gray-400 hover:text-teal-700"
+                className="text-[0.8rem] font-bold uppercase tracking-wider text-gray-500 hover:text-teal-700"
               >
                 <time dateTime={entry.weekOf}>{formatWeekOf(entry.weekOf)}</time>
               </Link>

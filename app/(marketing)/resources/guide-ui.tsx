@@ -35,7 +35,7 @@ export function GuideShell({ guide, children }: { guide: ResourceGuide; children
             {guide.title}
           </h1>
           <p className="mkt-enter mkt-d2 mt-4 text-[0.98rem] leading-relaxed text-gray-700">{guide.description}</p>
-          <p className="mt-4 text-[0.8rem] font-medium text-gray-400">
+          <p className="mt-4 text-[0.8rem] font-medium text-gray-500">
             {guide.readMinutes}-minute read · free to copy and use in your practice
           </p>
         </div>

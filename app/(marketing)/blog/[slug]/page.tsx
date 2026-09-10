@@ -118,7 +118,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
       <h1 className="mt-3 text-[2rem] font-extrabold leading-tight tracking-tight sm:text-[2.4rem]">
         {post.title}
       </h1>
-      <p className="mt-3 text-[0.85rem] font-medium text-gray-400">
+      <p className="mt-3 text-[0.85rem] font-medium text-gray-500">
         {post.authorName ?? 'The DreamCRM team'} · <time>{fmtDate(post.publishedAt)}</time>
       </p>
 
@@ -169,7 +169,7 @@ export default async function MarketingBlogPostPage({ params }: Props) {
 
       {others.length > 0 && (
         <aside className="mt-12 border-t border-gray-100 pt-8">
-          <p className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-400">More posts</p>
+          <p className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-500">More posts</p>
           <ul className="mt-3 space-y-2">
             {others.map((p) => (
               <li key={p.id}>

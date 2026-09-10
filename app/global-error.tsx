@@ -61,7 +61,7 @@ export default function GlobalError({
               justifyContent: 'center',
               fontSize: 26,
               lineHeight: 1,
-              color: '#d97706',
+              color: '#92400e', /* on the 15% amber well: 6.32:1. #d97706 was 2.84 */
             }}
           >
             !
@@ -85,7 +85,8 @@ export default function GlobalError({
               fontSize: 14,
               fontWeight: 600,
               color: '#fff',
-              background: '#0d9488',
+              background: '#2f52b3', /* dream-blue 700 — white on it is 7.05:1. The
+                 old #0d9488 was BOTH v2's retired teal and 3.74:1. */
               border: 0,
               borderRadius: 8,
               cursor: 'pointer',
@@ -94,7 +95,7 @@ export default function GlobalError({
             Reload
           </button>
           {error.digest && (
-            <p style={{ marginTop: 16, fontSize: 11, fontFamily: 'monospace', color: '#94a3b8' }}>
+            <p style={{ marginTop: 16, fontSize: 11, fontFamily: 'monospace', color: '#64748b' }}>
               Ref: {error.digest}
             </p>
           )}

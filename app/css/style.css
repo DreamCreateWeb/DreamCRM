@@ -35,7 +35,12 @@
   --color-ink-800: #22304e; /* brand navy */
   --color-ink-700: #33405f;
   --color-ink-600: #4c5a78;
-  --color-ink-500: #5e6e8c;
+  /* One point of lightness darker than v3 shipped with (#5e6e8c). That value
+     cleared AA on white (5.14) and on the canvas (4.78) but landed at 4.49 on
+     --color-surface-sunk — a hundredth under the 4.5 floor, which is what a
+     palette chosen by eye looks like from the outside, and what the runtime
+     accessibility checks found 18 of. Same hue, same saturation. */
+  --color-ink-500: #5c6c89;
   --color-ink-400: #93a0bc; /* disabled only */
 
   /* Radius scale — the bubble scale. Same names as v2, softer values. */
@@ -81,7 +86,7 @@
   --color-gray-200: #e0e9f8;
   --color-gray-300: #c3d0e8;
   --color-gray-400: #93a0bc;
-  --color-gray-500: #5e6e8c;
+  --color-gray-500: #5c6c89; /* tracks --color-ink-500 (see the note above) */
   --color-gray-600: #4c5a78;
   --color-gray-700: #33405f;
   --color-gray-800: #22304e;

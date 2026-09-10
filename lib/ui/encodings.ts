@@ -32,24 +32,55 @@
  */
 export type Tone = 'ok' | 'warn' | 'urgent' | 'info' | 'special' | 'neutral'
 
-/** Pill recipe per tone (status pills, badges). */
+/**
+ * Pill recipe per tone (status pills, badges).
+ *
+ * WHY THE LIGHT INK IS THE 800 AND NOT THE 700. The tone sits on its own
+ * 15%-alpha wash, so the ink's real background is the tint over whichever
+ * surface the pill landed on — and the darkest of those (`--color-surface-sunk`,
+ * table headers and wells) is what decides. At the 700 step three of the five
+ * coloured tones FAILED WCAG AA there: amber 3.96, emerald 4.12, rose 4.25,
+ * against a 4.5 floor. Violet scraped 4.59 and fuchsia sat on exactly 4.50,
+ * which is not a margin, it is a coincidence. At the 800 step the worst pair
+ * across all four surfaces is 5.57. One step of the same hue, uniform across
+ * the tones so "what warn looks like" stays one answer.
+ *
+ * The dark side keeps the 300: its worst pair is 6.10, with room to spare.
+ *
+ * `tests/a11y/token-contrast.test.ts` computes every pair here from Tailwind's
+ * own ramp and this repo's own stylesheet — do not re-pick these by eye.
+ */
 export const TONE_PILL: Record<Tone, string> = {
-  ok: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  warn: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  urgent: 'bg-rose-500/15 text-rose-700 dark:text-rose-300',
-  info: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-  special: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300',
+  ok: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+  warn: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+  urgent: 'bg-rose-500/15 text-rose-800 dark:text-rose-300',
+  info: 'bg-violet-500/15 text-violet-800 dark:text-violet-300',
+  special: 'bg-fuchsia-500/15 text-fuchsia-800 dark:text-fuchsia-300',
   neutral: 'bg-gray-500/15 text-gray-600 dark:text-gray-300',
 }
 
-/** Inline text recipe per tone (trend hints, aging dates, deltas). */
+/**
+ * Inline text recipe per tone (trend hints, aging dates, deltas).
+ *
+ * Tracks TONE_PILL's ink step deliberately: the same meaning must not be two
+ * different colours depending on whether it arrived in a pill. On plain
+ * surfaces the 700 step only actually failed for amber (4.39 on the sunk
+ * surface), but splitting the two recipes to save four tones one notch of
+ * darkness is how a registry stops being a single source of truth.
+ *
+ * `neutral` moves gray-500 → gray-600 for its own reason, and only one step:
+ * gray-500 is the ink that measured 4.49 on the sunk surface, and gray-600
+ * clears every surface at 6.03 — which is also what TONE_PILL's neutral was
+ * already using, so the two agree rather than the pill being the darker of the
+ * two spellings of "archived".
+ */
 export const TONE_TEXT: Record<Tone, string> = {
-  ok: 'text-emerald-700 dark:text-emerald-300',
-  warn: 'text-amber-700 dark:text-amber-300',
-  urgent: 'text-rose-700 dark:text-rose-300',
-  info: 'text-violet-700 dark:text-violet-300',
-  special: 'text-fuchsia-700 dark:text-fuchsia-300',
-  neutral: 'text-gray-500 dark:text-gray-400',
+  ok: 'text-emerald-800 dark:text-emerald-300',
+  warn: 'text-amber-800 dark:text-amber-300',
+  urgent: 'text-rose-800 dark:text-rose-300',
+  info: 'text-violet-800 dark:text-violet-300',
+  special: 'text-fuchsia-800 dark:text-fuchsia-300',
+  neutral: 'text-gray-600 dark:text-gray-400',
 }
 
 /** Solid swatch per tone — for a small status DOT beside a label (e.g. the
