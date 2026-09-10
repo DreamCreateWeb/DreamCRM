@@ -1121,6 +1121,13 @@
       "when": 1788966253690,
       "tag": "0159_nervous_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1789046197904,
+      "tag": "0160_lucky_dark_beast",
+      "breakpoints": true
     }
   ]
 }

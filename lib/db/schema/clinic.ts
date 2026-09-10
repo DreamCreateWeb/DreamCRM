@@ -407,6 +407,20 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   // Every DLR is a lookup by provider message id — without this it's a
   // sequential scan of the busiest log table on every receipt.
   index('appt_reminder_provider_msg_idx').on(t.providerMessageId),
+  // THE DOUBLE-SEND GUARD. The automated engine CLAIMS this row before it
+  // sends (lib/services/appointments.ts `claimAutomatedReminder`), so two
+  // overlapping cron ticks — or a retry of one — race on this index instead
+  // of on the patient's phone: the loser's insert does nothing and it skips.
+  //
+  // Partial on purpose. A staff member sending from the appointment drawer
+  // (`sent_by_user_id` set) may legitimately send the same reminder twice,
+  // and an ad-hoc send carries a NULL template that Postgres would treat as
+  // distinct anyway — so the constraint covers exactly the automated touches
+  // (`sent_by_user_id is null and template is not null`), which are the only
+  // sends that are supposed to fire at most once per visit.
+  uniqueIndex('appt_reminder_auto_touch_uq')
+    .on(t.appointmentId, t.template)
+    .where(sql`${t.sentByUserId} is null and ${t.template} is not null`),
 ])
 
 // ── Fast-pass waitlist (ASAP list) ─────────────────────────────────────────

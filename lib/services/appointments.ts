@@ -1453,9 +1453,16 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
     sentByUserId: input.sentByUserId,
     providerMessageId: input.providerMessageId ?? null,
   })
-  // THE ACTION LEDGER — machine actions only (a staff member clicking send is
-  // their work, not the employee's). Best-effort by design: the reminder is
-  // already out; bookkeeping must never throw after it.
+  await recordReminderInActionLedger(input)
+  return id
+}
+
+/**
+ * THE ACTION LEDGER — machine actions only (a staff member clicking send is
+ * their work, not the employee's). Best-effort by design: the reminder is
+ * already out; bookkeeping must never throw after it.
+ */
+async function recordReminderInActionLedger(input: LogReminderInput): Promise<void> {
   if (input.sentByUserId === null) {
     try {
       const [row] = await db
@@ -1493,7 +1500,128 @@ export async function logReminderSent(input: LogReminderInput): Promise<string> 
       console.error('[action-ledger] reminder entry failed:', e)
     }
   }
-  return id
+}
+
+// ----- The automated reminder CLAIM -------------------------------------
+//
+// Every send above records the reminder AFTER it goes out, which is right for
+// a staff member clicking send (one browser, one click, one send). It is wrong
+// for the cron: two overlapping ticks — or a retry of one — both read "nothing
+// sent yet", and the same patient gets the same reminder twice.
+//
+// So the automated engine claims first and sends second. The claim is the log
+// row itself, written before `deliver`, racing on the partial unique index
+// `appt_reminder_auto_touch_uq` (appointment + template, automated rows only).
+// The loser of that race gets no row back and skips; there is no window in
+// between for a second message to slip through.
+//
+// The trade this makes deliberately: at-most-once, not at-least-once. If the
+// process dies between the claim and the send, that touch is spent and the
+// patient doesn't get it (the next touch in the journey still fires). Sending
+// a patient the same reminder twice is the louder failure — it reads as a
+// broken clinic — and every failure path we CAN see releases the claim.
+
+/** A reserved reminder-log row, held between the claim and the send. */
+export interface ReminderClaim {
+  id: string
+  organizationId: string
+  appointmentId: string
+  channel: AppointmentChannel
+  template: string
+}
+
+export interface ClaimReminderInput {
+  organizationId: string
+  appointmentId: string
+  channel: AppointmentChannel
+  /** Required — the constraint only covers non-NULL templates. */
+  template: string
+}
+
+/**
+ * Reserve this appointment's touch before sending it. Returns the claim, or
+ * `null` when another tick already holds it (nothing was written; do not
+ * send). The action-ledger entry is deliberately NOT written here — the
+ * append-only ledger must never narrate a message that hasn't gone out yet;
+ * `confirmReminderSent` writes it once the send lands.
+ */
+export async function claimAutomatedReminder(input: ClaimReminderInput): Promise<ReminderClaim | null> {
+  const id = newReminderLogId()
+  const inserted = await db
+    .insert(schema.appointmentReminderLog)
+    .values({
+      id,
+      organizationId: input.organizationId,
+      appointmentId: input.appointmentId,
+      channel: input.channel,
+      template: input.template,
+      sentByUserId: null,
+      providerMessageId: null,
+    })
+    .onConflictDoNothing({
+      target: [schema.appointmentReminderLog.appointmentId, schema.appointmentReminderLog.template],
+      where: sql`${schema.appointmentReminderLog.sentByUserId} is null and ${schema.appointmentReminderLog.template} is not null`,
+    })
+    .returning({ id: schema.appointmentReminderLog.id })
+  if (inserted.length === 0) return null
+  return {
+    id,
+    organizationId: input.organizationId,
+    appointmentId: input.appointmentId,
+    channel: input.channel,
+    template: input.template,
+  }
+}
+
+/**
+ * The send landed. Stamp the provider's message id (so an SMS delivery receipt
+ * can find this row) and write the action-ledger entry.
+ */
+export async function confirmReminderSent(
+  claim: ReminderClaim,
+  opts?: { providerMessageId?: string | null },
+): Promise<void> {
+  if (opts?.providerMessageId) {
+    await db
+      .update(schema.appointmentReminderLog)
+      .set({ providerMessageId: opts.providerMessageId })
+      .where(
+        and(
+          eq(schema.appointmentReminderLog.organizationId, claim.organizationId),
+          eq(schema.appointmentReminderLog.id, claim.id),
+        ),
+      )
+  }
+  await recordReminderInActionLedger({
+    organizationId: claim.organizationId,
+    appointmentId: claim.appointmentId,
+    channel: claim.channel,
+    template: claim.template,
+    sentByUserId: null,
+  })
+}
+
+/**
+ * The send did NOT go out (a transport failure, a standing STOP, a missing
+ * sender identity). Drop the claim so the next tick can try again — and so the
+ * appointment drawer's "Reminder activity" stripe never shows a patient a
+ * reminder they were never sent.
+ */
+export async function releaseReminderClaim(claim: ReminderClaim): Promise<void> {
+  try {
+    await db
+      .delete(schema.appointmentReminderLog)
+      .where(
+        and(
+          eq(schema.appointmentReminderLog.organizationId, claim.organizationId),
+          eq(schema.appointmentReminderLog.id, claim.id),
+        ),
+      )
+  } catch (e) {
+    // A stuck claim costs this appointment one touch, not a double-send —
+    // never let it escalate into a failed batch.
+    console.error('[reminders] releasing a claim failed:', e)
+  }
 }
 
 // ----- New booking (internal — used by the "Book appointment" drawer) ----
