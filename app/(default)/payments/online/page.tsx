@@ -16,6 +16,37 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 export const metadata = { title: 'Online payments - DreamCRM' }
 export const dynamic = 'force-dynamic'
 
+/**
+ * The status cell for a captured payment or deposit. A Stripe-side refund
+ * does NOT remove the row — the front desk has already posted this money to
+ * the PMS and needs to see the reversal in the same place they saw the
+ * payment. Full refund reads "Refunded"; a partial one says how much came
+ * back, because "Refunded" alone would overstate it.
+ */
+function CaptureStatus({
+  amountCents,
+  refundedAmountCents,
+  paidTitle,
+}: {
+  amountCents: number
+  refundedAmountCents: number
+  paidTitle: string
+}) {
+  if (refundedAmountCents <= 0) return <StatusPill tone="ok" label="Paid" title={paidTitle} />
+  const full = refundedAmountCents >= amountCents
+  return (
+    <StatusPill
+      tone="neutral"
+      label={full ? 'Refunded' : `Partly refunded · ${formatCents(refundedAmountCents)}`}
+      title={
+        full
+          ? 'Refunded in Stripe — reverse it on the PMS ledger'
+          : `${formatCents(refundedAmountCents)} of ${formatCents(amountCents)} refunded in Stripe — reverse that much on the PMS ledger`
+      }
+    />
+  )
+}
+
 
 
 export default async function ShopPaymentsPage() {
@@ -116,7 +147,11 @@ export default async function ShopPaymentsPage() {
                     {p.balanceCentsAtPayment == null ? '—' : formatCents(p.balanceCentsAtPayment)}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusPill tone="ok" label="Paid" title="Payment captured by Stripe" />
+                    <CaptureStatus
+                      amountCents={p.amountCents}
+                      refundedAmountCents={p.refundedAmountCents}
+                      paidTitle="Payment captured by Stripe"
+                    />
                   </td>
                 </tr>
               ))}
@@ -172,7 +207,11 @@ export default async function ShopPaymentsPage() {
                       {fmtDate(d.paidAt ?? d.createdAt)}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill tone="ok" label="Paid" title="Deposit captured by Stripe — credited toward the visit" />
+                      <CaptureStatus
+                        amountCents={d.amountCents}
+                        refundedAmountCents={d.refundedAmountCents}
+                        paidTitle="Deposit captured by Stripe — credited toward the visit"
+                      />
                     </td>
                   </tr>
                 ))}

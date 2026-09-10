@@ -34,6 +34,8 @@ function order(over: Partial<OrderRow> = {}): OrderRow {
     createdAt: new Date(),
     paidAt: new Date(),
     ageHours: 2,
+    refundedAmountCents: 0,
+    refundedAt: null,
     ...over,
   }
 }

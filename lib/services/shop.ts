@@ -479,6 +479,8 @@ function toOrderRow(
     createdAt: o.createdAt,
     paidAt: o.paidAt,
     ageHours: Math.round((now - o.createdAt.getTime()) / 3_600_000),
+    refundedAmountCents: o.refundedAmountCents ?? 0,
+    refundedAt: o.refundedAt,
   }
 }
 
@@ -539,6 +541,7 @@ export async function exportShopOrdersCsv(organizationId: string): Promise<strin
     'Order ID', 'Date', 'Status', 'Fulfillment', 'Fulfillment status',
     'Customer', 'Email', 'Phone', 'Items',
     'Subtotal', 'Shipping', 'Tax', 'Discount', 'Total', 'Tracking #', 'Paid at',
+    'Refunded', 'Refunded at',
   ]
   const rows = orders.map((o) => [
     o.id,
@@ -557,6 +560,10 @@ export async function exportShopOrdersCsv(organizationId: string): Promise<strin
     csvDollars(o.totalCents),
     o.trackingNumber ?? '',
     o.paidAt ? o.paidAt.toISOString() : '',
+    // Month-end reconciliation needs the money that came back next to the
+    // money that went out — a 'refunded' status alone doesn't say how much.
+    o.refundedAmountCents > 0 ? csvDollars(o.refundedAmountCents) : '',
+    o.refundedAt ? o.refundedAt.toISOString() : '',
   ])
   return toCsv(headers, rows)
 }

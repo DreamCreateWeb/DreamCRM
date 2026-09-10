@@ -76,9 +76,16 @@ export default async function PortalReceiptPage({
     if (!pay) notFound()
     title = 'Payment receipt'
     when = pay.paidAt ?? pay.createdAt
-    status = pay.status === 'paid' ? 'Paid' : 'Processing'
+    // A receipt for money that has since come back must say so — this is the
+    // document a patient keeps.
+    const refundedCents = pay.refundedAmountCents
+    const fullyRefunded = refundedCents > 0 && refundedCents >= pay.amountCents
+    status = fullyRefunded ? 'Refunded' : pay.status === 'paid' ? 'Paid' : 'Processing'
     lines = [{ label: 'Balance payment', sub: 'Paid online toward your account balance', amountCents: pay.amountCents }]
-    totalCents = pay.amountCents
+    if (refundedCents > 0) {
+      lines.push({ label: 'Refunded', sub: 'Returned to your original payment method', amountCents: -refundedCents })
+    }
+    totalCents = pay.amountCents - refundedCents
     footNote = 'The front desk posts online payments to your account in their practice system.'
   } else {
     notFound()

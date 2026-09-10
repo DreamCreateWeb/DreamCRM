@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { randomBytes } from 'crypto'
 import { db, schema } from '@/lib/db'
 import { stripe } from '@/lib/stripe'
@@ -299,7 +299,15 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
     .where(and(eq(schema.shopOrder.organizationId, organizationId), eq(schema.shopOrder.stripeCheckoutSessionId, sessionId)))
     .limit(1)
   if (!order) return null
-  if (order.status === 'paid') return order // already finalized
+  // TERMINAL states. 'refunded' matters as much as 'paid' here: a Stripe
+  // refund does NOT change the Checkout Session's payment_status, and the
+  // success page finalizes on every load from an unauthenticated GET the
+  // shopper still has in their history. Without this, reopening that page
+  // after a refund walks the whole finalize path again — writing the order
+  // back to 'paid', resetting paidAt, burning a single-use coupon a second
+  // time, decrementing stock a second time, and telling the clinic it was
+  // paid for money it just sent back.
+  if (order.status === 'paid' || order.status === 'refunded') return order
 
   const cfg = await connectedAccount(organizationId)
   if (!cfg?.accountId) return order
@@ -362,7 +370,12 @@ export async function finalizeOrderFromSession(organizationId: string, sessionId
       fulfillmentStatus: order.fulfillmentType === 'pickup' ? 'ready_for_pickup' : 'unfulfilled',
       updatedAt: new Date(),
     })
-    .where(and(eq(schema.shopOrder.id, order.id), ne(schema.shopOrder.status, 'paid')))
+    // A POSITIVE predicate: claim the order only while it is still awaiting
+    // payment. The early return above covers the sequential path; THIS is
+    // what has to hold under a race, and `ne(status, 'paid')` had to be
+    // widened by hand every time a status value was added — it already let
+    // 'cancelled' through, and 'refunded' inherited the same hole.
+    .where(and(eq(schema.shopOrder.id, order.id), eq(schema.shopOrder.status, 'pending')))
     .returning({ id: schema.shopOrder.id })
   if (claimed.length === 0) return { ...order, status: 'paid', patientId } // another finalize won the race
 

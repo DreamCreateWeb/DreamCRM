@@ -87,15 +87,27 @@ export default async function PortalBillingPage({
   // One chronological money trail: balance payments + shop orders. Each row
   // links to its printable receipt (key doubles as the receipt slug).
   const history: BillingHistoryRow[] = [
-    ...payments.map((p): BillingHistoryRow => ({
-      key: `pay-${p.id}`,
-      kind: 'payment',
-      whenIso: (p.paidAt ?? p.createdAt).toISOString(),
-      label: 'Balance payment',
-      detail: p.status === 'paid' ? 'Paid online' : 'Processing',
-      amountCents: p.amountCents,
-      badge: p.status === 'paid' ? null : 'Processing',
-    })),
+    ...payments.map((p): BillingHistoryRow => {
+      // Money the clinic sent back. Saying nothing here is how a patient
+      // reads a refunded payment as one they still made.
+      const refunded = p.refundedAmountCents > 0
+      const fullyRefunded = refunded && p.refundedAmountCents >= p.amountCents
+      return {
+        key: `pay-${p.id}`,
+        kind: 'payment',
+        whenIso: (p.paidAt ?? p.createdAt).toISOString(),
+        label: 'Balance payment',
+        detail: !refunded
+          ? p.status === 'paid'
+            ? 'Paid online'
+            : 'Processing'
+          : fullyRefunded
+            ? 'Refunded to you'
+            : `Paid online — ${fmtMoney(p.refundedAmountCents)} refunded to you`,
+        amountCents: p.amountCents,
+        badge: refunded ? 'Refunded' : p.status === 'paid' ? null : 'Processing',
+      }
+    }),
     ...bills.orders.map((o): BillingHistoryRow => ({
       key: `order-${o.id}`,
       kind: 'order',

@@ -222,6 +222,15 @@ export default function OrdersClient({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{o.name || o.email}</span>
                     <StatusPill tone={ORDER_STATUS_TONE[o.status]} label={ORDER_STATUS_LABELS[o.status]} />
+                    {/* A PARTIAL refund can't move the status — 'refunded'
+                        would overstate it — so the amount says it instead. */}
+                    {o.status !== 'refunded' && o.refundedAmountCents > 0 && (
+                      <StatusPill
+                        tone="neutral"
+                        label={`Partly refunded · ${formatCents(o.refundedAmountCents)}`}
+                        title={`${formatCents(o.refundedAmountCents)} of ${formatCents(o.totalCents)} refunded in Stripe`}
+                      />
+                    )}
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {o.fulfillmentType === 'pickup' ? 'Pickup' : 'Ship'}
                     </span>
@@ -331,6 +340,13 @@ export default function OrdersClient({
             <div className="space-y-5 p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill tone={ORDER_STATUS_TONE[selected.status]} label={ORDER_STATUS_LABELS[selected.status]} />
+                {selected.status !== 'refunded' && selected.refundedAmountCents > 0 && (
+                  <StatusPill
+                    tone="neutral"
+                    label={`Partly refunded · ${formatCents(selected.refundedAmountCents)}`}
+                    title={`${formatCents(selected.refundedAmountCents)} of ${formatCents(selected.totalCents)} refunded in Stripe`}
+                  />
+                )}
                 {selected.status === 'paid' && (
                   <StatusPill tone={FULFILLMENT_TONE[selectedFulfillment]} label={FULFILLMENT_STATUS_LABELS[selectedFulfillment]} />
                 )}
