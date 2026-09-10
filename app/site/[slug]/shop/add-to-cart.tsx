@@ -33,8 +33,9 @@ export default function AddToCart({
     <div>
       {product.variants.length > 1 && (
         <div className="mb-4">
-          <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--c-ink-muted, #6B635A)' }}>Option</label>
+          <label htmlFor="add-to-cart-variant" className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--c-ink-muted, #6B635A)' }}>Option</label>
           <select
+            id="add-to-cart-variant"
             value={variantId}
             onChange={(e) => { setVariantId(e.target.value); setAdded(false) }}
             className="w-full text-[15px] px-3.5 py-2.5 rounded-xl border bg-[var(--c-surface,#FFFFFF)]"

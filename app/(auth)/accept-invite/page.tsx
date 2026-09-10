@@ -374,8 +374,8 @@ function AcceptInviteInner() {
         {isMagic ? (
           <form onSubmit={handleMagicLink} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
+              <label className="block text-sm font-medium mb-1" htmlFor="ai-email-magic">Email</label>
+              <input id="ai-email-magic" type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               We&apos;ll email a one-time sign-in link to this address. No password needed.
@@ -395,8 +395,9 @@ function AcceptInviteInner() {
         ) : (
           <form onSubmit={isSignIn ? handleSignIn : handleCreateAccount} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label className="block text-sm font-medium mb-1" htmlFor="ai-email">Email</label>
               <input
+                id="ai-email"
                 type="email"
                 value={details.email}
                 disabled

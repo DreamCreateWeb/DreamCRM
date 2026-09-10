@@ -116,39 +116,39 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
 
       <div className="space-y-5">
         <div>
-          <label className={LABEL}>Name *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Professional Whitening Kit" className={FIELD} />
+          <label htmlFor="product-form-name" className={LABEL}>Name *</label>
+          <input id="product-form-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Professional Whitening Kit" className={FIELD} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={LABEL}>Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value as ProductCategory)} className={FIELD}>
+            <label htmlFor="product-form-category" className={LABEL}>Category</label>
+            <select id="product-form-category" value={category} onChange={(e) => setCategory(e.target.value as ProductCategory)} className={FIELD}>
               {Object.entries(CATEGORY_LABELS).map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
             </select>
           </div>
           <div>
-            <label className={LABEL}>Fulfillment</label>
-            <select value={fulfillment} onChange={(e) => setFulfillment(e.target.value as Fulfillment)} className={FIELD}>
+            <label htmlFor="product-form-fulfillment" className={LABEL}>Fulfillment</label>
+            <select id="product-form-fulfillment" value={fulfillment} onChange={(e) => setFulfillment(e.target.value as Fulfillment)} className={FIELD}>
               {Object.entries(FULFILLMENT_LABELS).map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
             </select>
           </div>
         </div>
 
         <div>
-          <label className={LABEL}>Description</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={`${FIELD} resize-y`} />
+          <label htmlFor="product-form-description" className={LABEL}>Description</label>
+          <textarea id="product-form-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={`${FIELD} resize-y`} />
         </div>
 
         {/* Images */}
         <div>
-          <label className={LABEL}>Photos</label>
-          <div className="flex flex-wrap gap-2 items-center">
+          <span id="product-form-photos-label" className={LABEL}>Photos</span>
+          <div role="group" aria-labelledby="product-form-photos-label" className="flex flex-wrap gap-2 items-center">
             {images.map((url, i) => (
               <div key={url} className="relative w-20 h-20 rounded-[var(--r-md)] overflow-hidden border border-gray-200 dark:border-gray-700">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={url} alt="" className="w-full h-full object-cover" />
-                <button onClick={() => setImages((imgs) => imgs.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-none">×</button>
+                <button aria-label={`Remove photo ${i + 1}`} onClick={() => setImages((imgs) => imgs.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-none">×</button>
               </div>
             ))}
             <label className="w-20 h-20 rounded-[var(--r-md)] border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-xs text-gray-400 cursor-pointer hover:border-teal-400">
@@ -161,20 +161,22 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
         {/* Variants */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className={LABEL + ' mb-0'}>Variants &amp; pricing</label>
+            <span id="product-form-variants-label" className={LABEL + ' mb-0'}>Variants &amp; pricing</span>
             <button onClick={() => setVariants((vs) => [...vs, emptyVariant()])} className="text-xs font-medium text-teal-700 dark:text-teal-400">+ Add variant</button>
           </div>
-          <div className="space-y-2">
-            <div className="grid grid-cols-[1fr_5rem_5rem_4rem_1.5rem] gap-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 px-1">
+          <div role="group" aria-labelledby="product-form-variants-label" className="space-y-2">
+            {/* The column headings are visual only — a screen reader walks the
+                inputs, so each row carries its own name. */}
+            <div aria-hidden className="grid grid-cols-[1fr_5rem_5rem_4rem_1.5rem] gap-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 px-1">
               <span>Variant</span><span>Price $</span><span>Compare $</span><span>Stock</span><span></span>
             </div>
-            {variants.map((v) => (
+            {variants.map((v, i) => (
               <div key={v.key} className="grid grid-cols-[1fr_5rem_5rem_4rem_1.5rem] gap-2 items-center">
-                <input value={v.name} onChange={(e) => updateVariant(v.key, { name: e.target.value })} placeholder="e.g. Mint / Level 2" className={FIELD} />
-                <input type="number" step="0.01" value={v.priceDollars} onChange={(e) => updateVariant(v.key, { priceDollars: parseFloat(e.target.value) })} className={FIELD_NUM} />
-                <input type="number" step="0.01" value={v.compareAtDollars ?? ''} onChange={(e) => updateVariant(v.key, { compareAtDollars: e.target.value ? parseFloat(e.target.value) : null })} className={FIELD_NUM} />
-                <input type="number" value={v.inventoryQty ?? ''} placeholder="∞" onChange={(e) => updateVariant(v.key, { inventoryQty: e.target.value ? parseInt(e.target.value) : null })} className={FIELD_NUM} />
-                <button onClick={() => setVariants((vs) => (vs.length > 1 ? vs.filter((x) => x.key !== v.key) : vs))} className="text-gray-400 hover:text-rose-600 text-sm">×</button>
+                <input aria-label={`Variant ${i + 1} name`} value={v.name} onChange={(e) => updateVariant(v.key, { name: e.target.value })} placeholder="e.g. Mint / Level 2" className={FIELD} />
+                <input aria-label={`Variant ${i + 1} price in dollars`} type="number" step="0.01" value={v.priceDollars} onChange={(e) => updateVariant(v.key, { priceDollars: parseFloat(e.target.value) })} className={FIELD_NUM} />
+                <input aria-label={`Variant ${i + 1} compare-at price in dollars`} type="number" step="0.01" value={v.compareAtDollars ?? ''} onChange={(e) => updateVariant(v.key, { compareAtDollars: e.target.value ? parseFloat(e.target.value) : null })} className={FIELD_NUM} />
+                <input aria-label={`Variant ${i + 1} stock`} type="number" value={v.inventoryQty ?? ''} placeholder="∞" onChange={(e) => updateVariant(v.key, { inventoryQty: e.target.value ? parseInt(e.target.value) : null })} className={FIELD_NUM} />
+                <button aria-label={`Remove variant ${i + 1}`} onClick={() => setVariants((vs) => (vs.length > 1 ? vs.filter((x) => x.key !== v.key) : vs))} className="text-gray-400 hover:text-rose-600 text-sm">×</button>
               </div>
             ))}
           </div>
@@ -191,8 +193,8 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
         </div>
 
         <div>
-          <label className={LABEL}>Status</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value as ProductStatus)} className={FIELD}>
+          <label htmlFor="product-form-status" className={LABEL}>Status</label>
+          <select id="product-form-status" value={status} onChange={(e) => setStatus(e.target.value as ProductStatus)} className={FIELD}>
             <option value="draft">Draft (hidden)</option>
             <option value="active">Active (live on storefront)</option>
             <option value="archived">Archived</option>

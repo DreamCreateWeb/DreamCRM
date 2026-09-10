@@ -67,8 +67,8 @@ export default function AddInvoiceModal({ customers }: { customers: CustomerOpti
                 <form onSubmit={onSubmit}>
                   <div className="px-5 py-4 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Customer</label>
-                      <select className="form-select w-full" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                      <label htmlFor="add-invoice-modal-customer" className="block text-sm font-medium mb-1">Customer</label>
+                      <select id="add-invoice-modal-customer" className="form-select w-full" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
                         <option value="">— No customer —</option>
                         {customers.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
@@ -77,12 +77,12 @@ export default function AddInvoiceModal({ customers }: { customers: CustomerOpti
                     </div>
                     <div className="flex space-x-3">
                       <div className="flex-1">
-                        <label className="block text-sm font-medium mb-1">Total <span className="text-red-500">*</span></label>
-                        <input type="number" step="0.01" min="0" required className="form-input w-full" value={total} onChange={(e) => setTotal(e.target.value)} />
+                        <label htmlFor="add-invoice-modal-total" className="block text-sm font-medium mb-1">Total <span className="text-red-500">*</span></label>
+                        <input id="add-invoice-modal-total" type="number" step="0.01" min="0" required className="form-input w-full" value={total} onChange={(e) => setTotal(e.target.value)} />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-sm font-medium mb-1">Status</label>
-                        <select className="form-select w-full" value={status} onChange={(e) => setStatus(e.target.value)}>
+                        <label htmlFor="add-invoice-modal-status" className="block text-sm font-medium mb-1">Status</label>
+                        <select id="add-invoice-modal-status" className="form-select w-full" value={status} onChange={(e) => setStatus(e.target.value)}>
                           {['draft', 'pending', 'paid', 'overdue', 'cancelled'].map((s) => (
                             <option key={s} value={s}>{s}</option>
                           ))}
@@ -90,8 +90,8 @@ export default function AddInvoiceModal({ customers }: { customers: CustomerOpti
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Due date</label>
-                      <input type="date" className="form-input w-full" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                      <label htmlFor="add-invoice-modal-due-date" className="block text-sm font-medium mb-1">Due date</label>
+                      <input id="add-invoice-modal-due-date" type="date" className="form-input w-full" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                     </div>
                     {error && (
                       <div className="text-sm text-red-600 bg-red-50 dark:bg-red-500/10 px-3 py-2 rounded">{error}</div>

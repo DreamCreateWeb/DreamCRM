@@ -293,11 +293,11 @@ function EmailCard({
         <div className="mt-4 space-y-4 border-t border-gray-100 pt-4 dark:border-gray-700/50">
           {/* On/off + timing controls per email shape. */}
           {ownEnable && (
-            <label className="flex items-center justify-between gap-3">
+            <label htmlFor="automation-enabled-toggle" className="flex items-center justify-between gap-3">
               <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
                 Send this email automatically
               </span>
-              <Toggle checked={enabled} onChange={setEnabled} disabled={!canManage} srLabel="Send this email automatically" />
+              <Toggle id="automation-enabled-toggle" checked={enabled} onChange={setEnabled} disabled={!canManage} srLabel="Send this email automatically" />
             </label>
           )}
 
@@ -524,9 +524,10 @@ function ReminderTiming({
 
   return (
     <div id="reminder-timing" className="space-y-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/40">
-      <label className="flex items-center justify-between gap-3">
+      <label htmlFor="reminders-enabled-toggle" className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium text-gray-800 dark:text-gray-100">Send reminders automatically</span>
         <Toggle
+          id="reminders-enabled-toggle"
           checked={value.enabled}
           onChange={(v) => onChange({ ...value, enabled: v })}
           disabled={disabled}
@@ -604,11 +605,12 @@ function ReminderTiming({
         </div>
       </div>
 
-      <label className="flex items-center justify-between gap-3">
+      <label htmlFor="forms-reminder-toggle" className="flex items-center justify-between gap-3">
         <span className="text-sm text-gray-700 dark:text-gray-300">
           Also remind patients to finish their forms
         </span>
         <Toggle
+          id="forms-reminder-toggle"
           checked={value.formsReminder}
           onChange={(v) => onChange({ ...value, formsReminder: v })}
           disabled={disabled}

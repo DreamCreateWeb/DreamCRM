@@ -35,6 +35,15 @@ batch number.
   remainder, and the escape-hatch rule mechanically (an onClick that is only
   a state setter, or a bare Cancel/Back/Keep/Close label, may never carry
   `pending`)].
+- **The website Studio's Focus-point picker has no keyboard path at all.**
+  `components/ui/focal-point-picker.tsx` is a pointer-only drag surface —
+  `onPointerDown`/`Move`/`Up` on a plain `<div>`, no `tabIndex`, no `role`,
+  no arrow keys — so choosing what stays in frame on a hero photo is
+  mouse-or-touch only. Found in batch 53 while burning down the labels (its
+  `<label>` had nothing to name, which is the tell). The fix is the standard
+  2D-slider shape: focusable, `role="application"` or a pair of named
+  sliders, arrow keys nudging 1% and Shift+arrow 10%. Deliberately NOT
+  folded into that batch — it is a behaviour change, not an association.
 - **Sibling actions sharing one `pending` flag all spin together.** Distinct
   from the escape-hatch class above and NOT closed by batch 52: where a
   surface runs several real actions off one `useTransition`, pressing one
@@ -45,15 +54,34 @@ batch number.
   disabled={pending}` — and batches 46/47/49 applied it per-surface. What is
   missing is the sweep. The guard test deliberately exempts the
   discriminating shape, so adopting it is already unblocked.
-- **77 form fields have no accessible name** — a `<label>` that is a SIBLING
-  of its input, with neither `htmlFor` nor nesting, so nothing connects the
-  two. To a screen reader those fields are unnamed: "edit text, blank". 23
-  files, the biggest of them whole forms (careers job-form 13, product-form
-  7, plan-form 7, audiences 8, new-project-modal 6, compose 5). Found by the
-  jsx-a11y gate on the day it landed (batch 52) — NOT by reading, which is
-  the point of the gate. Suppressed by count in `eslint-suppressions.json`
-  so the class cannot grow while it is burned down; `pnpm lint:prune` shrinks
-  the file as batches land. **This is the next accessibility batch.**
+- ~~77 form fields have no accessible name~~ [BATCH 53, ALL 77, and
+  `eslint-suppressions.json` is now EMPTY. A `<label>` that is a SIBLING of
+  its input, with neither `htmlFor` nor nesting, connects nothing — to a
+  screen reader the field was "edit text, blank". Found by the jsx-a11y gate
+  on the day it landed (batch 52), NOT by reading, which is the point of the
+  gate. The five surfaces a patient or applicant meets ALONE went first
+  (public job application, add-to-cart, review form, accept-invite,
+  partner-accept), then the staff bulk. 63 of the 77 were the plain shape and
+  took `htmlFor`+`id` derived from the control's own `name`, or from the
+  visible label text where a controlled React field had none. The other 14
+  were NOT that shape and are the interesting half: seven `<label>`s were
+  naming a GROUP, not a control (audiences' stage/source chip sets, the plan
+  benefit rows, product photos and variant rows, the members checkbox list,
+  the email-sender radio set) — a `<label>` can only ever name ONE control,
+  so each became the group's own name via `role=group`/`radiogroup` +
+  `aria-labelledby`, and the repeated rows inside them (benefits, variants,
+  photo removes) got per-row names of their own, since "Variants & pricing"
+  over four blank fields is still four blank fields. Four wrapped a `Toggle`,
+  whose `role=switch` button the rule does not count as a control, and were
+  wired `htmlFor`/`id` so the association is spelled out. Two were separated
+  from their control by a paragraph of explanation (the Google review link,
+  the GBP location picker — the latter dropping an `aria-label` that said
+  something DIFFERENT from the visible heading). One was naming
+  `FocalPointPicker`, which has no control to name at all, and became a
+  span. The review form's note textarea, unlabelled entirely, gained one.
+  `tests/a11y/form-labels.test.ts` pins the suppressions file empty of this
+  rule — lint already fails on a new offender, but not on someone
+  re-suppressing one to get the gate green.]
 - ~~No automated accessibility gate~~ [BATCH 52: the repo had no
   `eslint-plugin-jsx-a11y`, no axe run, and no ESLint config at all — Next 16
   removed `next lint` and nothing replaced it, so even the 74 existing
@@ -86,6 +114,9 @@ batch number.
   four static weights. `tokens.test.ts` now fails on any remote `@import`
   returning to the sheet, and on a woff2 the CSS names but public/ doesn't
   ship (a 404 font is silent — it just renders the fallback face)].
+  RE-VERIFIED batch 53 (it was slated again as if still open): line 1 of
+  `app/css/style.css` is `@import 'tailwindcss'`, both Inter woff2 files are
+  in public/fonts, and the guard is live. Nothing to do.
 - ~~The shared `Drawer` could open with NO accessible name~~ [BATCH 51: its
   header — and the only `DialogTitle` in the component — rendered solely
   when `title || actions`, so a title-less drawer opened as an anonymous
@@ -106,9 +137,9 @@ batch number.
 
 ### Overview (`app/(default)/dashboard/`)
 Already best-version: TodayChairRow, MorningReveal, ring+text pairing, GrantsStrip zero state.
-1. [BATCH 10] Approve button → ActionButton primary + pending (approval-inbox.tsx:1155); Edit-first → ghost.
-2. [BATCH 10] AttentionCard headline number → the link its subtitle promises (clinic-overview.tsx:849; recipe kpi-stat.tsx:107).
-3. [BATCH 10] Dead preview rows → deep links: Unconfirmed (:472), Unmarked (:502) → `?appt=`; New inquiries (:571), Follow-ups due (:613) → their filtered lists.
+1. ~~Approve button → ActionButton primary + pending; Edit-first → ghost~~ [BATCH 10 — struck in batch 53 on re-verification: approval-inbox.tsx's Approve is an `ActionButton variant="primary" pending`, Edit-first is `variant="ghost"`].
+2. ~~AttentionCard headline number → the link its subtitle promises~~ [BATCH 10 — struck in batch 53: every AttentionCard carries its `cta` href, and kpi-stat.tsx wraps the whole tile in a Link when `href` is set].
+3. ~~Dead preview rows → deep links~~ [BATCH 10 — struck in batch 53: Unconfirmed and Unmarked rows link to `?appt=<id>`, New inquiries to `/leads?status=new`, Follow-ups due to `/followups`].
 4. ~~Proposal + standup cards on the retired etched recipe~~ [BATCH 15: .v2-card].
 5. ~~Machine-handled sky pill~~ [BATCH 15: violet info tone on card + rail; the icon well drops its phantom brand-50 token too].
 6. ~~Morning skeleton wrong shape~~ [BATCH 15: sign-here card + 4-card grid + 5 KPIs + feed].
@@ -121,7 +152,7 @@ Already best-version: TodayChairRow, MorningReveal, ring+text pairing, GrantsStr
 
 ### My Day
 Already best-version: ClosedHeartbeat, undo-toast on tick-off.
-1. [BATCH 10] loading.tsx max-w-6xl vs page max-w-[96rem] — guaranteed reflow (my-day/loading.tsx:11).
+1. ~~loading.tsx max-w-6xl vs page max-w-[96rem] — guaranteed reflow~~ [BATCH 10 — struck in batch 53: both are `max-w-[96rem]`, and the skeleton mirrors the real 6-tile grid].
 2. ~~Tick-off circle not disabled during transition~~ [BATCH 30: verified covered — the shared TickButton (batch 16) always disables while pending].
 3. ~~Prep flags bare amber text~~ [BATCH 15: StatusPill warn].
 4. ~~Raw 🪑/🚪 emoji, no legend~~ [BATCH 30: the agenda's own labeled StatusPill recipe (🪑 Seated ok / 🚪 Arrived info) — self-explaining, and the two surfaces can't drift].
@@ -134,8 +165,8 @@ Already best-version: ClosedHeartbeat, undo-toast on tick-off.
 
 ### Follow-ups board
 Already best-version: due-state grouping, optimistic complete with honest revert.
-1. [BATCH 10] No PendingVeil on filter nav (followups-board.tsx:79).
-2. [BATCH 10] One useTransition freezes rows during nav — split navPending/rowPending (:77,:226,:279,:309).
+1. ~~No PendingVeil on filter nav~~ [BATCH 10 — struck in batch 53: `{navPending && <PendingVeil />}` on the board].
+2. ~~One useTransition freezes rows during nav — split navPending/rowPending~~ [BATCH 10 — struck in batch 53: two transitions, `rowPending` on the rows and `navPending` on the veil].
 3. ~~Settings card between filters and the work~~ [BATCH 30: collapsed one-line summary ("N of M on · morning digest on/off") + chevron disclosure; body stays mounted while hidden (settings-tabs law)].
 4. ~~No tailored loading.tsx~~ [BATCH 16: chip row + rules line + grouped tick rows].
 5. ~~Empty states hand over no action~~ [BATCH 30: the unfiltered caught-up state hands over Open patients; filtered already had Clear filters].
@@ -147,10 +178,10 @@ Already best-version: due-state grouping, optimistic complete with honest revert
 
 ### Leads
 Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty copy, drawer action ladder, dedupe confirm.
-1. [BATCH 10] Archive sub-panel escapes the drawer — add `relative` (lead-drawer.tsx:196).
-2. [BATCH 10] Rows mouse-only — role/tabIndex/Enter (leads-view.tsx:341).
-3. [BATCH 10] Hand-rolled search → SearchInput (leads-view.tsx:249).
-4. [BATCH 10] Discarded pending flag → PendingVeil (:106,:173).
+1. ~~Archive sub-panel escapes the drawer — add `relative`~~ [BATCH 10 — struck in batch 53: the drawer panel carries `relative`].
+2. ~~Rows mouse-only — role/tabIndex/Enter~~ [BATCH 10 — struck in batch 53: the row has role=button, tabIndex=0 and an onKeyDown].
+3. ~~Hand-rolled search → SearchInput~~ [BATCH 10 — struck in batch 53: leads-view imports and renders the shared SearchInput].
+4. ~~Discarded pending flag → PendingVeil~~ [BATCH 10 — struck in batch 53: `{isPending && <PendingVeil />}`].
 5. ~~Empty states actionless~~ [BATCH 16: Share-your-website / Clear-filters handed over].
 6. ~~Drawer timeline uses browser-local time~~ [BATCH 30: formatClinicDayTime with the clinic tz plumbed page → view → drawer].
 7. ~~leads/loading.tsx wrong shape~~ [BATCH 30: chip row + select-all line + left-bordered card stack].
@@ -167,7 +198,7 @@ Already best-version: tone/ball-in-court mapping, ageTitle, per-status empty cop
 2. ~~Row dead outside the name cell~~ [BATCH 19: whole-row mouse nav (cursor-pointer, own controls excluded, rides the PendingVeil transition); the name Link stays the keyboard/AT path].
 3. ~~Search needs Enter but never says so~~ [BATCH 19: SearchInput grows an opt-in `enterHint` ↵ kbd — shown only while typed text awaits submit; Messages' live search unaffected].
 4. ~~Two raw selects amid FilterChips~~ [BATCH 19: the picker stays a select (long enumerations), but an ACTIVE source/tag presents as the shared active FilterChip with one-click clear].
-5. Bulk bar: ~~Invite/Pay-link ternaries~~ [BATCH 11: pending prop]; the "Tagging…" placeholder-select spinner DEFERRED — a select is the honest control for a long tag enumeration, and its first-option pending label is visible feedback; a popover menu would re-implement the same list for chrome.
+5. ~~Bulk bar~~ [BATCH 11: Invite/Pay-link ride the pending prop. CLOSED in batch 53 — the "Tagging…" placeholder-select spinner is a recorded DEFERRAL, not outstanding work: a select is the honest control for a long tag enumeration, its first-option pending label is visible feedback, and a popover menu would re-implement the same list for chrome.]
 6. ~~No sticky thead~~ [BATCH 11].
 7. ~~Heartbeat hidden lg:flex~~ [BATCH 19: label survives from sm up; the spark stays desktop — the followups precedent].
 8. ~~saved-views-bar re-implements FilterChip~~ [BATCH 19: All-patients + view chips ride FilterChip href-mode; the action pills (+ Save view / Follow-up all / Send a campaign) stay deliberate — chips filter, they never act].
@@ -215,7 +246,7 @@ Already best-version: emptyCopy() engine.
 5. ~~Patient replies at text-xs~~ [BATCH 17: reply bodies at text-sm full ink; metadata stays xs].
 6. ~~Slot grid collapses to text while loading~~ [BATCH 17: six skeleton chips in the grid's shape].
 7. ~~Walk-in defaults 09:00~~ [BATCH 12: now, rounded up to the next quarter hour].
-8. Fast-pass: ~~Remove no confirm + sub-floor contrast~~ [BATCH 17]; the collapsed-by-default summary stays (a deliberate quiet panel).
+8. ~~Fast-pass~~ [BATCH 17: Remove confirms, contrast lifted. CLOSED in batch 53 — the collapsed-by-default summary is a deliberate quiet panel, not a remainder.]
 
 ### Messages (list + detail)
 Already best-version: the message stream + receipts; per-row optimistic nav.
@@ -249,7 +280,7 @@ Already best-version: CompletedHeartbeat.
 1. ~~Fill URL un-copyable gray mono~~ [BATCH 11: the new shared CopyChip primitive].
 2. ~~"No submissions yet" dimmed below floor~~ [BATCH 11].
 3. ~~Three equal row buttons~~ [BATCH 26: Edit leads at secondary weight; Preview/Kiosk demote to ghost].
-4. Packets: ~~uncopyable URLs + dim empty state~~ [BATCH 11: CopyChip + contrast]; ~~raw rose Delete~~ [BATCH 26: quiet-until-hover rose, the audiences recipe — the confirm was already there].
+4. ~~Packets~~ [BATCH 11: CopyChip + contrast on the URLs and the empty state; BATCH 26: quiet-until-hover rose Delete on the audiences recipe — the confirm was already there. Both named halves shipped, so the entry closes in batch 53.]
 5. ~~Silent 50-cap~~ [BATCH 26: honest footer line pointing at each form's full history]. Filters DEFERRED: the index is a glance surface; per-form pages carry the full lists.
 6. ~~Builder reorder = 10px ▲▼ text glyphs~~ [BATCH 14: 28px grid targets — verified wired].
 7. ~~Archive adjacent to Save~~ [BATCH 14: moved to a quiet footer above the bar — verified wired].
@@ -435,9 +466,9 @@ reads clinic-voiced copy.
 ### Platform cross-cutting (mechanical sweeps)
 1. Cancel-spins + shared-pending sweep. CORE FILES DONE [BATCH 36: clinics-list (delete-modal Cancel + View-as demoted from per-row primary + resend-invite failure surfaced + dead ternaries), partner-actions (per-action keys), referral-card, referred-clinics-table, delete-partner-modal, subscriptions-panel (per-action), plans-panel (per-price keys)]. Remaining sites ride their surface batches: pipeline-lead-drawer, add-lead-button, audiences-client, campaign-editor, blog-editor, review-board, library-entry-editor, prospecting files.
 2. ~~FlashToast announces errors as success~~ [BATCH 36: role=alert + assertive when tone==='urgent'; partners-table and referred-clinics-table now pass urgent tones on every failure path (validation + catches). pipeline-board's silent move failure rides the /marketing batch].
-3. Tone sweep. PARTIAL [BATCH 42: prospecting sky retired — cool score band → violet, communicated stage + replies tile → fuchsia (special: a human reaching back), email channel dot → violet; brand-teal-as-status → emerald across pipeline-panel Won, territory Won, board reply tone, deal-room savings, copilot done-line (now a toast); plus the module's *-50 surfaces → surface-sunk and the demos/call-list raw hex (#ddd6fe/#f59e0b) → tokens]. Remainder: marketing terminology.ts sky/stone stage accents ride the /marketing batch. (Subscriptions-attention + clinic-detail + violet-as-link were closed in earlier batches; phone-queue special deliberately kept.)
+3. Tone sweep. PARTIAL [BATCH 42: prospecting sky retired — cool score band → violet, communicated stage + replies tile → fuchsia (special: a human reaching back), email channel dot → violet; brand-teal-as-status → emerald across pipeline-panel Won, territory Won, board reply tone, deal-room savings, copilot done-line (now a toast); plus the module's *-50 surfaces → surface-sunk and the demos/call-list raw hex (#ddd6fe/#f59e0b) → tokens]. ~~Remainder: marketing terminology.ts sky/stone stage accents~~ [CLOSED in batch 53: lib/marketing/terminology.ts carries no sky or stone accent — the six stages are gray/fuchsia/violet/amber/emerald/rose and `stageAccentClasses` emits tone tokens; the file only spells "sky/stone" in the comment recording their retirement. It rode the /marketing batch (45) as planned and was never struck here.] (Subscriptions-attention + clinic-detail + violet-as-link were closed in earlier batches; phone-queue special deliberately kept.)
 4. ~~Retired *-50 dialect sweep~~ [BATCHES 38–49, verified at close: the flagged sites landed with their surface batches (prospecting b42/43, marketing b45, service library b46, blog b47, settings b48, campaigns/audiences b49); a final grep finds only false positives (z-50/opacity-50), interaction-state hover:bg-gray-50 (accepted idiom), and the daily-briefing hero's white-on-teal chrome (deliberate)].
-5. Missing loading.tsx: /ecommerce/customers, /ecommerce/invoices, /messages, /partners(+/[id]), /platform/prospecting, /platform/prospecting/call-mode, /call-list, /demo/[id], /website/blog, /platform/service-library; dashboard/loading.tsx is clinic-shaped for the platform tenant — DEFERRED: loading.tsx is static and tenant-blind; branching would need the skeleton moved into the page or a cookie-reading client shim, disproportionate for the one-user platform surface.
+5. ~~Missing loading.tsx~~ [CLOSED in batch 53 on re-verification: every route this entry named ships one — /ecommerce/customers, /ecommerce/invoices, /messages, /partners and /partners/[id], /platform/prospecting, /call-mode, /call-list, /demo/[id], /website/blog, /platform/service-library — landed across batches 41/45/46/47 and their surface batches without this list being struck. The one remaining clause is a recorded DEFERRAL, not work: dashboard/loading.tsx is clinic-shaped for the platform tenant, and loading.tsx is static and tenant-blind, so branching would need the skeleton moved into the page or a cookie-reading client shim — disproportionate for the one-user platform surface.]
 6. ~~role=alert/status adoption~~ [BATCHES 36–49, verified at close: prospecting went from zero live regions to toast/role adoption across 10 files; every flagged bare error div now carries role=alert; the flagged silent successes (subscriptions, plans, drawer actions, resend-invite) all toast].
 
 ### Platform Overview
@@ -471,7 +502,7 @@ reads clinic-voiced copy.
 4. Rows inert. INVOICES DONE [BATCH 38: each links to its Stripe hosted page (service carries hostedInvoiceUrl)]. Project rows DEFERRED — no per-project destination exists (/ecommerce/orders has no row-targeting param); an IA gap, post-1.0.
 5. ~~NexHealth card raw mechanics~~ [BATCH 38: ActionButton primary with per-action pending (bind vs write-back no longer share fate), form-checkbox class, success role=status].
 6. ~~ReferralCard shared pending + rose-50 errors~~ [BATCH 36 split the pending; BATCH 38 moved both error blocks to the urgent recipe + role=alert].
-7. Server dates — N/A BY DESIGN: this is a platform-global surface with no clinic tz to anchor to (the tz law binds clinic-facing renders); dates are day-granular. ~~Modal success not live region / gray scrim~~ [BATCH 38: role=status + ink-token scrim]. Hardcoded domain string stays (display copy mirroring the SITE_DOMAIN default).
+7. ~~Server dates / modal success / scrim~~ [BATCH 38: role=status + ink-token scrim. CLOSED in batch 53 — the other two clauses were never work: server dates are N/A BY DESIGN (a platform-global surface has no clinic tz to anchor to — the tz law binds clinic-facing renders — and the dates are day-granular), and the hardcoded domain string is display copy mirroring the SITE_DOMAIN default.]
 
 ### Client messaging (double-sidebar platform branch)
 1. ~~No thread-header identity~~ [BATCH 39: the conversation title renders at real heading size/ink in the pane; the sticky chrome keeps its one mobile control].
@@ -496,7 +527,7 @@ reads clinic-voiced copy.
 4. ~~gray-400 on meaningful text~~ [BATCH 40: gray-500 floor on the term, the % unit, and the ✕ (which also grew a 32px hit area)].
 5. ~~rose-50 errors, no role=alert~~ [BATCH 40: urgent recipe + role=alert in all three].
 6. ~~Terms editor no dirty contract + two primaries~~ [BATCH 40: Save lights only when something changed ('Unsaved changes' hint), the baseline moves on save, and Save demotes to secondary — Pay-now keeps the page's one primary. A floating SaveBar would be heavy for a one-card form].
-7. Back link stays a plain link (the TrailBack context-bound precedent). Server dates N/A — platform-global surface, day-granular. ~~effectiveFilter silent re-point~~ [BATCH 40: the fallback writes the state, so the chip row always shows the truth].
+7. ~~Back link / server dates / effectiveFilter~~ [BATCH 40: the effectiveFilter fallback writes the state, so the chip row always shows the truth. CLOSED in batch 53 — the back link stays a plain link on the TrailBack context-bound precedent, and server dates are N/A on a platform-global, day-granular surface.]
 Already best-version reference: delete-partner-modal, tone-aware toasts, per-row pendingId, legends, mono money columns.
 
 ### Prospecting — module-wide

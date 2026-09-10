@@ -43,7 +43,7 @@ export default function GbpLocationPicker({
 
   return (
     <div className="mt-4 rounded-[var(--r-md)] border border-[color:var(--color-hairline)] p-3">
-      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+      <label htmlFor="gbp-location-picker" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
         Your location
       </label>
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
@@ -52,11 +52,11 @@ export default function GbpLocationPicker({
       </p>
       <div className="flex items-center gap-2">
         <select
+          id="gbp-location-picker"
           className="form-select text-sm max-w-full"
           value={value}
           onChange={(e) => save(e.target.value)}
           disabled={!canManage || pending}
-          aria-label="Which Google Business location is this clinic"
         >
           {accounts.map((a) => (
             <option key={a.id} value={a.id}>

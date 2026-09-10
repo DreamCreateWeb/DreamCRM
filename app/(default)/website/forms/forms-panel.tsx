@@ -219,9 +219,10 @@ function ChatWidgetCard({ initialEnabled }: { initialEnabled: boolean }) {
   return (
     <section className="v2-card p-4 sm:p-5">
       <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">“Message us” bubble</h2>
-      <label className="flex cursor-pointer items-start gap-3">
+      <label htmlFor="chat-bubble-toggle" className="flex cursor-pointer items-start gap-3">
         <span className="mt-0.5">
           <Toggle
+            id="chat-bubble-toggle"
             checked={on}
             onChange={toggle}
             disabled={pending}

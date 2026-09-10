@@ -558,10 +558,11 @@ function MoreActionsMenu({
         >
           {forms.length > 1 && (
             <div className="px-3 pt-2 pb-1">
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label htmlFor="patient-detail-intake-form" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Intake form
               </label>
               <select
+                id="patient-detail-intake-form"
                 value={formId}
                 onChange={(e) => setFormId(e.target.value)}
                 disabled={pending}

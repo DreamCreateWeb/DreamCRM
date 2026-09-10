@@ -69,43 +69,45 @@ export default function PlanForm({ plan }: { plan?: PlanRow }) {
 
       <div className="space-y-5">
         <div>
-          <label className={LABEL}>Plan name *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Smile Club" className={FIELD} />
+          <label htmlFor="plan-form-plan-name" className={LABEL}>Plan name *</label>
+          <input id="plan-form-plan-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Smile Club" className={FIELD} />
         </div>
         <div>
-          <label className={LABEL}>Description</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="No insurance? No problem. One simple yearly fee covers your preventive care." className={`${FIELD} resize-y`} />
+          <label htmlFor="plan-form-description" className={LABEL}>Description</label>
+          <textarea id="plan-form-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="No insurance? No problem. One simple yearly fee covers your preventive care." className={`${FIELD} resize-y`} />
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className={LABEL}>Billing</label>
-            <select value={billingInterval} onChange={(e) => setBillingInterval(e.target.value as BillingInterval)} className={FIELD}>
+            <label htmlFor="plan-form-billing" className={LABEL}>Billing</label>
+            <select id="plan-form-billing" value={billingInterval} onChange={(e) => setBillingInterval(e.target.value as BillingInterval)} className={FIELD}>
               {Object.entries(BILLING_LABELS).map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
             </select>
           </div>
           <div>
-            <label className={LABEL}>Price ($)</label>
-            <input type="number" step="0.01" value={priceDollars} onChange={(e) => setPriceDollars(parseFloat(e.target.value))} className={FIELD_NUM} />
+            <label htmlFor="plan-form-price" className={LABEL}>Price ($)</label>
+            <input id="plan-form-price" type="number" step="0.01" value={priceDollars} onChange={(e) => setPriceDollars(parseFloat(e.target.value))} className={FIELD_NUM} />
           </div>
           <div>
-            <label className={LABEL}>Discount on other care (%)</label>
-            <input type="number" min={0} max={100} value={discountPercent} onChange={(e) => setDiscountPercent(parseInt(e.target.value) || 0)} className={FIELD_NUM} />
+            <label htmlFor="plan-form-discount-on-other-care" className={LABEL}>Discount on other care (%)</label>
+            <input id="plan-form-discount-on-other-care" type="number" min={0} max={100} value={discountPercent} onChange={(e) => setDiscountPercent(parseInt(e.target.value) || 0)} className={FIELD_NUM} />
           </div>
         </div>
 
         {/* Benefits */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className={LABEL + ' mb-0'}>What&apos;s included</label>
+            {/* Names the benefit ROWS below, not one field — so it is the
+                group's heading, not a <label>. */}
+            <span id="plan-form-benefits-label" className={LABEL + ' mb-0'}>What&apos;s included</span>
             <button onClick={() => setBenefits((b) => [...b, { key: Math.random().toString(36).slice(2), label: '', qty: undefined }])} className="text-xs font-medium text-teal-700 dark:text-teal-400">+ Add benefit</button>
           </div>
-          <div className="space-y-2">
-            {benefits.map((b) => (
+          <div role="group" aria-labelledby="plan-form-benefits-label" className="space-y-2">
+            {benefits.map((b, i) => (
               <div key={b.key} className="grid grid-cols-[1fr_4rem_1.5rem] gap-2 items-center">
-                <input value={b.label} onChange={(e) => setBenefits((bs) => bs.map((x) => (x.key === b.key ? { ...x, label: e.target.value } : x)))} placeholder="e.g. 2 cleanings per year" className={FIELD} />
-                <input type="number" value={b.qty ?? ''} placeholder="qty" onChange={(e) => setBenefits((bs) => bs.map((x) => (x.key === b.key ? { ...x, qty: e.target.value ? parseInt(e.target.value) : undefined } : x)))} className={FIELD_NUM} />
-                <button onClick={() => setBenefits((bs) => (bs.length > 1 ? bs.filter((x) => x.key !== b.key) : bs))} className="text-gray-400 hover:text-rose-600 text-sm">×</button>
+                <input aria-label={`Benefit ${i + 1}`} value={b.label} onChange={(e) => setBenefits((bs) => bs.map((x) => (x.key === b.key ? { ...x, label: e.target.value } : x)))} placeholder="e.g. 2 cleanings per year" className={FIELD} />
+                <input aria-label={`Benefit ${i + 1} quantity`} type="number" value={b.qty ?? ''} placeholder="qty" onChange={(e) => setBenefits((bs) => bs.map((x) => (x.key === b.key ? { ...x, qty: e.target.value ? parseInt(e.target.value) : undefined } : x)))} className={FIELD_NUM} />
+                <button aria-label={`Remove benefit ${i + 1}`} onClick={() => setBenefits((bs) => (bs.length > 1 ? bs.filter((x) => x.key !== b.key) : bs))} className="text-gray-400 hover:text-rose-600 text-sm">×</button>
               </div>
             ))}
           </div>
@@ -117,8 +119,8 @@ export default function PlanForm({ plan }: { plan?: PlanRow }) {
         </label>
 
         <div>
-          <label className={LABEL}>Status</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value as PlanStatus)} className={FIELD}>
+          <label htmlFor="plan-form-status" className={LABEL}>Status</label>
+          <select id="plan-form-status" value={status} onChange={(e) => setStatus(e.target.value as PlanStatus)} className={FIELD}>
             <option value="draft">Draft (hidden)</option>
             <option value="active">Active (open for sign-ups)</option>
             <option value="archived">Archived</option>

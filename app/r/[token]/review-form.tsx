@@ -276,12 +276,24 @@ export default function ReviewForm({
             </p>
           )}
           <div className="mb-4">
-            <label className="block text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: INK_MUTED }}>
+            {/* A <label> can't name a role=group — only a form control. The
+                visible text becomes the group's own name instead, so the
+                stars announce the question the patient can see rather than
+                the invented "Rating". */}
+            <span
+              id="review-rating-label"
+              className="block text-[11px] uppercase tracking-wider font-semibold mb-2"
+              style={{ color: INK_MUTED }}
+            >
               How was your visit? (optional)
-            </label>
-            <RatingSelector value={rating} onChange={setRating} />
+            </span>
+            <RatingSelector value={rating} onChange={setRating} labelledBy="review-rating-label" />
           </div>
+          <label htmlFor="review-note" className="sr-only">
+            Tell us what we could do better
+          </label>
           <textarea
+            id="review-note"
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={5}
@@ -367,12 +379,15 @@ function GoogleGlyph() {
 function RatingSelector({
   value,
   onChange,
+  labelledBy,
 }: {
   value: number | null
   onChange: (n: number | null) => void
+  /** Id of the visible question this group answers — its accessible name. */
+  labelledBy: string
 }) {
   return (
-    <div className="inline-flex items-center gap-1" role="group" aria-label="Rating">
+    <div className="inline-flex items-center gap-1" role="group" aria-labelledby={labelledBy}>
       {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}

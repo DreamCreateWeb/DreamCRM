@@ -37,16 +37,21 @@ import tsParser from '@typescript-eslint/parser'
  * Every rule here is on ERROR because the gate is worth nothing as a
  * warning: a warning that CI does not fail on is a comment.
  *
- * THE SUPPRESSIONS FILE. `eslint-suppressions.json` (ESLint's own native
- * bulk-suppression format, not a hand-written allowlist) carries 77 existing
+ * THE SUPPRESSIONS FILE IS EMPTY, AND THAT IS THE POINT.
+ * `eslint-suppressions.json` (ESLint's own native bulk-suppression format,
+ * not a hand-written allowlist) landed in batch 52 carrying 77
  * `label-has-associated-control` hits across 23 files — a real defect class,
  * the largest in the app: a `<label>` that is a SIBLING of its input with no
- * `htmlFor` and no nesting gives that field no accessible name at all. They
- * are suppressed rather than allowlisted because the two behave differently
- * in the one way that matters: the suppression records a per-file COUNT, so
- * a 78th offender — even in an already-listed file — fails. The class cannot
- * grow, and `pnpm lint:prune` shrinks the file as batches burn it down. The
- * burn-down is on the punch list (docs/UI-BEST-VERSION.md).
+ * `htmlFor` and no nesting gives that field no accessible name at all, so a
+ * screen reader reads it "edit text, blank". Suppression rather than an
+ * allowlist was chosen because the two differ in the one way that mattered:
+ * a suppression records a per-file COUNT, so a 78th offender — even in an
+ * already-listed file — failed. The class could not grow while it was burned
+ * down. **Batch 53 finished the burn-down**: all 77 are named, `pnpm
+ * lint:prune` emptied the file, and the rule below now guards the tree with
+ * nothing suppressing it. Do NOT re-fill this file to get a red gate green —
+ * `tests/a11y/form-labels.test.ts` fails on any `label-has-associated-control`
+ * entry returning to it. Name the field instead.
  *
  * Run: `pnpm lint`. CI runs it on every PR (.github/workflows/ci.yml).
  */

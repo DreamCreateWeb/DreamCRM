@@ -391,10 +391,11 @@ function CustomerAudienceEditor({
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+            <label htmlFor="audiences-client-name" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Name
             </label>
             <input
+              id="audiences-client-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Trial users week 1"
@@ -402,10 +403,11 @@ function CustomerAudienceEditor({
             />
           </div>
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+            <label htmlFor="audiences-client-description-optional" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Description (optional)
             </label>
             <input
+              id="audiences-client-description-optional"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What this segment is used for"
@@ -414,10 +416,13 @@ function CustomerAudienceEditor({
           </div>
 
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-2">
+            {/* A <label> names ONE control; these chips are a set, so the
+                heading names the GROUP instead — otherwise every chip is a
+                loose toggle belonging to nothing. */}
+            <span id="audiences-stages-label" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-2">
               Pipeline stages
-            </label>
-            <div className="flex flex-wrap gap-1.5">
+            </span>
+            <div role="group" aria-labelledby="audiences-stages-label" className="flex flex-wrap gap-1.5">
               {stages.map((s) => (
                 <FilterChip key={s.key} active={filter.stages?.includes(s.key) ?? false} onClick={() => toggleStage(s.key)}>
                   {s.label}
@@ -430,10 +435,13 @@ function CustomerAudienceEditor({
           </div>
 
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-2">
+            {/* A <label> names ONE control; these chips are a set, so the
+                heading names the GROUP instead — otherwise every chip is a
+                loose toggle belonging to nothing. */}
+            <span id="audiences-sources-label" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-2">
               Sources
-            </label>
-            <div className="flex flex-wrap gap-1.5">
+            </span>
+            <div role="group" aria-labelledby="audiences-sources-label" className="flex flex-wrap gap-1.5">
               {sources.map((s) => (
                 <FilterChip key={s} active={filter.sources?.includes(s) ?? false} onClick={() => toggleSource(s)}>
                   {s}
@@ -443,10 +451,11 @@ function CustomerAudienceEditor({
           </div>
 
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+            <label htmlFor="audiences-client-activity-window" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Activity window
             </label>
             <select
+              id="audiences-client-activity-window"
               value={filter.lastActivityWithinDays?.toString() ?? ''}
               onChange={(e) => {
                 const v = e.target.value
@@ -668,10 +677,11 @@ function PatientAudienceEditor({
 
         <div className="px-5 py-4 space-y-5">
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+            <label htmlFor="audiences-client-name-2" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Name
             </label>
             <input
+              id="audiences-client-name-2"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Lapsed family patients"
@@ -680,10 +690,11 @@ function PatientAudienceEditor({
           </div>
 
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+            <label htmlFor="audiences-client-description-optional-2" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Description (optional)
             </label>
             <input
+              id="audiences-client-description-optional-2"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What this segment is used for"
@@ -726,10 +737,11 @@ function PatientAudienceEditor({
           )}
 
           <div>
-            <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+            <label htmlFor="audiences-client-last-visit-was-at-least" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
               Last visit was at least
             </label>
             <select
+              id="audiences-client-last-visit-was-at-least"
               value={filter.lastVisitAtLeastDaysAgo?.toString() ?? ''}
               onChange={(e) => {
                 const v = e.target.value

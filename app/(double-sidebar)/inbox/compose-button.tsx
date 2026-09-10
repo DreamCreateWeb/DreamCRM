@@ -95,8 +95,9 @@ export default function ComposeButton({ accounts }: Props) {
                   <div className="px-5 py-4 space-y-3">
                     {accounts.length > 1 && (
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+                        <label htmlFor="compose-button-from" className="block text-xs font-medium text-gray-500 mb-1">From</label>
                         <select
+                          id="compose-button-from"
                           className="form-select w-full"
                           value={accountId}
                           onChange={(e) => setAccountId(e.target.value)}
@@ -110,8 +111,9 @@ export default function ComposeButton({ accounts }: Props) {
                       </div>
                     )}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+                      <label htmlFor="compose-button-to" className="block text-xs font-medium text-gray-500 mb-1">To</label>
                       <input
+                        id="compose-button-to"
                         className="form-input w-full"
                         required
                         value={to}
@@ -120,8 +122,9 @@ export default function ComposeButton({ accounts }: Props) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Cc</label>
+                      <label htmlFor="compose-button-cc" className="block text-xs font-medium text-gray-500 mb-1">Cc</label>
                       <input
+                        id="compose-button-cc"
                         className="form-input w-full"
                         value={cc}
                         onChange={(e) => setCc(e.target.value)}
@@ -129,8 +132,9 @@ export default function ComposeButton({ accounts }: Props) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Subject</label>
+                      <label htmlFor="compose-button-subject" className="block text-xs font-medium text-gray-500 mb-1">Subject</label>
                       <input
+                        id="compose-button-subject"
                         className="form-input w-full"
                         required
                         value={subject}
@@ -138,8 +142,9 @@ export default function ComposeButton({ accounts }: Props) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Message</label>
+                      <label htmlFor="compose-button-message" className="block text-xs font-medium text-gray-500 mb-1">Message</label>
                       <textarea
+                        id="compose-button-message"
                         className="form-textarea w-full"
                         rows={10}
                         required
