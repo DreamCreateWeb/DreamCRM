@@ -134,3 +134,90 @@ describe('pending feedback comes from the primitive', () => {
     ).toBe(RAW_BUTTON_CEILING)
   })
 })
+
+/**
+ * THE ESCAPE HATCH IS NEVER THE THING THAT IS BUSY.
+ *
+ * A spinner is a claim: *this button's work is running*. Putting the shared
+ * `pending` flag on Cancel, Back, Keep, or a disclosure toggle makes that
+ * claim falsely — and worse, it turns the one control a person reaches for
+ * when they want OUT into a second spinner, so the modal reads as though it
+ * is saving twice and offering no exit at all.
+ *
+ * `disabled` is the honest state for these: the exit is unavailable while
+ * work runs, and it says so without pretending to be the work.
+ *
+ * Seventeen of them were live when this guard was written — the punch list
+ * had counted six, because it had only looked in modals.
+ *
+ * The rule is mechanical on purpose, so it cannot be argued with:
+ *
+ * - An `onClick` that is nothing but a local state setter (`() => setOpen(
+ *   false)`, `() => setEditing(true)`) does no work by definition, so it can
+ *   never have a busy state.
+ * - A button whose whole label is a bare exit word is an escape hatch.
+ *   "Cancel appointment", "Cancel scheduled send" and "Cancel add-on" are
+ *   real destructive actions and keep their spinner — the exact-match is
+ *   what separates them.
+ */
+
+const EXIT_LABELS = [
+  'Cancel', 'Back', 'Close', 'Keep', 'Dismiss', 'Discard',
+  'Never mind', 'Not now', 'Nevermind',
+]
+
+/** `<ActionButton …>…</ActionButton>`, non-greedy over a short body. */
+const ACTION_BUTTON = /<ActionButton\b[^>]*>[\s\S]{0,160}?<\/ActionButton>/g
+/** An onClick that only flips local state — no server action, no handler. */
+const PURE_SETSTATE = /onClick=\{\(\)\s*=>\s*\{?\s*set[A-Z][A-Za-z0-9]*\(/
+/**
+ * `pending={pending && active === 'save'}` — the discriminating shape from
+ * `referral-card.tsx`, which names WHICH of several buttons sharing one flag
+ * is the one doing the work. A button spelling that has already thought
+ * about the question, so it is out of scope here even if its handler happens
+ * to be named `setSomething` (several are: a `setFocus` that opens a
+ * transition is a handler, not a `useState` setter).
+ */
+const DISCRIMINATING = /pending=\{[^}]*(?:&&|===)/
+
+function actionButtons(): Array<{ rel: string; line: number; src: string }> {
+  const root = process.cwd()
+  const out: Array<{ rel: string; line: number; src: string }> = []
+  for (const file of ROOTS.flatMap((d) => walk(resolve(root, d)))) {
+    const text = readFileSync(file, 'utf8')
+    const rel = file.slice(root.length + 1).split('\\').join('/')
+    ACTION_BUTTON.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = ACTION_BUTTON.exec(text))) {
+      out.push({ rel, line: text.slice(0, m.index).split('\n').length, src: m[0] })
+    }
+  }
+  return out
+}
+
+describe('escape hatches disable, they do not spin', () => {
+  const buttons = actionButtons().filter(
+    (b) => /\spending=/.test(b.src) && !DISCRIMINATING.test(b.src),
+  )
+
+  it('finds ActionButtons carrying pending at all', () => {
+    expect(buttons.length).toBeGreaterThan(20)
+  })
+
+  it('a button whose onClick only flips local state never carries `pending`', () => {
+    const offenders = buttons
+      .filter((b) => PURE_SETSTATE.test(b.src))
+      .map((b) => `${b.rel}:${b.line} — ${b.src.replace(/\s+/g, ' ').slice(0, 110)}`)
+    expect(offenders).toEqual([])
+  })
+
+  it('a bare Cancel/Back/Keep/Close never carries `pending`', () => {
+    const offenders = buttons
+      .filter((b) => {
+        const label = (b.src.match(/>([\s\S]*)<\/ActionButton>$/) ?? [, ''])[1].trim()
+        return EXIT_LABELS.includes(label)
+      })
+      .map((b) => `${b.rel}:${b.line} — ${b.src.replace(/\s+/g, ' ').slice(0, 110)}`)
+    expect(offenders).toEqual([])
+  })
+})
