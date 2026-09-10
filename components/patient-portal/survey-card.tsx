@@ -100,7 +100,7 @@ export default function SurveyCard({ token, brand }: { token: string; brand: str
             className="mt-3"
           />
           <div className="mt-2 flex items-center gap-3">
-            <BrandButton brand={brand} onClick={sendNote} disabled={pending}>
+            <BrandButton brand={brand} onClick={sendNote} pending={pending}>
               {note.trim() ? 'Send it' : 'Done'}
             </BrandButton>
           </div>

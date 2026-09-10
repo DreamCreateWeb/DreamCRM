@@ -14,12 +14,25 @@ import { resolve } from 'node:path'
  * red, at the assertion FURTHEST from the cause.
  *
  * That is exactly what DREAMCRM-21 was. The wait had been "the 'Move my visit'
- * button is gone", which looks like a settled signal and is not: the pill
- * relabels to "Moving…" the moment the transition starts, so its accessible
- * name disappears on the CLICK, while the request is still in the air. Three
- * full-suite runs failed on a loaded box; three isolated runs passed; each
- * failing run burned ~10s re-polling a post-reload DOM that could never
- * change. CI's `retries: 1` absorbed it, which is how it survived.
+ * button is gone", which looks like a settled signal and is not: the pill's
+ * accessible name changes the moment the transition starts, so it disappears
+ * on the CLICK, while the request is still in the air. Three full-suite runs
+ * failed on a loaded box; three isolated runs passed; each failing run burned
+ * ~10s re-polling a post-reload DOM that could never change. CI's
+ * `retries: 1` absorbed it, which is how it survived.
+ *
+ * WHAT THE PENDING PILL LOOKS LIKE NOW (batch 53, DREAMCRM-26). It used to
+ * relabel to "Moving…". It no longer relabels at all — the busy state moved
+ * into the primitive, so the visible text stays "Move my visit" (held at
+ * `opacity-0` and `aria-hidden`, which is what stops the button reflowing
+ * under the patient's thumb) and the accessible name becomes the spinner's
+ * sr-only "Working…". The name still goes away mid-flight, which is the only
+ * thing this guard ever depended on, and the pill now ALSO carries
+ * `aria-busy="true"` and `disabled` — two explicit signals where there was
+ * previously only a string swap to infer from. So the assertion below tracks
+ * the new contract rather than the old label: it pins that the idle name is
+ * gone and that the button says it is busy, which is strictly more than the
+ * original pinned.
  *
  * This guard runs in the normal vitest suite — no database, no browser —
  * because the E2E job is the wrong place to learn that an E2E assertion is
@@ -120,7 +133,9 @@ describe('the reschedule journey has a settled signal that a pending action cann
     // The pill under its PENDING name — the whole point. The E2E spec used to
     // wait for 'Move my visit' to reach count 0, and here it already has,
     // with the server action still unresolved.
-    expect(await screen.findByRole('button', { name: 'Moving…' })).toBeInTheDocument()
+    const busyPill = await screen.findByRole('button', { name: 'Working…' })
+    expect(busyPill).toHaveAttribute('aria-busy', 'true')
+    expect(busyPill).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Move my visit' })).toBeNull()
 
     // The signal the spec waits on instead, correctly saying "not yet".

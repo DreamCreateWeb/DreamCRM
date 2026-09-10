@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BusyLabel } from '@/components/ui/busy-label'
 
 /**
  * Presentational primitives for the patient portal — warm-neutral cards,
@@ -185,7 +186,8 @@ export function PortalEmptyState({
 }
 
 /** Pill-shaped primary action — brand fill. Works from server pages (href)
- *  AND client components (onClick/disabled) so nobody hand-rolls the pill. */
+ *  AND client components (onClick/disabled/pending) so nobody hand-rolls the
+ *  pill — or its busy state. */
 export function BrandButton({
   children,
   brand,
@@ -194,6 +196,7 @@ export function BrandButton({
   small = false,
   onClick,
   disabled,
+  pending = false,
   className = '',
 }: {
   children: React.ReactNode
@@ -203,6 +206,11 @@ export function BrandButton({
   small?: boolean
   onClick?: () => void
   disabled?: boolean
+  /** Busy state: disables, announces aria-busy, and holds the label's width
+   *  under a brand-tinted spinner. Prefer this over a hand-rolled
+   *  `{pending ? 'Sending…' : 'Send'}` ternary — the swap reflows the button
+   *  under the patient's thumb and tells a screen reader nothing. */
+  pending?: boolean
   className?: string
 }) {
   // active: = the tap registering. Hover doesn't exist on touch, and a slow
@@ -218,6 +226,19 @@ export function BrandButton({
       </Link>
     )
   }
+  if (pending) {
+    return (
+      <button
+        type={type}
+        className={`relative ${cls}`}
+        style={{ backgroundColor: brand }}
+        disabled
+        aria-busy="true"
+      >
+        <BusyLabel>{children}</BusyLabel>
+      </button>
+    )
+  }
   return (
     <button type={type} className={cls} style={{ backgroundColor: brand }} onClick={onClick} disabled={disabled}>
       {children}
@@ -229,17 +250,33 @@ export function BrandButton({
 export function GhostButton({
   children,
   onClick,
+  disabled,
+  pending = false,
   className = '',
 }: {
   children: React.ReactNode
   onClick?: () => void
+  disabled?: boolean
+  /** Same contract as BrandButton's. A bare Cancel/Never-mind should take
+   *  `disabled` instead — the exit is unavailable, it is not the thing that
+   *  is busy (the escape-hatch rule, batch 52). */
+  pending?: boolean
   className?: string
 }) {
+  const cls = `text-[0.85rem] font-medium disabled:opacity-50 ${className}`
+  if (pending) {
+    return (
+      <button type="button" className={`relative ${cls}`} style={{ color: PORTAL_MUTED }} disabled aria-busy="true">
+        <BusyLabel>{children}</BusyLabel>
+      </button>
+    )
+  }
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`text-[0.85rem] font-medium ${className}`}
+      disabled={disabled}
+      className={cls}
       style={{ color: PORTAL_MUTED }}
     >
       {children}

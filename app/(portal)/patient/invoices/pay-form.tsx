@@ -66,8 +66,8 @@ export default function PayBalanceForm({
             aria-label="Payment amount in dollars"
           />
         </div>
-        <BrandButton brand={brand} onClick={submit} disabled={pending} className="px-5 py-2.5 text-[0.88rem]">
-          {pending ? 'Heading to checkout…' : 'Pay online'}
+        <BrandButton brand={brand} onClick={submit} pending={pending} className="px-5 py-2.5 text-[0.88rem]">
+          Pay online
         </BrandButton>
       </div>
       {error && (

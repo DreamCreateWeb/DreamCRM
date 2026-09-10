@@ -118,10 +118,12 @@ export default function FamilyLinkRequest({ brand }: { brand: string }) {
           </p>
           {error && <PortalErrorText>{error}</PortalErrorText>}
           <div className="mt-3 flex items-center gap-3">
-            <BrandButton brand={brand} onClick={send} disabled={pending || !name.trim()}>
-              {pending ? 'Sending…' : 'Send the request'}
+            <BrandButton brand={brand} onClick={send} disabled={!name.trim()} pending={pending}>
+              Send the request
             </BrandButton>
-            <GhostButton onClick={() => setOpen(false)}>Cancel</GhostButton>
+            <GhostButton onClick={() => setOpen(false)} disabled={pending}>
+              Cancel
+            </GhostButton>
           </div>
         </>
       )}

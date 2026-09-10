@@ -6,6 +6,7 @@ import { getCart, setQty, removeLine } from './cart-store'
 import { startCheckout, applyCoupon } from './actions'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import SiteImage from '@/components/clinic-site/site-image'
+import { BusyLabel } from '@/components/ui/busy-label'
 
 
 export default function CartView({
@@ -220,10 +221,11 @@ export default function CartView({
       <button
         disabled={busy}
         onClick={checkout}
-        className="w-full text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60"
+        aria-busy={busy || undefined}
+        className="relative w-full text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60"
         style={{ backgroundColor: brand }}
       >
-        {busy ? 'Redirecting to secure checkout…' : 'Check out'}
+        {busy ? <BusyLabel>Check out</BusyLabel> : 'Check out'}
       </button>
       <p className="text-[12px] text-center mt-3" style={{ color: INK_MUTED }}>Secure payment by Stripe.</p>
     </div>

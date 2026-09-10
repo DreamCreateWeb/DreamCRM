@@ -10,6 +10,7 @@ import {
   PORTAL_MUTED as MUTED,
   PORTAL_BORDER as BORDER,
   PortalInput,
+  BrandButton,
 } from '@/components/patient-portal/ui'
 
 /**
@@ -155,14 +156,9 @@ export default function ProfileForm({
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              disabled={pending}
-              className="rounded-full px-6 py-2.5 text-[0.9rem] font-semibold text-white disabled:opacity-50"
-              style={{ backgroundColor: brand }}
-            >
-              {pending ? 'Saving…' : 'Save changes'}
-            </button>
+            <BrandButton brand={brand} type="submit" pending={pending} className="px-6">
+              Save changes
+            </BrandButton>
             {saved && (
               <span role="status" className="text-[0.85rem] font-medium" style={{ color: PORTAL_SUCCESS_INK }}>
                 Saved — thanks for keeping us current.

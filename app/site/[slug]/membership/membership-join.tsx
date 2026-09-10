@@ -7,6 +7,7 @@ import { readableInk } from '@/lib/clinic-site-theme'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import { startMembershipCheckout } from './actions'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { BusyLabel } from '@/components/ui/busy-label'
 
 
 /** Inline checkmark — the site language uses real SVG checks, not a "✓" glyph. */
@@ -145,8 +146,8 @@ export default function MembershipJoin({ slug, brand, plans }: { slug: string; b
           <input type="tel" inputMode="tel" autoComplete="tel" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className={FIELD} style={fieldStyle} />
         </div>
         {error && <p className="text-[14px] text-rose-600 mt-3">{error}</p>}
-        <button disabled={busy} onClick={join} className="w-full mt-4 text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60 transition hover:opacity-95" style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}>
-          {busy ? 'Redirecting to secure checkout…' : 'Join & set up payment'}
+        <button disabled={busy} onClick={join} aria-busy={busy || undefined} className="relative w-full mt-4 text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60 transition hover:opacity-95" style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}>
+          {busy ? <BusyLabel>Join &amp; set up payment</BusyLabel> : 'Join & set up payment'}
         </button>
         <p className="text-[12px] text-center mt-3" style={{ color: INK_MUTED }}>
           We only use this to set up your plan — never spam. Secure recurring payment by Stripe; cancel anytime.
