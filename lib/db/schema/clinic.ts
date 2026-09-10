@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { clinicLocation } from './platform'
+import { FORMS_REMINDER_TEMPLATE } from '@/lib/types/reminders'
 
 // Core patient record for a clinic tenant.
 // Scoped to organizationId so each clinic only sees their own patients.
@@ -407,6 +408,31 @@ export const appointmentReminderLog = pgTable('appointment_reminder_log', {
   // Every DLR is a lookup by provider message id — without this it's a
   // sequential scan of the busiest log table on every receipt.
   index('appt_reminder_provider_msg_idx').on(t.providerMessageId),
+  // THE DOUBLE-SEND GUARD. The automated engine CLAIMS this row before it
+  // sends (lib/services/appointments.ts `claimAutomatedReminder`), so two
+  // overlapping cron ticks — or a retry of one — race on this index instead
+  // of on the patient's phone: the loser's insert does nothing and it skips.
+  //
+  // Partial, and each exclusion is load-bearing:
+  //  - a staff member sending from the appointment drawer (`sent_by_user_id`
+  //    set) may legitimately send the same reminder twice;
+  //  - an ad-hoc send carries a NULL template Postgres would treat as distinct
+  //    anyway, so relying on that would be relying on an accident;
+  //  - the FORMS nudge is excluded BY NAME. Its idempotency is WINDOWED
+  //    (FORMS_REMINDER_WINDOW_HOURS), not once-per-appointment-ever: PMS sync
+  //    moves an appointment's start_time IN PLACE, so a visit pushed a week
+  //    out comes back around and the patient who still hasn't filled the form
+  //    is legitimately nudged again — under a uniqueness rule that second
+  //    write is an error, and the engine would send the email and then fail
+  //    to record it, every tick, forever.
+  //
+  // What is left is exactly the automated VISIT touches, the only sends that
+  // are supposed to fire at most once per appointment.
+  uniqueIndex('appt_reminder_auto_touch_uq')
+    .on(t.appointmentId, t.template)
+    .where(
+      sql`${t.sentByUserId} is null and ${t.template} is not null and ${t.template} <> ${sql.raw(`'${FORMS_REMINDER_TEMPLATE}'`)}`,
+    ),
 ])
 
 // ── Fast-pass waitlist (ASAP list) ─────────────────────────────────────────

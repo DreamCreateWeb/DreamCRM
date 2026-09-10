@@ -31,8 +31,12 @@ vi.mock('@/lib/db', () => {
     db: {
       select: () => chain(),
       insert: () => ({
-        values: async (v: Record<string, unknown>) => {
+        // The reminder-log write carries an ON CONFLICT clause now (the
+        // partial uniqueness guard), so the stub has to be thenable AFTER it.
+        values: (v: Record<string, unknown>) => {
           state.inserted.push(v)
+          const done = Promise.resolve()
+          return Object.assign(done, { onConflictDoNothing: () => done })
         },
       }),
     },

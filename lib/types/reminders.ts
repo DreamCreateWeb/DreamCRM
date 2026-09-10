@@ -40,6 +40,19 @@ export const REMINDER_DEFAULTS: ReminderSettings = {
 /** How far ahead a forms-completion reminder looks for an unfinished intake. */
 export const FORMS_REMINDER_WINDOW_HOURS = 48
 
+/**
+ * The template key a forms nudge is logged under.
+ *
+ * Load-bearing in three places now, so it stops being a string literal: the
+ * engine writes it, the visit-reminder min-gap rule excludes it (a paperwork
+ * nudge is not a visit reminder), and the `appt_reminder_auto_touch_uq`
+ * partial index excludes it BY NAME — the forms nudge's idempotency is
+ * WINDOWED (FORMS_REMINDER_WINDOW_HOURS), not once-per-appointment-ever, so a
+ * visit the PMS pushes a week out is legitimately nudged again and a
+ * uniqueness rule over it would be wrong.
+ */
+export const FORMS_REMINDER_TEMPLATE = 'forms_intake'
+
 /** Inclusive bounds for each touch offset, shared by resolver + settings UI. */
 export const REMINDER_OFFSET_MIN_HOURS = 4
 export const REMINDER_OFFSET_MAX_HOURS = 168 // 7 days
