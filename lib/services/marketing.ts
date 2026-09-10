@@ -1,5 +1,20 @@
 import 'server-only'
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  max,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '@/lib/db'
 import { derivePatientRecallStatus } from '@/lib/services/recall-status'
@@ -543,12 +558,17 @@ export async function resolvePatientAudience(
       ? db
           .select({
             patientId: schema.appointment.patientId,
-            lastVisitAt: sql<Date>`max(${schema.appointment.startTime})`,
+            // drizzle's max() carries the COLUMN's driver mapper. A bare `sql`
+            // expression does not, and `start_time` is `timestamp` without a zone:
+            // its mapper reads the raw text as UTC, while a plain `new Date(...)` on
+            // the same text reads it in the HOST's zone. Same string, different
+            // instant, invisible on a UTC server.
+            lastVisitAt: max(schema.appointment.startTime),
           })
           .from(schema.appointment)
           .where(audienceLastVisitWhere(organizationId, ids, now))
           .groupBy(schema.appointment.patientId)
-      : Promise.resolve([] as { patientId: string; lastVisitAt: Date }[]),
+      : Promise.resolve([] as { patientId: string; lastVisitAt: Date | null }[]),
     needUpcoming
       ? db
           .select({ patientId: schema.appointment.patientId })
@@ -567,16 +587,13 @@ export async function resolvePatientAudience(
       : Promise.resolve([] as { patientId: string }[]),
   ])
 
-  // One row in, one entry out. node-postgres hands a timestamp `max()` back as
-  // a Date, but a string would silently poison every date comparison below, so
-  // normalize rather than trust the driver.
+  // One row in, one entry out. The column mapper above guarantees a Date, so
+  // there is nothing left to normalize — only the null of a patient with no
+  // qualifying visit to skip.
   const lastVisitMap = new Map<string, Date>()
   for (const r of lastVisitRows) {
     if (r.lastVisitAt == null) continue
-    lastVisitMap.set(
-      r.patientId,
-      r.lastVisitAt instanceof Date ? r.lastVisitAt : new Date(r.lastVisitAt),
-    )
+    lastVisitMap.set(r.patientId, r.lastVisitAt)
   }
   const upcomingSet = new Set(upcomingRows.map((r) => r.patientId))
   const unconfirmedSet = new Set(unconfirmedRows.map((r) => r.patientId))
