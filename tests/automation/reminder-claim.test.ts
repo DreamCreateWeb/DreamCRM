@@ -247,6 +247,17 @@ describe('every automated-shaped write carries the conflict clause', () => {
 describe('migration 0160 — the de-dup runs before the guard', () => {
   const sql = readFileSync(join(process.cwd(), 'lib/db/migrations/0160_damp_luckman.sql'), 'utf8')
 
+  it('drops any earlier index of the same name before creating this one', () => {
+    // The predicate changed during review. A database carrying the earlier
+    // draft has an index with this name and the WRONG predicate: a bare CREATE
+    // fails and blocks boot, and leaving it would be worse — `ON CONFLICT`
+    // matches on the predicate, so a stale one is a 42P10 on every claim.
+    const dropAt = sql.indexOf('DROP INDEX IF EXISTS "appt_reminder_auto_touch_uq"')
+    const createAt = sql.indexOf('CREATE UNIQUE INDEX "appt_reminder_auto_touch_uq"')
+    expect(dropAt).toBeGreaterThanOrEqual(0)
+    expect(dropAt).toBeLessThan(createAt)
+  })
+
   it('deletes duplicate automated rows before creating the unique index', () => {
     const deleteAt = sql.indexOf('DELETE FROM "appointment_reminder_log"')
     const indexAt = sql.indexOf('CREATE UNIQUE INDEX "appt_reminder_auto_touch_uq"')

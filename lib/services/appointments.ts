@@ -1522,7 +1522,7 @@ async function recordReminderInActionLedger(input: LogReminderInput): Promise<vo
         // The forms-completion engine logs through here too (template
         // 'forms_intake') — that nudge is NOT a visit-time reminder, and the
         // append-only ledger must never narrate a message that wasn't sent.
-        const isFormsNudge = input.template === 'forms_intake'
+        const isFormsNudge = input.template === FORMS_REMINDER_TEMPLATE
         await recordAction({
           organizationId: input.organizationId,
           capability: isFormsNudge ? 'forms_reminder' : 'appointment_reminder',

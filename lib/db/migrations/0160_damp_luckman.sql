@@ -34,5 +34,15 @@ USING (
 		AND "template" <> 'forms_intake'
 ) dup
 WHERE a."id" = dup."id" AND dup.rn > 1;--> statement-breakpoint
--- STEP 2 (drizzle-generated): the guard itself.
+-- STEP 2: the guard itself.
+--
+-- The DROP is deliberate. This index's PREDICATE changed during review (the
+-- forms nudge came out of it), and any database that applied the earlier draft
+-- carries an index of the same name with the wrong predicate — which would
+-- neither be replaced by a bare CREATE (it fails, blocking boot) nor be
+-- correct if left in place: `ON CONFLICT` matches on the predicate, so a stale
+-- one is a 42P10 on every claim and no reminder goes out at all. Dropping
+-- first makes both states converge on the right index. A no-op everywhere the
+-- index has never existed, which is production.
+DROP INDEX IF EXISTS "appt_reminder_auto_touch_uq";--> statement-breakpoint
 CREATE UNIQUE INDEX "appt_reminder_auto_touch_uq" ON "appointment_reminder_log" USING btree ("appointment_id","template") WHERE "appointment_reminder_log"."sent_by_user_id" is null and "appointment_reminder_log"."template" is not null and "appointment_reminder_log"."template" <> 'forms_intake';
