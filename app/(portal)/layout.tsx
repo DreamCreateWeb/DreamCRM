@@ -26,6 +26,7 @@ import DemoBanner from '@/components/ui/demo-banner'
 import { SkipToContent } from '@/components/ui/skip-to-content'
 import { RealtimeProvider } from '@/components/realtime/realtime-provider'
 import PortalLiveRefresh from '@/components/patient-portal/portal-live-refresh'
+import { portalBrand } from '@/lib/portal-brand'
 
 /**
  * Patient-portal chrome — the clinic-branded replacement for the Mosaic
@@ -59,7 +60,7 @@ export default async function PortalLayout({ children }: { children: React.React
   }
 
   const clinic = await getPortalClinicInfo(ctx.organizationId)
-  const brand = clinic?.brandColor ?? '#9CAF9F'
+  const brand = portalBrand(clinic?.brandColor)
   const clinicName = clinic?.displayName ?? ctx.organizationName
 
   // THE KILL (owner ruling: an expired trial kills everything) — the portal

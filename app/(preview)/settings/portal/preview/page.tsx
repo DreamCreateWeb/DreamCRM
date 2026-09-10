@@ -25,6 +25,7 @@ import type { ClinicStaff } from '@/lib/types/clinic-content'
 import { db } from '@/lib/db'
 import { clinicProfile } from '@/lib/db/schema/platform'
 import { eq } from 'drizzle-orm'
+import { portalBrand } from '@/lib/portal-brand'
 
 /**
  * "Preview as a patient" — a static, watermarked replica of the portal
@@ -47,7 +48,7 @@ export default async function PortalPreviewPage() {
       .limit(1),
   ])
 
-  const brand = clinic?.brandColor ?? '#9CAF9F'
+  const brand = portalBrand(clinic?.brandColor)
   const clinicName = clinic?.displayName ?? ctx.organizationName
   // Reflect the master self-scheduling switch so the preview matches what
   // patients actually see (Settings → Practice).

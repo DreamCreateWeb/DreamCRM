@@ -11,6 +11,7 @@ import {
   type PortalDependent,
 } from '@/lib/services/patient-portal'
 import { CLINIC_DEFAULT_TZ } from '@/lib/clinic-timezone'
+import { portalBrand } from '@/lib/portal-brand'
 import { PORTAL_VISIT_LABELS, type PortalSettings } from '@/lib/types/portal'
 import type { VisitCardData } from '@/components/patient-portal/visit-card'
 
@@ -56,7 +57,7 @@ export async function getPortalPageContext(): Promise<PortalPageContext> {
     ctx: ctx as TenantContext & { patientId: string },
     settings,
     clinic,
-    brand: clinic?.brandColor ?? '#9CAF9F',
+    brand: portalBrand(clinic?.brandColor),
     // Default to enabled when clinic info is missing (matches the column default).
     selfBookingEnabled: clinic?.selfBookingEnabled ?? true,
     timeZone: clinic?.timezone?.trim() || CLINIC_DEFAULT_TZ,

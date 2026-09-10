@@ -3,6 +3,7 @@ import { getConfirmContextByToken } from '@/lib/services/appointment-confirm'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import MinimalSiteChrome from '@/components/clinic-site/minimal-site-chrome'
 import ConfirmForm from './confirm-form'
+import { portalBrand } from '@/lib/portal-brand'
 
 export const metadata = {
   title: 'Confirm your visit',
@@ -35,7 +36,7 @@ export default async function ConfirmVisitPage({
   const ctx = await getConfirmContextByToken(token)
   if (!ctx) notFound()
 
-  const brand = ctx.brandColor || '#9CAF9F'
+  const brand = portalBrand(ctx.brandColor)
   const siteUrl = ctx.slug ? `https://${ctx.slug}.${SITE_DOMAIN}` : null
 
   return (
