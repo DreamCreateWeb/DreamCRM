@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { runImport } from '@/lib/services/pms/sync'
@@ -56,11 +57,8 @@ export function shouldSkipForCadence(
  * Returns per-org results JSON so a future ops dashboard can read batch health.
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
 
   try {
     const connections = await db

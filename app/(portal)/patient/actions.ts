@@ -30,7 +30,8 @@ import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { sendBookingConfirmation } from '@/lib/services/booking-confirmation'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 import { PORTAL_VISIT_LABELS } from '@/lib/types/portal'
-import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
+import { type MessageAttachment } from '@/lib/types/messaging'
+import { sanitizeUploadedAttachments } from '@/lib/attachment-hosts'
 
 /**
  * Patient-side server actions for the portal. Every action:
@@ -531,7 +532,10 @@ export async function sendPortalMessageAction(
     return { ok: false, error: 'Messaging isn’t available — give us a call instead.' }
   }
   const trimmed = body.trim()
-  const clean = sanitizeAttachments(attachments)
+  // Photos must be ones WE hold: the composer uploads through /api/upload,
+  // and a URL pointing anywhere else would make the staff inbox fetch a
+  // stranger's image when it opens the thread (lib/attachment-hosts.ts).
+  const clean = sanitizeUploadedAttachments(attachments)
   if (!trimmed && clean.length === 0) return { ok: false, error: 'Write a message or add a photo first.' }
   if (trimmed.length > 5000) return { ok: false, error: 'That message is a little long — keep it under 5,000 characters.' }
 

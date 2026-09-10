@@ -6,6 +6,7 @@ import { recordAction } from '@/lib/services/action-ledger'
 import { sendPatientMessageEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import { sanitizeAttachments, type MessageAttachment } from '@/lib/types/messaging'
+import { sanitizeUploadedAttachments } from '@/lib/attachment-hosts'
 import { resolvePortalSettings, DEFAULT_AUTO_REPLY_MESSAGE } from '@/lib/types/portal'
 import { clinicDayStart, isWithinOfficeHours, type ClinicHours } from '@/lib/clinic-timezone'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -774,7 +775,8 @@ export async function sendMessageToPatient(input: {
   /** Optional image attachments (uploaded to S3 via /api/upload first). */
   attachments?: MessageAttachment[]
 }): Promise<{ threadId: string; messageId: string }> {
-  const attachments = sanitizeAttachments(input.attachments)
+  // Client-supplied list: shape AND host must both check out (lib/attachment-hosts.ts).
+  const attachments = sanitizeUploadedAttachments(input.attachments)
   // A photo-only message is valid — require text OR at least one attachment.
   if (!input.body.trim() && attachments.length === 0) {
     throw new Error('Add a message or an attachment to send.')
@@ -1133,7 +1135,8 @@ export async function recordInboundMessage(input: {
   /** Optional image attachments (e.g. a patient photo from the portal). */
   attachments?: MessageAttachment[]
 }): Promise<{ threadId: string; messageId: string }> {
-  const attachments = sanitizeAttachments(input.attachments)
+  // Client-supplied list: shape AND host must both check out (lib/attachment-hosts.ts).
+  const attachments = sanitizeUploadedAttachments(input.attachments)
   if (!input.body.trim() && attachments.length === 0) {
     throw new Error('Message body cannot be empty')
   }

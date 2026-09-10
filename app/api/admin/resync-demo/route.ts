@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { createDemoClinic } from '@/lib/services/demo-clinic'
 import { seedPlatformBlogPosts } from '@/lib/services/marketing-blog'
 
@@ -16,11 +17,8 @@ export const maxDuration = 120
 // scopes all writes to the `isDemo: true` org. Called from
 // scripts/resync-demo.mjs on every container boot after migrations apply.
 export async function POST(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await createDemoClinic()
     // Marketing launch posts (idempotent by slug; platform org). Rides the

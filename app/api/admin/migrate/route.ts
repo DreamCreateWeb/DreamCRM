@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import path from 'node:path'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
@@ -13,11 +14,8 @@ export const maxDuration = 120
 // reach the private RDS instance; an out-of-VPC operator cannot). Guarded by
 // CRON_SECRET. Idempotent — drizzle only applies pending migrations.
 export async function POST(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   const url = process.env.DATABASE_URL
   if (!url) {
     return NextResponse.json({ error: 'DATABASE_URL not set' }, { status: 503 })

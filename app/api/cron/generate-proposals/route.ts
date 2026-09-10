@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireCronAuth } from '@/lib/cron-auth'
 import { runProposalGenerators } from '@/lib/services/proposal-generators'
 
 export const runtime = 'nodejs'
@@ -14,11 +15,8 @@ export const maxDuration = 300
  * seeded).
  */
 async function run(request: Request) {
-  const secret = process.env.CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
   try {
     const result = await runProposalGenerators()
     return NextResponse.json({ ok: true, ...result })
