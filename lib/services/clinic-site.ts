@@ -177,7 +177,30 @@ export const getClinicThemeBySlug = cache(
   },
 )
 
-export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData | null> {
+/**
+ * The full public-site payload for a slug, deduped WITHIN a request.
+ *
+ * Every public clinic page loads this twice — once in `generateMetadata`, once
+ * in the page body — because Next calls those separately and an uncached async
+ * function has no memory between them. That doubled the org + profile +
+ * locations reads on every hit of the slowest, lowest-throughput surface in
+ * the product (`docs/LOAD-SANITY.md`: `/site/[slug]` saturates at concurrency
+ * 8, and 8 -> 25 buys no throughput — the signature of a queue, not capacity).
+ * `getClinicOrgIdBySlug` and `getClinicThemeBySlug` above were already wrapped
+ * for exactly this reason; this loader was the one that was not.
+ *
+ * PER-REQUEST ONLY, and that is load-bearing rather than incidental.
+ * `loadSite` merges the clinic's unpublished draft for a verified editor, so
+ * its result depends on WHO is asking. React's `cache()` is scoped to a single
+ * request, where the session is fixed, so memoizing is safe. A cross-request
+ * cache here would hand one viewer's render to the next — and in the direction
+ * that matters, that is a clinic's unpublished words on their live public site.
+ *
+ * Anyone adding a durable cache must FIRST split the published read out of
+ * `loadSite` and apply the draft overlay outside it.
+ * `tests/clinic-site/site-load-dedupe.test.ts` carries the reasoning.
+ */
+export const getClinicSiteBySlug = cache(async (slug: string): Promise<ClinicSiteData | null> => {
   const [org] = await db
     .select()
     .from(organization)
@@ -187,29 +210,33 @@ export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData 
   if (!org || org.type !== 'clinic') return null
 
   return loadSite(org.id, org.slug, org.name)
-}
+})
 
-export async function getClinicSiteByDomain(domain: string): Promise<ClinicSiteData | null> {
-  const host = domain?.trim().toLowerCase()
-  if (!host) return null
-  const [profile] = await db
-    .select()
-    .from(clinicProfile)
-    .where(eq(clinicProfile.websiteDomain, host))
-    .limit(1)
+/** The custom-domain twin of `getClinicSiteBySlug`, deduped the same way and
+ *  for the same reason — a custom-domain page runs metadata + body too. */
+export const getClinicSiteByDomain = cache(
+  async (domain: string): Promise<ClinicSiteData | null> => {
+    const host = domain?.trim().toLowerCase()
+    if (!host) return null
+    const [profile] = await db
+      .select()
+      .from(clinicProfile)
+      .where(eq(clinicProfile.websiteDomain, host))
+      .limit(1)
 
-  if (!profile) return null
+    if (!profile) return null
 
-  const [org] = await db
-    .select()
-    .from(organization)
-    .where(eq(organization.id, profile.organizationId))
-    .limit(1)
+    const [org] = await db
+      .select()
+      .from(organization)
+      .where(eq(organization.id, profile.organizationId))
+      .limit(1)
 
-  if (!org || org.type !== 'clinic') return null
+    if (!org || org.type !== 'clinic') return null
 
-  return loadSite(org.id, org.slug, org.name)
-}
+    return loadSite(org.id, org.slug, org.name)
+  },
+)
 
 /**
  * Map of `customDomain → slug` for every clinic that has wired a custom domain.
