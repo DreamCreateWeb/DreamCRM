@@ -279,16 +279,28 @@ describe('getDefaultFormTemplate', () => {
 
 describe('getSubmissionStatsForTemplates', () => {
   it('rolls up count + last submission date per template', async () => {
+    // Dates, because that is what the query hands back: the aggregate is
+    // drizzle's `max(column)`, which carries `submitted_at`'s driver mapper,
+    // so the raw `2026-06-01 09:00:00` text is decoded as UTC before it
+    // reaches this code. This mock sits ABOVE that layer.
+    //
+    // The previous version pushed a string here and asserted it was "coerced
+    // to a Date too" — the service did that with `new Date(r.lastSubmittedAt)`,
+    // which parsed the driver's zone-less text in the HOST's zone. On a UTC
+    // runner that read the same as the mapper, so the case looked like
+    // tolerance and was really the bug. `tests/guards/timestamp-aggregate-
+    // mapping.test.ts` pins the mapper at the decoder, where a mock can't
+    // reach.
     state.selectQueue.push([
       { formTemplateId: 'tmpl_a', count: 3, lastSubmittedAt: new Date('2026-06-18T10:00:00Z') },
-      { formTemplateId: 'tmpl_b', count: 1, lastSubmittedAt: '2026-06-01T09:00:00Z' },
+      { formTemplateId: 'tmpl_b', count: 1, lastSubmittedAt: new Date('2026-06-01T09:00:00Z') },
     ])
     const map = await getSubmissionStatsForTemplates('org_1')
     expect(map.get('tmpl_a')?.count).toBe(3)
     expect(map.get('tmpl_a')?.lastSubmittedAt).toBeInstanceOf(Date)
-    // a string timestamp (some drivers) is coerced to a Date too
     expect(map.get('tmpl_b')?.count).toBe(1)
     expect(map.get('tmpl_b')?.lastSubmittedAt).toBeInstanceOf(Date)
+    expect(map.get('tmpl_b')?.lastSubmittedAt?.toISOString()).toBe('2026-06-01T09:00:00.000Z')
   })
 
   it('coerces a bigint-string count and tolerates a null last date', async () => {

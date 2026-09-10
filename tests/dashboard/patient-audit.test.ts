@@ -73,6 +73,10 @@ vi.mock('drizzle-orm', () => ({
   gte: vi.fn(() => ({})),
   lt: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
+  // The last-visit lookup uses drizzle's max() so the aggregate keeps the
+  // column's driver mapper (see tests/guards/timestamp-aggregate-mapping).
+  // This mock only has to EXIST — the rows come from the db mock below.
+  max: vi.fn(() => ({})),
   sql: Object.assign(vi.fn(() => ({})), { raw: vi.fn() }),
 }))
 

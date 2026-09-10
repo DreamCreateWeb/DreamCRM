@@ -176,14 +176,24 @@ describe('resolvePatientAudience — one appointment row per patient', () => {
     expect(groupByCalls.length).toBeGreaterThan(0)
   })
 
-  it('reads a driver-stringified max() as a date rather than comparing garbage', async () => {
+  it('does the day-math on the Date the column mapper produces', async () => {
     const { resolvePatientAudience, PatientAudienceFilter } = await import('@/lib/services/marketing')
     const longAgo = new Date(Date.now() - 400 * 86_400_000)
 
     queue.push([patientRow('p_lapsed')])
-    // A driver that hands timestamps back as ISO strings must not silently
-    // break the day-math below it.
-    queue.push([{ patientId: 'p_lapsed', lastVisitAt: longAgo.toISOString() }])
+    // A Date, because that is what the query hands back: the aggregate is
+    // drizzle's `max(column)`, which carries `start_time`'s driver mapper, so
+    // the raw `2026-03-01 14:30:00` text is decoded as UTC before it reaches
+    // this code. This mock sits ABOVE that layer, so pushing a raw string here
+    // would be testing a driver, not the service.
+    //
+    // That the mapper is really attached — the thing that would silently make
+    // every timestamp parse in the host's zone if it came off — is pinned by
+    // tests/guards/timestamp-aggregate-mapping.test.ts, at the layer where it
+    // is actually observable. A mock cannot prove it, which is why the earlier
+    // version of this test (feeding a `Z`-suffixed ISO string the driver never
+    // produces) passed under any timezone and guarded nothing.
+    queue.push([{ patientId: 'p_lapsed', lastVisitAt: longAgo }])
 
     const rows = await resolvePatientAudience(
       'org_1',

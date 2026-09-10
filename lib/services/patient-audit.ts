@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, lt, max, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { getClinicCadence } from '@/lib/services/clinic-cadence'
@@ -112,7 +112,10 @@ export async function auditUpcomingDay(
     db
       .select({
         patientId: schema.appointment.patientId,
-        last: sql<Date>`max(${schema.appointment.startTime})`,
+        // max() over the column, not a bare `sql` expression: the bare form loses
+        // `start_time`'s driver mapper, and the raw timestamp text then parses in
+        // the host's zone instead of UTC.
+        last: max(schema.appointment.startTime),
       })
       .from(schema.appointment)
       .where(
@@ -137,7 +140,7 @@ export async function auditUpcomingDay(
   ])
   const submittedSet = new Set(submittedRows.map((r) => r.patientId).filter(Boolean))
   const lastVisitByPatient = new Map(
-    lastVisitRows.map((r) => [r.patientId, r.last ? new Date(r.last as unknown as string) : null]),
+    lastVisitRows.map((r) => [r.patientId, r.last ?? null]),
   )
   const pendingDepositByAppt = new Map(pendingDepositRows.map((r) => [r.appointmentId, r.amountCents]))
   const lapsedBefore = lapsedCutoff(now, cadence.lapsedMonths)

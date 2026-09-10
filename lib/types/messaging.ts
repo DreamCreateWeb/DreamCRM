@@ -59,3 +59,42 @@ export const DEFAULT_THREAD_LIMIT = 100
 export const MAX_THREAD_LIMIT = 500
 /** One conversation screenful. A years-long thread is bounded, not unbounded. */
 export const DEFAULT_THREAD_MESSAGE_LIMIT = 200
+/** The message stream's own ceiling — the twin of MAX_THREAD_LIMIT. */
+export const MAX_THREAD_MESSAGE_LIMIT = 500
+
+/**
+ * Clamp a caller-supplied row limit into `[1, max]`, falling back to `fallback`
+ * for anything that is not a real number.
+ *
+ * Written once because the hand-rolled version was written three times and was
+ * wrong in a different way each time: `Math.min(Math.max(1, Math.trunc(x)), max)`
+ * returns `NaN` for `NaN` — and `NaN` reaches Postgres as `limit NaN` — while
+ * the message stream's copy had no upper bound at all, so a hand-typed value
+ * could reopen exactly the unbounded read the cap exists to close.
+ *
+ * None of that is reachable from today's callers, which pass constants or gate
+ * on `Number.isFinite` first. That is the point: a bound that is only correct
+ * because of what its callers happen to do is not a bound.
+ */
+export function clampRowLimit(value: number | undefined | null, fallback: number, max: number): number {
+  if (value == null) return Math.min(Math.max(1, fallback), max)
+  const n = Math.trunc(Number(value))
+  if (!Number.isFinite(n)) return Math.min(Math.max(1, fallback), max)
+  return Math.min(Math.max(1, n), max)
+}
+
+/**
+ * Escape a user-typed search term for use inside a SQL `LIKE` pattern.
+ *
+ * `%` and `_` are ordinary characters to the JavaScript `includes` this search
+ * replaced, and wildcards to `LIKE`. Without this, a patient searching for
+ * `50%` matches every thread and one searching `a_b` matches `axb`. The term is
+ * parameterized either way, so this is search quality, not injection — but a
+ * search box that quietly means something else than it says is still a bug.
+ *
+ * Pair it with an explicit `escape '\'` clause: the backslash default is not
+ * guaranteed across every collation/config.
+ */
+export function escapeLikeTerm(term: string): string {
+  return term.replace(/[\\%_]/g, (c) => `\\${c}`)
+}

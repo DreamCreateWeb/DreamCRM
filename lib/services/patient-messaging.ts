@@ -7,9 +7,12 @@ import { sendPatientMessageEmail } from '@/lib/email'
 import { getClinicSenderIdentity } from '@/lib/services/clinic-sender'
 import {
   sanitizeAttachments,
+  clampRowLimit,
+  escapeLikeTerm,
   DEFAULT_THREAD_LIMIT,
   MAX_THREAD_LIMIT,
   DEFAULT_THREAD_MESSAGE_LIMIT,
+  MAX_THREAD_MESSAGE_LIMIT,
   type MessageAttachment,
 } from '@/lib/types/messaging'
 import { sanitizeUploadedAttachments } from '@/lib/attachment-hosts'
@@ -291,12 +294,14 @@ export async function listPatientThreadsPage(
   // just the first page — this way the cap and the search are compatible.
   const term = filters.search?.trim() ?? ''
   if (term.length > 0) {
-    const like = `%${term.toLowerCase()}%`
+    // `%` and `_` are literal to the JS `includes` this search replaced and
+    // wildcards to LIKE, so escape them and say which character does it.
+    const like = `%${escapeLikeTerm(term.toLowerCase())}%`
     const digits = term.replace(/\D/g, '')
     const clauses = [
-      sql`lower(${schema.patient.firstName} || ' ' || ${schema.patient.lastName}) like ${like}`,
-      sql`lower(coalesce(${schema.patient.email}, '')) like ${like}`,
-      sql`lower(coalesce(${latestBody}, '')) like ${like}`,
+      sql`lower(${schema.patient.firstName} || ' ' || ${schema.patient.lastName}) like ${like} escape '\\'`,
+      sql`lower(coalesce(${schema.patient.email}, '')) like ${like} escape '\\'`,
+      sql`lower(coalesce(${latestBody}, '')) like ${like} escape '\\'`,
     ]
     // Forgiving phone search: "(512) 555-9117" must match "5125559117" or
     // "9117", so compare digits-only on both sides.
@@ -309,7 +314,7 @@ export async function listPatientThreadsPage(
   }
 
   // Fetch one extra row to learn whether there IS more, without a count query.
-  const limit = Math.min(Math.max(1, Math.trunc(filters.limit ?? DEFAULT_THREAD_LIMIT)), MAX_THREAD_LIMIT)
+  const limit = clampRowLimit(filters.limit, DEFAULT_THREAD_LIMIT, MAX_THREAD_LIMIT)
 
   // Join patient + assignee + latest message preview.
   const rows = await db
@@ -641,7 +646,7 @@ export async function listMessagesInThreadPage(
   threadId: string,
   limit: number = DEFAULT_THREAD_MESSAGE_LIMIT,
 ): Promise<ThreadMessagePage> {
-  const cap = Math.max(1, Math.trunc(limit))
+  const cap = clampRowLimit(limit, DEFAULT_THREAD_MESSAGE_LIMIT, MAX_THREAD_MESSAGE_LIMIT)
   const thread = await getPatientThreadById(organizationId, threadId)
   if (!thread) return { messages: [], hasMore: false }
 
