@@ -327,8 +327,8 @@ function AcceptInner() {
         {mode === 'magic' ? (
           <form onSubmit={handleMagicLink} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
+              <label className="block text-sm font-medium mb-1" htmlFor="pa-email-magic">Email</label>
+              <input id="pa-email-magic" type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               We’ll email a one-time sign-in link to this address. No password needed.
@@ -347,8 +347,8 @@ function AcceptInner() {
         ) : (
           <form onSubmit={mode === 'signin' ? handleSignin : handleSignup} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
+              <label className="block text-sm font-medium mb-1" htmlFor="pa-email">Email</label>
+              <input id="pa-email" type="email" value={details.email} disabled className="form-input w-full opacity-60 cursor-not-allowed" />
             </div>
             {mode === 'signup' && (
               <div>

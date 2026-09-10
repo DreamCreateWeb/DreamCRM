@@ -197,21 +197,21 @@ function NewPlanButton() {
                 <form onSubmit={onSubmit}>
                   <div className="px-5 py-4 space-y-3">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Plan name <span className="text-rose-500">*</span></label>
-                      <input className="form-input w-full" required value={name} onChange={(e) => setName(e.target.value)} />
+                      <label htmlFor="plans-panel-plan-name" className="block text-sm font-medium mb-1">Plan name <span className="text-rose-500">*</span></label>
+                      <input id="plans-panel-plan-name" className="form-input w-full" required value={name} onChange={(e) => setName(e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Description</label>
-                      <textarea className="form-textarea w-full" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+                      <label htmlFor="plans-panel-description" className="block text-sm font-medium mb-1">Description</label>
+                      <textarea id="plans-panel-description" className="form-textarea w-full" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
                     </div>
                     <div className="flex gap-3">
                       <div className="flex-1">
-                        <label className="block text-sm font-medium mb-1">Monthly ($)</label>
-                        <input type="number" step="1" min="0" className="form-input w-full" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="149" />
+                        <label htmlFor="plans-panel-monthly" className="block text-sm font-medium mb-1">Monthly ($)</label>
+                        <input id="plans-panel-monthly" type="number" step="1" min="0" className="form-input w-full" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="149" />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-sm font-medium mb-1">Annual ($)</label>
-                        <input type="number" step="1" min="0" className="form-input w-full" value={annual} onChange={(e) => setAnnual(e.target.value)} placeholder="1490" />
+                        <label htmlFor="plans-panel-annual" className="block text-sm font-medium mb-1">Annual ($)</label>
+                        <input id="plans-panel-annual" type="number" step="1" min="0" className="form-input w-full" value={annual} onChange={(e) => setAnnual(e.target.value)} placeholder="1490" />
                       </div>
                     </div>
                     {error && (

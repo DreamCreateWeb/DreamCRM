@@ -24,22 +24,22 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
         {editing && <input type="hidden" name="id" value={job.id} />}
 
         <div>
-          <label className={LABEL}>Title *</label>
-          <input name="title" required defaultValue={job?.title} placeholder="Dental Hygienist" className={FIELD} />
+          <label htmlFor="job-form-title" className={LABEL}>Title *</label>
+          <input id="job-form-title" name="title" required defaultValue={job?.title} placeholder="Dental Hygienist" className={FIELD} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={LABEL}>Role</label>
-            <select name="role" defaultValue={job?.role ?? 'hygienist'} className={FIELD}>
+            <label htmlFor="job-form-role" className={LABEL}>Role</label>
+            <select id="job-form-role" name="role" defaultValue={job?.role ?? 'hygienist'} className={FIELD}>
               {Object.entries(ROLE_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={LABEL}>Employment type</label>
-            <select name="employmentType" defaultValue={job?.employmentType ?? 'full_time'} className={FIELD}>
+            <label htmlFor="job-form-employment-type" className={LABEL}>Employment type</label>
+            <select id="job-form-employment-type" name="employmentType" defaultValue={job?.employmentType ?? 'full_time'} className={FIELD}>
               {Object.entries(EMPLOYMENT_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
@@ -48,36 +48,36 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
         </div>
 
         <div>
-          <label className={LABEL}>Description *</label>
-          <textarea name="description" required rows={5} defaultValue={job?.description} placeholder="What the role is, who you're looking for, what makes your practice a great place to work…" className={`${FIELD} resize-y`} />
+          <label htmlFor="job-form-description" className={LABEL}>Description *</label>
+          <textarea id="job-form-description" name="description" required rows={5} defaultValue={job?.description} placeholder="What the role is, who you're looking for, what makes your practice a great place to work…" className={`${FIELD} resize-y`} />
         </div>
         <div>
-          <label className={LABEL}>Responsibilities</label>
-          <textarea name="responsibilities" rows={3} defaultValue={job?.responsibilities ?? ''} className={`${FIELD} resize-y`} />
+          <label htmlFor="job-form-responsibilities" className={LABEL}>Responsibilities</label>
+          <textarea id="job-form-responsibilities" name="responsibilities" rows={3} defaultValue={job?.responsibilities ?? ''} className={`${FIELD} resize-y`} />
         </div>
         <div>
-          <label className={LABEL}>Requirements</label>
-          <textarea name="requirements" rows={3} defaultValue={job?.requirements ?? ''} placeholder="License, experience, certifications…" className={`${FIELD} resize-y`} />
+          <label htmlFor="job-form-requirements" className={LABEL}>Requirements</label>
+          <textarea id="job-form-requirements" name="requirements" rows={3} defaultValue={job?.requirements ?? ''} placeholder="License, experience, certifications…" className={`${FIELD} resize-y`} />
         </div>
         <div>
-          <label className={LABEL}>Benefits / perks</label>
-          <textarea name="benefits" rows={2} defaultValue={job?.benefits ?? ''} placeholder="Health, PTO, CE allowance, 4-day week…" className={`${FIELD} resize-y`} />
+          <label htmlFor="job-form-benefits" className={LABEL}>Benefits / perks</label>
+          <textarea id="job-form-benefits" name="benefits" rows={2} defaultValue={job?.benefits ?? ''} placeholder="Health, PTO, CE allowance, 4-day week…" className={`${FIELD} resize-y`} />
         </div>
 
         {/* Compensation */}
         <div className="v2-card p-4">
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={LABEL}>Pay min ($)</label>
-              <input name="compMin" type="number" step="0.01" defaultValue={job?.compMinCents != null ? job.compMinCents / 100 : ''} className={FIELD} />
+              <label htmlFor="job-form-comp-min" className={LABEL}>Pay min ($)</label>
+              <input id="job-form-comp-min" name="compMin" type="number" step="0.01" defaultValue={job?.compMinCents != null ? job.compMinCents / 100 : ''} className={FIELD} />
             </div>
             <div>
-              <label className={LABEL}>Pay max ($)</label>
-              <input name="compMax" type="number" step="0.01" defaultValue={job?.compMaxCents != null ? job.compMaxCents / 100 : ''} className={FIELD} />
+              <label htmlFor="job-form-comp-max" className={LABEL}>Pay max ($)</label>
+              <input id="job-form-comp-max" name="compMax" type="number" step="0.01" defaultValue={job?.compMaxCents != null ? job.compMaxCents / 100 : ''} className={FIELD} />
             </div>
             <div>
-              <label className={LABEL}>Per</label>
-              <select name="compPeriod" defaultValue={job?.compPeriod ?? 'hour'} className={FIELD}>
+              <label htmlFor="job-form-comp-period" className={LABEL}>Per</label>
+              <select id="job-form-comp-period" name="compPeriod" defaultValue={job?.compPeriod ?? 'hour'} className={FIELD}>
                 <option value="hour">Hour</option>
                 <option value="year">Year</option>
               </select>
@@ -92,21 +92,21 @@ export default function JobForm({ job }: { job?: JobPostingRow }) {
         {/* Apply method */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={LABEL}>Applications</label>
-            <select name="applyMethod" defaultValue={job?.applyMethod ?? 'in_app'} className={FIELD}>
+            <label htmlFor="job-form-apply-method" className={LABEL}>Applications</label>
+            <select id="job-form-apply-method" name="applyMethod" defaultValue={job?.applyMethod ?? 'in_app'} className={FIELD}>
               <option value="in_app">Apply on our site (tracked here)</option>
               <option value="external">Send to an external link</option>
             </select>
           </div>
           <div>
-            <label className={LABEL}>External apply URL (if external)</label>
-            <input name="externalApplyUrl" type="url" defaultValue={job?.externalApplyUrl ?? ''} placeholder="https://…" className={FIELD} />
+            <label htmlFor="job-form-external-apply-url" className={LABEL}>External apply URL (if external)</label>
+            <input id="job-form-external-apply-url" name="externalApplyUrl" type="url" defaultValue={job?.externalApplyUrl ?? ''} placeholder="https://…" className={FIELD} />
           </div>
         </div>
 
         <div>
-          <label className={LABEL}>Status</label>
-          <select name="status" defaultValue={job?.status ?? 'draft'} className={FIELD}>
+          <label htmlFor="job-form-status" className={LABEL}>Status</label>
+          <select id="job-form-status" name="status" defaultValue={job?.status ?? 'draft'} className={FIELD}>
             <option value="draft">Draft (not public)</option>
             <option value="open">Open (live and searchable)</option>
             <option value="closed">Closed</option>

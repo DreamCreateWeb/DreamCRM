@@ -1203,9 +1203,12 @@ function StudioModal({
               />
               {imageCfg.focalAspect && imageUrl && (
                 <div className="mt-4 pt-4 border-t border-[color:var(--color-hairline)]">
-                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                  {/* Not a <label>: the picker is a drag surface with no form
+                      control to name. (It has no keyboard path either — that
+                      gap is on the punch list, not this batch.) */}
+                  <span className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
                     Focus point
-                  </label>
+                  </span>
                   <FocalPointPicker
                     src={imageUrl}
                     aspectClass={imageCfg.focalAspect}
@@ -1498,10 +1501,11 @@ function StudioModal({
                   }}
                 />
               </div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+              <label htmlFor="website-studio-or-paste-a-video-url" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                 …or paste a video URL
               </label>
               <input
+                id="website-studio-or-paste-a-video-url"
                 type="url"
                 value={videoUrl}
                 onChange={(e) => {

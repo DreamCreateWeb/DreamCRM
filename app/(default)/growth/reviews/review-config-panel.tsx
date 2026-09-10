@@ -66,7 +66,7 @@ export default function ReviewConfigPanel({ config }: Props) {
       {/* HERO — the Google review link is the one setting that makes the whole
           loop work, so it leads. */}
       <div className="rounded-xl border border-[color:var(--color-hairline)] p-4">
-        <label className="text-sm font-semibold text-gray-800 dark:text-gray-100 block mb-1">
+        <label htmlFor="review-config-google-place-id" className="text-sm font-semibold text-gray-800 dark:text-gray-100 block mb-1">
           Your Google review link
         </label>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
@@ -76,6 +76,7 @@ export default function ReviewConfigPanel({ config }: Props) {
           fill it in for you automatically.
         </p>
         <input
+          id="review-config-google-place-id"
           value={draft.googlePlaceId}
           onChange={(e) => update('googlePlaceId', e.target.value)}
           placeholder="ChIJN1t_tDeuEmsRUsoyG83frY4"
@@ -275,10 +276,11 @@ export default function ReviewConfigPanel({ config }: Props) {
       </div>
 
       <div>
-        <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
+        <label htmlFor="review-config-panel-dont-ask-the-same-patient-more-than-every" className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 block mb-1">
           Don&apos;t ask the same patient more than every
         </label>
         <select
+          id="review-config-panel-dont-ask-the-same-patient-more-than-every"
           value={draft.minDaysBetweenRequests}
           onChange={(e) => update('minDaysBetweenRequests', Number(e.target.value))}
           className="form-select text-sm"

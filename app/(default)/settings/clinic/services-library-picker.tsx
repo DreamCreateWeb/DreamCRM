@@ -749,8 +749,9 @@ function OverridesDrawer({
         />
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">Promo ribbon text</label>
+        <label htmlFor="services-library-picker-promo-ribbon-text" className="block text-sm font-medium mb-1">Promo ribbon text</label>
         <input
+          id="services-library-picker-promo-ribbon-text"
           type="text"
           value={offer}
           onChange={(e) => setOffer(e.target.value)}

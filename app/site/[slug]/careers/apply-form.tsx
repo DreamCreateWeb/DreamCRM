@@ -93,10 +93,11 @@ export default function ApplyForm({ orgId, jobPostingId, brand }: { orgId: strin
         style={{ borderColor: BORDER }}
       />
       <div>
-        <label className="block text-[13px] font-medium mb-1" style={{ color: INK_MUTED }}>
+        <label htmlFor="apply-resume" className="block text-[13px] font-medium mb-1" style={{ color: INK_MUTED }}>
           Résumé (PDF or Word, optional)
         </label>
         <input
+          id="apply-resume"
           name="resume"
           type="file"
           accept={RESUME_ACCEPT}

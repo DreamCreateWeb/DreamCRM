@@ -144,9 +144,11 @@ export default function ClinicProfilePanel({ profile, orgName, gmailAccounts }: 
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Send patient email from</label>
+                {/* Names the radio SET — a <label> can only name one control,
+                    and the choice here is between the options below. */}
+                <span id="clinic-email-sender-label" className="block text-sm font-medium mb-1">Send patient email from</span>
                 {gmailAccounts.length > 0 ? (
-                  <div className="space-y-1.5">
+                  <div role="radiogroup" aria-labelledby="clinic-email-sender-label" className="space-y-1.5">
                     <label className="flex items-start gap-2 text-sm">
                       <input
                         type="radio"

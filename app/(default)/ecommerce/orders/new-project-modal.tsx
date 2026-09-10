@@ -94,10 +94,11 @@ export default function NewProjectModal({ clinics }: Props) {
                 <form onSubmit={onSubmit}>
                   <div className="px-5 py-4 space-y-3">
                     <div>
-                      <label className="block text-sm font-medium mb-1">
+                      <label htmlFor="new-project-modal-title" className="block text-sm font-medium mb-1">
                         Title <span className="text-rose-500">*</span>
                       </label>
                       <input
+                        id="new-project-modal-title"
                         className="form-input w-full"
                         required
                         value={title}
@@ -107,8 +108,9 @@ export default function NewProjectModal({ clinics }: Props) {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Type</label>
+                        <label htmlFor="new-project-modal-type" className="block text-sm font-medium mb-1">Type</label>
                         <select
+                          id="new-project-modal-type"
                           className="form-select w-full"
                           value={type}
                           onChange={(e) => setType(e.target.value as AgencyProjectType)}
@@ -121,8 +123,9 @@ export default function NewProjectModal({ clinics }: Props) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Clinic</label>
+                        <label htmlFor="new-project-modal-clinic" className="block text-sm font-medium mb-1">Clinic</label>
                         <select
+                          id="new-project-modal-clinic"
                           className="form-select w-full"
                           value={organizationId}
                           onChange={(e) => setOrganizationId(e.target.value)}
@@ -138,8 +141,9 @@ export default function NewProjectModal({ clinics }: Props) {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Budget ($)</label>
+                        <label htmlFor="new-project-modal-budget" className="block text-sm font-medium mb-1">Budget ($)</label>
                         <input
+                          id="new-project-modal-budget"
                           type="number"
                           min="0"
                           step="1"
@@ -150,8 +154,9 @@ export default function NewProjectModal({ clinics }: Props) {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Due date</label>
+                        <label htmlFor="new-project-modal-due-date" className="block text-sm font-medium mb-1">Due date</label>
                         <input
+                          id="new-project-modal-due-date"
                           type="date"
                           className="form-input w-full"
                           value={dueDate}
@@ -160,8 +165,9 @@ export default function NewProjectModal({ clinics }: Props) {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Notes</label>
+                      <label htmlFor="new-project-modal-notes" className="block text-sm font-medium mb-1">Notes</label>
                       <textarea
+                        id="new-project-modal-notes"
                         className="form-textarea w-full"
                         rows={3}
                         value={description}

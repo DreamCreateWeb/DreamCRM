@@ -61,12 +61,16 @@ export default function NewConversationButton({ users }: { users: { id: string; 
                 <form onSubmit={onSubmit}>
                   <div className="px-5 py-4 space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Title (optional)</label>
-                      <input className="form-input w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
+                      <label htmlFor="new-conversation-button-title-optional" className="block text-sm font-medium mb-1">Title (optional)</label>
+                      <input id="new-conversation-button-title-optional" className="form-input w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Members</label>
-                      <div className="max-h-48 overflow-y-auto rounded border border-gray-200 dark:border-gray-700/60">
+                      <span id="new-conversation-members-label" className="block text-sm font-medium mb-1">Members</span>
+                      <div
+                        role="group"
+                        aria-labelledby="new-conversation-members-label"
+                        className="max-h-48 overflow-y-auto rounded border border-gray-200 dark:border-gray-700/60"
+                      >
                         {users.length === 0 ? (
                           <div className="px-3 py-2 text-sm text-gray-500">No other members yet.</div>
                         ) : (

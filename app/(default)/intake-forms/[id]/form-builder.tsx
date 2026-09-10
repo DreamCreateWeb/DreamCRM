@@ -246,10 +246,11 @@ export default function FormBuilder({ template }: Props) {
 
       <div className="v2-card p-6 space-y-4">
         <div>
-          <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+          <label htmlFor="form-builder-form-title" className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
             Form title
           </label>
           <input
+            id="form-builder-form-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -258,10 +259,11 @@ export default function FormBuilder({ template }: Props) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+          <label htmlFor="form-builder-description-shown-to-patients" className="block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
             Description (shown to patients)
           </label>
           <textarea
+            id="form-builder-description-shown-to-patients"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="form-textarea w-full"
