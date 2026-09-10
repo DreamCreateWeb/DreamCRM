@@ -27,9 +27,24 @@ describe('DigestToggle', () => {
   it('mutes (calls the action with true) and flips the label', async () => {
     render(<DigestToggle initialOptedOut={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Turn off' }))
-    await waitFor(() => expect(setMyDigestOptOutAction).toHaveBeenCalledWith(true))
+
+    // Wait for the SETTLED state, not for the mock to have been called.
+    //
+    // The toggle saves inside a `useTransition`, and while that transition is
+    // pending the button renders '…' rather than its label. Waiting on
+    // `toHaveBeenCalledWith` returns the instant the action fires — with the
+    // transition still pending — so asserting the label on the next
+    // synchronous line was a race with React flushing `pending` back to false.
+    // It won on a quiet machine and lost on a loaded CI worker: this file went
+    // red intermittently for days and eventually took down a deploy on `main`
+    // (run 34433995622), while passing in isolation every time.
+    //
+    // The button's accessible name is the honest signal that the whole
+    // interaction finished — the sibling test below already waits on rendered
+    // output for the same reason.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Turn on' })).toBeTruthy())
+    expect(setMyDigestOptOutAction).toHaveBeenCalledWith(true)
     expect(screen.getByText('Off')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Turn on' })).toBeTruthy()
   })
 
   it('reverts on a failed save', async () => {
