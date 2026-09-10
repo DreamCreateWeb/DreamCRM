@@ -508,7 +508,16 @@ was recordable while they shared a verdict.
 
 - S3 · stripe-webhook release-and-retry re-fires non-idempotent in-app
   notifications. · OPEN.
-- S3 · collections board header total truncated at 200 rows. · OPEN.
+- S3 · collections board header total truncated at 200 rows. · **FIXED**
+  (DREAMCRM-23) — the header now reads `getCollectionsSnapshot`, the SQL
+  aggregate the Payments hub's doorway card already used, so the two surfaces
+  cannot disagree; a practice with 340 open balances was previously told its
+  outstanding AR was whatever its top 200 debtors owed. "Pay links out" moved
+  to a whole-clinic count in the same pass — it was a page number sitting next
+  to a clinic number in "N of M". The sum casts to `::bigint` (sum() over an
+  int4 column already returns one; the old `::int` would have ERRORED, not
+  wrapped, above ~$21M), and the page says when it is showing fewer rows than
+  the totals count.
 - S3 · `stripe-admin.monthlyContributionCents` ignores `quantity` /
   `interval_count`, so a multi-seat or every-3-months subscription
   contributes the wrong MRR. · OPEN.

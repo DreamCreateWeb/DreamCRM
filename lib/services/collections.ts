@@ -34,8 +34,12 @@ export interface CollectionsBoard {
   patientCount: number
   /** Online balance payments collected this clinic-local month. */
   collectedThisMonthCents: number
-  /** Patients on the board with a pay link already out. */
+  /** Patients CARRYING A BALANCE with a pay link already out — whole clinic,
+   *  so it is comparable with patientCount above. */
   withLinkOut: number
+  /** The rows below are the top BOARD_LIMIT balances. True when the clinic
+   *  has more open balances than that, so the page can say so. */
+  truncated: boolean
   rows: CollectionsRow[]
 }
 
@@ -52,7 +56,10 @@ export async function getCollectionsSnapshot(
   const [row] = await db
     .select({
       patientCount: sql<number>`count(*)::int`,
-      totalOutstandingCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::int`,
+      // ::bigint, not ::int — sum() over an int4 column already returns
+      // bigint, and casting back would ERROR (not wrap) on a practice
+      // carrying over ~$21M. This aggregate now feeds the board header too.
+      totalOutstandingCents: sql<number>`coalesce(sum(${schema.patient.pmsBalanceCents}), 0)::bigint`,
     })
     .from(schema.patient)
     .where(
@@ -65,10 +72,13 @@ export async function getCollectionsSnapshot(
     )
   return {
     patientCount: row?.patientCount ?? 0,
-    totalOutstandingCents: row?.totalOutstandingCents ?? 0,
+    totalOutstandingCents: Number(row?.totalOutstandingCents ?? 0),
   }
 }
 
+// The board shows the biggest balances, not all of them — a dunning workboard
+// is worked from the top. The HEADER, though, is a whole-clinic fact: it once
+// reduced over this page and quietly reported patient 201+ as not existing.
 const BOARD_LIMIT = 200
 
 export async function getCollectionsBoard(
@@ -77,8 +87,39 @@ export async function getCollectionsBoard(
 ): Promise<CollectionsBoard> {
   const now = opts?.now ?? new Date()
 
-  // Everyone carrying a balance — active relationships only (archived
-  // patients belong to a different conversation than a dunning board).
+  // The header totals are the WHOLE clinic, computed in SQL — the same
+  // aggregate the Payments hub's doorway card reads, so the two surfaces
+  // cannot disagree. Reducing over the 200-row page below would report a
+  // clinic's outstanding AR as whatever its top 200 debtors happen to owe.
+  const snapshot = await getCollectionsSnapshot(organizationId)
+
+  // "N of M have a pay link" has to count the same M. Reducing this over the
+  // page while patientCount is whole-clinic would read "12 of 340" on a
+  // board that only ever looked at 200 people.
+  const [linkedOut] = await db
+    .select({
+      count: sql<number>`count(distinct ${schema.patient.id})::int`,
+    })
+    .from(schema.patient)
+    .innerJoin(
+      schema.balancePaymentRequest,
+      and(
+        eq(schema.balancePaymentRequest.patientId, schema.patient.id),
+        eq(schema.balancePaymentRequest.organizationId, organizationId),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.patient.organizationId, organizationId),
+        eq(schema.patient.isActive, 1),
+        isNull(schema.patient.mergedIntoPatientId),
+        gt(schema.patient.pmsBalanceCents, 0),
+      ),
+    )
+
+  // The rows themselves: the biggest balances first, active relationships
+  // only (archived patients belong to a different conversation than a
+  // dunning board).
   const patients = await db
     .select({
       id: schema.patient.id,
@@ -180,10 +221,11 @@ export async function getCollectionsBoard(
   })
 
   return {
-    totalOutstandingCents: rows.reduce((sum, r) => sum + r.balanceCents, 0),
-    patientCount: rows.length,
+    totalOutstandingCents: snapshot.totalOutstandingCents,
+    patientCount: snapshot.patientCount,
     collectedThisMonthCents: Number(collected?.total ?? 0),
-    withLinkOut: rows.filter((r) => r.payLink != null).length,
+    withLinkOut: linkedOut?.count ?? 0,
+    truncated: snapshot.patientCount > rows.length,
     rows,
   }
 }

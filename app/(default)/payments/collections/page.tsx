@@ -215,6 +215,12 @@ export default async function CollectionsPage() {
             </table>
           </div>
           <p className="px-4 py-3 text-xs text-gray-400 border-t border-[color:var(--color-hairline)]">
+            {board.truncated && (
+              <>
+                Showing the {board.rows.length} largest balances of {board.patientCount} — the
+                totals above count everyone.{' '}
+              </>
+            )}
             Paid amounts stay on this board until your next PMS sync updates the balance — post
             each online payment to the PMS ledger so the books agree.
           </p>
