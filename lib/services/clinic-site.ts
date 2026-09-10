@@ -177,7 +177,35 @@ export const getClinicThemeBySlug = cache(
   },
 )
 
-export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData | null> {
+/**
+ * The full public-site payload for a slug, deduped WITHIN a request.
+ *
+ * Every public clinic page loads this twice — once in `generateMetadata`, once
+ * in the page body — because Next calls those separately and an uncached async
+ * function has no memory between them. That doubled the org + profile +
+ * locations reads on every hit of the slowest, lowest-throughput surface in
+ * the product (`docs/LOAD-SANITY.md`: `/site/[slug]` saturates at concurrency
+ * 8, and 8 -> 25 buys no throughput — the signature of a queue, not capacity).
+ * `getClinicOrgIdBySlug` and `getClinicThemeBySlug` above were already wrapped
+ * for exactly this reason; this loader was the one that was not.
+ *
+ * PER-REQUEST ONLY, and that is load-bearing rather than incidental.
+ * `loadSite` merges the clinic's unpublished draft for a verified editor, so
+ * its result depends on WHO is asking. React's `cache()` is scoped to a single
+ * request, where the session is fixed, so memoizing is safe. A cross-request
+ * cache here would hand one viewer's render to the next — and in the direction
+ * that matters, that is a clinic's unpublished words on their live public site.
+ *
+ * Anyone adding a durable cache must FIRST split the published read out of
+ * `loadSite` and apply the draft overlay outside it.
+ * `tests/clinic-site/site-load-dedupe.test.ts` carries the reasoning.
+ *
+ * One new rule comes with the memo: every caller in a request now shares ONE
+ * `ClinicSiteData` object. Sorting `data.locations` in place, or assigning to
+ * a `data.profile` field, used to be private to whichever pass did it and now
+ * leaks into the other. Copy before you mutate.
+ */
+export const getClinicSiteBySlug = cache(async (slug: string): Promise<ClinicSiteData | null> => {
   const [org] = await db
     .select()
     .from(organization)
@@ -187,29 +215,47 @@ export async function getClinicSiteBySlug(slug: string): Promise<ClinicSiteData 
   if (!org || org.type !== 'clinic') return null
 
   return loadSite(org.id, org.slug, org.name)
-}
+})
 
-export async function getClinicSiteByDomain(domain: string): Promise<ClinicSiteData | null> {
-  const host = domain?.trim().toLowerCase()
-  if (!host) return null
-  const [profile] = await db
-    .select()
-    .from(clinicProfile)
-    .where(eq(clinicProfile.websiteDomain, host))
-    .limit(1)
+/**
+ * The custom-domain twin of `getClinicSiteBySlug`, wrapped the same way so the
+ * two loaders cannot drift apart.
+ *
+ * It has NO production callers today: `middleware.ts:335,356` rewrites custom
+ * domains to `/site/<slug>`, so that traffic goes through the slug loader like
+ * everything else, and only a test references this one. The wrapper is
+ * therefore unexercised rather than load-bearing — said plainly because the
+ * first draft of this comment claimed a metadata-plus-body double-load that no
+ * existing page performs.
+ *
+ * If it ever gains a caller, hoist the `trim().toLowerCase()` ABOVE the
+ * `cache()` boundary: normalizing inside the memoized function means the key
+ * is the raw argument, so `Foo.com` and `foo.com` would be two entries for one
+ * clinic.
+ */
+export const getClinicSiteByDomain = cache(
+  async (domain: string): Promise<ClinicSiteData | null> => {
+    const host = domain?.trim().toLowerCase()
+    if (!host) return null
+    const [profile] = await db
+      .select()
+      .from(clinicProfile)
+      .where(eq(clinicProfile.websiteDomain, host))
+      .limit(1)
 
-  if (!profile) return null
+    if (!profile) return null
 
-  const [org] = await db
-    .select()
-    .from(organization)
-    .where(eq(organization.id, profile.organizationId))
-    .limit(1)
+    const [org] = await db
+      .select()
+      .from(organization)
+      .where(eq(organization.id, profile.organizationId))
+      .limit(1)
 
-  if (!org || org.type !== 'clinic') return null
+    if (!org || org.type !== 'clinic') return null
 
-  return loadSite(org.id, org.slug, org.name)
-}
+    return loadSite(org.id, org.slug, org.name)
+  },
+)
 
 /**
  * Map of `customDomain → slug` for every clinic that has wired a custom domain.
