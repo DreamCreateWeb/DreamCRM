@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { resolve, join, sep } from 'node:path'
 import { max, min, sql } from 'drizzle-orm'
 import * as schema from '@/lib/db/schema'
 
@@ -23,6 +23,12 @@ import * as schema from '@/lib/db/schema'
  * aggregate's whole body is one column, the fix is to use them rather than to
  * remember the mapper. Where it is not (a `case` or a `least()` inside), the
  * fix is an explicit `.mapWith(<the column>)`.
+ *
+ * SCOPE, stated so it is a known edge rather than a surprise: the scan keys on
+ * `max(` / `min(` by name. `sql<Date>`coalesce(${tsCol}, now())`` or a bare
+ * `least(${a}, ${b})` drops the mapper identically and is NOT covered. The
+ * aggregates are where this has actually bitten; the rest is named here so the
+ * next person knows the boundary instead of inferring a guarantee.
  */
 
 /** The text node-postgres actually returns for `timestamp`: no `T`, no `Z`. */
@@ -102,6 +108,19 @@ const ALLOWED: Array<{ file: string; why: string }> = [
       'server and the test runner both run UTC.',
   },
 ]
+
+/**
+ * The trees the scan covers.
+ *
+ * `app/` reads zero candidates today, but this repo runs raw SQL from server
+ * actions (`app/(default)/shop/actions.ts` and friends), so it is one file away
+ * from mattering and the cost of including it is this line.
+ */
+const SCANNED_ROOTS = ['lib', 'app'] as const
+
+function scannedFiles(root: string): string[] {
+  return SCANNED_ROOTS.flatMap((dir) => walk(resolve(root, dir)))
+}
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -204,7 +223,18 @@ function sqlTemplates(src: string): Array<{ body: string; mapped: boolean }> {
   return out
 }
 
-/** Everything the scan considers, before the allowlist is applied. */
+/**
+ * Everything the scan considers, before the allowlist is applied.
+ *
+ * DELIBERATELY counts a hit whether or not it is already `.mapWith`-ed. That
+ * is what keeps the `candidates > 0` floor standing on its own: when
+ * DREAMCRM-13 fixes `patient-journey.ts` and the ALLOWLIST empties, those
+ * eight sites are still FOUND — just found already-correct. A version that
+ * only collected offenders would see the floor collapse to zero on the day the
+ * repo got clean, and the guard would go back to passing on nothing.
+ *
+ * The offender filter therefore lives at the assertion, not here.
+ */
 function scanCandidates(files: string[], root: string): Candidate[] {
   const found: Candidate[] = []
   for (const file of files) {
@@ -227,7 +257,24 @@ function scanCandidates(files: string[], root: string): Candidate[] {
 describe('the scan itself works', () => {
   const root = process.cwd()
 
-  /** The three shapes that must be visible, run through the real extractor. */
+  /**
+   * THE THREE SHAPES THAT MUST BE VISIBLE. None of these may be dropped.
+   *
+   * They read like near-identical documentation and they are not: each one is
+   * a separate HISTORICAL ESCAPE. The namespaced case is all the first version
+   * of this scan could see; the direct-import case is how `forms.ts` hid; the
+   * `case`/`least` case is how `patient-journey.ts`'s eight hid. Merging them
+   * into "one representative case" re-opens whichever two you drop.
+   *
+   * These are also the guard's LOAD-BEARING assertions, which is not obvious.
+   * The allowlist canary below cannot cover them: `patient-journey.ts` is the
+   * *namespaced* spelling, so if a future edit broke only direct-import
+   * resolution — precisely the bug that hid `forms.ts` — the canary would
+   * still find its file, `candidates > 0` would still pass, and a new
+   * `forms.ts`-shaped instance would go invisible again. Only fixture #2 runs
+   * that spelling end to end. The canary is a staleness detector for the
+   * allowlist; these are the coverage.
+   */
   const FIXTURES: Array<{ name: string; src: string; expect: string[] }> = [
     {
       name: 'a namespaced column — the shape the first version caught',
@@ -276,6 +323,24 @@ describe('the scan itself works', () => {
     expect(aggregateInterpolations(t.body)).toEqual([])
   })
 
+  it('still COUNTS an already-fixed site — the floor survives a clean repo', () => {
+    // When DREAMCRM-13 lands and the allowlist empties, `candidates > 0` has to
+    // keep standing on something. It does, because scanCandidates collects a
+    // hit regardless of `mapped` and the offender filter runs at the assertion.
+    // Written as a test rather than a comment so a future "optimisation" that
+    // skips mapped templates fails here instead of silently un-flooring the
+    // guard.
+    const fixed =
+      'const x = sql<Date | null>`min(case when ${A} = 1 then ${schema.appointment.createdAt} end)`' +
+      '.mapWith(schema.appointment.createdAt)'
+    const [t] = sqlTemplates(fixed)
+    expect(t.mapped).toBe(true)
+    const cols = aggregateInterpolations(t.body).filter((c) => mapsToDate(resolveColumn(c)))
+    expect(cols, 'a fixed site must still be a candidate, just not an offender').toContain(
+      'schema.appointment.createdAt',
+    )
+  })
+
   it('treats a following .mapWith as the fix', () => {
     const [t] = sqlTemplates(
       'const x = sql<Date>`max(${schema.appointment.startTime})`.mapWith(schema.appointment.startTime)',
@@ -300,7 +365,7 @@ describe('the scan itself works', () => {
     // THE hole in the first version: it reported zero offenders out of zero
     // candidates and read as "the repo is clean". Every allowlisted file has
     // to still be found, or the entry is stale and so is the guard.
-    const candidates = scanCandidates(walk(resolve(root, 'lib')), root)
+    const candidates = scanCandidates(scannedFiles(root), root)
     expect(candidates.length).toBeGreaterThan(0)
 
     const files = new Set(candidates.map((c) => c.file))
@@ -316,10 +381,13 @@ describe('the scan itself works', () => {
 
 describe('no service hand-rolls an aggregate over a mapped column', () => {
   const root = process.cwd()
-  const files = walk(resolve(root, 'lib'))
+  const files = scannedFiles(root)
 
-  it('is actually looking at lib/', () => {
+  it('is actually looking at the source trees', () => {
     expect(files.length).toBeGreaterThan(100)
+    // Both roots, not just whichever one happens to resolve.
+    expect(files.some((f) => f.includes(`${sep}lib${sep}`))).toBe(true)
+    expect(files.some((f) => f.includes(`${sep}app${sep}`))).toBe(true)
   })
 
   it('uses max()/min() or .mapWith() wherever the column mapper matters', () => {
