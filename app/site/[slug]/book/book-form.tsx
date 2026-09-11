@@ -5,7 +5,7 @@ import { listBookingSlots, submitBookingRequest, type BookingConfirmation } from
 import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
 import { OTHER_VISIT_TYPE_ID } from '@/lib/types/visit-types'
 import { buildIcs, icsDataUrl } from '@/lib/ics'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { clinicDayStart, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 import { SMS_CONSENT_LABEL, smsConsentDisclosure } from '@/lib/sms-consent'
@@ -216,7 +216,7 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
     <div className="text-center py-12 sm:py-14">
       <div
         className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-        style={{ backgroundColor: `var(--c-brand-strong, ${brand})` + '22' }}
+        style={{ backgroundColor: brandFill(brand) + '22' }}
       >
         <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -296,7 +296,7 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
           <a
             href={c.intakeFormUrl}
             className="w-full min-h-[48px] inline-flex items-center justify-center px-5 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95"
-            style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+            style={{ backgroundColor: brandFill(brand) }}
           >
             Fill out your intake form now
           </a>
@@ -349,8 +349,14 @@ export default function BookForm({
   visitTypes,
 }: Props) {
   // Contrast-safe text fill for brand-colored eyebrows/links on the warm ground
-  // (raw brand stays on backgrounds, borders, and SVG icon strokes).
+  // (raw brand stays on decorative backgrounds, borders and SVG icon strokes).
   const brandInk = readableInk(brand)
+  // Contrast-safe FILL for the brand-coloured surfaces that carry white text —
+  // the selected day chip, the selected time slot, the rescue button. Raw
+  // `brand` under white was 2.32:1 for the seeded pale sage and 1.75:1 for a
+  // pale pink; the runtime accessibility checks caught three of these on this
+  // very page.
+  const fill = brandFill(brand)
   const apptTypes = useMemo(() => buildVisitTypeOptions(visitTypes), [visitTypes])
   const defaultApptType = apptTypes[0]?.value ?? OTHER_VISIT_TYPE_ID
   const [selectedType, setSelectedType] = useState<string>(defaultApptType)
@@ -529,7 +535,7 @@ export default function BookForm({
       {!windowHasAvailability && clinicPhone && (
         <section
           className="rounded-2xl p-5 sm:p-6 text-center"
-          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` + '12', border: `1px solid ${brand}40` }}
+          style={{ backgroundColor: brandFill(brand) + '12', border: `1px solid ${brand}40` }}
         >
           <p className="text-base font-semibold mb-1" style={{ color: INK }}>
             No online openings right now.
@@ -542,7 +548,7 @@ export default function BookForm({
           <a
             href={`tel:${clinicPhone}`}
             className="inline-flex items-center justify-center min-h-[48px] px-6 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95"
-            style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+            style={{ backgroundColor: brandFill(brand) }}
           >
             Call us at {clinicPhone}
           </a>
@@ -593,8 +599,8 @@ export default function BookForm({
                   onClick={() => setSelectedDate(d)}
                   className="shrink-0 snap-start rounded-2xl px-4 py-3 text-center transition border min-w-[68px]"
                   style={{
-                    borderColor: isSelected ? brand : BORDER,
-                    backgroundColor: isSelected ? brand : SURFACE,
+                    borderColor: isSelected ? fill : BORDER,
+                    backgroundColor: isSelected ? fill : SURFACE,
                     color: isSelected ? 'white' : INK,
                   }}
                   aria-pressed={isSelected}
@@ -604,7 +610,12 @@ export default function BookForm({
                 >
                   <div
                     className="text-[11px] font-medium uppercase tracking-wider"
-                    style={{ color: isSelected ? 'rgba(255,255,255,0.85)' : INK_MUTED }}
+                    // Opaque white, not the 85% it used to be: white at 85%
+                    // over `brandStrong` composites to 3.54–4.88 depending on
+                    // the brand, so the quiet weekday failed AA on fills the
+                    // loud date passed on. The size and weight already carry
+                    // the hierarchy this alpha was buying.
+                    style={{ color: isSelected ? '#FFFFFF' : INK_MUTED }}
                   >
                     {DAY_NAME_SHORT[dayOfWeekForDateKey(d)]}
                   </div>
@@ -670,7 +681,7 @@ export default function BookForm({
                 type="button"
                 onClick={() => setSelectedDate(firstAvailableDayKey)}
                 className="mt-3 inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold text-white transition active:scale-[0.98]"
-                style={{ backgroundColor: brand }}
+                style={{ backgroundColor: fill }}
               >
                 See {fmtDayLabel(firstAvailableDayKey, timeZone)}’s openings →
               </button>
@@ -699,7 +710,7 @@ export default function BookForm({
                   className="h-11 rounded-xl text-sm font-semibold transition disabled:cursor-not-allowed disabled:line-through"
                   style={{
                     backgroundColor: isSelected
-                      ? brand
+                      ? fill
                       : s.available
                         ? SURFACE
                         : BG,
@@ -708,7 +719,7 @@ export default function BookForm({
                       : s.available
                         ? INK
                         : INK_MUTED,
-                    border: `1px solid ${isSelected ? brand : BORDER}`,
+                    border: `1px solid ${isSelected ? fill : BORDER}`,
                     opacity: s.available ? 1 : 0.45,
                   }}
                   aria-pressed={isSelected}
@@ -898,7 +909,7 @@ export default function BookForm({
           type="submit"
           disabled={submitState === 'pending' || submitState === 'redirecting' || !selectedSlotIso}
           className="w-full py-4 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+          style={{ backgroundColor: brandFill(brand) }}
         >
           {submitState === 'redirecting'
             ? 'Taking you to secure payment…'

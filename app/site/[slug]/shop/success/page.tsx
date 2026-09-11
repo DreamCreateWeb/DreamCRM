@@ -3,7 +3,7 @@ import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-
 import { finalizeOrderFromSession } from '@/lib/services/shop-checkout'
 import { formatCents } from '@/lib/types/shop'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import ClearCart from '../clear-cart'
 import { SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
 
@@ -48,7 +48,7 @@ export default async function ShopSuccessPage({ params, searchParams }: Props) {
       <div className="max-w-[600px] mx-auto px-5 sm:px-8 py-14 sm:py-20 text-center">
         <div
           className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl text-white shadow-md"
-          style={{ backgroundColor: brand }}
+          style={{ backgroundColor: brandFill(brand) }}
         >
           ✓
         </div>

@@ -10,7 +10,7 @@ import { listPublishedPosts } from '@/lib/services/blog'
 import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import type { ClinicService, ClinicStaff, ClinicFaqItem } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { faqPageJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   buildClinicNavLinks,
@@ -309,7 +309,7 @@ export default async function NewPatientsPage({ params }: Props) {
               <a
                 href={bookHref}
                 className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                style={{ backgroundColor: brandFill(brand) }}
               >
                 {bookLabel}
               </a>
@@ -460,7 +460,7 @@ export default async function NewPatientsPage({ params }: Props) {
                 <a
                   href={intakeHref}
                   className="inline-flex items-center px-6 py-3 rounded-full text-[15px] font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                  style={{ backgroundColor: brandFill(brand) }}
                 >
                   Start your intake online
                   <span aria-hidden="true" className="ml-2">→</span>

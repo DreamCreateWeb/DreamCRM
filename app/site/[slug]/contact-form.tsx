@@ -6,6 +6,7 @@ import { DEFAULT_LEAD_FORMS, type LeadFormField } from '@/lib/types/lead-forms'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import { FieldError } from '@/components/ui/field-error'
 import { validateRequired, validateEmail, validatePhone } from '@/lib/validation'
+import { brandFill } from '@/lib/clinic-site-theme'
 
 /** Map a lead-form field to the right mobile keyboard + browser-autofill hint
  *  so phones surface the dialpad/email keys and Safari/Chrome can autofill. */
@@ -51,7 +52,7 @@ export default function ContactForm({ slug, brand, selfBooking, basePath, fields
         <a
           href={`${basePath}/book`}
           className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base font-semibold text-white shadow-lg transition hover:opacity-90"
-          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+          style={{ backgroundColor: brandFill(brand) }}
         >
           Book Online Now
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -65,7 +66,7 @@ export default function ContactForm({ slug, brand, selfBooking, basePath, fields
   if (status === 'success') {
     return (
       <div className="text-center py-12">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-6" style={{ backgroundColor: `var(--c-brand-strong, ${brand})`, opacity: 0.12 }}>
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-6" style={{ backgroundColor: brandFill(brand), opacity: 0.12 }}>
           <svg className="w-8 h-8" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
@@ -227,7 +228,7 @@ export default function ContactForm({ slug, brand, selfBooking, basePath, fields
         type="submit"
         disabled={status === 'pending'}
         className="w-full py-3.5 rounded-xl text-base font-semibold text-white shadow-lg transition hover:opacity-90 disabled:opacity-60"
-        style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+        style={{ backgroundColor: brandFill(brand) }}
       >
         {status === 'pending' ? 'Sending…' : 'Send Request'}
       </button>

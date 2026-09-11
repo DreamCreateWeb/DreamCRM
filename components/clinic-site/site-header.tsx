@@ -8,6 +8,7 @@ import type { SiteNavLink } from '@/lib/clinic-site-helpers'
 import { SkipToContent } from '@/components/ui/skip-to-content'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { SITE_BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { brandFill } from '@/lib/clinic-site-theme'
 
 // Nav text + hairlines read the brand-derived neutral vars (set on :root by the
 // site layout). Literal fallbacks keep parity if rendered outside the layout.
@@ -387,7 +388,7 @@ export default function SiteHeader({
                 <a
                   href={bookHref}
                   className="inline-flex items-center px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-full text-[13px] sm:text-sm font-semibold text-white shadow-sm transition hover:shadow-md hover:opacity-95"
-                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                  style={{ backgroundColor: brandFill(brand) }}
                 >
                   {bookLabel}
                 </a>
@@ -530,7 +531,7 @@ export default function SiteHeader({
                 href={bookHref}
                 onClick={() => setMobileOpen(false)}
                 className="block w-full text-center px-5 py-3 rounded-full text-base font-semibold text-white shadow-sm transition hover:shadow-md"
-                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                style={{ backgroundColor: brandFill(brand) }}
               >
                 {bookLabel}
               </a>

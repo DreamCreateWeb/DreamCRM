@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { submitAppointmentRequest } from '../actions'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import type { PublicVisitTypeOption } from './book-form'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -70,7 +70,7 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
       <div className="text-center py-12 sm:py-14">
         <div
           className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` + '22' }}
+          style={{ backgroundColor: brandFill(brand) + '22' }}
         >
           <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -211,7 +211,7 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
         type="submit"
         disabled={status === 'pending'}
         className="w-full py-4 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+        style={{ backgroundColor: brandFill(brand) }}
       >
         {status === 'pending' ? 'Sending…' : 'Send request'}
       </button>

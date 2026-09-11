@@ -357,6 +357,36 @@ export const PALETTE_VARS: Record<keyof ClinicPalette, string> = {
   stripInk: '--c-strip-ink',
 }
 
+/**
+ * Brand-as-FILL for a surface that carries WHITE text — the one expression
+ * every solid brand button on the public site should use.
+ *
+ * The raw brand is a legitimate background ONLY where nothing sits on top of
+ * it: a decorative accent bar, an alpha tint, a letter-mark. The moment white
+ * text lands on it, the brand itself is the wrong value — a clinic that picks
+ * a pale sage gets white-on-#9CAF9F at 2.32:1 against a 4.5:1 requirement,
+ * and a pale pink 1.75:1. `brandStrong` is the palette role that already
+ * solves this (the brand darkened along its own hue only as far as white
+ * needs), and this is how a component reaches it.
+ *
+ * It returns a `var()` rather than a hex on purpose: the ACTIVE template's
+ * recipe owns `--c-brand-strong`, and the four registered recipes do not all
+ * agree on it, so reading the var honours the template the visitor is looking
+ * at. The fallback is the DEFAULT recipe's `brandStrong` — also white-safe —
+ * rather than the raw brand, which is what the `var(--c-brand-strong,
+ * ${brand})` spelling used to fall back to and is the defect this exists to
+ * end. `tests/clinic-site/brand-fill.test.ts` holds every registered recipe to
+ * the white floor, so neither branch of the `var()` can go pale.
+ *
+ * NOT for text: brand-as-text on the light ground is `readableInk`.
+ * NOT for a partly-transparent ink either — white at 85% over `brandStrong`
+ * lands at 3.54–4.88 depending on the brand, so a label on one of these fills
+ * has to be fully opaque white.
+ */
+export function brandFill(brandHex: string | null | undefined): string {
+  return `var(${PALETTE_VARS.brandStrong}, ${buildClinicPalette(brandHex).brandStrong})`
+}
+
 /** `buildClinicPalette` → a `{ '--c-bg': '#…', … }` map ready to spread into a
  *  React `style` prop (or serialize into a `:root { … }` block). */
 export function clinicPaletteVars(

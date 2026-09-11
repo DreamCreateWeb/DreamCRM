@@ -9,6 +9,7 @@ import {
   RESUME_ACCEPT,
 } from '@/lib/types/careers'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { brandFill } from '@/lib/clinic-site-theme'
 import { BusyLabel } from '@/components/ui/busy-label'
 
 const FIELD =
@@ -120,7 +121,7 @@ export default function ApplyForm({ orgId, jobPostingId, brand }: { orgId: strin
         disabled={pending}
         aria-busy={pending || undefined}
         className="relative w-full sm:w-auto text-[15px] font-semibold px-6 py-3 rounded-xl text-white disabled:opacity-60"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: brandFill(brand) }}
       >
         {pending ? <BusyLabel>Submit application</BusyLabel> : 'Submit application'}
       </button>

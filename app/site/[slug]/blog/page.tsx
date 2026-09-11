@@ -6,7 +6,7 @@ import BlogChrome from '@/components/clinic-site/blog-chrome'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
 import ClosingCTA from '@/components/clinic-site/closing-cta'
 import { resolveSeoMeta, applySeoOverride } from '@/lib/types/seo-meta'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { blogIndexJsonLd } from '@/lib/clinic-site-jsonld'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
 import SiteImage from '@/components/clinic-site/site-image'
@@ -107,7 +107,7 @@ export default async function ClinicBlogIndexPage({ params, searchParams }: Prop
         <div
           aria-hidden="true"
           className="absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full opacity-[0.18] blur-3xl"
-          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+          style={{ backgroundColor: brandFill(brand) }}
         />
         <div className="relative max-w-[1100px] mx-auto px-5 sm:px-8 text-center">
           <ScrollReveal>
@@ -229,9 +229,9 @@ function CategoryChip({
       style={
         active
           ? {
-              backgroundColor: `var(--c-brand-strong, ${brand})`,
+              backgroundColor: brandFill(brand),
               color: '#fff',
-              borderColor: `var(--c-brand-strong, ${brand})`,
+              borderColor: brandFill(brand),
             }
           : { color: INK_MUTED, borderColor: BORDER, backgroundColor: 'var(--c-surface, #FFFFFF)' }
       }

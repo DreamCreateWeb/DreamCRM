@@ -15,7 +15,7 @@ import {
   groupByCategory,
   type EnrichedService,
 } from '@/lib/services/service-library'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { servicesItemListJsonLd } from '@/lib/clinic-site-jsonld'
 import { buildClinicNavLinks, hasColoringPages,
   isSelfBookingEnabled,
@@ -200,7 +200,7 @@ export default async function ServicesPage({ params }: Props) {
             <a
               href={bookHref}
               className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-              style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+              style={{ backgroundColor: brandFill(brand) }}
             >
               {bookLabel}
             </a>
@@ -376,7 +376,7 @@ function ServiceGrid({
                 {s.offer && (
                   <span
                     className="ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold text-white"
-                    style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                    style={{ backgroundColor: brandFill(brand) }}
                   >
                     {s.offer}
                   </span>

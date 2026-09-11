@@ -3,7 +3,7 @@ import type { BlogPost } from '@/lib/db/schema/clinic'
 import type { ClinicStaff, BlogFaqItem } from '@/lib/types/clinic-content'
 import { sanitizeBlogHtml } from '@/lib/blog-sanitize'
 import { readingTimeMinutes } from '@/lib/utils'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import ScrollReveal from './scroll-reveal'
 import ClosingCTA from './closing-cta'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -95,7 +95,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
           ) : author ? (
             <span
               className="flex items-center justify-center w-11 h-11 rounded-full text-white text-sm font-bold"
-              style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+              style={{ backgroundColor: brandFill(brand) }}
             >
               {author.name.charAt(0).toUpperCase()}
             </span>
@@ -157,7 +157,7 @@ export default function BlogArticle({ post, author, reviewer, related, brand, ba
             <a
               href={bookHref}
               className="inline-flex items-center justify-center px-5 py-2.5 rounded-full text-sm font-semibold text-white shadow-sm transition hover:opacity-95 shrink-0"
-              style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+              style={{ backgroundColor: brandFill(brand) }}
             >
               Book a Visit
             </a>

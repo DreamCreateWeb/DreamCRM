@@ -12,7 +12,7 @@ import { getOpenJobBySlug, getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp, jobPostingJsonLd } from '@/lib/types/careers'
 import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -231,7 +231,7 @@ export default async function ClinicJobDetailPage({ params }: Props) {
             <a
               href="#apply"
               className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-              style={{ backgroundColor: brand }}
+              style={{ backgroundColor: brandFill(brand) }}
             >
               Apply now <span aria-hidden="true" className="ml-2">↓</span>
             </a>
@@ -292,7 +292,7 @@ export default async function ClinicJobDetailPage({ params }: Props) {
                       target="_blank"
                       rel="noopener"
                       className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                      style={{ backgroundColor: brand }}
+                      style={{ backgroundColor: brandFill(brand) }}
                     >
                       Apply on partner site <span aria-hidden="true" className="ml-2">→</span>
                     </a>

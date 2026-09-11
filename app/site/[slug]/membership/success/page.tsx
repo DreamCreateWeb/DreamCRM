@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getClinicSiteBySlug, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { finalizeMembershipFromSession } from '@/lib/services/membership'
 import BlogChrome from '@/components/clinic-site/blog-chrome'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED } from '@/components/clinic-site/tokens'
 
 
@@ -43,7 +43,7 @@ export default async function MembershipSuccessPage({ params, searchParams }: Pr
       <div className="max-w-[600px] mx-auto px-5 sm:px-8 py-14 sm:py-20 text-center">
         <div
           className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-3xl text-white shadow-md"
-          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+          style={{ backgroundColor: brandFill(brand) }}
         >
           ✓
         </div>

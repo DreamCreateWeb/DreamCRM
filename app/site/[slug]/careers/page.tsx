@@ -11,7 +11,7 @@ import { listActivePlans } from '@/lib/services/membership'
 import { getOpenJobs } from '@/lib/services/careers'
 import { ROLE_LABELS, EMPLOYMENT_LABELS, formatComp } from '@/lib/types/careers'
 import { type ClinicService, type ClinicStaff } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import {
   buildClinicNavLinks,
   navServicesFromClinicServices,
@@ -302,7 +302,7 @@ export default async function ClinicCareersPage({ params }: Props) {
                           </div>
                           <span
                             className="shrink-0 hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-semibold transition-all duration-300 group-hover:gap-3"
-                            style={{ backgroundColor: brand, color: '#fff' }}
+                            style={{ backgroundColor: brandFill(brand), color: '#fff' }}
                           >
                             View &amp; apply
                             <span aria-hidden="true">→</span>

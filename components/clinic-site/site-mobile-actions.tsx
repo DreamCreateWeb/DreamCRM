@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { ClinicSiteData } from '@/lib/services/clinic-site'
+import { brandFill } from '@/lib/clinic-site-theme'
 
 interface Props {
   data: ClinicSiteData
@@ -107,7 +108,7 @@ export default function SiteMobileActions({
         href={bookHref}
         tabIndex={revealed ? 0 : -1}
         className="pointer-events-auto inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-sm sm:text-base font-semibold text-white shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/80"
-        style={{ backgroundColor: `var(--c-brand-strong, ${brand})`, pointerEvents: revealed ? 'auto' : 'none' }}
+        style={{ backgroundColor: brandFill(brand), pointerEvents: revealed ? 'auto' : 'none' }}
       >
         <svg
           className="w-4 h-4 shrink-0"
