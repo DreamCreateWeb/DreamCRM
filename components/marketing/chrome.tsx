@@ -25,7 +25,7 @@ function ChildLink({
     <>
       <span className="block text-[0.85rem] font-semibold text-gray-900 group-hover/item:text-teal-700">
         {child.label}
-        {child.external && <span className="ml-1 text-gray-400">↗</span>}
+        {child.external && <span className="ml-1 text-gray-500">↗</span>}
       </span>
       {child.description && (
         <span className="mt-0.5 block text-[0.74rem] leading-snug text-gray-500">{child.description}</span>

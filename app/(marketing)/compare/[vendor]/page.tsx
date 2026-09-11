@@ -133,7 +133,7 @@ export default async function ComparePage({ params }: Props) {
               </tbody>
             </table>
           </div>
-          <p className="mt-6 text-center text-[0.78rem] leading-relaxed text-gray-400">{COMPARISON_DISCLAIMER}</p>
+          <p className="mt-6 text-center text-[0.78rem] leading-relaxed text-gray-500">{COMPARISON_DISCLAIMER}</p>
         </div>
       </section>
 
@@ -143,7 +143,7 @@ export default async function ComparePage({ params }: Props) {
 
         <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
           <div className="rounded-xl border border-gray-200 p-5">
-            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-400">
+            <p className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-500">
               Choose {c.name} if
             </p>
             <ul className="mt-3 space-y-2">
@@ -209,7 +209,7 @@ export default async function ComparePage({ params }: Props) {
               </details>
             ))}
           </div>
-          <p className="mt-6 text-center text-[0.78rem] leading-relaxed text-gray-400">{COMPARISON_DISCLAIMER}</p>
+          <p className="mt-6 text-center text-[0.78rem] leading-relaxed text-gray-500">{COMPARISON_DISCLAIMER}</p>
         </div>
       </section>
     </>

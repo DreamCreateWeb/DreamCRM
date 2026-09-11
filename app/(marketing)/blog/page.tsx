@@ -51,7 +51,7 @@ export default async function MarketingBlogPage() {
             {posts.map((post) => (
               <li key={post.id}>
                 <Link href={`/blog/${post.slug}`} className="group block py-7">
-                  <p className="flex items-center gap-2 text-[0.78rem] font-semibold text-gray-400">
+                  <p className="flex items-center gap-2 text-[0.78rem] font-semibold text-gray-500">
                     {post.category && <span className="text-teal-700">{post.category}</span>}
                     {post.category && <span aria-hidden="true">·</span>}
                     <time>{fmtDate(post.publishedAt)}</time>

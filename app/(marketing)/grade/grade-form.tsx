@@ -29,7 +29,7 @@ export default function GradeForm() {
 
   const label = 'block text-sm font-medium text-gray-700'
   const input =
-    'mt-1 w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-[0.95rem] text-gray-900 placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30'
+    'mt-1 w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-[0.95rem] text-gray-900 placeholder:text-gray-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30'
 
   return (
     <form action={onSubmit} className="space-y-4">
@@ -66,7 +66,7 @@ export default function GradeForm() {
       </div>
       <div>
         <label htmlFor="g-site" className={label}>
-          Website <span className="font-normal text-gray-400">(leave blank if you don’t have one)</span>
+          Website <span className="font-normal text-gray-500">(leave blank if you don’t have one)</span>
         </label>
         <input id="g-site" name="websiteUrl" maxLength={300} placeholder="smilebright.com" className={input} />
       </div>
@@ -86,7 +86,7 @@ export default function GradeForm() {
       >
         {pending ? 'Grading — checking your site and your Google listing…' : 'Grade my practice'}
       </button>
-      <p className="text-center text-xs text-gray-400">
+      <p className="text-center text-xs text-gray-500">
         Free, takes about ten seconds. We’ll email you a link to the full report — one email, no list.
       </p>
     </form>

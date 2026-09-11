@@ -250,7 +250,7 @@ export default function ProductPage() {
             <div className={`grid items-start gap-10 lg:grid-cols-2 ${i % 2 === 1 ? 'lg:[&>*:first-child]:order-2' : ''}`}>
               <div>
                 <Eyebrow>
-                  <span className="mr-2 text-gray-300">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="mr-2 text-gray-500">{String(i + 1).padStart(2, '0')}</span>
                   {s.eyebrow}
                 </Eyebrow>
                 <h2 className="text-[1.6rem] font-bold leading-tight tracking-tight sm:text-[1.9rem]">{s.title}</h2>

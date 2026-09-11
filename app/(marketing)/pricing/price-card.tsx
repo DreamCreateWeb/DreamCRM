@@ -52,7 +52,7 @@ export function PriceCard() {
         Founding practice rate
       </p>
       <p className="mt-2 flex items-baseline justify-center gap-3">
-        <span className="text-[1.4rem] font-semibold text-gray-400 line-through decoration-2" aria-label={`Regular price $${list.toLocaleString('en-US')} per ${monthly ? 'month' : 'year'}`}>
+        <span className="text-[1.4rem] font-semibold text-gray-500 line-through decoration-2" aria-label={`Regular price $${list.toLocaleString('en-US')} per ${monthly ? 'month' : 'year'}`}>
           ${list.toLocaleString('en-US')}
         </span>
         <span className="text-[3.2rem] font-extrabold tracking-tight text-gray-950">

@@ -48,7 +48,7 @@ export default async function DocArticlePage({ params }: Props) {
         {doc.title}
       </h1>
       <p className="mt-2 text-[0.95rem] text-gray-600">{doc.summary}</p>
-      <p className="mt-1 text-[0.78rem] font-medium text-gray-400">{doc.minutes} min read</p>
+      <p className="mt-1 text-[0.78rem] font-medium text-gray-500">{doc.minutes} min read</p>
 
       <div className="mt-8 space-y-8">
         {doc.sections.map((section, i) => (
@@ -79,7 +79,7 @@ export default async function DocArticlePage({ params }: Props) {
 
       {related.length > 0 && (
         <aside className="mt-12 rounded-xl border border-gray-200 bg-gray-50/70 p-5">
-          <p className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-400">
+          <p className="text-[0.78rem] font-bold uppercase tracking-wider text-gray-500">
             More in {doc.category}
           </p>
           <ul className="mt-3 space-y-2">

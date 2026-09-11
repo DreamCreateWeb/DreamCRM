@@ -99,7 +99,15 @@ export function MarketingFooter() {
         </div>
         {columns.map((col) => (
           <nav key={col.title} aria-label={col.title}>
-            <p className="text-[0.75rem] font-bold uppercase tracking-wider text-gray-500">{col.title}</p>
+            {/* gray-300, not gray-500. This footer is a DARK band inside a
+                light-mode page, so no `.dark` scope applies and the light
+                value of gray-500 was rendering straight onto gray-950 at
+                3.43:1 — and it was quieter than the gray-400 links beneath
+                it, i.e. a column heading receding behind its own list. The
+                runtime accessibility checks reported this on every marketing
+                stop; it is the pair that looked like a dark-mode token bug
+                and was not one. */}
+            <p className="text-[0.75rem] font-bold uppercase tracking-wider text-gray-300">{col.title}</p>
             <ul className="mt-3 space-y-2">
               {col.links.map((l) =>
                 l.external ? (
