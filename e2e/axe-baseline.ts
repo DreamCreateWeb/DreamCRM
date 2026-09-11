@@ -149,6 +149,29 @@
  * agreed on. Mid-fade samples all sit below the settled value, so they agree
  * with each other by construction.
  *
+ * WHAT THREE OF THE 36 ARE, since a ceiling with no diagnosis is a rediscovery
+ * waiting to happen. `booking: slot chosen, details filled in` holds 3, and all
+ * three are one defect on a page real visitors book from:
+ *
+ *   · `#f0f3f1 on #9caf9f` at 2.07 — the SELECTED day chip's weekday label.
+ *   · `#ffffff on #9caf9f` at 2.32, twice — the selected day chip's date and the
+ *     selected time slot. One is large text, which axe judged at the 3:1 bar; it
+ *     fails that too.
+ *
+ * `#9caf9f` is the seeded clinic's raw pale-sage brand used as a FILL under light
+ * text — the defect batch 54 fixed for the patient portal (`portalBrand()`,
+ * lib/portal-brand.ts), still live on the PUBLIC booking page. The clinic-site
+ * palette already derives a contrast-safe fill for exactly this role
+ * (`brandStrong`); the booking page's day/time buttons do not use it. A clinic
+ * whose brand is dark enough hides it, which is why it survived the portal fix.
+ * Handed to the UI lane on DREAMCRM-28 with this reproduction; fixing it takes
+ * this stop to 0 and the entry leaves this file.
+ *
+ * (Seen at 4 rather than 3 once, on actions/runs/34547087372, before #544's
+ * settle landed — the 4th was the `ScrollReveal` fade artifact described above,
+ * not a fourth defect. Diagnosed rather than accommodated: raising the ceiling
+ * would have written an artifact into this file as a defect.)
+ *
  * Remaining: **36, all `color-contrast`, and all of them genuine** — the 41
  * decorative mocks are now excluded at the scan rather than carried as a
  * ceiling, and the 2 on the booking confirmation turned out to be fade
