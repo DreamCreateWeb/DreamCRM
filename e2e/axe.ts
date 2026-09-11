@@ -45,6 +45,37 @@ type Violation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number
  */
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 
+/**
+ * The decorative product mock-ups on the marketing site — miniature simulated
+ * app screens at 7-10px, marked `aria-hidden` by their authors
+ * (`components/marketing/ui.tsx`).
+ *
+ * WHY THIS EXEMPTION EXISTS, and why it is a selector rather than a number.
+ * Vesper's DREAMCRM-28 burn-down established that all 41 `color-contrast`
+ * findings on `marketing: home` are inside these, and left the ceiling alone
+ * rather than lower it to a figure implying they had been fixed — correctly,
+ * and then asked QA whether the scan should exclude them instead. It should,
+ * for a reason that is about the GATE rather than about the pixels:
+ *
+ *   a ceiling of 41 on a rule means the 42nd instance is the first one that
+ *   fails. On the busiest public page we have, that is 41 real contrast
+ *   defects' worth of room to hide in. An exemption that names WHAT is exempt
+ *   costs nothing and lets the ceiling go to zero, which is the only state in
+ *   which a new defect on that page fails on arrival.
+ *
+ * WCAG 1.4.3 backs it: text that is part of a picture containing significant
+ * other visual content has no contrast requirement, and restyling a deliberate
+ * illustration to reach 4.5:1 at 7px helps nobody.
+ *
+ * THE RISK, NAMED. `aria-hidden="true"` is the author saying "not content",
+ * which is not quite the same claim as "this is a picture". Real text wrongly
+ * marked `aria-hidden` would lose its contrast check here — but it would also
+ * be silent to every screen reader, a larger bug that `aria-hidden-focus` and
+ * review catch first. Scoped to the ONE stop that needs it rather than applied
+ * globally, so the trade is made once, visibly, where it was argued.
+ */
+export const DECORATIVE_MOCKS = '[aria-hidden="true"]'
+
 type A11yOptions = {
   /** Scan only this subtree (CSS selector) instead of the whole page. */
   include?: string
