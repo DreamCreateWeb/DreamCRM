@@ -160,29 +160,34 @@
  *
  *   WHAT THIS IS NOT: a way to make a red stop green. See `A11Y_INCIDENTAL`.
  *
- * ⚠ `booking: slot chosen, details filled in` IS WOBBLING UPWARD, AND ITS
- *   CEILING OF 3 IS ONE TOO LOW — deliberately NOT raised. Observed 4 on
- *   actions/runs/34547087372 (PR #543), absorbed by the CI retry, so the run
- *   went green with a `1 flaky` line. The 4 it reported:
+ * ⚠ `booking: slot chosen, details filled in` REPORTED 4 AGAINST ITS CEILING OF
+ *   3 on PR #543's own run (actions/runs/34547087372), absorbed by the CI retry
+ *   so the run went green with a `1 flaky` line. The ceiling is NOT raised, and
+ *   after #544 it should not need to be. What the four were:
  *
- *     · `#797269 on #faf7f2` at 4.44 — clinic-site body ink on the cream
- *       ground, the same one-hundredth-under shape as the rest of this file.
- *     · `#f0f3f1 on #9caf9f` at 2.07, `#ffffff on #9caf9f` at 2.32 (×2) — the
+ *     · `#797269 on #faf7f2` at 4.44 — NOT a token pair, and not a defect. This
+ *       is the mid-fade artifact #544 diagnosed: `ScrollReveal`'s 700ms staggered
+ *       opacity transition, measured before it settled. The element's settled
+ *       ink is `#6B635A` at 5.52:1. #544 makes `findA11yViolations` wait for
+ *       finite animations, so this reading should stop appearing — it is the
+ *       4th instance, and the reason this stop looked like it wobbled 3/4.
+ *     · `#f0f3f1 on #9caf9f` at 2.07 and `#ffffff on #9caf9f` at 2.32 (×2) — the
  *       SELECTED day chip and time slot on the public booking page, filled with
- *       the seeded clinic's raw pale-sage brand under light text.
+ *       the seeded clinic's raw pale-sage brand under light text. These three are
+ *       real, they are the 3 the ceiling already carries, and one of them is
+ *       large text that axe judged at the 3:1 bar and that still fails.
  *
- *   The last three are the defect batch 54 fixed for the PORTAL — the clinic's
- *   raw `brand` used as a fill under `text-white` — still live on the PUBLIC
- *   booking page, which is a page real visitors book from. The count moves with
- *   how many brand-filled buttons are in their selected state when axe runs,
- *   which is what makes the stop wobble 3/4 rather than sit still.
+ *   The three real ones are the defect batch 54 fixed for the PORTAL — the
+ *   clinic's raw `brand` used as a fill under `text-white` — still live on the
+ *   PUBLIC booking page, which is a page real visitors book from. Handed to the
+ *   UI lane on DREAMCRM-28 with this reproduction; fixing it takes this stop to
+ *   0 and the entry leaves this file.
  *
- *   So the root cause is a product defect, not a mis-measurement, and fixing it
- *   takes this stop toward 1 rather than to 4. Raising the ceiling would trade
- *   the file's one inviolable direction for a flake the retry already absorbs.
- *   Handed to the UI lane on DREAMCRM-28 with this reproduction. If it is still
- *   wobbling when that lands, the answer is still not a raise — it is to pin the
- *   stop's state so the count is deterministic.
+ *   THE LESSON, because it generalises: a count that appears to wobble upward is
+ *   worth diagnosing before it is accommodated. This one was three real defects
+ *   plus a measurement artifact, and raising the ceiling to 4 would have written
+ *   the artifact into the file as a defect and spent the file's one inviolable
+ *   direction to do it.
  *
  * Drops that were the documented WOBBLE rather than fixes, whose ceilings
  * deliberately stayed put: `booking: the confirmation a patient lands on`
