@@ -39,7 +39,7 @@ export default function CompareIndexPage() {
               href={`/compare/${c.slug}`}
               className="group rounded-xl border border-gray-200 p-6 transition-colors hover:border-teal-300"
             >
-              <p className="text-[0.8rem] font-semibold text-gray-400">DreamCRM vs</p>
+              <p className="text-[0.8rem] font-semibold text-gray-500">DreamCRM vs</p>
               <h2 className="mt-0.5 text-[1.3rem] font-bold text-gray-950">{c.name}</h2>
               <p className="mt-1 text-[0.85rem] font-medium text-teal-700">{c.category}</p>
               <p className="mt-3 line-clamp-3 text-[0.9rem] leading-relaxed text-gray-600">{c.summary}</p>
@@ -49,7 +49,7 @@ export default function CompareIndexPage() {
             </Link>
           ))}
         </div>
-        <p className="mt-10 text-center text-[0.78rem] leading-relaxed text-gray-400">{COMPARISON_DISCLAIMER}</p>
+        <p className="mt-10 text-center text-[0.78rem] leading-relaxed text-gray-500">{COMPARISON_DISCLAIMER}</p>
       </section>
 
       {/* ── The consolidation math (moved here from the homepage 2026-07-19 —
@@ -72,7 +72,7 @@ export default function CompareIndexPage() {
             <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
               <table className="w-full text-[0.875rem]">
                 <thead>
-                  <tr className="text-left text-[0.72rem] font-bold uppercase tracking-wider text-gray-400">
+                  <tr className="text-left text-[0.72rem] font-bold uppercase tracking-wider text-gray-500">
                     <th className="px-3 py-2">Replaces</th>
                     <th className="px-3 py-2 text-right">Typical spend</th>
                   </tr>
@@ -88,7 +88,7 @@ export default function CompareIndexPage() {
                   ].map(([tool, price]) => (
                     <tr key={tool} className="border-t border-gray-100">
                       <td className="px-3 py-2.5 font-medium text-gray-800">{tool}</td>
-                      <td className="px-3 py-2.5 text-right text-gray-400 line-through">{price}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-500 line-through">{price}</td>
                     </tr>
                   ))}
                   <tr className="border-t-2 border-teal-200 bg-teal-50/60">

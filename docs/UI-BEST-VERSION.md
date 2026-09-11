@@ -171,11 +171,20 @@ batch number.
   dark surface when the dark override already exists at
   `app/css/style.css:375` — that row needs a diagnosis, not a token change,
   and editing `--color-ink-500` would be fixing the wrong thing. Tracked as
-  DREAMCRM-28; batch 54 took it to 166, and the baseline file carries a
-  running burn-down log. Remaining: the design-system token pairs, and
-  the agenda row (`nested-interactive` + `list` are ONE structural pattern —
-  an `li[role="button"]` containing its own focusable controls, so both
-  clear together when it becomes a non-interactive `li` around a button).
+  DREAMCRM-28; batch 54 took it to 166 and batch 55 to 119, and the baseline
+  file carries a running burn-down log. One correction to the framing above,
+  found in batch 55: `#5e6e8c` on `#10182e` is NOT the dark-mode side. It is
+  the marketing footer — a dark band inside a light-mode page, where no
+  `.dark` scope applies — so the dark override was never involved, which is
+  what the "diagnosis, not a token change" instinct was protecting against.
+  And 41 of `marketing: home`'s 43 remaining are inside `aria-hidden`
+  decorative product mock-ups at 7–10px, which WCAG 1.4.3 exempts as
+  incidental; they are deliberately not "fixed". Remaining: white text on the
+  brand ramp's 500 step (`#ffffff` on `#4c7df0`, 3.81:1 — teal-600 and deeper
+  are the legal white-text fills), and the agenda row (`nested-interactive` +
+  `list` are ONE structural pattern — an `li[role="button"]` containing its
+  own focusable controls, so both clear together when it becomes a
+  non-interactive `li` around a button).
 - ~~The patient portal used the clinic's brand colour RAW, as text and as a
   button fill~~ [BATCH 54, and it was a product defect rather than the
   palette correction the 176 contrast instances made it look like. The
@@ -213,6 +222,40 @@ batch number.
   at every plausible lightness, pins the one-value implication, and guards
   the eight entry points by source so a new patient surface cannot read the
   brand raw].
+- ~~The semantic tone recipe failed WCAG AA on its own tinted background~~
+  [BATCH 55, and it was the biggest single cluster in the axe baseline
+  (`#bb4d00 on #fff0d9`, 4.48:1, 36 instances) wearing a token pair's
+  clothes. `lib/ui/encodings.ts` painted every tone as
+  `bg-<ramp>-500/15 text-<ramp>-700`, so the ink's real background is the
+  wash OVER WHICHEVER SURFACE the pill landed on — and the darkest of those,
+  `--color-surface-sunk` (table headers, wells), is what decides. At the 700
+  step warn measured 3.96, ok 4.12 and urgent 4.25; violet scraped 4.59 and
+  fuchsia sat on exactly 4.50, which is a coincidence rather than a margin.
+  All five coloured tones moved to the 800 step — one step of the same hue,
+  uniform, because letting the pill and text recipes drift apart is the
+  cheapest way for a registry to stop being a single source of truth. It took
+  the appointment-drawer stops from 15 to 1 and the populated patients list
+  from 8 to 1. Alongside it: `--color-ink-500`/`--color-gray-500` nudged one
+  point of lightness darker (#5e6e8c → #5c6c89) because it cleared 5.14 on
+  white and 4.78 on the canvas and landed at 4.49 on the sunk surface; the
+  marketing footer's column headings, which were BOTH failing at 3.42 and
+  quieter than the links beneath them; `text-gray-400` — the ink the sheet
+  marks "disabled only" — used as real text on 24 lines of the marketing
+  site; and both error pages, where the reference id a person is meant to
+  read off a broken page and quote back to us was the least legible text on
+  it (2.62 light, 2.18 dark) and global-error's Reload button was v2's
+  retired teal AND 3.74:1. THE DURABLE PART is
+  `tests/a11y/token-contrast.test.ts`: the source-level contrast guard the
+  repo did not have. The legibility floor tests SIZE, jsx-a11y cannot see
+  colour at all, and axe only measures the 35 stops the browser suite happens
+  to walk — so nothing ever read the design system's own numbers and asked
+  whether they clear 4.5:1, which is how 176 of these accumulated quietly and
+  why so many sat at 4.48–4.49. It reads the real values from
+  `app/css/style.css` and Tailwind's own `theme.css`, layered in the
+  browser's cascade order with oklch converted the way Chromium converts it
+  (pinned against canvas-read values, so a wrong matrix cannot make it pass),
+  and asserts every ink × surface and every tone-ink × its-own-wash pair in
+  both themes. Nothing in it is transcribed].
 
 ---
 

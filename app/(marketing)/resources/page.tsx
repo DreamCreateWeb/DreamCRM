@@ -42,7 +42,7 @@ export default function ResourcesIndexPage() {
             >
               <h2 className="text-[1.05rem] font-bold leading-snug text-gray-950">{g.title}</h2>
               <p className="mt-3 flex-1 text-[0.88rem] leading-relaxed text-gray-600">{g.description}</p>
-              <span className="mt-4 text-[0.8rem] font-medium text-gray-400">{g.readMinutes}-minute read</span>
+              <span className="mt-4 text-[0.8rem] font-medium text-gray-500">{g.readMinutes}-minute read</span>
               <span className="mt-2 inline-block text-[0.85rem] font-semibold text-teal-700 group-hover:underline">
                 Read the guide →
               </span>

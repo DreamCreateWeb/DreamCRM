@@ -1182,6 +1182,42 @@ timer, and nothing replaced that second job. `getPmsHealth`
 integration page, so it is visible to somebody who looks; nothing alerts on
 "op pending for N days", so nobody is told. A practice whose bridge stays down
 over a holiday week has bookings queued and no prompt to go and look. · OPEN.
+### Slice 13 — the insurance-card scanner only reads our own storage · DONE
+
+`lib/services/insurance-ocr.ts` filtered its `imageUrls` on `/^https?:\/\//` and
+nothing else, so the PUBLIC card scanner would fetch and bill any URL on the
+internet. The two call sites each had a different opinion about what "our
+storage" means: the site intake action matched the bucket name as a SUBSTRING
+of the host (`mybucket.attacker.example` passed) and otherwise waved through
+anything ending `.amazonaws.com` — every public S3 bucket there is — and the
+patient-portal action had no host check at all.
+
+All three now go through `isAllowedAttachmentUrl` (`lib/attachment-hosts.ts`),
+the same boundary message attachments use, which matches the exact hosts
+`lib/blob-s3.ts` `publicBase()` mints. The gate lives in the SERVICE so a
+future call site is covered by construction, and an adoption guard fails if
+anyone re-implements a storage-host check.
+
+Guard note worth keeping: the red run for that guard PASSED on the first
+attempt while the hand-rolled filter was live, because the doc comment above it
+happened to name `isAllowedAttachmentUrl`. A guard that greps source has to
+strip comments — a mention is not an adoption.
+
+### Open — insurance-card OCR trusts a client-supplied orgId (found 2026-09-10)
+
+Found reviewing Slice 13 and NOT closed by it — the same surface, a different
+defect, so it gets its own entry and its own verdict.
+`readInsuranceCardAction(orgId, imageUrls)`
+(`app/site/[slug]/intake/[formSlug]/actions.ts`) takes `orgId` straight from the
+client with nothing checking it against the slug the page was served from, and
+— unlike every other public site action — it has no `rateLimitPublicAction`. So
+anyone who can upload through `/api/upload` can spend an ARBITRARY clinic's
+400/month scanning cap on their own images.
+
+Slice 13 closed the "any URL on the internet" half. This is the "whose
+allowance" half: after Slice 13 the images must at least be ours, so it is a
+signed-in caller rather than a stranger, which is narrower and not closed.
+Pre-existing. · OPEN.
 
 ### Slice 8 — stranded-campaign recovery · DONE
 
