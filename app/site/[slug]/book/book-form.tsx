@@ -472,7 +472,18 @@ export default function BookForm({
       fd.set('ref', params.get('ref') || '')
     }
     try {
-      const conf = await submitBookingRequest(fd)
+      // The action returns its outcome rather than throwing it: in production
+      // Next.js replaces a server-action error message with an opaque digest,
+      // so the clinic's own wording never reached the patient. The catch below
+      // stays for a genuinely failed round trip — the network dropping, not
+      // the form being wrong.
+      const res = await submitBookingRequest(fd)
+      if (!res.ok) {
+        setErrorMsg(res.error)
+        setSubmitState('error')
+        return
+      }
+      const conf = res.data
       if (conf.depositUrl) {
         // The visit is booked — the deposit completes it. Hand off to Stripe;
         // the return trip lands back on this page with ?deposit_session=….
@@ -482,10 +493,8 @@ export default function BookForm({
       }
       setConfirmation(conf)
       setSubmitState('success')
-    } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : 'Something went wrong. Please call us to book.',
-      )
+    } catch {
+      setErrorMsg('Something went wrong. Please call us to book.')
       setSubmitState('error')
     }
   }

@@ -77,7 +77,7 @@ interface Props {
   /** Server action that persists the submission. Public form passes the
    *  unauthenticated action; the patient portal passes one that attaches
    *  `patientId` from the session. */
-  action: (payload: IntakeSubmitPayload) => Promise<void>
+  action: (payload: IntakeSubmitPayload) => Promise<{ ok: true; data: null } | { ok: false; error: string }>
   /** Optional insurance-card OCR action — when present, an insurance_card field
    *  offers "Read my card" to auto-fill the insurance fields. */
   ocrAction?: OcrAction
@@ -189,7 +189,12 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
     const submitterName =
       [first, last].filter((x): x is string => typeof x === 'string' && !!x).join(' ') || null
     try {
-      await action({
+      // The action returns its outcome rather than throwing it: in production
+      // Next.js replaces a server-action error message with an opaque digest,
+      // so "This form is no longer accepting responses" reached the patient as
+      // an internal-render sentence. The catch below stays for a genuinely
+      // failed round trip — the network dropping, not the form being wrong.
+      const res = await action({
         orgId,
         templateId,
         data: values,
@@ -200,12 +205,17 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         // when not already set) — powers preferred-language messaging.
         submittedLanguage: lang,
       })
+      if (!res.ok) {
+        setErrorMsg(res.error)
+        setStatus('error')
+        return
+      }
       // Packet mode: hand control back so the parent advances to the next form
       // (no single-form success screen between steps).
       if (onComplete) onComplete()
       else setStatus('success')
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Could not submit — try again.')
+    } catch {
+      setErrorMsg('Could not submit — try again.')
       setStatus('error')
     }
   }

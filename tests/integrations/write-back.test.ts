@@ -71,6 +71,7 @@ vi.mock('@/lib/db', () => {
 })
 
 import { queueAppointmentWriteBack, queueAppointmentStatusWriteBack, retryPendingWrites } from '@/lib/services/pms/sync'
+import { PmsWriteWaitingError } from '@/lib/services/pms/provider'
 
 function queue(table: string, ...results: Row[][]) {
   ;(state.selects[table] ??= []).push(...results)
@@ -222,6 +223,97 @@ describe('retryPendingWrites — pushing into the PMS', () => {
     expect(state.inserts.some((i) => i.table === 'pmsEntityMap')).toBe(true)
     const success = state.updates.find((u) => u.table === 'pmsWriteOp' && u.set.status === 'success')
     expect(success!.set.externalId).toBe('od-apt-prior')
+  })
+
+  // ── The outage that silently dropped a booking ──────────────────────────
+  // The patient leg used to SWALLOW its failure and return null, and the
+  // caller turned that into failOp() unconditionally. So a practice system
+  // that was merely unreachable burned one of the appointment's six attempts
+  // every sync — six over one closed weekend and the visit existed in
+  // DreamCRM and never reached the practice's schedule. The direct
+  // createAppointment leg already parked; this one did not.
+  it('parks the APPOINTMENT op when the practice system is unreachable during the patient push', async () => {
+    const client = makeFakeClient()
+    client.createPatient = vi.fn(async (_p: unknown) => {
+      throw new Error('NexHealth patients failed (503): upstream')
+    })
+    queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 3 }])
+    queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date(), endTime: null, notes: null }])
+    queue('pmsEntityMap', []) // appt not mapped; patient not mapped → push patient
+    queue('patient', [{ id: 'pat1', organizationId: 'org1', firstName: 'New', lastName: 'Patient', email: 'n@p.com', phone: null, dateOfBirth: null }])
+
+    await retryPendingWrites('org1', asClient(client))
+
+    // No counted failure anywhere: the outage costs the booking no attempts.
+    expect(state.updates.some((u) => u.table === 'pmsWriteOp' && u.set.status === 'error')).toBe(false)
+    const parked = state.updates.filter((u) => u.table === 'pmsWriteOp' && u.set.status === 'pending')
+    expect(parked.length).toBeGreaterThan(0)
+    // The appointment op keeps its attempt counter at 3, not 4.
+    expect(parked.some((u) => u.set.attempts === 3)).toBe(true)
+  })
+
+  it('parks the appointment op when no provider is synced yet (a WAITING refusal)', async () => {
+    const client = makeFakeClient()
+    client.createPatient = vi.fn(async (_p: unknown) => {
+      throw new PmsWriteWaitingError('No provider is synced from the practice system yet — retrying after the next sync.')
+    })
+    queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 2 }])
+    queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date(), endTime: null, notes: null }])
+    queue('pmsEntityMap', [])
+    queue('patient', [{ id: 'pat1', organizationId: 'org1', firstName: 'New', lastName: 'Patient', email: 'n@p.com', phone: null, dateOfBirth: null }])
+
+    await retryPendingWrites('org1', asClient(client))
+
+    expect(state.updates.some((u) => u.table === 'pmsWriteOp' && u.set.status === 'error')).toBe(false)
+    expect(
+      state.updates.some((u) => u.table === 'pmsWriteOp' && u.set.status === 'pending' && u.set.attempts === 2),
+    ).toBe(true)
+  })
+
+  // The other half: a write that is WRONG still burns its attempts and still
+  // surfaces, or a bad payload would wait forever for an outage to end.
+  it('still counts the attempt — and names the real reason — when the patient write is refused', async () => {
+    const client = makeFakeClient()
+    client.createPatient = vi.fn(async (_p: unknown) => {
+      throw new Error('Their practice system requires an email, a date of birth to create a patient chart')
+    })
+    queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 1 }])
+    queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date(), endTime: null, notes: null }])
+    queue('pmsEntityMap', [])
+    queue('patient', [{ id: 'pat1', organizationId: 'org1', firstName: 'New', lastName: 'Patient', email: null, phone: null, dateOfBirth: null }])
+
+    await retryPendingWrites('org1', asClient(client))
+
+    // BOTH ops record — the patient write that was refused and the appointment
+    // it was serving — and BOTH now name the field the front desk has to fill
+    // in. The swallowing version put the real message on the patient op only
+    // and left the appointment op with 'Patient could not be created in the
+    // PMS yet', a sentence that fit every cause equally badly.
+    const errs = state.updates.filter((u) => u.table === 'pmsWriteOp' && u.set.status === 'error')
+    expect(errs).toHaveLength(2)
+    expect(errs.every((u) => /date of birth/.test(String(u.set.error)))).toBe(true)
+    // The appointment op's attempt counter advanced 1 → 2: a wrong write is
+    // still on the clock, unlike an outage.
+    expect(errs.some((u) => u.set.attempts === 2)).toBe(true)
+  })
+
+  it('reuses the open patient write-op instead of minting one row per retry', async () => {
+    const client = makeFakeClient()
+    client.createPatient = vi.fn(async (_p: unknown) => ({ externalId: 'od-pat-9' }))
+    queue('pmsWriteOp', [{ id: 'op1', organizationId: 'org1', entityType: 'appointment', internalId: 'apt1', status: 'pending', attempts: 1 }])
+    queue('appointment', [{ id: 'apt1', organizationId: 'org1', patientId: 'pat1', providerId: null, startTime: new Date(), endTime: null, notes: null }])
+    queue('pmsEntityMap', [])
+    queue('patient', [{ id: 'pat1', organizationId: 'org1', firstName: 'New', lastName: 'Patient', email: 'n@p.com', phone: null, dateOfBirth: null }])
+    // pmsWriteOp is read three more times after the pending list: the
+    // appointment's prior-external-id recovery, the patient's, then the
+    // OPEN-op lookup — which finds last sync's row (attempts 2). A long
+    // outage must not write one audit row per hour per queued booking.
+    queue('pmsWriteOp', [], [], [{ id: 'patop-open', attempts: 2 }])
+
+    await retryPendingWrites('org1', asClient(client))
+
+    expect(writeOpInserts().some((i) => (i.values as Row).entityType === 'patient')).toBe(false)
+    expect(state.updates.some((u) => u.table === 'pmsWriteOp' && u.set.attempts === 3)).toBe(true)
   })
 
   it('advances the attempt counter when the appointment no longer exists (no infinite retry)', async () => {

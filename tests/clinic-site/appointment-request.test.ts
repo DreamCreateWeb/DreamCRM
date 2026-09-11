@@ -113,29 +113,42 @@ beforeEach(() => {
   recordInboundMessageMock.mockResolvedValue({ threadId: 'pthread_x', messageId: 'pmsg_x' })
 })
 
+
+/**
+ * A public form action REFUSES by returning `{ ok: false, error }`, never by
+ * throwing — a thrown server-action message is replaced by an opaque digest in
+ * production, so asserting the RESULT is asserting what the patient reads.
+ */
+async function expectRefusal(
+  promise: Promise<{ ok: true; data: unknown } | { ok: false; error: string }>,
+  message: RegExp,
+) {
+  const res = await promise
+  expect(res.ok, 'expected the action to refuse, but it succeeded').toBe(false)
+  expect((res as { ok: false; error: string }).error).toMatch(message)
+}
+
 describe('submitAppointmentRequest', () => {
   it('rejects an unresolvable clinic (unknown slug)', async () => {
-    await expect(submitAppointmentRequest(form({ ...VALID, slug: 'unknown' }))).rejects.toThrow(/clinic/i)
+    await expectRefusal(submitAppointmentRequest(form({ ...VALID, slug: 'unknown' })), /clinic/i)
     expect(recordInboundMessageMock).not.toHaveBeenCalled()
     expect(insertedRows).toHaveLength(0)
   })
 
   it('requires a first and last name', async () => {
-    await expect(submitAppointmentRequest(form({ slug: 'acme', email: 'a@b.com' }))).rejects.toThrow(/name/i)
+    await expectRefusal(submitAppointmentRequest(form({ slug: 'acme', email: 'a@b.com' })), /name/i)
     expect(recordInboundMessageMock).not.toHaveBeenCalled()
   })
 
   it('requires an email (the reach-back channel)', async () => {
-    await expect(
-      submitAppointmentRequest(form({ slug: 'acme', firstName: 'Jo', lastName: 'P' })),
-    ).rejects.toThrow(/email/i)
+    await expectRefusal(
+      submitAppointmentRequest(form({ slug: 'acme', firstName: 'Jo', lastName: 'P' })), /email/i)
     expect(recordInboundMessageMock).not.toHaveBeenCalled()
   })
 
   it('rejects a malformed email', async () => {
-    await expect(
-      submitAppointmentRequest(form({ ...VALID, email: 'not-an-email' })),
-    ).rejects.toThrow(/email/i)
+    await expectRefusal(
+      submitAppointmentRequest(form({ ...VALID, email: 'not-an-email' })), /email/i)
     expect(recordInboundMessageMock).not.toHaveBeenCalled()
   })
 
