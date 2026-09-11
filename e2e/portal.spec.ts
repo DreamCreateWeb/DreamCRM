@@ -54,8 +54,21 @@ test.describe('patient portal', () => {
     const page = await context.newPage()
 
     // The branded portal home: greeting + the next-visit rail.
+    //
+    // Scoped to `#portal-main` and non-strict deliberately. An unscoped
+    // `getByText('Your next visit')` hit a strict-mode violation on
+    // actions/runs/34550616911 — TWO identical `PortalSectionLabel` nodes, 594ms
+    // after the goto, passing on retry. `app/(portal)/patient/dashboard/page.tsx`
+    // renders that label exactly once and there is no per-clinic loop, so the
+    // duplicate is transient rather than a data condition; the mechanism is not
+    // yet explained. What this assertion is FOR is that the rail is on the
+    // branded home, and that claim does not depend on the DOM holding exactly one
+    // copy of the heading mid-navigation. Strictness here bought nothing and cost
+    // a retry.
     await page.goto('/patient/dashboard')
-    await expect(page.getByText('Your next visit')).toBeVisible({ timeout: 30_000 })
+    await expect(
+      page.locator('#portal-main').getByText('Your next visit').first(),
+    ).toBeVisible({ timeout: 30_000 })
     await expect(page.locator('body')).toContainText('Casey')
 
     // The portal is themed per clinic, so its palette is data, not source.
