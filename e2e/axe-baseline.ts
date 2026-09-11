@@ -115,15 +115,50 @@
  *     this suite. `marketing: home` also settled to 41 — see below, that is now
  *     ALL of it.
  *
- * ⚠ ONE CEILING HERE IS NOT A DEFECT COUNT. `marketing: home` sits at 41, and
- *   **all 41 are inside `aria-hidden` decorative product mock-ups** —
- *   miniature simulated app screens at 7–10px. WCAG 1.4.3 exempts them
- *   ("incidental": text that is part of a picture containing significant other
- *   visual content has no contrast requirement), and restyling a deliberate
- *   illustration to reach 4.5:1 at 7px helps nobody. The UI lane has left them
- *   alone rather than lower the ceiling to a number implying they were fixed.
- *   The real question is whether the scan should `exclude` those subtrees at
- *   that stop — QA's call, raised on DREAMCRM-28, NOT a ceiling to raise.
+ * ── QA ANSWERED THE DECORATIVE-MOCK QUESTION: THEY ARE EXEMPT, NOT CARRIED ──
+ *
+ *   `marketing: home` used to sit at a ceiling of 41, and all 41 were inside
+ *   two `aria-hidden` decorative product mock-ups in the hero — miniature
+ *   simulated app screens (`DashboardMock`, `PortalMock` in
+ *   `components/marketing/ui.tsx`) whose every text node renders at 7.7-10.9px.
+ *   The UI lane (batch 56) declined to restyle an illustration to satisfy a
+ *   tool and asked QA whether the scan should exclude those subtrees instead.
+ *
+ *   It should, and now does — see `A11Y_INCIDENTAL` below. Three reasons, in
+ *   the order they decided it:
+ *
+ *     1. **WCAG 1.4.3 exempts them.** "Incidental" text — text that is part of
+ *        a picture containing significant other visual content — carries no
+ *        contrast requirement. A simulated screenshot rendered in DOM rather
+ *        than shipped as a PNG is the same picture; axe measures computed
+ *        style and cannot tell the two apart.
+ *     2. **The repo already ruled this way once.**
+ *        `tests/a11y/legibility-floor.test.ts` enforces the 12px SIZE floor
+ *        over the dashboard, the portal and `components/ui` — and deliberately
+ *        NOT over `components/marketing`, which is the only reason 0.48rem text
+ *        in these mocks has never failed it. Carrying the same text as a
+ *        contrast ceiling while exempting it from the size floor is the repo
+ *        holding two positions at once.
+ *     3. **A ceiling of 41 is unreadable as a ceiling.** It never comes down,
+ *        because there is nothing to fix; it just sits on the product's
+ *        most-visited page looking like 41 outstanding defects, and anyone
+ *        triaging a11y debt has to re-derive that it is not. The file's own
+ *        rule is that numbers only go down — a number that provably cannot is
+ *        not a ceiling, it is a mislabelled exemption.
+ *
+ *   VERIFIED, not taken on trust: the first baselined run
+ *   (actions/runs/34531475518) enumerated all 45 instances at this stop with
+ *   selectors and computed colours. 41 resolve inside the two mock roots (every
+ *   one at font-size 5.8-8.2pt); the other 4 were the marketing footer's
+ *   `nav[aria-label=...]` column headings at 12px, which batch 55 fixed. 45
+ *   minus those 4 is exactly the 41 that remained.
+ *
+ *   The stop's entry is therefore DELETED rather than lowered, which puts
+ *   `marketing: home` back to zero tolerance: with the illustrations out of
+ *   scope, a real contrast defect anywhere else on the home page now fails on
+ *   arrival instead of being absorbed into an opaque 41.
+ *
+ *   WHAT THIS IS NOT: a way to make a red stop green. See `A11Y_INCIDENTAL`.
  *
  * Drops that were the documented WOBBLE rather than fixes, whose ceilings
  * deliberately stayed put: `booking: the confirmation a patient lands on`
@@ -131,12 +166,14 @@
  * came in at 2 against 3. Both are the data-dependent counts the header warns
  * about, and a one-element drop is not evidence.
  *
- * Remaining after batch 56: **79, all `color-contrast`, of which 41 are the
- * WCAG-incidental decorative mocks above — so 38 are genuine.** The largest
- * identified pair among them is `#ffffff on #4c7df0` at 3.81:1: white text on
- * the brand ramp's 500 step. teal-600 and deeper are the legal white-text
- * fills, and `tests/a11y/token-contrast.test.ts` asserts that, so the rule is
- * written down where the next batch will find it.
+ * Remaining after batch 56 and this file's exemption: **38 genuine
+ * `color-contrast`, all in the baseline below.** (The 79 the UI lane reported
+ * was 38 plus the 41 decorative-mock instances that are now exempt rather than
+ * carried — the same page, counted honestly.) The largest identified pair among
+ * the 38 is `#ffffff on #4c7df0` at 3.81:1: white text on the brand ramp's 500
+ * step. teal-600 and deeper are the legal white-text fills, and
+ * `tests/a11y/token-contrast.test.ts` asserts that, so the rule is written down
+ * where the next batch will find it.
  */
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
@@ -144,7 +181,6 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'booking: the confirmation a patient lands on': { 'color-contrast': 2 },
   'clinic site: booking page': { 'color-contrast': 3 },
   'clinic site: portal door on a pre-live clinic': { 'color-contrast': 2 },
-  'marketing: home': { 'color-contrast': 41 },
   'marketing: pricing': { 'color-contrast': 2 },
   'portal: cancel confirmation showing': { 'color-contrast': 1 },
   'portal: patient dashboard': { 'color-contrast': 1 },
@@ -163,4 +199,60 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'staff: the day agenda': { 'color-contrast': 2 },
   'staff: website hub, site not yet published': { 'color-contrast': 1 },
   'staff: website hub, site published': { 'color-contrast': 4 },
+}
+
+/**
+ * SUBTREES WCAG ITSELF PUTS OUT OF SCOPE, per stop. The narrow companion to the
+ * ratchet above, and the ONLY thing in this harness that makes the gate looser
+ * — so read the bar before adding one.
+ *
+ * THE BAR, all three:
+ *
+ *   1. The standard exempts the content, not merely "we do not want to fix it".
+ *      Today that means WCAG 1.4.3's "incidental" clause: text that is part of
+ *      a picture containing significant other visual content. A ceiling is for
+ *      a real defect awaiting a fix; an exemption is for something that was
+ *      never a defect. Anything you would be embarrassed to justify to a
+ *      low-vision user is a ceiling, not an exemption.
+ *   2. The selector matches the illustration and nothing else. Every one below
+ *      pairs a structural hook with `aria-hidden="true"`, so it cannot quietly
+ *      spread over content a person is meant to read: real readable content is
+ *      not hidden from assistive tech.
+ *   3. It is justified HERE, in the file a reader already opens to find out why
+ *      a stop is tolerated — never inline at a call site in a spec, where the
+ *      next person reads a bare CSS selector and no reason.
+ *
+ * WHY `exclude` RATHER THAN A CONTRAST-ONLY FILTER. `exclude` drops the subtree
+ * from every rule, not just `color-contrast`, which is a real cost — but the
+ * only WCAG rule that looks inside an `aria-hidden` subtree at all is
+ * `aria-hidden-focus` (a focusable node hidden from assistive tech), and
+ * `eslint.config.mjs` already errors on exactly that over `components/**` at
+ * the source level. The cost is covered; a second filtering mechanism would not
+ * have been.
+ *
+ * HOW IT FAILS SAFE. `deadExemptions()` in `e2e/axe.ts` asserts every selector
+ * here still matches something at its stop, so an exemption cannot outlive the
+ * illustration it describes. And if it ever did, the failure direction is the
+ * safe one: nothing gets excluded, the stop has no ceiling, and the run goes
+ * red rather than quietly clean. `e2e/axe-selftest.spec.ts` pins both halves —
+ * that the exemption discounts the decorative text, and that it does not
+ * discount faint text sitting next to it.
+ */
+export const A11Y_INCIDENTAL: Record<string, string[]> = {
+  // The marketing hero's two simulated app screens — a browser-framed dashboard
+  // and a phone-framed portal, `aria-hidden` illustrations at 7.7-10.9px whose
+  // job is to look like the product from across a room. 41 instances; the long
+  // note at the top of this file has the derivation and the evidence.
+  //
+  // Written as `<float wrapper> > <the aria-hidden mock root>` because that is
+  // the whole of what makes these two subtrees pictures: `.mkt-float` /
+  // `.mkt-float-slow` are the hero's own drift animations
+  // (app/(marketing)/page.tsx), and the mock components put `aria-hidden="true"`
+  // on their own outermost element. Swap either mock for a real screenshot or a
+  // readable panel and this stops matching, which is `deadExemptions()`'s cue
+  // to make somebody look at it again.
+  'marketing: home': [
+    '.mkt-float > [aria-hidden="true"]',
+    '.mkt-float-slow > [aria-hidden="true"]',
+  ],
 }

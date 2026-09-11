@@ -299,11 +299,14 @@ people stop reading.
 fails, an unlisted rule and an unlisted stop tolerate nothing. Get that
 backwards and every a11y check in the suite silently becomes decorative.
 
-**What is in the baseline today**: 176 `color-contrast` (collapsing to ~24
-distinct token pairs — several at 4.48:1 against a 4.5 requirement), and 25
-`nested-interactive` + 13 `list`, which are one structural pattern: the
-appointments agenda row is an `li[role="button"]` containing its own focusable
-controls. Handed to the UI lane with the full reproduction on DREAMCRM-26.
+**What is in the baseline today**: **38 `color-contrast`, and nothing else.**
+The UI lane burned the original 214 down across three batches on DREAMCRM-28 —
+the patient portal's raw use of the clinic brand colour (#536), the token pairs
+sitting a hundredth under 4.5:1 (#539), and the agenda/leads row shape that
+closed `nested-interactive` and `list` entirely (#542, 38 instances of one
+pattern). A further 41 instances were not defects at all and are now exempt
+rather than carried — see below. The largest identified pair among the 38 is
+`#ffffff` on `#4c7df0` at 3.81:1, white text on the brand ramp's 500 step.
 
 **`e2e/axe-selftest.spec.ts` is the reason any of this can be trusted.** Every
 other a11y call asserts an ABSENCE, and an absence assertion is
@@ -315,3 +318,51 @@ before merge: narrowing the tag list to `['wcag2a']` fails the contrast
 assertion by name, and narrowing it to `[]` fails both tests. It uses
 `page.setContent()` rather than a real route because it tests OUR HARNESS — it
 has to keep working when every page in the app is perfect.
+
+### Incidental exemptions (`A11Y_INCIDENTAL`)
+
+A ceiling and an exemption look similar and claim different things. A **ceiling**
+says *this is a real defect nobody has fixed yet*; it only ever goes down. An
+**exemption** says *WCAG does not ask this of us* — the subtree leaves the scan
+and there is nothing to burn down.
+
+One exemption exists, added 2026-09-11 (DREAMCRM-28). The marketing home page's
+hero contains two `aria-hidden` product illustrations — a browser-framed
+dashboard and a phone-framed portal, simulated app screens whose every text node
+renders at 7.7–10.9px. They produced **41** of the stop's 45 `color-contrast`
+instances. WCAG 1.4.3 exempts "incidental" text — text that is part of a picture
+containing significant other visual content — and a simulated screenshot drawn in
+DOM rather than shipped as a PNG is the same picture; axe measures computed style
+and cannot tell them apart. The repo had already ruled the same way once:
+`tests/a11y/legibility-floor.test.ts` enforces the 12px size floor over the
+dashboard, the portal and `components/ui`, and deliberately not over
+`components/marketing`.
+
+So the stop's entry was **deleted, not lowered**, which puts `marketing: home`
+back to zero tolerance — a real contrast defect elsewhere on the product's
+most-visited page now fails on arrival instead of disappearing into an opaque 41.
+
+Adding one is deliberately harder than lowering a ceiling:
+
+- **The standard has to exempt it**, not merely "we would rather not fix it".
+- **The selector matches the illustration and nothing else.** Both existing
+  entries pair a structural hook with `aria-hidden="true"`, so an exemption
+  cannot spread over content a person is meant to read — real readable content is
+  not hidden from assistive tech.
+- **The reason is written in `e2e/axe-baseline.ts`**, next to the ceilings, never
+  inline in a spec where the next reader finds a bare CSS selector.
+- **It cannot go stale.** `deadExemptions()` asserts every selector still matches
+  something at its stop, so replacing an illustration with something readable
+  fails the run by name instead of silently leaving a hole. If that assertion
+  were itself removed the failure direction is still the safe one: nothing gets
+  excluded, the stop has no ceiling, and the run goes red.
+
+`axe-selftest.spec.ts` pins all of it against a synthetic hero — the same
+document reports three contrast failures unexempted and exactly one (the prose
+caption) with the real selectors applied, the stop passes end-to-end when its
+only faint text is a picture, and the dead-exemption detector is pinned in both
+directions. Verified red before merge on four separate breaks: dropping the
+exemption plumbing from `expectNoA11yViolations`, widening a selector to `main *`,
+disabling the dead-exemption check, and renaming a selector so it matches nothing
+(which fails twice — once naming the dead exemption, once on the violations it
+stopped hiding).

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page } from '@playwright/test'
-import { A11Y_BASELINE } from './axe-baseline'
+import { A11Y_BASELINE, A11Y_INCIDENTAL } from './axe-baseline'
 
 type Violation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number]
 
@@ -48,7 +48,12 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
 type A11yOptions = {
   /** Scan only this subtree (CSS selector) instead of the whole page. */
   include?: string
-  /** Subtrees to leave out of the scan (CSS selectors). */
+  /**
+   * Subtrees to leave out of the scan (CSS selectors), on top of the stop's own
+   * `A11Y_INCIDENTAL` entry. For a one-off at a call site — a third-party embed,
+   * a state a spec deliberately drives into. Anything standing permanently
+   * belongs in `e2e/axe-baseline.ts` next to its reason, not here.
+   */
   exclude?: string[]
 }
 
@@ -106,6 +111,33 @@ function report(prefix: string, v: Violation): void {
 }
 
 /**
+ * Which of a stop's incidental exemptions no longer match anything on the page.
+ *
+ * AN EXEMPTION THAT MATCHES NOTHING IS A DEAD EXEMPTION, and a dead exemption
+ * is the one way this mechanism can rot into a blanket pardon: the selector
+ * keeps sitting in `e2e/axe-baseline.ts` claiming a subtree is WCAG-incidental
+ * while the illustration it was written for has been replaced by something a
+ * person is genuinely meant to read. Nothing else in the suite would notice —
+ * the scan would simply carry on reporting the stop clean.
+ *
+ * Returned rather than asserted so `e2e/axe-selftest.spec.ts` can pin BOTH
+ * directions: a document containing the shape yields none, and a document
+ * without it yields every selector by name. An exemption is the only thing in
+ * this harness that makes the gate LOOSER, so it is the one that most needs a
+ * test that has been seen to fail.
+ */
+export async function deadExemptions(page: Page, stop: string): Promise<string[]> {
+  const dead: string[] = []
+  for (const selector of A11Y_INCIDENTAL[stop] ?? []) {
+    // `count()` is DOM presence, not visibility, on purpose: the portal mock is
+    // `hidden lg:block`, so a narrower viewport would make a visibility check
+    // report it dead when it is merely off-screen.
+    if ((await page.locator(selector).count()) === 0) dead.push(selector)
+  }
+  return dead
+}
+
+/**
  * Scan the current page state and fail the test on anything the baseline in
  * `e2e/axe-baseline.ts` does not already account for.
  *
@@ -122,6 +154,14 @@ function report(prefix: string, v: Violation): void {
  * violations in UI code that QA does not change. Anything above a ceiling,
  * any rule not listed, and any stop not listed fails.
  *
+ * A CEILING AND AN EXEMPTION ARE DIFFERENT CLAIMS, and the same file holds
+ * both. A ceiling says "this is a real defect we have not fixed yet"; an
+ * `A11Y_INCIDENTAL` entry says "WCAG does not ask this of us" — today, the
+ * marketing hero's `aria-hidden` product illustrations, whose 8px simulated
+ * screen text 1.4.3 exempts as incidental. Exempt subtrees are dropped from the
+ * scan and every exemption is asserted to still match something, so it cannot
+ * outlive the illustration it describes.
+ *
  * Uses a SOFT assertion on purpose. A run that stops at the first bad stop
  * tells you about one problem and hides the other twenty-odd; every stop
  * reporting means one CI run gives the whole picture. The test still fails at
@@ -135,7 +175,26 @@ export async function expectNoA11yViolations(
   stop: string,
   options: A11yOptions = {},
 ): Promise<void> {
-  const violations = await findA11yViolations(page, options)
+  // The stop's WCAG-incidental exemptions come first, then whatever the caller
+  // asked for. Both are plain `exclude` selectors — the exemption is not a
+  // second mechanism, it is the same one with its reason written down next to
+  // the ceilings instead of buried at a call site.
+  const incidental = A11Y_INCIDENTAL[stop] ?? []
+  const dead = await deadExemptions(page, stop)
+  expect
+    .soft(
+      dead,
+      `DEAD incidental exemption at "${stop}" — these selectors in e2e/axe-baseline.ts ` +
+        `match nothing on the page any more, so whatever they were written for has changed. ` +
+        `Re-derive them against the current markup or delete them; do not leave an exemption ` +
+        `standing over a subtree it no longer describes.`,
+    )
+    .toEqual([])
+
+  const violations = await findA11yViolations(page, {
+    ...options,
+    exclude: [...incidental, ...(options.exclude ?? [])],
+  })
   const allowed = A11Y_BASELINE[stop] ?? {}
 
   const counts = Object.fromEntries(violations.map((v) => [v.id, v.nodes.length]))
@@ -171,7 +230,11 @@ export async function expectNoA11yViolations(
 
   if (over.length === 0) {
     const carried = violations.reduce((n, v) => n + v.nodes.length, 0)
-    console.log(`[a11y] ok — ${stop}${carried ? ` (${carried} carried by the baseline)` : ''}`)
+    const notes = [
+      carried ? `${carried} carried by the baseline` : '',
+      incidental.length ? `${incidental.length} incidental subtree(s) exempt` : '',
+    ].filter(Boolean)
+    console.log(`[a11y] ok — ${stop}${notes.length ? ` (${notes.join(', ')})` : ''}`)
     return
   }
 
