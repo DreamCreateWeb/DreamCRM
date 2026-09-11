@@ -4,7 +4,9 @@ import React from 'react'
 import { isSelfBookingEnabled } from '@/lib/clinic-site-helpers'
 
 // Stub the server action so the form renders + submits without the server graph.
-const submitAppointmentRequest = vi.fn(async () => undefined)
+const submitAppointmentRequest = vi.fn(
+  async (): Promise<{ ok: true; data: null } | { ok: false; error: string }> => ({ ok: true, data: null }),
+)
 vi.mock('@/app/site/[slug]/actions', () => ({
   submitAppointmentRequest: (...a: unknown[]) => submitAppointmentRequest(...(a as [])),
 }))
@@ -65,8 +67,13 @@ describe('RequestForm (self-booking off)', () => {
     expect(screen.getByRole('link', { name: '(555) 555-0100' }).getAttribute('href')).toBe('tel:(555) 555-0100')
   })
 
-  it('surfaces a server error inline without flipping to success', async () => {
-    submitAppointmentRequest.mockRejectedValueOnce(new Error('Our scheduler is temporarily unavailable'))
+  it('surfaces a server refusal inline without flipping to success', async () => {
+    // A REFUSAL, not a throw: the action returns its message, because a thrown
+    // one is an opaque digest by the time it reaches a production browser.
+    submitAppointmentRequest.mockResolvedValueOnce({
+      ok: false,
+      error: 'Our scheduler is temporarily unavailable',
+    })
     renderForm()
     fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Jordan' } })
     fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Park' } })

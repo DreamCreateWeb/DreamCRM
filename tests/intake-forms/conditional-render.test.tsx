@@ -45,7 +45,7 @@ function renderRunner() {
       schema={schema}
       brand="#2A7F8C"
       clinicName="Dream Dental"
-      action={vi.fn(async () => {})}
+      action={vi.fn(async () => ({ ok: true as const, data: null }))}
     />,
   )
 }

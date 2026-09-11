@@ -308,6 +308,30 @@ pattern). A further 41 instances were not defects at all and are now exempt
 rather than carried — see below. The largest identified pair among the 38 is
 `#ffffff` on `#4c7df0` at 3.81:1, white text on the brand ramp's 500 step.
 
+### Measure the settled page, not a frame of it
+
+`color-contrast` is computed from the colour on screen at the instant of the
+scan, and the clinic site fades content in over 700ms
+(`components/clinic-site/scroll-reveal.tsx`). `findA11yViolations` therefore
+waits for finite animations to finish before measuring — infinite ones
+(`mkt-float`, `mkt-marquee`) are skipped so a spinner cannot stall the suite,
+and a 3s budget caps the wait either way.
+
+This is the fix for a false red that reached a merge gate (PR #528,
+2026-09-10). The booking page reported the SAME selector at #979089 (2.95:1) on
+one attempt and #827b73 (3.91:1) on the next; the settled colour is `INK_MUTED`
+#6B635A at 5.52:1, comfortably passing. Solving each reading for opacity gives
+0.69 and 0.84 — two frames of one fade, not two measurements agreeing.
+
+**How to read a mid-fade red, because this will come up again.** Two samples
+taken during a fade are both guaranteed to sit below the settled value, so
+"both attempts measured it failing" is not evidence that it fails. If two
+attempts report the same selector with DIFFERENT colours, that is a timing
+artifact, not a defect — the settled value is the only WCAG fact, because it is
+the only thing a person reads. And it cuts both ways: an element still at
+opacity 0 when a scan lands is invisible to axe and is not measured at all, so
+an unsettled gate could return a false green as easily as a false red.
+
 **`e2e/axe-selftest.spec.ts` is the reason any of this can be trusted.** Every
 other a11y call asserts an ABSENCE, and an absence assertion is
 indistinguishable from a check that has quietly stopped looking. The self-test

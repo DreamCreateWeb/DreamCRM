@@ -37,11 +37,21 @@ export default function SiteChatWidget({
     setState('pending')
     setError('')
     try {
-      await submitChatMessage(fd)
+      // The action returns its outcome rather than throwing it: in production
+      // Next.js replaces a server-action error message with an opaque digest,
+      // so the clinic's own wording never reached the patient. The catch below
+      // stays for a genuinely failed round trip — the network dropping, not
+      // the form being wrong.
+      const res = await submitChatMessage(fd)
+      if (!res.ok) {
+        setError(res.error)
+        setState('error')
+        return
+      }
       setSentTo(fd.get('email')?.toString() ?? '')
       setState('sent')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong — please try again.')
+    } catch {
+      setError('Something went wrong — please try again.')
       setState('error')
     }
   }

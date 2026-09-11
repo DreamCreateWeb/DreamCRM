@@ -47,10 +47,20 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
       fd.set('ref', new URLSearchParams(window.location.search).get('ref') || '')
     }
     try {
-      await submitAppointmentRequest(fd)
+      // The action returns its outcome rather than throwing it: in production
+      // Next.js replaces a server-action error message with an opaque digest,
+      // so the clinic's own wording never reached the patient. The catch below
+      // stays for a genuinely failed round trip — the network dropping, not
+      // the form being wrong.
+      const res = await submitAppointmentRequest(fd)
+      if (!res.ok) {
+        setErrorMsg(res.error)
+        setStatus('error')
+        return
+      }
       setStatus('success')
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong. Please call us to book.')
+    } catch {
+      setErrorMsg('Something went wrong. Please call us to book.')
       setStatus('error')
     }
   }
