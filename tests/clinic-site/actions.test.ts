@@ -160,6 +160,28 @@ beforeEach(() => {
   notifyOrgMembersMock.mockResolvedValue(undefined)
 })
 
+/**
+ * A public form action REFUSES by returning `{ ok: false, error }`, never by
+ * throwing. These assertions used to read `.rejects.toThrow(...)` - and they
+ * passed while production showed the patient an opaque digest, because a thrown
+ * server-action message only survives in the dev/test process. Asserting the
+ * RESULT is asserting what the patient actually reads.
+ */
+/** Unwrap a SUCCESSFUL public form result, failing loudly if it refused. */
+function expectOk<T>(res: { ok: true; data: T } | { ok: false; error: string }): T {
+  expect(res.ok, `expected success, got refusal: ${'error' in res ? res.error : ''}`).toBe(true)
+  return (res as { ok: true; data: T }).data
+}
+
+async function expectRefusal(
+  promise: Promise<{ ok: true; data: unknown } | { ok: false; error: string }>,
+  message: RegExp,
+) {
+  const res = await promise
+  expect(res.ok, 'expected the action to refuse, but it succeeded').toBe(false)
+  expect((res as { ok: false; error: string }).error).toMatch(message)
+}
+
 describe('submitContactRequest', () => {
   function form(fields: Record<string, string | null>) {
     const fd = new FormData()
@@ -168,21 +190,18 @@ describe('submitContactRequest', () => {
   }
 
   it('rejects an unresolvable clinic (missing/unknown slug)', async () => {
-    await expect(
-      submitContactRequest(form({ name: 'A', phone: '555' })),
-    ).rejects.toThrow(/clinic/i)
+    await expectRefusal(
+      submitContactRequest(form({ name: 'A', phone: '555' })), /clinic/i)
   })
 
   it('rejects missing name', async () => {
-    await expect(
-      submitContactRequest(form({ slug: 'acme', phone: '555' })),
-    ).rejects.toThrow(/name/i)
+    await expectRefusal(
+      submitContactRequest(form({ slug: 'acme', phone: '555' })), /name/i)
   })
 
   it('rejects missing phone', async () => {
-    await expect(
-      submitContactRequest(form({ slug: 'acme', name: 'Jane' })),
-    ).rejects.toThrow(/phone/i)
+    await expectRefusal(
+      submitContactRequest(form({ slug: 'acme', name: 'Jane' })), /phone/i)
   })
 
   it('emails the clinic when profile.email is set', async () => {
@@ -329,57 +348,48 @@ describe('submitBookingRequest', () => {
   }
 
   it('rejects an unresolvable clinic (missing/unknown slug)', async () => {
-    await expect(
-      submitBookingRequest(form({ ...baseFields, slug: null })),
-    ).rejects.toThrow(/clinic/i)
+    await expectRefusal(
+      submitBookingRequest(form({ ...baseFields, slug: null })), /clinic/i)
   })
 
   it('refuses bookings while the site is behind the go-live lever', async () => {
     selectStubs.siteLiveAt = null
-    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/isn.t taking online bookings right now/i)
+    await expectRefusal(submitBookingRequest(form(baseFields)), /isn.t taking online bookings right now/i)
   })
 
   it('refuses bookings for a SHUT-DOWN clinic (expired trial) even on a live site', async () => {
     selectStubs.siteLiveAt = new Date('2026-07-01')
     selectStubs.trialEndsAt = new Date('2026-08-01') // expired, no subscription
-    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(
-      /isn.t taking online bookings right now/i,
-    )
+    await expectRefusal(submitBookingRequest(form(baseFields)), /isn.t taking online bookings right now/i)
   })
 
   it('rejects missing first/last name', async () => {
-    await expect(
-      submitBookingRequest(form({ ...baseFields, firstName: null })),
-    ).rejects.toThrow(/name/i)
+    await expectRefusal(
+      submitBookingRequest(form({ ...baseFields, firstName: null })), /name/i)
   })
 
   it('rejects missing startTime', async () => {
-    await expect(
-      submitBookingRequest(form({ ...baseFields, startTime: null })),
-    ).rejects.toThrow(/date/i)
+    await expectRefusal(submitBookingRequest(form({ ...baseFields, startTime: null })), /date/i)
   })
 
   it('rejects malformed startTime', async () => {
-    await expect(
-      submitBookingRequest(form({ ...baseFields, startTime: 'not-a-date' })),
-    ).rejects.toThrow(/Invalid/i)
+    await expectRefusal(
+      submitBookingRequest(form({ ...baseFields, startTime: 'not-a-date' })), /Invalid/i)
   })
 
   it('rejects past startTime', async () => {
     const past = new Date(Date.now() - 86400_000).toISOString()
-    await expect(
-      submitBookingRequest(form({ ...baseFields, startTime: past })),
-    ).rejects.toThrow(/future/i)
+    await expectRefusal(submitBookingRequest(form({ ...baseFields, startTime: past })), /future/i)
   })
 
   it('rejects when slot is no longer available (race condition)', async () => {
     slotAvailableMock.mockResolvedValueOnce(false)
-    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/no longer available/i)
+    await expectRefusal(submitBookingRequest(form(baseFields)), /no longer available/i)
   })
 
   it('refuses to create an appointment when the clinic disabled self-scheduling (stale tab)', async () => {
     selectStubs.profile = { email: null, displayName: 'Acme', selfBookingEnabled: false }
-    await expect(submitBookingRequest(form(baseFields))).rejects.toThrow(/online booking isn/i)
+    await expectRefusal(submitBookingRequest(form(baseFields)), /online booking isn/i)
     // No appointment written — the patient is steered to the request flow.
     expect(insertedRows.find((r) => r.table === 'appointment')).toBeUndefined()
   })
@@ -524,7 +534,7 @@ describe('submitBookingRequest', () => {
       state: 'IL',
       postalCode: '62704',
     }
-    const conf = await submitBookingRequest(form({ ...baseFields, type: 'cleaning' }))
+    const conf = expectOk(await submitBookingRequest(form({ ...baseFields, type: 'cleaning' })))
     expect(conf.patientName).toBe('Jane Doe')
     expect(conf.clinicName).toBe('Acme Dental') // sender identity name
     expect(conf.visitTypeLabel).toBe('Cleaning')
@@ -539,7 +549,7 @@ describe('submitBookingRequest', () => {
 
   it('returns emailSent=false and null address bits for a phone-only booker with no clinic address', async () => {
     selectStubs.profile = { email: null, displayName: 'X Dental', phone: '555-clinic' }
-    const conf = await submitBookingRequest(form({ ...baseFields, email: null }))
+    const conf = expectOk(await submitBookingRequest(form({ ...baseFields, email: null })))
     expect(conf.emailSent).toBe(false)
     expect(conf.addressText).toBeNull()
     expect(conf.mapsUrl).toBeNull()
@@ -548,14 +558,14 @@ describe('submitBookingRequest', () => {
   it('surfaces the intake-form URL in the confirmation when the clinic has a default form', async () => {
     selectStubs.profile = { email: 'jane@x.com', displayName: 'X Dental', phone: '555' }
     defaultForm = { slug: 'new-patient' }
-    const conf = await submitBookingRequest(form(baseFields))
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
     expect(conf.intakeFormUrl).toContain('/intake/new-patient')
   })
 
   it('confirmation intakeFormUrl is null when the clinic has no default form', async () => {
     selectStubs.profile = { email: 'jane@x.com', displayName: 'X Dental', phone: '555' }
     defaultForm = null
-    const conf = await submitBookingRequest(form(baseFields))
+    const conf = expectOk(await submitBookingRequest(form(baseFields)))
     expect(conf.intakeFormUrl).toBeNull()
   })
 })

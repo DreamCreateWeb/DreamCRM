@@ -7,7 +7,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
  * and the submit is blocked before the action runs; a valid submit calls through.
  */
 
-const submit = vi.fn(async (..._a: unknown[]) => {})
+// The action RESULT, not a bare resolve: the component branches on
+// `res.ok`, so a mock resolving undefined makes it render "Something went
+// wrong" while the test happily asserts the action was called.
+const submit = vi.fn(async (..._a: unknown[]) => ({ ok: true as const, data: null }))
 vi.mock('@/app/site/[slug]/actions', () => ({
   submitContactRequest: (...a: unknown[]) => submit(...a),
 }))
@@ -49,5 +52,9 @@ describe('ContactForm validation', () => {
     fireEvent.change(screen.getByLabelText(/Phone/i), { target: { value: '5551234567' } })
     fireEvent.click(screen.getByRole('button', { name: /send request/i }))
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1))
+    // "was called" is not "worked" — assert the form actually reached its
+    // success state. Without this the test stays green while the patient is
+    // looking at an error.
+    expect(await screen.findByText(/thank you|we.ll be in touch|got it/i)).toBeTruthy()
   })
 })

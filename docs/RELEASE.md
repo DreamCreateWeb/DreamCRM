@@ -909,7 +909,8 @@ patient-brand isolation (no "DreamCRM" leak in any patient email), and the
 server-action `.message`, which Next redacts in production — so the carefully
 worded action strings ("That slot is no longer available…") may never reach
 the patient. Adopt the portal's structured `{ ok, error }` result pattern (same
-root as the S4 public-checkout-wrap item). · OPEN.
+root as the S4 public-checkout-wrap item). · **FIXED** — R2 Slice 11
+(DREAMCRM-24).
 
 ### R1 · S7 sweep — Accessibility (2026-08-17)
 
@@ -1383,6 +1384,34 @@ the same set or "showing 100 of 4,213" is a lie. Two of them count
 correlated subquery cannot be added without its tenant filter.
 
 ---
+
+### Slice 11 — the public forms say what went wrong · DONE
+
+The patient-facing twin of the checkout fix. Every public form action signalled
+its refusals by THROWING, and Next.js replaces a server-action error message
+with an opaque digest in production — so "that slot is no longer available —
+please pick another time" reached the patient as "An error occurred in the
+Server Components render". The one sentence that would have told them what to
+do next was the one that got eaten, on a form the clinic pays for traffic to.
+
+`lib/services/public-form-error.ts` is the sibling of `checkout-error.ts`, with
+the same split: `PublicFormError` carries a message we wrote FOR the patient
+and is shown verbatim; anything else is logged server-side and replaced with
+`PUBLIC_FORM_UNAVAILABLE_MESSAGE`. Six actions adopt it — contact, request-a-
+visit, chat, booking, public intake, and the portal intake twin that shares the
+same `IntakeFormRunner` — plus their five client components, which used to read
+`err instanceof Error ? err.message`.
+
+The adoption guard found a SIXTH form the write-up did not name:
+`/intake-start`, the sign-up-then-attach flow, which had the same defect and
+additionally surfaced raw better-auth throws. It is fixed here too.
+
+Test note worth keeping: the existing suite pinned the THROWING contract
+(`.rejects.toThrow(/no longer available/i)`) and passed the whole time
+production was showing a digest — a thrown server-action message survives only
+in the dev/test process. Those assertions now read the RESULT, which is what
+the patient actually reads. Red run: reintroduced one bare `throw new Error`
+and one `err.message` client — four guard tests failed, naming both files.
 
 ## R3 — HARDENING (in progress, opened 2026-08-18)
 

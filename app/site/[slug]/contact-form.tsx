@@ -110,10 +110,20 @@ export default function ContactForm({ slug, brand, selfBooking, basePath, fields
       fd.set('utm_campaign', params.get('utm_campaign') || '')
     }
     try {
-      await submitContactRequest(fd)
+      // The action returns its outcome rather than throwing it: in production
+      // Next.js replaces a server-action error message with an opaque digest,
+      // so the clinic's own wording never reached the patient. The catch below
+      // stays for a genuinely failed round trip — the network dropping, not
+      // the form being wrong.
+      const res = await submitContactRequest(fd)
+      if (!res.ok) {
+        setErrorMsg(res.error)
+        setStatus('error')
+        return
+      }
       setStatus('success')
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong. Please call us directly.')
+    } catch {
+      setErrorMsg('Something went wrong. Please call us directly.')
       setStatus('error')
     }
   }

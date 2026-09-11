@@ -14,7 +14,7 @@ vi.mock('@/lib/auth/client', () => ({
   signUp: { email: vi.fn(async () => ({ error: null })) },
 }))
 vi.mock('@/app/site/[slug]/intake-start/actions', () => ({
-  linkUserToClinicAsPatient: vi.fn(async () => {}),
+  linkUserToClinicAsPatient: vi.fn(async () => ({ ok: true as const, data: null })),
 }))
 
 import IntakeStartForm from '@/app/site/[slug]/intake-start/intake-start-form'

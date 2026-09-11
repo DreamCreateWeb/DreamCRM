@@ -26,8 +26,25 @@ import { resolveLeadForm, type LeadFormsConfig } from '@/lib/types/lead-forms'
 import { queueAppointmentWriteBack } from '@/lib/services/pms'
 import { organization } from '@/lib/db/schema/auth'
 import { looksLikeBot } from '@/lib/form-trust'
+import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
 
-export async function submitContactRequest(formData: FormData) {
+/**
+ * The homepage / contact-page enquiry form. Returns `{ ok }` rather than
+ * throwing: in production Next.js replaces a server-action error message with
+ * an opaque digest, so "Please give us a phone or email so we can reach you"
+ * reached the patient as an internal-render sentence. See
+ * `lib/services/public-form-error.ts`.
+ */
+export async function submitContactRequest(formData: FormData): Promise<PublicFormResult> {
+  try {
+    await runContactRequest(formData)
+    return { ok: true, data: null }
+  } catch (err) {
+    return publicFormFailure('clinic-site.contact', err)
+  }
+}
+
+async function runContactRequest(formData: FormData) {
   // Silent spam drop — a filled honeypot or instant submit returns the normal
   // success shape (no throw) without persisting anything, so bots get no signal.
   if (looksLikeBot(formData)) return
@@ -38,7 +55,7 @@ export async function submitContactRequest(formData: FormData) {
   // Resolve the org from the PUBLIC slug, never a client-posted orgId — a
   // submission can only ever target the real clinic whose page it came from.
   const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
-  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+  if (!orgId) throw new PublicFormError('We couldn’t find this clinic. Please refresh and try again.')
 
   // Source-attribution fields populated by the client-side ContactForm.
   // All optional — older form versions / programmatic submissions won't
@@ -71,7 +88,7 @@ export async function submitContactRequest(formData: FormData) {
   const detailLines: string[] = []
   for (const f of fields) {
     const raw = formData.get(f.id)?.toString().trim() || ''
-    if (f.required && !raw) throw new Error(`${f.label} is required`)
+    if (f.required && !raw) throw new PublicFormError(`${f.label} is required`)
     if (f.systemKey === 'name') name = raw
     else if (f.systemKey === 'phone') phone = raw
     else if (f.systemKey === 'email') email = raw || null
@@ -80,7 +97,7 @@ export async function submitContactRequest(formData: FormData) {
     else if (raw && raw !== '__other__') detailLines.push(`${f.label}: ${raw}`)
   }
   if (!name) name = 'Website enquiry'
-  if (!phone && !email) throw new Error('Please give us a phone or email so we can reach you')
+  if (!phone && !email) throw new PublicFormError('Please give us a phone or email so we can reach you')
   const message = [messageMain, ...detailLines].filter(Boolean).join('\n\n') || null
 
   // Persist the lead BEFORE firing email — DB success is the source of
@@ -179,14 +196,23 @@ export async function submitContactRequest(formData: FormData) {
  * composer's default); phone is optional. The org is resolved from the PUBLIC
  * slug, never a client-posted id.
  */
-export async function submitAppointmentRequest(formData: FormData): Promise<void> {
+export async function submitAppointmentRequest(formData: FormData): Promise<PublicFormResult> {
+  try {
+    await runAppointmentRequest(formData)
+    return { ok: true, data: null }
+  } catch (err) {
+    return publicFormFailure('clinic-site.appointment-request', err)
+  }
+}
+
+async function runAppointmentRequest(formData: FormData): Promise<void> {
   // Silent spam drop — a filled honeypot / instant submit returns the normal
   // success shape (no throw) without persisting anything, so bots get no signal.
   if (looksLikeBot(formData)) return
   if (!(await rateLimitPublicAction('booking', { limit: 6 }))) return
 
   const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
-  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+  if (!orgId) throw new PublicFormError('We couldn’t find this clinic. Please refresh and try again.')
   {
     const [gate] = await db
       .select({
@@ -198,7 +224,7 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
       .where(eq(clinicProfile.organizationId, orgId))
       .limit(1)
     if (gate && resolveTrialState(gate).expired) {
-      throw new Error('This practice isn’t taking requests online right now. Please call the office.')
+      throw new PublicFormError('This practice isn’t taking requests online right now. Please call the office.')
     }
   }
 
@@ -212,13 +238,13 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
   const preferred = formData.get('preferredTimes')?.toString().trim() || ''
   const note = formData.get('notes')?.toString().trim() || ''
 
-  if (!firstName || !lastName) throw new Error('Please tell us your first and last name')
+  if (!firstName || !lastName) throw new PublicFormError('Please tell us your first and last name')
   // Email is mandatory for request-only booking — it's how the front desk
   // reaches back (in-app needs a portal login; SMS is Phase B), and it's the
   // reply composer's default channel.
-  if (!email) throw new Error('Please add an email so we can reach you about your visit')
+  if (!email) throw new PublicFormError('Please add an email so we can reach you about your visit')
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    throw new Error('That email doesn’t look right — please double-check it')
+    throw new PublicFormError('That email doesn’t look right — please double-check it')
   }
 
   // Family-safe dedupe (lib/services/public-patient-match.ts): email/phone
@@ -276,13 +302,22 @@ export async function submitAppointmentRequest(formData: FormData): Promise<void
  * patient dedupe as the request path; a repeat visitor threads to the same
  * patient record. Gated by clinic_profile.chat_widget_enabled.
  */
-export async function submitChatMessage(formData: FormData): Promise<{ ok: true }> {
+export async function submitChatMessage(formData: FormData): Promise<PublicFormResult> {
+  try {
+    await runChatMessage(formData)
+    return { ok: true, data: null }
+  } catch (err) {
+    return publicFormFailure('clinic-site.chat', err)
+  }
+}
+
+async function runChatMessage(formData: FormData): Promise<void> {
   // Silent spam drop — bots get the normal success shape and no signal.
-  if (looksLikeBot(formData)) return { ok: true }
-  if (!(await rateLimitPublicAction('chat', { limit: 6 }))) return { ok: true }
+  if (looksLikeBot(formData)) return
+  if (!(await rateLimitPublicAction('chat', { limit: 6 }))) return
 
   const orgId = await resolveClinicOrgIdBySlug(formData.get('slug')?.toString() ?? '')
-  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+  if (!orgId) throw new PublicFormError('We couldn’t find this clinic. Please refresh and try again.')
 
   const [prof] = await db
     .select({ chatWidgetEnabled: clinicProfile.chatWidgetEnabled })
@@ -291,20 +326,20 @@ export async function submitChatMessage(formData: FormData): Promise<{ ok: true 
     .limit(1)
   // Turned off after the tab loaded (or a replayed submit) — never record.
   if (prof?.chatWidgetEnabled === false) {
-    throw new Error('Messaging is off right now — please give us a call instead.')
+    throw new PublicFormError('Messaging is off right now — please give us a call instead.')
   }
 
   const name = formData.get('name')?.toString().trim() || ''
   const email = formData.get('email')?.toString().trim() || ''
   const message = formData.get('message')?.toString().trim() || ''
 
-  if (!name) throw new Error('Please tell us your name')
-  if (!email) throw new Error('Please add an email so we can reply')
+  if (!name) throw new PublicFormError('Please tell us your name')
+  if (!email) throw new PublicFormError('Please add an email so we can reply')
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    throw new Error('That email doesn’t look right — please double-check it')
+    throw new PublicFormError('That email doesn’t look right — please double-check it')
   }
-  if (!message) throw new Error('Type a message first')
-  if (message.length > 2000) throw new Error('That message is a little long — keep it under 2,000 characters')
+  if (!message) throw new PublicFormError('Type a message first')
+  if (message.length > 2000) throw new PublicFormError('That message is a little long — keep it under 2,000 characters')
 
   const { firstName, lastName: splitLast } = splitFullName(name)
   const lastName = splitLast || '—'
@@ -330,7 +365,6 @@ export async function submitChatMessage(formData: FormData): Promise<{ ok: true 
     body: chatLines.join('\n'),
     channel: 'email',
   })
-  return { ok: true }
 }
 
 export async function listBookingSlots(
@@ -400,7 +434,17 @@ function visitTypeLabelFromId(id: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
-export async function submitBookingRequest(formData: FormData): Promise<BookingConfirmation> {
+export async function submitBookingRequest(
+  formData: FormData,
+): Promise<PublicFormResult<BookingConfirmation>> {
+  try {
+    return { ok: true, data: await runBookingRequest(formData) }
+  } catch (err) {
+    return publicFormFailure('clinic-site.booking', err)
+  }
+}
+
+async function runBookingRequest(formData: FormData): Promise<BookingConfirmation> {
   const slug = formData.get('slug')?.toString()
   const firstName = formData.get('firstName')?.toString().trim()
   const lastName = formData.get('lastName')?.toString().trim()
@@ -436,7 +480,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
 
   // Resolve the org from the PUBLIC slug, never a client-posted orgId.
   const orgId = await resolveClinicOrgIdBySlug(slug ?? '')
-  if (!orgId) throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+  if (!orgId) throw new PublicFormError('We couldn’t find this clinic. Please refresh and try again.')
   // The go-live lever guards the ACTION too, not just the page: the layout's
   // coming-soon gate stops a visitor reaching /book, but a server action can
   // be invoked directly — a pre-live clinic must not accept real bookings
@@ -455,11 +499,11 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
     if (!gate?.siteLiveAt || resolveTrialState(gate).expired) {
       // The kill covers the ACTION too — the dark site stops the form, this
       // stops a hand-crafted POST from booking into a shut-down practice.
-      throw new Error('This practice isn’t taking online bookings right now. Please call the office.')
+      throw new PublicFormError('This practice isn’t taking online bookings right now. Please call the office.')
     }
   }
-  if (!firstName || !lastName) throw new Error('Name is required')
-  if (!startTimeRaw) throw new Error('Appointment date and time are required')
+  if (!firstName || !lastName) throw new PublicFormError('Name is required')
+  if (!startTimeRaw) throw new PublicFormError('Appointment date and time are required')
 
   // Silent spam drop — a filled honeypot or instant submit books nothing but
   // returns a benign confirmation shape so bots get no signal. (Real bots
@@ -491,13 +535,13 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   }
 
   const startTime = new Date(startTimeRaw)
-  if (isNaN(startTime.getTime())) throw new Error('Invalid date/time')
-  if (startTime.getTime() < Date.now()) throw new Error('Appointment must be in the future')
+  if (isNaN(startTime.getTime())) throw new PublicFormError('Invalid date/time')
+  if (startTime.getTime() < Date.now()) throw new PublicFormError('Appointment must be in the future')
   // Enforce the clinic's notice window at submit too — the slot list already
   // filters it, so tripping this means a stale tab or a hand-crafted request.
   const { booking: bookingRules } = await getPortalSettings(orgId)
   if (startTime.getTime() < Date.now() + bookingRules.minNoticeHours * 3_600_000) {
-    throw new Error(
+    throw new PublicFormError(
       'That time is too soon to book online — please pick a later slot or give the office a call.',
     )
   }
@@ -516,7 +560,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   // an appointment — the /book page already renders the request-a-visit form
   // when disabled, so reaching here means a stale tab or a replayed submit.
   if (vtRow?.selfBookingEnabled === false) {
-    throw new Error(
+    throw new PublicFormError(
       'Online booking isn’t available right now — please send your request and the office will reach out to schedule.',
     )
   }
@@ -527,7 +571,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
   // across the whole visit window (respecting the clinic's chair count).
   const stillFree = await isBookableSlot(orgId, startTime, durationMinutes)
   if (!stillFree) {
-    throw new Error('That slot is no longer available — please pick another time.')
+    throw new PublicFormError('That slot is no longer available — please pick another time.')
   }
 
   // Family-safe dedupe: attach repeat visits to the same patient row ONLY
@@ -587,7 +631,7 @@ export async function submitBookingRequest(formData: FormData): Promise<BookingC
     utmCampaign,
   })
   if (!booked) {
-    throw new Error('That slot is no longer available — please pick another time.')
+    throw new PublicFormError('That slot is no longer available — please pick another time.')
   }
 
   // Two-way PMS: queue this public booking to be written to the clinic's PMS on
