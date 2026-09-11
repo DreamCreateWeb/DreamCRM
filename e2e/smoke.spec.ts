@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { expectNoA11yViolations } from './axe'
+import { DECORATIVE_MOCKS, expectNoA11yViolations } from './axe'
 
 /**
  * Golden-path smoke — the first browser-level coverage this repo has had.
@@ -26,7 +26,13 @@ test.describe('the marketing site (the storefront)', () => {
     await expect(page).toHaveTitle(/.+/)
     await expect(page.locator('h1').first()).toBeVisible()
 
-    await expectNoA11yViolations(page, 'marketing: home')
+    // The decorative product mock-ups are excluded, and that is the ONLY
+    // reason this stop can hold a ceiling of zero. See DECORATIVE_MOCKS in
+    // e2e/axe.ts for what is exempted and why — the short version is that
+    // WCAG 1.4.3 does not apply to text inside an illustration, and a ceiling
+    // of 41 that carried them was absorbing 41 real defects' worth of room on
+    // the busiest public page we have.
+    await expectNoA11yViolations(page, 'marketing: home', { exclude: [DECORATIVE_MOCKS] })
   })
 
   test('pricing shows the one purchasable plan at the founding rate', async ({ page }) => {

@@ -115,24 +115,46 @@
  *     this suite. `marketing: home` also settled to 41 — see below, that is now
  *     ALL of it.
  *
- * ⚠ ONE CEILING HERE IS NOT A DEFECT COUNT. `marketing: home` sits at 41, and
- *   **all 41 are inside `aria-hidden` decorative product mock-ups** —
- *   miniature simulated app screens at 7–10px. WCAG 1.4.3 exempts them
- *   ("incidental": text that is part of a picture containing significant other
- *   visual content has no contrast requirement), and restyling a deliberate
- *   illustration to reach 4.5:1 at 7px helps nobody. The UI lane has left them
- *   alone rather than lower the ceiling to a number implying they were fixed.
- *   The real question is whether the scan should `exclude` those subtrees at
- *   that stop — QA's call, raised on DREAMCRM-28, NOT a ceiling to raise.
+ * ⚠ `marketing: home` USED TO SIT AT 41 and no longer appears here at all.
+ *   All 41 were inside `aria-hidden` decorative product mock-ups — miniature
+ *   simulated app screens at 7–10px — which WCAG 1.4.3 exempts as incidental,
+ *   and restyling a deliberate illustration to reach 4.5:1 at 7px helps
+ *   nobody. The UI lane correctly declined to lower the ceiling to a number
+ *   implying they had been fixed, and asked QA whether the scan should
+ *   `exclude` those subtrees instead.
  *
- * Drops that were the documented WOBBLE rather than fixes, whose ceilings
- * deliberately stayed put: `booking: the confirmation a patient lands on`
- * reported 1 against its ceiling of 2 in every run, and `staff: dream team`
- * came in at 2 against 3. Both are the data-dependent counts the header warns
- * about, and a one-element drop is not evidence.
+ *   ANSWERED: yes, and the reason is about the gate rather than the pixels. A
+ *   ceiling of 41 means the 42nd instance is the first one that fails — on the
+ *   busiest public page we have, that is 41 real defects' worth of room to
+ *   hide in. The stop now excludes `DECORATIVE_MOCKS` (see `e2e/axe.ts` for
+ *   the exemption and the risk it carries) and holds ZERO, which is the only
+ *   state in which a new contrast defect there fails on arrival.
  *
- * Remaining after batch 56: **79, all `color-contrast`, of which 41 are the
- * WCAG-incidental decorative mocks above — so 38 are genuine.** The largest
+ * THE WOBBLE IS RESOLVED, and it was never data-dependence (QA, 2026-09-11).
+ * It was the scan landing mid-fade: the clinic and marketing sites reveal
+ * content with a 700ms opacity transition, and a partially-faded element
+ * measures as a blend against the page behind it. `findA11yViolations` now
+ * waits for finite animations to finish (#544), which removes the variance at
+ * its source. Consequences for the two ceilings that were held back:
+ *
+ *   · `booking: the confirmation a patient lands on` measures **0** settled,
+ *     not 1 — both instances were fade artifacts, never defects. Entry DELETED.
+ *   · `staff: dream team, a proposal waiting on a yes` measures 2 against its
+ *     ceiling of 3. Left at 3 on purpose: that is one post-settle observation,
+ *     and Vesper's rule that a one-element drop is not evidence still stands.
+ *     Shrink it on the next run that confirms 2, or when a fix lands.
+ *
+ * The general form, worth keeping: two attempts reporting the SAME selector
+ * with DIFFERENT colours is a timing artifact, not a defect that two runs
+ * agreed on. Mid-fade samples all sit below the settled value, so they agree
+ * with each other by construction.
+ *
+ * Remaining: **36, all `color-contrast`, and all of them genuine** — the 41
+ * decorative mocks are now excluded at the scan rather than carried as a
+ * ceiling, and the 2 on the booking confirmation turned out to be fade
+ * artifacts. 214 → 36 since 2026-09-10, which is UI batches 55-56 doing the
+ * real work; QA's share of that is only the 43 that were never defects. The
+ * largest
  * identified pair among them is `#ffffff on #4c7df0` at 3.81:1: white text on
  * the brand ramp's 500 step. teal-600 and deeper are the legal white-text
  * fills, and `tests/a11y/token-contrast.test.ts` asserts that, so the rule is
@@ -141,10 +163,8 @@
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
   'booking: slot chosen, details filled in': { 'color-contrast': 3 },
-  'booking: the confirmation a patient lands on': { 'color-contrast': 2 },
   'clinic site: booking page': { 'color-contrast': 3 },
   'clinic site: portal door on a pre-live clinic': { 'color-contrast': 2 },
-  'marketing: home': { 'color-contrast': 41 },
   'marketing: pricing': { 'color-contrast': 2 },
   'portal: cancel confirmation showing': { 'color-contrast': 1 },
   'portal: patient dashboard': { 'color-contrast': 1 },

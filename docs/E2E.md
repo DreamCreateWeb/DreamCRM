@@ -299,11 +299,17 @@ people stop reading.
 fails, an unlisted rule and an unlisted stop tolerate nothing. Get that
 backwards and every a11y check in the suite silently becomes decorative.
 
-**What is in the baseline today**: 176 `color-contrast` (collapsing to ~24
-distinct token pairs — several at 4.48:1 against a 4.5 requirement), and 25
-`nested-interactive` + 13 `list`, which are one structural pattern: the
-appointments agenda row is an `li[role="button"]` containing its own focusable
-controls. Handed to the UI lane with the full reproduction on DREAMCRM-26.
+**What is in the baseline today**: 36, all `color-contrast`, down from the
+original 214. `nested-interactive` and `list` are closed entirely; the UI lane
+(DREAMCRM-28) did the bulk of the burn-down, and the harness accounted for 43
+that were never defects — 41 decorative `aria-hidden` product mock-ups now
+excluded at the scan (WCAG 1.4.3 incidental; carrying them as a ceiling of 41
+meant the 42nd real defect on that page would have been the first to fail), and
+2 on the booking confirmation that were fade artifacts.
+
+**Read a ceiling as room to hide in, not as a defect count.** That is the whole
+argument for excluding the mocks rather than carrying them: a ceiling of N on a
+rule means the N+1th instance is the first one that fails.
 
 ### Measure the settled page, not a frame of it
 
