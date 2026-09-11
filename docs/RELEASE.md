@@ -871,9 +871,9 @@ clinic, none breaking at the current one-beta-clinic scale.
   fan out per-clinic SEQUENTIALLY (by design, to spare the t4g.micro), so the
   risk is cron wall-clock OVERRUN as clinic count grows, not DB overload —
   give them a wall-clock budget + resumability before onboarding many clinics.
-  · OPEN. (The `listMessagesInThread` clause bundled here is **FIXED** — it
-  reads through `listMessagesInThreadPage` with a clamped limit; the cron
-  wall-clock half is what remains open.)
+  · **FIXED** — R2 Slice 12 (DREAMCRM-24). (The `listMessagesInThread` clause
+  bundled here was already **FIXED** — it reads through
+  `listMessagesInThreadPage` with a clamped limit.)
 
 **S5 sweep CLOSED (2026-08-17):** 1 S2 fixed (index, migration 0149); the
 Patients-list scale rework (S1) is THE headline R2 perf slice, plus the
@@ -1413,6 +1413,70 @@ in the dev/test process. Those assertions now read the RESULT, which is what
 the patient actually reads. Red run: reintroduced one bare `throw new Error`
 and one `err.message` client — four guard tests failed, naming both files.
 
+### Slice 12 — the nightly sweeps stop on purpose and remember where · DONE
+
+`daily-digest`, `generate-proposals` and `retention-automations` each walked
+every clinic with no time limit and no memory. The failure that makes this
+worth fixing BEFORE the marketing push is silent: the route hits its
+`maxDuration`, the request is killed mid-loop, and because the walk always
+started at the same end of the same list, the same clinics were served every
+night and the ones past the cut-off were never reached at all. Nothing errors.
+Nothing is logged. A practice simply stops getting its morning digest and
+nobody can say when it stopped.
+
+The answer is NOT fan-out — the instance can't take parallelism, and the risk
+here is cron wall-clock, not DB load. It is: stop on purpose before the
+platform stops you, and start where you left off.
+
+`lib/cron-budget.ts` holds the pure decisions (a deadline, a rotation, a walk),
+`lib/services/cron-sweep.ts` the one side effect they need. Four decisions in
+it are load-bearing enough to have their own tests:
+
+1. **Rotate, don't truncate.** A resumed run walks past the end and back round
+   to the clinics it served last time. A queue that must be drained before the
+   front is served again would just move the starvation to the other end.
+2. **Always walk at least one clinic.** A budget already spent at the start (a
+   slow cold boot, a mis-set constant) would otherwise never move the cursor:
+   the sweep would be dead while reporting success on every tick.
+3. **A clinic that throws still counts as walked.** Without that, one clinic
+   whose staff query fails every night parks the cursor permanently in front of
+   itself — the same starvation, through a different door. This also fixes a
+   live defect in `daily-digest`, where such a throw took the whole morning's
+   run down with it; it is now one clinic's error in `result.errors`.
+4. **One top-level config key per job**, never a shared `cronCursors` object.
+   `writePlatformConfig` merges shallowly, so a shared sub-object would be a
+   read-modify-write across concurrent crons and the hourly generator could
+   silently wipe the daily digest's place in the list.
+
+Budgets are chosen against each route's own `maxDuration` with room for what
+runs after the walk (a guard test asserts the relationship holds). Bounding the
+retention walk is also what leaves the four best-effort jobs riding that same
+120s tick — balance cadence, DUE PLAN CHARGES, NPS, loyalty — room they did not
+previously have.
+
+Every clinic is now reached within `ceil(N / clinics-per-run)` runs however big
+N gets, and the cron JSON says `sweep: { swept, remaining, completed, resumeAt }`
+so an overrun is visible instead of silent.
+
+**What an overrun costs a deferred clinic is NOT the same for all three**, and
+`completed: false` must not be read as uniformly benign (Sentinel's note on the
+review):
+
+| Job | Tick | A deferred clinic gets |
+|---|---|---|
+| `generate-proposals` | hourly | a **delay** of an hour — `sourceKey` windows are days or months |
+| `retention-automations` | daily | a **delay** of a day for the month/week-keyed automations, but a **SKIP** for the birthday campaign — its key is `birthday:<org>:<YYYY-MM-DD>`, so tomorrow's key is a different day and yesterday's birthday patients no longer match |
+| `daily-digest` | daily | a **SKIP** — `daily_digest_log.sentOn` is today's date, so there is no late digest, only no digest |
+
+The rotation is what makes the skips acceptable: it turns "the tail misses
+EVERY night" into "every clinic misses OCCASIONALLY". It does not turn a skip
+into a delay. If `retention-automations` — daily, and the tightest budget of
+the three — ever genuinely runs out of time, the answer is a bigger budget or a
+split route, not a shrug at `completed: false`.
+
+Red run: reintroduced each of the five decisions in turn (no budget; no resume;
+truncate instead of rotate; no per-clinic isolation; no minimum of one) and
+watched 7 / 3 / 6 / 2 / 6 tests fail respectively.
 ## R3 — HARDENING (in progress, opened 2026-08-18)
 
 ### Deliverable 1 — the E2E browser suite · FIRST SPECS GREEN
