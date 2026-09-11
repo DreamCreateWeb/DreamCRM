@@ -53,18 +53,81 @@ type A11yOptions = {
 }
 
 /**
+ * Longest we will wait for entrance animations before measuring anyway.
+ *
+ * The slowest real one is `components/clinic-site/scroll-reveal.tsx` at 700ms
+ * plus a per-item stagger delay. 3s is generous headroom on a loaded runner
+ * without turning a stuck animation into a stuck suite.
+ */
+const ANIMATION_BUDGET_MS = 3_000
+
+/**
+ * Let entrance animations finish before measuring anything.
+ *
+ * WHY THIS EXISTS — it is the fix for a false RED that reached a merge gate
+ * (PR #528, 2026-09-10, found by Rio). `color-contrast` is computed from the
+ * colour on screen AT THE INSTANT OF THE SCAN, and the clinic site fades its
+ * content in with `opacity` over 700ms. Scan mid-fade and axe faithfully
+ * measures a blend of the real ink against the page behind it, which is always
+ * LIGHTER than the settled colour — so a passing element reports as failing,
+ * with a ratio that depends on which frame you caught.
+ *
+ * The booking page proved it beyond argument: one run reported the SAME
+ * selector at #979089 (2.95:1) on one attempt and #827b73 (3.91:1) on the
+ * next, and the settled colour is `INK_MUTED` #6B635A at 5.52:1 — comfortably
+ * passing. Solving each sample for opacity gives 0.69 and 0.84. They were
+ * frames of one fade, not two independent measurements agreeing.
+ *
+ * That matters for how a red run is read. Two mid-fade samples are BOTH
+ * guaranteed to sit below the settled value, so "both attempts measured it
+ * failing" is not evidence the element fails — it is what a fade always looks
+ * like. Only the settled state is a WCAG fact, because only the settled state
+ * is what a person reads.
+ *
+ * IT CUTS BOTH WAYS, which is the part worth keeping. An element still at
+ * opacity 0 when the scan lands is INVISIBLE to axe, so it is not measured at
+ * all — a genuine violation on late-revealing content would simply not be
+ * reported. Without this wait the second self-test case fails for exactly that
+ * reason. So the wait closes a false red AND a false green; the gate was
+ * capable of both.
+ *
+ * Infinite animations are skipped deliberately: `mkt-float` and `mkt-marquee`
+ * in `components/marketing/ui.tsx` never finish, and waiting on them would
+ * spend the whole budget on every marketing stop for nothing.
+ */
+async function settleAnimations(page: Page, budgetMs = ANIMATION_BUDGET_MS): Promise<void> {
+  await page.evaluate(async (budget) => {
+    const finishing = document.getAnimations().filter((a) => {
+      // A CSS transition reports iterations 1; a spinner reports Infinity.
+      const iterations = a.effect?.getComputedTiming().iterations
+      return iterations !== Infinity
+    })
+    if (finishing.length === 0) return
+    await Promise.race([
+      // `.finished` rejects if an animation is cancelled — that is a settled
+      // outcome for our purposes, so swallow it rather than failing the scan.
+      Promise.all(finishing.map((a) => a.finished.catch(() => undefined))),
+      new Promise((resolve) => setTimeout(resolve, budget)),
+    ])
+  }, budgetMs)
+}
+
+/**
  * Scan the current page state and return whatever axe found.
  *
  * Split out from the assertion below so the detection path — injection, the
- * tag selection, the include/exclude plumbing — is testable on its own. That
- * is what `e2e/axe-selftest.spec.ts` exercises: a check that has never been
- * seen to fail has not been tested, and this one would otherwise report clean
- * forever if somebody narrowed `WCAG_TAGS` to nothing.
+ * tag selection, the include/exclude plumbing, and the animation settle — is
+ * testable on its own. That is what `e2e/axe-selftest.spec.ts` exercises: a
+ * check that has never been seen to fail has not been tested, and this one
+ * would otherwise report clean forever if somebody narrowed `WCAG_TAGS` to
+ * nothing.
  */
 export async function findA11yViolations(
   page: Page,
   options: A11yOptions = {},
 ): Promise<Violation[]> {
+  await settleAnimations(page)
+
   let builder = new AxeBuilder({ page }).withTags(WCAG_TAGS)
   if (options.include) builder = builder.include(options.include)
   for (const selector of options.exclude ?? []) builder = builder.exclude(selector)

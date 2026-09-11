@@ -76,6 +76,77 @@ test.describe('the accessibility checks can actually fail', () => {
 })
 
 /**
+ * THE FADE-IN TRAP, pinned so it cannot come back.
+ *
+ * `color-contrast` is measured from the colour on screen at the instant of the
+ * scan. The clinic site fades its content in over 700ms
+ * (`components/clinic-site/scroll-reveal.tsx`), so a scan that lands mid-fade
+ * measures a blend of the real ink against the page behind it — always lighter
+ * than the settled colour, and therefore a PASSING element reported as
+ * failing. That false red reached a merge gate on PR #528 and was cleared by a
+ * rerun, which is how a gate stops being believed.
+ *
+ * `findA11yViolations` now waits for finite animations to finish. These two
+ * tests are that fix's red run, and they pin both directions: it must wait,
+ * and waiting must not make it blind.
+ *
+ * Both fail without the wait, and the SECOND one is the more interesting
+ * failure: an element still at opacity 0 when the scan lands is invisible to
+ * axe and is not measured at all, so a real violation goes unreported. The
+ * unsettled gate could produce a false red AND a false green.
+ *
+ * The animations are deliberately slower (1200ms) than anything real, so a
+ * regression that removed the wait would be caught essentially every time
+ * rather than occasionally.
+ */
+const PAGE = (finalColor: string) => `<!doctype html>
+<html lang="en">
+  <head>
+    <title>Fading in</title>
+    <style>
+      body { background: #faf7f2; }
+      /* Mirrors ScrollReveal: starts invisible, fades to its real colour. */
+      .reveal {
+        color: ${finalColor};
+        background: #faf7f2;
+        opacity: 0;
+        animation: reveal 1200ms linear forwards;
+      }
+      @keyframes reveal { to { opacity: 1; } }
+    </style>
+  </head>
+  <body>
+    <main><p class="reveal">Measured mid-fade, this text is lighter than it ends up.</p></main>
+  </body>
+</html>`
+
+test.describe('a fade-in is measured settled, not mid-flight', () => {
+  test('an element that fades in to a PASSING colour is not reported', async ({ page }) => {
+    // #6B635A on #faf7f2 settles at 5.52:1 — comfortably over the 4.5 bar.
+    // It passes through roughly 1.5:1 to 4:1 on the way there, which is what
+    // the booking page was being failed for.
+    await page.setContent(PAGE('#6B635A'))
+
+    expect(
+      (await findA11yViolations(page)).map((v) => v.id),
+      'a scan that lands mid-fade measures a blend, not the colour anyone reads',
+    ).toEqual([])
+  })
+
+  test('an element that fades in to a FAILING colour is still reported', async ({ page }) => {
+    // The other direction, and the reason this is a wait and not a blanket
+    // exemption for animated content: #a8a199 on #faf7f2 settles at 2.39:1 and
+    // is a real violation. Waiting must not turn the check off.
+    await page.setContent(PAGE('#a8a199'))
+
+    expect(
+      (await findA11yViolations(page)).map((v) => v.id),
+      'settling must not hide a violation that is real once it settles',
+    ).toContain('color-contrast')
+  })
+})
+
+/**
  * The baseline in `e2e/axe-baseline.ts` carries 214 pre-existing violations so
  * the checks could land without merging red. That makes its comparison the
  * most safety-critical line in this harness: get the direction wrong and every
