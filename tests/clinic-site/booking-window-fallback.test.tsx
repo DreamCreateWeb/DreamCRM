@@ -11,7 +11,7 @@ import React from 'react'
 // The form's effect calls listBookingSlots on mount; stub both actions so the
 // component renders without touching the server.
 const listBookingSlots = vi.fn(async () => ({ slots: [], closedReason: 'day_closed' as const }))
-const submitBookingRequest = vi.fn(async () => ({}) as never)
+const submitBookingRequest = vi.fn(async () => ({ ok: true, data: {} }) as never)
 vi.mock('@/app/site/[slug]/actions', () => ({
   listBookingSlots: (...a: unknown[]) => listBookingSlots(...(a as [])),
   submitBookingRequest: (...a: unknown[]) => submitBookingRequest(...(a as [])),

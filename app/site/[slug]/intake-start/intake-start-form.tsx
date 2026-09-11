@@ -82,21 +82,28 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
       // names later).
       const linkFirst = firstName.trim() || email.split('@')[0] || 'Patient'
       const linkLast = lastName.trim() || ''
-      await linkUserToClinicAsPatient({
+      // The action returns its outcome rather than throwing it: in production
+      // Next.js replaces a server-action error message with an opaque digest.
+      const res = await linkUserToClinicAsPatient({
         orgId,
         firstName: linkFirst,
         lastName: linkLast || 'TBD',
         phone: phone.trim() || null,
       })
+      if (!res.ok) {
+        setErrorMsg(res.error)
+        setSubmitting(false)
+        return
+      }
 
       // Hard navigate so middleware + tenant context pick up the new
       // session.activeOrganizationId on the next request. Soft router push
       // doesn't re-run middleware on session cookie changes.
       window.location.assign(destination)
-    } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : 'Something went wrong. Please try again.',
-      )
+    } catch {
+      // A failed round trip, or an auth-client throw. Never the raw message —
+      // a patient should no more read "fetch failed" than auth-system phrasing.
+      setErrorMsg('Something went wrong. Please try again.')
       setSubmitting(false)
     }
   }

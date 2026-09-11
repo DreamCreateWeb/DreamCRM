@@ -118,12 +118,27 @@ beforeEach(() => {
   resolveSlugMock.mockResolvedValue('org_1')
 })
 
+
+/**
+ * A public form action REFUSES by returning `{ ok: false, error }`, never by
+ * throwing — a thrown server-action message is replaced by an opaque digest in
+ * production, so asserting the RESULT is asserting what the patient reads.
+ */
+async function expectRefusal(
+  promise: Promise<{ ok: true; data: unknown } | { ok: false; error: string }>,
+  message: RegExp,
+) {
+  const res = await promise
+  expect(res.ok, 'expected the action to refuse, but it succeeded').toBe(false)
+  expect((res as { ok: false; error: string }).error).toMatch(message)
+}
+
 describe('submitChatMessage', () => {
   it('records an inbound email-channel message for a NEW visitor (lead patient created)', async () => {
     state.selectQueue.push([{ chatWidgetEnabled: true }]) // gate
     state.selectQueue.push([]) // no existing patient by email
     const r = await submitChatMessage(fd())
-    expect(r).toEqual({ ok: true })
+    expect(r).toEqual({ ok: true, data: null })
     expect(state.inserts).toHaveLength(1)
     expect(state.inserts[0]!.values).toMatchObject({
       firstName: 'Jordan',
@@ -169,7 +184,7 @@ describe('submitChatMessage', () => {
   it('silently drops bots (normal success shape, nothing recorded)', async () => {
     botMock.mockReturnValue(true)
     const r = await submitChatMessage(fd())
-    expect(r).toEqual({ ok: true })
+    expect(r).toEqual({ ok: true, data: null })
     expect(recordInboundMock).not.toHaveBeenCalled()
     expect(state.inserts).toHaveLength(0)
   })
@@ -177,18 +192,18 @@ describe('submitChatMessage', () => {
   it('silently drops over-rate-limit submissions', async () => {
     rateMock.mockResolvedValue(false)
     const r = await submitChatMessage(fd())
-    expect(r).toEqual({ ok: true })
+    expect(r).toEqual({ ok: true, data: null })
     expect(recordInboundMock).not.toHaveBeenCalled()
   })
 
   it('refuses when the clinic turned the widget off', async () => {
     state.selectQueue.push([{ chatWidgetEnabled: false }])
-    await expect(submitChatMessage(fd())).rejects.toThrow(/off right now/i)
+    await expectRefusal(submitChatMessage(fd()), /off right now/i)
     expect(recordInboundMock).not.toHaveBeenCalled()
   })
 
   it('validates the email shape', async () => {
     state.selectQueue.push([{ chatWidgetEnabled: true }])
-    await expect(submitChatMessage(fd({ email: 'not-an-email' }))).rejects.toThrow(/email/i)
+    await expectRefusal(submitChatMessage(fd({ email: 'not-an-email' })), /email/i)
   })
 })

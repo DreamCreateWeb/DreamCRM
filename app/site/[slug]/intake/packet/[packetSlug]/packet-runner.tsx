@@ -30,7 +30,7 @@ export default function PacketRunner({
   brand: string
   clinicName: string
   forms: PacketForm[]
-  action: (payload: IntakeSubmitPayload) => Promise<void>
+  action: (payload: IntakeSubmitPayload) => Promise<{ ok: true; data: null } | { ok: false; error: string }>
   ocrAction?: OcrAction
 }) {
   const [index, setIndex] = useState(0)
