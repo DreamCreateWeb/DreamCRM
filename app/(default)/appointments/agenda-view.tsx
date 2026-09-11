@@ -674,26 +674,25 @@ function AppointmentRowCard({
     (status === 'scheduled' || status === 'confirmed') &&
     new Date(row.startTime).getTime() < Date.now()
   return (
+    // A PLAIN list item that happens to be clickable, NOT an `li[role=button]`.
+    // It used to be the latter, and that broke two things at once: a button may
+    // not contain the checkbox, the patient link and the inline Confirm /
+    // Mark-done actions this row carries (`nested-interactive` — a screen
+    // reader tabbing in finds controls inside something announced as a single
+    // button), and an element with role=button is no longer a `listitem`, so
+    // the surrounding <ul> had no list items in it at all (`list`). Both rules
+    // clear together here.
+    //
+    // The keyboard path is now a REAL button on the visit type below, which is
+    // also a better reading: "cleaning, button" inside a list item, rather than
+    // one giant "Open Riley's visit, button" with controls buried in it. The
+    // whole-row click stays — a bare onClick on a non-interactive element,
+    // which is the established pattern on this surface (eslint.config.mjs
+    // turns the interaction rules off precisely because hundreds of rows and
+    // cards do this) and is legitimate now that the keyboard has its own door.
     <li
       onClick={onOpen}
-      // The row IS a button (it opens the visit drawer) — the highest-
-      // frequency interaction on the page must work from the keyboard too.
-      // Enter/Space open; the checkbox and inline chips keep their own
-      // stopPropagation.
-      role="button"
-      tabIndex={0}
-      // Named explicitly: without aria-label a role=button's accessible name
-      // concatenates every child (pills, inline buttons), which both confuses
-      // AT and collides with the inner controls' own names.
-      aria-label={`Open ${row.patientName}'s visit`}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
-      className={`v2-card px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/30 border-l-4 focus-visible:outline-2 focus-visible:outline-offset-2 ${agingBorderClass(APPOINTMENT_AGING_TIER[row.agingLevel])} ${
+      className={`v2-card px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900/30 border-l-4 ${agingBorderClass(APPOINTMENT_AGING_TIER[row.agingLevel])} ${
         // Selected row = teal inner ring + faint teal wash (selection ≠ status).
         selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
       }`}
@@ -712,9 +711,21 @@ function AppointmentRowCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 capitalize truncate">
+            {/* The row's keyboard door. The accessible name LEADS with the
+                visible label so it satisfies Label-in-Name (WCAG 2.5.3) while
+                still saying whose visit it opens — "cleaning" alone is not
+                enough when six rows say cleaning. */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpen()
+              }}
+              aria-label={`${typeLabel} — open ${row.patientName}'s visit`}
+              className="text-sm font-semibold text-gray-800 dark:text-gray-100 capitalize truncate text-left focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
               {typeLabel}
-            </span>
+            </button>
             {row.durationMinutes && (
               <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{row.durationMinutes}m</span>
             )}
