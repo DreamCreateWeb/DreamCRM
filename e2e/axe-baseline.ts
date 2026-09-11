@@ -160,6 +160,30 @@
  *
  *   WHAT THIS IS NOT: a way to make a red stop green. See `A11Y_INCIDENTAL`.
  *
+ * ⚠ `booking: slot chosen, details filled in` IS WOBBLING UPWARD, AND ITS
+ *   CEILING OF 3 IS ONE TOO LOW — deliberately NOT raised. Observed 4 on
+ *   actions/runs/34547087372 (PR #543), absorbed by the CI retry, so the run
+ *   went green with a `1 flaky` line. The 4 it reported:
+ *
+ *     · `#797269 on #faf7f2` at 4.44 — clinic-site body ink on the cream
+ *       ground, the same one-hundredth-under shape as the rest of this file.
+ *     · `#f0f3f1 on #9caf9f` at 2.07, `#ffffff on #9caf9f` at 2.32 (×2) — the
+ *       SELECTED day chip and time slot on the public booking page, filled with
+ *       the seeded clinic's raw pale-sage brand under light text.
+ *
+ *   The last three are the defect batch 54 fixed for the PORTAL — the clinic's
+ *   raw `brand` used as a fill under `text-white` — still live on the PUBLIC
+ *   booking page, which is a page real visitors book from. The count moves with
+ *   how many brand-filled buttons are in their selected state when axe runs,
+ *   which is what makes the stop wobble 3/4 rather than sit still.
+ *
+ *   So the root cause is a product defect, not a mis-measurement, and fixing it
+ *   takes this stop toward 1 rather than to 4. Raising the ceiling would trade
+ *   the file's one inviolable direction for a flake the retry already absorbs.
+ *   Handed to the UI lane on DREAMCRM-28 with this reproduction. If it is still
+ *   wobbling when that lands, the answer is still not a raise — it is to pin the
+ *   stop's state so the count is deterministic.
+ *
  * Drops that were the documented WOBBLE rather than fixes, whose ceilings
  * deliberately stayed put: `booking: the confirmation a patient lands on`
  * reported 1 against its ceiling of 2 in every run, and `staff: dream team`
