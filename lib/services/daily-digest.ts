@@ -9,6 +9,8 @@ import { getWeeklySiteDigest, type SiteTraffic } from '@/lib/services/site-analy
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 import { sendNotificationEmail } from '@/lib/email'
 import { formatDueLabel, todayYmd } from '@/lib/types/followups'
+import { sweepClinics } from '@/lib/services/cron-sweep'
+import type { SweepProgress } from '@/lib/cron-budget'
 
 /**
  * Morning digest — the cockpit, delivered. A daily cron emails each staff member
@@ -164,13 +166,23 @@ export interface DigestRunResult {
   skippedEmpty: number
   skippedAlready: number
   errors: Array<{ userId: string; error: string }>
+  /** How the budgeted, resumable walk over clinics went (lib/cron-budget.ts).
+   *  `completed: false` means the tick ran out of time and the next one picks
+   *  up where this stopped — not that anything failed. */
+  sweep: SweepProgress
 }
 
 /** Send the morning digest to every opted-in clinic's staff. */
 export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunResult> {
   const now = opts?.now ?? new Date()
   const sentOn = todayYmd(now)
-  const result: DigestRunResult = { scanned: 0, sent: 0, skippedEmpty: 0, skippedAlready: 0, errors: [] }
+  const result: Omit<DigestRunResult, 'sweep'> = {
+    scanned: 0,
+    sent: 0,
+    skippedEmpty: 0,
+    skippedAlready: 0,
+    errors: [],
+  }
 
   const clinics = await db
     .select({
@@ -185,9 +197,23 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
   // THE KILL (owner ruling): no morning digest from a shut-down practice —
   // the dashboard wall is the only thing its staff should hear from.
   const shutDown = await listShutDownOrgIds(now)
-  for (const clinic of clinics) {
-    if (!clinic.organizationId || clinic.isDemo || clinic.enabled !== 1) continue
-    if (shutDown.has(clinic.organizationId)) continue
+  // Filter BEFORE the walk, so the budget is spent on clinics that will
+  // actually be mailed and the cursor advances past real work rather than
+  // past a run of skips.
+  const due = clinics.filter(
+    (c): c is (typeof clinics)[number] & { organizationId: string } =>
+      !!c.organizationId && !c.isDemo && c.enabled === 1 && !shutDown.has(c.organizationId),
+  )
+
+  // Budgeted + resumable: the walk stops before the route's maxDuration does
+  // and the next tick starts after the last clinic served. Without this, an
+  // overrun kills the request mid-loop and — because the list always started
+  // at the same end — the clinics past the cut-off were never reached at all.
+  const sweep = await sweepClinics(
+    'daily-digest',
+    due,
+    (c) => c.organizationId,
+    async (clinic) => {
 
     // Monday (clinic-local) → append the weekly website block. Fetched ONCE per
     // clinic (not per staff member) and strictly best-effort: a traffic-read
@@ -255,8 +281,19 @@ export async function runDailyDigest(opts?: { now?: Date }): Promise<DigestRunRe
         result.errors.push({ userId: s.userId, error: err instanceof Error ? err.message : 'unknown' })
       }
     }
-  }
-  return result
+    },
+    {
+      // A clinic whose staff query fails used to throw straight out of this
+      // function and take the WHOLE morning's digest down with it. Now it is
+      // one clinic's error and the walk carries on past it.
+      onError: (clinic, err) =>
+        result.errors.push({
+          userId: `org:${clinic.organizationId}`,
+          error: err instanceof Error ? err.message : 'unknown',
+        }),
+    },
+  )
+  return { ...result, sweep }
 }
 
 function isUniqueViolation(err: unknown): boolean {

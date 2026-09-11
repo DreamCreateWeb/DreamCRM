@@ -12,6 +12,8 @@ import { DEFAULT_SEND_HOUR } from '@/lib/shared-brain'
 import type { RetentionKind } from '@/lib/types/retention'
 import { reportAutomationFailure } from '@/lib/services/engine-failures'
 import { explorationHourFor } from '@/lib/shared-brain'
+import { sweepClinics } from '@/lib/services/cron-sweep'
+import type { SweepProgress } from '@/lib/cron-budget'
 
 export type { RetentionKind }
 
@@ -158,6 +160,11 @@ export interface RetentionRunResult {
   emptyAudience: number
   details: Array<{ organizationId: string; kind: RetentionKind; campaignId: number; recipients: number }>
   errors: Array<{ organizationId: string; kind: RetentionKind; error: string }>
+  /** How the budgeted, resumable walk over clinics went (lib/cron-budget.ts).
+   *  Bounding THIS walk is also what leaves the four best-effort jobs that
+   *  ride the same tick — balance cadence, due plan charges, NPS, loyalty —
+   *  room inside the route's 120s. */
+  sweep: SweepProgress
 }
 
 /**
@@ -167,7 +174,7 @@ export interface RetentionRunResult {
  */
 export async function runRetentionAutomations(opts?: { now?: Date }): Promise<RetentionRunResult> {
   const now = opts?.now ?? new Date()
-  const result: RetentionRunResult = {
+  const result: Omit<RetentionRunResult, 'sweep'> = {
     scanned: 0,
     created: 0,
     alreadyCreated: 0,
@@ -190,19 +197,29 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
 
   // THE KILL (owner ruling): no retention mail from a shut-down practice.
   const shutDown = await listShutDownOrgIds(now)
-  for (const clinic of clinics) {
+  // Filter BEFORE the walk. Demo clinics never send real email (the demo seeds
+  // enabled toggles purely so the settings card showcases the "on" state), a
+  // shut-down practice sends nothing, and a clinic with every automation off
+  // has no work — none of them should cost a turn or move the cursor.
+  const due = clinics.filter(
+    (c): c is (typeof clinics)[number] & { organizationId: string } => {
+      if (!c.organizationId || c.isDemo || shutDown.has(c.organizationId)) return false
+      // Benefits season is Oct–Dec — outside it the toggle stays armed but quiet.
+      const benefitsOn = c.benefits === 1 && BENEFITS_MONTHS.has(now.getUTCMonth())
+      return c.birthday === 1 || c.reactivation === 1 || benefitsOn || c.welcome === 1
+    },
+  )
+
+  // Budgeted + resumable (lib/cron-budget.ts): the walk stops before the
+  // route's maxDuration does and the next tick resumes after the last clinic
+  // served, so a growing clinic count delays a practice by a tick instead of
+  // silently never reaching it.
+  const sweep = await sweepClinics('retention-automations', due, (c) => c.organizationId, async (clinic) => {
     const orgId = clinic.organizationId
-    if (!orgId) continue
-    // Demo clinics never send real email — the demo seeds enabled toggles purely
-    // so the settings card showcases the "on" state; skip them here.
-    if (clinic.isDemo) continue
-    if (shutDown.has(orgId)) continue
     const birthdayOn = clinic.birthday === 1
     const reactivationOn = clinic.reactivation === 1
-    // Benefits season is Oct–Dec — outside it the toggle stays armed but quiet.
     const benefitsOn = clinic.benefits === 1 && BENEFITS_MONTHS.has(now.getUTCMonth())
     const welcomeOn = clinic.welcome === 1
-    if (!birthdayOn && !reactivationOn && !benefitsOn && !welcomeOn) continue
     result.scanned++
 
     if (birthdayOn) {
@@ -217,13 +234,13 @@ export async function runRetentionAutomations(opts?: { now?: Date }): Promise<Re
     if (welcomeOn) {
       await runOne(result, orgId, 'welcome', `welcome:${orgId}:${weekKey(now)}`, now)
     }
-  }
+  })
 
-  return result
+  return { ...result, sweep }
 }
 
 async function runOne(
-  result: RetentionRunResult,
+  result: Omit<RetentionRunResult, 'sweep'>,
   organizationId: string,
   kind: RetentionKind,
   automationKey: string,
