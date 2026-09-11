@@ -3,30 +3,13 @@
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
+import { isAllowedAttachmentUrl } from '@/lib/attachment-hosts'
 import {
   firstMissingRequiredField,
   sanitizeSubmissionData,
   type FormSubmissionData,
   type FormTemplateSchema,
 } from '@/lib/types/forms'
-
-/**
- * Only allow OCR against images on our own upload bucket — the endpoint is
- * public, so this stops a caller pointing our vision spend at arbitrary URLs.
- * Falls back to "any https on amazonaws.com" when the bucket env is absent
- * (local dev).
- */
-function isOwnUploadUrl(url: string): boolean {
-  try {
-    const u = new URL(url)
-    if (u.protocol !== 'https:') return false
-    const bucket = process.env.S3_BUCKET
-    if (bucket && u.host.includes(bucket)) return true
-    return u.host.endsWith('.amazonaws.com')
-  } catch {
-    return false
-  }
-}
 
 export type InsuranceOcrActionResult =
   | { ok: true; fields: InsuranceCardFields }
@@ -35,14 +18,21 @@ export type InsuranceOcrActionResult =
 /**
  * Public OCR trigger — reads the insurance-card photos the patient just
  * uploaded and returns the fields for them to confirm. Scoped to the org +
- * our own bucket + the per-org monthly cap (in the service).
+ * our own storage + the per-org monthly cap (both in the service).
+ *
+ * This used to carry its own `isOwnUploadUrl` check, which matched the bucket
+ * name as a SUBSTRING of the host and otherwise waved through any
+ * `*.amazonaws.com` — i.e. any public S3 bucket on the internet, including the
+ * caller's own. The shared `isAllowedAttachmentUrl` matches the exact hosts our
+ * storage drivers mint, and the service enforces it too, so an added call site
+ * cannot reopen the hole by forgetting to filter.
  */
 export async function readInsuranceCardAction(
   orgId: string,
   imageUrls: string[],
 ): Promise<InsuranceOcrActionResult> {
   if (!orgId) return { ok: false, error: 'Something went wrong. Please refresh and try again.' }
-  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(isOwnUploadUrl).slice(0, 2)
+  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(isAllowedAttachmentUrl).slice(0, 2)
   if (urls.length === 0) return { ok: false, error: 'Add a photo of your card first.' }
   const result = await readInsuranceCard({ organizationId: orgId, imageUrls: urls })
   if (result.ok) return { ok: true, fields: result.fields }

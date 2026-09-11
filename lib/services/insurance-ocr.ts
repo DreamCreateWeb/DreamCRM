@@ -1,6 +1,7 @@
 import 'server-only'
 import { z } from 'zod'
 import { runClaudeVisionJson, aiConfigured } from '@/lib/ai'
+import { isAllowedAttachmentUrl, allowedAttachmentHosts } from '@/lib/attachment-hosts'
 import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
 
 /**
@@ -11,8 +12,20 @@ import { isAiUsageOverCap, bumpAiUsage } from '@/lib/services/ai-usage'
  * to CONFIRM (never trusted blindly — "we read what we can, please check").
  *
  * Metered via the shared ai_usage_counter under a distinct kind. The endpoint is
- * public (patients trigger it), so the per-org monthly cap is the abuse guard;
- * best-effort — never throws.
+ * public (patients trigger it), so TWO guards bound abuse: the per-org monthly
+ * cap, and the host allowlist below.
+ *
+ * The allowlist is the load-bearing one. This used to accept any `http(s)://`
+ * URL the caller sent, so an outsider could point a clinic's vision spend at
+ * arbitrary bytes anywhere on the internet — burning the practice's scanning
+ * allowance and making our servers fetch a URL of their choosing. A card image
+ * only ever comes from our OWN upload route, so it must live on our OWN
+ * storage; `isAllowedAttachmentUrl` is the same boundary message attachments
+ * already use. The gate lives HERE, in the service, so every caller (public
+ * site intake, patient portal) is covered by construction rather than by each
+ * one remembering to filter first.
+ *
+ * Best-effort — never throws.
  */
 
 const KIND = 'insurance_ocr'
@@ -47,8 +60,9 @@ function clean(v: string | null | undefined): string | null {
 }
 
 /**
- * Read a dental insurance card. `imageUrls` are the public S3 URLs the patient
- * just uploaded (front, and optionally back). Best-effort; never throws.
+ * Read a dental insurance card. `imageUrls` are the public storage URLs the
+ * patient just uploaded (front, and optionally back) — anything not hosted on
+ * our own storage is dropped. Best-effort; never throws.
  */
 export async function readInsuranceCard(input: {
   organizationId: string
@@ -56,7 +70,15 @@ export async function readInsuranceCard(input: {
 }): Promise<OcrResult> {
   if (!aiConfigured()) return { ok: false, reason: 'not_configured' }
 
-  const images = input.imageUrls.filter((u) => /^https?:\/\//i.test(u)).slice(0, 2)
+  const supplied = Array.isArray(input.imageUrls) ? input.imageUrls : []
+  const kept = supplied.filter((u) => typeof u === 'string' && isAllowedAttachmentUrl(u))
+  if (kept.length < supplied.length) {
+    console.warn(
+      `[insurance-ocr] dropped ${supplied.length - kept.length} card image(s) not on our storage ` +
+        `(allowed: ${allowedAttachmentHosts().join(', ') || '(storage env unset)'})`,
+    )
+  }
+  const images = kept.slice(0, 2)
   if (images.length === 0) return { ok: false, reason: 'no_images' }
 
   if (await isAiUsageOverCap(input.organizationId, KIND, MONTHLY_CAP)) {

@@ -3,6 +3,7 @@
 import { requireTenant } from '@/lib/auth/context'
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
+import { isAllowedAttachmentUrl } from '@/lib/attachment-hosts'
 import { getPortalSettings } from '@/lib/services/portal-settings'
 import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
 import {
@@ -69,7 +70,10 @@ async function runPatientIntakeSubmission(input: PatientIntakeInput) {
   })
 }
 
-/** Portal insurance-card OCR — org from the session; same per-org cap. */
+/** Portal insurance-card OCR — org from the session; same per-org cap, and the
+ *  same "our storage only" boundary the public site uses. This path had no host
+ *  check at all, so any `http(s)` URL a signed-in patient posted was fetched and
+ *  billed to their clinic's scanning allowance. */
 export async function readPatientInsuranceCardAction(
   _orgId: string,
   imageUrls: string[],
@@ -78,7 +82,7 @@ export async function readPatientInsuranceCardAction(
   if (ctx.tenantType !== 'patient' || !ctx.patientId) {
     return { ok: false, error: 'Only patients can use this.' }
   }
-  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 2)
+  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(isAllowedAttachmentUrl).slice(0, 2)
   if (urls.length === 0) return { ok: false, error: 'Add a photo of your card first.' }
   const result = await readInsuranceCard({ organizationId: ctx.organizationId, imageUrls: urls })
   if (result.ok) return { ok: true, fields: result.fields }

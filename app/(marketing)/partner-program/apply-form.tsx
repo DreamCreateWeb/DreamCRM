@@ -83,7 +83,7 @@ export default function ApplyForm() {
       {state && !state.ok && (
         <p className="mt-3 text-[0.85rem] font-medium text-rose-600">{state.error}</p>
       )}
-      <p className="mt-4 text-[0.75rem] leading-relaxed text-gray-400">
+      <p className="mt-4 text-[0.75rem] leading-relaxed text-gray-500">
         We&apos;ll only use this to talk to you about the partner program — no lists, no drip
         campaigns.
       </p>

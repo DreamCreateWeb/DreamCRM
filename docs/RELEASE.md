@@ -799,7 +799,10 @@ halves were in fact already fixed, which neither could be recorded as while
 they shared a verdict.
 - S2 · a NexHealth outage during an appointment/patient CREATE burns the
   6-attempt write-back cap instead of parking in the WAITING lane (only the
-  cancel path classifies offline errors as `PmsWriteWaitingError`). · OPEN.
+  cancel path classifies offline errors as `PmsWriteWaitingError`). ·
+  **FIXED** — R2 Slice 7 covered the appointment leg centrally in
+  `settleWriteFailure`; DREAMCRM-24 closed the PATIENT leg, which had gone on
+  swallowing its failure and reporting it to the queue as a counted error.
 - S3 · staff billing actions unwrapped; upload route raw 500; `pms-sync`
   config-throw skips the Guardian signal; optimistic `emailSent` flag;
   trial-reminders milestone stamped after send; scheduled-message requeue
@@ -1130,6 +1133,92 @@ network/timeout/abort shapes and 5xx/429 responses and routes them to
 `pending` with attempts PRESERVED. Deliberately conservative — anything it
 cannot positively identify as transient (a 422, "slot no longer available")
 still exhausts its retries and surfaces. Tests pin both directions.
+
+### Slice 7b — the WAITING lane reaches the PATIENT leg too · DONE
+
+Slice 7 fixed the write path that calls `createAppointment` and stopped there,
+because that is where the burned attempts were visible. One leg over,
+`ensurePatientExternalId` still caught EVERY failure of `createPatient`,
+recorded a bare `status: 'error'` on the patient op, and returned `null` — and
+its caller turned that `null` into
+`failOp('Patient could not be created in the PMS yet')` unconditionally. So a
+booking whose patient was not yet mapped went on burning an attempt per sync
+through an outage, and after six the visit existed in DreamCRM and never
+reached the practice's schedule. Slice 7's own words for why that is the wrong
+lane applied verbatim; the code just never reached it.
+
+`ensurePatientExternalId` now settles its own op through `settleWriteFailure`
+(same three lanes as every other write) and RETHROWS, so the appointment op it
+serves is laned by the same rules — WAITING and transient park with attempts
+preserved, a genuinely wrong write still counts its attempt and still
+surfaces. `null` now means one thing only: the patient row is gone on our side.
+
+Two things fall out of it. The op carries the REAL reason ("their practice
+system requires an email, a date of birth to create a patient chart") instead
+of an opaque sentence that fit every cause equally badly — the front desk can
+act on the first and not the second. And because a parked appointment op
+retries for as long as the outage lasts, the patient write now REUSES its open
+op row rather than inserting a fresh one per pass; otherwise the fix would
+have traded a lost booking for one audit row per hour per queued booking.
+
+Four tests in `tests/integrations/write-back.test.ts` pin all of it. Red run:
+restored the swallow — the two parking tests and the real-reason test failed;
+restored the row-per-retry insert — the reuse test failed.
+
+**Left open on purpose, from the review:** `MAX_WRITE_ATTEMPTS` no longer
+bounds how long a booking can sit un-written, because parking is the point. A
+parked op is visible — `lib/services/pms/connection.ts:196` counts pending/error
+ops for the integration page — but nothing ALERTS on "op pending for N days",
+so a practice whose bridge stays down doesn't get told. Recorded as its own
+entry below rather than hedging this one's verdict.
+
+### Open — a PMS write-op can sit parked with nobody told (found 2026-09-10)
+
+Found reviewing Slice 7b. Since the WAITING lane preserves the attempt counter,
+a write-op parks for as long as the practice system is unreachable — which is
+the intended behaviour and strictly better than failing terminally. But
+`MAX_WRITE_ATTEMPTS` was doing double duty as a crude "give up and be visible"
+timer, and nothing replaced that second job. `getPmsHealth`
+(`lib/services/pms/connection.ts:196`) counts pending/error ops on the
+integration page, so it is visible to somebody who looks; nothing alerts on
+"op pending for N days", so nobody is told. A practice whose bridge stays down
+over a holiday week has bookings queued and no prompt to go and look. · OPEN.
+### Slice 13 — the insurance-card scanner only reads our own storage · DONE
+
+`lib/services/insurance-ocr.ts` filtered its `imageUrls` on `/^https?:\/\//` and
+nothing else, so the PUBLIC card scanner would fetch and bill any URL on the
+internet. The two call sites each had a different opinion about what "our
+storage" means: the site intake action matched the bucket name as a SUBSTRING
+of the host (`mybucket.attacker.example` passed) and otherwise waved through
+anything ending `.amazonaws.com` — every public S3 bucket there is — and the
+patient-portal action had no host check at all.
+
+All three now go through `isAllowedAttachmentUrl` (`lib/attachment-hosts.ts`),
+the same boundary message attachments use, which matches the exact hosts
+`lib/blob-s3.ts` `publicBase()` mints. The gate lives in the SERVICE so a
+future call site is covered by construction, and an adoption guard fails if
+anyone re-implements a storage-host check.
+
+Guard note worth keeping: the red run for that guard PASSED on the first
+attempt while the hand-rolled filter was live, because the doc comment above it
+happened to name `isAllowedAttachmentUrl`. A guard that greps source has to
+strip comments — a mention is not an adoption.
+
+### Open — insurance-card OCR trusts a client-supplied orgId (found 2026-09-10)
+
+Found reviewing Slice 13 and NOT closed by it — the same surface, a different
+defect, so it gets its own entry and its own verdict.
+`readInsuranceCardAction(orgId, imageUrls)`
+(`app/site/[slug]/intake/[formSlug]/actions.ts`) takes `orgId` straight from the
+client with nothing checking it against the slug the page was served from, and
+— unlike every other public site action — it has no `rateLimitPublicAction`. So
+anyone who can upload through `/api/upload` can spend an ARBITRARY clinic's
+400/month scanning cap on their own images.
+
+Slice 13 closed the "any URL on the internet" half. This is the "whose
+allowance" half: after Slice 13 the images must at least be ours, so it is a
+signed-in caller rather than a stranger, which is narrower and not closed.
+Pre-existing. · OPEN.
 
 ### Slice 8 — stranded-campaign recovery · DONE
 

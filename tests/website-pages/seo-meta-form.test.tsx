@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent, waitFor } from '@testing-library/react'
+import { TONE_TEXT, type Tone } from '@/lib/ui/encodings'
 
 /**
  * Settings → Search appearance form. Pins the v2 upgrade:
@@ -132,12 +133,19 @@ describe('SeoMetaForm — use default + counter', () => {
     const { getByRole, container } = render(
       <SeoMetaForm initial={initial} {...baseProps} applicablePages={['home']} />,
     )
-    // "Short" (5 chars) is comfortably under 60 → ok/emerald.
-    expect(container.querySelector('.text-emerald-700')).not.toBeNull()
-    // Type a >60-char title → urgent/rose counter appears.
+    // The tone, not the shade: read the expected class out of the registry the
+    // component renders from, so this keeps asserting "ok when short, urgent
+    // when over cap" through a change to what those tones look like. (It was
+    // pinned to `.text-emerald-700`/`.text-rose-700` and broke when the tone
+    // inks went a step deeper to clear WCAG AA — a real fix failing a test
+    // that only meant to check which tone was chosen.)
+    const lightInk = (tone: Tone) => '.' + TONE_TEXT[tone].split(' ')[0]
+    // "Short" (5 chars) is comfortably under 60 → the ok tone.
+    expect(container.querySelector(lightInk('ok'))).not.toBeNull()
+    // Type a >60-char title → the urgent-tone counter appears.
     const titleInput = container.querySelector('input[type="text"]') as HTMLInputElement
     fireEvent.change(titleInput, { target: { value: 'x'.repeat(80) } })
-    expect(container.querySelector('.text-rose-700')).not.toBeNull()
+    expect(container.querySelector(lightInk('urgent'))).not.toBeNull()
   })
 })
 
