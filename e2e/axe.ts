@@ -67,19 +67,44 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
  * other visual content has no contrast requirement, and restyling a deliberate
  * illustration to reach 4.5:1 at 7px helps nobody.
  *
- * THE RISK, NAMED. `aria-hidden="true"` is the author saying "not content",
- * which is not quite the same claim as "this is a picture". Real text wrongly
- * marked `aria-hidden` would lose its contrast check here — but it would also
- * be silent to every screen reader, a larger bug that `aria-hidden-focus` and
- * review catch first. Scoped to the ONE stop that needs it rather than applied
- * globally, so the trade is made once, visibly, where it was argued.
+ * THE RISK, NAMED — and then narrowed. `aria-hidden="true"` alone is the author
+ * saying "not content", which is not the same claim as "this is a picture":
+ * a bare `[aria-hidden="true"]` exempts every decorative wrapper on the page, so
+ * faint text dropped into any of them later would lose its contrast check
+ * silently. So each entry below pairs that attribute with the hero's own drift
+ * wrappers — `.mkt-float` / `.mkt-float-slow` in `app/(marketing)/page.tsx`,
+ * around mock components that put `aria-hidden="true"` on their outermost
+ * element. Both halves have to hold, which is the whole of what makes these two
+ * subtrees pictures and nothing else on the page one.
+ *
+ * That also makes the exemption able to ROT VISIBLY rather than silently. A bare
+ * attribute selector matches something on almost any page forever; these stop
+ * matching the moment a mock is replaced by a real screenshot or a readable
+ * panel, and `expectNoA11yViolations` fails the stop by name when an exclusion
+ * matches nothing (see `deadExclusions`). The failure direction is safe even
+ * without that check: nothing gets excluded, the stop's ceiling is zero, and the
+ * run goes red.
+ *
+ * Verified by narrowing it rather than asserted: the first baselined run
+ * (actions/runs/34531475518) enumerated all 45 instances at this stop with
+ * selectors and computed colours, and all 41 that remain after batch 55 resolve
+ * inside these two roots, every one at font-size 5.8-8.2pt. The other 4 were the
+ * marketing footer's column headings at 12px, which batch 55 fixed.
  */
-export const DECORATIVE_MOCKS = '[aria-hidden="true"]'
+export const DECORATIVE_MOCKS = [
+  '.mkt-float > [aria-hidden="true"]',
+  '.mkt-float-slow > [aria-hidden="true"]',
+]
 
 type A11yOptions = {
   /** Scan only this subtree (CSS selector) instead of the whole page. */
   include?: string
-  /** Subtrees to leave out of the scan (CSS selectors). */
+  /**
+   * Subtrees to leave out of the scan (CSS selectors). Every one is asserted to
+   * still match something at the stop — see `deadExclusions`. An exclusion is
+   * the only thing in this harness that makes the gate looser, so it is not
+   * allowed to quietly stop describing anything.
+   */
   exclude?: string[]
 }
 
@@ -200,6 +225,34 @@ function report(prefix: string, v: Violation): void {
 }
 
 /**
+ * Which of a stop's exclusions no longer match anything on the page.
+ *
+ * AN EXCLUSION THAT MATCHES NOTHING IS A DEAD EXCLUSION, and it is the one way
+ * an exemption rots into a blanket pardon: the selector keeps sitting in the
+ * harness claiming a subtree is a picture long after the illustration it was
+ * written for has been replaced by something a person is meant to read. Nothing
+ * else in the suite would notice — the scan would carry on reporting the stop
+ * clean, because the thing it stopped excluding is also the thing that stopped
+ * existing.
+ *
+ * Returned rather than asserted so `e2e/axe-selftest.spec.ts` can pin BOTH
+ * directions: a document containing the shape yields none, and a document
+ * without it yields every selector by name. An exclusion is the only thing in
+ * this harness that makes the gate LOOSER, so it is the one that most needs a
+ * check that has been seen to fail.
+ */
+export async function deadExclusions(page: Page, exclude: string[] = []): Promise<string[]> {
+  const dead: string[] = []
+  for (const selector of exclude) {
+    // `count()` is DOM presence, not visibility, on purpose: the portal mock is
+    // `hidden lg:block`, so a narrower viewport would report it dead when it is
+    // merely off-screen.
+    if ((await page.locator(selector).count()) === 0) dead.push(selector)
+  }
+  return dead
+}
+
+/**
  * Scan the current page state and fail the test on anything the baseline in
  * `e2e/axe-baseline.ts` does not already account for.
  *
@@ -229,6 +282,17 @@ export async function expectNoA11yViolations(
   stop: string,
   options: A11yOptions = {},
 ): Promise<void> {
+  const dead = await deadExclusions(page, options.exclude)
+  expect
+    .soft(
+      dead,
+      `DEAD exclusion at "${stop}" — these selectors match nothing on the page any ` +
+        `more, so whatever they were written for has changed. Re-derive them against the ` +
+        `current markup or delete them; do not leave an exemption standing over a subtree ` +
+        `it no longer describes.`,
+    )
+    .toEqual([])
+
   const violations = await findA11yViolations(page, options)
   const allowed = A11Y_BASELINE[stop] ?? {}
 

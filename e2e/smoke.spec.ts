@@ -32,7 +32,7 @@ test.describe('the marketing site (the storefront)', () => {
     // WCAG 1.4.3 does not apply to text inside an illustration, and a ceiling
     // of 41 that carried them was absorbing 41 real defects' worth of room on
     // the busiest public page we have.
-    await expectNoA11yViolations(page, 'marketing: home', { exclude: [DECORATIVE_MOCKS] })
+    await expectNoA11yViolations(page, 'marketing: home', { exclude: DECORATIVE_MOCKS })
   })
 
   test('pricing shows the one purchasable plan at the founding rate', async ({ page }) => {
