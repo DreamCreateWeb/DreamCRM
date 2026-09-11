@@ -111,7 +111,12 @@ describe('LeadsView — list + filters + drawer trigger', () => {
     render(<LeadsView rows={rows} counts={{ ...baseCounts, total: 3 }} status="all" search="" />)
     expect(screen.getByText('Olivia Chen')).toBeInTheDocument()
     expect(screen.getByText('Marcus Johnson')).toBeInTheDocument()
-    expect(screen.getByText('Emma Lopez').closest('span')).toBeInTheDocument()
+    // The lead's own name (not the "→ Emma Lopez" converted-patient link, which
+    // is a different string). Asserted as the row's open button, which is what
+    // the name is now — it used to be a bare <span> inside an
+    // `li[role="button"]`, and that shape trapped this row's controls inside a
+    // button (see tests/a11y/clickable-rows.test.tsx).
+    expect(screen.getByRole('button', { name: /^Emma Lopez — open this inquiry$/ })).toBeInTheDocument()
     // Status pills — each rendered once
     expect(screen.getAllByText('New')).toHaveLength(2) // chip + pill
     expect(screen.getAllByText('Contacted').length).toBeGreaterThanOrEqual(2)

@@ -356,21 +356,15 @@ function LeadRowCard({
 }) {
   const tier = row.status === 'new' ? leadAgingTier(row.ageHours) : null
   return (
+    // A plain clickable list item, not an `li[role=button]` — same fix and same
+    // reasons as the appointments agenda row (see the note there): a button may
+    // not contain this row's checkbox and converted-patient link
+    // (`nested-interactive`), and role=button stopped it being a `listitem`, so
+    // the <ul> around it had no list items (`list`). The keyboard door is the
+    // real button on the name below.
     <li
       onClick={onOpen}
-      // A row IS a button (it opens the drawer) — say so to the keyboard and
-      // to assistive tech; Enter/Space both open, and the checkbox keeps its
-      // own stopPropagation.
-      role="button"
-      tabIndex={0}
-      aria-label={`Open ${row.name}'s inquiry`}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
-      className={`v2-card-interactive px-4 py-3 cursor-pointer border-l-4 focus-visible:outline-2 focus-visible:outline-offset-2 ${agingBorderClass(tier)} ${
+      className={`v2-card-interactive px-4 py-3 cursor-pointer border-l-4 ${agingBorderClass(tier)} ${
         selected ? 'bg-teal-500/5 ring-1 ring-inset ring-teal-500/40' : ''
       }`}
     >
@@ -385,9 +379,19 @@ function LeadRowCard({
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
+            {/* The row's keyboard door; the accessible name leads with the
+                visible one (Label-in-Name, WCAG 2.5.3). */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpen()
+              }}
+              aria-label={`${row.name} — open this inquiry`}
+              className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate text-left focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
               {row.name}
-            </span>
+            </button>
             <StatusPill
               tone={STATUS_TONE[row.status]}
               label={STATUS_LABEL[row.status]}

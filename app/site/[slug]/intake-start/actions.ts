@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { auth } from '@/lib/auth/server'
 import { db, schema } from '@/lib/db'
 import { patient } from '@/lib/db/schema/clinic'
+import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
 
 const LinkInput = z.object({
   orgId: z.string().min(1),
@@ -30,13 +31,26 @@ const LinkInput = z.object({
  * the next request (against `/patient/intake`) resolves the right tenant
  * context.
  *
- * Throws on auth failure (no session) — the client component should
- * recover by re-prompting auth.
+ * Returns `{ ok }` rather than throwing — a thrown server-action message is
+ * replaced by an opaque digest in production, so "Please sign in and try
+ * again" reached the patient as an internal-render sentence with nothing to
+ * act on. See `lib/services/public-form-error.ts`.
  */
-export async function linkUserToClinicAsPatient(input: z.infer<typeof LinkInput>) {
+export async function linkUserToClinicAsPatient(
+  input: z.infer<typeof LinkInput>,
+): Promise<PublicFormResult> {
+  try {
+    await runLinkUserToClinic(input)
+    return { ok: true, data: null }
+  } catch (err) {
+    return publicFormFailure('clinic-site.intake-start', err)
+  }
+}
+
+async function runLinkUserToClinic(input: z.infer<typeof LinkInput>) {
   const data = LinkInput.parse(input)
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) throw new Error('Please sign in and try again.')
+  if (!session?.user) throw new PublicFormError('Please sign in and try again.')
 
   // Confirm the org exists and is a clinic (defensive — the caller pulled
   // orgId from the SSR'd page, but never trust client input on writes).
@@ -45,7 +59,7 @@ export async function linkUserToClinicAsPatient(input: z.infer<typeof LinkInput>
     .from(schema.organization)
     .where(eq(schema.organization.id, data.orgId))
     .limit(1)
-  if (!org || org.type !== 'clinic') throw new Error('We couldn’t find this clinic. Please refresh and try again.')
+  if (!org || org.type !== 'clinic') throw new PublicFormError('We couldn’t find this clinic. Please refresh and try again.')
 
   // Ensure member row.
   const [existingMember] = await db

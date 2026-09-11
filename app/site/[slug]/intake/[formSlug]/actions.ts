@@ -2,30 +2,14 @@
 
 import { getFormTemplate, submitForm } from '@/lib/services/forms'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
+import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
+import { isAllowedAttachmentUrl } from '@/lib/attachment-hosts'
 import {
   firstMissingRequiredField,
   sanitizeSubmissionData,
   type FormSubmissionData,
   type FormTemplateSchema,
 } from '@/lib/types/forms'
-
-/**
- * Only allow OCR against images on our own upload bucket — the endpoint is
- * public, so this stops a caller pointing our vision spend at arbitrary URLs.
- * Falls back to "any https on amazonaws.com" when the bucket env is absent
- * (local dev).
- */
-function isOwnUploadUrl(url: string): boolean {
-  try {
-    const u = new URL(url)
-    if (u.protocol !== 'https:') return false
-    const bucket = process.env.S3_BUCKET
-    if (bucket && u.host.includes(bucket)) return true
-    return u.host.endsWith('.amazonaws.com')
-  } catch {
-    return false
-  }
-}
 
 export type InsuranceOcrActionResult =
   | { ok: true; fields: InsuranceCardFields }
@@ -34,14 +18,21 @@ export type InsuranceOcrActionResult =
 /**
  * Public OCR trigger — reads the insurance-card photos the patient just
  * uploaded and returns the fields for them to confirm. Scoped to the org +
- * our own bucket + the per-org monthly cap (in the service).
+ * our own storage + the per-org monthly cap (both in the service).
+ *
+ * This used to carry its own `isOwnUploadUrl` check, which matched the bucket
+ * name as a SUBSTRING of the host and otherwise waved through any
+ * `*.amazonaws.com` — i.e. any public S3 bucket on the internet, including the
+ * caller's own. The shared `isAllowedAttachmentUrl` matches the exact hosts our
+ * storage drivers mint, and the service enforces it too, so an added call site
+ * cannot reopen the hole by forgetting to filter.
  */
 export async function readInsuranceCardAction(
   orgId: string,
   imageUrls: string[],
 ): Promise<InsuranceOcrActionResult> {
   if (!orgId) return { ok: false, error: 'Something went wrong. Please refresh and try again.' }
-  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(isOwnUploadUrl).slice(0, 2)
+  const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(isAllowedAttachmentUrl).slice(0, 2)
   if (urls.length === 0) return { ok: false, error: 'Add a photo of your card first.' }
   const result = await readInsuranceCard({ organizationId: orgId, imageUrls: urls })
   if (result.ok) return { ok: true, fields: result.fields }
@@ -72,11 +63,25 @@ interface Input {
  * Public form submission. No auth — anyone with the form URL can fill
  * it. Re-validates the templateId actually belongs to the org so a
  * curious user can't post against an arbitrary org's templates.
+ *
+ * Returns `{ ok }` rather than throwing: in production Next.js replaces a
+ * server-action error message with an opaque digest, so "This form is no
+ * longer accepting responses" reached the patient as an internal-render
+ * sentence with nothing to act on. See `lib/services/public-form-error.ts`.
  */
-export async function submitIntakeForm(input: Input) {
-  if (!input.orgId || !input.templateId) throw new Error('Something went wrong. Please refresh and try again.')
+export async function submitIntakeForm(input: Input): Promise<PublicFormResult> {
+  try {
+    await runIntakeSubmission(input)
+    return { ok: true, data: null }
+  } catch (err) {
+    return publicFormFailure('clinic-site.intake', err)
+  }
+}
+
+async function runIntakeSubmission(input: Input) {
+  if (!input.orgId || !input.templateId) throw new PublicFormError('Something went wrong. Please refresh and try again.')
   const template = await getFormTemplate(input.orgId, input.templateId)
-  if (!template || template.archivedAt) throw new Error('This form is no longer accepting responses.')
+  if (!template || template.archivedAt) throw new PublicFormError('This form is no longer accepting responses.')
 
   // Clamp file/insurance fields to clean refs (client could POST arbitrary
   // URLs) + drop display-only values, then re-validate required fields
@@ -84,7 +89,7 @@ export async function submitIntakeForm(input: Input) {
   const schema = template.schema as FormTemplateSchema
   const data = sanitizeSubmissionData(schema, input.data)
   const missing = firstMissingRequiredField(schema, data)
-  if (missing) throw new Error(`${missing} is required`)
+  if (missing) throw new PublicFormError(`${missing} is required`)
 
   await submitForm({
     organizationId: input.orgId,
