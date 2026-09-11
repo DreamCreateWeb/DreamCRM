@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { authClient, signUp } from '@/lib/auth/client'
 import { linkUserToClinicAsPatient } from './actions'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { brandFill } from '@/lib/clinic-site-theme'
 
 interface Props {
   orgId: string
@@ -126,7 +127,7 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
           onClick={() => setMode('signup')}
           className="px-4 py-1.5 rounded-full text-sm font-semibold transition"
           style={{
-            backgroundColor: !isSignIn ? brand : 'transparent',
+            backgroundColor: !isSignIn ? brandFill(brand) : 'transparent',
             color: !isSignIn ? '#FFFFFF' : INK_MUTED,
           }}
           aria-pressed={!isSignIn}
@@ -138,7 +139,7 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
           onClick={() => setMode('signin')}
           className="px-4 py-1.5 rounded-full text-sm font-semibold transition"
           style={{
-            backgroundColor: isSignIn ? brand : 'transparent',
+            backgroundColor: isSignIn ? brandFill(brand) : 'transparent',
             color: isSignIn ? '#FFFFFF' : INK_MUTED,
           }}
           aria-pressed={isSignIn}
@@ -215,7 +216,7 @@ export default function IntakeStartForm({ orgId, clinicName, brand, purpose = 'i
           type="submit"
           disabled={submitting}
           className="w-full py-3.5 rounded-full text-base font-semibold text-white shadow-sm transition hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: brand }}
+          style={{ backgroundColor: brandFill(brand) }}
         >
           {submitting
             ? 'Just a moment…'

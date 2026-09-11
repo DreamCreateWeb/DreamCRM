@@ -7,7 +7,7 @@ import type {
   ClinicOfficePhoto,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import {
   firstSentence,
   copyOverride,
@@ -465,7 +465,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   href={bookHref}
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
                   style={{
-                    backgroundColor: `var(--c-brand-strong, ${brand})`,
+                    backgroundColor: brandFill(brand),
                     // Brand-tinted glow instead of a generic gray drop — reads
                     // as light coming through the button's own color.
                     boxShadow: `0 10px 24px -10px ${brand}99, 0 2px 6px -2px ${brand}66`,
@@ -865,7 +865,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <a
                 href={bookHref}
                 className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 mb-8"
-                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                style={{ backgroundColor: brandFill(brand) }}
               >
                 {bookLabel}
               </a>
@@ -1044,7 +1044,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
-                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                  style={{ backgroundColor: brandFill(brand) }}
                 >
                   Get directions
                   <svg
@@ -1419,7 +1419,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
               <a
                 href={`${basePath}/blog`}
                 className="inline-flex items-center px-5 py-3 rounded-full text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
-                style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                style={{ backgroundColor: brandFill(brand) }}
               >
                 View all posts
               </a>
@@ -1554,7 +1554,7 @@ export default function ModernTemplate({ data, basePath, signInUrl, hasBlog = fa
                 <a
                   href={bookHref}
                   className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
-                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                  style={{ backgroundColor: brandFill(brand) }}
                 >
                   {bookLabel}
                 </a>

@@ -7,7 +7,7 @@ import {
 import { getFormTemplateBySlug } from '@/lib/services/forms'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import ScrollReveal from '@/components/clinic-site/scroll-reveal'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import IntakeFormRunner from './intake-form-runner'
 import { submitIntakeForm, readInsuranceCardAction } from './actions'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -80,7 +80,7 @@ export default async function IntakeFormPage({ params, searchParams }: Props) {
             ) : (
               <span
                 className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0"
-                style={{ backgroundColor: brand }}
+                style={{ backgroundColor: brandFill(brand) }}
               >
                 {name.charAt(0).toUpperCase()}
               </span>

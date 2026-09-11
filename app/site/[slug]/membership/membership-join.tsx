@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { formatCents } from '@/lib/types/shop'
 import { intervalSuffix, type PlanRow } from '@/lib/types/membership'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { HONEYPOT_FIELD, TIMETRAP_FIELD } from '@/lib/form-trust'
 import { startMembershipCheckout } from './actions'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -146,7 +146,7 @@ export default function MembershipJoin({ slug, brand, plans }: { slug: string; b
           <input type="tel" inputMode="tel" autoComplete="tel" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} className={FIELD} style={fieldStyle} />
         </div>
         {error && <p className="text-[14px] text-rose-600 mt-3">{error}</p>}
-        <button disabled={busy} onClick={join} aria-busy={busy || undefined} className="relative w-full mt-4 text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60 transition hover:opacity-95" style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}>
+        <button disabled={busy} onClick={join} aria-busy={busy || undefined} className="relative w-full mt-4 text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60 transition hover:opacity-95" style={{ backgroundColor: brandFill(brand) }}>
           {busy ? <BusyLabel>Join &amp; set up payment</BusyLabel> : 'Join & set up payment'}
         </button>
         <p className="text-[12px] text-center mt-3" style={{ color: INK_MUTED }}>

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getClinicSiteBySlug, publicSiteUrl, resolveSiteBasePath } from '@/lib/services/clinic-site'
 import { getPacketWithForms } from '@/lib/services/forms'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { submitIntakeForm, readInsuranceCardAction } from '../../[formSlug]/actions'
 import PacketRunner, { type PacketForm } from './packet-runner'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -55,7 +55,7 @@ export default async function IntakePacketPage({ params }: Props) {
             {data.profile.logoUrl ? (
               <SiteImage displayWidth={48} src={data.profile.logoUrl} alt={name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
             ) : (
-              <span className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0" style={{ backgroundColor: brand }}>
+              <span className="flex items-center justify-center w-10 h-10 rounded-lg text-white text-base font-bold shrink-0" style={{ backgroundColor: brandFill(brand) }}>
                 {name.charAt(0).toUpperCase()}
               </span>
             )}

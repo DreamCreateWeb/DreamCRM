@@ -16,7 +16,7 @@ import type {
   ClinicTestimonial,
   ClinicOfficePhoto,
 } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { aboutOrganizationJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   firstSentence,
@@ -211,7 +211,7 @@ export default async function AboutPage({ params }: Props) {
             <a
               href={bookHref}
               className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:opacity-95"
-              style={{ backgroundColor: brand }}
+              style={{ backgroundColor: brandFill(brand) }}
             >
               {bookLabel}
             </a>

@@ -149,45 +149,61 @@
  * agreed on. Mid-fade samples all sit below the settled value, so they agree
  * with each other by construction.
  *
- * WHAT THREE OF THE 36 ARE, since a ceiling with no diagnosis is a rediscovery
- * waiting to happen. `booking: slot chosen, details filled in` holds 3, and all
- * three are one defect on a page real visitors book from:
+ * ~~WHAT THREE OF THE 36 ARE~~ — CLOSED, batch 57, and the diagnosis written
+ * here is the reason it took minutes to locate rather than an afternoon. The
+ * three were `#f0f3f1 on #9caf9f` at 2.07 (the selected day chip's weekday
+ * label) and `#ffffff on #9caf9f` at 2.32 twice (the chip's date and the
+ * selected time slot) — the seeded clinic's raw pale-sage brand used as a FILL
+ * under light text, exactly as recorded.
  *
- *   · `#f0f3f1 on #9caf9f` at 2.07 — the SELECTED day chip's weekday label.
- *   · `#ffffff on #9caf9f` at 2.32, twice — the selected day chip's date and the
- *     selected time slot. One is large text, which axe judged at the 3:1 bar; it
- *     fails that too.
+ * The fix took THREE stops to zero rather than one, because the same shape was
+ * on the unselected booking page and on the pre-live portal door:
+ * `booking: slot chosen, details filled in` 3 → 0, `clinic site: booking page`
+ * 3 → 0, `clinic site: portal door on a pre-live clinic` 2 → 0. All three
+ * entries have left this file.
  *
- * `#9caf9f` is the seeded clinic's raw pale-sage brand used as a FILL under light
- * text — the defect batch 54 fixed for the patient portal (`portalBrand()`,
- * lib/portal-brand.ts), still live on the PUBLIC booking page. The clinic-site
- * palette already derives a contrast-safe fill for exactly this role
- * (`brandStrong`); the booking page's day/time buttons do not use it. A clinic
- * whose brand is dark enough hides it, which is why it survived the portal fix.
- * Handed to the UI lane on DREAMCRM-28 with this reproduction; fixing it takes
- * this stop to 0 and the entry leaves this file.
+ * One correction to the note above: the weekday label could NOT be fixed by
+ * swapping in `brandStrong`. That role is darkened only as far as FULL white
+ * needs, so the label's `rgba(255,255,255,0.85)` composited back into failure
+ * (3.54–4.88 across the four template recipes). It is opaque white now. A
+ * partly-transparent ink on a brand fill is never safe.
  *
  * (Seen at 4 rather than 3 once, on actions/runs/34547087372, before #544's
  * settle landed — the 4th was the `ScrollReveal` fade artifact described above,
  * not a fourth defect. Diagnosed rather than accommodated: raising the ceiling
  * would have written an artifact into this file as a defect.)
  *
- * Remaining: **36, all `color-contrast`, and all of them genuine** — the 41
- * decorative mocks are now excluded at the scan rather than carried as a
- * ceiling, and the 2 on the booking confirmation turned out to be fade
- * artifacts. 214 → 36 since 2026-09-10, which is UI batches 55-56 doing the
- * real work; QA's share of that is only the 43 that were never defects. The
- * largest
- * identified pair among them is `#ffffff on #4c7df0` at 3.81:1: white text on
- * the brand ramp's 500 step. teal-600 and deeper are the legal white-text
- * fills, and `tests/a11y/token-contrast.test.ts` asserts that, so the rule is
- * written down where the next batch will find it.
+ *   2026-09-11 · UI batch 57 · **36 → 28**, all 8 `color-contrast`, and THREE
+ *     stops to zero. QA's hand-off named three instances on the public booking
+ *     page; reading the source for the SHAPE rather than the symptom found 22
+ *     across the public clinic site, nineteen of them on pages this suite never
+ *     visits (about, careers and the job page, the apply form, intake, the
+ *     intake packet, intake-start, payment plans, four shop surfaces). All 22
+ *     go through `brandFill()` now — plus 37 places that already spelled it
+ *     `var(--c-brand-strong, ${brand})`, whose FALLBACK was the raw brand.
+ *     `tests/clinic-site/brand-fill.test.ts` holds all four template recipes to
+ *     the white floor (only the default one had ever been checked) and scans the
+ *     call sites. Its first scan matched only the literal
+ *     `backgroundColor: brand` and its red run PASSED — the booking page's two
+ *     worst instances are conditional — so it parses the colour value now.
+ *
+ * Remaining: **28, all `color-contrast`, and all of them genuine** — the 41
+ * decorative mocks are excluded at the scan rather than carried as a ceiling,
+ * and the 2 on the booking confirmation were fade artifacts. 214 → 28 since
+ * 2026-09-10, which is UI batches 54-57 doing the real work; QA's share of that
+ * is the 43 that were never defects.
+ *
+ * The largest identified pair among the 28 is `#ffffff on #4c7df0` at 3.81:1:
+ * white text on the brand ramp's 500 step. teal-600 and deeper are the legal
+ * white-text fills, and `tests/a11y/token-contrast.test.ts` asserts that, so
+ * the rule is written down where the next batch will find it. Two smaller
+ * families are recorded in docs/UI-BEST-VERSION.md rather than here because
+ * they are source findings this suite cannot see: 31 `color: brand` sites
+ * (brand as TEXT, `readableInk`'s job) and three icon wells that concatenate an
+ * alpha suffix onto a `var()` and therefore render no background at all.
  */
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
-  'booking: slot chosen, details filled in': { 'color-contrast': 3 },
-  'clinic site: booking page': { 'color-contrast': 3 },
-  'clinic site: portal door on a pre-live clinic': { 'color-contrast': 2 },
   'marketing: pricing': { 'color-contrast': 2 },
   'portal: cancel confirmation showing': { 'color-contrast': 1 },
   'portal: patient dashboard': { 'color-contrast': 1 },

@@ -14,7 +14,7 @@ import {
   resolveClinicServices,
   type EnrichedService,
 } from '@/lib/services/service-library'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import { buildClinicNavLinks, hasColoringPages,
   isSelfBookingEnabled,
@@ -201,7 +201,7 @@ export default async function ServiceDetailPage({ params }: Props) {
       {service.offer && (
         <div
           className="text-center text-[13px] sm:text-sm font-semibold text-white py-2.5 px-4"
-          style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+          style={{ backgroundColor: brandFill(brand) }}
         >
           {service.offer}
         </div>
@@ -261,7 +261,7 @@ export default async function ServiceDetailPage({ params }: Props) {
                 <a
                   href={bookHref}
                   className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition hover:shadow-lg hover:scale-[1.02]"
-                  style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                  style={{ backgroundColor: brandFill(brand) }}
                 >
                   {bookLabel}
                 </a>

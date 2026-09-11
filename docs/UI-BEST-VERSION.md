@@ -171,11 +171,11 @@ batch number.
   dark surface when the dark override already exists at
   `app/css/style.css:375` — that row needs a diagnosis, not a token change,
   and editing `--color-ink-500` would be fixing the wrong thing. Tracked as
-  DREAMCRM-28; batch 54 took it to 166, batch 55 to 119 and batch 56 to 79 —
-  and of those 79, **41 are the WCAG-incidental decorative mocks described
-  below, so 38 are genuine**. `nested-interactive` and `list` are CLOSED
-  entirely; the baseline is now a single rule. The file carries a running
-  burn-down log. One correction to the framing above,
+  DREAMCRM-28; batches 54-57 took it 214 → **28**, all `color-contrast` and all
+  genuine (QA exempted the 41 WCAG-incidental decorative mocks at the scan and
+  retired 2 fade artifacts, so they are no longer counted at all).
+  `nested-interactive` and `list` are CLOSED entirely; the baseline is now a
+  single rule. The file carries a running burn-down log. One correction to the framing above,
   found in batch 55: `#5e6e8c` on `#10182e` is NOT the dark-mode side. It is
   the marketing footer — a dark band inside a light-mode page, where no
   `.dark` scope applies — so the dark override was never involved, which is
@@ -288,6 +288,52 @@ batch number.
   `e2e/staff-day.spec.ts` located rows via `getByRole('button', { name: "Open
   Riley Staffday's visit" })`, which only worked BECAUSE of the broken shape;
   it now locates a `listitem` and opens it through the row's own button].
+- ~~The PUBLIC booking page used the clinic's brand raw as a fill under light
+  text~~ [BATCH 57, and it is batch 54's defect on the surface that matters
+  most: the page real visitors book from. QA found three instances at
+  `booking: slot chosen, details filled in` — the selected day chip's weekday
+  at 2.07:1, its date and the selected time slot at 2.32:1 — and handed them
+  over with the reproduction. Reading the source for the same SHAPE found
+  **22** across the public clinic site; nineteen sit on pages the browser suite
+  never visits (about, careers and the job page, the apply form, intake, the
+  intake packet, intake-start, payment plans, four shop surfaces), so axe was
+  never going to report them. The clinic-site palette had solved this before
+  any of them were written: `brandStrong` is the brand darkened along its own
+  hue only as far as white needs. `brandFill()` in lib/clinic-site-theme.ts is
+  now the one expression for it, and it returns a `var(--c-brand-strong, …)`
+  rather than a hex so the ACTIVE template's recipe decides — the four
+  registered recipes do not agree on the value. A QUIETER half of the same
+  consolidation: 37 places already spelled it
+  `var(--c-brand-strong, ${brand})`, whose FALLBACK is the raw brand — correct
+  inside the site layout where the variable exists, and the defect anywhere it
+  does not. One spelling now, one safe fallback. Two things this turned up that
+  are worth keeping: the 85%-white weekday label could NOT be fixed by the fill
+  alone (white at 85% over `brandStrong` composites to 3.54–4.88 across the
+  recipes, because brandStrong is darkened only as far as FULL white needs), so
+  a label on a brand fill has to be opaque; and `white on brandStrong` was
+  asserted for the DEFAULT recipe only — the other three were never checked,
+  which made the role a promise rather than a contract.
+  `tests/clinic-site/brand-fill.test.ts` now holds all four to the floor and
+  scans the call sites. Its FIRST scan matched only the literal
+  `backgroundColor: brand` and its red run PASSED — the booking page's two
+  worst instances are conditional (`isSelected ? brand : SURFACE`), so the
+  guard would not have caught the defect it was written for. It parses the
+  colour value now, and is red-verified on three separate breaks. Borders
+  (1.4.11, a 3:1 bar) and brand-as-TEXT are deliberately out of its scope and
+  named in it as the next items].
+- **31 `color: brand` sites on the public clinic site** — brand as TEXT,
+  which is `readableInk`'s job and not the fill role batch 57 consolidated.
+  A mix of decorative SVG strokes (no text-contrast requirement) and real
+  copy that fails on a pale brand: the shop cart button's label, the intake
+  eyebrow, an add-to-cart link. Needs reading one site at a time rather than
+  a sweep, which is why batch 57 left it whole. Found while fixing the fills.
+- **Three icon wells render no background at all.** `book-form.tsx:219` and
+  `:538`, `request-form.tsx:73` concatenate an alpha suffix onto a `var()` —
+  `` `var(--c-brand-strong, …)` + '22' `` — which is not a valid CSS colour,
+  so the declaration is dropped. Cosmetic, not a contrast defect, and the fix
+  is a design call (probably `--c-brand-soft`, the palette's light brand wash)
+  rather than a mechanical one, so batch 57 left the expression alone and
+  wrote it down here instead.
 
 ---
 

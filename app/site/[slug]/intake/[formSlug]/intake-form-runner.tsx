@@ -39,6 +39,7 @@ const STR: Record<Lang, {
 }
 import type { InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { brandFill } from '@/lib/clinic-site-theme'
 
 export type OcrAction = (
   orgId: string,
@@ -275,7 +276,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
                 type="button"
                 onClick={() => setLang(l)}
                 className="px-3 py-1.5"
-                style={lang === l ? { backgroundColor: brand, color: 'white' } : { backgroundColor: SURFACE, color: INK_MUTED }}
+                style={lang === l ? { backgroundColor: brandFill(brand), color: 'white' } : { backgroundColor: SURFACE, color: INK_MUTED }}
                 aria-pressed={lang === l}
               >
                 {l === 'en' ? 'English' : 'Español'}
@@ -336,7 +337,7 @@ export default function IntakeFormRunner({ orgId, templateId, schema, brand, cli
         type="submit"
         disabled={status === 'pending'}
         className="w-full py-4 rounded-full text-base font-semibold text-white shadow-lg transition hover:opacity-95 disabled:opacity-50"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: brandFill(brand) }}
       >
         {status === 'pending' ? t.submitting : t.submit}
       </button>
@@ -538,7 +539,7 @@ const FieldInput = memo(function FieldInput({
                 onClick={() => onChange(v)}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition"
                 style={{
-                  backgroundColor: value === v ? brand : SURFACE,
+                  backgroundColor: value === v ? brandFill(brand) : SURFACE,
                   color: value === v ? 'white' : INK,
                   border: `1px solid ${value === v ? brand : BORDER}`,
                 }}
@@ -854,7 +855,7 @@ function InsuranceCardInput({
           onClick={readCard}
           disabled={reading}
           className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          style={{ backgroundColor: brand }}
+          style={{ backgroundColor: brandFill(brand) }}
         >
           <span aria-hidden="true">✨</span>
           {reading ? 'Reading your card…' : 'Read my card & fill it in'}

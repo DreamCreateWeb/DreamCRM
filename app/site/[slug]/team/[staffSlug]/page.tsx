@@ -13,7 +13,7 @@ import type {
   ClinicService,
   ClinicStaff,
 } from '@/lib/types/clinic-content'
-import { readableInk } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill } from '@/lib/clinic-site-theme'
 import { personJsonLd as buildPersonJsonLd, breadcrumbJsonLd } from '@/lib/clinic-site-jsonld'
 import {
   staffInitials,
@@ -285,7 +285,7 @@ export default async function StaffDetailPage({ params }: Props) {
                   <a
                     href={bookHref}
                     className="inline-flex items-center px-7 py-3.5 rounded-full text-base font-semibold text-white shadow-md transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-                    style={{ backgroundColor: `var(--c-brand-strong, ${brand})` }}
+                    style={{ backgroundColor: brandFill(brand) }}
                   >
                     {bookLabel}
                   </a>

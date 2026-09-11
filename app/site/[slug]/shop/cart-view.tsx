@@ -5,6 +5,7 @@ import { formatCents, type CartLine } from '@/lib/types/shop'
 import { getCart, setQty, removeLine } from './cart-store'
 import { startCheckout, applyCoupon } from './actions'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { brandFill } from '@/lib/clinic-site-theme'
 import SiteImage from '@/components/clinic-site/site-image'
 import { BusyLabel } from '@/components/ui/busy-label'
 
@@ -193,7 +194,7 @@ export default function CartView({
               key={f}
               onClick={() => setFulfillment(f)}
               className="flex-1 text-[14px] font-medium px-4 py-2.5 rounded-xl border"
-              style={fulfillment === f ? { backgroundColor: brand, color: '#fff', borderColor: brand } : { borderColor: BORDER, color: INK_MUTED }}
+              style={fulfillment === f ? { backgroundColor: brandFill(brand), color: '#fff', borderColor: brandFill(brand) } : { borderColor: BORDER, color: INK_MUTED }}
             >
               {f === 'pickup' ? 'Pick up at the office' : 'Ship to me'}
             </button>
@@ -223,7 +224,7 @@ export default function CartView({
         onClick={checkout}
         aria-busy={busy || undefined}
         className="relative w-full text-[16px] font-semibold px-6 py-3.5 rounded-xl text-white disabled:opacity-60"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: brandFill(brand) }}
       >
         {busy ? <BusyLabel>Check out</BusyLabel> : 'Check out'}
       </button>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { formatCents } from '@/lib/types/shop'
 import { addToCart } from './cart-store'
+import { brandFill } from '@/lib/clinic-site-theme'
 
 interface VariantOpt {
   id: string
@@ -79,7 +80,7 @@ export default function AddToCart({
           setAdded(true)
         }}
         className="w-full mt-4 text-[15px] font-semibold px-6 py-3 rounded-xl text-white disabled:opacity-50"
-        style={{ backgroundColor: brand }}
+        style={{ backgroundColor: brandFill(brand) }}
       >
         {outOfStock ? 'Sold out' : added ? 'Added ✓ — add more?' : 'Add to cart'}
       </button>

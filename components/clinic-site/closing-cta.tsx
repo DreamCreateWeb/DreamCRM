@@ -1,4 +1,5 @@
 import ScrollReveal from './scroll-reveal'
+import { brandFill } from '@/lib/clinic-site-theme'
 
 interface CTA {
   label: string
@@ -39,7 +40,7 @@ export default function ClosingCTA({
   // for the white text; dark brands pass through). Prop name kept for
   // call-site stability.
   const bgColor =
-    variant === 'teal' ? 'var(--c-deep, #36514c)' : `var(--c-brand-strong, ${brand})`
+    variant === 'teal' ? 'var(--c-deep, #36514c)' : brandFill(brand)
 
   return (
     <section className="py-14 sm:py-24" style={{ backgroundColor: bgColor }}>
