@@ -45,13 +45,13 @@
  *     4.48–4.49 against a 4.5 requirement, which is what a palette chosen by
  *     eye looks like from the outside. Fixing the tokens fixes the instances
  *     in bulk.
- *   - **nested-interactive (25) and list (13)** — one structural pattern, not
- *     two: the appointments agenda row is an `li[role="button"]` that contains
- *     its own focusable controls, sitting in a list whose direct children are
- *     therefore not list items. A screen-reader user tabbing into the row gets
- *     something it cannot describe. Both rules clear together when that row is
- *     restructured. It shows up on the day agenda, the drawer stops (which
- *     render over it) and the leads board.
+ *   - ~~**nested-interactive (25) and list (13)**~~ — CLOSED, batch 56, and it
+ *     was one structural pattern exactly as this entry predicted: the
+ *     appointments agenda row and the leads board row were both an
+ *     `li[role="button"]` containing their own focusable controls, sitting in a
+ *     list whose direct children were therefore not list items. Both rules
+ *     reached ZERO on all four stops together and have left this file. **The
+ *     baseline is now a single rule.**
  *
  * Owned by the UI lane and handed over with this reproduction — see the
  * comment thread on DREAMCRM-26. QA owns the checks; the pixels are not ours.
@@ -105,8 +105,18 @@
  *     theme.css, in both themes — the source-level contrast guard that did not
  *     exist, and the reason none of the above was caught before axe arrived.
  *
- * ⚠ ONE CEILING HERE IS NOT A DEFECT COUNT. `marketing: home` sits at 43, and
- *   **41 of those are inside `aria-hidden` decorative product mock-ups** —
+ *   2026-09-10 · UI batch 56 · **119 → 79**, closing `nested-interactive` and
+ *     `list` ENTIRELY — 38 instances, one shape. Both rows became a plain
+ *     clickable `listitem` whose keyboard door is a real button on the row's
+ *     primary label (the visit type; the lead's name), with the accessible name
+ *     leading with the visible one so Label-in-Name still holds. Whole-row
+ *     click is unchanged. `tests/a11y/clickable-rows.test.tsx` re-implements
+ *     both rules over the rendered DOM, so this cannot regress between runs of
+ *     this suite. `marketing: home` also settled to 41 — see below, that is now
+ *     ALL of it.
+ *
+ * ⚠ ONE CEILING HERE IS NOT A DEFECT COUNT. `marketing: home` sits at 41, and
+ *   **all 41 are inside `aria-hidden` decorative product mock-ups** —
  *   miniature simulated app screens at 7–10px. WCAG 1.4.3 exempts them
  *   ("incidental": text that is part of a picture containing significant other
  *   visual content has no contrast requirement), and restyling a deliberate
@@ -117,16 +127,16 @@
  *
  * Drops that were the documented WOBBLE rather than fixes, whose ceilings
  * deliberately stayed put: `booking: the confirmation a patient lands on`
- * reported 1 against its ceiling of 2 in both runs; the three agenda stops
- * reported one fewer `nested-interactive` than their 8; and `staff: dream team`
- * came in at 2 against 3. All are the data-dependent counts the header warns
+ * reported 1 against its ceiling of 2 in every run, and `staff: dream team`
+ * came in at 2 against 3. Both are the data-dependent counts the header warns
  * about, and a one-element drop is not evidence.
  *
- * Remaining after batch 55: **81 `color-contrast`** (the largest identified
- * pair being `#ffffff on #4c7df0` at 3.81:1, white text on the brand ramp's
- * 500 step — teal-600 and deeper are the legal white-text fills, and the new
- * guard asserts that) plus the **38 of the agenda-row cluster** (25
- * `nested-interactive` + 13 `list`), which are one structural fix.
+ * Remaining after batch 56: **79, all `color-contrast`, of which 41 are the
+ * WCAG-incidental decorative mocks above — so 38 are genuine.** The largest
+ * identified pair among them is `#ffffff on #4c7df0` at 3.81:1: white text on
+ * the brand ramp's 500 step. teal-600 and deeper are the legal white-text
+ * fills, and `tests/a11y/token-contrast.test.ts` asserts that, so the rule is
+ * written down where the next batch will find it.
  */
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
@@ -134,7 +144,7 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'booking: the confirmation a patient lands on': { 'color-contrast': 2 },
   'clinic site: booking page': { 'color-contrast': 3 },
   'clinic site: portal door on a pre-live clinic': { 'color-contrast': 2 },
-  'marketing: home': { 'color-contrast': 43 },
+  'marketing: home': { 'color-contrast': 41 },
   'marketing: pricing': { 'color-contrast': 2 },
   'portal: cancel confirmation showing': { 'color-contrast': 1 },
   'portal: patient dashboard': { 'color-contrast': 1 },
@@ -143,14 +153,14 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'portal: visits list after confirming': { 'color-contrast': 1 },
   'portal: visits list, a visit needing confirmation': { 'color-contrast': 1 },
   'staff: add-patient dialog, filled in': { 'color-contrast': 2 },
-  'staff: appointment drawer open': { 'color-contrast': 1, 'list': 4, 'nested-interactive': 8 },
-  'staff: cancel-appointment confirmation over the drawer': { 'color-contrast': 1, 'list': 4, 'nested-interactive': 8 },
+  'staff: appointment drawer open': { 'color-contrast': 1 },
+  'staff: cancel-appointment confirmation over the drawer': { 'color-contrast': 1 },
   'staff: dream team, a proposal waiting on a yes': { 'color-contrast': 3 },
-  'staff: leads board, filtered to contacted': { 'color-contrast': 1, 'list': 1, 'nested-interactive': 1 },
+  'staff: leads board, filtered to contacted': { 'color-contrast': 1 },
   'staff: patient chart': { 'color-contrast': 1 },
   'staff: patients list, brand-new empty clinic': { 'color-contrast': 2 },
   'staff: patients list, populated': { 'color-contrast': 1 },
-  'staff: the day agenda': { 'color-contrast': 2, 'list': 4, 'nested-interactive': 8 },
+  'staff: the day agenda': { 'color-contrast': 2 },
   'staff: website hub, site not yet published': { 'color-contrast': 1 },
   'staff: website hub, site published': { 'color-contrast': 4 },
 }
