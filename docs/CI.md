@@ -2,6 +2,10 @@
 
 Four workflows. Only two of them can stop anything; the other two are alarms.
 
+This file covers what runs *before* a merge and on the way to production. What
+gets checked *after* the deploy lands — the URLs the production watch sweep
+loads, including the one real clinic site — is `docs/OPS.md`.
+
 | Workflow | Trigger | Jobs | Protects | Blocking? |
 | --- | --- | --- | --- | --- |
 | `.github/workflows/ci.yml` | `pull_request` | `test`, `e2e` | the merge | yes — both are required checks |
