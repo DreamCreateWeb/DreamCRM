@@ -7,7 +7,7 @@ Four workflows. Only two of them can stop anything; the other two are alarms.
 | `.github/workflows/ci.yml` | `pull_request` | `test`, `e2e` | the merge | yes — both are required checks |
 | `.github/workflows/deploy.yml` | `push` to `main` | `test` → `deploy` | production | yes — `deploy` `needs:` `test` |
 | `.github/workflows/post-merge-e2e.yml` | `push` to `main` | `e2e-post-merge` | the tree that just shipped | no — alert only |
-| `.github/workflows/nightly.yml` | `schedule` 07:00 UTC + dispatch | `nightly-test`, `nightly-e2e`, `tz-canary` | finding clock/race failures before someone trips over them | no — signal only |
+| `.github/workflows/nightly.yml` | `schedule` 07:00 UTC nominal (lands ~5h later) + dispatch | `nightly-test`, `nightly-e2e`, `tz-canary` | finding clock/race failures before someone trips over them | no — signal only |
 
 **Job names are load-bearing.** `test` and `e2e` are the required status-check
 contexts on `main`. Nothing outside `ci.yml` and `deploy.yml` may use those two
@@ -47,12 +47,12 @@ run the slower, noisier, more informative shape of the suite.
   neither combination was tested on, and that tree auto-deploys. The gate in
   `deploy.yml` is typecheck + unit only. This tells us within minutes if the
   merged tree broke a browser journey; the deploy is not held back either way.
-- **`nightly.yml`** runs the same gates on a schedule at 07:00 UTC (03:00 ET) —
-  after the day's merges have landed, long before anyone starts work. Before it
-  existed, nothing ran the suite except a PR or a merge, so a clock- or
-  race-dependent failure could only be found by accident on somebody else's
-  unrelated PR. Both flakes found in the DREAMCRM-19 cycle were found exactly
-  that way.
+- **`nightly.yml`** runs the same gates on a schedule — asked for at 07:00 UTC
+  (03:00 ET), actually arriving mid-morning ET; see "when it really runs" below,
+  because the cron line is not what happens. Before it existed, nothing ran the
+  suite except a PR or a merge, so a clock- or race-dependent failure could only
+  be found by accident on somebody else's unrelated PR. Both flakes found in the
+  DREAMCRM-19 cycle were found exactly that way.
 
 ### Reading the nightly
 
@@ -67,6 +67,31 @@ reading silence as health.
   the local clock — not a broken build, and by design it leaves the run's overall
   conclusion green. **A green nightly does not mean the canary passed.** Open the
   run and read the job.
+- **When it really runs: about five hours after the cron says.** The first three
+  unattended fires, measured 2026-09-13:
+
+  | Asked | Fired (UTC) | Late by | Last job finished |
+  | --- | --- | --- | --- |
+  | 07:00 | 2026-09-11 11:58:57 | +4h59m | 08:06 ET |
+  | 07:00 | 2026-09-12 11:25:47 | +4h26m | 07:31 ET |
+  | 07:00 | 2026-09-13 12:29:36 | +5h30m | 08:36 ET |
+
+  This is GitHub's scheduler, not ours: `schedule` is best-effort and delayed
+  under load, and the top of an hour is its busiest moment — `0 7` is both. The
+  workflow's own comment still claims "03:00 ET, long before anyone starts
+  work"; on this evidence a red nightly actually lands between 07:31 and 08:36
+  ET. That is still *at* the start of the day rather than the middle of it, so
+  the alarm does its job — but do not plan around 03:00, and do not read a
+  missing 07:00 run as a failure before mid-morning.
+
+  Three samples, all against the same commit (the office was frozen 09-11 to
+  09-13), so treat the ~5h as an order of magnitude and not a constant. **The
+  cheap lever if it ever matters** is moving the cron off the top of the hour
+  (`37 6` rather than `0 7`); untried, because the observed landing time still
+  meets the alarm's actual purpose and `.github/workflows/**` is behind the
+  review gate. Worth spending a review round on only if the arrival drifts past
+  mid-morning.
+
 - **GitHub only runs `schedule` from the default branch**, and it disables
   scheduled workflows in a repository with 60 days of no activity. If nightly
   runs go quiet, check the Actions tab for the re-enable banner before assuming
