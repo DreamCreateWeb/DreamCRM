@@ -47,7 +47,7 @@ export default function PartnerAcceptError({
               }
               window.location.reload()
             }}
-            className="btn w-full bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+            className="btn w-full bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
           >
             Refresh
           </button>

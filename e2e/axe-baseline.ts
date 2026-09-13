@@ -187,24 +187,51 @@
  *     `backgroundColor: brand` and its red run PASSED — the booking page's two
  *     worst instances are conditional — so it parses the colour value now.
  *
- * Remaining: **28, all `color-contrast`, and all of them genuine** — the 41
+ *   2026-09-13 · UI batch 58 · **28 → 18**, and SEVEN stops to zero. The
+ *     `#ffffff on #4c7df0` row below was the last large identified pair, and
+ *     the reason it reached 44 places is that `--color-teal-500` was labelled
+ *     "primary fill (light)" in BOTH app/css/style.css and DESIGN-SYSTEM.md —
+ *     the label was the defect and the instances were compliance. The ramp is
+ *     an IDENTITY ramp: teal-500 stays the brand (chart-1, focus rings,
+ *     selection washes, dots, progress bars — none of which carry text) and a
+ *     solid fill with a white label is teal-600 (5.09) or deeper. Both token
+ *     comments now say so. Three of the 44 were ALSO failing in DARK mode and
+ *     nobody had noticed — `dark:text-gray-900` with no `dark:bg-*` put
+ *     near-black ink on teal-500 at 4.01 — and fixing only the light side
+ *     would have made those worse (3.01), so they took both halves.
+ *     `tests/a11y/token-contrast.test.ts` gained the source rule plus the
+ *     NEGATIVE assertion that teal-400/500 really are below the floor, so the
+ *     cutoff is derived rather than asserted.
+ *
+ * Four stops each dropped by exactly ONE in that run — add-patient dialog,
+ * the brand-new patients list, the day agenda, and the published website hub.
+ * Their ceilings deliberately stayed put. A one-element drop is not evidence
+ * under this file's own rule, even when it is four at once and the batch
+ * plainly touched buttons on those pages; the next run that confirms the
+ * lower number can take them. (`staff: dream team` is the worked example:
+ * batch 55 left it at 3 on a single observation of 2, and batch 58's run
+ * reported 1, which IS a warning, so it moved.)
+ *
+ * Remaining: **18, all `color-contrast`, and all of them genuine** — the 41
  * decorative mocks are excluded at the scan rather than carried as a ceiling,
- * and the 2 on the booking confirmation were fade artifacts. 214 → 28 since
- * 2026-09-10, which is UI batches 54-57 doing the real work; QA's share of that
+ * and the 2 on the booking confirmation were fade artifacts. 214 → 18 since
+ * 2026-09-10, which is UI batches 54-58 doing the real work; QA's share of that
  * is the 43 that were never defects.
  *
- * The largest identified pair among the 28 is `#ffffff on #4c7df0` at 3.81:1:
- * white text on the brand ramp's 500 step. teal-600 and deeper are the legal
- * white-text fills, and `tests/a11y/token-contrast.test.ts` asserts that, so
- * the rule is written down where the next batch will find it. Two smaller
- * families are recorded in docs/UI-BEST-VERSION.md rather than here because
- * they are source findings this suite cannot see: 31 `color: brand` sites
- * (brand as TEXT, `readableInk`'s job) and three icon wells that concatenate an
- * alpha suffix onto a `var()` and therefore render no background at all.
+ * WHAT IS LEFT IS NO LONGER ONE BIG PAIR. Every large identified cluster is
+ * closed; the 18 are singles and pairs on eleven stops, each needing its own
+ * look. Three things this suite structurally cannot see are recorded in
+ * docs/UI-BEST-VERSION.md instead: 31 `color: brand` sites on the public site
+ * (brand as TEXT — `readableInk`'s job), three icon wells that concatenate an
+ * alpha suffix onto a `var()` and therefore render no background at all, and —
+ * the one that matters most — **`ActionButton`'s primary gradient**, which
+ * fails from 2.42 at its light end to 4.19 at 75% and clears only at the very
+ * deep end. axe reports gradients as INCOMPLETE rather than failing, so it has
+ * never been in this file's count and never will be. It is the design system's
+ * signature element and changing it is an owner decision, not a sweep.
  */
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
-  'marketing: pricing': { 'color-contrast': 2 },
   'portal: cancel confirmation showing': { 'color-contrast': 1 },
   'portal: patient dashboard': { 'color-contrast': 1 },
   'portal: reschedule panel open, a new time picked': { 'color-contrast': 1 },
@@ -212,14 +239,8 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'portal: visits list after confirming': { 'color-contrast': 1 },
   'portal: visits list, a visit needing confirmation': { 'color-contrast': 1 },
   'staff: add-patient dialog, filled in': { 'color-contrast': 2 },
-  'staff: appointment drawer open': { 'color-contrast': 1 },
-  'staff: cancel-appointment confirmation over the drawer': { 'color-contrast': 1 },
-  'staff: dream team, a proposal waiting on a yes': { 'color-contrast': 3 },
-  'staff: leads board, filtered to contacted': { 'color-contrast': 1 },
-  'staff: patient chart': { 'color-contrast': 1 },
+  'staff: dream team, a proposal waiting on a yes': { 'color-contrast': 1 },
   'staff: patients list, brand-new empty clinic': { 'color-contrast': 2 },
-  'staff: patients list, populated': { 'color-contrast': 1 },
   'staff: the day agenda': { 'color-contrast': 2 },
-  'staff: website hub, site not yet published': { 'color-contrast': 1 },
   'staff: website hub, site published': { 'color-contrast': 4 },
 }

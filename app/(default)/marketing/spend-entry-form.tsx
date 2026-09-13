@@ -75,7 +75,7 @@ export default function SpendEntryForm() {
         <button
           type="submit"
           disabled={pending}
-          className="btn bg-teal-500 hover:bg-teal-600 text-white text-sm py-1.5 disabled:opacity-60"
+          className="btn bg-teal-600 hover:bg-teal-700 text-white text-sm py-1.5 disabled:opacity-60"
         >
           {pending ? 'Saving…' : 'Save'}
         </button>

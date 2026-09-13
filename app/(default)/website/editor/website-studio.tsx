@@ -197,7 +197,7 @@ export function tourStops(
 }
 
 const btnPrimary =
-  'inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60'
+  'inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition disabled:opacity-60'
 const btnSecondary =
   'inline-flex items-center justify-center rounded-[var(--r-sm)] px-4 py-2 text-sm font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition'
 
@@ -824,7 +824,7 @@ export default function WebsiteStudio({ slug, siteUrl, profile, orgId, library, 
                   .slice(0, 6)
                   .map((c) => c.label)
                   .join(', ')}`}
-                className="inline-flex items-center gap-1.5 rounded-md bg-teal-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-400 transition-colors disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors disabled:opacity-60"
               >
                 {publishBusy ? 'Publishing…' : `Publish ${draftStatus.count} change${draftStatus.count === 1 ? '' : 's'}`}
               </button>
@@ -1553,7 +1553,7 @@ function StudioModal({
                 href={LINK_OUTS[modal.field].href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-sm inline-flex bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+                className="btn-sm inline-flex bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
               >
                 {LINK_OUTS[modal.field].cta} ↗
               </a>

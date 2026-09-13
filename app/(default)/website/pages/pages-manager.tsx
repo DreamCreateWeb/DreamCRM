@@ -201,7 +201,7 @@ function CopyField({
           type="button"
           onClick={onSave}
           disabled={pending || !dirty}
-          className="shrink-0 text-xs font-semibold px-3 py-2 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 disabled:opacity-50"
+          className="shrink-0 text-xs font-semibold px-3 py-2 rounded-[var(--r-sm)] bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 disabled:opacity-50"
         >
           {pending ? 'Saving…' : 'Save'}
         </button>

@@ -103,8 +103,15 @@
   --color-teal-200: #c1d6ff;
   --color-teal-300: #9dbdff;
   --color-teal-400: #7ca5ff; /* dream sky — dark-mode fill */
-  --color-teal-500: #4c7df0; /* primary fill (light) */
-  --color-teal-600: #3a67d9; /* hover / pressed */
+  /* WHITE TEXT STARTS AT 600. The brand ramp is an identity + fill ramp, and
+     only its deep end carries white copy: white on teal-500 is 3.82:1 and on
+     teal-400 is 2.42:1, against a 4.5:1 floor. teal-500 stays the BRAND — the
+     chart-1 series, focus rings, selection washes, dots and progress bars,
+     none of which carry text — and any solid fill with a white label uses 600
+     or deeper. `tests/a11y/token-contrast.test.ts` asserts both halves and
+     scans the call sites. */
+  --color-teal-500: #4c7df0; /* brand + accent; NOT a white-text fill */
+  --color-teal-600: #3a67d9; /* the shallowest white-text fill — 5.09:1 */
   --color-teal-700: #2f52b3; /* deep dream — focus rings, gradient anchor */
   --color-teal-800: #27418a;
   --color-teal-900: #1f3266;

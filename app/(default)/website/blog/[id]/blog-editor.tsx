@@ -860,7 +860,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
         className={cn(
           'text-xs font-medium px-2 py-1 rounded-md',
           active
-            ? 'bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
+            ? 'bg-teal-600 text-white dark:bg-teal-400 dark:text-gray-900'
             : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700',
         )}
       >
