@@ -31,7 +31,7 @@ export function PriceCard() {
           onClick={() => setInterval('monthly')}
           aria-pressed={monthly}
           className={`rounded-full px-4 py-1.5 text-[0.85rem] font-semibold transition ${
-            monthly ? 'bg-teal-500 text-white shadow' : 'text-gray-600 hover:text-gray-900'
+            monthly ? 'bg-teal-600 text-white shadow' : 'text-gray-600 hover:text-gray-900'
           }`}
         >
           Monthly
@@ -41,7 +41,7 @@ export function PriceCard() {
           onClick={() => setInterval('annual')}
           aria-pressed={!monthly}
           className={`rounded-full px-4 py-1.5 text-[0.85rem] font-semibold transition ${
-            !monthly ? 'bg-teal-500 text-white shadow' : 'text-gray-600 hover:text-gray-900'
+            !monthly ? 'bg-teal-600 text-white shadow' : 'text-gray-600 hover:text-gray-900'
           }`}
         >
           Annual <span className={!monthly ? 'text-teal-100' : 'text-teal-700'}>· 2 months free</span>
@@ -69,7 +69,7 @@ export function PriceCard() {
       </p>
       <Link
         href="/signup"
-        className="mt-6 inline-block rounded-full bg-teal-500 px-8 py-3 text-[0.95rem] font-bold text-white shadow-[0_8px_20px_rgba(76,125,240,0.35)] transition hover:bg-teal-600"
+        className="mt-6 inline-block rounded-full bg-teal-600 px-8 py-3 text-[0.95rem] font-bold text-white shadow-[0_8px_20px_rgba(76,125,240,0.35)] transition hover:bg-teal-700"
       >
         Start your 7-day free trial
       </Link>

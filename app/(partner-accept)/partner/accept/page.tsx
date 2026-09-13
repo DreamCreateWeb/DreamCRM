@@ -239,7 +239,7 @@ function AcceptInner() {
         </p>
         <button
           onClick={() => window.location.assign('/partner')}
-          className="btn bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 w-full"
+          className="btn bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 w-full"
         >
           Go to my partner portal
         </button>
@@ -281,7 +281,7 @@ function AcceptInner() {
         )}
         <button
           onClick={() => accept(details)}
-          className="btn w-full bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900"
+          className="btn w-full bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900"
         >
           Accept &amp; continue
         </button>
@@ -302,7 +302,7 @@ function AcceptInner() {
         <button
           onClick={handleSignOut}
           disabled={submitting}
-          className="btn w-full bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60"
+          className="btn w-full bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60"
         >
           {submitting ? 'Signing out…' : `Sign out & continue as ${details.email}`}
         </button>
@@ -339,7 +339,7 @@ function AcceptInner() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn w-full bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60"
+              className="btn w-full bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60"
             >
               {submitting ? 'Sending…' : 'Email me a sign-in link'}
             </button>
@@ -372,7 +372,7 @@ function AcceptInner() {
               <p className="text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 px-3 py-2 rounded-lg">{formError}</p>
             )}
             <button type="submit" disabled={submitting}
-              className="btn w-full bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60">
+              className="btn w-full bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900 disabled:opacity-60">
               {submitting ? (mode === 'signin' ? 'Signing in…' : 'Creating account…') : mode === 'signin' ? 'Sign in & accept' : 'Create account & accept'}
             </button>
             {/* Magic-link escape hatch — always offered so a forgotten password

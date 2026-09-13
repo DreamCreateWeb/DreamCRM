@@ -266,7 +266,7 @@ export default function BookFromPatientDrawer({
                         key={s.startIso}
                         type="button"
                         onClick={() => setSelectedTime(s.startIso)}
-                        className={`h-9 rounded-[var(--r-sm)] text-xs font-semibold font-mono-num border transition-colors ${active ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400' : 'bg-[color:var(--color-surface-2)] text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-teal-400'}`}
+                        className={`h-9 rounded-[var(--r-sm)] text-xs font-semibold font-mono-num border transition-colors ${active ? 'bg-teal-600 text-white border-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400' : 'bg-[color:var(--color-surface-2)] text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-teal-400'}`}
                         aria-pressed={active}
                       >
                         {s.label}
@@ -276,7 +276,7 @@ export default function BookFromPatientDrawer({
                   <button
                     type="button"
                     onClick={() => setSelectedTime(MANUAL_TIME)}
-                    className={`h-9 rounded-[var(--r-sm)] text-xs font-semibold border transition-colors ${selectedTime === MANUAL_TIME ? 'bg-teal-500 text-white border-teal-500 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400' : 'bg-[color:var(--color-surface-2)] text-gray-600 dark:text-gray-300 border-dashed border-gray-300 dark:border-gray-600 hover:border-teal-400'}`}
+                    className={`h-9 rounded-[var(--r-sm)] text-xs font-semibold border transition-colors ${selectedTime === MANUAL_TIME ? 'bg-teal-600 text-white border-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:border-teal-400' : 'bg-[color:var(--color-surface-2)] text-gray-600 dark:text-gray-300 border-dashed border-gray-300 dark:border-gray-600 hover:border-teal-400'}`}
                     aria-pressed={selectedTime === MANUAL_TIME}
                   >
                     Custom time

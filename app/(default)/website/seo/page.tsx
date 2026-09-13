@@ -261,7 +261,7 @@ export default async function SeoPage({ searchParams }: Props) {
               </p>
               <a
                 href="/api/oauth/gsc/start"
-                className="inline-flex items-center px-4 py-2 rounded-[var(--r-sm)] text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+                className="inline-flex items-center px-4 py-2 rounded-[var(--r-sm)] text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
               >
                 Connect Search Console
               </a>
@@ -300,7 +300,7 @@ export default async function SeoPage({ searchParams }: Props) {
                       </option>
                     ))}
                   </select>
-                  <button className="text-sm font-semibold px-3 py-1.5 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300">
+                  <button className="text-sm font-semibold px-3 py-1.5 rounded-[var(--r-sm)] bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300">
                     Track this site
                   </button>
                 </form>
@@ -386,7 +386,7 @@ export default async function SeoPage({ searchParams }: Props) {
             </p>
             <Link
               href="/integrations"
-              className="inline-flex items-center px-4 py-2 rounded-[var(--r-sm)] text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+              className="inline-flex items-center px-4 py-2 rounded-[var(--r-sm)] text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
             >
               Connect Google Business
             </Link>

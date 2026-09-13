@@ -76,7 +76,7 @@ export default function PublishCard({
             type="button"
             onClick={onPublish}
             disabled={busy !== null}
-            className="text-xs font-semibold px-4 py-2 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors disabled:opacity-60"
+            className="text-xs font-semibold px-4 py-2 rounded-[var(--r-sm)] bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors disabled:opacity-60"
           >
             {busy === 'publish' ? 'Publishing…' : 'Publish to your live site'}
           </button>

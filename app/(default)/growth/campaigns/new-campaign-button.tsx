@@ -213,7 +213,7 @@ function StartOption({
       <span
         aria-hidden="true"
         className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ${
-          checked ? 'bg-teal-500 ring-teal-500 text-white' : 'ring-[color:var(--color-hairline-strong)]'
+          checked ? 'bg-teal-600 ring-teal-500 text-white' : 'ring-[color:var(--color-hairline-strong)]'
         }`}
       >
         {checked && (

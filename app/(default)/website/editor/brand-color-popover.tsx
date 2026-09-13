@@ -130,7 +130,7 @@ export default function BrandColorPopover({
               type="button"
               onClick={save}
               disabled={!normalized || busy}
-              className="text-xs font-semibold rounded-md px-3 py-1.5 bg-teal-500 text-white hover:bg-teal-400 disabled:opacity-50 transition-colors"
+              className="text-xs font-semibold rounded-md px-3 py-1.5 bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
             >
               {busy ? 'Saving…' : 'Save · repaint site'}
             </button>

@@ -72,7 +72,7 @@ function Toggle({ active, onClick, children }: { active: boolean; onClick: () =>
       aria-pressed={active}
       className={`rounded-full px-3 py-1 text-[12px] font-medium transition ${
         active
-          ? 'bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
+          ? 'bg-teal-600 text-white dark:bg-teal-400 dark:text-gray-900'
           : 'text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100'
       }`}
     >

@@ -171,11 +171,13 @@ batch number.
   dark surface when the dark override already exists at
   `app/css/style.css:375` — that row needs a diagnosis, not a token change,
   and editing `--color-ink-500` would be fixing the wrong thing. Tracked as
-  DREAMCRM-28; batches 54-57 took it 214 → **28**, all `color-contrast` and all
+  DREAMCRM-28; batches 54-58 took it 214 → **18**, all `color-contrast` and all
   genuine (QA exempted the 41 WCAG-incidental decorative mocks at the scan and
   retired 2 fade artifacts, so they are no longer counted at all).
-  `nested-interactive` and `list` are CLOSED entirely; the baseline is now a
-  single rule. The file carries a running burn-down log. One correction to the framing above,
+  `nested-interactive` and `list` are CLOSED entirely, and so is every large
+  identified pair — what remains is singles and pairs on eleven stops, each
+  needing its own look rather than a sweep. The file carries a running
+  burn-down log. One correction to the framing above,
   found in batch 55: `#5e6e8c` on `#10182e` is NOT the dark-mode side. It is
   the marketing footer — a dark band inside a light-mode page, where no
   `.dark` scope applies — so the dark override was never involved, which is
@@ -334,6 +336,45 @@ batch number.
   is a design call (probably `--c-brand-soft`, the palette's light brand wash)
   rather than a mechanical one, so batch 57 left the expression alone and
   wrote it down here instead.
+- ~~White text on the brand ramp's 500 step~~ [BATCH 58 — the largest
+  identified pair left in the axe baseline, and the design system's own
+  token comment was the reason it spread. `--color-teal-500` was labelled
+  "primary fill (light)" in BOTH `app/css/style.css` and DESIGN-SYSTEM.md,
+  so 44 places did exactly what the label said and put white copy on it.
+  White on teal-500 is 3.82:1 and on teal-400 is 2.42:1. Only a handful of
+  the 44 sat on stops the browser suite walks — the rest were invisible to
+  axe, the same shape as batch 57. The ramp is an IDENTITY ramp: teal-500
+  stays the brand (chart-1, focus rings, selection washes, dots, progress
+  bars — none of which carry text) and any solid fill with a white label
+  moves to 600 (5.09:1), hover one step behind it. Both token comments now
+  say so, since the old one was actively teaching the defect. Three of the
+  44 were ALSO broken in dark mode and nobody had noticed: the portal
+  settings chips set `dark:text-gray-900` with no `dark:bg-*`, so the dark
+  theme put near-black ink on teal-500 at 4.01:1; they carry
+  `dark:bg-teal-400` now (6.34:1). ONE was deliberately left: the recall
+  funnel inside `components/marketing/ui.tsx` is an `aria-hidden`
+  decorative illustration whose teal-200/300/400/600 bars are a designed
+  progression — the same WCAG 1.4.3 exemption QA applied to the mocks.
+  `tests/a11y/token-contrast.test.ts` gained the source rule (light-mode
+  `bg-teal-400/500` + `text-white`), the negative assertion that those two
+  steps really are below the floor, and a stale-exemption check;
+  red-verified on three breaks].
+- **OWNER DECISION NEEDED — `ActionButton`'s primary gradient fails AA
+  across almost its whole span, and no automated gate can see it.** The
+  design system's signature "dream-blue gradient bubble" is
+  `from-teal-400 to-teal-600` with white text. Measured across the fill:
+  2.42 at the light end, 3.46 at the midpoint, 4.19 at 75%, and only the
+  final pixel-column clears at 5.09. axe reports gradients as *incomplete*
+  rather than failing, which is exactly why this never appeared in the 214
+  and is not in the remaining count either. Batch 58 deliberately did NOT
+  change it: this is the most prominent element in the product, DESIGN-
+  SYSTEM.md names it as a signature, and "no redesigns without explicit
+  direction from the owner" outranks a fix nobody asked for. The options,
+  measured: `from-teal-500 to-teal-700` still fails (worst 3.82) —
+  a half-measure; **`from-teal-600 to-teal-800` clears everywhere (worst
+  5.09)** and its light end is the same teal-600 every solid fill now
+  uses, so it is the coherent choice. It is a visibly deeper button. One
+  line in `components/ui/action-button.tsx` once the owner says yes.
 
 ---
 
