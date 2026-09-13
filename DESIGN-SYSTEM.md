@@ -122,8 +122,8 @@ without an edit.**
 /* Dream-blue brand ramp (hue ~222 — warm, friendly blue) */
 --color-teal-50:#EEF4FF; --color-teal-100:#DCE8FF; --color-teal-200:#C1D6FF;
 --color-teal-300:#9DBDFF; --color-teal-400:#7CA5FF; /* dream sky — dark fill */
---color-teal-500:#4C7DF0; /* primary fill (light) */
---color-teal-600:#3A67D9; /* hover/pressed */
+--color-teal-500:#4C7DF0; /* brand + accent — NOT a white-text fill (3.82:1) */
+--color-teal-600:#3A67D9; /* the shallowest white-text fill — 5.09:1 */
 --color-teal-700:#2F52B3; /* deep dream — focus rings, gradient anchor */
 --color-teal-800:#27418A; --color-teal-900:#1F3266;
 

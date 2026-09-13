@@ -177,7 +177,7 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
           // Plain anchor — full-page OAuth redirect, not an in-app navigation.
           <a
             href="/api/oauth/gmail/start"
-            className="btn-sm bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 inline-flex items-center gap-2"
+            className="btn-sm bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 inline-flex items-center gap-2"
           >
             Connect Gmail →
           </a>

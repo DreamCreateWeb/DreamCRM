@@ -100,7 +100,7 @@ export default function StudioWelcome() {
           type="button"
           onClick={dismiss}
           autoFocus
-          className="w-full rounded-lg bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold py-2.5 transition-colors"
+          className="w-full rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold py-2.5 transition-colors"
         >
           Start editing
         </button>

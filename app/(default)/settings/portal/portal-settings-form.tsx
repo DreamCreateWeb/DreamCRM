@@ -87,7 +87,7 @@ function NoticePicker({
               }}
               className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${
                 active
-                  ? 'bg-teal-500 border-teal-500 text-white dark:text-gray-900'
+                  ? 'bg-teal-600 border-teal-600 text-white dark:bg-teal-400 dark:border-teal-400 dark:text-gray-900'
                   : 'bg-white dark:bg-gray-700/40 border-gray-200 dark:border-gray-600 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100'
               }`}
             >
@@ -101,7 +101,7 @@ function NoticePicker({
           onClick={() => setCustomOpen(true)}
           className={`rounded-full px-3 py-1.5 text-xs font-semibold border transition-colors ${
             customOpen
-              ? 'bg-teal-500 border-teal-500 text-white dark:text-gray-900'
+              ? 'bg-teal-600 border-teal-600 text-white dark:bg-teal-400 dark:border-teal-400 dark:text-gray-900'
               : 'bg-white dark:bg-gray-700/40 border-gray-200 dark:border-gray-600 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100'
           }`}
         >
@@ -270,7 +270,7 @@ export default function PortalSettingsForm({
                 onClick={() => toggleType(t.value)}
                 className={`rounded-full px-3.5 py-1.5 text-xs font-semibold border transition-colors ${
                   active
-                    ? 'bg-teal-500 border-teal-500 text-white dark:text-gray-900'
+                    ? 'bg-teal-600 border-teal-600 text-white dark:bg-teal-400 dark:border-teal-400 dark:text-gray-900'
                     : 'bg-white dark:bg-gray-700/40 border-gray-200 dark:border-gray-600 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100'
                 }`}
               >

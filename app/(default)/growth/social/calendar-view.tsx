@@ -123,7 +123,7 @@ export default function CalendarView({ posts }: { posts: SocialPostView[] }) {
               <div
                 className={`text-xs font-mono-num mb-1 ${
                   isToday
-                    ? 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
+                    ? 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white dark:bg-teal-400 dark:text-gray-900'
                     : inMonth
                       ? 'text-gray-500 dark:text-gray-400'
                       : 'text-gray-300 dark:text-gray-600'

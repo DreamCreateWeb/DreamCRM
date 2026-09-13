@@ -94,7 +94,7 @@ export default function QuickCreateMenu({ moduleIds }: { moduleIds: string[] }) 
         <div className="inline-flex items-stretch overflow-hidden rounded-md">
           <Link
             href={contextual.href}
-            className="inline-flex h-8 items-center gap-1 bg-teal-500 px-2.5 text-sm font-medium text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+            className="inline-flex h-8 items-center gap-1 bg-teal-600 px-2.5 text-sm font-medium text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
             title={`${contextual.label} (C for menu)`}
           >
             <Plus />
@@ -106,7 +106,7 @@ export default function QuickCreateMenu({ moduleIds }: { moduleIds: string[] }) 
             aria-haspopup="menu"
             aria-expanded={open}
             aria-label="More create options"
-            className="inline-flex h-8 w-7 items-center justify-center border-l border-white/25 bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+            className="inline-flex h-8 w-7 items-center justify-center border-l border-white/25 bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
           >
             <Caret />
           </button>
@@ -117,7 +117,7 @@ export default function QuickCreateMenu({ moduleIds }: { moduleIds: string[] }) 
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="inline-flex h-8 items-center gap-1 rounded-md bg-teal-500 px-2.5 text-sm font-medium text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
+          className="inline-flex h-8 items-center gap-1 rounded-md bg-teal-600 px-2.5 text-sm font-medium text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300"
           title="Create something new (C)"
         >
           <Plus />

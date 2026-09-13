@@ -167,7 +167,7 @@ function Chip({
       aria-pressed={active}
       className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
         active
-          ? 'bg-teal-500 text-white dark:bg-teal-400 dark:text-gray-900'
+          ? 'bg-teal-600 text-white dark:bg-teal-400 dark:text-gray-900'
           : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700/60 dark:text-gray-300 dark:hover:bg-gray-700'
       }`}
     >
@@ -258,7 +258,7 @@ function TemplateCard({
             <>
               <Link
                 href={`/website/editor?previewTemplate=${encodeURIComponent(entry.id)}`}
-                className="text-xs font-semibold px-3 py-2 rounded-[var(--r-sm)] bg-teal-500 text-white hover:bg-teal-600 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors"
+                className="text-xs font-semibold px-3 py-2 rounded-[var(--r-sm)] bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-400 dark:text-gray-900 dark:hover:bg-teal-300 transition-colors"
               >
                 Preview in the editor
               </Link>

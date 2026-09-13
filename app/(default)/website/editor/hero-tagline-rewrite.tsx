@@ -103,7 +103,7 @@ export default function HeroTaglineRewrite({
                   type="button"
                   onClick={useDraft}
                   disabled={saving}
-                  className="inline-flex items-center rounded-full bg-teal-500 px-3 py-1 text-xs font-semibold text-white hover:bg-teal-600 disabled:opacity-60"
+                  className="inline-flex items-center rounded-full bg-teal-600 px-3 py-1 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
                 >
                   {saving ? 'Saving…' : 'Use this'}
                 </button>

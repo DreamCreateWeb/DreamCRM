@@ -264,7 +264,7 @@ function ChannelCard({
 // connect action as a real <a> — not ActionButton — because its onClick (which
 // arms the focus-refresh so the connection auto-detects on return) and
 // aria-label must actually apply, and ActionButton's Link branch drops both.
-const BTN_PRIMARY = 'btn-sm bg-teal-500 hover:bg-teal-600 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900'
+const BTN_PRIMARY = 'btn-sm bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-400 dark:hover:bg-teal-300 dark:text-gray-900'
 const BTN_SECONDARY =
   'btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300'
 
