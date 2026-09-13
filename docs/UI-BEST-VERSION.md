@@ -171,11 +171,13 @@ batch number.
   dark surface when the dark override already exists at
   `app/css/style.css:375` — that row needs a diagnosis, not a token change,
   and editing `--color-ink-500` would be fixing the wrong thing. Tracked as
-  DREAMCRM-28; batches 54-57 took it 214 → **28**, all `color-contrast` and all
+  DREAMCRM-28; batches 54-58 took it 214 → **18**, all `color-contrast` and all
   genuine (QA exempted the 41 WCAG-incidental decorative mocks at the scan and
   retired 2 fade artifacts, so they are no longer counted at all).
-  `nested-interactive` and `list` are CLOSED entirely; the baseline is now a
-  single rule. The file carries a running burn-down log. One correction to the framing above,
+  `nested-interactive` and `list` are CLOSED entirely, and so is every large
+  identified pair — what remains is singles and pairs on eleven stops, each
+  needing its own look rather than a sweep. The file carries a running
+  burn-down log. One correction to the framing above,
   found in batch 55: `#5e6e8c` on `#10182e` is NOT the dark-mode side. It is
   the marketing footer — a dark band inside a light-mode page, where no
   `.dark` scope applies — so the dark override was never involved, which is
