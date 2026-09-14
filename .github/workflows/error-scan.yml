@@ -1,0 +1,114 @@
+name: Production error scan
+
+# DREAMCRM-12, rehomed (DREAMCRM-42).
+#
+# The original ask was to put an AWS credential on the machine the agents run
+# on. That is the precise thing the owner restricted on DREAMCRM-41 — key usage
+# limited to two agents, no shared machine-wide credentials — which left the ops
+# sweep (running as an agent outside that restriction) with nowhere to put the
+# scan.
+#
+# So it lives here instead, and belongs to no agent's credentials at all: the
+# keyless GitHub OIDC trust deploy.yml already uses. Nothing is stored, nothing
+# expires onto a disk, and any agent can dispatch it or read the result.
+#
+# Read-only by construction: the role carries CloudWatchReadOnlyAccess +
+# CloudWatchLogsReadOnlyAccess and nothing else. It is deliberately NOT
+# DreamCRMGitHubActionsDeploy, which holds S3/CodeBuild/EventBridge write — a
+# read-only job should not run under a write-capable role.
+#
+# Gates nothing; it is not a required check.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'How far back to scan (minutes)'
+        required: false
+        default: '35'
+        type: string
+
+concurrency:
+  group: error-scan
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials (OIDC, keyless)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::952078552817:role/DreamCRMGitHubActionsReadOnly
+          aws-region: us-east-1
+
+      - name: Scan App Runner logs for errors
+        env:
+          # Overlaps the 30-minute schedule slightly so nothing can fall between
+          # two runs. A repeated error is noise; a missed one is the whole point.
+          MINUTES: ${{ inputs.minutes || '35' }}
+        run: |
+          set -euo pipefail
+          SINCE=$(( ($(date +%s) - MINUTES * 60) * 1000 ))
+
+          # Discovered rather than hardcoded: the App Runner service id is not
+          # stable across a service recreate, and a scan pointed at a log group
+          # that no longer exists reports "no errors" forever.
+          GROUPS=$(aws logs describe-log-groups \
+            --log-group-name-prefix /aws/apprunner \
+            --query 'logGroups[].logGroupName' --output text)
+
+          if [ -z "${GROUPS}" ]; then
+            echo "::warning::No /aws/apprunner log groups found - nothing was scanned."
+            echo "No App Runner log groups found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          TOTAL=0
+          {
+            echo "### Production error scan"
+            echo ""
+            echo "Window: last ${MINUTES} minutes."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for G in ${GROUPS}; do
+            # Only the application log group carries app output; the service
+            # group is deploy chatter and would drown the signal.
+            case "$G" in *"/application") ;; *) continue ;; esac
+
+            HITS=$(aws logs filter-log-events \
+              --log-group-name "$G" \
+              --start-time "${SINCE}" \
+              --filter-pattern '?ERROR ?Error ?error: ?Unhandled ?UnhandledPromiseRejection ?FATAL' \
+              --max-items 50 \
+              --query 'events[].message' --output text 2>/dev/null || true)
+
+            COUNT=$(printf '%s' "$HITS" | grep -c . || true)
+            TOTAL=$(( TOTAL + COUNT ))
+            if [ "$COUNT" -gt 0 ]; then
+              {
+                echo "<details><summary>${G} — ${COUNT} line(s)</summary>"
+                echo ""
+                echo '```'
+                printf '%s\n' "$HITS" | head -50
+                echo '```'
+                echo ""
+                echo "</details>"
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          if [ "$TOTAL" -gt 0 ]; then
+            # A warning, not a failure. This job reports; it does not gate, and
+            # a red tick here would train people to ignore it.
+            echo "::warning::${TOTAL} error line(s) in the last ${MINUTES} minutes - see the job summary."
+          else
+            echo "No errors in the window." >> "$GITHUB_STEP_SUMMARY"
+          fi

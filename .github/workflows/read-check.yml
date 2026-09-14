@@ -1,0 +1,104 @@
+name: Production read check
+
+# The front door for DREAMCRM-42. An agent dispatches a NAMED check from the
+# catalog in lib/read-checks.ts; this workflow calls the in-VPC route that runs
+# it under the SELECT-only Postgres role and prints the answer here.
+#
+# The point of routing it through Actions rather than calling the route
+# directly: no agent machine ever holds a database credential or an AWS key.
+# The secret lives in GitHub, the run is recorded, and the answer lands in a log
+# any agent can read. docs/PROD-READ-ACCESS.md is the runbook.
+#
+# This workflow gates nothing and is not a required check. It only ever POSTs a
+# catalog id — it cannot send SQL, because there is no input that reaches any.
+
+on:
+  workflow_dispatch:
+    inputs:
+      check:
+        description: 'Which check to run'
+        required: true
+        type: choice
+        options:
+          - duplicate-stripe-accounts
+          - readonly-role-privileges
+      reason:
+        # Required, and self-declared — see the note below. Asking for it is
+        # still worth it: it is the only thing that makes a run legible later.
+        description: 'Why (issue key + who is asking, e.g. "DREAMCRM-32 / Rio")'
+        required: true
+        type: string
+  # Scheduled drift detection for the role's privileges (N2). Editing
+  # scripts/readonly-role.sql does not change production, so the committed
+  # script can be correct while the database is not. This is the only thing that
+  # notices. 07:00 UTC daily.
+  schedule:
+    - cron: '0 7 * * *'
+
+concurrency:
+  group: read-check
+  cancel-in-progress: false
+
+jobs:
+  read-check:
+    runs-on: ubuntu-latest
+    steps:
+      # ATTRIBUTION IS SELF-DECLARED, NOT AUTHENTICATED. The repo has exactly
+      # one collaborator and the whole agent fleet authenticates as it, so
+      # github.actor reads `DreamCreateWeb` for every dispatch regardless of who
+      # actually asked. The `reason` input is the only identifying information
+      # in the record, and anyone who can dispatch can type anything into it.
+      # Written down rather than left for the next reader to assume.
+      - name: Record the request
+        run: |
+          echo "### Production read check" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **check:** \`${CHECK}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **reason (self-declared):** ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **dispatched by (shared account):** ${{ github.actor }}" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CHECK: ${{ inputs.check || 'readonly-role-privileges' }}
+          REASON: ${{ inputs.reason || 'scheduled privilege-drift check' }}
+
+      - name: Run the check
+        env:
+          CHECK: ${{ inputs.check || 'readonly-role-privileges' }}
+          ADMIN_READ_SECRET: ${{ secrets.ADMIN_READ_SECRET }}
+          BASE_URL: https://www.dreamcreatestudio.com
+        run: |
+          set -euo pipefail
+          if [ -z "${ADMIN_READ_SECRET}" ]; then
+            echo "::error::ADMIN_READ_SECRET is not set. See docs/PROD-READ-ACCESS.md."
+            exit 1
+          fi
+          # --fail-with-body so a non-2xx still prints the body (the route's
+          # error strings are fixed and carry nothing sensitive) and still fails.
+          HTTP=$(curl -sS --fail-with-body \
+            -X POST "${BASE_URL}/api/admin/read-check" \
+            -H "Authorization: Bearer ${ADMIN_READ_SECRET}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"check\":\"${CHECK}\"}" \
+            -w '\n%{http_code}' | tee /tmp/resp.txt | tail -1) || true
+          BODY=$(sed '$d' /tmp/resp.txt)
+          echo "$BODY" | jq . || echo "$BODY"
+          {
+            echo ""
+            echo '```json'
+            echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::read-check returned HTTP ${HTTP}"
+            exit 1
+          fi
+          # The privilege check is an assertion, not a report: any row is a
+          # credential column the read-only role can still read. Fail loudly,
+          # especially on the scheduled run where nobody is watching.
+          if [ "${CHECK}" = "readonly-role-privileges" ]; then
+            ROWS=$(echo "$BODY" | jq -r '.rowCount')
+            if [ "$ROWS" != "0" ]; then
+              echo "::error::${ROWS} credential column(s) are readable by dreamcrm_readonly. Run the REVOKE in scripts/readonly-role.sql against production — editing the file does not change the database."
+              exit 1
+            fi
+            echo "Privilege check clean: no credential column is readable." >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -209,6 +209,21 @@ export const GATE_RULES = [
     ],
   },
   {
+    id: 'read-checks',
+    area: 'the production read-check catalog',
+    why:
+      'every entry runs against the production primary and its result lands in an Actions log ' +
+      'anything with repo read can open, so the no-PHI rule and the cross-tenant waiver are ' +
+      'per-entry review or they are nothing. Added with the catalog (DREAMCRM-42) because a ' +
+      'follow-up PR adding one entry touched NOTHING on this list and reported "merges on ' +
+      'green" — the first PR gated only because it also changed middleware and cron-auth.',
+    // Deliberately not folded into `token-surfaces`: that rule's `why` is about
+    // routes with no session behind them, and borrowing it would make its
+    // stated reason false for half its members. A rule whose `why` does not
+    // describe its patterns is how the next reader stops trusting this file.
+    patterns: ['lib/read-checks.ts', 'app/api/admin/read-check/**', 'scripts/readonly-role.sql'],
+  },
+  {
     id: 'tenant-scoping',
     area: 'tenant scoping',
     why:
