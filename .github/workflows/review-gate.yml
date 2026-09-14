@@ -1,0 +1,105 @@
+name: Review gate
+
+# THE REVIEW GATE LEARNS WHICH FILES ARE RISKY (DREAMCRM-33 item 2, Sentinel's
+# proposal from the DREAMCRM-31 meeting).
+#
+# The repo has had a pre-merge review gate since the Foundations cycle — money,
+# tenant scoping, auth and token surfaces, DB migrations, CI workflow files,
+# branch protection, the deploy pipeline. It lived entirely in a skill document
+# and in the habits of whoever happened to be reading it. Nothing in the
+# repository knew the list, so nothing could ever OBJECT: a forgotten review
+# request on a fee calculation or a migration merged green, every check passing,
+# no part of the system aware a rule had been skipped. PR #517 did exactly that
+# — a workflow-file edit riding along in a UI-polish PR.
+#
+# ============================ THIS DOES NOT GATE =============================
+#
+# Read this before deciding what the change is. This workflow labels a PR and
+# writes a job summary. It is NOT a required status check on `main` (those are
+# `test` and `e2e`, from ci.yml, and this adds neither name), it has no
+# `needs:` relationship to anything, and it cannot stop a merge. Three reasons
+# that is the right shape and not timidity:
+#
+#   * An advisory that is right 100% of the time is worth more than a blocker
+#     that is right 95%. The gate list is a policy enumeration; the day it is
+#     slightly wrong should cost a conversation, not a blocked production fix.
+#   * It cannot tell whether the review HAPPENED — only that one is owed. A
+#     check that blocks on a fact it cannot observe has to be overridden
+#     routinely, and a routinely-overridden check is decoration.
+#   * A blocking check here would sit in front of the riskiest PRs in the repo,
+#     which is precisely where an outage of this workflow must not land.
+#
+# Making it required later is a branch-protection change, which is itself
+# behind the review gate. Do not do it by editing this file.
+# =============================================================================
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: review-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Labelling the PR is the whole point of the write scope. Nothing here reads
+  # or writes code, secrets, or any other repository content.
+  pull-requests: write
+
+jobs:
+  # NOT named `test` or `e2e`: those are the required status-check contexts on
+  # main's branch protection, and a second producer of either name can report a
+  # green check onto a commit the real gate never ran against. The name says
+  # what it is so nobody has to open the file to find out whether it blocks.
+  review-gate:
+    name: review-gate (advisory, does not block the merge)
+    runs-on: ubuntu-latest
+    # This job installs nothing and runs one small node script; it has no
+    # business taking minutes, let alone inheriting GitHub's 6-hour default.
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # `gh pr diff` rather than a `git diff` against a fetched base: the
+      # script needs the same file list a reviewer would see, and asking GitHub
+      # for it avoids depending on how deep the checkout happens to be. `gh` is
+      # preinstalled on the runner image; no `pnpm install` is needed anywhere
+      # in this job, which is why it finishes in seconds.
+      - name: Which files does this PR touch?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr diff ${{ github.event.pull_request.number }} --name-only > changed-files.txt
+
+      - name: Classify them against the gate list
+        id: gate
+        run: node scripts/review-gate.mjs changed-files.txt
+
+      # Advisory means advisory: a label that fails to apply (a permissions
+      # change, a GitHub hiccup) must not paint this run red and teach people
+      # the check is broken. The summary above is the real output; the label is
+      # a convenience for scanning the PR list.
+      - name: Label the PR
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          NEEDS_REVIEW: ${{ steps.gate.outputs.needs-review }}
+        run: |
+          gh label create needs-sentinel-review \
+            --color B60205 \
+            --description "Touches money, tenant scoping, auth, migrations, CI workflows or the deploy path" \
+            || true
+          if [ "$NEEDS_REVIEW" = "true" ]; then
+            gh pr edit "$PR" --add-label needs-sentinel-review
+          else
+            # Removing it matters as much as adding it: a PR that drops its
+            # risky file in a later push should stop claiming it owes a review.
+            gh pr edit "$PR" --remove-label needs-sentinel-review || true
+          fi

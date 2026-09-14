@@ -1,6 +1,7 @@
 # CI — what gates what
 
-Four workflows. Only two of them can stop anything; the other two are alarms.
+Five workflows. Only two of them can stop anything; the other three are alarms
+and advisories.
 
 This file covers what runs *before* a merge and on the way to production. What
 gets checked *after* the deploy lands — the URLs the production watch sweep
@@ -12,6 +13,7 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/deploy.yml` | `push` to `main` | `test` → `deploy` | production | yes — `deploy` `needs:` `test` |
 | `.github/workflows/post-merge-e2e.yml` | `push` to `main` | `e2e-post-merge` | the tree that just shipped | no — alert only |
 | `.github/workflows/nightly.yml` | `schedule` 07:00 UTC nominal (lands ~5h later) + dispatch | `nightly-test`, `nightly-e2e`, `tz-canary` | finding clock/race failures before someone trips over them | no — signal only |
+| `.github/workflows/review-gate.yml` | `pull_request` | `review-gate` | the pre-merge review gate | no — advisory only |
 
 **Job names are load-bearing.** `test` and `e2e` are the required status-check
 contexts on `main`. Nothing outside `ci.yml` and `deploy.yml` may use those two
@@ -160,6 +162,55 @@ log nobody opens, and every run keeps looking clean forever.
 Deliberately not done: `retries: 0`. It trades a quiet flake for a loud false
 red on every PR, and a required check that goes red for reasons nobody caused
 is a check people route around.
+
+## The advisory: the review gate knows which files are risky (added 2026-09-13, DREAMCRM-33)
+
+`review-gate.yml` reads which files a PR touches and says, on the run's job
+summary and as a `needs-sentinel-review` label, whether the PR owes Sentinel a
+review before it merges.
+
+The gate list itself is policy and lives in the `dreamcrm-conventions` skill —
+money, tenant scoping, auth and token surfaces, DB migrations,
+`.github/workflows/**`, branch-protection settings, the deploy pipeline. Until
+now **nothing in the repository knew it**, so nothing could ever object: a
+forgotten review request on a fee calculation merged green with every check
+passing. #517 is the worked example — a workflow-file edit riding along in a
+UI-polish PR.
+
+**It does not gate anything, and that is deliberate.** It adds no required
+status-check context (the required ones stay exactly `test` and `e2e`), has no
+`needs:` relationship, and cannot stop a merge:
+
+- An advisory that is right 100% of the time beats a blocker that is right 95%.
+  The gate list is an enumeration; the day it is slightly wrong should cost a
+  conversation, not a blocked production fix.
+- It cannot tell whether the review *happened*, only that one is *owed*. A check
+  that blocks on a fact it cannot observe gets overridden routinely, and a
+  routinely-overridden check is decoration.
+- Making it required later is a branch-protection change, which is itself behind
+  the review gate. Do not do it by editing the workflow file.
+
+Mechanics: `gh pr diff --name-only` (so the file list is the one a reviewer
+sees, independent of checkout depth) into `scripts/review-gate.mjs`, which holds
+the patterns and the reason for each area. No `pnpm install` anywhere in the job
+— it finishes in seconds. The label step is `continue-on-error` because an
+advisory whose labelling hiccup paints the run red teaches people the check is
+broken.
+
+`tests/guards/review-gate.test.ts` pins the gate list in **both** directions,
+and the second one is the one that decays:
+
+- **Every pattern must still match a real tracked file.** A rename that orphans
+  a pattern takes a whole area out of the gate with nothing going red — the
+  classifier keeps answering confidently about a tree that moved.
+- **Every file on a curated `MUST_BE_GATED` list must trip its rule.** This is
+  the direction nobody thinks to test, and the first version of the list shipped
+  without it — reporting `lib/services/refunds.ts`, `orders.ts`, `revenue.ts`
+  and every nested token route (`app/api/calendar/[token]`, which hands out a
+  clinic's whole agenda on a token alone) as clean. **A false clean is worse
+  than silence**: before this check an author had to remember the gate; after
+  it, something authoritative tells them they do not have to. Add to that list
+  whenever a new money, auth or token surface arrives.
 
 ## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19)
 
