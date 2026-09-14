@@ -34,14 +34,11 @@ const ALLOWLIST = new Set([
   // Per-tier social-CONNECTION caps and the add-on SKU's own prices. A
   // separate thing a clinic pays extra for, not the plan's recurring revenue.
   'lib/types/social-entitlements.ts',
-  // The prospecting deal room's "what one DreamCRM plan would cost you"
-  // comparison. Not MRR — it is a sales pitch about a practice that is not a
-  // customer yet — but it IS a fourth copy of a tier→price map and it has
-  // already drifted: it quotes premium at $500 while PLANS says $200 (500 is
-  // the struck-through list price). Filed on the R1·S2 ledger for the
-  // prospecting lane rather than repriced here; changing what a prospect is
-  // quoted is a product decision, not a cleanup.
-  'lib/prospect-vendors.ts',
+  // NOTE: `lib/prospect-vendors.ts` used to sit here — the deal room's fourth
+  // copy of a tier→price map, drifted to quoting premium at $500 while PLANS
+  // said $200. DREAMCRM-38 deleted the copy rather than repricing it (the deal
+  // room reads `PURCHASABLE_PLANS` now), so the exemption is gone and this
+  // guard covers that file like any other. Do not add it back.
 ])
 
 function walk(dir: string, out: string[] = []): string[] {

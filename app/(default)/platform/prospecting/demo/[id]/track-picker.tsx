@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { DEMO_TRACK_LIST, type DemoTrackId } from '@/lib/types/demo-script'
+import { getPlanById, type PlanId } from '@/lib/stripe-config'
 import { ActionButton } from '@/components/ui/action-button'
 import { startBrandedDemoAction } from '../../admin-actions'
 
@@ -12,10 +13,15 @@ import { startBrandedDemoAction } from '../../admin-actions'
  * presenter can still switch tracks live from the panel mid-call.
  */
 
-const PLAN_LABELS: Record<string, string> = {
-  basic: 'Basic · $150/mo',
-  pro: 'Pro · $250/mo',
-  premium: 'Premium · $500/mo',
+/**
+ * "closes on <plan>" — read from `lib/stripe-config.ts`, never copied
+ * (DREAMCRM-38). The hardcoded labels here said Premium was $500/mo, the
+ * struck-through LIST price, so the presenter's own panel disagreed with the
+ * $200 founding rate on the pricing page and in checkout.
+ */
+function planLabel(planId: PlanId): string {
+  const plan = getPlanById(planId)
+  return plan ? `${plan.name} · $${plan.price.toLocaleString('en-US')}/mo` : planId
 }
 
 export default function TrackPicker({
@@ -57,7 +63,7 @@ export default function TrackPicker({
               </div>
               <p className="mt-1 text-xs leading-snug text-gray-600 dark:text-gray-400">{t.story}</p>
               <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500">
-                {t.beats.length} beats · ~{t.targetMinutes} min · closes on {PLAN_LABELS[t.recommendedPlan]}
+                {t.beats.length} beats · ~{t.targetMinutes} min · closes on {planLabel(t.recommendedPlan)}
               </p>
             </button>
           )

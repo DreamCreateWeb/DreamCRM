@@ -43,7 +43,9 @@ const ALLOWLIST = [
   'app/(marketing)', // public pricing page
   'lib/services/platform-metrics.ts', // platform reporting: clinics by tier
   'lib/services/platform-mrr.ts', // platform reporting: buckets clinics by tier
-  'lib/prospect-vendors.ts', // outbound sales copy naming OUR plan
+  // 'lib/prospect-vendors.ts' was here ("outbound sales copy naming OUR plan").
+  // DREAMCRM-38 took the tier names out of it — the deal room quotes the one
+  // purchasable plan, read from stripe-config — so it needs no exemption now.
   'lib/services/billing.ts', // maps a Stripe price back to its plan
   'lib/services/clinics.ts', // platform clinic-list row display
   'lib/services/referrals.ts', // partner commission reporting
