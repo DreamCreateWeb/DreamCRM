@@ -87,10 +87,33 @@ jobs:
       - name: Run the E2E harness
         run: bash scripts/e2e-harness.sh
 
+      # A RETRY THAT LEAVES NO TRACE IS HOW A FLAKE SURVIVES FOR WEEKS
+      # (DREAMCRM-33). `playwright.config.ts` sets `retries: 1` under CI, and
+      # that is the right call — harness noise should not paint a required
+      # check red. But until now the retry also erased the evidence: a spec
+      # that failed once and passed on the second attempt reported this job
+      # GREEN, and the upload below only fired `if: failure()`, so the trace
+      # and screenshot from the failed attempt died with the runner. The
+      # portal-reschedule flake (DREAMCRM-21) did exactly that three times.
+      #
+      # `if: always()` so it also reports when the suite genuinely failed —
+      # a run can be both red AND flaky, and the flaky half is still worth
+      # naming. The script never exits non-zero (see its header): a reporting
+      # step that can turn a run red is one somebody eventually deletes.
+      - name: Name any test that only passed on a retry
+        id: flaky
+        if: always()
+        run: node scripts/e2e-flaky-summary.mjs
+
+      # `failure() || flaky` — the whole point of the change. A green-but-flaky
+      # run now keeps its report for the 7-day window, which is the only place
+      # the first attempt's trace and screenshot exist.
       - name: Upload Playwright report
-        if: failure()
+        if: failure() || steps.flaky.outputs.flaky == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            e2e-results.json
           retention-days: 7
