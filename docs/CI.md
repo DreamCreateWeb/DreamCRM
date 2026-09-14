@@ -211,6 +211,15 @@ and the second one is the one that decays:
   than silence**: before this check an author had to remember the gate; after
   it, something authoritative tells them they do not have to. Add to that list
   whenever a new money, auth or token surface arrives.
+- **Every file that imports `@/lib/stripe` must trip `money` — derived from the
+  tree, not remembered.** A curated list is a list somebody thought of; this one
+  asks the repository. Reviewing the gate list by eye found one ungated
+  Stripe-touching module; asking the tree found **four**, none of which carries
+  a money word in its filename (`domain-purchase`, `clinic-provisioning`,
+  `clinics`, `operations`). A new money module now fails on the day it arrives
+  rather than the day somebody remembers it. It is a *necessary* condition, not
+  a definition — fee math and cart totals never import the client, and the
+  curated list stays responsible for those.
 
 ## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19)
 

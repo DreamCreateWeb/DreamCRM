@@ -111,12 +111,29 @@ export const GATE_RULES = [
       'lib/services/*mrr*.ts',
       'lib/services/*coupon*.ts',
       'lib/services/*membership*.ts',
+      'lib/services/*purchase*.ts',
       'lib/services/shop*.ts',
       'lib/services/loyalty.ts',
       'lib/services/collections.ts',
       'lib/services/booking-deposits.ts',
       'lib/services/checkout-error.ts',
       'lib/services/referrals.ts',
+      // No money word in the filename, and every one of them reaches Stripe.
+      // Found by the sweep Sentinel asked for at the end of the batch — the
+      // authoritative question turned out not to be "does the name look like
+      // money" but "does it import `@/lib/stripe`", which is now enforced
+      // directly in tests/guards/review-gate.test.ts.
+      'lib/services/clinic-provisioning.ts', // creates Stripe coupons + customers
+      'lib/services/clinics.ts', // lists Stripe invoices for the platform's numbers
+      'lib/services/operations.ts', // same, for the ops dashboards
+      // Decided deliberately rather than by pattern (Sentinel's judgement
+      // call): `lib/trial.ts` moves no money, it decides ENTITLEMENT from
+      // subscription state. Gated anyway, because it is the twin of
+      // `lib/billing-status.ts` and `lib/services/billing-state.ts`, which are
+      // both already on this list, and because a bug here either gives the
+      // product away or locks out somebody who paid for it. Consistency beats
+      // a fine distinction nobody will re-derive under pressure.
+      'lib/trial.ts',
       'app/api/webhooks/stripe/**',
       'app/api/webhooks/stripe-connect/**',
     ],

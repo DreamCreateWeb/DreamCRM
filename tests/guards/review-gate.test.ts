@@ -126,6 +126,17 @@ describe('the review-gate classifier', () => {
       'lib/services/shop-checkout.ts': 'money',
       'lib/services/loyalty.ts': 'money',
       'lib/services/coupons.ts': 'money',
+      // The end-of-batch sweep: four Stripe-touching modules with no money
+      // word in the filename. `domain-purchase.ts` creates payment intents and
+      // refunds against the clinic's platform-billing customer;
+      // `clinic-provisioning.ts` creates Stripe coupons and customers; the
+      // other two read Stripe invoices for the platform's own revenue numbers,
+      // which is the same class as `revenue.ts` and `platform-mrr.ts`.
+      'lib/services/domain-purchase.ts': 'money',
+      'lib/services/clinic-provisioning.ts': 'money',
+      'lib/services/clinics.ts': 'money',
+      'lib/services/operations.ts': 'money',
+      'lib/trial.ts': 'money',
       'lib/mrr.ts': 'money',
       'lib/stripe.ts': 'money',
       'app/api/webhooks/stripe/route.ts': 'money',
@@ -176,6 +187,38 @@ describe('the review-gate classifier', () => {
         'not flag them — so a PR touching them would be told, with a green tick, that it merges ' +
         'on green. A false clean is worse than silence: before this check an author had to ' +
         'remember the gate; after it, something authoritative tells them they do not have to.',
+    ).toEqual([])
+  })
+
+  it('gates every file that reaches the Stripe client — derived, not remembered', () => {
+    // THE CURATED LIST ABOVE IS A LIST OF FILES SOMEBODY THOUGHT OF. This one
+    // is not: importing `@/lib/stripe` is unambiguous evidence that a module
+    // touches money, so the tree can answer the question itself, and a NEW
+    // money module fails here on the day it arrives rather than on the day
+    // somebody remembers to add it.
+    //
+    // It came out of the end-of-batch sweep Sentinel asked for. Reviewing #553
+    // found `domain-purchase.ts` ungated; asking the tree instead of reading
+    // filenames found FOUR — `domain-purchase`, `clinic-provisioning`,
+    // `clinics` and `operations`, none of which carries a money word. Adding
+    // four patterns would have closed four holes; this closes the class.
+    //
+    // Deliberately a NECESSARY condition, not a definition of the money area:
+    // plenty of money code (fee math, cart totals, the payment-plan schedule)
+    // never imports the client, and the curated list and the word patterns
+    // stay responsible for that. This only catches the direction where the
+    // evidence is mechanical.
+    const ungated = trackedFiles()
+      .filter((f) => /^(lib|app)\/.*\.tsx?$/.test(f))
+      .filter((f) => /from '@\/lib\/stripe'/.test(readFileSync(join(process.cwd(), f), 'utf8')))
+      .filter((f) => !areasFor(f).includes('money'))
+
+    expect(
+      ungated,
+      'These files import the Stripe client and the review gate does not flag them as money — so ' +
+        'a PR changing a charge, a refund or a payout in one of them would be reported clean. Add ' +
+        'each to the money patterns in scripts/review-gate.mjs (and to MUST_BE_GATED above), or ' +
+        'say in a comment why reaching Stripe is not money here.',
     ).toEqual([])
   })
 
