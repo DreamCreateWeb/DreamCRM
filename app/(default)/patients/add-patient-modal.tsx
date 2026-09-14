@@ -14,12 +14,17 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null)
   const [pending, startTransition] = useTransition()
+  // Save & open and Add anyway are both on screen once a duplicate surfaces,
+  // and Add anyway CLEARS the duplicate block — so without this the spinner
+  // landed on the button the person had not pressed.
+  const [active, setActive] = useState<'save' | 'anyway' | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   useFocusTrap(true, dialogRef, { onEscape: onClose })
 
-  function runSubmit(formData: FormData) {
+  function runSubmit(formData: FormData, key: 'save' | 'anyway') {
     setError(null)
+    setActive(key)
     startTransition(async () => {
       const r = await createPatientAction(formData)
       if ('duplicateOf' in r && r.duplicateOf) {
@@ -46,7 +51,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
     setFieldErrors(errs)
     if (Object.keys(errs).length > 0) return
     setDuplicate(null)
-    runSubmit(formData)
+    runSubmit(formData, 'save')
   }
 
   // "Add anyway" — re-submit the same form fields with forceNew set so the
@@ -56,7 +61,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
     const fd = new FormData(formRef.current)
     fd.set('forceNew', '1')
     setDuplicate(null)
-    runSubmit(fd)
+    runSubmit(fd, 'anyway')
   }
 
   return (
@@ -133,7 +138,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
                 >
                   Open their record
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={addAnyway} pending={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={addAnyway} pending={pending && active === 'anyway'} disabled={pending}>
                   Add anyway
                 </ActionButton>
               </div>
@@ -143,7 +148,7 @@ export default function AddPatientModal({ onClose }: { onClose: () => void }) {
             <ActionButton variant="secondary" size="sm" onClick={onClose} disabled={pending}>
               Cancel
             </ActionButton>
-            <ActionButton variant="primary" size="sm" type="submit" pending={pending}>
+            <ActionButton variant="primary" size="sm" type="submit" pending={pending && active === 'save'} disabled={pending}>
               Save & open
             </ActionButton>
           </div>

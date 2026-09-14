@@ -67,6 +67,13 @@ export default function LeadDrawer({
   // exit before the parent unmounts; ✕ / backdrop / Esc route through it.
   const { closing, requestClose } = useDrawerExit(onClose)
   const [pending, startTransition] = useTransition()
+  // WHICH of the buttons sharing `pending` is the one doing the work. Without
+  // it, Convert's dry-run spun the whole action ladder — and Mark contacted /
+  // Reopen / Confirm archive spun for work they had not started, since those
+  // three hand the transition to the parent (`onStatusChange`), which closes
+  // the drawer on the spot. They are `disabled` here, which is the honest
+  // state: unavailable while a convert runs, never claiming to be it.
+  const [active, setActive] = useState<'convert' | 'link' | 'separate' | null>(null)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -158,6 +165,7 @@ export default function LeadDrawer({
   function onConvert() {
     setError(null)
     setDedupeMatch(null)
+    setActive('convert')
     startTransition(async () => {
       const preview = await previewLeadConvertAction(row.id)
       if ('ok' in preview && preview.ok && preview.matchedPatientName) {
@@ -165,13 +173,14 @@ export default function LeadDrawer({
         return
       }
       if ('error' in preview && !preview.ok) { setError(preview.error); return }
-      await runConvert(false)
+      await runConvert(false, 'convert')
     })
   }
 
   // Step 2: commit the convert. forceNew=true skips the dedupe and creates
   // a separate patient (the "not the same person" escape hatch).
-  function runConvert(forceNew: boolean) {
+  function runConvert(forceNew: boolean, key: 'convert' | 'link' | 'separate' = forceNew ? 'separate' : 'link') {
+    setActive(key)
     startTransition(async () => {
       const r = await convertLeadAction(row.id, { forceNewPatient: forceNew })
       if ('ok' in r && r.ok === true) {
@@ -298,10 +307,10 @@ export default function LeadDrawer({
           <div className="flex flex-wrap gap-2 pt-3 border-t border-[color:var(--color-hairline)]">
             {row.status === 'new' && (
               <>
-                <ActionButton variant="primary" size="sm" onClick={onMarkContacted} pending={pending}>
+                <ActionButton variant="primary" size="sm" onClick={onMarkContacted} disabled={pending}>
                   Mark contacted
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={onConvert} pending={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={onConvert} pending={pending && active === 'convert'} disabled={pending}>
                   Convert to patient
                 </ActionButton>
                 <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
@@ -311,7 +320,7 @@ export default function LeadDrawer({
             )}
             {row.status === 'contacted' && (
               <>
-                <ActionButton variant="primary" size="sm" onClick={onConvert} pending={pending}>
+                <ActionButton variant="primary" size="sm" onClick={onConvert} pending={pending && active === 'convert'} disabled={pending}>
                   Convert to patient
                 </ActionButton>
                 <ActionButton variant="secondary" size="sm" onClick={() => setArchiveOpen(true)} disabled={pending}>
@@ -325,7 +334,7 @@ export default function LeadDrawer({
               </ActionButton>
             )}
             {row.status === 'archived' && (
-              <ActionButton variant="secondary" size="sm" onClick={onReopen} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={onReopen} disabled={pending}>
                 Reopen
               </ActionButton>
             )}
@@ -343,10 +352,10 @@ export default function LeadDrawer({
                 them, or create a separate patient (e.g. a family member on a shared number)?
               </p>
               <div className="flex flex-wrap gap-2">
-                <ActionButton variant="primary" size="sm" onClick={() => runConvert(false)} pending={pending}>
+                <ActionButton variant="primary" size="sm" onClick={() => runConvert(false)} pending={pending && active === 'link'} disabled={pending}>
                   Link to {dedupeMatch.split(' ')[0]}
                 </ActionButton>
-                <ActionButton variant="secondary" size="sm" onClick={() => runConvert(true)} pending={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={() => runConvert(true)} pending={pending && active === 'separate'} disabled={pending}>
                   Create separate patient
                 </ActionButton>
                 <ActionButton variant="ghost" size="sm" onClick={() => setDedupeMatch(null)} disabled={pending}>
@@ -417,7 +426,7 @@ export default function LeadDrawer({
               <ActionButton variant="ghost" size="sm" onClick={() => setArchiveOpen(false)} disabled={pending}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="primary" size="sm" onClick={onArchive} pending={pending}>
+              <ActionButton variant="primary" size="sm" onClick={onArchive} disabled={pending}>
                 Confirm archive
               </ActionButton>
             </div>

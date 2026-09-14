@@ -337,7 +337,7 @@ function CommentThread({
               key={c.id}
               c={c}
               depth={0}
-              pending={pending}
+              disabled={pending}
               onReply={(cc) => setReplyTo({ id: cc.id, name: cc.authorName })}
               onDelete={del}
               onLike={toggleLike}
@@ -370,7 +370,7 @@ function CommentThread({
             aria-label="Write a reply"
             className="form-textarea flex-1 text-sm resize-none"
           />
-          <ActionButton variant="primary" size="sm" onClick={submitReply} pending={pending} disabled={!draft.trim()}>
+          <ActionButton variant="primary" size="sm" onClick={submitReply} pending={pending} disabled={pending || !draft.trim()}>
             Send
           </ActionButton>
         </div>
@@ -382,7 +382,7 @@ function CommentThread({
 function CommentRow({
   c,
   depth,
-  pending,
+  disabled,
   onReply,
   onDelete,
   onLike,
@@ -390,7 +390,10 @@ function CommentRow({
 }: {
   c: PostCommentView
   depth: number
-  pending: boolean
+  /** Some comment action is running. The row's controls are plain links that
+   *  go unavailable — none of them claims to BE the work, which is why this
+   *  is `disabled` and not the panel's `pending`. */
+  disabled: boolean
   onReply: (c: PostCommentView) => void
   onDelete: (id: string) => void
   onLike: (c: PostCommentView) => void
@@ -421,32 +424,32 @@ function CommentRow({
             {c.createdTimeIso && <span>{timeAgo(c.createdTimeIso)}</span>}
             {c.likeCount > 0 && <span className="font-mono-num">{c.likeCount} likes</span>}
             {c.canLike && (
-              <button type="button" onClick={() => onLike(c)} disabled={pending} className={`font-medium hover:underline ${c.isLiked ? 'text-teal-700 dark:text-teal-400' : ''}`}>
+              <button type="button" onClick={() => onLike(c)} disabled={disabled} className={`font-medium hover:underline ${c.isLiked ? 'text-teal-700 dark:text-teal-400' : ''}`}>
                 {c.isLiked ? 'Liked' : 'Like'}
               </button>
             )}
             {c.canReply && (
-              <button type="button" onClick={() => onReply(c)} disabled={pending} className="font-medium hover:underline">
+              <button type="button" onClick={() => onReply(c)} disabled={disabled} className="font-medium hover:underline">
                 Reply
               </button>
             )}
             {c.canHide && (
-              <button type="button" onClick={() => onHide(c)} disabled={pending} className="font-medium hover:underline">
+              <button type="button" onClick={() => onHide(c)} disabled={disabled} className="font-medium hover:underline">
                 {c.isHidden ? 'Unhide' : 'Hide'}
               </button>
             )}
             {c.canDelete &&
               (confirmDel ? (
                 <>
-                  <button type="button" onClick={() => onDelete(c.id)} disabled={pending} className="font-medium text-rose-600 hover:underline">
+                  <button type="button" onClick={() => onDelete(c.id)} disabled={disabled} className="font-medium text-rose-600 hover:underline">
                     Confirm
                   </button>
-                  <button type="button" onClick={() => setConfirmDel(false)} disabled={pending} className="hover:underline">
+                  <button type="button" onClick={() => setConfirmDel(false)} disabled={disabled} className="hover:underline">
                     Keep
                   </button>
                 </>
               ) : (
-                <button type="button" onClick={() => setConfirmDel(true)} disabled={pending} className="font-medium hover:text-rose-600 hover:underline">
+                <button type="button" onClick={() => setConfirmDel(true)} disabled={disabled} className="font-medium hover:text-rose-600 hover:underline">
                   Delete
                 </button>
               ))}
@@ -455,7 +458,7 @@ function CommentRow({
           {c.replies.length > 0 && (
             <ul className="mt-2 space-y-2">
               {c.replies.map((r) => (
-                <CommentRow key={r.id} c={r} depth={depth + 1} pending={pending} onReply={onReply} onDelete={onDelete} onLike={onLike} onHide={onHide} />
+                <CommentRow key={r.id} c={r} depth={depth + 1} disabled={disabled} onReply={onReply} onDelete={onDelete} onLike={onLike} onHide={onHide} />
               ))}
             </ul>
           )}

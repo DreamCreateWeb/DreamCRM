@@ -30,6 +30,10 @@ export default function MyDayFollowups({
 }) {
   const [items, setItems] = useState<PatientFollowupView[]>(initial)
   const [pending, startTransition] = useTransition()
+  // One flag for a whole LIST spun every row at once — ticking the first
+  // follow-up put a spinner on all of them. `active` is the row+action that
+  // is actually running.
+  const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<{
     message: string
     tone: 'ok' | 'urgent'
@@ -38,6 +42,7 @@ export default function MyDayFollowups({
 
   function complete(f: PatientFollowupView) {
     setItems((cur) => cur.filter((x) => x.id !== f.id))
+    setActive(`${f.id}:complete`)
     startTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
       if (!res.ok) {
@@ -73,6 +78,7 @@ export default function MyDayFollowups({
   }
   function claim(f: PatientFollowupView) {
     setItems((cur) => cur.map((x) => (x.id === f.id ? { ...x, assignedUserId: currentUserId, assigneeName: 'You' } : x)))
+    setActive(`${f.id}:claim`)
     startTransition(async () => {
       const res = await updateFollowupAction(f.id, f.patientId, { assignedUserId: currentUserId })
       if (!res.ok) setItems(initial)
@@ -109,7 +115,7 @@ export default function MyDayFollowups({
         const due = followupDueState(f.dueDate)
         return (
           <li key={f.id} className="flex items-start gap-3 py-2.5">
-            <TickButton pending={pending} onToggle={() => complete(f)} className="mt-0.5" />
+            <TickButton pending={pending && active === `${f.id}:complete`} onToggle={() => complete(f)} className="mt-0.5" />
             <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-800 dark:text-gray-100">{f.title}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -122,7 +128,7 @@ export default function MyDayFollowups({
             </div>
             {!f.assignedUserId && (
               <span className="shrink-0 self-center">
-                <ActionButton variant="secondary" size="sm" onClick={() => claim(f)} pending={pending}>
+                <ActionButton variant="secondary" size="sm" onClick={() => claim(f)} pending={pending && active === `${f.id}:claim`} disabled={pending}>
                   Claim
                 </ActionButton>
               </span>

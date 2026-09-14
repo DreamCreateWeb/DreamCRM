@@ -110,6 +110,9 @@ function LocationCard({
 }) {
   const confirm = useConfirm()
   const [pending, start] = useTransition()
+  // Make primary and Remove are both in the row; Edit only opens the form, so
+  // it disables rather than claiming to be the work.
+  const [active, setActive] = useState<'primary' | 'remove' | null>(null)
 
   const streetLine = [loc.addressLine1, loc.addressLine2].filter(Boolean).join(', ')
   const cityLine = [
@@ -126,6 +129,7 @@ function LocationCard({
       confirmLabel: 'Remove',
       danger: true,
     }))) return
+    setActive('remove')
     start(() => deleteLocation(loc.id))
   }
 
@@ -157,20 +161,25 @@ function LocationCard({
             <ActionButton
               variant="ghost"
               size="sm"
-              onClick={() => start(() => setPrimaryLocation(loc.id))}
-              pending={pending}
+              onClick={() => {
+                setActive('primary')
+                start(() => setPrimaryLocation(loc.id))
+              }}
+              pending={pending && active === 'primary'}
+              disabled={pending}
             >
               Make primary
             </ActionButton>
           )}
-          <ActionButton variant="secondary" size="sm" onClick={onEdit} pending={pending}>
+          <ActionButton variant="secondary" size="sm" onClick={onEdit} disabled={pending}>
             Edit
           </ActionButton>
           <ActionButton
             variant="ghost"
             size="sm"
             onClick={handleDelete}
-            pending={pending}
+            pending={pending && active === 'remove'}
+            disabled={pending}
             className="text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400"
           >
             Remove

@@ -73,6 +73,9 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
   const [provider, setProvider] = useState<DnsProviderInfo | null>(null)
   const [autoChecking, setAutoChecking] = useState(false)
   const [pending, startTransition] = useTransition()
+  // Check now and Remove sit together once a domain is connected, so one flag
+  // spun both — and Remove is the destructive one of the pair.
+  const [active, setActive] = useState<'connect' | 'check' | 'remove' | null>(null)
 
   const isPending = status?.state === 'pending_dns'
   const detectDomain = status?.domain ?? null
@@ -117,6 +120,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
     e.preventDefault()
     setError(null)
     setNote(null)
+    setActive('connect')
     startTransition(async () => {
       const res = await requestCustomDomainAction(domain)
       if (res.ok) {
@@ -131,6 +135,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
   function check() {
     setError(null)
     setNote(null)
+    setActive('check')
     startTransition(async () => {
       const res = await checkCustomDomainStatusAction()
       if (res.ok) {
@@ -149,6 +154,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
   function remove() {
     setError(null)
     setNote(null)
+    setActive('remove')
     startTransition(async () => {
       const res = await removeCustomDomainAction()
       if (res.ok) {
@@ -208,7 +214,7 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
               disabled={pending}
             />
           </div>
-          <ActionButton type="submit" variant="primary" pending={pending} disabled={!domain.trim()}>
+          <ActionButton type="submit" variant="primary" pending={pending && active === 'connect'} disabled={pending || !domain.trim()}>
             Connect
           </ActionButton>
         </form>
@@ -320,10 +326,10 @@ export default function CustomDomainCard({ initialStatus, subdomainUrl }: Props)
           )}
 
           <div className="flex flex-wrap items-center gap-3">
-            <ActionButton variant="secondary" onClick={check} pending={pending}>
+            <ActionButton variant="secondary" onClick={check} pending={pending && active === 'check'} disabled={pending}>
               Check now
             </ActionButton>
-            <ActionButton variant="danger" onClick={remove} pending={pending}>
+            <ActionButton variant="danger" onClick={remove} pending={pending && active === 'remove'} disabled={pending}>
               Remove
             </ActionButton>
             {status.lastCheckedAt && (

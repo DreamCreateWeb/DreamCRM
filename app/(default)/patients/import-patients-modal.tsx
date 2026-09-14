@@ -318,7 +318,7 @@ export default function ImportPatientsModal({ onClose }: { onClose: () => void }
                 Back
               </ActionButton>
               <ActionButton variant="primary" size="sm" onClick={doImport} pending={pending}>
-                {pending ? 'Importing…' : `Import ${stage.preview.truncated ? '5,000' : stage.preview.totalRows.toLocaleString()} patients`}
+                {`Import ${stage.preview.truncated ? '5,000' : stage.preview.totalRows.toLocaleString()} patients`}
               </ActionButton>
             </>
           )}

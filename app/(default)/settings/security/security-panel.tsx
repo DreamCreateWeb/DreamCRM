@@ -29,6 +29,10 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
   const router = useRouter()
   const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
+  // Every row's Sign out and the header's Sign out all other devices ran off
+  // one flag — signing out one device put a spinner on all of them. `active`
+  // is the session id being revoked, or 'others' for the sweep.
+  const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
 
   // Password change UI
@@ -82,6 +86,7 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
       }))
     )
       return
+    setActive(id)
     startTransition(async () => {
       await revokeSession(id)
       setToast({ message: 'Signed out that device.', tone: 'ok' })
@@ -101,6 +106,7 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
       }))
     )
       return
+    setActive('others')
     startTransition(async () => {
       await revokeOtherSessions()
       setToast({ message: 'Signed out all other devices.', tone: 'ok' })
@@ -124,7 +130,7 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                   description="Every device currently signed in to your account. If any look unfamiliar, sign them out."
                   action={
                     otherCount > 0 ? (
-                      <ActionButton variant="danger" size="sm" onClick={handleRevokeOthers} pending={pending}>
+                      <ActionButton variant="danger" size="sm" onClick={handleRevokeOthers} pending={pending && active === 'others'} disabled={pending}>
                         Sign out all other devices
                       </ActionButton>
                     ) : undefined
@@ -158,7 +164,8 @@ export default function SecurityPanel({ sessions }: { sessions: SessionRow[] }) 
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRevoke(s.id)}
-                            pending={pending}
+                            pending={pending && active === s.id}
+                            disabled={pending}
                             className="text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
                           >
                             Sign out

@@ -29,6 +29,10 @@ export default function AddClinicButton() {
   const [success, setSuccess] = useState<{ prospectId: string; demoLogged: boolean } | null>(null)
   const [bookedDemo, setBookedDemo] = useState(false)
   const [pending, startTransition] = useTransition()
+  // Add anyway sits beside the form's own submit once a duplicate surfaces,
+  // and both ran off one flag — so the spinner could land on the button
+  // nobody pressed.
+  const [active, setActive] = useState<'add' | 'anyway'>('add')
   const lastPayload = useRef<Payload | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -48,6 +52,7 @@ export default function AddClinicButton() {
   function run(payload: Payload) {
     setError(null)
     setDuplicate(null)
+    setActive(payload.force ? 'anyway' : 'add')
     lastPayload.current = payload
     startTransition(async () => {
       const res: AddProspectResult = await addProspectAction(payload)
@@ -252,7 +257,7 @@ export default function AddClinicButton() {
                         <ActionButton variant="secondary" onClick={() => goTo(`/platform/prospecting?prospect=${duplicate.id}`)}>
                           Open it →
                         </ActionButton>
-                        <ActionButton variant="secondary" onClick={addAnyway} pending={pending}>
+                        <ActionButton variant="secondary" onClick={addAnyway} pending={pending && active === 'anyway'} disabled={pending}>
                           Add anyway
                         </ActionButton>
                       </div>
@@ -269,7 +274,7 @@ export default function AddClinicButton() {
                     <ActionButton type="button" variant="secondary" onClick={close} disabled={pending}>
                       Cancel
                     </ActionButton>
-                    <ActionButton type="submit" variant="primary" pending={pending}>
+                    <ActionButton type="submit" variant="primary" pending={pending && active === 'add'} disabled={pending}>
                       {bookedDemo ? 'Add + log demo' : 'Add clinic'}
                     </ActionButton>
                   </div>

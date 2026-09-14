@@ -109,12 +109,19 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  // Every role row and every pipeline move ran off ONE flag, so publishing one
+  // job spun the whole list and Pass/Archive/Save notes spun together with the
+  // move being made. `run` now names the work and `busy` asks about that one.
+  const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   const selected = applications.find((a) => a.id === selectedId) ?? null
   const filtered = statusFilter === 'all' ? applications : applications.filter((a) => a.status === statusFilter)
 
-  function run(fn: () => Promise<void>) {
+  const busy = (key: string) => isPending && active === key
+
+  function run(key: string, fn: () => Promise<void>) {
+    setActive(key)
     startTransition(async () => {
       try {
         await fn()
@@ -219,18 +226,19 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
                     Edit
                   </ActionButton>
                   {j.status !== 'open' ? (
-                    <ActionButton variant="secondary" size="sm" pending={isPending} onClick={() => run(() => setJobStatusAction(j.id, 'open'))}>
+                    <ActionButton variant="secondary" size="sm" pending={busy(`job:${j.id}`)} disabled={isPending} onClick={() => run(`job:${j.id}`, () => setJobStatusAction(j.id, 'open'))}>
                       Publish
                     </ActionButton>
                   ) : (
-                    <ActionButton variant="secondary" size="sm" pending={isPending} onClick={() => run(() => setJobStatusAction(j.id, 'closed'))}>
+                    <ActionButton variant="secondary" size="sm" pending={busy(`job:${j.id}`)} disabled={isPending} onClick={() => run(`job:${j.id}`, () => setJobStatusAction(j.id, 'closed'))}>
                       Close
                     </ActionButton>
                   )}
                   <ActionButton
                     variant="danger"
                     size="sm"
-                    pending={isPending}
+                    pending={busy(`job-delete:${j.id}`)}
+                    disabled={isPending}
                     onClick={async () => {
                       if (
                         await confirm({
@@ -240,7 +248,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
                           danger: true,
                         })
                       )
-                        run(() => deleteJobAction(j.id))
+                        run(`job-delete:${j.id}`, () => deleteJobAction(j.id))
                     }}
                   >
                     Delete
@@ -302,7 +310,7 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
           {/* Drawer */}
           <div className="lg:sticky lg:top-4 h-fit">
             {selected ? (
-              <ApplicantDrawer key={selected.id} app={selected} isPending={isPending} run={run} />
+              <ApplicantDrawer key={selected.id} app={selected} isPending={isPending} busy={busy} run={run} />
             ) : (
               <div className="v2-well p-6 text-center text-sm text-gray-500 dark:text-gray-400">
                 Select an applicant to review.
@@ -318,11 +326,14 @@ export default function CareersClient({ jobs, applications, counts, stats, publi
 function ApplicantDrawer({
   app,
   isPending,
+  busy,
   run,
 }: {
   app: ApplicationRow
   isPending: boolean
-  run: (fn: () => Promise<void>) => void
+  /** True only for the one action named by this key — see `run` above. */
+  busy: (key: string) => boolean
+  run: (key: string, fn: () => Promise<void>) => void
 }) {
   const [notes, setNotes] = useState(app.notes ?? '')
   const [rating, setRating] = useState(app.rating ?? 0)
@@ -362,7 +373,7 @@ function ApplicantDrawer({
           other pipeline moves are secondary; Pass is danger; Archive is ghost. */}
       <div className="mt-4 flex flex-wrap gap-2">
         {advance && (
-          <ActionButton variant="primary" size="sm" pending={isPending} onClick={() => run(() => setApplicationStatusAction(app.id, advance))}>
+          <ActionButton variant="primary" size="sm" pending={busy(`app:${advance}`)} disabled={isPending} onClick={() => run(`app:${advance}`, () => setApplicationStatusAction(app.id, advance))}>
             Move to {APP_STATUS_LABEL[advance]}
           </ActionButton>
         )}
@@ -385,17 +396,17 @@ function ApplicantDrawer({
         <p className="text-xs uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-2">Move to</p>
         <div className="flex flex-wrap gap-1.5">
           {otherStages.map((s) => (
-            <ActionButton key={s} variant="secondary" size="sm" pending={isPending} onClick={() => run(() => setApplicationStatusAction(app.id, s))}>
+            <ActionButton key={s} variant="secondary" size="sm" pending={busy(`app:${s}`)} disabled={isPending} onClick={() => run(`app:${s}`, () => setApplicationStatusAction(app.id, s))}>
               {APP_STATUS_LABEL[s]}
             </ActionButton>
           ))}
           {app.status !== 'rejected' && (
-            <ActionButton variant="danger" size="sm" pending={isPending} onClick={() => run(() => setApplicationStatusAction(app.id, 'rejected'))}>
+            <ActionButton variant="danger" size="sm" pending={busy('app:rejected')} disabled={isPending} onClick={() => run('app:rejected', () => setApplicationStatusAction(app.id, 'rejected'))}>
               Pass
             </ActionButton>
           )}
           {app.status !== 'archived' && (
-            <ActionButton variant="ghost" size="sm" pending={isPending} onClick={() => run(() => setApplicationStatusAction(app.id, 'archived'))}>
+            <ActionButton variant="ghost" size="sm" pending={busy('app:archived')} disabled={isPending} onClick={() => run('app:archived', () => setApplicationStatusAction(app.id, 'archived'))}>
               Archive
             </ActionButton>
           )}
@@ -424,7 +435,7 @@ function ApplicantDrawer({
           className="w-full text-sm px-3 py-2 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 resize-none"
         />
         <div className="mt-2">
-          <ActionButton variant="secondary" size="sm" pending={isPending} onClick={() => run(() => updateApplicationNotesAction(app.id, notes || null, rating || null))}>
+          <ActionButton variant="secondary" size="sm" pending={busy('app:notes')} disabled={isPending} onClick={() => run('app:notes', () => updateApplicationNotesAction(app.id, notes || null, rating || null))}>
             Save notes
           </ActionButton>
         </div>
