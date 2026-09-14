@@ -8,6 +8,7 @@ import {
   suggestDemoTrack,
 } from '@/lib/types/demo-script'
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { getQuotedPlan } from '@/lib/stripe-config'
 
 /**
  * Demo tracks — the interest-driven stories. Registry integrity (every
@@ -46,7 +47,10 @@ describe('track registry integrity', () => {
       expect(last.id).toBe('more')
       expect(last.title).toBe('And so much more')
       expect(last.href).toBe('/integrations')
-      // The close always lands on a price.
+      // The close always lands on a price. NOTE this is a SHAPE check and it
+      // is not evidence the number is right — it stayed green the whole time
+      // the premium track's close said "$500 a month" for a plan that costs
+      // $200 (DREAMCRM-38). The value assertion is the separate test below.
       expect(track.planPitch).toMatch(/\$\d+/)
       expect(last.talkTrack).toMatch(/\$\d+/)
       expect(['basic', 'pro', 'premium']).toContain(track.recommendedPlan)
@@ -103,5 +107,37 @@ describe('suggestDemoTrack', () => {
 
   it('healthy everything → the full tour', () => {
     expect(suggestDemoTrack(verdict(), signals(), { ratingTenths: 47, reviewCount: 220 })).toBe('full')
+  })
+})
+
+/**
+ * WHAT THE PROSPECT ACTUALLY HEARS (DREAMCRM-38).
+ *
+ * `planPitch` is read out at the end of a live branded demo — it renders in
+ * the presenter panel's wrap-up (`components/demo/wrap-up.tsx`), so it is the
+ * last number a prospect hears before being asked to sign. The full track,
+ * the one that closes on the plan anybody can actually buy, said "$500 a
+ * month": the struck-through LIST price, for a plan the owner decided is
+ * quoted at $200. The registry check above only asserts the SHAPE `/\$\d+/`,
+ * which is why it never went red.
+ */
+describe('the demo close quotes the plan a prospect can buy', () => {
+  it('names the purchasable plan at its stripe-config price', () => {
+    const plan = getQuotedPlan()
+    const full = DEMO_TRACKS.full
+    const spoken = `$${plan.price.toLocaleString('en-US')} a month`
+
+    expect(full.recommendedPlan).toBe('premium')
+    expect(full.planPitch).toContain(plan.name)
+    expect(full.planPitch).toContain(spoken)
+    expect(full.beats[full.beats.length - 1].talkTrack).toContain(spoken)
+  })
+
+  it('never quotes the list price as the price', () => {
+    const plan = getQuotedPlan()
+    expect(plan.listPrice, 'fixture assumption: the quoted plan has a list price').toBe(500)
+    const listSpoken = `$${plan.listPrice!.toLocaleString('en-US')} a month`
+    expect(DEMO_TRACKS.full.planPitch).not.toContain(listSpoken)
+    expect(DEMO_TRACKS.full.beats[DEMO_TRACKS.full.beats.length - 1].talkTrack).not.toContain(listSpoken)
   })
 })

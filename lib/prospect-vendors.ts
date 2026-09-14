@@ -7,7 +7,7 @@
 // with fixtures; the one import is the plan price we quote, which is read from
 // `lib/stripe-config.ts` rather than copied (DREAMCRM-38).
 
-import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
+import { getQuotedPlan } from '@/lib/stripe-config'
 
 export type VendorCategory =
   | 'booking'
@@ -124,7 +124,7 @@ export interface ConsolidationEstimate {
  * on the pricing page, and in Stripe checkout together. This file used to
  * carry a fourth copy of the tier→price map and it is what drifted.
  */
-const QUOTED_PLAN = PURCHASABLE_PLANS[0]
+const QUOTED_PLAN = getQuotedPlan()
 
 /**
  * Turn detected vendors into the consolidation story: what they likely pay

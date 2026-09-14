@@ -329,9 +329,19 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
           </span>
           <span className="shrink-0 font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
             {est.ourPlanListPrice != null && (
+              // text-gray-600, NOT the gray-500 the two sibling struck prices
+              // use: this card is bg-emerald-500/10 over the drawer's white
+              // panel, which composites to #e7f8f2, and at text-sm/font-normal
+              // the bar is 4.5:1. gray-500 measures 4.40:1 there; gray-600 is
+              // 6.88:1. The siblings get away with gray-500 because both are
+              // large text (subscription-panel text-xl semibold, price-card
+              // 1.4rem semibold). Nothing in CI can catch this one — the
+              // contrast scanners skip alpha backgrounds and there is no e2e
+              // stop on /platform/prospecting — so it is pinned by a source
+              // assertion in tests/prospecting/deal-room-quote.test.tsx.
               <span
-                className="mr-1.5 font-normal text-gray-500 line-through decoration-2 dark:text-gray-400"
-                title="Regular price"
+                className="mr-1.5 font-normal text-gray-600 line-through decoration-2 dark:text-gray-400"
+                aria-label={`Regular price $${est.ourPlanListPrice.toLocaleString('en-US')} per month`}
               >
                 ${est.ourPlanListPrice.toLocaleString('en-US')}
               </span>

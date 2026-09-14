@@ -96,6 +96,26 @@ export const PLANS: Plan[] = [
  *  map this; PLANS stays complete for legacy-tier lookups + provisioning. */
 export const PURCHASABLE_PLANS: Plan[] = PLANS.filter((p) => p.id === 'premium')
 
+/**
+ * THE plan we quote anybody — a prospect on a call, a clinic on the billing
+ * panel. Since the single-plan collapse that is the one purchasable plan, at
+ * the founding practice rate with `listPrice` to show struck through.
+ *
+ * Every surface that displays "the price" resolves it here instead of copying
+ * the number (DREAMCRM-38 — the prospecting deal room, the demo track picker
+ * and the demo script's closing line had each drifted to quoting the $500
+ * LIST price for a plan that costs $200). Indexing `PURCHASABLE_PLANS[0]`
+ * directly types as `Plan` under our tsconfig and would hand a caller
+ * `undefined` if that filter ever matched nothing, so this says what went
+ * wrong instead of failing later at a render.
+ */
+export function getQuotedPlan(): Plan {
+  const plan = PURCHASABLE_PLANS[0] ?? PLANS.find((p) => p.id === 'premium')
+  if (!plan) {
+    throw new Error('stripe-config: no purchasable plan — PLANS lost its premium row')
+  }
+  return plan
+}
 
 export function getPlanByPriceId(priceId: string): { plan: Plan; interval: BillingInterval } | undefined {
   for (const plan of PLANS) {

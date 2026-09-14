@@ -631,14 +631,30 @@ binding are all correct. The payment-plan charger was the exception.
   during the call. Strings, not numbers, so the one-MRR map guard never saw
   it. · **FIXED** (DREAMCRM-38) — the label derives from `getPlanById`;
   `tests/prospecting/track-picker-plan.test.tsx` pins it.
-- S3 · the demo track picker still recommends LEGACY tiers. `recommendedPlan`
-  on `DEMO_TRACK_LIST` is one of basic/pro/premium and four of the five tracks
-  say basic or pro, so the panel now truthfully reads "closes on Basic ·
-  $150/mo" for a plan that has not been sellable since the 2026-07-19
-  single-plan collapse. Split from the price fix above deliberately: that one
-  was a stale copy, this is a product question (does a demo track still
-  "close on" a tier at all, now that there is one plan?) and it needs the
-  owner. Repro: open any prospect's demo prep page → the track cards. · OPEN.
+- S3 · `lib/types/demo-script.ts:161`, `:173` — the closing line of a LIVE
+  BRANDED DEMO quoted $500. `DEMO_TRACKS.full.planPitch` ("Everything you just
+  saw is the Premium plan — $500 a month, no contracts") and its last beat's
+  talk track render at `components/demo/wrap-up.tsx:93`, so this is the last
+  number a prospect hears before being asked to sign — more directly the
+  defect DREAMCRM-38 exists to close than the presenter-facing picker label.
+  Missed by that PR's first sweep, which matched `$N/mo`: "a month" has no
+  `/mo`, so the search was narrower than the defect's real spelling and came
+  back clean. Found in review. · **FIXED** (DREAMCRM-38) — both sentences
+  interpolate `getQuotedPlan()`; `tests/demo-mode/demo-tracks.test.ts` asserts
+  the VALUE, beside the pre-existing `/\$\d+/` shape check that stayed green
+  the whole time the number was wrong.
+- S3 · the demo tracks still recommend LEGACY tiers, in the picker AND in what
+  the presenter says. `recommendedPlan` on `DEMO_TRACK_LIST` is one of
+  basic/pro/premium and four of the five tracks say basic or pro, so the
+  picker truthfully reads "closes on Basic · $150/mo" and the pitches at
+  `lib/types/demo-script.ts:184` (`$150`), `:233`, `:280`, `:336` (`$250`,
+  with `:222`, `:269`, `:325`, `:354` repeating them in the closing beats)
+  quote plans that have not been sellable since the 2026-07-19 single-plan
+  collapse. Left as stale-but-honest rather than repointed at `$200`, because
+  the question is not the number: does a demo track still "close on" a tier at
+  all now that there is one plan, and if not, what do the four non-premium
+  tracks say instead? That needs the owner. Repro: open any prospect's demo
+  prep page → the track cards, then run a non-full track to the wrap-up. · OPEN.
 - S3 · `app/opengraph-image.tsx:69` — the social share card for the whole
   marketing site still reads `$150–500/mo`, the pre-collapse three-tier
   range. It is the price that appears when anyone links dreamcreatestudio.com
@@ -661,6 +677,29 @@ binding are all correct. The payment-plan charger was the exception.
   `/partner-program` tells real partners "At the $200/mo plan that's $20 per
   practice per month". Money the demo displays, not money that moves. Repro:
   view the demo clinic → the partner portal's commission rows. · OPEN.
+- S3 · `lib/services/marketing-blog.ts:50` — the launch announcement post,
+  published on the marketing blog, still says the platform costs "$150–500 a
+  month": the pre-collapse three-tier range, on a page a prospect can read
+  while a presenter quotes them $200. Marketing lane. Repro: open
+  `/blog/dreamcrm-is-live` (or whatever slug that entry carries) and read the
+  first paragraph. · OPEN.
+- S3 · `lib/types/social-entitlements.ts:12` — the comment table documenting
+  the social add-on still prices the tiers `Pro ($250) | Premium ($500)`. A
+  comment, so nothing renders it, but it is the file the next person reads to
+  learn what a tier costs and it teaches them the list price. Repro: read the
+  header. · OPEN.
+- S3 · nothing in the repo fails when a plan price is pasted somewhere new.
+  Four separate surfaces had drifted to quoting $500 (the deal room, the demo
+  track picker, the demo script's closing line, the launch blog post) and the
+  first three were found by hand, one of them only in review after a sweep
+  whose pattern was narrower than the defect. `tests/guards/one-mrr-number.ts`
+  catches a tier→price MAP and nothing else; the assertion in
+  `tests/prospecting/vendors.test.ts` covers exactly one file. Fix shape: a
+  repo-wide guard — no plan-price literal outside `lib/stripe-config.ts` and a
+  reasoned allowlist, matching the prose spellings (`a month`, `per month`,
+  `/month`) as well as `/mo`. This introduces a new invariant, so it is
+  Forge's intake before it is anyone's implementation. Raised by Sentinel in
+  review of DREAMCRM-38. · OPEN.
 Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
 line unresolvable while they shared a verdict. Since unbundling, three have
 closed on their own evidence (the demo cart, the MRR cadence math, and the

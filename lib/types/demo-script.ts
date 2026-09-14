@@ -9,6 +9,7 @@
 // = editing this registry (typed, reviewed, versioned).
 
 import type { ProspectAiVerdict, ProspectCrawlSignals } from '@/lib/types/prospecting'
+import { getQuotedPlan } from '@/lib/stripe-config'
 
 export type DemoBeatGroup = 'open' | 'run' | 'grow' | 'close'
 
@@ -149,6 +150,15 @@ function moreBeat(talkTrack: string): DemoBeat {
   }
 }
 
+// The closing line of a live branded demo quotes THE plan a prospect can buy,
+// spelled the way the presenter says it out loud. Read from stripe-config so a
+// reprice reaches the script too: until DREAMCRM-38 these two sentences said
+// "$500 a month" — the struck-through LIST price — which is the last number a
+// prospect hears before they are asked to sign.
+const QUOTED = getQuotedPlan()
+const QUOTED_PLAN_NAME = QUOTED.name
+const QUOTED_MONTHLY = `$${QUOTED.price.toLocaleString('en-US')} a month`
+
 // ---------- The tracks ----------
 
 export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
@@ -158,7 +168,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
     label: 'The whole platform',
     story: 'They need everything — the full open-to-close tour.',
     recommendedPlan: 'premium',
-    planPitch: 'Everything you just saw is the Premium plan — $500 a month, no contracts.',
+    planPitch: `Everything you just saw is the ${QUOTED_PLAN_NAME} plan — ${QUOTED_MONTHLY}, no contracts.`,
     targetMinutes: 25,
     beats: [
       HUDDLE,
@@ -170,7 +180,7 @@ export const DEMO_TRACKS: Record<DemoTrackId, DemoTrack> = {
       COMPARE,
       ANALYTICS,
       moreBeat(
-        'PMS sync, memberships, payment plans, a careers page, a patient portal — {clinicName} gets the whole engine. Premium is $500 a month, no contracts.',
+        `PMS sync, memberships, payment plans, a careers page, a patient portal — {clinicName} gets the whole engine. ${QUOTED_PLAN_NAME} is ${QUOTED_MONTHLY}, no contracts.`,
       ),
     ],
   },

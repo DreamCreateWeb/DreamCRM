@@ -95,10 +95,20 @@ describe('the deal room quote', () => {
 
     // The number a prospect is quoted. Before the fix this row read "$500/mo".
     expect(screen.getByText('$200/mo')).toBeTruthy()
-    // The list price, struck through, exactly as the pricing page frames it.
-    const list = screen.getByTitle('Regular price')
+    // The list price, struck through, exactly as the pricing page frames it —
+    // and named, so a screen reader gets "Regular price $500 per month"
+    // rather than "$500 $200/mo" as an undifferentiated run.
+    const list = screen.getByLabelText('Regular price $500 per month')
     expect(list.textContent).toBe('$500')
     expect(list.className).toContain('line-through')
+    // Contrast: this card is bg-emerald-500/10 over the drawer's white panel
+    // (#e7f8f2 composited), and the struck price is text-sm/font-normal, so
+    // the bar is 4.5:1. gray-500 measures 4.40:1 there and gray-600 is
+    // 6.88:1. Pinned here because nothing in CI can see it — the contrast
+    // scanners skip alpha backgrounds and /platform/prospecting has no e2e
+    // stop, so both required checks stay green with the miss live.
+    expect(list.className).toContain('text-gray-600')
+    expect(list.className).not.toContain('text-gray-500')
     expect(screen.getByText(/Limited time/i)).toBeTruthy()
     expect(screen.getByText(/DreamCRM Premium replaces it/)).toBeTruthy()
     // $650 across their tools minus the $200 we actually charge.
