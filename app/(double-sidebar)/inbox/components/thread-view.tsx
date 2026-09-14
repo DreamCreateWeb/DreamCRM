@@ -34,6 +34,9 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
   const pathname = usePathname()
   const sp = useSearchParams()
   const [pendingAction, startTransition] = useTransition()
+  // The four toolbar actions ran off one flag, so starring a conversation
+  // greyed Archive, Trash and Read too. `active` names the running one.
+  const [active, setActive] = useState<'star' | 'archive' | 'trash' | 'read' | null>(null)
   const [replyOpenSignal, setReplyOpenSignal] = useState(0)
   // Archive/trash close the pane immediately — the global toast is the
   // only place the outcome can still be seen.
@@ -108,6 +111,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
     })
   }
   function handleArchive() {
+    setActive('archive')
     startTransition(async () => {
       await archiveThreadAction(t.threadId)
       toast('Conversation archived')
@@ -116,6 +120,7 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
     })
   }
   function handleTrash() {
+    setActive('trash')
     startTransition(async () => {
       await trashThreadAction(t.threadId)
       toast('Moved to trash')
@@ -124,12 +129,14 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
     })
   }
   function handleStar() {
+    setActive('star')
     startTransition(async () => {
       await toggleThreadStarAction(t.threadId, !anyStarred)
       router.refresh()
     })
   }
   function handleToggleRead() {
+    setActive('read')
     startTransition(async () => {
       await markThreadAction(t.threadId, anyUnread)
       router.refresh()
@@ -149,26 +156,26 @@ export default function ThreadView({ thread, sanitizedBodies, patientContext, te
             Reply
           </ActionButton>
           <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" aria-hidden="true" />
-          <ToolbarButton onClick={handleStar} active={anyStarred} shortcut="S" pending={pendingAction}>
+          <ToolbarButton onClick={handleStar} active={anyStarred} shortcut="S" pending={pendingAction && active === 'star'} disabled={pendingAction}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill={anyStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
               <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" strokeLinejoin="round" />
             </svg>
             {anyStarred ? 'Starred' : 'Star'}
           </ToolbarButton>
-          <ToolbarButton onClick={handleArchive} shortcut="E" pending={pendingAction}>
+          <ToolbarButton onClick={handleArchive} shortcut="E" pending={pendingAction && active === 'archive'} disabled={pendingAction}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <rect x="3" y="4" width="18" height="4" rx="1" />
               <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
             </svg>
             Archive
           </ToolbarButton>
-          <ToolbarButton onClick={handleTrash} shortcut="#" pending={pendingAction}>
+          <ToolbarButton onClick={handleTrash} shortcut="#" pending={pendingAction && active === 'trash'} disabled={pendingAction}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               <path d="M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M6 7l1 13a2 2 0 002 2h6a2 2 0 002-2l1-13" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Trash
           </ToolbarButton>
-          <ToolbarButton onClick={handleToggleRead} shortcut="U" pending={pendingAction}>
+          <ToolbarButton onClick={handleToggleRead} shortcut="U" pending={pendingAction && active === 'read'} disabled={pendingAction}>
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
               {anyUnread ? (
                 <>
@@ -337,18 +344,22 @@ function ToolbarButton({
   onClick,
   active,
   pending,
+  disabled,
   shortcut,
 }: {
   children: React.ReactNode
   onClick: () => void
   active?: boolean
+  /** This button's own work is running — the only one that reads as busy. */
   pending?: boolean
+  /** Some toolbar action is running; the whole toolbar is unavailable. */
+  disabled?: boolean
   shortcut?: string
 }) {
   return (
     <button
       onClick={onClick}
-      disabled={pending}
+      disabled={disabled}
       title={shortcut ? `Shortcut: ${shortcut}` : undefined}
       className={cn(
         'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors',

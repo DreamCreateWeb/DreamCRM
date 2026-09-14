@@ -48,6 +48,9 @@ export interface ThreadListRow {
   urgencyReason?: string | null
 }
 
+/** Which bulk action is running — the BulkBar runs three off one transition. */
+type BulkKey = 'read' | 'snooze' | 'archive'
+
 const SNOOZE_OPTIONS = [
   { label: '4 hours', hours: 4 },
   { label: 'Tomorrow', hours: 24 },
@@ -91,6 +94,9 @@ export default function ClinicThreadList({
   const snoozePopRef = useRef<HTMLDivElement | null>(null)
   usePopoverDismiss(showSnooze, snoozePopRef, () => setShowSnooze(false))
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
+  // Mark read / Snooze / Archive share one transition, so archiving used to
+  // spin Mark read as well. `bulkActive` names the one that is running.
+  const [bulkActive, setBulkActive] = useState<BulkKey | null>(null)
   const [navPending, startNavTransition] = useTransition()
 
   const allSelected = rows.length > 0 && selected.size === rows.length
@@ -142,9 +148,10 @@ export default function ClinicThreadList({
     setSelected((prev) => (prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.id))))
   }
 
-  function runBulk(action: (ids: string[]) => Promise<void>) {
+  function runBulk(key: BulkKey, action: (ids: string[]) => Promise<void>) {
     const ids = Array.from(selected)
     if (ids.length === 0) return
+    setBulkActive(key)
     startTransition(async () => {
       await action(ids)
       clear()
@@ -317,8 +324,9 @@ export default function ClinicThreadList({
         <ActionButton
           size="sm"
           variant="secondary"
-          pending={pending}
-          onClick={() => runBulk((ids) => bulkMarkReadThreadsAction(ids))}
+          pending={pending && bulkActive === 'read'}
+          disabled={pending}
+          onClick={() => runBulk('read', (ids) => bulkMarkReadThreadsAction(ids))}
         >
           Mark read
         </ActionButton>
@@ -338,7 +346,7 @@ export default function ClinicThreadList({
                 <button
                   key={opt.hours}
                   type="button"
-                  onClick={() => runBulk((ids) => bulkSnoozeThreadsAction(ids, opt.hours))}
+                  onClick={() => runBulk('snooze', (ids) => bulkSnoozeThreadsAction(ids, opt.hours))}
                   className="block w-full text-left text-xs px-3 py-1.5 text-gray-700 dark:text-gray-200 hover:bg-gray-500/[0.08]"
                 >
                   {opt.label}
@@ -350,8 +358,9 @@ export default function ClinicThreadList({
         <ActionButton
           size="sm"
           variant="primary"
-          pending={pending}
-          onClick={() => runBulk((ids) => bulkArchiveThreadsAction(ids))}
+          pending={pending && bulkActive === 'archive'}
+          disabled={pending}
+          onClick={() => runBulk('archive', (ids) => bulkArchiveThreadsAction(ids))}
         >
           Archive
         </ActionButton>

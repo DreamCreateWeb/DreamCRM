@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
+import { tagSites, tsxFiles } from './jsx-attrs'
 
 /**
  * THE BUSY STATE LIVES IN THE PRIMITIVE, NOT IN A TERNARY.
@@ -197,10 +198,8 @@ const EXIT_LABELS = [
   'Never mind', 'Not now', 'Nevermind',
 ]
 
-/** `<ActionButton …>…</ActionButton>`, non-greedy over a short body. */
-const ACTION_BUTTON = /<ActionButton\b[^>]*>[\s\S]{0,160}?<\/ActionButton>/g
 /** An onClick that only flips local state — no server action, no handler. */
-const PURE_SETSTATE = /onClick=\{\(\)\s*=>\s*\{?\s*set[A-Z][A-Za-z0-9]*\(/
+const PURE_SETSTATE = /^\(\)\s*=>\s*\{?\s*set[A-Z][A-Za-z0-9]*\(/
 /**
  * `pending={pending && active === 'save'}` — the discriminating shape from
  * `referral-card.tsx`, which names WHICH of several buttons sharing one flag
@@ -208,28 +207,40 @@ const PURE_SETSTATE = /onClick=\{\(\)\s*=>\s*\{?\s*set[A-Z][A-Za-z0-9]*\(/
  * about the question, so it is out of scope here even if its handler happens
  * to be named `setSomething` (several are: a `setFocus` that opens a
  * transition is a handler, not a `useState` setter).
+ *
+ * A CALL — `pending={busy(`job:${j.id}`)}` — counts too, and batch 60 added
+ * it: a list long enough to need a key per row reads better through a
+ * predicate than through the inline conjunction repeated nine times, and it
+ * is the same claim about the same question.
  */
-const DISCRIMINATING = /pending=\{[^}]*(?:&&|===)/
+const DISCRIMINATING = /&&|===|\(/
 
-function actionButtons(): Array<{ rel: string; line: number; src: string }> {
-  const root = process.cwd()
-  const out: Array<{ rel: string; line: number; src: string }> = []
-  for (const file of ROOTS.flatMap((d) => walk(resolve(root, d)))) {
-    const text = readFileSync(file, 'utf8')
-    const rel = file.slice(root.length + 1).split('\\').join('/')
-    ACTION_BUTTON.lastIndex = 0
-    let m: RegExpExecArray | null
-    while ((m = ACTION_BUTTON.exec(text))) {
-      out.push({ rel, line: text.slice(0, m.index).split('\n').length, src: m[0] })
-    }
-  }
-  return out
+/**
+ * REBUILT in batch 60 on the shared tag reader. The original pair of regexes
+ * read `<ActionButton[^>]*>` and capped the body at 160 characters, which
+ * meant a button whose `onClick` was a MULTI-LINE arrow — the exact shape a
+ * pure state setter takes when it flips two things — matched neither rule.
+ * Two live offenders were sitting behind that gap on the Google review card
+ * (an Edit reply and a Cancel, both carrying the card's `pending`).
+ */
+function actionButtons(): Array<{ rel: string; line: number; onClick: string; label: string; summary: string }> {
+  return tagSites(tsxFiles(ROOTS), ['ActionButton'])
+    .filter((s) => s.name === 'ActionButton')
+    .filter((s) => {
+      const p = s.attrs.get('pending')
+      return p !== undefined && !DISCRIMINATING.test(p)
+    })
+    .map((s) => ({
+      rel: s.rel,
+      line: s.line,
+      onClick: (s.attrs.get('onClick') ?? '').replace(/\s+/g, ' ').trim(),
+      label: s.children.trim(),
+      summary: `${Array.from(s.attrs, ([k, v]) => `${k}={${v}}`).join(' ')} > ${s.children.trim()}`.replace(/\s+/g, ' ').slice(0, 110),
+    }))
 }
 
 describe('escape hatches disable, they do not spin', () => {
-  const buttons = actionButtons().filter(
-    (b) => /\spending=/.test(b.src) && !DISCRIMINATING.test(b.src),
-  )
+  const buttons = actionButtons()
 
   it('finds ActionButtons carrying pending at all', () => {
     expect(buttons.length).toBeGreaterThan(20)
@@ -237,18 +248,133 @@ describe('escape hatches disable, they do not spin', () => {
 
   it('a button whose onClick only flips local state never carries `pending`', () => {
     const offenders = buttons
-      .filter((b) => PURE_SETSTATE.test(b.src))
-      .map((b) => `${b.rel}:${b.line} — ${b.src.replace(/\s+/g, ' ').slice(0, 110)}`)
+      .filter((b) => PURE_SETSTATE.test(b.onClick))
+      .map((b) => `${b.rel}:${b.line} — ${b.summary}`)
     expect(offenders).toEqual([])
   })
 
   it('a bare Cancel/Back/Keep/Close never carries `pending`', () => {
     const offenders = buttons
-      .filter((b) => {
-        const label = (b.src.match(/>([\s\S]*)<\/ActionButton>$/) ?? [, ''])[1].trim()
-        return EXIT_LABELS.includes(label)
-      })
-      .map((b) => `${b.rel}:${b.line} — ${b.src.replace(/\s+/g, ' ').slice(0, 110)}`)
+      .filter((b) => EXIT_LABELS.includes(b.label))
+      .map((b) => `${b.rel}:${b.line} — ${b.summary}`)
     expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * SIBLING ACTIONS DO NOT SHARE ONE `pending` FLAG.
+ *
+ * Distinct from the escape-hatch class above, and NOT closed by it: those
+ * were Cancel/Back buttons carrying somebody else's busy flag, and they
+ * became `disabled`. These are siblings that each do REAL work — Mark
+ * contacted next to Convert, Check now next to Remove, five bulk actions in
+ * one toolbar — all reading one `useTransition`. Press any one and every one
+ * of them spins, so the interface says "all of this is running" when exactly
+ * one thing is.
+ *
+ * The fix has been in the repo since batch 46 and is spelled out at
+ * `app/(default)/ecommerce/customers/[id]/referral-card.tsx` — a discriminator
+ * the transition sets, read per button:
+ *
+ *     pending={pending && active === 'save'} disabled={pending}
+ *
+ * `pending` on the one that is working, `disabled` on all of them, because
+ * while the transition runs none of them can be used. Both halves matter:
+ * without `disabled` the other buttons look idle and clickable.
+ *
+ * WHAT THIS RULE CANNOT SEE, and why the exemptions below are a LIST OF
+ * REASONS rather than a count. Two buttons in mutually exclusive branches —
+ * `stage.type === 'upload'` vs `'mapping'`, an early `return` — are never on
+ * screen together, so sharing a flag is correct. Deciding that needs a human
+ * reading the render, so each one is named here with why. A number would say
+ * how many we tolerate; a list says which, and goes stale visibly.
+ *
+ * Groups whose buttons all run the SAME handler are not offenders and are not
+ * listed: one action rendered in two places (a Refresh in the header and the
+ * same Refresh in the empty state) is one piece of work, and one flag is the
+ * truth about it.
+ */
+
+/** Reviewed and correct — the buttons are never on screen at the same time. */
+const NOT_SIMULTANEOUS: Record<string, string> = {
+  'app/(default)/dashboard/guardian-audience-control.tsx|pending':
+    'the `confirming` branch and the un-confirmed branch are the two arms of one ternary',
+  'app/(default)/partners/partners-table.tsx|busy':
+    '`busy` is already `pendingId === p.id` (per row), and Resend / Suspend / Reactivate are selected by `p.status` — a row shows exactly one',
+  'app/(default)/patients/import-patients-modal.tsx|pending':
+    'the wizard renders one `stage.type` at a time — Next: match columns and Import are different steps',
+  'app/(default)/platform/prospecting/demo/[id]/brief-panel.tsx|pending':
+    'Generate returns early when there is no brief yet; Regenerate only renders once there is one',
+}
+
+/**
+ * Still to fix — the money surfaces, which go through the review gate and so
+ * ship as their own PR (DREAMCRM-36). This list may only ever SHRINK, and
+ * deleting the last entry deletes the list.
+ */
+const AWAITING_MONEY_SWEEP = [
+  'app/(default)/integrations/integrations-library.tsx|pending',
+  'app/(default)/partners/delete-partner-modal.tsx|pending',
+  'app/(default)/payments/memberships/memberships-client.tsx|isPending',
+  'app/(default)/shop/coupons/coupons-client.tsx|isPending',
+  'app/(default)/shop/orders/orders-client.tsx|isPending',
+  'app/(default)/shop/shop-client.tsx|isPending',
+]
+
+interface SharedGroup {
+  rel: string
+  flag: string
+  lines: number[]
+}
+
+interface GroupSite {
+  line: number
+  handler: string
+}
+
+function sharedPendingGroups(): SharedGroup[] {
+  const byKey = new Map<string, { rel: string; flag: string; sites: GroupSite[] }>()
+  for (const site of tagSites(tsxFiles(ROOTS))) {
+    const flag = site.attrs.get('pending')
+    if (!flag) continue
+    // Already discriminated (`pending && active === 'save'`), or not a bare
+    // flag at all — nothing to say about it.
+    if (!/^[A-Za-z_$][\w$]*$/.test(flag)) continue
+    const key = `${site.rel}|${site.scope}|${flag}`
+    const entry = byKey.get(key) ?? { rel: site.rel, flag, sites: [] }
+    entry.sites.push({
+      line: site.line,
+      handler: (site.attrs.get('onClick') ?? site.attrs.get('onToggle') ?? site.attrs.get('onSave') ?? '?').replace(/\s+/g, ' '),
+    })
+    byKey.set(key, entry)
+  }
+  return Array.from(byKey.values())
+    .filter((g) => g.sites.length > 1 && new Set(g.sites.map((s: GroupSite) => s.handler)).size > 1)
+    .map((g) => ({ rel: g.rel, flag: g.flag, lines: g.sites.map((s: GroupSite) => s.line) }))
+}
+
+describe('siblings do not share one pending flag', () => {
+  const groups = sharedPendingGroups()
+
+  it('the scan sees the shape at all (the exemptions are real groups)', () => {
+    // Every exemption must still match something. When a surface is rewritten
+    // the entry goes stale silently otherwise, and a stale exemption is a hole.
+    const found = new Set(groups.map((g) => `${g.rel}|${g.flag}`))
+    const stale = Object.keys(NOT_SIMULTANEOUS).concat(AWAITING_MONEY_SWEEP).filter((k) => !found.has(k))
+    expect(stale, `These entries no longer match any group — delete them:\n  ${stale.join('\n  ')}`).toEqual([])
+  })
+
+  it('no surface runs two different actions off one undiscriminated flag', () => {
+    const offenders = groups
+      .map((g) => ({ key: `${g.rel}|${g.flag}`, g }))
+      .filter(({ key }) => !(key in NOT_SIMULTANEOUS) && !AWAITING_MONEY_SWEEP.includes(key))
+      .map(({ g }) => `${g.rel} — pending={${g.flag}} on lines ${g.lines.join(', ')}`)
+    expect(
+      offenders,
+      `Pressing one of these spins all of them. Name which one is working:\n` +
+        `  pending={${'pending'} && active === '<key>'} disabled={${'pending'}}\n` +
+        `(see referral-card.tsx). If they are never on screen together, add the\n` +
+        `group to NOT_SIMULTANEOUS with the reason:\n  ${offenders.join('\n  ')}`,
+    ).toEqual([])
   })
 })

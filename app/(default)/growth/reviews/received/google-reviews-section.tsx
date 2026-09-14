@@ -113,6 +113,10 @@ export function GoogleConnectPrompt() {
 function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; featureMinStars: number }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  // Which of the card's actions is running. The reply editor and the
+  // website-visibility toggle are on screen together, so one shared flag spun
+  // both — Post reply and Hide from website are not the same piece of work.
+  const [active, setActive] = useState<'save' | 'delete' | 'visibility' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
@@ -145,6 +149,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
 
   function toggleHidden(hidden: boolean) {
     setError(null)
+    setActive('visibility')
     startTransition(async () => {
       const r = await setGoogleReviewHiddenAction({ externalReviewId: row.externalReviewId, hidden })
       if (r.ok) {
@@ -156,6 +161,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
 
   function saveReply() {
     setError(null)
+    setActive('save')
     startTransition(async () => {
       const r = await replyToGoogleReviewAction({ externalReviewId: row.externalReviewId, text: draft })
       if (r.ok) {
@@ -168,6 +174,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
 
   function deleteReply() {
     setError(null)
+    setActive('delete')
     startTransition(async () => {
       const r = await deleteGoogleReviewReplyAction(row.externalReviewId)
       if (r.ok) {
@@ -217,11 +224,11 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                     setDraft(row.replyComment ?? '')
                     setEditing(true)
                   }}
-                  pending={pending}
+                  disabled={pending}
                 >
                   Edit reply
                 </ActionButton>
-                <ActionButton variant="danger" size="sm" onClick={deleteReply} pending={pending}>
+                <ActionButton variant="danger" size="sm" onClick={deleteReply} pending={pending && active === 'delete'} disabled={pending}>
                   Delete reply
                 </ActionButton>
               </div>
@@ -236,7 +243,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                 className="w-full rounded-[var(--r-md)] border border-[color:var(--color-hairline-strong)] bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-800 dark:text-gray-100"
               />
               <div className="mt-2 flex items-center gap-2">
-                <ActionButton variant="primary" size="sm" onClick={saveReply} pending={pending} disabled={!draft.trim()}>
+                <ActionButton variant="primary" size="sm" onClick={saveReply} pending={pending && active === 'save'} disabled={pending || !draft.trim()}>
                   Post reply
                 </ActionButton>
                 <ActionButton variant="secondary" size="sm" onClick={aiDraft} pending={drafting} disabled={pending}>
@@ -249,7 +256,7 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
                     setEditing(false)
                     setError(null)
                   }}
-                  pending={pending}
+                  disabled={pending}
                 >
                   Cancel
                 </ActionButton>
@@ -276,14 +283,14 @@ function ReviewCard({ row, featureMinStars }: { row: GoogleReviewClientRow; feat
           ) : row.hiddenFromSite ? (
             <>
               <StatusPill tone="neutral" label="Hidden from website" title="You hid this review from your public site" />
-              <ActionButton variant="secondary" size="sm" onClick={() => toggleHidden(false)} pending={pending}>
+              <ActionButton variant="secondary" size="sm" onClick={() => toggleHidden(false)} pending={pending && active === 'visibility'} disabled={pending}>
                 Show on website
               </ActionButton>
             </>
           ) : (
             <>
               <StatusPill tone="ok" label="Featured on website ✓" title="Auto-featured on your public site" />
-              <ActionButton variant="ghost" size="sm" onClick={() => toggleHidden(true)} pending={pending}>
+              <ActionButton variant="ghost" size="sm" onClick={() => toggleHidden(true)} pending={pending && active === 'visibility'} disabled={pending}>
                 Hide from website
               </ActionButton>
             </>

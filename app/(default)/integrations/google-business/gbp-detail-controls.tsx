@@ -23,11 +23,15 @@ export default function GbpDetailControls({
   const router = useRouter()
   const confirm = useConfirm()
   const [pending, start] = useTransition()
+  // Refresh and Disconnect sit side by side on the connected state, so one
+  // shared flag spun both. `active` names which one is actually running.
+  const [active, setActive] = useState<'refresh' | 'disconnect' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const awaitingConnect = useRef(false)
 
   function refresh() {
     setError(null)
+    setActive('refresh')
     start(async () => {
       const r = await syncZernioAccountsAction()
       if (!r.ok) setError(r.error ?? 'Could not refresh.')
@@ -46,6 +50,7 @@ export default function GbpDetailControls({
     )
       return
     setError(null)
+    setActive('disconnect')
     start(async () => {
       const r = await disconnectChannelAction('googlebusiness')
       if (!r.ok) setError(r.error ?? 'Could not disconnect.')
@@ -70,10 +75,10 @@ export default function GbpDetailControls({
       <div className="flex flex-wrap items-center gap-2">
         {connected ? (
           <>
-            <ActionButton variant="secondary" size="sm" onClick={refresh} pending={pending}>
+            <ActionButton variant="secondary" size="sm" onClick={refresh} pending={pending && active === 'refresh'} disabled={pending}>
               Refresh from Google
             </ActionButton>
-            <ActionButton variant="danger" size="sm" onClick={disconnect} pending={pending} className="ml-auto">
+            <ActionButton variant="danger" size="sm" onClick={disconnect} pending={pending && active === 'disconnect'} disabled={pending} className="ml-auto">
               Disconnect
             </ActionButton>
           </>
@@ -91,7 +96,7 @@ export default function GbpDetailControls({
             >
               Connect Google Business
             </ActionButton>
-            <ActionButton variant="ghost" size="sm" onClick={refresh} pending={pending}>
+            <ActionButton variant="ghost" size="sm" onClick={refresh} pending={pending && active === 'refresh'} disabled={pending}>
               I just connected — refresh
             </ActionButton>
           </>

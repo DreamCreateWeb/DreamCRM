@@ -44,8 +44,8 @@ export function SyncNowButton() {
   return (
     <>
       <ActionButton variant="primary" size="sm" onClick={runSync} pending={pending}>
-        <RefreshIcon spinning={pending} />
-        <span className="ml-1.5">{pending ? 'Syncing…' : 'Sync now'}</span>
+        <RefreshIcon />
+        <span className="ml-1.5">Sync now</span>
       </ActionButton>
       {toast && <FlashToast message={toast.text} tone={toast.tone} onDone={() => setToast(null)} />}
     </>
@@ -67,10 +67,14 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
   const router = useRouter()
   const confirm = useConfirm()
   const [pending, start] = useTransition()
+  // The three controls below are on screen together, so one shared flag spun
+  // all three — `active` names the one whose work is actually running.
+  const [active, setActive] = useState<'direction' | 'auto' | 'disconnect' | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   function toggleDirection() {
     const next: SyncDirection = syncDirection === 'two_way' ? 'import' : 'two_way'
+    setActive('direction')
     start(async () => {
       await setSyncDirectionAction(next)
       setToast(next === 'two_way' ? 'Two-way sync on — bookings push to your PMS.' : 'Import only — bookings stay in DreamCRM.')
@@ -79,6 +83,7 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
   }
 
   function toggleAuto() {
+    setActive('auto')
     start(async () => {
       await setAutoSyncAction(!autoSyncEnabled)
       setToast(!autoSyncEnabled ? 'Auto-sync on.' : 'Auto-sync off.')
@@ -96,6 +101,7 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
       }))
     )
       return
+    setActive('disconnect')
     start(async () => {
       await disconnectPmsAction()
       router.refresh()
@@ -109,17 +115,18 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
           variant="secondary"
           size="sm"
           onClick={toggleDirection}
-          pending={pending}
+          pending={pending && active === 'direction'}
+          disabled={pending}
           title="Toggle whether DreamCRM also pushes its bookings into the PMS"
         >
           {syncDirection === 'two_way' ? 'Two-way sync' : 'Import only'}
         </ActionButton>
 
-        <ActionButton variant="secondary" size="sm" onClick={toggleAuto} pending={pending}>
+        <ActionButton variant="secondary" size="sm" onClick={toggleAuto} pending={pending && active === 'auto'} disabled={pending}>
           Auto-sync: {autoSyncEnabled ? 'On' : 'Off'}
         </ActionButton>
 
-        <ActionButton variant="danger" size="sm" onClick={disconnect} pending={pending} className="ml-auto">
+        <ActionButton variant="danger" size="sm" onClick={disconnect} pending={pending && active === 'disconnect'} disabled={pending} className="ml-auto">
           Disconnect
         </ActionButton>
       </div>
@@ -135,9 +142,11 @@ export default function SyncControls({ syncDirection, autoSyncEnabled, isDemo }:
   )
 }
 
-function RefreshIcon({ spinning }: { spinning: boolean }) {
+/** Decorative only — the busy state is ActionButton's own overlaid spinner,
+ *  so this never spins on its own account. */
+function RefreshIcon() {
   return (
-    <svg className={`w-4 h-4 ${spinning ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M3.027 14.652H8.02v4.992m-3.71-9.673a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99m-.001 0h-4.99m-9.504 1.654a8.25 8.25 0 0013.803 3.7l3.181-3.182m0 0h-4.991m4.991 0v4.99" />
     </svg>
   )

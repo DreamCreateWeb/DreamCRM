@@ -121,16 +121,46 @@ batch number.
   `token-contrast.test.ts` grade it like the others. Not done here: adding
   the registry entry means re-pointing every solid fill in the product at it,
   which is its own batch.
-- **Sibling actions sharing one `pending` flag all spin together.** Distinct
-  from the escape-hatch class above and NOT closed by batch 52: where a
-  surface runs several real actions off one `useTransition`, pressing one
-  spins all of them (lead-drawer's Mark contacted / Convert / Archive row;
-  every row of the review-request eligible list; the two payout
-  dispositions in delete-partner-modal). The repo already has the fix
-  named — `referral-card.tsx:202`'s `pending={pending && active === 'save'}
-  disabled={pending}` — and batches 46/47/49 applied it per-surface. What is
-  missing is the sweep. The guard test deliberately exempts the
-  discriminating shape, so adopting it is already unblocked.
+- **Sibling actions sharing one `pending` flag all spin together.** [BATCH 60,
+  the non-money half — 16 surfaces; the six money surfaces
+  (delete-partner-modal, memberships, coupons, orders, shop, the
+  integrations add-on) go through the review gate and land as their own PR,
+  named in `AWAITING_MONEY_SWEEP` until they do. The entry's own count of
+  three sites was low by an order of magnitude, and the reason is worth
+  keeping: the first scan for the shape read `<Tag[^>]*>`, which **stops at
+  the `>` inside `=>`** — so every `pending=` written after an inline arrow
+  handler, which is most of them, was invisible. It reported 3 files. A
+  brace-balanced tag reader (`tests/design-system/jsx-attrs.ts`) reports 27
+  groups, which is the number the punch list had guessed at from reading.
+  The MIRROR mistake cost as long to find: once braces balance properly a
+  `<SettingsTabs tabs={[… <ActionButton pending={pending} /> …]} />` spans
+  its whole subtree, and searching it for `pending=` reports the PARENT for
+  a child's prop — so attributes are read at brace depth 0 only. Two more
+  false-positive classes had to be ruled out mechanically before the rule
+  could hold at zero: two components in one file each owning a `pending`
+  (scope by top-level declaration — a prop and a `useTransition` sharing a
+  spelling are different flags), and one action rendered in two places (a
+  Refresh in the header and in the empty state — same handler, so one flag
+  is the truth about it). What is left is a human question the scan cannot
+  answer — buttons in mutually exclusive branches — and those are four
+  NAMED exemptions with reasons rather than a count, because a number says
+  how many we tolerate and a list says which. Three findings from the sweep
+  itself. (1) The lead drawer's Mark contacted / Reopen / Confirm archive
+  could not spin for their own work at ALL: they hand the transition to the
+  parent, which closes the drawer on the spot, so their `pending` only ever
+  fired for somebody else's convert. They are `disabled` now. (2) Several
+  sites were a whole LIST off one flag rather than a row — ticking the
+  first follow-up in My Day spun every follow-up, revoking one session
+  greyed every session, and one job's Publish spun all eight career
+  buttons; those key on the row id. (3) The escape-hatch guard batch 52
+  shipped had the same `[^>]*>` blind spot PLUS a 160-character body cap,
+  and two live offenders were sitting behind it on the Google review card
+  (an Edit reply and a Cancel carrying the card's `pending`, both multi-line
+  arrows). It is rebuilt on the shared reader. Red-verified on all five
+  rules against the real shapes: the lead drawer's original ladder, a
+  `pending=` written after an inline arrow (the shape the old regex could
+  not see), a multi-line pure-state setter, a bare Cancel, and a stale
+  exemption].
 - ~~77 form fields have no accessible name~~ [BATCH 53, ALL 77, and
   `eslint-suppressions.json` is now EMPTY. A `<label>` that is a SIBLING of
   its input, with neither `htmlFor` nor nesting, connects nothing — to a

@@ -1,11 +1,13 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/components/ui/toast'
 import { bulkThreadAction } from '../mailbox-actions'
 import { useSelection } from './selection-context'
+
+type BulkAction = 'archive' | 'trash' | 'mark_read' | 'mark_unread' | 'star' | 'unstar'
 
 interface Props {
   visibleIds: string[]
@@ -20,6 +22,9 @@ interface Props {
 export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
   const { selected, selectAll, clear, count } = useSelection()
   const [pending, startTransition] = useTransition()
+  // Five bulk actions off one flag meant Archive dimmed Trash, Read, Unread
+  // and Star as well — `active` names the one actually running.
+  const [active, setActive] = useState<BulkAction | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const sp = useSearchParams()
@@ -41,8 +46,9 @@ export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
     unstar: (n) => `${n} unstarred`,
   }
 
-  function run(action: 'archive' | 'trash' | 'mark_read' | 'mark_unread' | 'star' | 'unstar') {
+  function run(action: BulkAction) {
     const n = ids.length
+    setActive(action)
     startTransition(async () => {
       try {
         await bulkThreadAction({ ids, action })
@@ -89,29 +95,29 @@ export default function BulkActionBar({ visibleIds, activeThreadId }: Props) {
           {allVisibleSelected ? 'Deselect all' : `Select all ${visibleIds.length}`}
         </button>
         <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" aria-hidden="true" />
-        <BarButton onClick={() => run('archive')} pending={pending} label="Archive">
+        <BarButton onClick={() => run('archive')} pending={pending && active === 'archive'} disabled={pending} label="Archive">
           <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <rect x="3" y="4" width="18" height="4" rx="1" />
             <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
           </svg>
         </BarButton>
-        <BarButton onClick={() => run('trash')} pending={pending} label="Trash">
+        <BarButton onClick={() => run('trash')} pending={pending && active === 'trash'} disabled={pending} label="Trash">
           <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M6 7l1 13a2 2 0 002 2h6a2 2 0 002-2l1-13" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </BarButton>
-        <BarButton onClick={() => run('mark_read')} pending={pending} label="Read">
+        <BarButton onClick={() => run('mark_read')} pending={pending && active === 'mark_read'} disabled={pending} label="Read">
           <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
             <circle cx="12" cy="12" r="3.5" />
             <path d="M3 8l9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </BarButton>
-        <BarButton onClick={() => run('mark_unread')} pending={pending} label="Unread">
+        <BarButton onClick={() => run('mark_unread')} pending={pending && active === 'mark_unread'} disabled={pending} label="Unread">
           <svg className="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="currentColor" stroke="none">
             <circle cx="12" cy="12" r="4.5" />
           </svg>
         </BarButton>
-        <BarButton onClick={() => run('star')} pending={pending} label="Star">
+        <BarButton onClick={() => run('star')} pending={pending && active === 'star'} disabled={pending} label="Star">
           <svg className="w-[15px] h-[15px] text-amber-500" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" />
           </svg>
@@ -125,18 +131,22 @@ function BarButton({
   children,
   onClick,
   pending,
+  disabled,
   label,
 }: {
   children: React.ReactNode
   onClick: () => void
+  /** This button's own work is running — the only one that dims to `cursor-wait`. */
   pending: boolean
+  /** Some bulk action is running; every button in the bar is unavailable. */
+  disabled: boolean
   label: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={pending}
+      disabled={disabled}
       title={label}
       aria-label={label}
       className={cn(
