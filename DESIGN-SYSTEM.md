@@ -156,6 +156,14 @@ a gradient stop exactly as it is of a solid `bg-`. axe reports a gradient as
 *incomplete* rather than failing, so nothing in the browser suite will ever
 tell you; `tests/a11y/token-contrast.test.ts` rule 3 measures every stop and
 holds at zero (batch 61).
+**Gradient TEXT (`bg-clip-text text-transparent`) runs on `teal-600` or deeper
+too — the same cutoff, arrived at from the other side.** There the gradient is
+the INK rather than the fill, so each stop is graded against the page's white
+ground; the WCAG ratio is symmetric, so the steps that carry white text are
+exactly the steps that read AS text on white, and the system has one cutoff
+rather than two. Rule 4 in the same file measures it and holds at zero
+(batch 62). Both gradient rules grade stops, not spans: the ramp is monotonic
+in lightness, so a span between two legal stops is legal throughout.
 Everything else is neutral. Labels/eyebrows: `text-xs font-semibold
 uppercase tracking-wider` ink-500; the page-title eyebrow may be teal-700.
 
