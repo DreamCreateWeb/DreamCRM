@@ -9,16 +9,23 @@
  *  - open: hollow circle; hovering previews a faint check so the target
  *    reads as a checkbox BEFORE you commit.
  *  - done: filled emerald with the check; clicking reopens.
- * Always disabled while `pending` so a double-tap can't fire twice.
+ * Always disabled while `pending` so a double-tap can't fire twice — and
+ * `disabled` on its own for the rest of a LIST while one row is working: a
+ * board of ticks all reading busy because somebody ticked the first one is
+ * the shared-flag defect this pair exists to keep apart.
  */
 export function TickButton({
   done = false,
   pending = false,
+  disabled = false,
   onToggle,
   className = '',
 }: {
   done?: boolean
+  /** THIS tick's own work is running. */
   pending?: boolean
+  /** Unavailable, but not the thing that is working (a sibling row is). */
+  disabled?: boolean
   onToggle: () => void
   className?: string
 }) {
@@ -26,7 +33,8 @@ export function TickButton({
     <button
       type="button"
       onClick={onToggle}
-      disabled={pending}
+      disabled={pending || disabled}
+      aria-busy={pending || undefined}
       aria-label={done ? 'Reopen' : 'Mark done'}
       className={`group h-5 w-5 shrink-0 rounded-full border grid place-items-center disabled:opacity-50 transition-colors ${
         done

@@ -111,6 +111,11 @@ export default function IntegrationsLibrary({
   const router = useRouter()
   const requestedPmsSet = new Set(requestedPms)
   const [pending, start] = useTransition()
+  // Which integration the running action belongs to. Every card in the
+  // marketplace reads the same `pending`, so without this, acting on one of
+  // them put a spinner on all of them. `REFRESH` is the whole-page re-sync,
+  // which belongs to no single card.
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(routeError)
   // After opening any connect tab, poll on focus until accounts refresh.
   const awaitingConnect = useRef(false)
@@ -121,6 +126,7 @@ export default function IntegrationsLibrary({
 
   function refresh() {
     setError(null)
+    setActiveId(REFRESH)
     start(async () => {
       const r = await syncZernioAccountsAction()
       if (!r.ok) setError(r.error ?? 'Could not refresh your channels.')
@@ -130,6 +136,7 @@ export default function IntegrationsLibrary({
 
   function disconnect(platform: string) {
     setError(null)
+    setActiveId(platform)
     start(async () => {
       const r = await disconnectChannelAction(platform)
       if (!r.ok) setError(r.error ?? 'Could not disconnect.')
@@ -163,6 +170,7 @@ export default function IntegrationsLibrary({
   // by seeding the synthetic connected account, then refreshes to show it.
   function simulateConnect(platform: string) {
     setError(null)
+    setActiveId(platform)
     start(async () => {
       const r = await simulateDemoConnectAction(platform)
       if (!r.ok) setError(r.error ?? 'Could not connect.')
@@ -185,6 +193,7 @@ export default function IntegrationsLibrary({
 
   const handlers: CardHandlers = {
     pending,
+    activeId,
     onConnectClick,
     onRefresh: refresh,
     onDisconnect: disconnect,
@@ -593,8 +602,14 @@ function HandleWell({ title, handle }: { title: string; handle?: string | null }
 
 // ── THE catalog-driven card — renders any def from its runtime status ────────
 
+/** `activeId` for the page-wide re-sync, which belongs to no single card. */
+const REFRESH = '__refresh'
+
 interface CardHandlers {
   pending: boolean
+  /** The integration the running action belongs to — every card reads the
+   *  same `pending`, so a card asks `pending && activeId === def.id`. */
+  activeId: string | null
   onConnectClick: () => void
   onRefresh: () => void
   onDisconnect: (platform: string) => void
@@ -837,9 +852,10 @@ function DisconnectedActions({
           variant={isGbp ? 'primary' : 'secondary'}
           size="sm"
           onClick={() => handlers.onSimulateConnect(def.id)}
+          pending={handlers.pending && handlers.activeId === def.id}
           disabled={handlers.pending}
         >
-          {handlers.pending ? 'Connecting…' : isGbp ? 'Connect Google Business' : 'Connect'}
+          {isGbp ? 'Connect Google Business' : 'Connect'}
         </ActionButton>
       )
     }
@@ -856,7 +872,7 @@ function DisconnectedActions({
           {isGbp ? 'Connect Google Business' : 'Connect'}
         </ActionButton>
         {isGbp && (
-          <ActionButton variant="ghost" size="sm" onClick={handlers.onRefresh} pending={handlers.pending}>
+          <ActionButton variant="ghost" size="sm" onClick={handlers.onRefresh} pending={handlers.pending && handlers.activeId === REFRESH} disabled={handlers.pending}>
             I just connected — refresh
           </ActionButton>
         )}
@@ -928,7 +944,7 @@ function SocialAddonCard({
           </ActionButton>
         ) : (
           <ActionButton variant="primary" size="sm" onClick={onBuy} pending={pending}>
-            {pending ? 'Working…' : `Add more — $${entitlement.addonPriceDollars}/mo`}
+            {`Add more — $${entitlement.addonPriceDollars}/mo`}
           </ActionButton>
         )}
       </div>

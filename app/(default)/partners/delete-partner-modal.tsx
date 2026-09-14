@@ -57,6 +57,11 @@ export default function DeletePartnerModal({
   const [disposition, setDisposition] = useState<PartnerDeleteDisposition | null>(null)
   const [loading, setLoading] = useState(false)
   const [pending, startTransition] = useTransition()
+  // The `resolve` disposition puts "Pay out … now, then archive" and
+  // "Void … and archive" on screen TOGETHER — two different answers about
+  // real money. One shared flag spun both, so the modal could not say which
+  // of the two was running. `active` names it.
+  const [active, setActive] = useState<'delete' | 'archive' | 'pay' | 'void' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -82,23 +87,28 @@ export default function DeletePartnerModal({
     }
   }, [open, partnerId])
 
-  // Esc closes.
+  // Esc closes — but not mid-payout. All four exits (Cancel, ✕, the backdrop
+  // and this) agree now: Cancel was already `disabled={pending}` and the
+  // other three were not, so on a modal whose buttons pay out or void real
+  // money one exit said "wait" and three said "sure".
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape' && !pending) setOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, pending])
 
   function close() {
+    if (pending) return
     setOpen(false)
     setError(null)
   }
 
   function doDelete() {
     setError(null)
+    setActive('delete')
     startTransition(async () => {
       try {
         const r = await deletePartnerAction(partnerId)
@@ -119,6 +129,7 @@ export default function DeletePartnerModal({
 
   function doArchive(resolve?: 'pay' | 'void') {
     setError(null)
+    setActive(resolve ?? 'archive')
     startTransition(async () => {
       try {
         const r = await archivePartnerAction({ partnerId, resolve })
@@ -167,7 +178,8 @@ export default function DeletePartnerModal({
               <button
                 type="button"
                 onClick={close}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] text-gray-500 hover:text-gray-700 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-200 text-lg leading-none"
+                disabled={pending}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] text-gray-500 hover:text-gray-700 hover:bg-gray-500/10 disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-200 text-lg leading-none"
                 aria-label="Close"
               >
                 ✕
@@ -237,13 +249,13 @@ export default function DeletePartnerModal({
               </ActionButton>
 
               {!loading && disposition === 'clean' && (
-                <ActionButton variant="danger" size="sm" onClick={doDelete} pending={pending}>
+                <ActionButton variant="danger" size="sm" onClick={doDelete} pending={pending && active === 'delete'} disabled={pending}>
                   Permanently delete
                 </ActionButton>
               )}
 
               {!loading && disposition === 'archive' && (
-                <ActionButton variant="danger" size="sm" onClick={() => doArchive()} pending={pending}>
+                <ActionButton variant="danger" size="sm" onClick={() => doArchive()} pending={pending && active === 'archive'} disabled={pending}>
                   Archive partner
                 </ActionButton>
               )}
@@ -254,13 +266,13 @@ export default function DeletePartnerModal({
                     variant="secondary"
                     size="sm"
                     onClick={() => doArchive('pay')}
-                    pending={pending}
-                    disabled={!payoutsEnabled}
+                    pending={pending && active === 'pay'}
+                    disabled={pending || !payoutsEnabled}
                     title={payoutsEnabled ? undefined : 'Partner hasn’t set up a payout method yet'}
                   >
                     {`Pay out ${moneyExact(accruedCents)} now, then archive`}
                   </ActionButton>
-                  <ActionButton variant="danger" size="sm" onClick={() => doArchive('void')} pending={pending}>
+                  <ActionButton variant="danger" size="sm" onClick={() => doArchive('void')} pending={pending && active === 'void'} disabled={pending}>
                     {`Void ${moneyExact(accruedCents)} and archive`}
                   </ActionButton>
                 </div>

@@ -356,8 +356,8 @@ function TemplateForm({
         <ActionButton variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
           Cancel
         </ActionButton>
-        <ActionButton variant="primary" size="sm" onClick={submit} disabled={!canSave}>
-          {pending ? 'Saving…' : initial ? 'Save' : 'Add template'}
+        <ActionButton variant="primary" size="sm" onClick={submit} pending={pending} disabled={pending || !canSave}>
+          {initial ? 'Save' : 'Add template'}
         </ActionButton>
       </div>
     </div>

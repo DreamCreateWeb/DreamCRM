@@ -204,8 +204,8 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
         {error && <p className="text-sm text-rose-600">{error}</p>}
 
         <div className="flex items-center gap-3 pt-2">
-          <ActionButton variant="primary" disabled={isPending || uploading} onClick={submit}>
-            {isPending ? 'Saving…' : product ? 'Save changes' : 'Create product'}
+          <ActionButton variant="primary" pending={isPending} disabled={isPending || uploading} onClick={submit}>
+            {product ? 'Save changes' : 'Create product'}
           </ActionButton>
           <Link href="/shop" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">Cancel</Link>
         </div>

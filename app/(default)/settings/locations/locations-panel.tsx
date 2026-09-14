@@ -325,7 +325,7 @@ function LocationForm({
 
       <div className="flex items-center gap-2">
         <ActionButton variant="primary" type="submit" pending={pending}>
-          {pending ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Save location'}
+          {mode === 'edit' ? 'Save changes' : 'Save location'}
         </ActionButton>
         <ActionButton variant="secondary" onClick={() => { onClose(); setError(null) }} disabled={pending}>
           Cancel

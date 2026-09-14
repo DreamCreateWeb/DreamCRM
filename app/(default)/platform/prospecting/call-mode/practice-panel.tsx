@@ -197,7 +197,7 @@ export default function PracticePanel({
                 maxLength={600}
                 autoFocus
               />
-              <ActionButton variant="primary" size="sm" disabled={pending || !draft.trim()} onClick={say}>
+              <ActionButton variant="primary" size="sm" pending={pending} disabled={pending || !draft.trim()} onClick={say}>
                 Say it
               </ActionButton>
               <ActionButton

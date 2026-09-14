@@ -459,7 +459,7 @@ export default function SubscriptionPanel({
                       disabled={pending}
                       className="mt-3 w-full justify-center"
                     >
-                      {isPending ? 'Redirecting…' : onTrial ? `Choose ${p.name}` : `Switch to ${p.name}`}
+                      {onTrial ? `Choose ${p.name}` : `Switch to ${p.name}`}
                     </ActionButton>
                   )}
                 </div>

@@ -121,11 +121,18 @@ batch number.
   `token-contrast.test.ts` grade it like the others. Not done here: adding
   the registry entry means re-pointing every solid fill in the product at it,
   which is its own batch.
-- **Sibling actions sharing one `pending` flag all spin together.** [BATCH 60,
-  the non-money half — 16 surfaces; the six money surfaces
-  (delete-partner-modal, memberships, coupons, orders, shop, the
-  integrations add-on) go through the review gate and land as their own PR,
-  named in `AWAITING_MONEY_SWEEP` until they do. The entry's own count of
+- ~~Sibling actions sharing one `pending` flag all spin together~~ [BATCH 60,
+  ALL of it, in two PRs: 16 non-money surfaces, then the five money ones
+  (delete-partner-modal's two payout dispositions, memberships, coupons,
+  orders, shop) behind the review gate. `integrations-library` turned out
+  NOT to be one — its Cancel add-on and Add more are two arms of the same
+  ternary — but it was hiding the OTHER batch-52 defect, a
+  `{pending ? 'Working…' : …}` label swap on an ActionButton that already
+  had the prop. Two more of those turned up the same way (the patient CSV
+  import's Import button, the PMS Sync now button, whose icon was
+  additionally spinning behind the primitive's own spinner): the rule-1
+  ternary guard only matches two STRING LITERALS, and all three had a
+  template literal on one arm. The entry's own count of
   three sites was low by an order of magnitude, and the reason is worth
   keeping: the first scan for the shape read `<Tag[^>]*>`, which **stops at
   the `>` inside `=>`** — so every `pending=` written after an inline arrow
@@ -160,7 +167,59 @@ batch number.
   rules against the real shapes: the lead drawer's original ladder, a
   `pending=` written after an inline arrow (the shape the old regex could
   not see), a multi-line pure-state setter, a bare Cancel, and a stale
-  exemption].
+  exemption. The rule holds at ZERO with six named exemptions and no ceiling;
+  a companion assertion fails if any exemption stops matching a real group,
+  so a rewritten surface cannot leave a hole behind.
+  **The sibling rule alone was not enough, and Sentinel's review of the
+  second PR is what found it.** A group needs two or more SOURCE sites, and
+  one `<ActionButton pending={flag}>` written inside `rows.map(…)` is one
+  source site rendered N times — it can never have a sibling, so the rule was
+  structurally blind to the commonest form of the defect. Two sites survived
+  the sweep because of it, one of them `growth/reviews/eligible-list.tsx`,
+  which THIS ENTRY named by hand. A second rule now fires on a single in-map
+  site reading a flag destructured from `useTransition()` in the same scope.
+  The `useTransition` restriction is load-bearing rather than tidy: without
+  it the rule matches 10 in-map sites to catch 2, because the correct ones
+  (`partners-table`'s `pendingId === p.id`, `subscription-panel`'s
+  `pendingPlan === p.id`) have already been narrowed by whoever wrote them,
+  and a guard that reports eight right answers is one people switch off.
+  Its own first draft then reported CLEAN with both defects live: it walked
+  back to the NEAREST unclosed `(`, and a JSX ternary wraps its arms in
+  parens, so it found `) : (` and never reached the `.map(` two levels out.
+  The red run is what said so. Widening `LABEL_TERNARY` to key on the BUSY
+  arm alone surfaced 16 more rule-1 offenders on top of the four found by
+  hand — every one with a template literal on the idle arm — and moved the
+  raw-`<button>` ceiling 71 → 90, which is the same population measured with
+  an instrument that can see it rather than any regression.
+  **Deleting those 16 was where the batch nearly shipped a regression, and
+  Sentinel's second round caught it.** Rule 1's premise is "the ActionButton
+  already passes `pending`, so the ternary is pure duplication" — the guard
+  asserts the ternary is GONE and never asserts the prop is THERE. Of the 18
+  sites the widened regex found, seven had the prop and ELEVEN did not: for
+  those the ternary was the only busy feedback the button had, and removing
+  it left them greying out in silence. One was the referral partner's
+  Withdraw button, the single control in the product that moves money to
+  somebody's own bank account, going quiet for the length of a Stripe
+  Connect payout. So the pair has a third rule now: a branded primitive
+  whose `disabled` reads a busy flag and which has no `pending` of its own
+  is an offender. Narrowing it was the work — the first draft asked only
+  "does `disabled` read a busy flag" and named 22 sites to catch the 11,
+  because a button can be unavailable while a SIBLING works, or hand its
+  transition to a parent that closes the surface, or only flip local state.
+  It now requires the button's OWN `onClick` to reach the transition's
+  starter, resolved through the handler's brace-matched body — a fixed
+  character window ran straight past the closing brace into the next
+  handler, which is how `onMarkContacted` read as starting a transition it
+  hands to its parent. At that width it found 8 more real ones beyond the
+  11, including the goals card's Pause (whose sibling "Reached it" was
+  already right), the leads bulk bar, the quick-reply Send and the partner
+  detail's Pay now. Its reach is narrower than its sentence, and that is
+  written down where the rule lives: the flag has to be a LOCAL
+  `useTransition`, because the narrowing that makes the rule shippable is
+  having a starter to check the `onClick` against and a flag that arrived as
+  a prop has none. Two of the eleven sit outside it for exactly that reason
+  (`gbp-sync-card`'s `busy` prop, `integrations-library`'s
+  `handlers.pending`) and were fixed by hand rather than by the guard].
 - ~~77 form fields have no accessible name~~ [BATCH 53, ALL 77, and
   `eslint-suppressions.json` is now EMPTY. A `<label>` that is a SIBLING of
   its input, with neither `htmlFor` nor nesting, connects nothing — to a

@@ -175,9 +175,10 @@ export default function QuickReply({ accountId, toEmail, toName, subject, messag
           variant="primary"
           size="sm"
           onClick={handleSend}
+          pending={pending}
           disabled={pending || drafting || !body.trim() || sent}
         >
-          {sent ? 'Sent' : pending ? 'Sending…' : 'Send'}
+          {sent ? 'Sent' : 'Send'}
         </ActionButton>
       </div>
     </div>

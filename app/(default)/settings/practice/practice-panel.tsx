@@ -288,7 +288,7 @@ function ProvidersSection({
               className="form-input mt-1 w-full text-sm"
             />
           </label>
-          <ActionButton variant="primary" size="sm" onClick={add} disabled={pending || !trimmedNew || emailInvalid}>Add</ActionButton>
+          <ActionButton variant="primary" size="sm" onClick={add} pending={pending} disabled={pending || !trimmedNew || emailInvalid}>Add</ActionButton>
         </div>
         {dupWarn && !error && (
           <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">

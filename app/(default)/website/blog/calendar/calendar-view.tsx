@@ -325,9 +325,10 @@ function GenerateIdeasModal({ onClose, onAdded, isPlatform = false }: { onClose:
                   variant="primary"
                   size="sm"
                   onClick={add}
+                  pending={pending}
                   disabled={pending || Object.values(checked).every((v) => !v)}
                 >
-                  {pending ? 'Adding…' : `Add ${Object.values(checked).filter(Boolean).length} to queue`}
+                  {`Add ${Object.values(checked).filter(Boolean).length} to queue`}
                 </ActionButton>
               </div>
             </div>

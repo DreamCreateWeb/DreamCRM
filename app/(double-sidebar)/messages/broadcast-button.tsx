@@ -173,11 +173,10 @@ export default function BroadcastButton() {
                         variant="primary"
                         size="sm"
                         onClick={onSend}
+                        pending={pending}
                         disabled={pending || !segment || !body.trim() || overCap || selectedCount === 0}
                       >
-                        {pending
-                          ? 'Sending…'
-                          : selectedCount != null
+                        {selectedCount != null
                             ? `Send to ${selectedCount} ${selectedCount === 1 ? 'patient' : 'patients'}`
                             : 'Send'}
                       </ActionButton>

@@ -135,6 +135,7 @@ export default function GoalsSection({
                   <ActionButton
                     variant="ghost"
                     size="sm"
+                    pending={pending && activeId === g.id}
                     disabled={pending}
                     onClick={() => move(g.id, 'paused')}
                   >

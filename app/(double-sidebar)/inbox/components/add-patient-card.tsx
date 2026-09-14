@@ -82,10 +82,11 @@ export default function AddPatientCard({ messageId, fromEmail, fromName, termino
         variant="primary"
         size="sm"
         onClick={handleSubmit}
+        pending={pending}
         disabled={pending || !firstName.trim() || !lastName.trim()}
         className="w-full justify-center mt-3"
       >
-        {pending ? 'Adding…' : `Add as ${terminology.contact}`}
+        {`Add as ${terminology.contact}`}
       </ActionButton>
     </aside>
   )
