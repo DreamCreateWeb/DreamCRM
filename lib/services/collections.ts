@@ -2,6 +2,7 @@ import 'server-only'
 import { and, desc, eq, gt, gte, inArray, isNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { clinicMonthStart } from '@/lib/clinic-timezone'
+import { netCollectedCents, sumNetCollectedSql } from '@/lib/net-collected'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
 
 /**
@@ -171,6 +172,7 @@ export async function getCollectionsBoard(
         .select({
           patientId: schema.patientBalancePayment.patientId,
           amountCents: schema.patientBalancePayment.amountCents,
+          refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
           paidAt: schema.patientBalancePayment.paidAt,
         })
         .from(schema.patientBalancePayment)
@@ -186,17 +188,28 @@ export async function getCollectionsBoard(
   const latestPayment = new Map<string, { amountCents: number; paidAt: Date | null }>()
   for (const p of payments) {
     if (!latestPayment.has(p.patientId)) {
-      latestPayment.set(p.patientId, { amountCents: p.amountCents, paidAt: p.paidAt })
+      // Net of refunds — "last paid $400" next to a balance that never moved
+      // because $400 went straight back is the confusing half of this board.
+      latestPayment.set(p.patientId, {
+        amountCents: netCollectedCents(p.amountCents, p.refundedAmountCents),
+        paidAt: p.paidAt,
+      })
     }
   }
 
   // Collected this clinic-local month — across ALL patients, not just the
   // board (a paid-off patient leaves the board; their payment still counts).
+  // NET of refunds: the row stays 'paid' after Stripe sends money back (see
+  // `lib/services/refunds.ts`), so without the netting rule this header told a
+  // clinic it had collected money it had already returned.
   const tz = await getClinicTimeZone(organizationId)
   const monthStart = clinicMonthStart(now, tz)
   const [collected] = await db
     .select({
-      total: sql<number>`coalesce(sum(${schema.patientBalancePayment.amountCents}), 0)::bigint`,
+      total: sumNetCollectedSql(
+        schema.patientBalancePayment.amountCents,
+        schema.patientBalancePayment.refundedAmountCents,
+      ),
     })
     .from(schema.patientBalancePayment)
     .where(

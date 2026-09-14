@@ -511,7 +511,25 @@ binding are all correct. The payment-plan charger was the exception.
   `status='paid'` and a fully refunded order leaves that set. Fix shape:
   `sum(amount_cents - refunded_amount_cents)` over
   `status in ('paid','refunded')`, decided once for all of them so the
-  surfaces cannot disagree. · OPEN.
+  surfaces cannot disagree. · **FIXED** (DREAMCRM-32) — the rule is
+  `lib/net-collected.ts`, adopted by every clinic-side total: the collections
+  board's "Collected this month" and its last-paid column, the Payments hub's
+  8-week heartbeat, the Shop hub's revenue tile + trailing-30-day figure,
+  "Best sellers" revenue, patient lifetime shop spend (both the list and the
+  record), and all three bookkeeping CSVs, which grew a `Net collected`
+  column so the number a bookkeeper totals is the netted one. Two decisions
+  make it ONE rule rather than eight: the STATUS FILTER DOES NOT CHANGE (a
+  refunded balance payment stays 'paid' on purpose, so netting is the only
+  thing that makes its total honest; a fully refunded shop order leaves the
+  'paid' set and nets to zero either way), and the net is CLAMPED AT ZERO so
+  no single row can pull a clinic's month negative. "Best sellers" is the one
+  allocation call: Stripe refunds a CHARGE, not a line, so each line is
+  reduced by the share of its order that came back — the only split that
+  keeps the lines summing to the order's net — while `unitsSold` stays a
+  count of units that left the shelf. `tests/guards/net-refunds.test.ts`
+  fails on a raw `sum()` over a refundable column, a raw `+=` off one, or the
+  subtraction open-coded anywhere else; its red run was watched against the
+  live bug in both `collections.ts` and `shop.ts`.
 - S2 · `finalizeOrderFromSession` did not know 'refunded' was a terminal
   state, so a refunded shop order could be written back to `'paid'` by a page
   RELOAD. `app/site/[slug]/shop/success/page.tsx` finalizes on every load (an

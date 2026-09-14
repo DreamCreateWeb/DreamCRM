@@ -5,6 +5,7 @@ import { db, schema } from '@/lib/db'
 import { slugify } from '@/lib/utils'
 import { toCsv, csvDollars } from '@/lib/csv'
 import { clinicWeekStart } from '@/lib/clinic-timezone'
+import { netCollectedCents, collectedCents, keptFractionSql } from '@/lib/net-collected'
 import { getClinicTimeZone } from './clinic-timezone'
 import type {
   ProductRow,
@@ -541,7 +542,7 @@ export async function exportShopOrdersCsv(organizationId: string): Promise<strin
     'Order ID', 'Date', 'Status', 'Fulfillment', 'Fulfillment status',
     'Customer', 'Email', 'Phone', 'Items',
     'Subtotal', 'Shipping', 'Tax', 'Discount', 'Total', 'Tracking #', 'Paid at',
-    'Refunded', 'Refunded at',
+    'Refunded', 'Refunded at', 'Net collected',
   ]
   const rows = orders.map((o) => [
     o.id,
@@ -564,6 +565,11 @@ export async function exportShopOrdersCsv(organizationId: string): Promise<strin
     // money that went out — a 'refunded' status alone doesn't say how much.
     o.refundedAmountCents > 0 ? csvDollars(o.refundedAmountCents) : '',
     o.refundedAt ? o.refundedAt.toISOString() : '',
+    // The column a bookkeeper can total. 'Total' is the face value and stays
+    // that; this is what the clinic kept, by the same rule its own dashboard
+    // now uses — including the status half of it, so a pending or cancelled
+    // order contributes nothing instead of its face value.
+    csvDollars(collectedCents(o.status, o.totalCents, o.refundedAmountCents)),
   ])
   return toCsv(headers, rows)
 }
@@ -600,6 +606,9 @@ export interface OrderStats {
   unfulfilledCount: number
   /** Paid orders that reached a done state (picked up / delivered). */
   fulfilledCount: number
+  /** NET of refunds (`lib/net-collected.ts`) — a fully refunded order has
+   *  already left the 'paid' set, so what netting adds here is the PARTIAL
+   *  refund the status column cannot express. */
   revenueCents: number
   /** Paid revenue + order count in the trailing 30 days. */
   last30Cents: number
@@ -612,6 +621,7 @@ export async function getOrderStats(organizationId: string): Promise<OrderStats>
       status: schema.shopOrder.status,
       fulfillmentStatus: schema.shopOrder.fulfillmentStatus,
       totalCents: schema.shopOrder.totalCents,
+      refundedAmountCents: schema.shopOrder.refundedAmountCents,
       createdAt: schema.shopOrder.createdAt,
     })
     .from(schema.shopOrder)
@@ -626,12 +636,13 @@ export async function getOrderStats(organizationId: string): Promise<OrderStats>
   for (const o of orders) {
     if (o.status === 'paid') {
       paidCount++
-      revenueCents += o.totalCents
+      const netCents = netCollectedCents(o.totalCents, o.refundedAmountCents)
+      revenueCents += netCents
       if (o.fulfillmentStatus === 'unfulfilled' || o.fulfillmentStatus === 'ready_for_pickup') unfulfilledCount++
       if (o.fulfillmentStatus === 'picked_up' || o.fulfillmentStatus === 'delivered') fulfilledCount++
       if (o.createdAt.getTime() >= cutoff) {
         last30Count++
-        last30Cents += o.totalCents
+        last30Cents += netCents
       }
     }
   }
@@ -697,9 +708,17 @@ export async function getOrdersPerWeek8(
  * Best-selling products across PAID orders, ranked by revenue. Powers the Shop
  * hub's "Best sellers" card. Aggregates the order-item lines (which snapshot the
  * product name + price at purchase, so a renamed/deleted product still tallies).
+ *
+ * Revenue is NET of refunds. Stripe refunds a CHARGE, not a line, so nothing
+ * in the data says which item came back: each line is reduced by the share of
+ * its order that was sent back (`keptFractionSql`), which is the only
+ * allocation that keeps the lines summing to the order's net. `unitsSold`
+ * stays a count of units that left the shelf — a fully refunded order has
+ * already dropped out with its status, and part-refunding an order does not
+ * tell us a unit came back.
  */
 export async function getTopProducts(organizationId: string, limit = 5): Promise<TopProduct[]> {
-  const revenueExpr = sql<number>`sum(${schema.shopOrderItem.unitPriceCents} * ${schema.shopOrderItem.quantity})`
+  const revenueExpr = sql<number>`round(sum(${schema.shopOrderItem.unitPriceCents} * ${schema.shopOrderItem.quantity} * ${keptFractionSql(schema.shopOrder.totalCents, schema.shopOrder.refundedAmountCents)}))::bigint`
   const rows = await db
     .select({
       productName: schema.shopOrderItem.productName,

@@ -17,6 +17,8 @@ interface Row {
   organizationId: string
   status: string
   amountCents: number
+  /** Cents Stripe sent back — the row stays 'paid', so the series has to net. */
+  refundedAmountCents?: number
   paidAt: Date | null
 }
 
@@ -129,5 +131,37 @@ describe('getCollectedPerWeek8', () => {
     const byBucket = Object.fromEntries(series.map((p) => [p.bucket, p.value]))
     expect(byBucket['Dec 28']).toBe(100) // the Saturday-night payment stayed put
     expect(byBucket['Jan 4']).toBe(25)
+  })
+
+  it('counts a refunded payment NET, not at face value', async () => {
+    // The row stays 'paid' after Stripe sends money back (that is deliberate —
+    // the front desk still has to reverse it on the PMS ledger), so the ONLY
+    // thing that keeps this heartbeat honest is subtracting the refund.
+    state.rows = [
+      {
+        organizationId: 'org_a',
+        status: 'paid',
+        amountCents: 10000,
+        refundedAmountCents: 4000,
+        paidAt: new Date('2026-01-05T15:00:00.000Z'),
+      },
+    ]
+    const series = await getCollectedPerWeek8('org_a', NOW)
+    const byBucket = Object.fromEntries(series.map((p) => [p.bucket, p.value]))
+    expect(byBucket['Jan 4']).toBe(60)
+  })
+
+  it('draws a fully refunded week flat instead of drawing a week that never happened', async () => {
+    state.rows = [
+      {
+        organizationId: 'org_a',
+        status: 'paid',
+        amountCents: 10000,
+        refundedAmountCents: 10000,
+        paidAt: new Date('2026-01-05T15:00:00.000Z'),
+      },
+    ]
+    const series = await getCollectedPerWeek8('org_a', NOW)
+    expect(series.every((p) => p.value === 0)).toBe(true)
   })
 })

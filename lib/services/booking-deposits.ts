@@ -6,6 +6,7 @@ import { stripe } from '@/lib/stripe'
 import { notifyOrgMembers } from './notifications'
 import { queueCommLogWriteBack } from './pms'
 import { toCsv, csvDollars } from '@/lib/csv'
+import { netCollectedCents } from '@/lib/net-collected'
 import { platformFeeCents } from '@/lib/types/shop'
 
 /**
@@ -323,6 +324,7 @@ export async function exportBookingDepositsCsv(organizationId: string): Promise<
     'Paid at',
     'Refunded',
     'Refunded at',
+    'Net collected',
   ]
   const csvRows = rows.map((r) => [
     r.id,
@@ -334,6 +336,8 @@ export async function exportBookingDepositsCsv(organizationId: string): Promise<
     r.paidAt ? r.paidAt.toISOString() : '',
     r.refundedAmountCents > 0 ? csvDollars(r.refundedAmountCents) : '',
     r.refundedAt ? r.refundedAt.toISOString() : '',
+    // The column a bookkeeper can total — see the balance-payment export.
+    csvDollars(netCollectedCents(r.amountCents, r.refundedAmountCents)),
   ])
   return toCsv(headers, csvRows)
 }
