@@ -5,7 +5,9 @@ import { listBookingSlots, submitBookingRequest, type BookingConfirmation } from
 import type { BookingSlot, SlotsClosedReason } from '@/lib/services/booking'
 import { OTHER_VISIT_TYPE_ID } from '@/lib/types/visit-types'
 import { buildIcs, icsDataUrl } from '@/lib/ics'
-import { readableInk, brandFill } from '@/lib/clinic-site-theme'
+import { readableInk, brandFill, brandWash } from '@/lib/clinic-site-theme'
+import { brandTint } from '@/lib/brand-tint'
+import { SuccessWell } from '@/components/clinic-site/success-well'
 import { clinicDayKey } from '@/lib/format-datetime'
 import { clinicDayStart, dayOfWeekForDateKey } from '@/lib/clinic-timezone'
 import { SMS_CONSENT_LABEL, smsConsentDisclosure } from '@/lib/sms-consent'
@@ -214,14 +216,7 @@ export function BookingSuccess({ confirmation, brand }: { confirmation: BookingC
 
   return (
     <div className="text-center py-12 sm:py-14">
-      <div
-        className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-        style={{ backgroundColor: brandFill(brand) + '22' }}
-      >
-        <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
+      <SuccessWell brand={brand} className="mb-6" />
       <h2
         ref={headingRef}
         tabIndex={-1}
@@ -535,7 +530,7 @@ export default function BookForm({
       {!windowHasAvailability && clinicPhone && (
         <section
           className="rounded-2xl p-5 sm:p-6 text-center"
-          style={{ backgroundColor: brandFill(brand) + '12', border: `1px solid ${brand}40` }}
+          style={{ backgroundColor: brandWash(brand), border: `1px solid ${brandTint(brand, 0.25)}` }}
         >
           <p className="text-base font-semibold mb-1" style={{ color: INK }}>
             No online openings right now.

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { submitAppointmentRequest } from '../actions'
 import { readableInk, brandFill } from '@/lib/clinic-site-theme'
+import { SuccessWell } from '@/components/clinic-site/success-well'
 import FormTrustFields from '@/components/clinic-site/form-trust-fields'
 import type { PublicVisitTypeOption } from './book-form'
 import { SITE_BG as BG, SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
@@ -68,14 +69,7 @@ export default function RequestForm({ slug, brand, clinicName, clinicPhone = nul
   if (status === 'success') {
     return (
       <div className="text-center py-12 sm:py-14">
-        <div
-          className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-          style={{ backgroundColor: brandFill(brand) + '22' }}
-        >
-          <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
+        <SuccessWell brand={brand} className="mb-6" />
         <h2 className="text-3xl font-bold tracking-[-0.02em] mb-2" style={{ color: INK }}>
           Request received.
         </h2>

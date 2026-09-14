@@ -19,6 +19,7 @@ import {
 } from '@/lib/clinic-site-helpers'
 import { publicVisitTypes } from '@/lib/types/visit-types'
 import { readableInk } from '@/lib/clinic-site-theme'
+import { SuccessWell } from '@/components/clinic-site/success-well'
 import { firstBookableDayInWindow } from '@/lib/services/booking'
 import { getPortalSettings } from '@/lib/services/portal-settings'
 import {
@@ -473,14 +474,7 @@ function DepositReceiptCard({
       : `$${(receipt.amountCents / 100).toFixed(2)}`
   return (
     <div className="text-center py-10 sm:py-12">
-      <div
-        className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6"
-        style={{ backgroundColor: brand + '22' }}
-      >
-        <svg className="w-10 h-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
+      <SuccessWell brand={brand} className="mb-6" />
       <h2 className="text-3xl font-bold tracking-[-0.02em] mb-2" style={{ color: INK }}>
         Deposit received — you&rsquo;re all set, {receipt.patientFirstName}.
       </h2>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import IntakeFormRunner, { type IntakeSubmitPayload, type OcrAction } from '../../[formSlug]/intake-form-runner'
 import type { FormTemplateSchema, FormTranslations } from '@/lib/types/forms'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_SURFACE as SURFACE, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
+import { SuccessWell } from '@/components/clinic-site/success-well'
 
 export interface PacketForm {
   id: string
@@ -48,11 +49,7 @@ export default function PacketRunner({
   if (done || forms.length === 0) {
     return (
       <div className="rounded-2xl p-10 text-center" style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
-        <div className="mb-6 inline-flex h-20 w-20 items-center justify-center rounded-full" style={{ backgroundColor: brand + '22' }}>
-          <svg className="h-10 w-10" style={{ color: brand }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
+        <SuccessWell brand={brand} className="mb-6" />
         <h2 className="mb-3 text-3xl font-bold tracking-[-0.02em]" style={{ color: INK }}>
           All done — thank you.
         </h2>

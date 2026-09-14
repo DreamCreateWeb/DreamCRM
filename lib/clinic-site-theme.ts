@@ -387,6 +387,37 @@ export function brandFill(brandHex: string | null | undefined): string {
   return `var(${PALETTE_VARS.brandStrong}, ${buildClinicPalette(brandHex).brandStrong})`
 }
 
+/**
+ * Brand-as-WASH — the pale brand-tinted surface a chip, pill or icon well
+ * sits on, and the sibling of `brandFill` for the other half of the pair.
+ *
+ * It exists because the obvious spelling does not work. Five confirmation
+ * pages painted their success mark with `brandFill(brand) + '22'`, reaching
+ * for "the brand fill at 13%" — but `brandFill` returns a `var()`, and
+ * `'var(--c-brand-strong, #4C7DF0)22'` is not a colour, so the browser drops
+ * the declaration and the well renders with NO BACKGROUND at all. A hex alpha
+ * suffix can only be concatenated onto a hex; the moment a value becomes
+ * template-aware it stops being one. `tests/clinic-site/brand-wash.test.ts`
+ * fails on a suffix concatenated onto a `var()` anywhere under `app/site` or
+ * `components/clinic-site`.
+ *
+ * The wash is also the better answer than an alpha tint, which is why this
+ * returns a token rather than a fixed opacity: `brandSoft` is a real palette
+ * role the ACTIVE template owns, it comes with `brandSoftInk` already graded
+ * to 4.5:1 against it, and — unlike `brand` at 13% — it does not change
+ * meaning depending on the surface underneath.
+ *
+ * Use `brandWashInk()` for anything legible on top of it.
+ */
+export function brandWash(brandHex: string | null | undefined): string {
+  return `var(${PALETTE_VARS.brandSoft}, ${buildClinicPalette(brandHex).brandSoft})`
+}
+
+/** The contrast-checked ink for a surface painted with `brandWash`. */
+export function brandWashInk(brandHex: string | null | undefined): string {
+  return `var(${PALETTE_VARS.brandSoftInk}, ${buildClinicPalette(brandHex).brandSoftInk})`
+}
+
 /** `buildClinicPalette` → a `{ '--c-bg': '#…', … }` map ready to spread into a
  *  React `style` prop (or serialize into a `:root { … }` block). */
 export function clinicPaletteVars(
