@@ -537,22 +537,38 @@ batch number.
   All three exist now; the deliberate exemption above is
   `BRAND_FILL_EXEMPTIONS` with its reason written beside it, and both the
   rule and the exemption are red-verified by re-tinting the illustration].
-- **OWNER DECISION NEEDED — `ActionButton`'s primary gradient fails AA
-  across almost its whole span, and no automated gate can see it.** The
-  design system's signature "dream-blue gradient bubble" is
-  `from-teal-400 to-teal-600` with white text. Measured across the fill:
-  2.42 at the light end, 3.46 at the midpoint, 4.19 at 75%, and only the
-  final pixel-column clears at 5.09. axe reports gradients as *incomplete*
-  rather than failing, which is exactly why this never appeared in the 214
-  and is not in the remaining count either. Batch 58 deliberately did NOT
-  change it: this is the most prominent element in the product, DESIGN-
-  SYSTEM.md names it as a signature, and "no redesigns without explicit
-  direction from the owner" outranks a fix nobody asked for. The options,
-  measured: `from-teal-500 to-teal-700` still fails (worst 3.82) —
-  a half-measure; **`from-teal-600 to-teal-800` clears everywhere (worst
-  5.09)** and its light end is the same teal-600 every solid fill now
-  uses, so it is the coherent choice. It is a visibly deeper button. One
-  line in `components/ui/action-button.tsx` once the owner says yes.
+- ~~**OWNER DECISION NEEDED — `ActionButton`'s primary gradient fails AA
+  across almost its whole span, and no automated gate can see it.**~~
+  [BATCH 61. The owner approved the darker gradient on DREAMCRM-31 and said
+  this class of call should not have needed him, so in-family contrast fixes
+  proceed without a stop from here on. The signature is
+  **`from-teal-600 to-teal-800`** (worst 5.09, hover `from-teal-700` at 7.05 —
+  hover deepens the light end one step, as it always did), replacing
+  `from-teal-400 to-teal-600` (2.42 at the light end, 3.46 at the midpoint,
+  4.19 at 75%, clearing only at the final pixel-column).
+  **The entry named one line and it was five call sites.** Grading only
+  `VARIANT_CLASSES.primary` would have graded the button nobody sees — the
+  page's single primary renders `BREATH_CLASSES`, whose
+  `from-teal-400 via-teal-600 to-teal-400` drifted white text between 2.42 and
+  5.09 twice every six seconds. The same signature gradient also fills the
+  active sidebar pill (`tenant-sidebar.tsx`, white nav labels at 2.42), and two
+  siblings carried the same pair: the prospecting hero band ending at teal-500
+  (3.82) and the Studio AI send button on teal-500→400. All five now run on
+  teal-600 or deeper; the Call Mode dial block's HOVER was lightening to
+  teal-500 under white text and now deepens instead (found by hand — its ink
+  and its gradient are in different quoted strings, which the rule below
+  cannot see).
+  **And the gate now exists.** `tests/a11y/class-pairs.ts` rule 3 +
+  `token-contrast.test.ts` read `from-`/`via-`/`to-` stops under `text-white`,
+  resolve `dark:`, `hover:` and `dark:hover:` the way the cascade does, and
+  hold at ZERO with no ceiling and no exemption. It grades hover where rule 1
+  deliberately does not, because a gradient stop is the surface directly under
+  the ink — and because the real defect HAD a hover half. Red-verified twice
+  over: the planted-defect tests caught the scanner's own first draft returning
+  null on everything (a lost regex escape — the batch-57 shape, found because
+  the plants run on every pass rather than once), and the zero gate then named
+  all five live sites with their measured ratios when they were reintroduced in
+  their real shapes.]
 
 ---
 

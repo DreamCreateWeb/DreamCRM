@@ -20,7 +20,7 @@ export default function DailyBriefing({ briefing }: { briefing: DailyBriefing })
       </h2>
       {/* The one clear next action — the hero band, same gradient language as
           Call Mode's dial block. */}
-      <div className="mb-3 flex flex-wrap items-center gap-4 rounded-[var(--r-lg)] bg-gradient-to-br from-teal-700 via-teal-600 to-teal-500 px-5 py-4 text-white shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center gap-4 rounded-[var(--r-lg)] bg-gradient-to-br from-teal-800 via-teal-700 to-teal-600 px-5 py-4 text-white shadow-sm">
         <div className="text-3xl leading-none" aria-hidden="true">
           {nextAction.icon}
         </div>

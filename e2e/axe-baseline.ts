@@ -293,6 +293,24 @@
  * never been in this file's count and never will be. It is the design system's
  * signature element and changing it is an owner decision, not a sweep.
  *
+ *     RESOLVED BY DECISION, batch 61 (DREAMCRM-31 → DREAMCRM-39), and recorded
+ *     HERE because the sentence above is where the next reader will come
+ *     looking. The owner APPROVED the darker gradient: the signature is now
+ *     `from-teal-600 to-teal-800`, hand-measured at 5.09 at its light end and
+ *     9.50 at its deep end, no point under AA — against the old span's 2.42 /
+ *     3.46 / 4.19 / 5.09. Hover deepens to `from-teal-700` (7.05). This was NOT
+ *     skipped and it did NOT go into the count on the way out: it never could,
+ *     and that is the point. Four siblings carrying the same pair went with it
+ *     (the breath skin, the active sidebar pill, the prospecting hero band, the
+ *     Studio AI send button), plus the Call Mode dial block's hover.
+ *
+ *     Do not wait for this file to notice the next one. `tests/a11y/
+ *     class-pairs.ts` rule 3 now grades `from-`/`via-`/`to-` stops under white
+ *     text at the SOURCE, in the `test` check, holding at zero with no ceiling
+ *     — the same division of labour as the dark-mode parity guard: axe owns
+ *     what it can measure on screen, and a source rule owns what it
+ *     structurally cannot. A gradient is the second of those.
+ *
  * ── THREE NEW STOPS, 2026-09-14 (DREAMCRM-33, the money journey) ────────────
  *
  * `e2e/portal-billing.spec.ts` walks a patient paying a balance and stops at

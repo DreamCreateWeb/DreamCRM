@@ -149,6 +149,13 @@ future hygiene, mechanical, and low-priority.
 **Accent usage rules:** one brand-gradient primary action per surface; the
 brand hue is also allowed for focus rings, links, selected/active states
 (nav pill, selected row ring, toggle-on, active chip), and chart series 1.
+**A gradient carrying white text runs entirely on `teal-600` (5.09:1) or
+deeper — every stop, in every rendering including `hover:`.** The shallow end
+of the ramp is an identity colour, not a white-text fill, and that is true of
+a gradient stop exactly as it is of a solid `bg-`. axe reports a gradient as
+*incomplete* rather than failing, so nothing in the browser suite will ever
+tell you; `tests/a11y/token-contrast.test.ts` rule 3 measures every stop and
+holds at zero (batch 61).
 Everything else is neutral. Labels/eyebrows: `text-xs font-semibold
 uppercase tracking-wider` ink-500; the page-title eyebrow may be teal-700.
 
@@ -278,7 +285,7 @@ labels. Anatomy (logo → org label → cockpit ⌘1/2/3 → groups → Settings
 avatar) unchanged from v2 Part 4.
 
 **v3 states:** active = **full gradient pill** (`rounded-full`,
-`from-teal-400 to-teal-600`, white text + white icon, soft blue glow
+`from-teal-600 to-teal-800`, white text + white icon, soft blue glow
 shadow, + ambient breath) — the v2 left-bar + tint is retired; hover =
 ink/4% bg, `rounded-full`. Badges: **amber** count pills (warn semantics,
 never brand); rail shows a dot, the flyout shows the number.
@@ -298,7 +305,7 @@ Import from `@/components/ui/...` — same inventory, re-skinned:
 | Component | File | v3 treatment |
 |---|---|---|
 | `PageHeader` | `page-header.tsx` | eyebrow teal-700 caps · H1 ink-900 extrabold · subtitle ink-600 · legend slot · actions top-right (one primary). Aura halo + optional bubble decor behind this zone. |
-| `ActionButton` | `action-button.tsx` | primary = dream gradient (`from-teal-400 to-teal-600`, white text BOTH themes, soft glow shadow, hover deepens), radius 12px via `.btn`, press scale(.97), breath on the page's single primary only · secondary = surface-2 + hairline · ghost = transparent teal-700 text · danger = rose. |
+| `ActionButton` | `action-button.tsx` | primary = dream gradient (`from-teal-600 to-teal-800`, white text BOTH themes, soft glow shadow, hover deepens), radius 12px via `.btn`, press scale(.97), breath on the page's single primary only (same span, mirrored: `from-teal-600 via-teal-800 to-teal-600`) · secondary = surface-2 + hairline · ghost = transparent teal-700 text · danger = rose. |
 | `StatusPill` | `status-pill.tsx` | pill radius; tone fills per Part 1 (info = violet, special = fuchsia); 12px floor; `title` explains. |
 | `FilterChip` | `filter-chip.tsx` | pill radius (`--r-xs` ≥8px or full pill); active = teal-500/10 bg + teal-700 text (selection ≠ status); count inside; `aria-pressed`. |
 | `GlyphCluster` | `glyph-cluster.tsx` | mechanics unchanged; registry ids only. |

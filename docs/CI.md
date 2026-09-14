@@ -232,10 +232,13 @@ and the second one is the one that decays:
   a definition — fee math and cart totals never import the client, and the
   curated list stays responsible for those.
 
-## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19)
+## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19; admins included since 2026-09-14, DREAMCRM-40)
 
 `main` requires the `test` and `e2e` checks to pass before a PR can merge,
 requires branches to be up to date first, and cannot be force-pushed or deleted.
+Since 2026-09-14 every one of those rules binds **every** account, the repo
+owner's included; there is no standing bypass. The one deliberate hatch and how
+to use it is at the end of this section.
 The settings and the reasoning behind each:
 
 - **Required checks: `test`, `e2e`.** `test` is also enforced on `main` by
@@ -245,8 +248,9 @@ The settings and the reasoning behind each:
   must be current with `main` before it can merge, so its `test` and `e2e` runs
   are against effectively the tree that will exist after the merge. This closes
   most of the stale-merge gap described above at the PR, leaving
-  `post-merge-e2e.yml` as the backstop for the rest (an admin override, a direct
-  push, a race).
+  `post-merge-e2e.yml` as the backstop for the rest (a race, or a fix landed
+  through the emergency hatch below — until 2026-09-14 "an admin override" and
+  "a direct push" belonged on this list too, and no longer do).
 
   The cost is real and was accepted knowingly: every merge invalidates every
   other open PR's checks. That is why **`allow_update_branch` is ON** (enabled
@@ -260,10 +264,41 @@ The settings and the reasoning behind each:
   requiring an approving review would deadlock the workflow rather than add a
   reader. The repo's own pre-merge review gate (see the `dreamcrm-conventions`
   skill) is a convention enforced by agents, not by branch protection.
-- **Admins are not included** (`enforce_admins: false`). The checks still block
-  the normal merge path for everyone — an admin has to reach for an explicit
-  override (`gh pr merge --admin`) to bypass, which is deliberate: it keeps an
-  escape hatch for a GitHub Actions outage without making bypass the easy path.
+- **Admins ARE included** (`enforce_admins: true`, since 2026-09-14,
+  DREAMCRM-40). Everything above applies to every account without exception.
+
+  This bullet used to say the opposite, and its rationale was wrong twice over
+  — worth keeping, because both mistakes are easy to make again.
+
+  **`enforce_admins: false` was never scoped to the checks.** It exempts admins
+  from *every* restriction on the branch, not just the required contexts. So
+  while this file advertised `allow_force_pushes: false` and
+  `allow_deletions: false` above, neither actually bound the only account that
+  touches this repo: a bare `git push origin main` was accepted, and so was a
+  `push --force` rewriting the history of the branch that auto-deploys to
+  production with migrations applying on boot. The old rationale — "an admin has
+  to reach for an explicit override (`gh pr merge --admin`), so bypass is not
+  the easy path" — described one path out of several and got the shape of the
+  hole wrong. Bypass *was* the easy path; nothing had to be reached for.
+
+  **It was not a human-scoped hatch either.**
+  `gh api repos/DreamCreateWeb/DreamCRM/collaborators` returns exactly one
+  principal (`DreamCreateWeb`, `role_name: admin`), and that is the same account
+  every agent runtime authenticates as (`gh auth status`). "A human with admin
+  rights could skip the tests" actually meant the entire agent fleet held the
+  bypass, continuously, on every run. **Answer any future "who can bypass this"
+  question from `/collaborators` and `gh auth status`, never from who you
+  picture at the keyboard** — describing the bypass in terms of a *person* is
+  precisely why it stayed mis-modelled here for five days.
+
+  Nothing had actually gone wrong: the last forty-plus changes all went through
+  a PR with the checks run. The change was made because a door held shut by
+  habit is not a safeguard.
+
+  Confirmed by watching it refuse rather than assuming it would — an
+  `--allow-empty` commit pushed at `main` returned
+  `GH006: Protected branch update failed for refs/heads/main. - 2 of 2 required
+  status checks are expected`.
 
 Two consequences worth knowing:
 
@@ -275,6 +310,27 @@ Two consequences worth knowing:
   `gh api repos/DreamCreateWeb/DreamCRM/branches/main/protection`, and the
   repository-level merge settings (including `allow_update_branch` and
   `allow_auto_merge`) with `gh api repos/DreamCreateWeb/DreamCRM`.
+
+### The emergency hatch (for an Actions outage or a jammed runner)
+
+`enforce_admins` does not govern who may *edit* branch protection — an admin
+keeps that regardless. Closing it therefore converted an ambient always-open
+bypass into a deliberate two-step that leaves a settings-change record; it did
+not lock anyone out. Note that `gh pr merge --admin` no longer bypasses the
+checks either, so these commands are the whole procedure:
+
+```bash
+# open the hatch (required checks stop applying to the admin account)
+gh api -X DELETE repos/DreamCreateWeb/DreamCRM/branches/main/protection/enforce_admins
+# ... land the emergency fix ...
+# close it again — in the same sitting, not "later"
+gh api -X POST repos/DreamCreateWeb/DreamCRM/branches/main/protection/enforce_admins
+# verify
+gh api repos/DreamCreateWeb/DreamCRM/branches/main/protection --jq '.enforce_admins.enabled'
+```
+
+Both directions were round-tripped on 2026-09-14 before being written down here,
+so this is a path known to work, not one assumed to.
 
 ## Suite health rules
 
