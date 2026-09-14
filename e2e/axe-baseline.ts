@@ -202,6 +202,42 @@
  *     `tests/a11y/token-contrast.test.ts` gained the source rule plus the
  *     NEGATIVE assertion that teal-400/500 really are below the floor, so the
  *     cutoff is derived rather than asserted.
+ *     **CORRECTED batch 59: it had not.** Only the positive assertion landed —
+ *     teal-600 and deeper clear AA — which grades the palette and can never
+ *     fail on a call site. The 44 product fixes were real and complete; the
+ *     guard described here simply was not in the tree, in this file or in
+ *     docs/UI-BEST-VERSION.md, for four days. Both now exist and are
+ *     red-verified. If you are reading this file to find out what defends a
+ *     rule, that is exactly the reading this note nearly broke.
+ *
+ *   2026-09-14 · UI batch 59 · **no change to the numbers below, and that is
+ *     the point.** DREAMCRM-34 closed the class of contrast defect this file
+ *     structurally cannot see: a DARK-MODE pairing. The suite walks one theme,
+ *     so every `dark:` rendering in the product has always been outside its
+ *     reach — which is how batch 58's three chips
+ *     (`dark:text-gray-900` with no `dark:bg-*`, near-black on teal-500 at
+ *     4.01) sat live under a nightly contrast gate. The new guard is a SOURCE
+ *     rule (`tests/a11y/class-pairs.ts` + `dark-mode-parity.test.ts`) that
+ *     resolves both renderings of any element whose light and dark modes
+ *     disagree about which half of the pair is overridden, and fails on the
+ *     ones that miss AA.
+ *     It deliberately carries NO BASELINE. The constraint from QA on that
+ *     issue was "not two lists of contrast problems that can disagree", and a
+ *     second inventory keyed by source location instead of by (stop, rule)
+ *     would have overlapped this one with different keys — the first time they
+ *     disagreed about whether something was fixed, neither would be believed.
+ *     It holds at ZERO instead: the shape was live in eight places and all
+ *     eight are fixed in the same PR. Ten of the fixed instances were found by
+ *     its own red run over the live tree, one of them inside a ternary branch.
+ *     Consequence for the ceilings below: eight components changed colour, two
+ *     of them shared (`components/delete-button.tsx`,
+ *     `components/dropdown-filter.tsx`), so some counts here may now be lower
+ *     than their ceiling. None can be HIGHER — every change moves a pair
+ *     toward AA — so nothing below is at risk. The ceilings are deliberately
+ *     left alone rather than guessed at: this batch had no e2e observation to
+ *     lower them from, and this file's own rule is that a number moves on
+ *     evidence. The run's `::warning` annotations will name whichever ones are
+ *     now dead weight; take them on the next batch.
  *
  * Four stops each dropped by exactly ONE in that run — add-patient dialog,
  * the brand-new patients list, the day agenda, and the published website hub.

@@ -1,7 +1,23 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { TONE_PILL, TONE_TEXT, type Tone } from '@/lib/ui/encodings'
+import {
+  AA,
+  contrast,
+  DARK,
+  hexToRgb,
+  LIGHT,
+  over,
+  SURFACES,
+  token,
+  type Rgb,
+} from './palette'
+import {
+  BRAND_FILL_EXEMPTIONS,
+  deadBrandFillExemptions,
+  describeFinding,
+  scanForWhiteOnShallowBrand,
+  SHALLOW_BRAND_FILLS,
+} from './class-pairs'
 
 /**
  * THE SOURCE-LEVEL CONTRAST GUARD — the one the repo did not have.
@@ -16,12 +32,14 @@ import { TONE_PILL, TONE_TEXT, type Tone } from '@/lib/ui/encodings'
  * at 4.48–4.49 against a 4.5 requirement: a palette picked by eye passes every
  * gate that never looks.
  *
- * This test computes them. It reads the REAL values from the two files that
- * define them — this repo's `app/css/style.css` for the semantic tokens and
- * the re-tinted ramps, and Tailwind's own `theme.css` for the ramps the app
- * does not override — so it follows a token edit or a Tailwind upgrade instead
- * of pinning a copy that goes stale. Every ratio below is derived, none is
- * transcribed.
+ * This test computes them, from the REAL values `./palette` resolves out of
+ * the two files that define them — this repo's `app/css/style.css` and
+ * Tailwind's own `theme.css` — so it follows a token edit or a Tailwind
+ * upgrade instead of pinning a copy that goes stale. Every ratio below is
+ * derived, none is transcribed. The resolution and the colour maths live in
+ * `./palette` rather than here because `./dark-mode-parity.test.ts` grades the
+ * same palette, and two copies of the maths is two guards that can disagree
+ * about the same pair.
  *
  * WHAT IT DOES NOT COVER, so nobody mistakes it for a full contrast gate:
  * only the pairs the design system DECLARES — a semantic ink on a semantic
@@ -31,124 +49,6 @@ import { TONE_PILL, TONE_TEXT, type Tone } from '@/lib/ui/encodings'
  * them, not this). Runtime checks stay the backstop for composition; this is
  * the guard for the palette itself.
  */
-
-const ROOT = resolve(__dirname, '../..')
-const AA = 4.5
-
-/* ── colour maths (independent of lib/clinic-site-theme on purpose) ───────── */
-
-function lin(v: number): number {
-  const s = v / 255
-  return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
-}
-function luminance([r, g, b]: Rgb): number {
-  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-}
-function contrast(a: Rgb, b: Rgb): number {
-  const la = luminance(a)
-  const lb = luminance(b)
-  const [hi, lo] = la >= lb ? [la, lb] : [lb, la]
-  return (hi + 0.05) / (lo + 0.05)
-}
-/** Composite `fg` at `alpha` over `bg` — what a `/15` wash actually paints. */
-function over(fg: Rgb, alpha: number, bg: Rgb): Rgb {
-  return [0, 1, 2].map((i) => alpha * fg[i] + (1 - alpha) * bg[i]) as Rgb
-}
-
-type Rgb = [number, number, number]
-
-function hexToRgb(hex: string): Rgb {
-  const h = hex.replace('#', '')
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
-  return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16)) as Rgb
-}
-
-/**
- * oklch() → sRGB, the same conversion the browser does.
- *
- * Tailwind 4 defines its ramps in oklch and emits a clamped hex only inside an
- * `@supports not (color: oklch(…))` fallback, so the hex in the compiled sheet
- * is NOT the colour a current browser paints — amber-700 ships as
- * `oklch(0.555 0.163 48.998)`, which resolves to #bb4d00, while the fallback
- * says #b75000. axe measures the rendered one. Reading the fallback would have
- * this guard quietly grading a different palette than the one on screen.
- */
-function oklchToRgb(L: number, C: number, hDeg: number): Rgb {
-  const h = (hDeg * Math.PI) / 180
-  const a = C * Math.cos(h)
-  const b = C * Math.sin(h)
-  const l_ = L + 0.3963377774 * a + 0.2158037573 * b
-  const m_ = L - 0.1055613458 * a - 0.0638541728 * b
-  const s_ = L - 0.0894841775 * a - 1.291485548 * b
-  const [l, m, s] = [l_ ** 3, m_ ** 3, s_ ** 3]
-  const linear = [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ]
-  return linear.map((v) => {
-    const c = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055
-    return Math.max(0, Math.min(255, Math.round(c * 255)))
-  }) as Rgb
-}
-
-function parseColor(value: string): Rgb | null {
-  const v = value.trim()
-  if (/^#[0-9a-f]{3}$|^#[0-9a-f]{6}$/i.test(v)) return hexToRgb(v)
-  const ok = v.match(/^oklch\(\s*([\d.]+%?)\s+([\d.]+)\s+([\d.]+)/i)
-  if (ok) {
-    const L = ok[1].endsWith('%') ? parseFloat(ok[1]) / 100 : parseFloat(ok[1])
-    return oklchToRgb(L, parseFloat(ok[2]), parseFloat(ok[3]))
-  }
-  return null // rgb(… / alpha) hairlines and the like — not text pairs
-}
-
-/* ── the two files that define the palette ───────────────────────────────── */
-
-function collect(css: string, block?: RegExp): Map<string, Rgb> {
-  const scope = block ? (css.match(block)?.[0] ?? '') : css
-  const out = new Map<string, Rgb>()
-  const re = /--color-([a-z0-9-]+)\s*:\s*([^;]+);/gi
-  let m: RegExpExecArray | null
-  while ((m = re.exec(scope)) !== null) {
-    const rgb = parseColor(m[2])
-    if (rgb) out.set(m[1], rgb)
-  }
-  return out
-}
-
-const APP_CSS = readFileSync(resolve(ROOT, 'app/css/style.css'), 'utf8')
-const TAILWIND_CSS = readFileSync(
-  require.resolve('tailwindcss/theme.css', { paths: [ROOT] }),
-  'utf8',
-)
-
-/** Tailwind's ramps, then the app's `@theme` on top (the app wins), then
- *  `.dark`'s overrides for the dark palette. Exactly the cascade a browser
- *  resolves. */
-const TAILWIND = collect(TAILWIND_CSS)
-const APP_THEME = collect(APP_CSS, /@theme\s*\{[\s\S]*?\n\}/)
-const APP_DARK = collect(APP_CSS, /\n\.dark\s*\{[\s\S]*?\n\}/)
-
-/** Later maps win, key by key — the cascade, not a replacement. */
-function layer(...maps: Map<string, Rgb>[]): Map<string, Rgb> {
-  const out = new Map<string, Rgb>()
-  for (const m of maps) m.forEach((v, k) => out.set(k, v))
-  return out
-}
-
-const LIGHT = layer(TAILWIND, APP_THEME)
-const DARK = layer(LIGHT, APP_DARK)
-
-function token(theme: Map<string, Rgb>, name: string): Rgb {
-  const v = theme.get(name)
-  if (!v) throw new Error(`--color-${name} is not defined in either stylesheet`)
-  return v
-}
-
-/** The four surfaces a piece of text can land on. `surface-sunk` — wells and
- *  table headers — is the darkest in light mode and decides every light pair. */
-const SURFACES = ['canvas', 'surface-1', 'surface-2', 'surface-sunk'] as const
 
 /** Which Tailwind step a tone class names, and the ramp it names it on. */
 function inkOf(recipe: string): string {
@@ -262,15 +162,58 @@ describe('every semantic tone reads on its own wash', () => {
 })
 
 describe('white-on-brand fills', () => {
+  const white: Rgb = [255, 255, 255]
+
   it('names which steps of the blue ramp may carry white text', () => {
     // The brand ramp is a FILL ramp, and only its deep end is a white-text
-    // fill: white on teal-500 is 3.82 and on teal-400 is 2.42. Anything
-    // painting white on those two is a defect wherever it lives — the axe
-    // baseline still carries instances of it, tracked on DREAMCRM-28.
-    const white: Rgb = [255, 255, 255]
+    // fill. Batch 58 moved 44 call sites onto these steps.
     for (const step of ['teal-600', 'teal-700', 'teal-800', 'teal-900']) {
       const ratio = contrast(white, token(LIGHT, step))
       expect(ratio, `white on ${step} = ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(AA)
+    }
+  })
+
+  it('DERIVES the cutoff instead of asserting it', () => {
+    // The negative half, and the reason the list above is a fact rather than a
+    // preference: teal-400 (2.42) and teal-500 (3.82) really are under the bar.
+    // Without this, a future re-tint that made teal-500 safe would leave the
+    // scanner below still refusing it, and nothing would say so.
+    for (const step of SHALLOW_BRAND_FILLS) {
+      const ratio = contrast(white, token(LIGHT, step))
+      expect(ratio, `white on ${step} = ${ratio.toFixed(2)}`).toBeLessThan(AA)
+    }
+  })
+
+  it('no call site paints white on those steps, in either theme', () => {
+    // THE SOURCE RULE — the half batch 58's write-up said had shipped and had
+    // not (see `./class-pairs.ts`). The assertion above grades the PALETTE and
+    // can never fail on a component; this one reads every className in the
+    // product. It holds at zero: batch 58's 44 fixes were real and complete.
+    expect(
+      scanForWhiteOnShallowBrand().map(describeFinding),
+      'teal-400 and teal-500 are identity steps, not white-text fills. A solid ' +
+        'fill with a white label is teal-600 (5.09) or deeper. Do not re-label ' +
+        'the token to match the call site — that is how this reached 44 places.',
+    ).toEqual([])
+  })
+
+  it('the one exemption still describes something real', () => {
+    // The rule above holds at zero only because ONE site is exempt: the
+    // marketing recall-funnel illustration. An exemption is the only thing here
+    // that makes the gate looser, so it is not allowed to quietly stop
+    // describing anything — that is how a narrow allowance becomes a pardon.
+    // Verified red by editing the exempt class string: the entry goes dead AND
+    // the rule above goes red, which is the pair of failures that means the
+    // illustration changed rather than the guard breaking.
+    expect(BRAND_FILL_EXEMPTIONS).toHaveLength(1)
+    expect(
+      deadBrandFillExemptions().map((e) => `${e.file} — ${e.classes}`),
+      'this exemption no longer matches any call site. Re-derive it against the ' +
+        'current markup or delete it; do not leave one standing over something ' +
+        'that has changed.',
+    ).toEqual([])
+    for (const e of BRAND_FILL_EXEMPTIONS) {
+      expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
     }
   })
 })

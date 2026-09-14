@@ -279,7 +279,7 @@ export default function ClinicThreadList({
                       </span>
                       {unread && (
                         <span
-                          className="text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500 text-white dark:text-gray-900 tabular-nums"
+                          className="text-xs font-bold px-1.5 py-0.5 rounded-[var(--r-xs)] bg-amber-500 text-gray-900 tabular-nums"
                           title={`${t.unreadCount} unread message${t.unreadCount === 1 ? '' : 's'}`}
                         >
                           {t.unreadCount}

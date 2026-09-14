@@ -64,6 +64,7 @@ export default function OfficePhotosEditor({ name, defaultValue }: Props) {
             <div key={p.id} className="relative group">
               <FocalPointPicker
                 compact
+                label={`Focus point for photo ${i + 1}`}
                 src={p.url}
                 aspectClass="aspect-[4/5]"
                 value={p.position ?? '50% 50%'}

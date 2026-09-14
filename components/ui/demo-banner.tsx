@@ -15,7 +15,7 @@ export default function DemoBanner({ ctx }: { ctx: TenantContext }) {
       : `Viewing as ${ctx.role} of ${ctx.organizationName}`
 
   return (
-    <div className="bg-amber-500 dark:bg-amber-600 text-white border-b border-amber-600 dark:border-amber-700">
+    <div className="bg-amber-500 text-gray-900 border-b border-amber-600">
       <div className="px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3 text-sm">
         <div className="flex items-center gap-2 min-w-0">
           <svg
