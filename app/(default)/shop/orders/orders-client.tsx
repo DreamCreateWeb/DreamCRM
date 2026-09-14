@@ -96,6 +96,10 @@ export default function OrdersClient({
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  // The list's Mark-shipped / Mark-ready buttons and the drawer's copies of
+  // them all read one flag, so marking one order spun every row on the page.
+  // `active` is the order+status being set.
+  const [active, setActive] = useState<string | null>(null)
   const [filter, setFilter] = useState<OrdersFilter>(initialFilter)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
@@ -114,7 +118,10 @@ export default function OrdersClient({
     ? optimisticFulfillment[selected.id] ?? selected.fulfillmentStatus
     : null
 
-  function run(fn: () => Promise<unknown>, done?: string) {
+  const busy = (key: string) => isPending && active === key
+
+  function run(key: string, fn: () => Promise<unknown>, done?: string) {
+    setActive(key)
     startTransition(async () => {
       try {
         await fn()
@@ -133,10 +140,14 @@ export default function OrdersClient({
     // flip + action then run together in the transition.
     const tracking =
       next === 'shipped' ? window.prompt('Tracking number (optional):')?.trim() || undefined : undefined
-    run(async () => {
-      setOptimisticFulfillment({ id: o.id, status: next })
-      await setOrderFulfillmentAction(o.id, next, tracking)
-    }, `Marked ${label}.`)
+    run(
+      `${o.id}:${next}`,
+      async () => {
+        setOptimisticFulfillment({ id: o.id, status: next })
+        await setOrderFulfillmentAction(o.id, next, tracking)
+      },
+      `Marked ${label}.`,
+    )
   }
 
   // Search across patient name / order name / order email / product names.
@@ -289,7 +300,8 @@ export default function OrdersClient({
                         key={s}
                         variant={i === 0 ? 'primary' : 'secondary'}
                         size="sm"
-                        pending={isPending}
+                        pending={busy(`${o.id}:${s}`)}
+                        disabled={isPending}
                         onClick={() => changeFulfillment(o, s, statusLabel)}
                       >
                         Mark {statusLabel}
@@ -446,7 +458,8 @@ export default function OrdersClient({
                         key={s}
                         variant={i === 0 ? 'primary' : 'secondary'}
                         size="sm"
-                        pending={isPending}
+                        pending={busy(`${selected.id}:${s}`)}
+                        disabled={isPending}
                         onClick={() => changeFulfillment(selected, s, statusLabel)}
                       >
                         Mark {statusLabel}

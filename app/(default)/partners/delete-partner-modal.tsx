@@ -57,6 +57,11 @@ export default function DeletePartnerModal({
   const [disposition, setDisposition] = useState<PartnerDeleteDisposition | null>(null)
   const [loading, setLoading] = useState(false)
   const [pending, startTransition] = useTransition()
+  // The `resolve` disposition puts "Pay out … now, then archive" and
+  // "Void … and archive" on screen TOGETHER — two different answers about
+  // real money. One shared flag spun both, so the modal could not say which
+  // of the two was running. `active` names it.
+  const [active, setActive] = useState<'delete' | 'archive' | 'pay' | 'void' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -99,6 +104,7 @@ export default function DeletePartnerModal({
 
   function doDelete() {
     setError(null)
+    setActive('delete')
     startTransition(async () => {
       try {
         const r = await deletePartnerAction(partnerId)
@@ -119,6 +125,7 @@ export default function DeletePartnerModal({
 
   function doArchive(resolve?: 'pay' | 'void') {
     setError(null)
+    setActive(resolve ?? 'archive')
     startTransition(async () => {
       try {
         const r = await archivePartnerAction({ partnerId, resolve })
@@ -237,13 +244,13 @@ export default function DeletePartnerModal({
               </ActionButton>
 
               {!loading && disposition === 'clean' && (
-                <ActionButton variant="danger" size="sm" onClick={doDelete} pending={pending}>
+                <ActionButton variant="danger" size="sm" onClick={doDelete} pending={pending && active === 'delete'} disabled={pending}>
                   Permanently delete
                 </ActionButton>
               )}
 
               {!loading && disposition === 'archive' && (
-                <ActionButton variant="danger" size="sm" onClick={() => doArchive()} pending={pending}>
+                <ActionButton variant="danger" size="sm" onClick={() => doArchive()} pending={pending && active === 'archive'} disabled={pending}>
                   Archive partner
                 </ActionButton>
               )}
@@ -254,13 +261,13 @@ export default function DeletePartnerModal({
                     variant="secondary"
                     size="sm"
                     onClick={() => doArchive('pay')}
-                    pending={pending}
-                    disabled={!payoutsEnabled}
+                    pending={pending && active === 'pay'}
+                    disabled={pending || !payoutsEnabled}
                     title={payoutsEnabled ? undefined : 'Partner hasn’t set up a payout method yet'}
                   >
                     {`Pay out ${moneyExact(accruedCents)} now, then archive`}
                   </ActionButton>
-                  <ActionButton variant="danger" size="sm" onClick={() => doArchive('void')} pending={pending}>
+                  <ActionButton variant="danger" size="sm" onClick={() => doArchive('void')} pending={pending && active === 'void'} disabled={pending}>
                     {`Void ${moneyExact(accruedCents)} and archive`}
                   </ActionButton>
                 </div>

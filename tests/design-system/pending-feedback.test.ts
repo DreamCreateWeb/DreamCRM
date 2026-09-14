@@ -305,21 +305,10 @@ const NOT_SIMULTANEOUS: Record<string, string> = {
     'the wizard renders one `stage.type` at a time — Next: match columns and Import are different steps',
   'app/(default)/platform/prospecting/demo/[id]/brief-panel.tsx|pending':
     'Generate returns early when there is no brief yet; Regenerate only renders once there is one',
+  'app/(default)/integrations/integrations-library.tsx|pending':
+    'Cancel add-on and Add more are two arms of the same `entitlement.addonActive` ternary chain',
 }
 
-/**
- * Still to fix — the money surfaces, which go through the review gate and so
- * ship as their own PR (DREAMCRM-36). This list may only ever SHRINK, and
- * deleting the last entry deletes the list.
- */
-const AWAITING_MONEY_SWEEP = [
-  'app/(default)/integrations/integrations-library.tsx|pending',
-  'app/(default)/partners/delete-partner-modal.tsx|pending',
-  'app/(default)/payments/memberships/memberships-client.tsx|isPending',
-  'app/(default)/shop/coupons/coupons-client.tsx|isPending',
-  'app/(default)/shop/orders/orders-client.tsx|isPending',
-  'app/(default)/shop/shop-client.tsx|isPending',
-]
 
 interface SharedGroup {
   rel: string
@@ -360,14 +349,14 @@ describe('siblings do not share one pending flag', () => {
     // Every exemption must still match something. When a surface is rewritten
     // the entry goes stale silently otherwise, and a stale exemption is a hole.
     const found = new Set(groups.map((g) => `${g.rel}|${g.flag}`))
-    const stale = Object.keys(NOT_SIMULTANEOUS).concat(AWAITING_MONEY_SWEEP).filter((k) => !found.has(k))
+    const stale = Object.keys(NOT_SIMULTANEOUS).filter((k) => !found.has(k))
     expect(stale, `These entries no longer match any group — delete them:\n  ${stale.join('\n  ')}`).toEqual([])
   })
 
   it('no surface runs two different actions off one undiscriminated flag', () => {
     const offenders = groups
       .map((g) => ({ key: `${g.rel}|${g.flag}`, g }))
-      .filter(({ key }) => !(key in NOT_SIMULTANEOUS) && !AWAITING_MONEY_SWEEP.includes(key))
+      .filter(({ key }) => !(key in NOT_SIMULTANEOUS))
       .map(({ g }) => `${g.rel} — pending={${g.flag}} on lines ${g.lines.join(', ')}`)
     expect(
       offenders,

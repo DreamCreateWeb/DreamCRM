@@ -928,7 +928,7 @@ function SocialAddonCard({
           </ActionButton>
         ) : (
           <ActionButton variant="primary" size="sm" onClick={onBuy} pending={pending}>
-            {pending ? 'Working…' : `Add more — $${entitlement.addonPriceDollars}/mo`}
+            {`Add more — $${entitlement.addonPriceDollars}/mo`}
           </ActionButton>
         )}
       </div>

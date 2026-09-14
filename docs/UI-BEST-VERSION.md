@@ -121,11 +121,18 @@ batch number.
   `token-contrast.test.ts` grade it like the others. Not done here: adding
   the registry entry means re-pointing every solid fill in the product at it,
   which is its own batch.
-- **Sibling actions sharing one `pending` flag all spin together.** [BATCH 60,
-  the non-money half — 16 surfaces; the six money surfaces
-  (delete-partner-modal, memberships, coupons, orders, shop, the
-  integrations add-on) go through the review gate and land as their own PR,
-  named in `AWAITING_MONEY_SWEEP` until they do. The entry's own count of
+- ~~Sibling actions sharing one `pending` flag all spin together~~ [BATCH 60,
+  ALL of it, in two PRs: 16 non-money surfaces, then the five money ones
+  (delete-partner-modal's two payout dispositions, memberships, coupons,
+  orders, shop) behind the review gate. `integrations-library` turned out
+  NOT to be one — its Cancel add-on and Add more are two arms of the same
+  ternary — but it was hiding the OTHER batch-52 defect, a
+  `{pending ? 'Working…' : …}` label swap on an ActionButton that already
+  had the prop. Two more of those turned up the same way (the patient CSV
+  import's Import button, the PMS Sync now button, whose icon was
+  additionally spinning behind the primitive's own spinner): the rule-1
+  ternary guard only matches two STRING LITERALS, and all three had a
+  template literal on one arm. The entry's own count of
   three sites was low by an order of magnitude, and the reason is worth
   keeping: the first scan for the shape read `<Tag[^>]*>`, which **stops at
   the `>` inside `=>`** — so every `pending=` written after an inline arrow
@@ -160,7 +167,9 @@ batch number.
   rules against the real shapes: the lead drawer's original ladder, a
   `pending=` written after an inline arrow (the shape the old regex could
   not see), a multi-line pure-state setter, a bare Cancel, and a stale
-  exemption].
+  exemption. The rule holds at ZERO with five named exemptions and no
+  ceiling; a companion assertion fails if any exemption stops matching a
+  real group, so a rewritten surface cannot leave a hole behind].
 - ~~77 form fields have no accessible name~~ [BATCH 53, ALL 77, and
   `eslint-suppressions.json` is now EMPTY. A `<label>` that is a SIBLING of
   its input, with neither `htmlFor` nor nesting, connects nothing — to a

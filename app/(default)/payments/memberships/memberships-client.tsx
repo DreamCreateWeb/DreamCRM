@@ -72,9 +72,16 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
   const confirm = useConfirm()
   const [tab, setTab] = useState<'plans' | 'members'>('plans')
   const [isPending, startTransition] = useTransition()
+  // Every plan row's Publish / Unpublish / Delete ran off one flag, so acting
+  // on one plan spun the buttons on all of them. `run` names the work and
+  // `busy` asks about that one.
+  const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
-  function run(fn: () => Promise<unknown>, done?: string) {
+  const busy = (key: string) => isPending && active === key
+
+  function run(key: string, fn: () => Promise<unknown>, done?: string) {
+    setActive(key)
     startTransition(async () => {
       await fn()
       if (done) setToast(done)
@@ -174,8 +181,9 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                     <ActionButton
                       variant="secondary"
                       size="sm"
-                      pending={isPending}
-                      onClick={() => run(() => setPlanStatusAction(p.id, 'archived'), `${p.name} unpublished.`)}
+                      pending={busy(`plan:${p.id}`)}
+                      disabled={isPending}
+                      onClick={() => run(`plan:${p.id}`, () => setPlanStatusAction(p.id, 'archived'), `${p.name} unpublished.`)}
                     >
                       Unpublish
                     </ActionButton>
@@ -183,8 +191,9 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                     <ActionButton
                       variant="secondary"
                       size="sm"
-                      pending={isPending}
-                      onClick={() => run(() => setPlanStatusAction(p.id, 'active'), `${p.name} is live.`)}
+                      pending={busy(`plan:${p.id}`)}
+                      disabled={isPending}
+                      onClick={() => run(`plan:${p.id}`, () => setPlanStatusAction(p.id, 'active'), `${p.name} is live.`)}
                     >
                       Publish
                     </ActionButton>
@@ -192,7 +201,8 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                   <ActionButton
                     variant="danger"
                     size="sm"
-                    pending={isPending}
+                    pending={busy(`plan-delete:${p.id}`)}
+                    disabled={isPending}
                     onClick={async () => {
                       if (
                         await confirm({
@@ -202,7 +212,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                           danger: true,
                         })
                       )
-                        run(() => deletePlanAction(p.id), `${p.name} removed.`)
+                        run(`plan-delete:${p.id}`, () => deletePlanAction(p.id), `${p.name} removed.`)
                     }}
                   >
                     Delete
@@ -270,7 +280,7 @@ export default function MembershipsClient({ plans, members, stats, publicBase, o
                           <button
                             key={b.label}
                             disabled={isPending || exhausted}
-                            onClick={() => run(() => markBenefitUsedAction(m.id, b.label), `Logged: ${b.label}.`)}
+                            onClick={() => run(`benefit:${m.id}:${b.label}`, () => markBenefitUsedAction(m.id, b.label), `Logged: ${b.label}.`)}
                             className="text-xs px-2.5 py-1 rounded-[var(--r-sm)] border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/40 disabled:opacity-50 tabular-nums"
                             title="Log a redemption"
                           >

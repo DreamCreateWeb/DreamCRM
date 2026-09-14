@@ -90,9 +90,16 @@ export default function ShopClient({
   const router = useRouter()
   const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
+  // Disconnect Stripe, the four storefront toggles and every product row's
+  // Publish / Unpublish / Delete all read one flag, so acting on one product
+  // spun the whole catalog. `run` names the work; `busy` asks about that one.
+  const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
-  function run(fn: () => Promise<unknown>, done?: string) {
+  const busy = (key: string) => isPending && active === key
+
+  function run(key: string, fn: () => Promise<unknown>, done?: string) {
+    setActive(key)
     startTransition(async () => {
       await fn()
       if (done) setToast(done)
@@ -245,7 +252,8 @@ export default function ShopClient({
               <ActionButton
                 variant="ghost"
                 size="sm"
-                pending={isPending}
+                pending={busy('stripe-disconnect')}
+                disabled={isPending}
                 onClick={async () => {
                   if (
                     await confirm({
@@ -255,7 +263,7 @@ export default function ShopClient({
                       danger: true,
                     })
                   )
-                    run(() => disconnectStripeAction(), 'Stripe disconnected.')
+                    run('stripe-disconnect', () => disconnectStripeAction(), 'Stripe disconnected.')
                 }}
               >
                 Disconnect
@@ -387,19 +395,19 @@ export default function ShopClient({
               label="In-office pickup"
               on={config.pickupEnabled}
               disabled={isPending}
-              onClick={() => run(() => updateShopConfigAction({ pickupEnabled: !config.pickupEnabled }))}
+              onClick={() => run('cfg:pickup', () => updateShopConfigAction({ pickupEnabled: !config.pickupEnabled }))}
             />
             <Toggle
               label="Ship to patient"
               on={config.shippingEnabled}
               disabled={isPending}
-              onClick={() => run(() => updateShopConfigAction({ shippingEnabled: !config.shippingEnabled }))}
+              onClick={() => run('cfg:shipping', () => updateShopConfigAction({ shippingEnabled: !config.shippingEnabled }))}
             />
             <Toggle
               label="Collect sales tax"
               on={config.taxEnabled}
               disabled={isPending}
-              onClick={() => run(() => updateShopConfigAction({ taxEnabled: !config.taxEnabled }))}
+              onClick={() => run('cfg:tax', () => updateShopConfigAction({ taxEnabled: !config.taxEnabled }))}
             />
             <Toggle
               label="Publish storefront"
@@ -407,6 +415,7 @@ export default function ShopClient({
               disabled={isPending}
               onClick={() =>
                 run(
+                  'cfg:storefront',
                   () => updateShopConfigAction({ storefrontEnabled: !config.storefrontEnabled }),
                   config.storefrontEnabled ? 'Storefront hidden.' : 'Storefront published.',
                 )
@@ -474,8 +483,9 @@ export default function ShopClient({
                   <ActionButton
                     variant="secondary"
                     size="sm"
-                    pending={isPending}
-                    onClick={() => run(() => setProductStatusAction(p.id, 'archived'), `${p.name} unpublished.`)}
+                    pending={busy(`product:${p.id}`)}
+                    disabled={isPending}
+                    onClick={() => run(`product:${p.id}`, () => setProductStatusAction(p.id, 'archived'), `${p.name} unpublished.`)}
                   >
                     Unpublish
                   </ActionButton>
@@ -483,8 +493,9 @@ export default function ShopClient({
                   <ActionButton
                     variant="secondary"
                     size="sm"
-                    pending={isPending}
-                    onClick={() => run(() => setProductStatusAction(p.id, 'active'), `${p.name} is live.`)}
+                    pending={busy(`product:${p.id}`)}
+                    disabled={isPending}
+                    onClick={() => run(`product:${p.id}`, () => setProductStatusAction(p.id, 'active'), `${p.name} is live.`)}
                   >
                     Publish
                   </ActionButton>
@@ -492,10 +503,11 @@ export default function ShopClient({
                 <ActionButton
                   variant="danger"
                   size="sm"
-                  pending={isPending}
+                  pending={busy(`product-delete:${p.id}`)}
+                  disabled={isPending}
                   onClick={async () => {
                     if (await confirm({ title: `Delete “${p.name}”?`, confirmLabel: 'Delete', danger: true }))
-                      run(() => deleteProductAction(p.id), `${p.name} deleted.`)
+                      run(`product-delete:${p.id}`, () => deleteProductAction(p.id), `${p.name} deleted.`)
                   }}
                 >
                   Delete

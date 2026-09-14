@@ -44,6 +44,9 @@ function couponState(c: CouponRow): { label: string; tone: Tone } {
 export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { coupons: CouponRow[]; orgName?: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  // Add coupon, the birthday generator and every row's Deactivate ran off one
+  // flag, so deactivating one code spun Add and every other row with it.
+  const [active, setActive] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const codeRef = useRef<HTMLInputElement>(null)
@@ -54,8 +57,11 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
   const [singleUse, setSingleUse] = useState(false)
   const [expiresAt, setExpiresAt] = useState('')
 
-  function run(fn: () => Promise<unknown>, opts?: { after?: () => void; done?: string }) {
+  const busy = (key: string) => isPending && active === key
+
+  function run(key: string, fn: () => Promise<unknown>, opts?: { after?: () => void; done?: string }) {
     setError(null)
+    setActive(key)
     startTransition(async () => {
       try {
         await fn()
@@ -130,9 +136,10 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
             <ActionButton
               variant="primary"
               size="sm"
-              pending={isPending}
+              pending={busy('create')}
+              disabled={isPending}
               onClick={() =>
-                run(() => createCouponAction({ code, discountType, value, expiresAt: expiresAt || null, singleUse }), {
+                run('create', () => createCouponAction({ code, discountType, value, expiresAt: expiresAt || null, singleUse }), {
                   after: () => {
                     setCode('')
                     setExpiresAt('')
@@ -154,7 +161,7 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
             type="button"
             disabled={isPending}
             onClick={() =>
-              run(async () => {
+              run('birthday', async () => {
                 const { created } = await generateBirthdayCouponsAction()
                 setToast(`Generated ${created} birthday coupon${created === 1 ? '' : 's'}.`)
               })
@@ -213,8 +220,9 @@ export default function CouponsClient({ coupons, orgName = 'Your clinic' }: { co
                   <ActionButton
                     variant="ghost"
                     size="sm"
-                    pending={isPending}
-                    onClick={() => run(() => deactivateCouponAction(c.id), { done: `${c.code} deactivated.` })}
+                    pending={busy(`coupon:${c.id}`)}
+                    disabled={isPending}
+                    onClick={() => run(`coupon:${c.id}`, () => deactivateCouponAction(c.id), { done: `${c.code} deactivated.` })}
                   >
                     Deactivate
                   </ActionButton>
