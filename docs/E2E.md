@@ -120,6 +120,56 @@ The list that used to live here is written:
 4. **Onboarding path B** — already covered: path B IS the self-serve flow,
    and `e2e/stranger.spec.ts` walks it end to end.
 
+## The money journey (`e2e/portal-billing.spec.ts`, added 2026-09-14, DREAMCRM-33)
+
+A patient paying what they owe. By unit count the payment code is the
+best-tested area in the repo; until now it was the least walked through, and
+every claim about what a patient actually *sees* while paying lived in
+happy-dom or nowhere.
+
+**The Stripe boundary, and what each half earns.** The harness has no external
+network, so hosted Stripe Checkout is unreachable by construction. The journey
+is walked in three pieces:
+
+1. **Up to the hand-off, for real** — sign-in, the dashboard's balance strip as
+   a working link, the billing page, the amount field, the client-side floors,
+   the server action, the connected-account check, the pending payment row, and
+   the moment the Stripe call is made. All of that is our code and all of it
+   runs.
+2. **The outage branch, deterministically.** `scripts/e2e-harness.sh` sets no
+   `STRIPE_SECRET_KEY` and now `unset`s any inherited one **deliberately** —
+   that line is what makes this a stub rather than an accident, and it also
+   stops a dev box's real key turning the test into a live API call.
+   `lib/stripe.ts` is a lazy Proxy, so the first property access throws
+   synchronously: no socket, no timeout to wait out. The patient gets
+   `CHECKOUT_UNAVAILABLE_MESSAGE` and nothing is charged, which is exactly what
+   a real outage produces.
+3. **The return from a completed checkout**, by driving the `success_url`
+   Stripe would send the patient back to.
+
+**What piece 3 does NOT prove**, said out loud so a green run is not read for
+more than it earns: it does not prove a payment was taken, and it does not
+exercise `finalizeBalancePaymentFromSession` (which needs Stripe and is
+`.catch`-swallowed on that path by design, with the webhook as the real
+backstop). It proves a patient returning from a successful checkout lands on a
+page that renders, is still signed in, and is told the payment went through —
+rather than an error shell, a bounce to sign-in, or a silent no-op.
+
+**The outage half is the half worth having.** A patient whose payment succeeds
+finds out from their bank. A patient whose payment cannot start finds out only
+from this page — and if it says nothing, they will either try again or assume
+they have paid. Both durable assertions reload the page and check the balance is
+untouched and the history is empty, because an assertion on the alert alone
+would also pass if the rollback had failed and left a phantom "Processing"
+payment on the record.
+
+**It owns its own clinic** (`org_e2e_billing`, the `billing` scope). It needs
+`features.payments` ON and an active connected account, and both are org-level
+facts other portal specs read — turning them on for `org_e2e_live` would change
+what a parallel worker sees mid-run. What it consumes is easy to miss: every
+checkout attempt inserts a pending `patient_balance_payment` row before reaching
+Stripe and rolls it back best-effort, so the scope clears any leftovers.
+
 **Row ownership matters**: spec files run in parallel workers, so every spec
 file owns its seeded rows outright (Casey belongs to portal + token specs,
 Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
@@ -239,11 +289,15 @@ of at 1 AM.
 ## Accessibility checks at every stop (added 2026-09-10, DREAMCRM-25)
 
 Every spec that loads a page also runs **axe-core** against it, via
-`expectNoA11yViolations(page, '<stop>')` from `e2e/axe.ts`. About thirty stops
-across the twelve specs — the clinic's public site and booking form, the patient
-portal (including the reschedule panel and the cancel confirmation), the staff
-day and its drawer, the website hub in both lever states, onboarding, the token
-journeys, and the 404.
+`expectNoA11yViolations(page, '<stop>')` from `e2e/axe.ts`. A stop per page
+state across the spec files — the clinic's public site and booking form, the
+patient portal (including the reschedule panel, the cancel confirmation and the
+billing page), the staff day and its drawer, the website hub in both lever
+states, onboarding, the token journeys, and the 404. Deliberately not a number:
+every spec that loads a page adds stops, so a count written here is stale on the
+next journey. `grep expectNoA11yViolations e2e/` is the answer, and it is always
+right. (A clean stop appears nowhere else — `e2e/axe-baseline.ts` lists only the
+stops that still carry debt.)
 
 **Why, when `pnpm lint` already gates accessibility.** The lint gate
 (eslint-plugin-jsx-a11y, DREAMCRM-17) reads JSX source, so it cannot see colour
@@ -299,13 +353,25 @@ people stop reading.
 fails, an unlisted rule and an unlisted stop tolerate nothing. Get that
 backwards and every a11y check in the suite silently becomes decorative.
 
-**What is in the baseline today**: 36, all `color-contrast`, down from the
-original 214. `nested-interactive` and `list` are closed entirely; the UI lane
-(DREAMCRM-28) did the bulk of the burn-down, and the harness accounted for 43
-that were never defects — 41 decorative `aria-hidden` product mock-ups now
-excluded at the scan (WCAG 1.4.3 incidental; carrying them as a ceiling of 41
-meant the 42nd real defect on that page would have been the first to fail), and
-2 on the booking confirmation that were fade artifacts.
+**What is in the baseline today**: read `e2e/axe-baseline.ts`. The file is the
+count — it is a per-(stop, rule) table, so totalling it is a one-line read, and
+its header carries the batch-by-batch burn-down from the original 214.
+
+That pointer replaces a number this file used to restate (DREAMCRM-33). It
+cannot be kept true by anyone: the baseline shrinks whenever a UI fix lands, and
+it shrank twice while the sentence here still said 36 — two homes for one fact,
+already two batches apart, and the wrong one was the one written in prose. A
+ceiling reported as larger than it is describes room to hide that no longer
+exists, which is the opposite of what the ratchet is for.
+`tests/guards/e2e-doc-axe-count.test.ts` fails if that sentence comes back
+carrying a number the file disagrees with.
+
+What is durable and so stays here: `nested-interactive` and `list` are closed
+entirely; the UI lane (DREAMCRM-28) did the bulk of the burn-down; and the
+harness accounted for 43 that were never defects — 41 decorative `aria-hidden`
+product mock-ups now excluded at the scan (WCAG 1.4.3 incidental; carrying them
+as a ceiling of 41 meant the 42nd real defect on that page would have been the
+first to fail), and 2 on the booking confirmation that were fade artifacts.
 
 **Read a ceiling as room to hide in, not as a defect count.** That is the whole
 argument for excluding the mocks rather than carrying them: a ceiling of N on a

@@ -62,6 +62,21 @@ export BETTER_AUTH_URL="http://127.0.0.1:$PORT"
 export NEXT_PUBLIC_APP_URL="http://127.0.0.1:$PORT"
 export CRON_SECRET="${CRON_SECRET:-e2e-cron}"
 
+# THE STRIPE BOUNDARY IS DELIBERATELY UNREACHABLE, and this line is what makes
+# that a contract instead of an accident (DREAMCRM-33).
+#
+# `lib/stripe.ts` is a lazy Proxy: with no key, the FIRST property access
+# throws "STRIPE_SECRET_KEY is not set" — synchronously, with no socket opened
+# and no timeout to wait out. That is the deterministic stub the money-journey
+# spec's outage half stands on: `e2e/portal-billing.spec.ts` drives a real
+# patient through a real checkout attempt and asserts the written sentence a
+# patient sees when Stripe is down, in a harness that has no network at all.
+#
+# Inheriting a key from a dev box's shell would silently turn that into a live
+# call to Stripe — a slow, flaky test at best, and at worst a real API call
+# from a test run. So unset it here rather than assuming it is absent.
+unset STRIPE_SECRET_KEY
+
 echo "--- migrations (fresh database: also a deploy-path rehearsal) ---"
 node scripts/migrate.mjs
 

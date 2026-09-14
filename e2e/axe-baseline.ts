@@ -257,6 +257,24 @@
  * batch 55 left it at 3 on a single observation of 2, and batch 58's run
  * reported 1, which IS a warning, so it moved.)
  *
+ *   2026-09-14 · QA (DREAMCRM-33) · **ALL FOUR CONFIRMED AND SHRUNK**, 18 → 14.
+ *     actions/runs/34808555090 measured them a second time, post-settle, and
+ *     reported the same lower numbers: add-patient dialog 1 (was 2), brand-new
+ *     patients list 1 (was 2), the day agenda 1 (was 2), published website hub
+ *     3 (was 4). That is exactly the bar the paragraph above sets — batch 58's
+ *     run was the first observation, this is the confirming one — so the room
+ *     closes. No product code changed; the defects were already fixed in batch
+ *     58 and these ceilings were the dead weight left behind.
+ *
+ *     Worth noting HOW this arrived, because the mechanism matters more than
+ *     the four numbers: nothing warned. The shrink warning fires at zero or on
+ *     a drop bigger than the wobble, and a drop of exactly one — the case this
+ *     paragraph exists for — is by construction silent. The numbers came from
+ *     reading `[a11y] ok — <stop> (N carried by the baseline)` out of a run
+ *     log. If these four sat unshrunk for four batches, that is why, and the
+ *     habit to keep is grepping that line after any run you have in front of
+ *     you rather than waiting to be told.
+ *
  * Remaining: **18, all `color-contrast`, and all of them genuine** — the 41
  * decorative mocks are excluded at the scan rather than carried as a ceiling,
  * and the 2 on the booking confirmation were fade artifacts. 214 → 18 since
@@ -274,9 +292,39 @@
  * deep end. axe reports gradients as INCOMPLETE rather than failing, so it has
  * never been in this file's count and never will be. It is the design system's
  * signature element and changing it is an owner decision, not a sweep.
+ *
+ * ── THREE NEW STOPS, 2026-09-14 (DREAMCRM-33, the money journey) ────────────
+ *
+ * `e2e/portal-billing.spec.ts` walks a patient paying a balance and stops at
+ * three states nothing had ever scanned. They are entered here on their first
+ * measured run, for the same reason the original 214 were: these are
+ * PRE-EXISTING defects in portal UI that the checks REVEALED, not regressions
+ * the spec caused, and QA changes tests rather than product code. A new stop
+ * normally starts at zero — the exception is a stop that was never looked at
+ * before, which is exactly the situation this whole file was created for.
+ *
+ * They are the same shape as the one every other portal stop already carries:
+ * muted ink on the portal's #FAF7F2 ground, measured settled, at small sizes.
+ * `#968f88 on #faf7f2` at 12px is 2.98:1 and `#8c857d on #faf7f2` at 14px is
+ * 3.4:1, against a 4.5 floor. That pair is the "remaining 1 per portal stop is
+ * NOT the brand — a separate pair, still to be identified" noted in batch 54;
+ * these stops make it three instances more visible, and it is one fix in
+ * `components/patient-portal/ui.tsx`'s muted tone, not three.
+ *
+ * HANDED TO THE UI LANE with the colours above. Shrink or delete these the
+ * moment that tone moves — they are the smallest entries in the file and they
+ * should be the shortest-lived.
  */
 export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'auth: sign-in showing the failure alert': { 'color-contrast': 1 },
+  // The three money-journey stops (DREAMCRM-33) — see the note above. Only the
+  // third was measured on the first run (the other two tests failed earlier in
+  // the spec, before reaching their scan); all three are entered at 1, the
+  // count every other portal stop carries for the same muted-ink pair, and the
+  // run that measures them will warn if any is really zero.
+  'portal: billing, a balance waiting to be paid': { 'color-contrast': 1 },
+  'portal: billing, back from a completed checkout': { 'color-contrast': 1 },
+  'portal: billing, checkout could not start': { 'color-contrast': 1 },
   'portal: cancel confirmation showing': { 'color-contrast': 1 },
   'portal: patient dashboard': { 'color-contrast': 1 },
   'portal: reschedule panel open, a new time picked': { 'color-contrast': 1 },

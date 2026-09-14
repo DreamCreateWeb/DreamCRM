@@ -500,6 +500,101 @@ async function seedGoLive(pool) {
   console.log('seeded the go-live clinic (pre-live)')
 }
 
+// --- billing: e2e/portal-billing.spec.ts -----------------------------------
+// A FOURTH clinic, for the same reason `go-live` needed a third: this journey
+// changes facts that other specs read.
+//
+// Two of them, specifically. `clinic_profile.portal_settings` is org-level, and
+// `features.payments` defaults OFF — turning it on for `org_e2e_live` would
+// change what the portal nav and the billing page render for every other portal
+// spec sharing that org, mid-run, from a parallel worker. `shop_config` is
+// org-level too, and an active connected account is what `canTakeBalancePayments`
+// reads. Neither belongs to a spec that does not own the clinic.
+//
+// So the whole world this journey needs — clinic, profile with payments ON,
+// connected account, patient with a real balance, auth user, session — is one
+// scope, disjoint from everything else, restored together before each attempt.
+//
+// WHAT IS ACTUALLY CONSUMED here is small and easy to miss: every attempt to
+// start a checkout INSERTS a pending `patient_balance_payment` row before it
+// reaches Stripe, and rolls it back when Stripe throws. The rollback is
+// best-effort by design (`discardUnstartedBalancePayment` swallows its own
+// failures rather than replacing the real error), so a leftover pending row is
+// a real possibility — and it would show up in the billing HISTORY list the
+// next attempt reads. The restore clears them, which is the difference between
+// a retry starting from the seeded world and a retry starting from the last
+// attempt's debris.
+const BILLING_BALANCE_CENTS = 18_500 // $185.00 — above PLAN_MIN_TOTAL_CENTS, so the split-it offer renders too.
+
+async function seedBilling(pool) {
+  await pool.query(
+    `insert into organization (id, name, slug, type, is_demo)
+     values ('org_e2e_billing', 'E2E Billing', 'e2e-billing', 'clinic', false)
+     on conflict (id) do update set name = excluded.name, slug = excluded.slug`,
+  )
+  // `payments: true` is the whole reason this clinic exists. The stored blob is
+  // merged over DEFAULT_PORTAL_SETTINGS on read (lib/services/portal-settings.ts),
+  // so naming only what differs is both correct and honest about what is under
+  // test — `billing` is already on by default, `payments` is not.
+  await pool.query(
+    `insert into clinic_profile (organization_id, display_name, timezone, hours, chair_count, site_live_at, phone, portal_settings)
+     values ('org_e2e_billing', 'E2E Billing Dental', 'America/New_York', $1, 2, now(), '+15550100900', $2)
+     on conflict (organization_id) do update set
+       display_name = excluded.display_name,
+       timezone = excluded.timezone,
+       hours = excluded.hours,
+       chair_count = excluded.chair_count,
+       site_live_at = excluded.site_live_at,
+       phone = excluded.phone,
+       portal_settings = excluded.portal_settings`,
+    [JSON.stringify(HOURS), JSON.stringify({ features: { payments: true } })],
+  )
+  // The connected account `canTakeBalancePayments` reads. Nothing here ever
+  // reaches Stripe — the harness sets no STRIPE_SECRET_KEY on purpose (see
+  // scripts/e2e-harness.sh) — so this account id is a shape, not a credential.
+  await pool.query(
+    `insert into shop_config (organization_id, stripe_account_id, stripe_account_status, charges_enabled, currency)
+     values ('org_e2e_billing', 'acct_e2e_not_a_real_account', 'active', 1, 'usd')
+     on conflict (organization_id) do update set
+       stripe_account_id = excluded.stripe_account_id,
+       stripe_account_status = excluded.stripe_account_status,
+       charges_enabled = excluded.charges_enabled`,
+  )
+  await pool.query(
+    `insert into "user" (id, name, email, email_verified)
+     values ('user_e2e_billing', 'Sam Owing', 'sam.owing@example.com', true)
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into member (id, organization_id, user_id, role)
+     values ('mem_e2e_billing', 'org_e2e_billing', 'user_e2e_billing', 'patient')
+     on conflict (id) do nothing`,
+  )
+  // The balance is re-stamped on every restore. It is read from the PMS mirror
+  // column and never written by a payment, but a restore that left it alone
+  // would be trusting that rather than guaranteeing it.
+  await pool.query(
+    `insert into patient (id, organization_id, first_name, last_name, email, phone, user_id, pms_balance_cents, pms_balance_updated_at)
+     values ('pat_e2e_billing', 'org_e2e_billing', 'Sam', 'Owing', 'sam.owing@example.com', '+15550100005', 'user_e2e_billing', $1, now())
+     on conflict (id) do update set
+       user_id = 'user_e2e_billing',
+       pms_balance_cents = excluded.pms_balance_cents,
+       pms_balance_updated_at = excluded.pms_balance_updated_at`,
+    [BILLING_BALANCE_CENTS],
+  )
+  await pool.query(
+    `insert into session (id, token, user_id, active_organization_id, expires_at)
+     values ('sess_e2e_billing', 'e2e-billing-session-token', 'user_e2e_billing', 'org_e2e_billing', now() + interval '7 days')
+     on conflict (id) do update set expires_at = now() + interval '7 days'`,
+  )
+  // The debris sweep described above: any pending row a previous attempt's
+  // rollback failed to clear would otherwise appear in this attempt's history.
+  await pool.query(
+    `delete from patient_balance_payment where patient_id = 'pat_e2e_billing'`,
+  )
+  console.log('seeded the billing clinic (payments on, $185.00 owed)')
+}
+
 /**
  * Every scope, in the order a full seed applies them. `base` first because the
  * consumable scopes reference its patients; the rest are row-disjoint and so
@@ -513,6 +608,7 @@ export const SCOPES = {
   'portal-reschedule': seedPortalReschedule,
   'sign-here': seedSignHere,
   'go-live': seedGoLive,
+  billing: seedBilling,
 }
 
 /** Everything except `base` — the rows a spec can spend and a retry must get back. */
@@ -560,6 +656,13 @@ export const SCOPE_ROWS = {
   'portal-reschedule': ['appt_e2e_move', 'appt_e2e_cancelme', 'appt_e2e_soon'],
   'sign-here': ['lead_e2e_inquiry', 'prop_e2e_inquiry'],
   'go-live': ['org_e2e_golive', 'user_e2e_golive', 'mem_e2e_golive', 'sess_e2e_golive'],
+  billing: [
+    'org_e2e_billing',
+    'user_e2e_billing',
+    'mem_e2e_billing',
+    'pat_e2e_billing',
+    'sess_e2e_billing',
+  ],
 }
 
 export async function seed(names = Object.keys(SCOPES)) {
