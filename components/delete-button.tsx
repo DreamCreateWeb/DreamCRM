@@ -38,7 +38,7 @@ export default function DeleteButton({
           type="button"
           onClick={handleClick}
           disabled={pending}
-          className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-red-500 disabled:opacity-60"
+          className="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-rose-800 dark:text-rose-300 disabled:opacity-60"
         >
           {pending ? 'Deleting…' : label}
         </button>

@@ -1203,13 +1203,17 @@ function StudioModal({
               />
               {imageCfg.focalAspect && imageUrl && (
                 <div className="mt-4 pt-4 border-t border-[color:var(--color-hairline)]">
-                  {/* Not a <label>: the picker is a drag surface with no form
-                      control to name. (It has no keyboard path either — that
-                      gap is on the punch list, not this batch.) */}
-                  <span className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                  {/* Not a <label>: the picker's two axis sliders are a GROUP,
+                      and a <label> can only ever name one control. The heading
+                      names the group instead (DREAMCRM-34). */}
+                  <span
+                    id="focal-point-heading"
+                    className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2"
+                  >
                     Focus point
                   </span>
                   <FocalPointPicker
+                    labelledBy="focal-point-heading"
                     src={imageUrl}
                     aspectClass={imageCfg.focalAspect}
                     value={position}

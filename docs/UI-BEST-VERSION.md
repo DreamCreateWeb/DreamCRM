@@ -35,15 +35,92 @@ batch number.
   remainder, and the escape-hatch rule mechanically (an onClick that is only
   a state setter, or a bare Cancel/Back/Keep/Close label, may never carry
   `pending`)].
-- **The website Studio's Focus-point picker has no keyboard path at all.**
-  `components/ui/focal-point-picker.tsx` is a pointer-only drag surface —
-  `onPointerDown`/`Move`/`Up` on a plain `<div>`, no `tabIndex`, no `role`,
-  no arrow keys — so choosing what stays in frame on a hero photo is
-  mouse-or-touch only. Found in batch 53 while burning down the labels (its
-  `<label>` had nothing to name, which is the tell). The fix is the standard
-  2D-slider shape: focusable, `role="application"` or a pair of named
-  sliders, arrow keys nudging 1% and Shift+arrow 10%. Deliberately NOT
-  folded into that batch — it is a behaviour change, not an association.
+- ~~The website Studio's Focus-point picker has no keyboard path at all~~
+  [BATCH 59, and it was the last known surface a keyboard could not operate.
+  The entry offered two shapes; the pair of named sliders won over
+  `role="application"` for a reason worth keeping: `application` tells a
+  screen reader to hand over every keystroke, costing the user their normal
+  reading keys in exchange for a widget that still reports NO VALUE. Two
+  `sr-only` `<input type="range">` — one per axis, inside a named
+  `role="group"` — report their value, bounds and name for free to every
+  assistive technology, including the ones that drive controls without a
+  keyboard at all (voice, switch), and nothing about the drag surface looks
+  different. `aria-valuetext` reads the position out as "30% from the top"
+  rather than leaving a screen reader to say "30" and hope. The load-bearing
+  detail is that BOTH sliders answer all four arrows: splitting a 2D position
+  across two controls is what makes it announceable, but a person who has
+  tabbed to "vertical" and presses Left expects the point to move left — so
+  focus decides what is ANNOUNCED, never what works. Arrows 1%, Shift+arrow
+  and the Page keys 10%, Home/End to that axis's edge, clamped the way the
+  pointer path always was. Each picker is named for what it repositions
+  ("Focus point for photo 2") so the four on the office-photos grid are not
+  four identical "Horizontal position" sliders, and the Studio's existing
+  visible "Focus point" heading names the group via `labelledBy` instead of
+  repeating itself in an aria-label. The frame takes the design system's
+  `--focus-ring` on `focus-within`. Batch 53's note that its `<label>` had
+  nothing to name is resolved from the other end — there is a control now,
+  and the heading points at the group.
+  `tests/design-system/focal-point-picker.test.tsx`; red-verified — 15 of its
+  16 assertions fail against the pointer-only version, the 16th being the
+  object-position render that was meant to stay unchanged].
+- ~~Nothing catches a `dark:` override that leaves half its colour pair
+  behind~~ [BATCH 59. Batch 58 found three chips setting `dark:text-gray-900`
+  with no `dark:bg-*`, so the dark theme put near-black ink on a teal-500
+  fill at 4.01 — live, unnoticed, and pointing the OPPOSITE way from the
+  light-mode fix, which would have driven them to 3.01. Nothing could have
+  caught it: axe measures one theme in a browser, and
+  `tests/a11y/token-contrast.test.ts` grades only the pairs the design system
+  DECLARES, in the unprefixed light spelling. The new guard is a source rule
+  over every `className` in `app/`, `components/` and `lib/`
+  (`tests/a11y/class-pairs.ts` + `tests/a11y/dark-mode-parity.test.ts`).
+  Two findings from building it. (1) The STRUCTURAL rule — an unpaired
+  `dark:` override — matches 208 places and is wrong about nearly all of
+  them, because the commonest unpaired override is CORRECT: a tone wash
+  (`bg-amber-500/15 text-amber-800 dark:text-amber-300`) is alpha over
+  whatever surface it landed on, so the surface is already theme-aware and a
+  `dark:bg-*` would be the mistake. A guard firing on 208 sites to catch 8 is
+  a guard people switch off, so it MEASURES both renderings through the
+  palette and reports only what actually misses AA. (2) It needs no baseline
+  and has none — Quinn's constraint was "not two lists of contrast problems
+  that can disagree", and at ZERO there is no second list to disagree with
+  `e2e/axe-baseline.ts`. It could afford zero because the shape was live in
+  eight places, all fixed here: the four messaging unread badges (white on
+  amber-500 at 2.13 in light, where the dark side already had it right at
+  gray-900/7.18 — so the fix is to drop the override and take the dark
+  answer in both), the outbound message bubble (`bg-teal-600 text-white
+  dark:bg-teal-500`, 3.82 in dark — the batch-58 rule applied to the surface
+  half), the demo-mode impersonation banner (2.13 light AND 3.20 dark: white
+  on amber does not pass until amber-700, which no longer reads as amber, so
+  amber-500 is a DARK-ink fill), Delete and Clear's `text-red-500` on
+  `bg-white dark:bg-gray-800` (3.13 and 4.20 — now the registry's own
+  `urgent` recipe, and `red-*` was never a v3 tone ramp at all), the staff
+  photo well's `text-gray-400` (the ink the sheet marks "disabled only", used
+  as real text at 2.29/3.92) and a proposal avatar at 2.63. Red-verified on
+  the live tree before a single fix: the guard named all ten instances, one
+  of them inside a ternary branch — the CONDITIONAL form whose absence let
+  batch 57's red run pass while the bug was live. The colour maths and the
+  palette cascade moved to `tests/a11y/palette.ts`, shared with
+  `token-contrast.test.ts`, so two guards cannot report different ratios for
+  the same pair. Four axe ceilings came down with it — the four batch 58 left
+  standing on a single observation (add-patient dialog, the brand-new patients
+  list, the day agenda, the published website hub); batch 59's run measured
+  the same lower numbers, which is the second observation that entry was
+  waiting for. Worth knowing for next time: a drop of exactly one sits inside
+  the harness's `WOBBLE` allowance, so it prints no "shrink me" annotation at
+  all — the evidence is only in the run log's `carried by the baseline`
+  counts, and somebody has to go and read them].
+- **The dashboard has no single answer for "a solid fill with a label on
+  it".** Batch 59 had to pick one four times, and picked by measurement each
+  time: amber-500 keeps its saturated warn identity and takes DARK ink
+  (7.18), because white on amber clears only at amber-700, which reads brown;
+  teal-600 stays the white-label fill batch 58 established. Two different
+  answers to the same question, reached independently, and neither is written
+  anywhere a person would look — `TONE_PILL`/`TONE_TEXT`/`TONE_DOT` cover
+  washes, plain text and dots, and stop short of the solid fill. A
+  `TONE_FILL` recipe in `lib/ui/encodings.ts` would single-home it and let
+  `token-contrast.test.ts` grade it like the others. Not done here: adding
+  the registry entry means re-pointing every solid fill in the product at it,
+  which is its own batch.
 - **Sibling actions sharing one `pending` flag all spin together.** Distinct
   from the escape-hatch class above and NOT closed by batch 52: where a
   surface runs several real actions off one `useTransition`, pressing one
@@ -358,7 +435,19 @@ batch number.
   `tests/a11y/token-contrast.test.ts` gained the source rule (light-mode
   `bg-teal-400/500` + `text-white`), the negative assertion that those two
   steps really are below the floor, and a stale-exemption check;
-  red-verified on three breaks].
+  red-verified on three breaks.
+  **CORRECTION, batch 59: that last sentence was not true.** What actually
+  landed was the POSITIVE assertion that teal-600 and deeper are safe — which
+  grades the PALETTE and can never fail on a call site. There was no source
+  rule, no negative assertion and no stale-exemption check, and this entry,
+  `e2e/axe-baseline.ts` and the burn-down log all said otherwise for four
+  days. The product fix was real and complete (the scanner now finds zero
+  unexempt sites), so nothing was broken — but the repo believed a rule
+  defended it that was not there, which is worse than knowing the ground is
+  open, and it is the same class of miss as batch 57's red run that passed.
+  All three exist now; the deliberate exemption above is
+  `BRAND_FILL_EXEMPTIONS` with its reason written beside it, and both the
+  rule and the exemption are red-verified by re-tinting the illustration].
 - **OWNER DECISION NEEDED — `ActionButton`'s primary gradient fails AA
   across almost its whole span, and no automated gate can see it.** The
   design system's signature "dream-blue gradient bubble" is

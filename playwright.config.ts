@@ -25,17 +25,42 @@ const chromiumPath =
 const PORT = Number(process.env.E2E_PORT ?? 3100)
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`
 
+/**
+ * Where the CI json reporter writes the machine-readable run result.
+ *
+ * `scripts/e2e-flaky-summary.mjs` reads this file, and it has to agree with
+ * this literal or the flaky reporting silently becomes decorative — it would
+ * find no report, say so quietly in a log nobody opens, and every run would
+ * keep looking clean. `tests/guards/e2e-flaky-summary.test.ts` pins the two
+ * together so a rename fails at the merge gate instead.
+ */
+const E2E_RESULTS_JSON = 'e2e-results.json'
+
 export default defineConfig({
   testDir: './e2e',
   // A golden-path spec that needs a retry is a flaky spec — and a flaky E2E
   // suite is worse than none, because people learn to ignore red. One retry in
   // CI only, to absorb genuine infrastructure noise.
+  //
+  // The retry stays at 1 DELIBERATELY (DREAMCRM-33). `retries: 0` would turn
+  // every piece of harness noise into a red required check, and a gate that is
+  // red for reasons nobody caused is a gate people route around. What changed
+  // instead is that a retry no longer happens in silence: the json reporter
+  // below feeds `scripts/e2e-flaky-summary.mjs`, which names every flaky test
+  // on the run's job summary and makes CI keep the Playwright report for a
+  // GREEN run too. Absorbing the noise and erasing the evidence were never the
+  // same decision; this file only ever meant the first one.
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : undefined,
   timeout: 60_000,
   expect: { timeout: 10_000 },
   forbidOnly: !!process.env.CI,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
+  // The json report sits OUTSIDE `playwright-report/` on purpose: the html
+  // reporter clears that folder when it generates, which would delete a
+  // sibling file written by a reporter earlier in this list.
+  reporter: process.env.CI
+    ? [['list'], ['html', { open: 'never' }], ['json', { outputFile: E2E_RESULTS_JSON }]]
+    : [['list']],
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
