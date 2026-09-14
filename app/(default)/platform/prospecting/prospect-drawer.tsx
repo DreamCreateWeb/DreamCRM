@@ -320,10 +320,23 @@ function DealRoom({ vendors, crawled }: { vendors: DetectedVendor[]; crawled: bo
             ~${est.detectedMonthly}/mo
           </span>
         </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600 dark:text-gray-300">DreamCRM {est.ourPlanName} replaces it</span>
-          <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
-            ${est.ourPlanPrice}/mo
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="text-gray-600 dark:text-gray-300">
+            DreamCRM {est.ourPlanName} replaces it
+            <span className="block text-xs font-medium text-teal-700 dark:text-teal-300">
+              Limited time — founding practice rate
+            </span>
+          </span>
+          <span className="shrink-0 font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+            {est.ourPlanListPrice != null && (
+              <span
+                className="mr-1.5 font-normal text-gray-500 line-through decoration-2 dark:text-gray-400"
+                title="Regular price"
+              >
+                ${est.ourPlanListPrice.toLocaleString('en-US')}
+              </span>
+            )}
+            ${est.ourPlanPrice.toLocaleString('en-US')}/mo
           </span>
         </div>
         {est.monthlySavings > 0 && (

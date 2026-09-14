@@ -1,9 +1,13 @@
-// Pure competitor/vendor detection for the deal room — fingerprint the
+// Competitor/vendor detection for the deal room — fingerprint the
 // orbital-layer tools a practice already runs from their site HTML, so a call
 // can name exactly who we'd displace and roughly what they'd save by
 // consolidating into DreamCRM. Grounded in the real dental vendor landscape
 // (DESIGN.md: Weave, NexHealth, RevenueWell, Solutionreach, LocalMed,
-// Podium, Birdeye, PBHS, ProSites…). No deps — unit-testable with fixtures.
+// Podium, Birdeye, PBHS, ProSites…). Vendor detection is pure — unit-testable
+// with fixtures; the one import is the plan price we quote, which is read from
+// `lib/stripe-config.ts` rather than copied (DREAMCRM-38).
+
+import { PURCHASABLE_PLANS } from '@/lib/stripe-config'
 
 export type VendorCategory =
   | 'booking'
@@ -97,39 +101,46 @@ export interface ConsolidationEstimate {
   detectedMonthly: number
   /** How many distinct orbital-layer categories they're paying across. */
   categoryCount: number
-  /** DreamCRM plan we'd compare against (the tier that covers what they run). */
+  /** The plan we quote them — the one a clinic can actually buy. */
   ourPlanName: string
+  /** The limited-time founding rate we quote, $/mo. Read from stripe-config. */
   ourPlanPrice: number
+  /** Regular list price, shown struck through beside the rate. Null if none. */
+  ourPlanListPrice: number | null
   /** Estimated monthly savings from consolidating (never negative). */
   monthlySavings: number
 }
 
-// DreamCRM plans (mirrors stripe-config PLANS pricing — kept minimal + pure).
-const PLAN_PRICE = { basic: 150, pro: 250, premium: 500 } as const
+/**
+ * The plan a prospect is quoted. Since the 2026-07-19 single-plan collapse
+ * there is exactly ONE purchasable plan — Premium at the founding practice
+ * rate — so the deal room quotes it instead of picking a tier from what they
+ * run. Picking a tier was both stale (it quoted $500, the struck-through LIST
+ * price, for a plan that costs $200) and unsellable (Basic/Pro have not been
+ * offered since the collapse, and quoting Pro at $250 named a plan that is
+ * both unavailable and dearer than the one they can have).
+ *
+ * Read from `lib/stripe-config.ts`, never copied: a reprice there lands here,
+ * on the pricing page, and in Stripe checkout together. This file used to
+ * carry a fourth copy of the tier→price map and it is what drifted.
+ */
+const QUOTED_PLAN = PURCHASABLE_PLANS[0]
 
 /**
  * Turn detected vendors into the consolidation story: what they likely pay
- * across separate tools vs. one DreamCRM plan. Picks the plan tier by what
- * they run (any marketing/recall or 3+ categories → Premium; any booking/
- * reviews/messaging/forms → Pro; site only → Basic).
+ * across separate tools vs. one DreamCRM plan at the founding rate.
  */
 export function consolidationEstimate(vendors: DetectedVendor[]): ConsolidationEstimate {
   const detectedMonthly = vendors.reduce((sum, v) => sum + v.estMonthly, 0)
   const categories = new Set(vendors.map((v) => v.category))
-  const hasMarketing = categories.has('marketing')
-  const nonSite = Array.from(categories).filter((c) => c !== 'site')
-
-  let plan: keyof typeof PLAN_PRICE = 'basic'
-  if (hasMarketing || categories.size >= 3) plan = 'premium'
-  else if (nonSite.length > 0) plan = 'pro'
-
-  const ourPlanPrice = PLAN_PRICE[plan]
+  const ourPlanPrice = QUOTED_PLAN.price
   return {
     vendors,
     detectedMonthly,
     categoryCount: categories.size,
-    ourPlanName: plan === 'basic' ? 'Basic' : plan === 'pro' ? 'Pro' : 'Premium',
+    ourPlanName: QUOTED_PLAN.name,
     ourPlanPrice,
+    ourPlanListPrice: QUOTED_PLAN.listPrice ?? null,
     monthlySavings: Math.max(0, detectedMonthly - ourPlanPrice),
   }
 }

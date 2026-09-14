@@ -609,7 +609,58 @@ binding are all correct. The payment-plan charger was the exception.
   renders on the deal room and in the outbound pitch. Not folded into the MRR
   fix: this is prospecting's lane and changing what a prospect is quoted is a
   product decision, not a cleanup. Allowlisted in the new one-MRR guard with
-  this reason. · OPEN.
+  this reason. · **FIXED** (DREAMCRM-38) — the product decision came back from
+  the owner as "the deal room quotes the limited-time $200/mo founding rate",
+  and the map is GONE rather than repriced: `consolidationEstimate` reads
+  `PURCHASABLE_PLANS` from `lib/stripe-config.ts`, so the deal room, the
+  pricing page and Stripe checkout move together on the next reprice. The
+  tier SELECTION went with it — since the 2026-07-19 single-plan collapse
+  there is one purchasable plan, so a booking+reviews stack was being quoted
+  "Pro $250": a plan that is both unsellable AND dearer than the one they can
+  buy. The row now reads the founding rate with $500 struck through, framed
+  as the billing panel frames it. The one-MRR guard's exemption for this file
+  is DELETED, so it is covered like any other; a sibling assertion in
+  `tests/prospecting/vendors.test.ts` pins that the only plan money here
+  arrives by import (the map guard would not catch a single re-pasted
+  `const PREMIUM = 200`), and `tests/prospecting/deal-room-quote.test.tsx`
+  pins the rendered row rather than the estimate's return value.
+- S3 · `app/(default)/platform/prospecting/demo/[id]/track-picker.tsx:15` — a
+  FIFTH copy of the plan prices, found sweeping for siblings of the deal-room
+  quote above: `PLAN_LABELS` said "Premium · $500/mo", so the presenter's own
+  panel disagreed with the $200 on the pricing page the prospect can read
+  during the call. Strings, not numbers, so the one-MRR map guard never saw
+  it. · **FIXED** (DREAMCRM-38) — the label derives from `getPlanById`;
+  `tests/prospecting/track-picker-plan.test.tsx` pins it.
+- S3 · the demo track picker still recommends LEGACY tiers. `recommendedPlan`
+  on `DEMO_TRACK_LIST` is one of basic/pro/premium and four of the five tracks
+  say basic or pro, so the panel now truthfully reads "closes on Basic ·
+  $150/mo" for a plan that has not been sellable since the 2026-07-19
+  single-plan collapse. Split from the price fix above deliberately: that one
+  was a stale copy, this is a product question (does a demo track still
+  "close on" a tier at all, now that there is one plan?) and it needs the
+  owner. Repro: open any prospect's demo prep page → the track cards. · OPEN.
+- S3 · `app/opengraph-image.tsx:69` — the social share card for the whole
+  marketing site still reads `$150–500/mo`, the pre-collapse three-tier
+  range. It is the price that appears when anyone links dreamcreatestudio.com
+  in a text, a Slack, or a tweet, and it contradicts the $200 on the page it
+  links to. Repro: `curl -I https://www.dreamcreatestudio.com/opengraph-image`
+  or paste the URL into any link-unfurling client. Marketing lane, not folded
+  into DREAMCRM-38's prospecting fix. · OPEN.
+- S3 · `app/(marketing)/pricing/price-card.tsx:14` — the public pricing page
+  carries its OWN `LIST_MONTHLY/RATE_MONTHLY/LIST_ANNUAL/RATE_ANNUAL`
+  literals rather than reading `lib/stripe-config.ts`, whose `price` /
+  `listPrice` / `annualPrice` / `listAnnualPrice` hold exactly those four
+  numbers. They agree TODAY, so nothing is wrong on screen — this is the
+  same shape as the deal-room map one reprice before it drifted, filed now
+  because that is the only time it is cheap. Repro: change `premium.price`
+  in stripe-config and note the pricing page keeps saying 200 while
+  checkout charges the new number. · OPEN.
+- S3 · `lib/services/demo-clinic/seed-partners.ts:109` — the demo seeds
+  partner commissions off a `$500/mo` invoice (`invoiceCents = 50000`), so
+  the demo partner portal shows $50 per practice per month while
+  `/partner-program` tells real partners "At the $200/mo plan that's $20 per
+  practice per month". Money the demo displays, not money that moves. Repro:
+  view the demo clinic → the partner portal's commission rows. · OPEN.
 Unbundled 2026-09-10 — these five shipped as ONE entry, which made the whole
 line unresolvable while they shared a verdict. Since unbundling, three have
 closed on their own evidence (the demo cart, the MRR cadence math, and the
