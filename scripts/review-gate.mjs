@@ -160,6 +160,18 @@ export const GATE_RULES = [
       'app/(default)/partners/delete-partner-modal.tsx',
       // The partner's own Stripe Connect onboarding entry point.
       'app/(partner)/partner/partner-payout.tsx',
+      // THE PATIENT-FACING HALF (Sentinel, round 2 of the #559 review). The
+      // first pass applied "gate where money is SET IN MOTION" only to the
+      // staff route groups, and these meet the same test exactly — they are
+      // `actions.ts` files rather than trees, so they cost a UI-polish PR
+      // nothing, which is the whole objection the trees raised.
+      'app/site/[slug]/shop/actions.ts', // startCheckout + applyCoupon discount arithmetic — carts
+      'app/site/[slug]/membership/actions.ts', // startMembershipCheckout — a recurring charge
+      'app/i/[token]/actions.ts', // startPlanSetupAction — payment plans, on a token-is-auth landing
+      'app/b/[token]/actions.ts', // a patient-supplied amountCents, bounds-checked in this file
+      // Same principle, checked on the same pass: both open a Stripe checkout.
+      'app/(default)/billing/activate/actions.ts', // createActivationCheckout
+      'app/(onboarding)/actions.ts', // provisions the plan tier at signup
     ],
   },
   {

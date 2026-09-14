@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { allOffenders, isBareFlag, perRowSites, siblingGroups } from './shared-pending'
+import { allOffenders, isBareFlag, perRowSites, siblingGroups, silentlyDisabled } from './shared-pending'
 
 // The rules, the reasoning, and why the exemptions are a list rather than a
 // count all live in `./shared-pending.ts`. Read that first.
@@ -23,6 +23,8 @@ const NOT_SIMULTANEOUS: Record<string, string> = {
     'a prop passthrough into <BundleSection>, which hands it on to SocialAddonCard — whose own two uses are the exempted ternary arms above; no button reads it per row',
   'app/(default)/partners/[id]/referred-clinics-table.tsx|ReferredClinicsTable|pending':
     '`editing` is `editId === c.id`, so exactly one row in the table renders Save at a time',
+  'app/(partner)/partner/partner-payout.tsx|PartnerPayout|pending':
+    'Withdraw / Finish payout setup / Set up payouts are the three arms of one `method === …` ternary chain — a partner sees exactly one',
   'app/(default)/partners/partners-table.tsx|PartnersTable|busy':
     '`busy` is already `pendingId === p.id` (per row), and Resend / Suspend / Reactivate are selected by `p.status` — a row shows exactly one of them',
 }
@@ -74,5 +76,30 @@ describe('one control’s busy state is not every control’s', () => {
     const flagged = new Set(perRowSites().map((o) => o.rel))
     expect(flagged.has('app/(default)/partners/partners-table.tsx')).toBe(false)
     expect(flagged.has('app/(default)/settings/billing/subscription-panel.tsx')).toBe(false)
+  })
+})
+
+describe('a primitive that only greys out says nothing', () => {
+  // Read the block comment over `silentlyDisabled` — this rule exists because
+  // its absence let 11 buttons, including the partner Withdraw, come out of a
+  // cleanup round with no busy state at all.
+
+  /**
+   * Reviewed: the flag genuinely means "unavailable" rather than "working",
+   * so there is nothing for this button to report.
+   */
+  const NOT_BUSY: Record<string, string> = {}
+
+  it('every branded primitive told work is running says so', () => {
+    const offenders = silentlyDisabled()
+      .filter((b) => !(`${b.rel}:${b.line}` in NOT_BUSY))
+      .map((b) => `${b.rel}:${b.line} <${b.tag}> "${b.label}" — disabled={${b.flag}}, no pending=`)
+    expect(
+      offenders,
+      'These grey out and say nothing: no spinner, no aria-busy, no label. The\n' +
+        'primitive already does the whole job — add `pending={<flag>}` beside the\n' +
+        '`disabled`. If the flag means "unavailable" rather than "working", add the\n' +
+        `site to NOT_BUSY with the reason:\n  ${offenders.join('\n  ')}`,
+    ).toEqual([])
   })
 })

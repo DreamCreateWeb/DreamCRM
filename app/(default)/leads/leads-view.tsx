@@ -125,6 +125,8 @@ export default function LeadsView({
 
   // ── Bulk triage selection ───────────────────────────────────────────
   const [bulkPending, startBulk] = useTransition()
+  // Mark contacted and Archive sit side by side in the bulk bar off one flag.
+  const [bulkActive, setBulkActive] = useState<'contacted' | 'archived' | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const visibleIds = visibleRows.map((r) => r.id)
   // Only count/act on selections that are actually in view (a status filter
@@ -153,6 +155,7 @@ export default function LeadsView({
     const ids = selectedVisible
     if (ids.length === 0) return
     const nextStatus: LeadStatus = action === 'contacted' ? 'contacted' : 'archived'
+    setBulkActive(action)
     startBulk(async () => {
       for (const id of ids) addOptimisticStatus({ id, status: nextStatus })
       const r = await bulkSetLeadStatusAction(ids, action)
@@ -322,10 +325,10 @@ export default function LeadsView({
 
       {/* ── Sticky bulk triage bar ───────────────────────────────────── */}
       <BulkBar count={selectedVisible.length} onClear={() => setSelected(new Set())}>
-        <ActionButton variant="primary" size="sm" onClick={() => runBulk('contacted')} disabled={bulkPending}>
+        <ActionButton variant="primary" size="sm" onClick={() => runBulk('contacted')} pending={bulkPending && bulkActive === 'contacted'} disabled={bulkPending}>
           Mark contacted
         </ActionButton>
-        <ActionButton variant="secondary" size="sm" onClick={() => runBulk('archived')} disabled={bulkPending}>
+        <ActionButton variant="secondary" size="sm" onClick={() => runBulk('archived')} pending={bulkPending && bulkActive === 'archived'} disabled={bulkPending}>
           Archive
         </ActionButton>
       </BulkBar>

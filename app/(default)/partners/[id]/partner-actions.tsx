@@ -131,6 +131,7 @@ export default function PartnerActions({
           variant="primary"
           breath
           onClick={pay}
+          pending={pending && active === 'pay'}
           disabled={pending || !canPay}
           title={
             !payoutReady
@@ -140,7 +141,7 @@ export default function PartnerActions({
                 : undefined
           }
         >
-          {pending && active === 'pay' ? 'Paying…' : `Pay now (${moneyExact(accruedCents)})`}
+          {`Pay now (${moneyExact(accruedCents)})`}
         </ActionButton>
       )}
       {/* Destructive — kept apart from the primary by a hairline divider. */}

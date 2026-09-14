@@ -263,3 +263,59 @@ export function tagSites(files: string[], childrenFor: string[] = [], root = pro
   }
   return out
 }
+
+/** From a declaration, the text up to the close of its first `{ … }` block. */
+function braceBody(src: string, at: number): string {
+  const open = src.indexOf('{', at)
+  if (open < 0) return src.slice(at, at + 200)
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth++
+    else if (src[i] === '}') {
+      depth--
+      if (depth === 0) return src.slice(at, i + 1)
+    }
+  }
+  return src.slice(at)
+}
+
+/**
+ * The starter paired with `flag` in this scope's `useTransition()` — the
+ * `startTransition` half of `const [pending, startTransition] = …`.
+ */
+export function transitionStarter(src: string, scope: Scope, flag: string): string | null {
+  const body = src.slice(scope.at, nextScopeStart(src, scope.at))
+  const m = body.match(new RegExp(`\\[\\s*${flag}\\s*,\\s*([A-Za-z_$][\\w$]*)\\s*\\]\\s*=\\s*useTransition\\(`))
+  return m ? m[1] : null
+}
+
+/**
+ * Does this `onClick` expression reach `starter(` — i.e. does pressing this
+ * button START the transition the flag belongs to?
+ *
+ * The distinction the converse rule stands on. A button that starts the work
+ * owes the person a busy state. A button that is merely UNAVAILABLE while a
+ * sibling works, or whose handler hands the transition to a parent, or which
+ * only flips local state, owes them nothing but `disabled` — and a rule that
+ * cannot tell those apart reports twenty correct sites to catch eleven wrong
+ * ones, which is a rule people switch off.
+ *
+ * Follows one hop: the expression itself, plus the body of any same-scope
+ * `function name(…)` / `const name = …` it names.
+ */
+export function startsTransition(src: string, scope: Scope, onClick: string, starter: string): boolean {
+  const body = src.slice(scope.at, nextScopeStart(src, scope.at))
+  const call = new RegExp(`\\b${starter}\\s*\\(`)
+  if (call.test(onClick)) return true
+  for (const id of Array.from(new Set(onClick.match(/[A-Za-z_$][\w$]*/g) ?? []))) {
+    if (id === starter) continue
+    const decl = body.match(new RegExp(`(?:async\\s+)?function\\s+${id}\\s*\\(|const\\s+${id}\\s*=`))
+    if (!decl || decl.index === undefined) continue
+    // The handler's OWN body, brace-matched. A fixed character window was the
+    // first attempt and it ran straight past the closing brace into the NEXT
+    // handler — so `onMarkContacted`, which hands its transition to a parent,
+    // read as starting one because `onConvert` sits below it.
+    if (call.test(braceBody(body, decl.index))) return true
+  }
+  return false
+}

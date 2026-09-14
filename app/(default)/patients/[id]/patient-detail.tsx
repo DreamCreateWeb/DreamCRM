@@ -470,6 +470,7 @@ export default function PatientDetail({
               variant="danger"
               size="sm"
               onClick={onArchive}
+              pending={archivePending}
               disabled={archivePending || header.lifecycle === 'archived'}
               className="w-full justify-center"
             >

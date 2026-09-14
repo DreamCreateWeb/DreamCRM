@@ -190,7 +190,30 @@ batch number.
   arm alone surfaced 16 more rule-1 offenders on top of the four found by
   hand — every one with a template literal on the idle arm — and moved the
   raw-`<button>` ceiling 71 → 90, which is the same population measured with
-  an instrument that can see it rather than any regression].
+  an instrument that can see it rather than any regression.
+  **Deleting those 16 was where the batch nearly shipped a regression, and
+  Sentinel's second round caught it.** Rule 1's premise is "the ActionButton
+  already passes `pending`, so the ternary is pure duplication" — the guard
+  asserts the ternary is GONE and never asserts the prop is THERE. Of the 18
+  sites the widened regex found, seven had the prop and ELEVEN did not: for
+  those the ternary was the only busy feedback the button had, and removing
+  it left them greying out in silence. One was the referral partner's
+  Withdraw button, the single control in the product that moves money to
+  somebody's own bank account, going quiet for the length of a Stripe
+  Connect payout. So the pair has a third rule now: a branded primitive
+  whose `disabled` reads a busy flag and which has no `pending` of its own
+  is an offender. Narrowing it was the work — the first draft asked only
+  "does `disabled` read a busy flag" and named 22 sites to catch the 11,
+  because a button can be unavailable while a SIBLING works, or hand its
+  transition to a parent that closes the surface, or only flip local state.
+  It now requires the button's OWN `onClick` to reach the transition's
+  starter, resolved through the handler's brace-matched body — a fixed
+  character window ran straight past the closing brace into the next
+  handler, which is how `onMarkContacted` read as starting a transition it
+  hands to its parent. At that width it found 8 more real ones beyond the
+  11, including the goals card's Pause (whose sibling "Reached it" was
+  already right), the leads bulk bar, the quick-reply Send and the partner
+  detail's Pay now].
 - ~~77 form fields have no accessible name~~ [BATCH 53, ALL 77, and
   `eslint-suppressions.json` is now EMPTY. A `<label>` that is a SIBLING of
   its input, with neither `htmlFor` nor nesting, connects nothing — to a

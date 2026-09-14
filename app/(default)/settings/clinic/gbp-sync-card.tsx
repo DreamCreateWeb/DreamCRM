@@ -146,6 +146,7 @@ function PhotoGallery({
           <ActionButton
             variant="secondary"
             size="sm"
+            pending={busy}
             disabled={busy || selected.size === 0}
             onClick={() => onImport(Array.from(selected))}
           >

@@ -25,10 +25,13 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [senderPending, startSenderTransition] = useTransition()
+  // One button per connected account — which account is actually being set.
+  const [senderActive, setSenderActive] = useState<string | null>(null)
   const [senderSet, setSenderSet] = useState(false)
 
   function handleUseAsSender(accountId: string) {
     setError(null)
+    setSenderActive(accountId)
     startSenderTransition(async () => {
       const r = await useAsPatientSenderAction(accountId)
       if (!r.ok) setError(r.error ?? 'Could not update the patient sender.')
@@ -148,6 +151,7 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
                 variant="primary"
                 size="sm"
                 onClick={() => handleUseAsSender(a.id)}
+                pending={senderPending && senderActive === a.id}
                 disabled={senderPending}
               >
                 {`Send as ${a.emailAddress}`}
@@ -202,19 +206,11 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
             variant="primary"
             size="sm"
             onClick={handleReclassify}
+            pending={reclassifying}
             disabled={reclassifying}
             className="gap-2"
           >
-            {reclassifying ? (
-              <>
-                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
-                  <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
-                </svg>
-                Reclassifying…
-              </>
-            ) : (
-              'Reclassify everything'
-            )}
+            Reclassify everything
           </ActionButton>
           {reclassifyResult && (
             <div className="mt-3 text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-3 py-2 rounded" role="status">

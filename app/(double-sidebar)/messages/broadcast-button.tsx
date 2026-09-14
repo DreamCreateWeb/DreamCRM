@@ -173,6 +173,7 @@ export default function BroadcastButton() {
                         variant="primary"
                         size="sm"
                         onClick={onSend}
+                        pending={pending}
                         disabled={pending || !segment || !body.trim() || overCap || selectedCount === 0}
                       >
                         {selectedCount != null

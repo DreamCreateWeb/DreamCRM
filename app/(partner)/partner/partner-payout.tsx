@@ -87,6 +87,7 @@ export default function PartnerPayout({
             variant="primary"
             breath
             onClick={withdraw}
+            pending={pending}
             disabled={pending || !canWithdraw}
             title={paused ? 'Your account is paused — withdrawals are on hold' : undefined}
           >

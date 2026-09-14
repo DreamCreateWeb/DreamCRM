@@ -196,6 +196,7 @@ export default function MailboxSidebar({
               size="sm"
               variant="secondary"
               onClick={handleArchiveAll}
+              pending={archivingAll}
               disabled={archivingAll}
               className="w-full justify-center"
             >

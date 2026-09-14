@@ -56,7 +56,14 @@
  * the truth about it.
  */
 
-import { isTransitionFlag, tagSites, tsxFiles, type TagSite } from './jsx-attrs'
+import {
+  isTransitionFlag,
+  startsTransition,
+  tagSites,
+  transitionStarter,
+  tsxFiles,
+  type TagSite,
+} from './jsx-attrs'
 
 export const ROOTS = ['app', 'components']
 
@@ -135,4 +142,80 @@ export function allOffenders(): Offender[] {
     else merged.set(o.key, { ...o })
   }
   return Array.from(merged.values())
+}
+
+/**
+ * THE CONVERSE: A PRIMITIVE THAT ONLY GREYS OUT SAYS NOTHING.
+ *
+ * The rules above, and the ternary rule in `pending-feedback.test.ts`, all
+ * assert that a hand-rolled busy state is GONE. None of them asserts the
+ * primitive's own one is THERE — and that gap is not hypothetical. Batch 60
+ * widened `LABEL_TERNARY`, found 18 `ActionButton` label swaps, and deleted
+ * them all on the premise rule 1 states out loud: "the button already passes
+ * `pending`, so the ternary is pure duplication."
+ *
+ * Seven of them did. ELEVEN DID NOT, and for those the ternary was the only
+ * busy feedback the button had. They came out of that round greying on
+ * `disabled` and saying nothing at all — no spinner, no `aria-busy`, no
+ * label — which is worse than the "Sending…" they started with. One was the
+ * referral partner's Withdraw button: the single control in the product that
+ * moves money to somebody's own bank account, going silent for the length of
+ * a Stripe Connect payout.
+ *
+ * So this rule is the other half of the pair. A branded primitive whose
+ * `disabled` expression reads a busy flag, and which has no `pending` of its
+ * own, is an offender: it has been told work is running and declines to say
+ * so. `disabled` alone stays correct for an ESCAPE HATCH (Cancel, Back) —
+ * those are covered by their own rule and never carry `pending` — so the
+ * exit labels are excluded here for the same reason they are required there.
+ *
+ * NARROWED to buttons whose OWN `onClick` reaches the transition's starter.
+ * The first draft asked only "does `disabled` read a busy flag", and it named
+ * 22 sites to catch the 11 — because a button can be unavailable while a
+ * SIBLING works (the lead drawer's Archive beside a running Convert), or hand
+ * its transition to a parent that closes the surface on the spot (Mark
+ * contacted), or do nothing but flip local state (Edit reply). None of those
+ * owes anybody a spinner, and a guard with a twenty-entry allowlist on day
+ * one is the shape this repo already rejected once.
+ */
+
+/** Identifiers that mean "work is running" rather than "this is unavailable". */
+const BUSY_FLAG = /^(?:[\w$]*\.)?(?:pending|isPending|busy|isBusy|saving|sending|loading|submitting|[\w$]*Pending|[\w$]*ing(?:All)?)$/
+
+const EXIT_LABELS = new Set([
+  'Cancel', 'Back', 'Close', 'Keep', 'Dismiss', 'Discard',
+  'Never mind', 'Not now', 'Nevermind',
+])
+
+/** Primitives whose busy state is the shared BusyLabel — the ones with a
+ *  `pending` prop to leave out in the first place. */
+const BUSY_CAPABLE = ['ActionButton', 'BrandButton', 'GhostButton', 'ActionPill']
+
+export interface SilentButton {
+  rel: string
+  line: number
+  tag: string
+  flag: string
+  label: string
+}
+
+export function silentlyDisabled(): SilentButton[] {
+  const out: SilentButton[] = []
+  for (const s of tagSites(tsxFiles(ROOTS), BUSY_CAPABLE)) {
+    if (!BUSY_CAPABLE.includes(s.name)) continue
+    if (s.attrs.has('pending')) continue
+    const disabled = s.attrs.get('disabled')
+    if (!disabled) continue
+    // The first term of the `disabled` expression is the flag, if any:
+    // `pending || !canWithdraw` → `pending`.
+    const first = disabled.split('||')[0].trim()
+    if (!BUSY_FLAG.test(first)) continue
+    const starter = transitionStarter(s.src, s.scope, first)
+    if (!starter) continue
+    if (!startsTransition(s.src, s.scope, s.attrs.get('onClick') ?? '', starter)) continue
+    const label = s.children.replace(/\s+/g, ' ').trim()
+    if (EXIT_LABELS.has(label)) continue
+    out.push({ rel: s.rel, line: s.line, tag: s.name, flag: first, label: label.slice(0, 48) })
+  }
+  return out
 }

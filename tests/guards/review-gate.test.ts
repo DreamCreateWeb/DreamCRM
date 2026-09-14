@@ -144,6 +144,13 @@ describe('the review-gate classifier', () => {
       'app/(partner)/partner/partner-payout.tsx': 'money',
       'app/(default)/partners/admin-actions.ts': 'money',
       'app/(default)/shop/actions.ts': 'money',
+      // The patient-facing half. `app/b/[token]/actions.ts` and
+      // `app/i/[token]/actions.ts` are money too, but they are already pinned
+      // below under `token-surfaces` and this map holds one expected rule per
+      // file — either gating is enough to put the PR through review, and the
+      // pattern list in the script now names them under money as well.
+      'app/site/[slug]/shop/actions.ts': 'money',
+      'app/site/[slug]/membership/actions.ts': 'money',
       'lib/mrr.ts': 'money',
       'lib/stripe.ts': 'money',
       'app/api/webhooks/stripe/route.ts': 'money',
