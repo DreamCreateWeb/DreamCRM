@@ -16,7 +16,7 @@ import { NextResponse } from 'next/server'
  * mass patient email/SMS sends, the migration runner, and the demo reseed — so
  * that is worth closing. Second, 25 copies is 25 chances for the next one to
  * forget the `!secret` fail-closed check; the guard test in
- * `tests/cron-auth-adoption.test.ts` now makes a hand-rolled copy fail CI.
+ * `tests/guards/cron-auth-shared.test.ts` now makes a hand-rolled copy fail CI.
  */
 
 /**
@@ -56,4 +56,36 @@ export function cronUnauthorized(): NextResponse {
  */
 export function requireCronAuth(request: Request): NextResponse | null {
   return isAuthorizedCronRequest(request) ? null : cronUnauthorized()
+}
+
+/**
+ * The same gate, keyed on ADMIN_READ_SECRET instead of CRON_SECRET, for the
+ * read-only production check route (`/api/admin/read-check`).
+ *
+ * A SEPARATE secret on purpose, and the separation is the point rather than a
+ * tidiness preference: CRON_SECRET unlocks mass patient email/SMS, the
+ * migration runner and the demo reseed (see the header above). The read door
+ * opens onto a fixed list of literal SELECTs under a SELECT-only Postgres role,
+ * which is a far smaller thing — so it gets a far smaller key, and a leak of
+ * one cannot be spent on the other.
+ *
+ * Note what is NOT the brute-force control here. `rateLimitPublicAction` is
+ * documented fail-OPEN and keys on `x-forwarded-for`, so an attacker who can
+ * error the limiter or rotate source IPs has no cap at all. That is the right
+ * behaviour for a patient booking form and the wrong thing to lean on for a
+ * bearer secret. The control is ENTROPY: ADMIN_READ_SECRET is >= 32 bytes from
+ * a CSPRNG (docs/PROD-READ-ACCESS.md says how to generate it). The limiter is
+ * kept because it is nearly free, not because it is load-bearing.
+ *
+ * Fails CLOSED on an unset or empty secret, exactly as the cron gate does.
+ */
+export function isAuthorizedAdminReadRequest(request: Request): boolean {
+  const secret = process.env.ADMIN_READ_SECRET
+  if (!secret) return false
+  return secretsMatch(request.headers.get('authorization') ?? '', `Bearer ${secret}`)
+}
+
+/** Route-handler guard for the read-check route. Mirrors `requireCronAuth`. */
+export function requireAdminReadAuth(request: Request): NextResponse | null {
+  return isAuthorizedAdminReadRequest(request) ? null : cronUnauthorized()
 }

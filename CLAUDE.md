@@ -188,8 +188,9 @@ app/
                      the attendee's headshot page — Part 10.8)
   api/               auth handler · webhooks (stripe, stripe-connect, gmail OIDC,
                      resend/svix, sms) · 21 CRON_SECRET-gated /api/cron/* routes ·
-                     4 /api/admin/* (migrate, seed-platform, resync-demo,
-                     redrive-custom-domains) ·
+                     4 /api/admin/* (migrate, resync-demo,
+                     redrive-custom-domains, read-check — the SELECT-only
+                     production check catalog, docs/PROD-READ-ACCESS.md) ·
                      oauth (gmail, gsc) + connect (shop) + zernio connect/callback ·
                      token-auth publics (/api/calendar/[token], track, unsub) ·
                      /api/internal/custom-domains (host→slug map for middleware)

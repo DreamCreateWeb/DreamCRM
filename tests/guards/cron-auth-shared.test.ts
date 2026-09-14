@@ -103,6 +103,32 @@ describe('requireCronAuth', () => {
 
 // ── Adoption guard ───────────────────────────────────────────────────────────
 
+/** Reading a bearer secret out of the environment — the tell of a hand-rolled guard. */
+const SECRET_ENV = /process\.env\.[A-Z0-9]+_SECRET\b/
+/** Naming one at all, including in a comment. */
+const SECRET_NAME = /\b[A-Z0-9]+_SECRET\b/
+
+/**
+ * Every route guarded by a shared bearer secret.
+ *
+ * It filtered on the literal string `CRON_SECRET` until DREAMCRM-42, which
+ * meant a route guarded by a DIFFERENT bearer secret was invisible to all three
+ * assertions below — including "no route hand-rolls the bearer comparison",
+ * the one that matters most for a brand-new route.
+ *
+ * Widening to `process.env.<NAME>_SECRET` was NOT enough on its own, and the
+ * reason is worth keeping: a route that uses the shared guard correctly never
+ * touches `process.env` at all — the whole point of `lib/cron-auth.ts` is that
+ * the env read lives there. So an env-only filter selects exactly the
+ * hand-rolled routes and calls the tree clean, which is the wrong direction for
+ * a guard. `/api/admin/read-check` was invisible to it in testing.
+ *
+ * So membership is "this route is guarded by a shared bearer secret" — it names
+ * one, or it imports the module that checks one — and the assertions then ask
+ * whether it does that correctly.
+ */
+const SHARED_GUARD_IMPORT = "from '@/lib/cron-auth'"
+
 function guardedRouteFiles(): string[] {
   const out: string[] = []
   for (const base of ['app/api/cron', 'app/api/admin']) {
@@ -114,7 +140,8 @@ function guardedRouteFiles(): string[] {
       } catch {
         continue
       }
-      if (readFileSync(routeFile, 'utf8').includes('CRON_SECRET')) out.push(routeFile)
+      const src = readFileSync(routeFile, 'utf8')
+      if (SECRET_NAME.test(src) || src.includes(SHARED_GUARD_IMPORT)) out.push(routeFile)
     }
   }
   return out
@@ -128,21 +155,23 @@ describe('shared cron auth adoption', () => {
   it('no route hand-rolls the bearer comparison', () => {
     const offenders = guardedRouteFiles().filter((f) => {
       const src = readFileSync(f, 'utf8')
-      // A route that mentions CRON_SECRET at all may only do so in a comment;
+      // A route that mentions a secret at all may only do so in a comment;
       // reading it from the environment is the tell of a hand-rolled guard.
-      return /process\.env\.CRON_SECRET/.test(src) || /!==\s*`Bearer \$\{/.test(src)
+      // Any `<NAME>_SECRET`, not just CRON_SECRET — the second bearer secret
+      // (ADMIN_READ_SECRET) must be held to the same rule as the first.
+      return SECRET_ENV.test(src) || /!==\s*`Bearer \$\{/.test(src)
     })
     expect(
       offenders.map((f) => f.replace(process.cwd(), '').replace(/\\/g, '/')),
-      'These routes compare CRON_SECRET themselves. String !== is not constant-time and ' +
-        'leaks the secret through response timing — use `requireCronAuth(request)` from ' +
-        'lib/cron-auth.ts instead.',
+      'These routes compare a bearer secret themselves. String !== is not constant-time and ' +
+        'leaks the secret through response timing — use `requireCronAuth(request)` or ' +
+        '`requireAdminReadAuth(request)` from lib/cron-auth.ts instead.',
     ).toEqual([])
   })
 
   it('every CRON_SECRET-gated route imports the shared guard', () => {
     const missing = guardedRouteFiles().filter(
-      (f) => !readFileSync(f, 'utf8').includes("from '@/lib/cron-auth'"),
+      (f) => !readFileSync(f, 'utf8').includes(SHARED_GUARD_IMPORT),
     )
     expect(
       missing.map((f) => f.replace(process.cwd(), '').replace(/\\/g, '/')),

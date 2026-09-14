@@ -1,0 +1,130 @@
+name: Production read check
+
+# The front door for DREAMCRM-42. An agent dispatches a NAMED check from the
+# catalog in lib/read-checks.ts; this workflow calls the in-VPC route that runs
+# it under the SELECT-only Postgres role and prints the answer here.
+#
+# The point of routing it through Actions rather than calling the route
+# directly: no agent machine ever holds a database credential or an AWS key.
+# The secret lives in GitHub, the run is recorded, and the answer lands in a log
+# any agent can read. docs/PROD-READ-ACCESS.md is the runbook.
+#
+# This workflow gates nothing and is not a required check. It only ever POSTs a
+# catalog id — it cannot send SQL, because there is no input that reaches any.
+
+on:
+  workflow_dispatch:
+    inputs:
+      check:
+        description: 'Which check to run'
+        required: true
+        type: choice
+        options:
+          - duplicate-stripe-accounts
+          - readonly-role-privileges
+      reason:
+        # Required, and self-declared — see the note below. Asking for it is
+        # still worth it: it is the only thing that makes a run legible later.
+        description: 'Why (issue key + who is asking, e.g. "DREAMCRM-32 / Rio")'
+        required: true
+        type: string
+  # Scheduled drift detection for the role's privileges (N2). Editing
+  # scripts/readonly-role.sql does not change production, so the committed
+  # script can be correct while the database is not. This is the only thing that
+  # notices. 07:00 UTC daily.
+  schedule:
+    - cron: '0 7 * * *'
+
+concurrency:
+  group: read-check
+  cancel-in-progress: false
+
+# Checks out nothing and needs nothing. Declared rather than inherited: the
+# repo default is `read` today, but that is a repo setting somebody can change
+# without touching this file, and a workflow that calls production should not
+# depend on one.
+permissions: {}
+
+jobs:
+  read-check:
+    runs-on: ubuntu-latest
+    steps:
+      # ATTRIBUTION IS SELF-DECLARED, NOT AUTHENTICATED. The repo has exactly
+      # one collaborator and the whole agent fleet authenticates as it, so
+      # github.actor reads `DreamCreateWeb` for every dispatch regardless of who
+      # actually asked. The `reason` input is the only identifying information
+      # in the record, and anyone who can dispatch can type anything into it.
+      # Written down rather than left for the next reader to assume.
+      - name: Record the request
+        run: |
+          echo "### Production read check" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **check:** \`${CHECK}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **reason (self-declared):** ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **dispatched by (shared account):** ${{ github.actor }}" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CHECK: ${{ inputs.check || 'readonly-role-privileges' }}
+          REASON: ${{ inputs.reason || 'scheduled privilege-drift check' }}
+
+      - name: Run the check
+        env:
+          CHECK: ${{ inputs.check || 'readonly-role-privileges' }}
+          ADMIN_READ_SECRET: ${{ secrets.ADMIN_READ_SECRET }}
+          BASE_URL: https://www.dreamcreatestudio.com
+        run: |
+          set -euo pipefail
+          # NOT CONFIGURED YET and DRIFT DETECTED are different facts, and this
+          # workflow must not spend the second one's credibility on the first.
+          #
+          # The whole value of the scheduled run is that a red result means a
+          # credential column is readable in production. Between this merging
+          # and the owner finishing setup, the secret does not exist — and a
+          # workflow that has been failing daily for a fortnight for an
+          # unrelated reason has already trained everyone to ignore it by the
+          # time it first matters. (It also mails the owner on every failure.)
+          #
+          # So: missing secret or a 503 from the route => warn and exit 0.
+          # A real answer that is wrong => error and exit 1, below.
+          if [ -z "${ADMIN_READ_SECRET}" ]; then
+            echo "::warning::ADMIN_READ_SECRET is not set yet — skipping. Setup: docs/PROD-READ-ACCESS.md."
+            echo "Not configured yet (no ADMIN_READ_SECRET) — skipped, not failed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # --fail-with-body so a non-2xx still prints the body (the route's
+          # error strings are fixed and carry nothing sensitive) and still fails.
+          HTTP=$(curl -sS --fail-with-body \
+            -X POST "${BASE_URL}/api/admin/read-check" \
+            -H "Authorization: Bearer ${ADMIN_READ_SECRET}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"check\":\"${CHECK}\"}" \
+            -w '\n%{http_code}' | tee /tmp/resp.txt | tail -1) || true
+          BODY=$(sed '$d' /tmp/resp.txt)
+          echo "$BODY" | jq . || echo "$BODY"
+          {
+            echo ""
+            echo '```json'
+            echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # 503 is the route's fail-closed answer for "DATABASE_URL_READONLY is
+          # not set" — the other half of not-configured-yet. Same reasoning.
+          if [ "$HTTP" = "503" ]; then
+            echo "::warning::The read-only database is not configured yet — skipping. See docs/PROD-READ-ACCESS.md."
+            echo "Not configured yet (route returned 503) — skipped, not failed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$HTTP" != "200" ]; then
+            echo "::error::read-check returned HTTP ${HTTP}"
+            exit 1
+          fi
+          # The privilege check is an assertion, not a report: any row is a
+          # credential column the read-only role can still read. Fail loudly,
+          # especially on the scheduled run where nobody is watching.
+          if [ "${CHECK}" = "readonly-role-privileges" ]; then
+            ROWS=$(echo "$BODY" | jq -r '.rowCount')
+            if [ "$ROWS" != "0" ]; then
+              echo "::error::${ROWS} credential column(s) are readable by dreamcrm_readonly. Run the REVOKE in scripts/readonly-role.sql against production — editing the file does not change the database."
+              exit 1
+            fi
+            echo "Privilege check clean: no credential column is readable." >> "$GITHUB_STEP_SUMMARY"
+          fi

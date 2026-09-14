@@ -101,6 +101,10 @@ const PUBLIC_PATHS = [
   '/api/admin/migrate',
   '/api/admin/resync-demo',
   '/api/admin/redrive-custom-domains',
+  // Read-only production checks. Same in-VPC one-shot shape as the three above,
+  // but guarded by ADMIN_READ_SECRET (a SEPARATE, weaker key — it opens onto a
+  // fixed list of literal SELECTs under a SELECT-only role, never a write).
+  '/api/admin/read-check',
   // Internal host→slug map for custom-domain routing — middleware fetches it.
   // Public-but-harmless (only public host/slug pairs); must NOT be auth-walled
   // or the middleware fetch would 302 to /signin and routing would break.

@@ -49,6 +49,7 @@ describe('the review-gate classifier', () => {
       auth: 'lib/auth/context.ts',
       'token-surfaces': 'app/b/[token]/page.tsx',
       'tenant-scoping': 'lib/db/index.ts',
+      'read-checks': 'lib/read-checks.ts',
     }
 
     expect(
@@ -171,6 +172,14 @@ describe('the review-gate classifier', () => {
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
       'Dockerfile': 'deploy-path',
+      // The production read-check catalog (DREAMCRM-42). Pinned because the
+      // per-entry review is the ENTIRE control on "no PHI in a log anything
+      // with repo read can open" and on the cross-tenant waiver — and because
+      // a catalog-only PR is otherwise the easiest thing in this repo to
+      // mistake for a one-line data change.
+      'lib/read-checks.ts': 'read-checks',
+      'app/api/admin/read-check/route.ts': 'read-checks',
+      'scripts/readonly-role.sql': 'read-checks',
     }
 
     const tracked = new Set(trackedFiles())
