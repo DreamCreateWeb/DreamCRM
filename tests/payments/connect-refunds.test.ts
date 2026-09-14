@@ -26,6 +26,9 @@ const state = {
   selectQueue: [] as unknown[][],
   updates: [] as Array<{ set: Record<string, unknown>; where: unknown }>,
   updateReturns: [] as Array<Array<{ id: string }>>,
+  // The `connect_refund` receipt: the upsert's values + its conflict clause.
+  receipts: [] as Array<{ values: Record<string, unknown>; conflict: Record<string, unknown> | null }>,
+  receiptFails: false,
 }
 
 vi.mock('@/lib/db', () => {
@@ -38,6 +41,20 @@ vi.mock('@/lib/db', () => {
   return {
     db: {
       select: () => chain(),
+      insert: () => ({
+        values: (values: Record<string, unknown>) => {
+          if (state.receiptFails) throw new Error('receipt table down')
+          const entry = { values, conflict: null as Record<string, unknown> | null }
+          state.receipts.push(entry)
+          const self = {
+            onConflictDoUpdate: async (conflict: Record<string, unknown>) => {
+              entry.conflict = conflict
+            },
+            then: (resolve: (v: unknown) => void) => resolve(undefined),
+          }
+          return self
+        },
+      }),
       update: () => ({
         set: (set: Record<string, unknown>) => ({
           where: (where: unknown) => ({
@@ -63,6 +80,12 @@ const lteCalls: Array<{ col: unknown; val: unknown }> = []
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conds: unknown[]) => ({ _kind: 'and', conds })),
+  desc: vi.fn((col: unknown) => col),
+  sql: Object.assign(
+    (strings: TemplateStringsArray, ...vals: unknown[]) =>
+      strings.raw.reduce((out, part, i) => out + part + (i < vals.length ? String(vals[i]) : ''), ''),
+    { raw: (v: string) => v },
+  ),
   eq: vi.fn((col: unknown, val: unknown) => {
     eqCalls.push({ col, val })
     return { _kind: 'eq', col, val }
@@ -104,6 +127,8 @@ beforeEach(() => {
   lteCalls.length = 0
   reverseLoyalty.mockClear()
   reverseLoyalty.mockResolvedValue(true)
+  state.receipts = []
+  state.receiptFails = false
 })
 
 describe('planRefundWrite', () => {
@@ -252,6 +277,77 @@ describe('recordConnectRefund — safety', () => {
     state.selectQueue = [[{ id: 'so_1', status: 'paid', refundedAmountCents: 0, refundedAt: null }], [], []]
     state.updateReturns = [[]]
     expect(await recordConnectRefund(event())).toEqual([])
+  })
+})
+
+/**
+ * EVERY REFUND REACHES A RECORD (`connect_refund`, DREAMCRM-32).
+ *
+ * A MEMBERSHIP subscription charge rides the same connected account and has a
+ * row in none of the three tables above — the `membership` row tracks the
+ * subscription, not its charges — so a refunded membership payment used to
+ * reach a `console.warn` and nothing else. The practice's bank balance moved
+ * and their software said nothing.
+ *
+ * (Payment-plan installments already matched: `chargePlanInstallment` records
+ * each one as a `patient_balance_payment` with the PaymentIntent stamped. The
+ * gap was membership alone — the ledger entry that named both was written
+ * before that path existed to be re-read.)
+ */
+describe('recordConnectRefund — the refund receipt', () => {
+  it('records a refund that matched nothing, marked as unattached', async () => {
+    state.selectQueue = [...NO_ROWS]
+    const kinds = await recordConnectRefund(event())
+    expect(kinds).toEqual([])
+    expect(state.receipts).toHaveLength(1)
+    expect(state.receipts[0].values).toMatchObject({
+      organizationId: ORG,
+      stripePaymentIntentId: PI,
+      refundedAmountCents: 5_000,
+      chargeAmountCents: 5_000,
+      attachedTo: 'none',
+    })
+  })
+
+  it('says WHICH record a matched refund attached to', async () => {
+    state.selectQueue = [[{ id: 'so_1', status: 'paid', refundedAmountCents: 0, refundedAt: null }], [], []]
+    await recordConnectRefund(event())
+    expect(state.receipts[0].values).toMatchObject({ attachedTo: 'shop_order' })
+  })
+
+  it('claims on (org, payment intent) and only ever raises the amounts', async () => {
+    state.selectQueue = [...NO_ROWS]
+    await recordConnectRefund(event())
+    const conflict = state.receipts[0].conflict as {
+      target: unknown[]
+      set: Record<string, string>
+    }
+    // The claim key — a redelivery updates its own row rather than minting a
+    // second receipt for the same charge.
+    expect(conflict.target).toHaveLength(2)
+    // Monotonic, like every other write on this path.
+    expect(conflict.set.refundedAmountCents).toContain('greatest(')
+    expect(conflict.set.chargeAmountCents).toContain('greatest(')
+    // `refundedAt` is NOT in the update set — the receipt keeps its first
+    // sighting rather than restamping on every redelivery.
+    expect(conflict.set).not.toHaveProperty('refundedAt')
+  })
+
+  it('never downgrades an attachment a later delivery could not make', async () => {
+    // The finalizer may stamp the PaymentIntent between two deliveries, so the
+    // first can be 'none' and the second real — but never the other way round.
+    state.selectQueue = [...NO_ROWS]
+    await recordConnectRefund(event())
+    const conflict = state.receipts[0].conflict as { set: Record<string, string> }
+    expect(conflict.set.attachedTo).toContain("excluded.attached_to = 'none'")
+  })
+
+  it('a failing receipt never costs us the money record', async () => {
+    state.receiptFails = true
+    state.selectQueue = [[{ id: 'so_1', status: 'paid', refundedAmountCents: 0, refundedAt: null }], [], []]
+    const kinds = await recordConnectRefund(event())
+    expect(kinds).toEqual(['shop_order'])
+    expect(state.updates).toHaveLength(1)
   })
 })
 

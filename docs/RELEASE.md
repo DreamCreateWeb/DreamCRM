@@ -569,13 +569,43 @@ binding are all correct. The payment-plan charger was the exception.
   `booking_deposit`; a refund on a membership subscription or a payment-plan
   installment runs through the same connected account, matches none of the
   three, and is discarded. Now at least logged
-  ("refund matched no money record") rather than silent. · OPEN.
+  ("refund matched no money record") rather than silent. · **FIXED**
+  (DREAMCRM-32), and HALF OF IT WAS ALREADY WRONG WHEN WRITTEN: payment-plan
+  installments have always matched. `chargePlanInstallment`
+  (`lib/services/payment-plans.ts`) records every installment as a
+  `patient_balance_payment` with the PaymentIntent stamped, so a refund on one
+  lands on that row — verified in the code before the fix was designed, which
+  is the only reason this entry did not grow a table nobody needed. The real
+  gap was MEMBERSHIP alone: the `membership` row tracks the subscription, not
+  its individual charges, so a refunded membership payment moved the practice's
+  bank balance and their software said nothing.
+  Migration 0162 adds `connect_refund`, one row per refunded charge, written by
+  `recordConnectRefund` whether or not it attached to anything.
+  `attached_to = 'none'` is the readable version of that log line, surfaced as
+  "Refunds we couldn't match" on Payments → Online (only when there is one —
+  an empty "nothing unmatched" panel is a worry with no work in it). Monotonic
+  and claimed on (org, payment intent) like the rest of the path, so unordered
+  delivery cannot walk a receipt backwards and a redelivery updates its own
+  row; a later delivery that attaches UPGRADES the receipt, but one that
+  cannot never downgrades an attachment already made. Best-effort — the money
+  records are the thing that must land.
 - S3 · `shop_config.stripe_account_id` has no unique constraint, and
   `orgIdForConnectedAccount` resolves a TENANT from it with `.limit(1)` on a
   money write path (matching what `syncConnectedAccountStatus` already did).
   Two rows sharing an account id would route one clinic's refund to another's
   records. A unique index would make the isolation structural instead of
-  assumed. · OPEN.
+  assumed. · **FIXED** (DREAMCRM-32, migration 0162) —
+  `shop_config_stripe_account_idx`, UNIQUE and PARTIAL: the column is null for
+  every clinic that has not connected Stripe, and again after
+  `disconnectShopStripe` clears it, so a plain unique index would be satisfied
+  by those nulls and say nothing. DEPLOY NOTE, written into the migration
+  itself: if this index fails to create, the fix is not to drop it — a
+  duplicate is a live cross-tenant money defect and the two clinics have to be
+  identified by a person before either row is touched. The migration carries
+  the query. Pinned by `tests/payments/connected-account-uniqueness.test.ts`,
+  which renders the declared index rather than assuming it (the Phase-3 lesson:
+  the database is modelled in JavaScript here, so a schema fact this
+  load-bearing gets read back).
 - S3 · a refund that later FAILS is never un-recorded. Stripe decrements the
   charge's `amount_refunded` and fires `charge.refund.updated` with status
   `failed`; `recordConnectRefund` is monotonic by design, so the record keeps

@@ -1131,6 +1131,12 @@ export const shopConfig = pgTable('shop_config', {
   organizationId: text('organization_id')
     .primaryKey()
     .references(() => organization.id, { onDelete: 'cascade' }),
+  // A connected account belongs to exactly ONE clinic, and the unique index
+  // below is what makes that structural rather than assumed. Connect webhooks
+  // carry `event.account` and nothing else that names a tenant, so
+  // `orgIdForConnectedAccount` turns this column into a TENANT on a money
+  // write path — two rows sharing an id would have filed one clinic's refund
+  // in another clinic's records, silently and by `.limit(1)` coin-toss.
   stripeAccountId: text('stripe_account_id'),
   // 'none' | 'pending' | 'active' | 'restricted'
   stripeAccountStatus: text('stripe_account_status').notNull().default('none'),
@@ -1152,8 +1158,66 @@ export const shopConfig = pgTable('shop_config', {
   membershipEnabled: integer('membership_enabled').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+}, (t) => [
+  // PARTIAL, because `stripe_account_id` is null for every clinic that has
+  // not connected Stripe yet (and again after `disconnectShopStripe` clears
+  // it) — a plain unique index would be satisfied by those nulls but says
+  // nothing, while this one says the thing we actually rely on: one live
+  // connected account, one clinic.
+  uniqueIndex('shop_config_stripe_account_idx')
+    .on(t.stripeAccountId)
+    .where(sql`${t.stripeAccountId} is not null`),
+])
 export type ShopConfig = typeof shopConfig.$inferSelect
+
+// One row per refunded CHARGE on a clinic's connected Stripe account — the
+// receipt that every refund reached a record, whether or not we could attach
+// it to a payment of ours.
+//
+// `recordConnectRefund` looks in `shop_order`, `patient_balance_payment` and
+// `booking_deposit`. A membership subscription charge rides the same connected
+// account and has a row in none of them (the `membership` row tracks the
+// SUBSCRIPTION, not its individual charges), so a refunded membership payment
+// used to reach a `console.warn` and nothing else — invisible to the practice
+// whose bank balance had just moved. Payment-plan installments DO match,
+// because `chargePlanInstallment` records each one as a `patient_balance_payment`
+// with the PaymentIntent stamped.
+//
+// So this table records the refund itself and says what it attached to.
+// `attachedTo = 'none'` is the honest, readable version of the log line: money
+// left this clinic's Stripe account and DreamCRM has no payment record for it,
+// which is exactly what the front desk needs to see before they reconcile.
+//
+// Monotonic like the rest of the refund path: `refundedAmountCents` only ever
+// goes up, so unordered webhook delivery cannot walk a refund backwards, and
+// a redelivered event finds its own row rather than minting a second one.
+export const connectRefund = pgTable(
+  'connect_refund',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+    // The lookup key the whole refund path is built on — the one id both
+    // `charge.refunded` and `refund.created` carry.
+    stripePaymentIntentId: text('stripe_payment_intent_id').notNull(),
+    // Cumulative cents Stripe has sent back on this charge.
+    refundedAmountCents: integer('refunded_amount_cents').notNull().default(0),
+    // What the charge was worth, so a partial refund is legible without a
+    // second lookup.
+    chargeAmountCents: integer('charge_amount_cents').notNull().default(0),
+    // 'shop_order' | 'balance_payment' | 'booking_deposit' | 'none'
+    attachedTo: text('attached_to').notNull().default('none'),
+    refundedAt: timestamp('refunded_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    // One row per refunded charge per clinic — the claim key, which is what
+    // makes recording idempotent under redelivery.
+    uniqueIndex('connect_refund_intent_idx').on(t.organizationId, t.stripePaymentIntentId),
+    // The unmatched-refunds read on the clinic's reconciliation page.
+    index('connect_refund_org_attached_idx').on(t.organizationId, t.attachedTo, t.refundedAt),
+  ],
+)
+export type ConnectRefund = typeof connectRefund.$inferSelect
 
 export const shopProduct = pgTable(
   'shop_product',
