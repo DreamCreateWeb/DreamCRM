@@ -17,7 +17,7 @@ import { createHmac } from 'node:crypto'
  * `scripts/e2e-harness.sh` stands up a throwaway Postgres and a real
  * `next start` with NO external network, so the hosted Stripe Checkout page
  * itself is unreachable by construction. The journey is therefore walked in
- * two halves, and it is worth being exact about what each one proves:
+ * three pieces, and it is worth being exact about what each one proves:
  *
  *   1. UP TO THE HAND-OFF, for real. Sign-in, the dashboard's balance strip,
  *      the billing page, the amount field, the client-side floors, the server
@@ -61,8 +61,22 @@ import { createHmac } from 'node:crypto'
 const SESSION_TOKEN = 'e2e-billing-session-token'
 const BASE = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100'
 
-/** The seeded balance, in cents — must match BILLING_BALANCE_CENTS in the seed. */
-const BALANCE = '$185.00'
+/**
+ * The seeded balance as the patient reads it — must match BILLING_BALANCE_CENTS.
+ *
+ * `$185` and not `$185.00`, because the product renders it BOTH ways and this
+ * substring is the honest intersection. `fmtMoney` (components/patient-portal/
+ * format.ts) sets `minimumFractionDigits` to 0 on a whole number of dollars, so
+ * the billing page says "$185"; the dashboard's task strip builds its own
+ * string with `.toFixed(2)` and says "$185.00". A spec pinned to either
+ * spelling passes on one surface and fails on the other — which is how the
+ * first run of this file went red.
+ *
+ * (That the two disagree is a real, if small, product inconsistency. It is a UI
+ * copy question, not a test question, so this spec reports what is there rather
+ * than asserting what it wishes were there.)
+ */
+const BALANCE = '$185'
 
 /**
  * The same signed cookie better-auth mints: token + "." + base64 HMAC-SHA256
@@ -143,12 +157,12 @@ test.describe('paying a balance from the portal', () => {
     // concludes the practice's payment page is broken.
     await amount.fill('999.00')
     await page.getByRole('button', { name: 'Pay online' }).click()
-    await expect(page.getByRole('alert')).toContainText('more than your balance')
+    await expect(page.locator('#portal-main').getByRole('alert')).toContainText('more than your balance')
 
     // Under the $1 floor.
     await amount.fill('0.50')
     await page.getByRole('button', { name: 'Pay online' }).click()
-    await expect(page.getByRole('alert')).toContainText('minimum online payment is $1')
+    await expect(page.locator('#portal-main').getByRole('alert')).toContainText('minimum online payment is $1')
 
     // Durable: refused amounts never became a payment. The balance is
     // unchanged after a fresh load, and the history carries nothing.
@@ -174,7 +188,7 @@ test.describe('paying a balance from the portal', () => {
     // pieces rather than whole: the string carries typographic apostrophes, and
     // a spec that pins punctuation fails on a copy edit that changed nothing
     // that matters. The two claims that DO matter are both here.
-    const alert = page.getByRole('alert')
+    const alert = page.locator('#portal-main').getByRole('alert')
     await expect(alert).toContainText('couldn’t start checkout')
     await expect(
       alert,
@@ -209,7 +223,7 @@ test.describe('paying a balance from the portal', () => {
     // and does not prove — it is the RETURN, not the payment.
     await page.goto('/patient/invoices?session_id=cs_test_e2e_returned_from_checkout')
 
-    await expect(page.getByRole('status')).toContainText('your payment went through', {
+    await expect(page.locator('#portal-main').getByRole('status')).toContainText('your payment went through', {
       timeout: 30_000,
     })
     // Still the billing page, still signed in — not an error shell and not a
