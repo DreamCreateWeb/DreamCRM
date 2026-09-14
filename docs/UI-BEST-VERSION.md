@@ -569,6 +569,51 @@ batch number.
   the plants run on every pass rather than once), and the zero gate then named
   all five live sites with their measured ratios when they were reintroduced in
   their real shapes.]
+- ~~**The homepage headline's last two words fade out to 2.42:1** — gradient
+  TEXT, where the gradient is the ink and no gate in the repo could see it.~~
+  [BATCH 62, DREAMCRM-44, found by Quinn while surveying the marketing site.
+  `app/(marketing)/page.tsx`'s hero ran "One calm system." as
+  `from-teal-600 to-teal-400 bg-clip-text text-transparent` on the marketing
+  layout's hard-coded white ground. The gradient IS the ink there, so the
+  right-hand stop is the text colour: 5.09 at the `from-` end, **2.42 at the
+  `to-` end**, on the most-read page we have. Now
+  **`from-teal-700 to-teal-600`** — 7.05 → 5.09, one token step deeper in the
+  same family, which §6 of the conventions rules is engineering rather than a
+  redesign. The larger `to-teal-500` span the finding offered was declined: it
+  clears the 3:1 large-text floor but not 4.5:1, so it would have been legal
+  only for as long as the headline stays 2.6rem, and it would have needed
+  rule 4 below to model font size.
+  **This is the FOURTH blind spot in the family rule 3 was written to close,
+  and the gap was in rule 3's own test file.** Its "stays quiet" case pins
+  `from-teal-600 to-teal-400 bg-clip-text text-transparent` as returning null
+  — literally the defective string, recorded as a pass, one batch before
+  anybody measured it. Rule 3 was right not to fire (it grades stops as the
+  SURFACE under `text-white`, and there is no white ink here); what was
+  missing is that a rule declining to look at something is not the same as the
+  thing being fine. That is the axe-incomplete lesson from batch 61 repeating
+  one level in.
+  Why nothing else caught it: **axe** reports a gradient fill as `incomplete`,
+  never a violation, so `marketing: home` held ZERO in `e2e/axe-baseline.ts`
+  with this live on it — there was no ceiling to shrink, which is what a
+  structural blind spot looks like from the baseline's side. **Rule 2** reads
+  `bg-<ramp>-<step>` paired with `text-white`; this chunk spells its fill
+  `from-`/`to-` and its ink `text-transparent`.
+  **And the gate now exists.** `tests/a11y/class-pairs.ts` rule 4 +
+  `token-contrast.test.ts` read the stops of any `bg-clip-text text-transparent`
+  chunk as INK and grade each against white, holding at ZERO with no ceiling.
+  Its cutoff is rule 2's cutoff, asserted rather than assumed: the WCAG ratio
+  is symmetric, so "white reads on teal-600" and "teal-600 reads on white" are
+  one measurement, and the repo does not gain a second opinion about which
+  teal step is legal. Grading against the worst light surface instead was
+  tried and rejected — teal-600 is 4.45 on `surface-sunk`, so the stricter
+  version would have outlawed the exact step the design system calls the
+  shallowest legal one. The bounded cost is named in the module header rather
+  than hidden. Red-verified twice: the gate named
+  `app/(marketing)/page.tsx:143 — to-teal-400 — light: teal-400 on white =
+  2.42` with the original string restored, and misspelling the scanner's own
+  `bg-clip-text` regex took four tests red including the "still points at
+  something" instrument check — a rule this narrow (three utilities in one
+  quoted string) would otherwise report CLEAN forever if it stopped matching.]
 
 ---
 

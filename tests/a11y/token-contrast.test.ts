@@ -14,8 +14,13 @@ import {
 import {
   BRAND_FILL_EXEMPTIONS,
   deadBrandFillExemptions,
+  deadGradientTextExemptions,
   describeFinding,
   gradeGradientClasses,
+  gradeGradientTextClasses,
+  GRADIENT_TEXT_EXEMPTIONS,
+  gradientTextSites,
+  scanForUnreadableGradientText,
   scanForWhiteOnShallowBrand,
   scanForWhiteOnShallowBrandGradient,
   SHALLOW_BRAND_FILLS,
@@ -282,7 +287,12 @@ describe('white text on a brand GRADIENT', () => {
     ).toBeNull()
     // Alpha stops composite over an ancestor this scanner cannot resolve.
     expect(gradeGradientClasses('"bg-gradient-to-t from-teal-500/65 to-teal-400/90 text-white"')).toBeNull()
-    // Gradient TEXT, not a gradient fill — the ink is transparent.
+    // Gradient TEXT, not a gradient fill — the ink is transparent, so there is
+    // no white label for this rule to anchor on. Still correct, and no longer
+    // the end of the story: that exact string is the homepage headline this
+    // rule walked past, and RULE 4 below is what grades it. When a rule
+    // declines to look at something, the answer is to build the rule that
+    // does, not to record the silence as a pass.
     expect(
       gradeGradientClasses('"bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent"'),
     ).toBeNull()
@@ -309,5 +319,139 @@ describe('white text on a brand GRADIENT', () => {
         'gradient — it reports one as incomplete — so this is the only gate ' +
         'that will ever tell you.',
     ).toEqual([])
+  })
+})
+
+describe('gradient TEXT, where the gradient IS the ink', () => {
+  const white: Rgb = [255, 255, 255]
+
+  /**
+   * RULE 4 — the fourth blind spot in the same family, and the one rule 3
+   * walks past on purpose. Its "stays quiet" case above IS this defect.
+   *
+   * `bg-clip-text text-transparent` inverts the pairing: there is no
+   * `text-<colour>` to read, and the stops rule 3 grades as the SURFACE under
+   * white text are painting the letterforms instead. So rule 2 misses it (the
+   * fill is spelled `from-`/`to-`), rule 3 misses it (no `text-white` to
+   * anchor on), and axe reports a gradient as `incomplete` rather than
+   * failing — which is how `marketing: home` held ZERO in
+   * `e2e/axe-baseline.ts` while the last two words of the homepage headline
+   * sat at 2.42 on white. (DREAMCRM-44.)
+   *
+   * The planted defects come FIRST, for the reason they do under rule 3: the
+   * zero assertion at the bottom is the one that gates, and an absence
+   * assertion over a clean tree cannot tell a scanner that is looking from one
+   * that has quietly stopped.
+   */
+  it('DERIVES its cutoff from rule 2 rather than opening a second one', () => {
+    // The WCAG ratio is symmetric, so "white reads on this step" and "this
+    // step reads on white" are one measurement. That is what lets rule 4 grade
+    // INK against rule 2's FILL cutoff instead of the repo carrying two
+    // numbers that can drift apart. Asserted, not assumed.
+    for (const step of [...SHALLOW_BRAND_FILLS, 'teal-600', 'teal-700']) {
+      const asFill = contrast(white, token(LIGHT, step))
+      const asInk = contrast(token(LIGHT, step), white)
+      expect(asInk, `${step} graded both ways`).toBeCloseTo(asFill, 10)
+    }
+  })
+
+  it('catches the real defect, in the real shape it shipped in', () => {
+    const found = gradeGradientTextClasses(
+      '"bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent"',
+    )
+    expect(found).not.toBeNull()
+    // Only the `to-` end. `from-teal-600` reads at 5.09 and is not a defect —
+    // a rule that condemned the whole span would be telling the author to
+    // change something that was already right.
+    expect(found!.failures.map((f) => `${f.ink} ${f.ratio.toFixed(2)}`)).toEqual(['teal-400 2.42'])
+  })
+
+  it('reads a via- stop, so a pale middle cannot hide between two dark ends', () => {
+    const found = gradeGradientTextClasses(
+      '"bg-gradient-to-r from-teal-700 via-teal-400 to-teal-700 bg-clip-text text-transparent"',
+    )
+    expect(found).not.toBeNull()
+    expect(found!.failures.map((f) => f.ink)).toEqual(['teal-400'])
+  })
+
+  it('grades any pale ink, not only the brand ramp', () => {
+    // The defect is "too pale to read on the page", and nothing about that is
+    // teal-specific. A tone-ramp gradient headline fails identically.
+    const found = gradeGradientTextClasses(
+      '"bg-gradient-to-r from-amber-400 to-amber-300 bg-clip-text text-transparent"',
+    )
+    expect(found).not.toBeNull()
+    expect(found!.failures).toHaveLength(2)
+  })
+
+  it('stays quiet on the things it must not fire on', () => {
+    // The fix that shipped: teal-700 (7.05) → teal-600 (5.09).
+    expect(
+      gradeGradientTextClasses(
+        '"bg-gradient-to-r from-teal-700 to-teal-600 bg-clip-text text-transparent"',
+      ),
+    ).toBeNull()
+    // A gradient FILL under white text is rule 3's business, not this one's —
+    // no `bg-clip-text`, so the stops are the surface.
+    expect(
+      gradeGradientTextClasses('"bg-gradient-to-r from-teal-400 to-teal-600 text-white"'),
+    ).toBeNull()
+    // `bg-clip-text` without a transparent ink paints ordinary coloured text
+    // over a clipped background nobody can see. Not this defect.
+    expect(
+      gradeGradientTextClasses(
+        '"bg-gradient-to-r from-teal-400 to-teal-600 bg-clip-text text-gray-900"',
+      ),
+    ).toBeNull()
+    // Alpha stops composite over an ancestor this scanner cannot resolve.
+    expect(
+      gradeGradientTextClasses(
+        '"bg-gradient-to-r from-teal-400/60 to-teal-300/40 bg-clip-text text-transparent"',
+      ),
+    ).toBeNull()
+    // The direction keyword is not a stop: `to-r` must not read as a colour.
+    expect(gradeGradientTextClasses('"bg-gradient-to-r bg-clip-text text-transparent"')).toBeNull()
+  })
+
+  it('still points at something — the rule has a live subject', () => {
+    // A rule narrowed until it matches nothing reports CLEAN forever, and this
+    // one is narrow by construction: three utilities have to co-occur in one
+    // quoted string. The zero assertion below is worth nothing without this
+    // one beside it.
+    const sites = gradientTextSites()
+    expect(
+      sites.map((site) => `${site.file}:${site.line}`),
+      'rule 4 matches no gradient text anywhere in the product. Either the ' +
+        'headline changed shape or the scanner stopped seeing it — find out ' +
+        'which before believing the zero below.',
+    ).not.toEqual([])
+    expect(sites.some((site) => site.file === 'app/(marketing)/page.tsx')).toBe(true)
+  })
+
+  it('no gradient text in the product is too pale to read', () => {
+    // THE GATE. Zero, no ceiling — the reason rules 1 and 3 hold there, in a
+    // sharper form: this is the one contrast shape where the browser gate AND
+    // all three source rules above were blind at once, so a number here would
+    // be room in the only room nothing else can see into.
+    expect(
+      scanForUnreadableGradientText().map(describeFinding),
+      'with bg-clip-text the gradient IS the ink, so every stop has to read ' +
+        'as text on the page — teal-600 (5.09) or deeper on the brand ramp. ' +
+        'axe reports a gradient as incomplete, so this is the only gate that ' +
+        'will ever tell you.',
+    ).toEqual([])
+  })
+
+  it('carries no exemption it has stopped describing', () => {
+    // Empty today, and that is the honest state of the tree. The detector
+    // exists so the first entry cannot outlive its subject — the same reason
+    // rule 2 carries one.
+    expect(
+      deadGradientTextExemptions().map((e) => `${e.file} — ${e.classes}`),
+      'this exemption no longer matches any call site. Re-derive it or delete it.',
+    ).toEqual([])
+    for (const e of GRADIENT_TEXT_EXEMPTIONS) {
+      expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
+    }
   })
 })
