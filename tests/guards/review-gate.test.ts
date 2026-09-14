@@ -151,6 +151,8 @@ describe('the review-gate classifier', () => {
       // pattern list in the script now names them under money as well.
       'app/site/[slug]/shop/actions.ts': 'money',
       'app/site/[slug]/membership/actions.ts': 'money',
+      'app/(default)/billing/activate/actions.ts': 'money',
+      'app/(onboarding)/actions.ts': 'money',
       'lib/mrr.ts': 'money',
       'lib/stripe.ts': 'money',
       'app/api/webhooks/stripe/route.ts': 'money',

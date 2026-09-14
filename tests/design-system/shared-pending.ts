@@ -169,6 +169,22 @@ export function allOffenders(): Offender[] {
  * those are covered by their own rule and never carry `pending` — so the
  * exit labels are excluded here for the same reason they are required there.
  *
+ * WHAT IT REACHES, precisely — because a rule whose stated reach exceeds its
+ * actual reach is what cost this repo four days once already. The flag must be
+ * a LOCAL `useTransition` in the button's own component scope: `startsTransition`
+ * needs a starter to check the `onClick` against, and a flag that arrived as a
+ * PROP has none to check. So a prop (`gbp-sync-card.tsx`'s `busy`) or a
+ * props-object member (`integrations-library.tsx`'s `handlers.pending`) is out
+ * of reach — both are live examples, both were among the eleven this rule was
+ * written for, and both were fixed by hand rather than by the guard.
+ *
+ * That is deliberately the OPPOSITE view of the same expression from
+ * `isBareFlag`, which counts `handlers.pending` as bare for rules 1 and 2 on
+ * the grounds that a passthrough has narrowed nothing. Rules 1 and 2 ask "is
+ * this flag narrowed?" and a passthrough is not; this rule asks "does THIS
+ * button start the work?" and a passthrough cannot answer. Widening it would
+ * mean giving up the narrowing that makes it shippable at all.
+ *
  * NARROWED to buttons whose OWN `onClick` reaches the transition's starter.
  * The first draft asked only "does `disabled` read a busy flag", and it named
  * 22 sites to catch the 11 — because a button can be unavailable while a

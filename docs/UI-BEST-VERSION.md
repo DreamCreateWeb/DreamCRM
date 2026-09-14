@@ -213,7 +213,13 @@ batch number.
   hands to its parent. At that width it found 8 more real ones beyond the
   11, including the goals card's Pause (whose sibling "Reached it" was
   already right), the leads bulk bar, the quick-reply Send and the partner
-  detail's Pay now].
+  detail's Pay now. Its reach is narrower than its sentence, and that is
+  written down where the rule lives: the flag has to be a LOCAL
+  `useTransition`, because the narrowing that makes the rule shippable is
+  having a starter to check the `onClick` against and a flag that arrived as
+  a prop has none. Two of the eleven sit outside it for exactly that reason
+  (`gbp-sync-card`'s `busy` prop, `integrations-library`'s
+  `handlers.pending`) and were fixed by hand rather than by the guard].
 - ~~77 form fields have no accessible name~~ [BATCH 53, ALL 77, and
   `eslint-suppressions.json` is now EMPTY. A `<label>` that is a SIBLING of
   its input, with neither `htmlFor` nor nesting, connects nothing — to a
