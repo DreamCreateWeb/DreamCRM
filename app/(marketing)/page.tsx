@@ -134,7 +134,13 @@ export default async function MarketingHome() {
             <h1 className="mkt-enter mkt-d1 text-[2.6rem] font-extrabold leading-[1.04] tracking-tight text-gray-950 sm:text-[3.5rem]">
               Your whole front office.
               <br />
-              <span className="bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent">
+              {/* Gradient TEXT: the stops here are the INK, not a fill, so both
+                  have to read on the layout's white ground. teal-700 → teal-600
+                  is 7.05 → 5.09; the old `from-teal-600 to-teal-400` faded out
+                  to 2.42 on the last two words. Graded by rule 4 in
+                  `tests/a11y/class-pairs.ts` — axe reports a gradient as
+                  incomplete and never looked at this. */}
+              <span className="bg-gradient-to-r from-teal-700 to-teal-600 bg-clip-text text-transparent">
                 One calm system.
               </span>
             </h1>

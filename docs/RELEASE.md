@@ -2482,6 +2482,47 @@ because those suites weren't in the subset. Caught by the full-suite gate,
 fixed, and both guards now carry their own regression tests. Reinforces the
 repo convention: **the full `pnpm test`, not a module subset, gates a slice.**
 
+### The homepage headline faded out below the contrast floor (2026-09-14) · FIXED
+
+**The defect.** `app/(marketing)/page.tsx`'s hero rendered its second line —
+"One calm system." — as gradient text: `from-teal-600 to-teal-400` with
+`bg-clip-text text-transparent`, on the marketing layout's hard-coded white
+ground. With `bg-clip-text` the gradient IS the ink, so the right-hand stop is
+the text colour: 5.09:1 at the `from-` end and **2.42:1 at the `to-` end**. The
+last two words of the most-read page we have faded into the page. Found by
+Quinn on DREAMCRM-43 while surveying the marketing site, handed over rather
+than absorbed; fixed under DREAMCRM-44 (UI batch 62).
+
+**The verdict.** Fixed. The gradient is now `from-teal-700 to-teal-600`
+(7.05 → 5.09) — one token step deeper in the same colour family, which §6 of
+the repo conventions rules is engineering rather than a redesign, so it did not
+wait on the owner. The wider `to-teal-500` span the finding also offered was
+declined: at 3.82 it clears the 3:1 large-text floor only, so it would have
+been legal exactly as long as the headline stays 2.6rem.
+
+**Why no gate caught it, and what now does.** This was the fourth blind spot in
+the family rule 3 (#564) was written to close, and all three existing gates
+missed it by construction: **axe** reports a gradient fill as `incomplete`
+rather than a violation, so `marketing: home` held ZERO in `e2e/axe-baseline.ts`
+with the defect live — there was no ceiling to shrink; **rule 2** matches
+`bg-<ramp>-<step>` paired with `text-white`, and this chunk spells its fill
+`from-`/`to-` and its ink `text-transparent`; **rule 3** grades gradient stops
+as the SURFACE under white text, and there is no white ink here to anchor on.
+Rule 3's own "stays quiet" test pinned the defective string as returning null,
+one batch before anybody measured it — a rule declining to look is not the same
+as the thing being fine, which is the axe-incomplete lesson repeating one level
+in.
+
+`tests/a11y/class-pairs.ts` rule 4 + `token-contrast.test.ts` now read the
+stops of any `bg-clip-text text-transparent` chunk as INK and grade each
+against white. Zero, no ceiling, no exemption. Its cutoff is rule 2's cutoff
+asserted rather than assumed — the WCAG ratio is symmetric, so "white reads on
+teal-600" and "teal-600 reads on white" are one measurement and the repo gains
+no second opinion about which teal step is legal. **This is a new class of
+assertion inside the required `test` check, so it changes what can merge:**
+Forge intake and a Sentinel review, per the axe-ratchet shape in §2 of the
+conventions.
+
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:
 externally-gated items (OD vendor portal, first A2P approval,
