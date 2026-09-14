@@ -101,7 +101,14 @@ batch number.
   batch 57's red run pass while the bug was live. The colour maths and the
   palette cascade moved to `tests/a11y/palette.ts`, shared with
   `token-contrast.test.ts`, so two guards cannot report different ratios for
-  the same pair].
+  the same pair. Four axe ceilings came down with it — the four batch 58 left
+  standing on a single observation (add-patient dialog, the brand-new patients
+  list, the day agenda, the published website hub); batch 59's run measured
+  the same lower numbers, which is the second observation that entry was
+  waiting for. Worth knowing for next time: a drop of exactly one sits inside
+  the harness's `WOBBLE` allowance, so it prints no "shrink me" annotation at
+  all — the evidence is only in the run log's `carried by the baseline`
+  counts, and somebody has to go and read them].
 - **The dashboard has no single answer for "a solid fill with a label on
   it".** Batch 59 had to pick one four times, and picked by measurement each
   time: amber-500 keeps its saturated warn identity and takes DARK ink

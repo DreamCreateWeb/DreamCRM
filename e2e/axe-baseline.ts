@@ -229,15 +229,24 @@
  *     It holds at ZERO instead: the shape was live in eight places and all
  *     eight are fixed in the same PR. Ten of the fixed instances were found by
  *     its own red run over the live tree, one of them inside a ternary branch.
- *     Consequence for the ceilings below: eight components changed colour, two
- *     of them shared (`components/delete-button.tsx`,
- *     `components/dropdown-filter.tsx`), so some counts here may now be lower
- *     than their ceiling. None can be HIGHER — every change moves a pair
- *     toward AA — so nothing below is at risk. The ceilings are deliberately
- *     left alone rather than guessed at: this batch had no e2e observation to
- *     lower them from, and this file's own rule is that a number moves on
- *     evidence. The run's `::warning` annotations will name whichever ones are
- *     now dead weight; take them on the next batch.
+ *     FOUR CEILINGS COME DOWN with it, and they are the four batch 58 left
+ *     standing on a single observation: add-patient dialog 2 → 1, the
+ *     brand-new patients list 2 → 1, the day agenda 2 → 1, the published
+ *     website hub 4 → 3. That entry said "the next run that confirms the
+ *     lower number can take them"; actions/runs/34808966031 is that run, and
+ *     it measured the same lower number at all four. Two independent
+ *     observations is the bar this file set for itself, so they move.
+ *     Note they produced no `::warning`: a drop of exactly one is inside
+ *     `WOBBLE`, so the annotation deliberately stays quiet and the evidence
+ *     has to be read off the `carried by the baseline` counts in the run log.
+ *     That is working as designed — but it does mean a one-element fix will
+ *     never announce itself, and somebody has to go looking.
+ *     Batch 59's own colour changes touched two SHARED components
+ *     (`delete-button.tsx`, `dropdown-filter.tsx`), so some of that drop is
+ *     plausibly this batch rather than the confirmation of batch 58's. The
+ *     ceilings land in the same place either way and no count went UP —
+ *     every change in the batch moves a pair toward AA — so the direction is
+ *     not in doubt even where the attribution is.
  *
  * Four stops each dropped by exactly ONE in that run — add-patient dialog,
  * the brand-new patients list, the day agenda, and the published website hub.
@@ -274,9 +283,9 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   'portal: visit inside the notice window': { 'color-contrast': 1 },
   'portal: visits list after confirming': { 'color-contrast': 1 },
   'portal: visits list, a visit needing confirmation': { 'color-contrast': 1 },
-  'staff: add-patient dialog, filled in': { 'color-contrast': 2 },
+  'staff: add-patient dialog, filled in': { 'color-contrast': 1 },
   'staff: dream team, a proposal waiting on a yes': { 'color-contrast': 1 },
-  'staff: patients list, brand-new empty clinic': { 'color-contrast': 2 },
-  'staff: the day agenda': { 'color-contrast': 2 },
-  'staff: website hub, site published': { 'color-contrast': 4 },
+  'staff: patients list, brand-new empty clinic': { 'color-contrast': 1 },
+  'staff: the day agenda': { 'color-contrast': 1 },
+  'staff: website hub, site published': { 'color-contrast': 3 },
 }
