@@ -600,7 +600,7 @@ function NavItem({
           rail ? 'lg:justify-center lg:px-0' : ''
         } ${
           active
-            ? 'breath bg-gradient-to-r from-teal-400 to-teal-600 text-white font-bold shadow-[0_8px_20px_rgb(76_125_240_/_0.35)]'
+            ? 'breath bg-gradient-to-r from-teal-600 to-teal-800 text-white font-bold shadow-[0_8px_20px_rgb(76_125_240_/_0.35)]'
             : 'text-ink-600 hover:bg-ink-900/[0.04] hover:text-ink-900'
         } ${isSoon ? 'opacity-50 cursor-not-allowed' : ''}`}
       >

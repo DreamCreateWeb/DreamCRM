@@ -15,7 +15,9 @@ import {
   BRAND_FILL_EXEMPTIONS,
   deadBrandFillExemptions,
   describeFinding,
+  gradeGradientClasses,
   scanForWhiteOnShallowBrand,
+  scanForWhiteOnShallowBrandGradient,
   SHALLOW_BRAND_FILLS,
 } from './class-pairs'
 
@@ -215,5 +217,97 @@ describe('white-on-brand fills', () => {
     for (const e of BRAND_FILL_EXEMPTIONS) {
       expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
     }
+  })
+})
+
+describe('white text on a brand GRADIENT', () => {
+  /**
+   * RULE 3 — the defect class no gate in this repo could see, and the reason
+   * the product's most prominent element carried it for the whole program.
+   *
+   * axe reports a gradient fill as INCOMPLETE rather than failing, so
+   * `e2e/axe-baseline.ts` has never carried one. Rule 2 above reads
+   * `bg-<ramp>-<step>` and a gradient spells its fill `from-`/`via-`/`to-`, so
+   * it could not see one either. `ActionButton`'s primary was
+   * `from-teal-400 to-teal-600` under white text — 2.42 at the light end, 3.46
+   * at the midpoint, 4.19 at 75%, clearing only at the final pixel-column
+   * (5.09). Hand-measured on DREAMCRM-28 because nothing automated was.
+   *
+   * The planted defects below come FIRST on purpose. The zero assertion at the
+   * bottom is the one that gates, and an absence assertion over a clean tree
+   * cannot tell a scanner that is looking from one that has quietly stopped —
+   * which is exactly how batch 58's write-up came to claim a rule that was not
+   * there. These feed the scanner each shape it claims to catch, so it has to
+   * keep proving it can see them on every run rather than on the one afternoon
+   * somebody watched it go red.
+   */
+  it('catches the real defect, in the real shape it shipped in', () => {
+    const found = gradeGradientClasses(
+      '"bg-gradient-to-br from-teal-400 to-teal-600 hover:from-teal-500 hover:to-teal-600 text-white"',
+    )
+    expect(found).not.toBeNull()
+    // The resting light end (2.42) AND the hover end (3.82) — deepening only
+    // the resting state would have left the hover half live, which is why this
+    // rule grades hover where rule 1 deliberately does not.
+    const worst = found!.failures.map((f) => `${f.theme} ${f.surface} ${f.ratio.toFixed(2)}`)
+    expect(worst).toContain('light teal-400 2.42')
+    expect(worst).toContain('light:hover teal-500 3.82')
+  })
+
+  it('reads a via- stop, so the breath skin cannot hide in the middle', () => {
+    // The page's single primary renders BREATH_CLASSES, not the `primary`
+    // recipe — its old `from-teal-400 via-teal-600 to-teal-400` drifted white
+    // text between 2.42 and 5.09 twice every six seconds.
+    const found = gradeGradientClasses(
+      '"breath bg-gradient-to-r from-teal-400 via-teal-600 to-teal-400 text-white"',
+    )
+    expect(found).not.toBeNull()
+    expect(found!.failures.map((f) => f.surface)).toContain('teal-400')
+  })
+
+  it('resolves dark: and dark:hover: stops over the base, the way the cascade does', () => {
+    const found = gradeGradientClasses('"bg-gradient-to-r from-teal-700 dark:from-teal-500 text-white"')
+    expect(found).not.toBeNull()
+    expect(found!.failures.map((f) => `${f.theme} ${f.surface}`)).toEqual([
+      'dark teal-500',
+      'dark:hover teal-500',
+    ])
+  })
+
+  it('stays quiet on the things it must not fire on', () => {
+    // Legal: white on teal-600 and deeper, which is where the batch moved
+    // every one of these.
+    expect(
+      gradeGradientClasses('"bg-gradient-to-br from-teal-600 to-teal-800 hover:from-teal-700 text-white"'),
+    ).toBeNull()
+    // Alpha stops composite over an ancestor this scanner cannot resolve.
+    expect(gradeGradientClasses('"bg-gradient-to-t from-teal-500/65 to-teal-400/90 text-white"')).toBeNull()
+    // Gradient TEXT, not a gradient fill — the ink is transparent.
+    expect(
+      gradeGradientClasses('"bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent"'),
+    ).toBeNull()
+    // The direction keyword is not a stop: `to-br`/`to-r` must not be read as
+    // `to-<colour>`, and a variant this rule does not model stays out.
+    expect(gradeGradientClasses('"bg-gradient-to-br group-hover:from-teal-400 text-white"')).toBeNull()
+    // A hover ink this scanner does not resolve — skip the hover renderings
+    // rather than grade them against the resting ink.
+    expect(
+      gradeGradientClasses('"bg-gradient-to-r from-teal-700 hover:from-teal-500 text-white hover:text-gray-900"'),
+    ).toBeNull()
+    // No gradient at all is rule 2's business, not this one's.
+    expect(gradeGradientClasses('"bg-teal-400 text-white"')).toBeNull()
+  })
+
+  it('no call site paints white text across the shallow brand ramp', () => {
+    // THE GATE. Holds at ZERO with no ceiling and no exemption — the same
+    // reason the dark-mode parity guard does: a number here is room for the
+    // next one to hide in, and nothing else in the repo is looking at this.
+    expect(
+      scanForWhiteOnShallowBrandGradient().map(describeFinding),
+      'a gradient under white text must run entirely on teal-600 (5.09) or ' +
+        'deeper, in every rendering including hover. axe cannot measure a ' +
+        'gradient — it reports one as incomplete — so this is the only gate ' +
+        'that will ever tell you.',
+    ).toEqual([])
   })
 })

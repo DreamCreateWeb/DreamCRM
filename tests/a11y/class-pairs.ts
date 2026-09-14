@@ -1,13 +1,14 @@
 /**
  * THE ONE PLACE THIS REPO READS A COLOUR PAIR OUT OF A `className`.
  *
- * Two source rules grade those pairs, and they share this scanner rather than
+ * Three source rules grade those pairs, and they share this scanner rather than
  * carrying one each: `dark-mode-parity.test.ts` (the unpaired `dark:`
- * override) and `token-contrast.test.ts` (white on the shallow end of the
- * brand ramp). A second copy of "which utility is the ink, which is the
- * surface, and is either one a wash" is how two guards start disagreeing about
- * the same line — the same reason `./palette` is the one place the ratios are
- * computed.
+ * override), and `token-contrast.test.ts` twice over — white on the shallow end
+ * of the brand ramp as a solid fill (rule 2), and white on a GRADIENT that runs
+ * through it (rule 3, the one axe structurally cannot report). A second copy of
+ * "which utility is the ink, which is the surface, and is either one a wash" is
+ * how two guards start disagreeing about the same line — the same reason
+ * `./palette` is the one place the ratios are computed.
  *
  * ── RULE 1: THE DARK-MODE PARITY SCANNER — the pair nobody measured.
  *
@@ -78,20 +79,30 @@ import { AA, contrast, DARK, LIGHT, ROOT, utilityColor, type Theme } from './pal
 export const UI_ROOTS = ['app', 'components', 'lib']
 
 /**
- * A `text-…` / `bg-…` utility in its base variant, capturing whether it is the
- * `dark:` spelling, the colour word, and any alpha suffix.
+ * ONE spelling of each regex fragment, shared by every rule below.
  *
- * The leading boundary is what keeps `hover:bg-gray-300` and
- * `dark:hover:bg-gray-700` out: a variant other than a bare `dark:` puts a `:`
- * immediately before `bg-`, which is not a boundary character. Both alpha
- * spellings Tailwind accepts are captured — `/15` and the arbitrary
- * `/[0.08]` — because both mean "this is a wash, not a surface".
+ * `BOUNDARY` is the load-bearing one: a `:` or `-` immediately before the
+ * utility is not a boundary character, which is what keeps `hover:bg-gray-300`
+ * and `dark:hover:bg-gray-700` out of rule 1, `group-hover:from-teal-400` out
+ * of rule 3, and — the one that would be a silent false negative — stops
+ * `bg-gradient-to-br` from being read as a `to-<colour>` stop. Both alpha
+ * spellings Tailwind accepts are captured (`/15` and the arbitrary `/[0.08]`),
+ * because both mean "this is a wash, not a surface".
+ *
+ * Single-homed rather than rebuilt per rule for the ordinary reason, and one
+ * specific one: a second copy is where the double-backslash escaping goes
+ * wrong, and a regex that has quietly stopped matching anything reports a
+ * clean tree. Rule 3's first draft did exactly that.
  */
+const BOUNDARY = '(?:^|[\\s\'"`{])'
+const COLOUR_WORD = '([a-z]+-\\d{2,3}|white|black)'
+const ALPHA = '(\\/(?:\\d+|\\[[^\\]]*\\]))?'
+const NOT_IN_WORD = '(?![\\w-])'
+
+/** A `text-…` / `bg-…` utility in its base or bare-`dark:` variant, capturing
+ *  which spelling it is, the colour word, and any alpha suffix. */
 function utility(prop: 'text' | 'bg'): RegExp {
-  const boundary = '(?:^|[\\s\'"`{])'
-  const word = '([a-z]+-\\d{2,3}|white|black)'
-  const alpha = '(\\/(?:\\d+|\\[[^\\]]*\\]))?'
-  return new RegExp(`${boundary}(dark:)?${prop}-${word}${alpha}(?![\\w-])`, 'g')
+  return new RegExp(`${BOUNDARY}(dark:)?${prop}-${COLOUR_WORD}${ALPHA}${NOT_IN_WORD}`, 'g')
 }
 
 type Utility = { dark: boolean; word: string; alpha: boolean; raw: string }
@@ -112,8 +123,11 @@ function utilities(chunk: string, prop: 'text' | 'bg'): Utility[] {
 }
 
 export type Pairing = {
-  /** Which rendering this is. */
-  theme: 'light' | 'dark'
+  /** Which rendering this is. Rule 3 also grades the `hover:` renderings,
+   *  because a gradient stop IS the surface under the ink — no ancestor
+   *  needed to resolve it — and a hover that lightens back under the floor is
+   *  exactly the shape this repo shipped. */
+  theme: 'light' | 'dark' | 'light:hover' | 'dark:hover'
   ink: string
   surface: string
   ratio: number
@@ -124,18 +138,21 @@ export type ParityFinding = {
   file: string
   /** 1-based. */
   line: number
-  /** Which half carries the lone `dark:` override — `null` for rule 2, where
-   *  the defect is the pairing itself rather than a disagreement about it. */
+  /** Which half carries the lone `dark:` override — `null` for rules 2 and 3,
+   *  where the defect is the pairing itself rather than a disagreement about
+   *  it. */
   overridden: 'ink' | 'surface' | null
   /** The participating classes, as written. */
   classes: string
   /** Only the renderings that MISS AA — one or both. */
   failures: Pairing[]
+  /** What the rule that produced this finding calls the defect. */
+  note?: string
 }
 
 function grade(
   theme: Theme,
-  name: 'light' | 'dark',
+  name: Pairing['theme'],
   ink: string,
   surface: string,
 ): Pairing | null {
@@ -249,9 +266,9 @@ export function describeFinding(f: ParityFinding): string {
   const where = f.failures
     .map((p) => `${p.theme}: ${p.ink} on ${p.surface} = ${p.ratio.toFixed(2)}`)
     .join('; ')
-  const why = f.overridden
-    ? `only the ${f.overridden} carries a dark: override`
-    : 'white on a shallow brand fill'
+  const why =
+    f.note ??
+    (f.overridden ? `only the ${f.overridden} carries a dark: override` : 'white on a shallow brand fill')
   return `${f.file}:${f.line} — ${why} (${f.classes}) — ${where}`
 }
 
@@ -352,6 +369,166 @@ export function scanForWhiteOnShallowBrand(roots: string[] = UI_ROOTS): ParityFi
         failures: [graded],
       })
     }
+  })
+  return found
+}
+
+/* ── RULE 3: white on a gradient that runs through the shallow brand ramp ─── */
+
+/**
+ * THE ONE CONTRAST DEFECT NO GATE IN THIS REPO COULD SEE.
+ *
+ * axe reports a gradient fill as **incomplete**, not as a violation — it will
+ * not guess which pixel-column to measure — so `e2e/axe-baseline.ts` has never
+ * carried a gradient and never will. Rule 2 above cannot see one either: it
+ * reads `bg-<ramp>-<step>`, and a gradient names its fill with
+ * `from-`/`via-`/`to-`. The product's single most prominent element sat in that
+ * gap for the whole program. `ActionButton`'s primary was
+ * `from-teal-400 to-teal-600` under white text — 2.42 at the light end, 3.46 at
+ * the midpoint, 4.19 at 75%, and only the last pixel-column clearing at 5.09 —
+ * measured by hand on DREAMCRM-28 because nothing automated was looking.
+ *
+ * The rule: **if white rides a gradient, every stop it names must be a
+ * white-text fill.** Grading the stops rather than the span is the honest
+ * simplification — the ramp is monotonic in lightness, so a span between two
+ * legal stops is legal throughout, and a span that touches an illegal stop
+ * fails somewhere regardless of where exactly.
+ *
+ * WHAT IT SEES that rule 1 deliberately does not: the `hover:` renderings.
+ * A gradient stop is the surface directly under the ink, so no ancestor has to
+ * be resolved to grade it — and the defect this rule was written for HAD a
+ * hover half (`hover:from-teal-500`, 3.82) that deepening the resting state
+ * alone would have left behind. `dark:` and `dark:hover:` resolve per position
+ * over the base stops, the way the cascade does.
+ *
+ * WHAT IT DOES NOT SEE, so a green run is not mistaken for proof:
+ *
+ *   - Alpha stops (`from-teal-500/65`). Composited over an ancestor this
+ *     scanner cannot resolve — the same exclusion rule 1 makes, for the same
+ *     reason.
+ *   - Variants other than `dark:` / `hover:` / `dark:hover:` — `group-hover:`
+ *     and friends depend on an ancestor's state, and the only ones in the tree
+ *     are alpha chart bars with no text on them.
+ *   - A gradient and its ink in DIFFERENT quoted strings. `call-session.tsx`
+ *     puts the gradient on the `<a>` and `text-white` on a child `<span>`; its
+ *     hover was lightening to teal-500 and this rule would not have caught it
+ *     (batch 61 fixed it by hand). A false negative, which is the safe
+ *     direction for a guard whose value is that red means something.
+ *   - Any chunk carrying a `hover:text-*`, whose hover ink this scanner does
+ *     not resolve. The hover renderings are skipped there rather than graded
+ *     against the resting ink.
+ */
+const GRADIENT_VARIANTS = ['', 'dark:', 'hover:', 'dark:hover:'] as const
+type GradientVariant = (typeof GRADIENT_VARIANTS)[number]
+type Position = 'from' | 'via' | 'to'
+
+type Stop = { variant: GradientVariant; position: Position; word: string; alpha: boolean; raw: string }
+
+/**
+ * A gradient-stop utility in the four variants above.
+ *
+ * The leading boundary is doing real work here: `bg-gradient-to-br` and
+ * `bg-linear-to-r` both contain `to-br`/`to-r`, and a `-` immediately before
+ * `to-` is not a boundary character, so the direction keyword cannot be read as
+ * a stop. It is also what keeps `group-hover:from-teal-500` out — there is no
+ * whitespace or quote inside that token for a match to start at.
+ */
+function gradientStops(chunk: string): Stop[] {
+  const re = new RegExp(
+    `${BOUNDARY}((?:dark:)?(?:hover:)?)(from|via|to)-${COLOUR_WORD}${ALPHA}${NOT_IN_WORD}`,
+    'g',
+  )
+  const out: Stop[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(chunk)) !== null) {
+    out.push({
+      variant: m[1] as GradientVariant,
+      position: m[2] as Position,
+      word: m[3],
+      alpha: !!m[4],
+      raw: `${m[1]}${m[2]}-${m[3]}${m[4] ?? ''}`,
+    })
+  }
+  return out
+}
+
+/** The stops a given rendering actually paints — later variants override the
+ *  base per position, exactly as the cascade resolves them. */
+function stopsFor(stops: Stop[], layers: GradientVariant[]): Stop[] {
+  const byPosition = new Map<Position, Stop>()
+  for (const layer of layers) {
+    for (const s of stops.filter((s) => s.variant === layer)) byPosition.set(s.position, s)
+  }
+  return Array.from(byPosition.values())
+}
+
+const HOVER_INK = /hover:text-(?:[a-z]+-\d{2,3}|white|black)(?![\w-])/
+
+/**
+ * Grade one quoted class string against rule 3.
+ *
+ * Exported for the same reason `gradeClasses` is: an absence assertion over a
+ * clean tree cannot tell a guard that is looking from one that has quietly
+ * stopped, so the test feeds this planted defects in every shape it claims to
+ * catch — `via`, the `dark:` override, the `hover:` half, the alpha skip.
+ */
+export function gradeGradientClasses(
+  classes: string,
+): Omit<ParityFinding, 'file' | 'line'> | null {
+  const stops = gradientStops(classes)
+  if (stops.length === 0) return null
+
+  const inks = utilities(classes, 'text')
+  const lightInk = inks.find((u) => !u.dark)
+  const darkInk = inks.find((u) => u.dark)
+
+  const renderings: [Pairing['theme'], Utility | undefined, GradientVariant[]][] = [
+    ['light', lightInk, ['']],
+    ['dark', darkInk ?? lightInk, ['', 'dark:']],
+    ['light:hover', lightInk, ['', 'hover:']],
+    ['dark:hover', darkInk ?? lightInk, ['', 'dark:', 'hover:', 'dark:hover:']],
+  ]
+
+  const failures: Pairing[] = []
+  const participating = new Set<string>()
+  for (const [name, ink, layers] of renderings) {
+    if (!ink || ink.alpha || ink.word !== 'white') continue
+    if (name.endsWith('hover') && HOVER_INK.test(classes)) continue
+    for (const stop of stopsFor(stops, layers)) {
+      if (stop.alpha || !SHALLOW_BRAND_FILLS.includes(stop.word)) continue
+      const graded = grade(name.startsWith('dark') ? DARK : LIGHT, name, ink.word, stop.word)
+      if (!graded) continue
+      failures.push(graded)
+      participating.add(stop.raw)
+      participating.add(ink.raw)
+    }
+  }
+  if (failures.length === 0) return null
+
+  return {
+    overridden: null,
+    classes: Array.from(participating).join(' '),
+    failures,
+    note: 'white text rides a gradient through the shallow brand ramp',
+  }
+}
+
+/**
+ * Every place in the product painting white text on a gradient that names
+ * `teal-400` or `teal-500`.
+ *
+ * Holds at ZERO with no ceiling and no exemption, deliberately — the same
+ * reason rule 1 does. A number here would be room for the next one to hide in,
+ * and this is the one defect class where nothing else in the repo is looking.
+ * Batch 61 moved five call sites (the primary button and its breath skin, the
+ * active sidebar pill, the prospecting hero band, the Studio AI send button)
+ * onto `teal-600` and deeper, which is where a white label has always belonged.
+ */
+export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): ParityFinding[] {
+  const found: ParityFinding[] = []
+  eachClassString(roots, (file, line, chunk) => {
+    const graded = gradeGradientClasses(chunk)
+    if (graded) found.push({ file, line, ...graded })
   })
   return found
 }
