@@ -530,7 +530,31 @@ binding are all correct. The payment-plan charger was the exception.
   fails on a raw `sum()` over a refundable column, a raw `+=` off one, or the
   subtraction open-coded anywhere else; its red run was watched against the
   live bug in both `collections.ts` and `shop.ts`.
-- S3 · a refunded online payment still earned its patient loyalty points.
+- S3 · four MORE surfaces showed refunded money as kept, found by the batch
+  invariant sweep rather than by the ledger. Split from the netting entry
+  above because they are a different failure: not a total that forgot to
+  subtract, but a surface that never held the refund columns at all. ·
+  **FIXED** (DREAMCRM-32):
+  (1) the appointment drawer's "Shop purchases" stat — its own comment claimed
+  the SAME source as the patients list's column, and both of those netted, so
+  one figure read two different numbers on two pages;
+  (2) the drawer's booking-deposit pill, which told the front desk to post
+  money to the PMS ledger that Stripe had already sent back (the deposit row
+  stays 'paid' by design);
+  (3) the patient's printable SHOP-ORDER receipt, stamped "Paid" at full face
+  value after a refund — the balance-payment branch 28 lines below it in the
+  same file had been doing this correctly since DREAMCRM-23;
+  (4) the patient's billing-history row for a shop order, silent about a
+  refund while the payment rows beside it said so. (3) and (4) shared one root
+  cause: `getMyBills` never selected `shop_order.refunded_amount_cents`.
+  THE GUARD LESSON, worth more than the four fixes: `tests/guards/net-refunds.test.ts`
+  reported clean through all of this, because it modelled the SQL `sum()` and
+  the JS `+=` but not the `reduce` — and the drawer used a reduce. It now
+  models all three accumulator shapes. Its new case was then found to have been
+  written with BACKSPACE bytes where its word-boundary escapes belonged, so it
+  matched nothing and passed on the first try; the red run against the live bug
+  is what caught that. A guard authored straight to green proves only that it
+  runs.- S3 · a refunded online payment still earned its patient loyalty points.
   The balance-payment row keeps `status = 'paid'` after a refund on purpose,
   so the daily accrual sweep read it as money the patient had paid, and
   nothing took back points already awarded when the refund landed later.
