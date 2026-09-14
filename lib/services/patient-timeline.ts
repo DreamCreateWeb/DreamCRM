@@ -169,6 +169,12 @@ interface RawTagEvent {
 }
 
 /** Compact dollar string from cents for commerce timeline titles. */
+/** One way of joining a refund note onto a subtitle, so the two money entries
+ *  on this timeline cannot drift apart in how they say it. */
+function appendRefund(base: string, note: string | null): string {
+  return note ? `${base} · ${note}` : base
+}
+
 function dollars(cents: number): string {
   return `$${(Number(cents) / 100).toFixed(2)}`
 }
@@ -699,11 +705,21 @@ export async function getPatientTimeline(
       kind: 'shop_order',
       occurredAt: paid && o.paidAt ? o.paidAt : o.createdAt,
       // The TITLE keeps the face value — this is a record of what happened on
-      // the day it happened. What changed since goes in the subtitle, so the
-      // staff-side history and the patient's own portal tell one story.
+      // the day it happened. What changed since is APPENDED to the subtitle,
+      // never swapped in for it: a partly refunded order is still an order the
+      // patient paid for, and dropping "Paid" would lose that. Same shape as
+      // the balance-payment entry below.
       title: `${summary} — ${dollars(o.totalCents)}`,
-      subtitle: refundNote(o.totalCents, o.refundedAmountCents, dollars)
-        ?? (paid ? 'Paid' : o.status === 'pending' ? 'Pending payment' : o.status),
+      // A FULLY refunded order is the one case where the status column already
+      // carries the news, so the note stands alone rather than reading
+      // "refunded · Refunded".
+      subtitle:
+        o.status === 'refunded'
+          ? refundNote(o.totalCents, o.refundedAmountCents, dollars) ?? 'Refunded'
+          : appendRefund(
+              paid ? 'Paid' : o.status === 'pending' ? 'Pending payment' : o.status,
+              refundNote(o.totalCents, o.refundedAmountCents, dollars),
+            ),
       status: o.status,
       direction: null,
       href: '/shop/orders',
@@ -750,9 +766,10 @@ export async function getPatientTimeline(
         : `${dollars(p.amountCents)} balance payment — ${p.status}`,
       // The row stays 'paid' after a refund by design, so without this the
       // timeline is the last place still saying the clinic kept the money.
-      subtitle: refundNote(p.amountCents, p.refundedAmountCents, dollars)
-        ? `Online payment · ${refundNote(p.amountCents, p.refundedAmountCents, dollars)}`
-        : 'Online payment',
+      subtitle: appendRefund(
+        'Online payment',
+        refundNote(p.amountCents, p.refundedAmountCents, dollars),
+      ),
       status: p.status,
       direction: null,
       href: '/payments/online',

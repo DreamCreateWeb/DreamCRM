@@ -125,7 +125,9 @@ describe('getPatientTimeline — commerce + review events', () => {
     const events = await getPatientTimeline('org_1', 'pat_1')
     const order = events.find((e) => e.kind === 'shop_order')!
     expect(order.title).toBe('1× Whitening Kit — $89.00')
-    expect(order.subtitle).toBe('$20.00 refunded')
+    // "Paid" survives — a partly refunded order is still one the patient
+    // paid for, and the subtitle is an addition to that, not a replacement.
+    expect(order.subtitle).toBe('Paid · $20.00 refunded')
   })
 
   it('a fully refunded order says so instead of "Paid"', async () => {
