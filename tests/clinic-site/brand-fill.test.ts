@@ -172,8 +172,8 @@ const COLOUR_PROPS = ['backgroundColor', 'background']
  * The spellings of `brand` that are LEGITIMATE in a colour value — either
  * already-safe derivations, or alpha tints, which are washes sitting behind
  * dark ink rather than fills under white:
- *   `brandFill(brand)` · `brandInk` · `brandStrong` · `brandTint(brand, …)` ·
- *   `${brand}1A` · `brand + '22'`
+ *   `brandFill(brand)` · `brandWash(brand)` · `brandWashInk(brand)` ·
+ *   `brandInk` · `brandStrong` · `brandTint(brand, …)` · `${brand}1A`
  */
 function strippedOfSafeForms(value: string): string {
   return (
@@ -184,16 +184,17 @@ function strippedOfSafeForms(value: string): string {
       // precisely the old unsafe spelling this guard has to keep catching.
       .replace(/--[a-z0-9-]+/g, '')
       .replace(/brandFill\([^)]*\)/g, '')
+      .replace(/brandWashInk\([^)]*\)/g, '')
+      .replace(/brandWash\([^)]*\)/g, '')
       .replace(/brandTint\([^)]*\)/g, '')
       .replace(/brand(?:Ink|Strong|Soft|SoftInk|Fill)\b/g, '')
       .replace(/\$\{brand\}[0-9a-fA-F]{2}/g, '')
       .replace(/brand\s*\+\s*'[0-9a-fA-F]{2}'/g, '')
       // Anything with an alpha suffix concatenated onto it is a TINT — a wash
-      // behind dark ink, not a fill under white. (Three of these concatenate
-      // onto a `var()`, which produces invalid CSS and therefore no background
-      // at all; a separate cosmetic defect, reported on DREAMCRM-28 rather than
-      // silently changed here, since what that well should look like is a
-      // design call.)
+      // behind dark ink, not a fill under white. (The three that concatenated
+      // onto a `var()`, producing invalid CSS and therefore no background at
+      // all, were fixed in batch 60: they are `brandWash` now, and
+      // `tests/clinic-site/brand-wash.test.ts` fails on that shape returning.)
       .replace(/.*\+\s*'[0-9a-fA-F]{2}'.*/g, '')
   )
 }
