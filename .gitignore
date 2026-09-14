@@ -45,3 +45,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /e2e/.auth/
+# The CI json reporter's output (see playwright.config.ts) — read by
+# scripts/e2e-flaky-summary.mjs and uploaded with the report, never committed.
+/e2e-results.json

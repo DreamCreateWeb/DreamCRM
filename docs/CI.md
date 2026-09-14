@@ -109,6 +109,58 @@ every merge here pushes as the same shared account, so that is one inbox. Named
 here so the next person does not have to work out whether silence means healthy
 or unwatched.
 
+## A retry leaves a trace (added 2026-09-13, DREAMCRM-33)
+
+`playwright.config.ts` sets `retries: 1` under CI and that stays. What changed
+is that the retry no longer happens in silence.
+
+Every job that runs the browser harness — `e2e`, `e2e-post-merge`, `nightly-e2e`
+— now follows it with one step:
+
+```yaml
+- name: Name any test that only passed on a retry
+  id: flaky
+  if: always()
+  run: node scripts/e2e-flaky-summary.mjs
+```
+
+and uploads the Playwright report on `failure() || steps.flaky.outputs.flaky ==
+'true'` rather than on `failure()` alone.
+
+The gap it closes: a spec that failed once and passed on the second attempt
+reported the job **green**, and the `if: failure()` upload threw the trace and
+the screenshot away with the runner. The evidence that would have named the
+portal-reschedule flake (DREAMCRM-21) in minutes existed on three runners and
+was deleted three times.
+
+Mechanics:
+
+- The CI reporter list gained `['json', { outputFile: 'e2e-results.json' }]`.
+  It sits OUTSIDE `playwright-report/` deliberately — the html reporter clears
+  that folder when it generates, and would delete a sibling written into it.
+- `scripts/e2e-flaky-summary.mjs` reads that file, writes a table of the flaky
+  tests to `$GITHUB_STEP_SUMMARY` **naming the check they flaked in** (a reader
+  arriving from a green PR has no other way to tell `e2e` from `nightly-e2e`),
+  emits a `::warning`, and sets `flaky` / `flaky-count` on `$GITHUB_OUTPUT`.
+- **It never exits non-zero.** Missing file, unparseable JSON, unexpected
+  shape — all print and exit 0. A reporting step that can turn a run red is a
+  reporting step somebody eventually deletes.
+- `if: always()` rather than `success()`: a run can be both red *and* flaky,
+  and the flaky half is still worth naming.
+
+**Nothing here changes what gates a merge.** `e2e` passes or fails exactly as
+it did before; this only decides what gets written down and kept.
+
+`tests/guards/e2e-flaky-summary.test.ts` pins the parts that could rot without
+anyone noticing — the detection itself, that a clean run reports nothing, and
+that the path the config WRITES is the path the script READS. That last one is
+the quiet one: rename either half and the reporter finds no file, says so in a
+log nobody opens, and every run keeps looking clean forever.
+
+Deliberately not done: `retries: 0`. It trades a quiet flake for a loud false
+red on every PR, and a required check that goes red for reasons nobody caused
+is a check people route around.
+
 ## Branch protection (configured 2026-09-09, DREAMCRM-10; strict since 2026-09-10, DREAMCRM-19)
 
 `main` requires the `test` and `e2e` checks to pass before a PR can merge,

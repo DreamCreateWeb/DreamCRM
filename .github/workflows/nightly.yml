@@ -87,12 +87,25 @@ jobs:
       - name: Run the E2E harness
         run: bash scripts/e2e-harness.sh
 
+      # THE NIGHTLY IS THE RUN THIS MATTERS MOST FOR (DREAMCRM-33). Its whole
+      # purpose is to surface clock- and race-dependent failures before anyone
+      # trips over them — and `retries: 1` meant a race that showed up here
+      # then passed on the second attempt produced a green nightly and no
+      # evidence at all. That is the precise shape of the failure this job was
+      # built to catch, quietly swallowed by the job built to catch it.
+      - name: Name any test that only passed on a retry
+        id: flaky
+        if: always()
+        run: node scripts/e2e-flaky-summary.mjs
+
       - name: Upload Playwright report
-        if: failure()
+        if: failure() || steps.flaky.outputs.flaky == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-nightly
-          path: playwright-report/
+          path: |
+            playwright-report/
+            e2e-results.json
           retention-days: 7
 
   # --- The timezone canary (NON-BLOCKING) ----------------------------------
