@@ -4,6 +4,9 @@ import { getFormTemplate, submitForm } from '@/lib/services/forms'
 import { readInsuranceCard, type InsuranceCardFields } from '@/lib/services/insurance-ocr'
 import { PublicFormError, publicFormFailure, type PublicFormResult } from '@/lib/services/public-form-error'
 import { isAllowedAttachmentUrl } from '@/lib/attachment-hosts'
+import { resolveClinicOrgIdBySlug } from '@/lib/services/clinic-site'
+import { rateLimitPublicAction } from '@/lib/services/rate-limit'
+import type { OcrScope } from './intake-form-runner'
 import {
   firstMissingRequiredField,
   sanitizeSubmissionData,
@@ -17,21 +20,51 @@ export type InsuranceOcrActionResult =
 
 /**
  * Public OCR trigger — reads the insurance-card photos the patient just
- * uploaded and returns the fields for them to confirm. Scoped to the org +
- * our own storage + the per-org monthly cap (both in the service).
+ * uploaded and returns the fields for them to confirm.
  *
- * This used to carry its own `isOwnUploadUrl` check, which matched the bucket
- * name as a SUBSTRING of the host and otherwise waved through any
- * `*.amazonaws.com` — i.e. any public S3 bucket on the internet, including the
- * caller's own. The shared `isAllowedAttachmentUrl` matches the exact hosts our
- * storage drivers mint, and the service enforces it too, so an added call site
- * cannot reopen the hole by forgetting to filter.
+ * Every scan spends from the clinic's 400-a-month allowance, so WHOSE
+ * allowance is the question this action has to answer honestly. It used to
+ * take `orgId` straight from the browser with nothing checking it against the
+ * page it was served from, and it was the one public-site action with no rate
+ * limit — so anyone who could upload an image could point an ARBITRARY
+ * clinic's cap at it and drain it. Three things close that, in the order they
+ * run:
+ *
+ *  1. the per-IP rate limit every other public action already had;
+ *  2. the org resolved from the PUBLIC SLUG, never a client-posted org id —
+ *     the same law `submitContactRequest` and the insurance verifier follow;
+ *  3. the form template re-validated against THAT org, so a caller has to name
+ *     a real, unarchived intake form belonging to the clinic whose page they
+ *     claim to be on. `submitIntakeForm` below has always done this, for
+ *     exactly this reason.
+ *
+ * Storage stays gated too. `isAllowedAttachmentUrl` matches the exact hosts
+ * our storage drivers mint — this used to be a hand-rolled SUBSTRING match on
+ * the host that accepted any public S3 bucket on the internet — and the
+ * service enforces it again, so an added call site cannot reopen that hole by
+ * forgetting to filter.
  */
 export async function readInsuranceCardAction(
-  orgId: string,
+  scope: OcrScope,
   imageUrls: string[],
 ): Promise<InsuranceOcrActionResult> {
+  // First, before any lookup — a flood should not get us as far as the database.
+  if (!(await rateLimitPublicAction('insurance_ocr', { limit: 6, windowMs: 10 * 60 * 1000 }))) {
+    return { ok: false, error: 'Too many tries just now — please wait a moment, or type your details.' }
+  }
+  const siteSlug = scope?.siteSlug ?? ''
+  const templateId = scope?.templateId ?? ''
+  if (!siteSlug || !templateId) {
+    return { ok: false, error: 'Something went wrong. Please refresh and try again.' }
+  }
+  const orgId = await resolveClinicOrgIdBySlug(siteSlug)
   if (!orgId) return { ok: false, error: 'Something went wrong. Please refresh and try again.' }
+  // The scan has to belong to a real form on that clinic's site. A retired
+  // form is not a door into the allowance either.
+  const template = await getFormTemplate(orgId, templateId)
+  if (!template || template.archivedAt) {
+    return { ok: false, error: 'Something went wrong. Please refresh and try again.' }
+  }
   const urls = (Array.isArray(imageUrls) ? imageUrls : []).filter(isAllowedAttachmentUrl).slice(0, 2)
   if (urls.length === 0) return { ok: false, error: 'Add a photo of your card first.' }
   const result = await readInsuranceCard({ organizationId: orgId, imageUrls: urls })

@@ -1360,7 +1360,42 @@ anyone who can upload through `/api/upload` can spend an ARBITRARY clinic's
 Slice 13 closed the "any URL on the internet" half. This is the "whose
 allowance" half: after Slice 13 the images must at least be ours, so it is a
 signed-in caller rather than a stranger, which is narrower and not closed.
-Pre-existing. · OPEN.
+Pre-existing. · **FIXED** (DREAMCRM-32) — three gates, in the order the action
+runs them: the per-IP `rateLimitPublicAction('insurance_ocr')` every other
+public action already had, running FIRST so a flood costs a counter rather
+than a query; the org resolved from the PUBLIC SLUG via
+`resolveClinicOrgIdBySlug`, never a client-posted id, which is the law
+`submitContactRequest` and the insurance verifier already follow; and the form
+template re-validated against THAT org, so a caller has to name a real,
+unarchived intake form belonging to the clinic whose page they claim to be on
+(an archived form is not a door into the allowance either). The client no
+longer holds an organization id at all on this path: `IntakeFormRunner` threads
+an `OcrScope` of `{ siteSlug, templateId }` built once at the top, so the field
+components have nothing to hand the server.
+`tests/guards/public-action-tenancy.test.ts` freezes the rule for the whole
+`app/site/**` tree.
+
+### Open — three OTHER public clinic-site actions still take a client-posted orgId (found 2026-09-14)
+
+Found by the guard written for the scanner above, and NOT closed by it — same
+shape, three different calls, so bundling them would have put one verdict over
+several defects. They are ALLOWLISTED (with these reasons) in
+`tests/guards/public-action-tenancy.test.ts`:
+
+- `app/site/[slug]/actions.ts` `listBookingSlots(orgId, …)` — a READ of public
+  availability. No write, no spend, and it returns the same slots the page
+  already renders to anyone.
+- `app/site/[slug]/intake/[formSlug]/actions.ts` `submitIntakeForm({ orgId, … })`
+  — re-validates `templateId` against the posted org, so a submission can only
+  land on a form that org really owns. Spends nothing, and the form is public
+  anyway; what it lacks is a rate limit.
+- `app/site/[slug]/intake-start/actions.ts` `linkUserToClinicAsPatient({ orgId, … })`
+  — re-reads the org, requires a signed-in session, and links the CALLER to a
+  clinic whose public page already offers exactly that.
+
+None is the scanner's defect (metered per-call spend on someone else's cap),
+which is why the scanner was fixed and these were written down. The one worth
+a decision is the missing rate limit on `submitIntakeForm`. · OPEN.
 
 ### Slice 8 — stranded-campaign recovery · DONE
 

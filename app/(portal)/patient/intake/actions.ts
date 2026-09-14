@@ -75,7 +75,10 @@ async function runPatientIntakeSubmission(input: PatientIntakeInput) {
  *  check at all, so any `http(s)` URL a signed-in patient posted was fetched and
  *  billed to their clinic's scanning allowance. */
 export async function readPatientInsuranceCardAction(
-  _orgId: string,
+  /** The public site's `OcrScope`. Deliberately IGNORED: the portal's clinic
+   *  comes from the session, where it is not the caller's to choose. Kept in
+   *  the signature so both call sites share one `OcrAction` shape. */
+  _scope: unknown,
   imageUrls: string[],
 ): Promise<{ ok: true; fields: InsuranceCardFields } | { ok: false; error: string }> {
   const ctx = await requireTenant()
