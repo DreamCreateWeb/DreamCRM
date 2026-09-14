@@ -73,6 +73,11 @@ vi.mock('drizzle-orm', () => ({
   }),
 }))
 
+const reverseLoyalty = vi.fn(async () => true)
+vi.mock('@/lib/services/loyalty', () => ({
+  reverseLoyaltyForRefundedPayment: (...args: unknown[]) => reverseLoyalty(...(args as [])),
+}))
+
 import { recordConnectRefund, planRefundWrite } from '@/lib/services/refunds'
 
 const ORG = 'org_a'
@@ -97,6 +102,8 @@ beforeEach(() => {
   state.updateReturns = []
   eqCalls.length = 0
   lteCalls.length = 0
+  reverseLoyalty.mockClear()
+  reverseLoyalty.mockResolvedValue(true)
 })
 
 describe('planRefundWrite', () => {
@@ -245,5 +252,75 @@ describe('recordConnectRefund — safety', () => {
     state.selectQueue = [[{ id: 'so_1', status: 'paid', refundedAmountCents: 0, refundedAt: null }], [], []]
     state.updateReturns = [[]]
     expect(await recordConnectRefund(event())).toEqual([])
+  })
+})
+
+/**
+ * LOYALTY FOLLOWS THE MONEY (DREAMCRM-32). The balance payment stays 'paid'
+ * after a refund, so nothing else would have taken the points back.
+ */
+describe('recordConnectRefund — loyalty points', () => {
+  const bp = (over: Record<string, unknown> = {}) => [
+    {
+      id: 'bp_1',
+      status: 'paid',
+      amountCents: 5_000,
+      refundedAmountCents: 0,
+      refundedAt: null,
+      ...over,
+    },
+  ]
+
+  it('hands the payment’s own amounts to the reversal on a full refund', async () => {
+    state.selectQueue = [[], bp(), []]
+    await recordConnectRefund(event())
+    expect(reverseLoyalty).toHaveBeenCalledWith(ORG, 'bp_1', {
+      amountCents: 5_000,
+      refundedAmountCents: 5_000,
+    })
+  })
+
+  it('passes a PARTIAL refund through — the reversal decides, not the caller', async () => {
+    state.selectQueue = [[], bp(), []]
+    await recordConnectRefund(event({ amountRefundedCents: 1_500 }))
+    expect(reverseLoyalty).toHaveBeenCalledWith(ORG, 'bp_1', {
+      amountCents: 5_000,
+      refundedAmountCents: 1_500,
+    })
+  })
+
+  it('uses the LARGER of stored and event totals, so an out-of-order event cannot un-refund', async () => {
+    // The row already records the full $50; this stale $15 event must not make
+    // the payment look partly refunded and leave the points in place.
+    state.selectQueue = [[], bp({ refundedAmountCents: 5_000 }), []]
+    await recordConnectRefund(event({ amountRefundedCents: 1_500 }))
+    expect(reverseLoyalty).toHaveBeenCalledWith(ORG, 'bp_1', {
+      amountCents: 5_000,
+      refundedAmountCents: 5_000,
+    })
+  })
+
+  it('still reverses on a REDELIVERED refund the money record had already recorded', async () => {
+    // planRefundWrite returns null here (nothing new to write), which is
+    // exactly the delivery that would strand the points if a crash had
+    // landed between the money write and the ledger write.
+    state.selectQueue = [[], bp({ refundedAmountCents: 5_000 }), []]
+    const kinds = await recordConnectRefund(event())
+    expect(kinds).toEqual([]) // no MONEY record moved
+    expect(reverseLoyalty).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reach for the ledger when no balance payment owns the charge', async () => {
+    state.selectQueue = [...NO_ROWS]
+    await recordConnectRefund(event())
+    expect(reverseLoyalty).not.toHaveBeenCalled()
+  })
+
+  it('a failing loyalty write never costs us the refund record', async () => {
+    reverseLoyalty.mockRejectedValue(new Error('ledger down'))
+    state.selectQueue = [[], bp(), []]
+    const kinds = await recordConnectRefund(event())
+    expect(kinds).toEqual(['balance_payment'])
+    expect(state.updates).toHaveLength(1)
   })
 })

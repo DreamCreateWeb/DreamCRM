@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, eq, lte } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { reverseLoyaltyForRefundedPayment } from './loyalty'
 
 /**
  * Stripe-side refunds, brought back into our own money records.
@@ -101,6 +102,10 @@ export function planRefundWrite(
  * charge. Returns the kinds actually updated (empty = none of ours, or an
  * event we had already recorded).
  *
+ * A fully refunded balance payment also takes its loyalty points back — see
+ * that block. The return value keeps meaning "which MONEY records moved", so
+ * a points reversal on an already-recorded refund does not resurrect it.
+ *
  * A PaymentIntent belongs to exactly one of the three, but all three are
  * checked rather than trusting event metadata to say which — a refund issued
  * from the Stripe dashboard carries none.
@@ -157,6 +162,7 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
       .select({
         id: schema.patientBalancePayment.id,
         status: schema.patientBalancePayment.status,
+        amountCents: schema.patientBalancePayment.amountCents,
         refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
         refundedAt: schema.patientBalancePayment.refundedAt,
       })
@@ -185,6 +191,27 @@ export async function recordConnectRefund(event: ConnectRefundEvent): Promise<Re
         )
         .returning({ id: schema.patientBalancePayment.id })
       if (done.length > 0) updated.push('balance_payment')
+    }
+    // Loyalty follows the money. A payment that has been sent back in FULL
+    // must not leave the patient holding the points it earned, and the
+    // ledger is one of our money records too.
+    //
+    // This runs off the ROW, not off `plan`, and on every delivery: a
+    // redelivered event whose amount we had already recorded still finds a
+    // reversal that a crash between the two writes would otherwise have
+    // lost. The reversal is idempotent by unique index, so calling it again
+    // costs nothing. Best-effort — the refund record is the thing that must
+    // land, and a loyalty write that fails must never cost us that.
+    if (row) {
+      const refundedTotal = Math.max(row.refundedAmountCents ?? 0, event.amountRefundedCents)
+      try {
+        await reverseLoyaltyForRefundedPayment(event.organizationId, row.id, {
+          amountCents: row.amountCents,
+          refundedAmountCents: refundedTotal,
+        })
+      } catch (err) {
+        console.warn('[refunds] could not reverse loyalty points', { paymentId: row.id }, err)
+      }
     }
   }
 

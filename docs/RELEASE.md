@@ -530,6 +530,27 @@ binding are all correct. The payment-plan charger was the exception.
   fails on a raw `sum()` over a refundable column, a raw `+=` off one, or the
   subtraction open-coded anywhere else; its red run was watched against the
   live bug in both `collections.ts` and `shop.ts`.
+- S3 · a refunded online payment still earned its patient loyalty points.
+  The balance-payment row keeps `status = 'paid'` after a refund on purpose,
+  so the daily accrual sweep read it as money the patient had paid, and
+  nothing took back points already awarded when the refund landed later.
+  Split from the netting entry above on contact: that one is a SUM reading a
+  column it never read, this one is a LEDGER holding a reward that is no
+  longer earned — one verdict could not have closed both honestly. ·
+  **FIXED** (DREAMCRM-32) — both halves, because a refund can land on either
+  side of the sweep: the sweep skips a payment with nothing left on it, and
+  `reverseLoyaltyForRefundedPayment` writes a compensating negative
+  `kind = 'reverse'` row when the refund arrives afterwards, called
+  best-effort from `recordConnectRefund` on EVERY delivery (so a crash
+  between the money write and the ledger write is recovered by the
+  redelivery rather than stranding the points). A PARTIAL refund keeps the
+  award — points per payment are a flat number, not a rate, and the patient
+  did pay. The reversal mirrors the EARN ROW's value rather than today's
+  settings, so a clinic that raised its award in between cannot claw back
+  more than it gave; idempotency is free from the existing unique
+  (org, kind, source_id) index with the payment id as the anchor. The
+  balance may go negative if the points are already spent — the honest
+  outcome, and an already-minted coupon is never voided.
 - S2 · `finalizeOrderFromSession` did not know 'refunded' was a terminal
   state, so a refunded shop order could be written back to `'paid'` by a page
   RELOAD. `app/site/[slug]/shop/success/page.tsx` finalizes on every load (an

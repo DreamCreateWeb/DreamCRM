@@ -3,6 +3,7 @@ import { and, desc, eq, gte, isNotNull, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { resolveLoyaltySettings, type LoyaltySettings } from '@/lib/types/loyalty'
 import { newId } from '@/lib/utils'
+import { netCollectedCents } from '@/lib/net-collected'
 
 /**
  * The loyalty engine. Earning is a DAILY IDEMPOTENT SWEEP (not hooks in five
@@ -13,6 +14,21 @@ import { newId } from '@/lib/utils'
  * once no matter how often the cron runs. Redemption mints a single-use
  * patient-bound shop coupon (source 'loyalty') and writes the negative row
  * in the same breath.
+ *
+ * REFUNDS (DREAMCRM-32). A balance payment keeps `status = 'paid'` after
+ * Stripe sends the money back — that is deliberate (lib/services/refunds.ts)
+ * — so the sweep would happily award points for a payment the patient no
+ * longer made. Two halves close it, and both are needed because a refund can
+ * land on either side of the daily sweep:
+ *
+ *  - the sweep SKIPS a payment with nothing left on it, so points that were
+ *    never earned are never written;
+ *  - `reverseLoyaltyForRefundedPayment` takes back points already awarded
+ *    when the refund arrives afterwards.
+ *
+ * A PARTIAL refund keeps the award. Points per payment are a flat number, not
+ * a rate on the amount — the patient did pay, and clawing back the whole
+ * award because $10 of $200 came back is a worse answer than leaving it.
  */
 
 const SWEEP_WINDOW_DAYS = 30
@@ -221,7 +237,12 @@ export async function runLoyaltyAccrual(opts?: { now?: Date }): Promise<LoyaltyA
     // 3. Online balance payments.
     if (settings.pointsPerPayment > 0) {
       const payments = await db
-        .select({ id: schema.patientBalancePayment.id, patientId: schema.patientBalancePayment.patientId })
+        .select({
+          id: schema.patientBalancePayment.id,
+          patientId: schema.patientBalancePayment.patientId,
+          amountCents: schema.patientBalancePayment.amountCents,
+          refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
+        })
         .from(schema.patientBalancePayment)
         .where(
           and(
@@ -232,6 +253,10 @@ export async function runLoyaltyAccrual(opts?: { now?: Date }): Promise<LoyaltyA
         )
         .limit(1000)
       for (const p of payments) {
+        // The row stays 'paid' after a refund, so 'paid' is not the question
+        // — whether any of it is still the clinic's is. Nothing left means
+        // nothing to thank them for.
+        if (netCollectedCents(p.amountCents, p.refundedAmountCents) <= 0) continue
         if (await insertEarn(orgId, p.patientId, 'payment', p.id, settings.pointsPerPayment, 'Online payment')) {
           result.earned++
         }
@@ -240,6 +265,71 @@ export async function runLoyaltyAccrual(opts?: { now?: Date }): Promise<LoyaltyA
   }
 
   return result
+}
+
+/**
+ * Take back the points a balance payment earned, once Stripe has sent ALL of
+ * it back. Called from the refund path; returns whether a reversal was
+ * written.
+ *
+ * A compensating NEGATIVE row rather than a delete: the ledger is the
+ * patient's own history and a reward that quietly evaporates is worse than
+ * one that is visibly returned. `kind: 'reverse'` earns idempotency from the
+ * existing unique (org, kind, source_id) index for free — the payment id is
+ * the anchor, so a redelivered webhook writes nothing a second time.
+ *
+ * It mirrors the EARN ROW's point value, not today's settings: a clinic that
+ * raised its per-payment award between the payment and the refund must not
+ * claw back more than it gave. No earn row (the sweep had not run yet, or the
+ * payment was already fully refunded when it did) means there is nothing to
+ * reverse, and this is a no-op.
+ *
+ * The balance CAN go negative if the patient has already spent the points.
+ * That is the honest outcome — `redeemLoyaltyPoints` reads the live balance,
+ * so they simply cannot redeem again until they have earned it back. Voiding
+ * an already-minted coupon would be taking back something the clinic handed
+ * over.
+ */
+export async function reverseLoyaltyForRefundedPayment(
+  organizationId: string,
+  paymentId: string,
+  charge: { amountCents: number; refundedAmountCents: number },
+): Promise<boolean> {
+  // A partial refund keeps the award — see the module header.
+  if (netCollectedCents(charge.amountCents, charge.refundedAmountCents) > 0) return false
+
+  const [earned] = await db
+    .select({
+      patientId: schema.loyaltyEvent.patientId,
+      points: schema.loyaltyEvent.points,
+    })
+    .from(schema.loyaltyEvent)
+    .where(
+      and(
+        eq(schema.loyaltyEvent.organizationId, organizationId),
+        eq(schema.loyaltyEvent.kind, 'payment'),
+        eq(schema.loyaltyEvent.sourceId, paymentId),
+      ),
+    )
+    .limit(1)
+  if (!earned || earned.points <= 0) return false
+
+  try {
+    await db.insert(schema.loyaltyEvent).values({
+      id: newId('loy'),
+      organizationId,
+      patientId: earned.patientId,
+      kind: 'reverse',
+      points: -earned.points,
+      sourceId: paymentId,
+      note: 'Online payment refunded — points returned',
+    })
+    return true
+  } catch {
+    // Unique (org, 'reverse', paymentId) — already reversed. The whole path
+    // leans on this the way the sweep leans on it for earning.
+    return false
+  }
 }
 
 // ── Redemption + adjustment ──────────────────────────────────────────────────

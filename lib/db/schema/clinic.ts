@@ -1655,12 +1655,15 @@ export const loyaltyEvent = pgTable(
     id: text('id').primaryKey(),
     organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
     patientId: text('patient_id').notNull().references(() => patient.id, { onDelete: 'cascade' }),
-    // 'visit' | 'referral' | 'payment' | 'redeem' | 'adjust'
+    // 'visit' | 'referral' | 'payment' | 'reverse' | 'redeem' | 'adjust'
     kind: text('kind').notNull(),
-    // Positive = earned; negative = redeemed/adjusted away.
+    // Positive = earned; negative = redeemed/reversed/adjusted away.
     points: integer('points').notNull(),
     // Idempotency anchor: the appointment/referred-patient/payment id that
-    // earned the points ('adjust'/'redeem' rows use their own event id).
+    // earned the points ('adjust'/'redeem' rows use their own event id). A
+    // 'reverse' row re-uses the refunded PAYMENT's id, so the unique
+    // (org, kind, source_id) index makes taking points back idempotent the
+    // same way it makes awarding them idempotent.
     sourceId: text('source_id').notNull(),
     note: text('note'),
     createdByUserId: text('created_by_user_id'),
