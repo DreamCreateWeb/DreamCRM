@@ -1150,7 +1150,7 @@ export default function ThreadDetailPanel({
                                 key={m.id}
                                 className={`w-fit px-3.5 py-2 rounded-[var(--r-lg)] text-sm leading-relaxed whitespace-pre-wrap break-words ${tail} ${
                                   outbound
-                                    ? 'bg-teal-600 text-white dark:bg-teal-500'
+                                    ? 'bg-teal-600 text-white'
                                     : 'bg-[color:var(--color-surface-2)] text-gray-800 dark:text-gray-100 shadow-[inset_0_0_0_1px_var(--color-hairline)]'
                                 }`}
                               >

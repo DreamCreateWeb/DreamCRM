@@ -282,7 +282,7 @@ function TabButton({
       {label} <span className="text-gray-500 dark:text-gray-400 font-normal tabular-nums">({count})</span>
       {unread > 0 && (
         <span
-          className="ml-1 inline-flex items-center justify-center text-xs font-bold bg-amber-500 text-white dark:text-gray-900 rounded-full px-1.5 align-middle tabular-nums"
+          className="ml-1 inline-flex items-center justify-center text-xs font-bold bg-amber-500 text-gray-900 rounded-full px-1.5 align-middle tabular-nums"
           title={`${unread} unread`}
         >
           {unread}
@@ -323,7 +323,7 @@ function ClinicBucket({
         </div>
         {bucketUnread > 0 && (
           <span
-            className="text-xs font-bold bg-amber-500 text-white dark:text-gray-900 rounded-full px-1.5 py-0.5 tabular-nums"
+            className="text-xs font-bold bg-amber-500 text-gray-900 rounded-full px-1.5 py-0.5 tabular-nums"
             title={`${bucketUnread} unread in this clinic`}
           >
             {bucketUnread}
@@ -353,7 +353,7 @@ function ClinicBucket({
                   <div className="flex items-center gap-1.5 shrink-0">
                     {c.unreadCount > 0 && (
                       <span
-                        className="text-xs font-bold bg-amber-500 text-white dark:text-gray-900 rounded-full px-1.5 py-0.5 tabular-nums"
+                        className="text-xs font-bold bg-amber-500 text-gray-900 rounded-full px-1.5 py-0.5 tabular-nums"
                         title={`${c.unreadCount} unread`}
                       >
                         {c.unreadCount}

@@ -172,7 +172,7 @@ function StaffRow({
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-xs text-gray-400 hover:border-gray-400 transition relative"
+            className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-xs text-gray-500 dark:text-gray-300 hover:border-gray-400 transition relative"
             aria-label="Upload photo"
           >
             {value.photoUrl ? (
@@ -219,6 +219,7 @@ function StaffRow({
             <div className="w-24">
               <FocalPointPicker
                 compact
+                label={`Focus point for ${value.name || 'this team member'}'s photo`}
                 src={value.photoUrl}
                 aspectClass="aspect-[4/5]"
                 value={value.photoPosition ?? '50% 50%'}
