@@ -234,25 +234,6 @@ export async function finalizeBookingDepositFromSession(
   return receipt
 }
 
-/** Deposit status for one appointment (drawer pill). Null = no deposit. */
-export async function depositForAppointment(
-  organizationId: string,
-  appointmentId: string,
-): Promise<{ amountCents: number; status: string } | null> {
-  const [row] = await db
-    .select({ amountCents: schema.bookingDeposit.amountCents, status: schema.bookingDeposit.status })
-    .from(schema.bookingDeposit)
-    .where(
-      and(
-        eq(schema.bookingDeposit.organizationId, organizationId),
-        eq(schema.bookingDeposit.appointmentId, appointmentId),
-      ),
-    )
-    .orderBy(desc(schema.bookingDeposit.createdAt))
-    .limit(1)
-  return row ?? null
-}
-
 export interface BookingDepositRow {
   id: string
   patientId: string

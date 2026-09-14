@@ -48,8 +48,15 @@ import { SuccessWell } from '@/components/clinic-site/success-well'
  *
  * The public action resolves the clinic from `siteSlug` and re-validates
  * `templateId` against it, so a scan can only ever spend the allowance of the
- * clinic whose form it was served from. The portal's action ignores both and
- * takes the org from the session, where it is not the caller's to choose.
+ * clinic whose slug the caller posted — and only against a real, live form of
+ * that clinic. BE PRECISE ABOUT WHAT THAT BUYS: both values are public, read
+ * straight off any clinic's own intake page, so this narrows the target to a
+ * real practice with a real form rather than any org id a caller invents. What
+ * actually bounds the DRAIN is the per-IP rate limit the action gained at the
+ * same time. Both matter; neither is the whole answer on its own.
+ *
+ * The portal's action ignores this entirely and takes the org from the
+ * session, where it is genuinely not the caller's to choose.
  */
 export interface OcrScope {
   /** The public clinic-site slug this form is served under. */

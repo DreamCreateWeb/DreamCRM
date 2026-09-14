@@ -38,6 +38,12 @@ export type InsuranceOcrActionResult =
  *     claim to be on. `submitIntakeForm` below has always done this, for
  *     exactly this reason.
  *
+ * What (2) and (3) buy is narrower than "the clinic whose page served this",
+ * and it is worth saying so: a slug and a form id are both PUBLIC, so a caller
+ * can still name someone else's clinic. They stop an arbitrary org id and pin
+ * the scan to a real practice with a real live form. The thing that actually
+ * bounds the drain is (1).
+ *
  * Storage stays gated too. `isAllowedAttachmentUrl` matches the exact hosts
  * our storage drivers mint — this used to be a hand-rolled SUBSTRING match on
  * the host that accepted any public S3 bucket on the internet — and the

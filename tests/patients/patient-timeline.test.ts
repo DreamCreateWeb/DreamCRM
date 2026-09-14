@@ -111,6 +111,50 @@ describe('getPatientTimeline — commerce + review events', () => {
     expect(pay.href).toBe('/payments/online')
   })
 
+  /**
+   * A refund keeps the SHOP ORDER's face value in the title — this is a record
+   * of what happened on the day it happened — and says what changed since in
+   * the subtitle. Before this the clinic's timeline said "Paid" while the
+   * patient's own portal said "Refunded to you": one event, two stories.
+   */
+  it('a partly refunded order says how much came back', async () => {
+    state.shopOrder = [
+      { id: 'o2', status: 'paid', totalCents: 8900, refundedAmountCents: 2000, createdAt: new Date('2026-05-01'), paidAt: new Date('2026-05-01') },
+    ]
+    state.shopOrderItem = [{ orderId: 'o2', productName: 'Whitening Kit', quantity: 1 }]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    const order = events.find((e) => e.kind === 'shop_order')!
+    expect(order.title).toBe('1× Whitening Kit — $89.00')
+    expect(order.subtitle).toBe('$20.00 refunded')
+  })
+
+  it('a fully refunded order says so instead of "Paid"', async () => {
+    state.shopOrder = [
+      { id: 'o3', status: 'refunded', totalCents: 8900, refundedAmountCents: 8900, createdAt: new Date('2026-05-01'), paidAt: new Date('2026-05-01') },
+    ]
+    state.shopOrderItem = [{ orderId: 'o3', productName: 'Whitening Kit', quantity: 1 }]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    expect(events.find((e) => e.kind === 'shop_order')!.subtitle).toBe('Refunded')
+  })
+
+  it('a refunded balance payment says so — the row stays "paid" by design', async () => {
+    state.patientBalancePayment = [
+      { id: 'bp2', status: 'paid', amountCents: 12000, refundedAmountCents: 12000, createdAt: new Date('2026-03-01'), paidAt: new Date('2026-03-01') },
+    ]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    const pay = events.find((e) => e.kind === 'balance_payment')!
+    expect(pay.title).toBe('Paid $120.00 toward balance online')
+    expect(pay.subtitle).toBe('Online payment · Refunded')
+  })
+
+  it('an untouched payment keeps its plain subtitle', async () => {
+    state.patientBalancePayment = [
+      { id: 'bp3', status: 'paid', amountCents: 12000, refundedAmountCents: 0, createdAt: new Date('2026-03-01'), paidAt: new Date('2026-03-01') },
+    ]
+    const events = await getPatientTimeline('org_1', 'pat_1')
+    expect(events.find((e) => e.kind === 'balance_payment')!.subtitle).toBe('Online payment')
+  })
+
   it('includes a completed review with its star rating + text', async () => {
     state.reviewRequest = [
       { id: 'r1', rating: 5, reviewText: 'Loved it', completedAt: new Date('2026-02-01'), selectedSite: 'google' },

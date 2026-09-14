@@ -81,6 +81,35 @@ export function collectedCents(
   return isCollectedStatus(status) ? netCollectedCents(amountCents, refundedAmountCents) : 0
 }
 
+/**
+ * How a per-EVENT surface says money came back — `null` when none did.
+ *
+ * The netting rule is for TOTALS. A timeline entry, a thread marker and a
+ * receipt are records of what happened on the day it happened, so their face
+ * value is correct and must not be netted away: the patient really did pay
+ * $400 on the 3rd. What they owe the reader is the rest of the story, and the
+ * batch sweep found three of them telling the clinic "$400 paid" while the
+ * patient's own portal already said "Refunded to you" — one event, two
+ * stories, and a front desk on the phone between them.
+ *
+ * Single-homed here for the same reason the arithmetic is: the wording is the
+ * thing that has to agree across surfaces. The caller passes its own money
+ * formatter, because these surfaces disagree about `$50` vs `$50.00` and that
+ * is a house-style question, not a money one.
+ */
+export function refundNote(
+  amountCents: number | null | undefined,
+  refundedAmountCents: number | null | undefined,
+  formatCents: (cents: number) => string,
+): string | null {
+  const refunded = Math.max(0, refundedAmountCents ?? 0)
+  if (refunded <= 0) return null
+  const amount = amountCents ?? 0
+  return refunded >= amount && amount > 0
+    ? 'Refunded'
+    : `${formatCents(refunded)} refunded`
+}
+
 /** `amount − refunded`, clamped at 0, for ONE row. */
 export function netCollectedSql(amount: AnyColumn, refunded: AnyColumn): SQL<number> {
   return sql<number>`greatest(${amount} - coalesce(${refunded}, 0), 0)`

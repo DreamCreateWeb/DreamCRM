@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { refundNote } from '@/lib/net-collected'
 import { cancelActorLabel } from '@/lib/cancel-actor'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -108,6 +109,8 @@ interface RawShopOrder {
   id: string
   status: string
   totalCents: number
+  /** Cents Stripe sent back on this charge — see the subtitle in the render. */
+  refundedAmountCents: number | null
   createdAt: Date
   paidAt: Date | null
 }
@@ -123,6 +126,8 @@ interface RawBalancePayment {
   id: string
   status: string
   amountCents: number
+  /** The row stays 'paid' after a refund by design, so this is the only tell. */
+  refundedAmountCents: number | null
   createdAt: Date
   paidAt: Date | null
 }
@@ -352,6 +357,7 @@ export async function getPatientTimeline(
         id: schema.shopOrder.id,
         status: schema.shopOrder.status,
         totalCents: schema.shopOrder.totalCents,
+        refundedAmountCents: schema.shopOrder.refundedAmountCents,
         createdAt: schema.shopOrder.createdAt,
         paidAt: schema.shopOrder.paidAt,
       })
@@ -388,6 +394,7 @@ export async function getPatientTimeline(
         id: schema.patientBalancePayment.id,
         status: schema.patientBalancePayment.status,
         amountCents: schema.patientBalancePayment.amountCents,
+        refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
         createdAt: schema.patientBalancePayment.createdAt,
         paidAt: schema.patientBalancePayment.paidAt,
       })
@@ -691,8 +698,12 @@ export async function getPatientTimeline(
       id: `order_${o.id}`,
       kind: 'shop_order',
       occurredAt: paid && o.paidAt ? o.paidAt : o.createdAt,
+      // The TITLE keeps the face value — this is a record of what happened on
+      // the day it happened. What changed since goes in the subtitle, so the
+      // staff-side history and the patient's own portal tell one story.
       title: `${summary} — ${dollars(o.totalCents)}`,
-      subtitle: paid ? 'Paid' : o.status === 'pending' ? 'Pending payment' : o.status,
+      subtitle: refundNote(o.totalCents, o.refundedAmountCents, dollars)
+        ?? (paid ? 'Paid' : o.status === 'pending' ? 'Pending payment' : o.status),
       status: o.status,
       direction: null,
       href: '/shop/orders',
@@ -737,7 +748,11 @@ export async function getPatientTimeline(
       title: paid
         ? `Paid ${dollars(p.amountCents)} toward balance online`
         : `${dollars(p.amountCents)} balance payment — ${p.status}`,
-      subtitle: 'Online payment',
+      // The row stays 'paid' after a refund by design, so without this the
+      // timeline is the last place still saying the clinic kept the money.
+      subtitle: refundNote(p.amountCents, p.refundedAmountCents, dollars)
+        ? `Online payment · ${refundNote(p.amountCents, p.refundedAmountCents, dollars)}`
+        : 'Online payment',
       status: p.status,
       direction: null,
       href: '/payments/online',

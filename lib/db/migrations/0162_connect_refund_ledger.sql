@@ -11,15 +11,41 @@
 -- write path with `.limit(1)`; two rows sharing an id would file one clinic's
 -- refund in another clinic's records by coin-toss.
 --
--- IF THIS INDEX FAILS TO CREATE, DO NOT DROP IT TO GET THE DEPLOY THROUGH.
--- A duplicate here is not a migration problem, it is a live cross-tenant
--- money defect, and the two clinics involved have to be identified by a
--- person before either row is touched:
+-- PARTIAL on purpose: stripe_account_id is null for every clinic that has not
+-- connected Stripe, and again after disconnectShopStripe clears it, so a plain
+-- unique index would be satisfied by those nulls and say nothing.
+--
+-- ============ IF THIS INDEX FAILS TO CREATE, NOTHING STOPS ================
+--
+-- Do not read a failure here as "the deploy halted safely". It does not halt.
+-- Dockerfile:62 starts the server first and runs the migrator as
+-- `(db-migrate && resync-demo) || true`; App Runner has already marked the
+-- container healthy, scripts/db-migrate.mjs retries ~90s and exits 1 into that
+-- `|| true`, /api/admin/migrate returns a 500 nobody alarms on, and
+-- .github/workflows/deploy.yml has no migration step at all. So on a duplicate
+-- the deploy goes GREEN, the new code ships, and this file is silently skipped
+-- — and skipped again on every boot after.
+--
+-- Two consequences, both invisible:
+--   * `connect_refund` above is never created, so every membership refund
+--     falls into the console.warn in recordRefundReceipt — the exact defect
+--     this migration exists to close, now failing in production with a green
+--     tick beside it;
+--   * drizzle applies migrations IN ORDER, so every later migration is
+--     blocked behind this one for as long as the duplicate exists.
+--
+-- The fix is never to drop the index to get a deploy through. A duplicate is
+-- not a migration problem — it is a live cross-tenant money defect, and the
+-- two clinics have to be identified by a person before either row is touched:
+--
 --   select stripe_account_id, array_agg(organization_id)
 --     from shop_config where stripe_account_id is not null
 --    group by 1 having count(*) > 1;
--- PARTIAL on purpose: stripe_account_id is null for every clinic that has not
--- connected Stripe, and again after disconnectShopStripe clears it.
+--
+-- This query must come back EMPTY against production before this migration
+-- merges. It is a pre-merge check precisely because the post-merge one does
+-- not exist (see above).
+-- =========================================================================
 
 CREATE TABLE "connect_refund" (
 	"id" text PRIMARY KEY NOT NULL,

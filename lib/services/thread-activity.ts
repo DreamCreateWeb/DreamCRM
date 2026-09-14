@@ -1,6 +1,7 @@
 import 'server-only'
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
+import { refundNote } from '@/lib/net-collected'
 import { cancelActorLabel } from '@/lib/cancel-actor'
 import { formatClinicDayTime } from '@/lib/format-datetime'
 import { getClinicTimeZone } from '@/lib/services/clinic-timezone'
@@ -181,6 +182,7 @@ export async function listThreadActivity(
         .select({
           id: schema.patientBalancePayment.id,
           amountCents: schema.patientBalancePayment.amountCents,
+          refundedAmountCents: schema.patientBalancePayment.refundedAmountCents,
           paidAt: schema.patientBalancePayment.paidAt,
         })
         .from(schema.patientBalancePayment)
@@ -413,7 +415,9 @@ export async function listThreadActivity(
       occurredAt: p.paidAt as Date,
       icon: '💚',
       label: `Paid ${dollars(p.amountCents)} online`,
-      detail: null,
+      // The payment row keeps status 'paid' after a refund, so the marker has
+      // to carry the reversal itself or the thread keeps saying money came in.
+      detail: refundNote(p.amountCents, p.refundedAmountCents, dollars),
       href: '/payments/online',
     })
   }

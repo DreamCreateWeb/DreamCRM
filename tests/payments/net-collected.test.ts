@@ -3,6 +3,7 @@ import {
   netCollectedCents,
   collectedCents,
   isCollectedStatus,
+  refundNote,
   netCollectedSql,
   sumNetCollectedSql,
   keptFractionSql,
@@ -75,6 +76,45 @@ describe('isCollectedStatus / collectedCents', () => {
     // A pending order's face value is not money the clinic has.
     expect(collectedCents('pending', 10_000, 0)).toBe(0)
     expect(collectedCents('cancelled', 10_000, 0)).toBe(0)
+  })
+})
+
+/**
+ * The per-EVENT half of the rule. A timeline entry or a thread marker is a
+ * record of what happened on the day it happened, so its face value is
+ * correct — what it owes the reader is the rest of the story. Three clinic-
+ * side surfaces were saying "$400 paid" while the patient's own portal
+ * already said "Refunded to you".
+ */
+describe('refundNote', () => {
+  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`
+
+  it('says nothing when nothing came back', () => {
+    expect(refundNote(40_000, 0, fmt)).toBeNull()
+    expect(refundNote(40_000, null, fmt)).toBeNull()
+    expect(refundNote(40_000, undefined, fmt)).toBeNull()
+    expect(refundNote(40_000, -100, fmt)).toBeNull()
+  })
+
+  it('names the amount on a partial refund', () => {
+    expect(refundNote(40_000, 10_000, fmt)).toBe('$100.00 refunded')
+  })
+
+  it('just says Refunded when all of it went back', () => {
+    // An amount here would read as a second, separate refund.
+    expect(refundNote(40_000, 40_000, fmt)).toBe('Refunded')
+    expect(refundNote(40_000, 50_000, fmt)).toBe('Refunded')
+  })
+
+  it('falls back to the amount when the charge total is unknown', () => {
+    // Never claims a full refund it cannot actually establish.
+    expect(refundNote(0, 10_000, fmt)).toBe('$100.00 refunded')
+    expect(refundNote(null, 10_000, fmt)).toBe('$100.00 refunded')
+  })
+
+  it('uses the caller’s formatter — these surfaces disagree about cents', () => {
+    const whole = (c: number) => `$${Math.round(c / 100)}`
+    expect(refundNote(40_000, 10_000, whole)).toBe('$100 refunded')
   })
 })
 

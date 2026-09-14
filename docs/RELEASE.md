@@ -530,6 +530,15 @@ binding are all correct. The payment-plan charger was the exception.
   fails on a raw `sum()` over a refundable column, a raw `+=` off one, or the
   subtraction open-coded anywhere else; its red run was watched against the
   live bug in both `collections.ts` and `shop.ts`.
+  TWO PROPERTIES OF THE RULE worth knowing before reading a figure it produces
+  (Sentinel, review of #557): it NETS BY PAYMENT DATE, so an October refund
+  against a September payment reduces September and is invisible in October's
+  "Collected this month" and in the current bar of the 8-week heartbeat —
+  right for "what we kept", surprising for a clinic reconciling an October
+  bank statement; and "Best sellers" pro-rates against the ORDER TOTAL, which
+  includes shipping and tax, so a shipping-only refund reduces every product
+  line a little. Both are deliberate, and both are the kind of thing the next
+  person would otherwise rediscover as a bug.
 - S3 · four MORE surfaces showed refunded money as kept, found by the batch
   invariant sweep rather than by the ledger. Split from the netting entry
   above because they are a different failure: not a total that forgot to
@@ -554,7 +563,27 @@ binding are all correct. The payment-plan charger was the exception.
   written with BACKSPACE bytes where its word-boundary escapes belonged, so it
   matched nothing and passed on the first try; the red run against the live bug
   is what caught that. A guard authored straight to green proves only that it
-  runs.- S3 · a refunded online payment still earned its patient loyalty points.
+  runs.
+- S3 · three clinic-side HISTORY surfaces still read "$400 paid" on a charge
+  the patient had been refunded, while the patient's own portal said
+  "Refunded to you" — one event, two stories, and a front desk on the phone
+  between them. Its own entry because it is not a total that forgot to
+  subtract: these are per-EVENT records, whose face value is correct, and what
+  they owed the reader was the rest of the story. Found by Sentinel reviewing
+  #557, in the same sweep that produced the four above. · **FIXED**
+  (DREAMCRM-32) for the two a clinic reads as a narrative —
+  `lib/services/patient-timeline.ts` (both the shop-order and the
+  balance-payment entries) and `lib/services/thread-activity.ts` — via
+  `refundNote` in `lib/net-collected.ts`, which single-homes the WORDING for
+  the same reason that module single-homes the arithmetic. The title keeps the
+  face value; the subtitle carries what changed since. · OPEN for the third:
+  `lib/services/global-search.ts:393` labels a Cmd-K result
+  `"<who> — $89.00"` with the order status as its sublabel, so a FULLY
+  refunded order already discloses ("refunded") and a partly refunded one
+  reads "Paid order" at face value. It is an identifier in a result list
+  rather than a record of money, and changing it is a search-UX call — named
+  here rather than left unwritten.
+- S3 · a refunded online payment still earned its patient loyalty points.
   The balance-payment row keeps `status = 'paid'` after a refund on purpose,
   so the daily accrual sweep read it as money the patient had paid, and
   nothing took back points already awarded when the refund landed later.
@@ -630,6 +659,20 @@ binding are all correct. The payment-plan charger was the exception.
   which renders the declared index rather than assuming it (the Phase-3 lesson:
   the database is modelled in JavaScript here, so a schema fact this
   load-bearing gets read back).
+- S2 · **a failed migration does not stop a deploy, and nothing says so.**
+  Found by Sentinel reviewing #557, while checking the deploy note on
+  migration 0162 — which claimed a duplicate would halt the deploy. It would
+  not. `Dockerfile:62` starts the server first and runs the migrator as
+  `(db-migrate && resync-demo) || true`; App Runner has already marked the
+  container healthy, `scripts/db-migrate.mjs` retries ~90s and exits 1 into
+  that `|| true`, `/api/admin/migrate` returns a 500 nobody alarms on, and
+  `.github/workflows/deploy.yml` has no migration step at all. So a failing
+  migration ships GREEN, is skipped again on every boot, and — because
+  drizzle applies migrations in order — silently blocks every later migration
+  behind it. Whatever that migration was protecting is simply off in
+  production with a tick beside it. The note in 0162 now says this instead of
+  the opposite, but the pipeline is the defect: it is the deploy path, it
+  belongs to nobody yet, and it needs its own item and its own owner. · OPEN.
 - S3 · a refund that later FAILS is never un-recorded. Stripe decrements the
   charge's `amount_refunded` and fires `charge.refund.updated` with status
   `failed`; `recordConnectRefund` is monotonic by design, so the record keeps
