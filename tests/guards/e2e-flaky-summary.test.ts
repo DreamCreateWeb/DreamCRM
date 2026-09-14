@@ -132,17 +132,63 @@ describe('the flaky-run reporter', () => {
     ).toBe(written![1])
   })
 
-  it('is the file the CI workflow actually runs, and the upload is keyed off its output', () => {
-    const ci = readFileSync(join(process.cwd(), '.github/workflows/ci.yml'), 'utf8')
+  // Every workflow that runs the browser harness. Pinned as a set rather than
+  // just `ci.yml` (review of #552): the other two carry the same two hunks with
+  // nothing holding them there, and by this file's own argument the NIGHTLY is
+  // the run it matters most for, because nobody is watching it. A future
+  // workflow edit that quietly reverted the two unattended ones would have gone
+  // unnoticed for exactly as long as the flake they exist to catch.
+  const HARNESS_WORKFLOWS = [
+    '.github/workflows/ci.yml',
+    '.github/workflows/post-merge-e2e.yml',
+    '.github/workflows/nightly.yml',
+  ]
+
+  it.each(HARNESS_WORKFLOWS)('%s runs the reporter and keys its upload off it', (file) => {
+    const wf = readFileSync(join(process.cwd(), file), 'utf8')
 
     expect(
-      ci,
-      'the e2e job must run the flaky reporter, or nothing writes the summary',
+      wf,
+      `${file} runs the E2E harness, so it must also run the flaky reporter — otherwise a retry ` +
+        `there still happens in silence.`,
     ).toContain('node scripts/e2e-flaky-summary.mjs')
     expect(
-      ci,
-      'the Playwright report upload must fire on a flaky-but-GREEN run too — `if: failure()` alone ' +
-        'is the condition that threw away the portal-reschedule evidence three times.',
+      wf,
+      `${file}'s Playwright report upload must fire on a flaky-but-GREEN run too — ` +
+        '`if: failure()` alone is the condition that threw away the portal-reschedule evidence ' +
+        'three times.',
     ).toContain("if: failure() || steps.flaky.outputs.flaky == 'true'")
+  })
+
+  it('has no shebang, so this guard runs on a Windows checkout too', () => {
+    // Found the hard way, on this very file. git gives a Windows working tree
+    // CRLF endings, and vitest's SSR transform leaves the `\r` behind when it
+    // strips `#!…` — every test here died with a parse error at column 1, on
+    // Windows only, while CI (Linux, LF) stayed green. `docs/CI.md` says
+    // Windows is a supported dev platform, and this is the guard on the flake
+    // detector: losing it on one OS is exactly the kind of silent gap the rest
+    // of this file argues against.
+    const src = readFileSync(join(process.cwd(), 'scripts/e2e-flaky-summary.mjs'), 'utf8')
+    expect(
+      src.startsWith('#!'),
+      'scripts/e2e-flaky-summary.mjs must not start with a shebang: with CRLF line endings it ' +
+        'breaks vitest’s transform and this whole guard file stops running on Windows. The ' +
+        'workflows invoke it as `node scripts/e2e-flaky-summary.mjs`, so it buys nothing.',
+    ).toBe(false)
+  })
+
+  it('never exits non-zero, whatever happens inside it', () => {
+    // The three known paths are covered by running the CLI; this pins the
+    // PROPERTY rather than the enumeration (review of #552). `main()` wraps the
+    // whole body, so an unimagined throw — `appendFileSync` on a full disk, a
+    // report shape nobody pictured — cannot reach the process and turn an
+    // `if: always()` step red.
+    const src = readFileSync(join(process.cwd(), 'scripts/e2e-flaky-summary.mjs'), 'utf8')
+    expect(
+      /function main\(\)\s*\{\s*try\s*\{/.test(src),
+      'main() must wrap its whole body in try/catch. Guarding only the failure paths somebody ' +
+        'thought of leaves this step able to fail a build — which is how a reporting step gets ' +
+        'deleted, at the worst possible moment.',
+    ).toBe(true)
   })
 })

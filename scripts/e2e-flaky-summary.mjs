@@ -1,4 +1,11 @@
-#!/usr/bin/env node
+// NO SHEBANG, DELIBERATELY — the workflows run `node scripts/e2e-flaky-summary.mjs`,
+// so it was never load-bearing, and it broke `tests/guards/e2e-flaky-summary.test.ts`
+// on a Windows checkout. git hands this file to a Windows working tree with
+// CRLF endings, and vitest's SSR transform leaves the `\r` behind when it
+// strips `#!…`, so every test in that file died with a parse error at column 1
+// — on Windows only, while CI (Linux, LF) stayed green. `docs/CI.md` says
+// Windows is a supported dev platform; a guard that runs on one OS is half a
+// guard, and this one is the guard on the flake detector.
 /**
  * A TEST THAT PASSED ON THE SECOND TRY HAS TO LEAVE A TRACE.
  *
@@ -146,7 +153,35 @@ function githubOutput(key, value) {
   appendFileSync(file, `${key}=${value}\n`)
 }
 
+/**
+ * The unconditional version of "this never fails the run".
+ *
+ * `report()` below guards its three KNOWN failure paths individually — missing
+ * file, unparseable JSON, clean report. That is an enumeration, and an
+ * enumeration is only as good as the imagination behind it (review of #552):
+ * a throw out of `appendFileSync` on `$GITHUB_OUTPUT`, or out of
+ * `renderSummary` on a report shape nobody pictured, would escape, exit
+ * non-zero, and — on an `if: always()` step — turn the job RED.
+ *
+ * That is the one failure mode that gets this step deleted: a reporting step
+ * which fails a build people needed to be green is a reporting step someone
+ * removes at the worst possible moment. So the claim stops being a list of
+ * handled cases and becomes a property of the process: nothing this file does
+ * can make a run red, whatever happens inside it.
+ */
 function main() {
+  try {
+    report()
+  } catch (err) {
+    console.log(
+      `[flaky] the flaky reporter itself failed: ${err instanceof Error ? err.stack ?? err.message : err}`,
+    )
+    // Deliberately NOT re-thrown and deliberately NOT silent. The run keeps
+    // its real result; the reason this step said nothing is in the log.
+  }
+}
+
+function report() {
   const path = process.argv[2] ?? process.env.E2E_RESULTS_JSON ?? DEFAULT_RESULTS_PATH
   const check = process.env.FLAKY_CHECK_NAME || process.env.GITHUB_JOB || 'the browser suite'
 

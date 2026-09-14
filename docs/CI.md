@@ -144,9 +144,17 @@ Mechanics:
   tests to `$GITHUB_STEP_SUMMARY` **naming the check they flaked in** (a reader
   arriving from a green PR has no other way to tell `e2e` from `nightly-e2e`),
   emits a `::warning`, and sets `flaky` / `flaky-count` on `$GITHUB_OUTPUT`.
-- **It never exits non-zero.** Missing file, unparseable JSON, unexpected
-  shape — all print and exit 0. A reporting step that can turn a run red is a
-  reporting step somebody eventually deletes.
+- **It never exits non-zero** — as a property, not a list. `main()` wraps its
+  whole body in `try`/`catch`, so an unimagined throw (`appendFileSync` on a
+  full disk, a report shape nobody pictured) cannot reach the process. The
+  named paths — missing file, unparseable JSON, clean report — are handled
+  individually on top of that. A reporting step that can turn a run red is a
+  reporting step somebody eventually deletes, at the worst possible moment.
+- **No shebang on the script**, and the guard pins it. git hands a Windows
+  working tree CRLF endings, and vitest's transform leaves the `\r` when it
+  strips `#!…` — so every test in the guard file died at column 1 on Windows
+  while CI stayed green. The workflows invoke it as `node scripts/…`, so the
+  shebang bought nothing. Same rule for `scripts/review-gate.mjs`.
 - `if: always()` rather than `success()`: a run can be both red *and* flaky,
   and the flaky half is still worth naming.
 
@@ -154,10 +162,13 @@ Mechanics:
 it did before; this only decides what gets written down and kept.
 
 `tests/guards/e2e-flaky-summary.test.ts` pins the parts that could rot without
-anyone noticing — the detection itself, that a clean run reports nothing, and
-that the path the config WRITES is the path the script READS. That last one is
-the quiet one: rename either half and the reporter finds no file, says so in a
-log nobody opens, and every run keeps looking clean forever.
+anyone noticing — the detection itself, that a clean run reports nothing, that
+the path the config WRITES is the path the script READS, and that **all three**
+harness workflows carry the step. That third one is the quiet one: rename either
+half and the reporter finds no file, says so in a log nobody opens, and every
+run keeps looking clean forever. The fourth matters because `nightly-e2e` and
+`e2e-post-merge` are the unattended runs — the ones this is most for, and the
+ones a workflow edit could revert with nobody watching.
 
 Deliberately not done: `retries: 0`. It trades a quiet flake for a loud false
 red on every PR, and a required check that goes red for reasons nobody caused
