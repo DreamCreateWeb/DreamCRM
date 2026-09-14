@@ -688,6 +688,19 @@ binding are all correct. The payment-plan charger was the exception.
   comment, so nothing renders it, but it is the file the next person reads to
   learn what a tier costs and it teaches them the list price. Repro: read the
   header. · OPEN.
+- S3 · the two struck-through list prices name themselves with `aria-label` on
+  a bare `<span>` — `app/(marketing)/pricing/price-card.tsx:55` and
+  `app/(default)/platform/prospecting/prospect-drawer.tsx:344`. ARIA prohibits
+  an accessible name on `role=generic`, so that label is author error: NVDA and
+  JAWS honour it in practice and other combinations are entitled not to, in
+  which case the reader gets "$500 $200/mo" as one run with nothing saying
+  which number is dead. Repro: a screen reader on the public pricing page, or
+  on any prospect's deal room. Fix shape: a visually-hidden text node, or move
+  the label onto an element that can carry a name (`<s>`/`<del>`) — across BOTH
+  sites, since a quiet deviation on one of two identical surfaces is worse than
+  a consistent imperfection. Raised by Sentinel reviewing DREAMCRM-38, where
+  the deal-room half was written to match the existing sibling deliberately
+  rather than diverge from it. · OPEN.
 - S3 · nothing in the repo fails when a plan price is pasted somewhere new.
   Four separate surfaces had drifted to quoting $500 (the deal room, the demo
   track picker, the demo script's closing line, the launch blog post) and the
