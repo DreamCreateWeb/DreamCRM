@@ -110,12 +110,23 @@ jobs:
       - name: Run the E2E harness against the merged tree
         run: bash scripts/e2e-harness.sh
 
+      # Same reason as ci.yml's e2e job (DREAMCRM-33), and a stronger one: this
+      # run is UNATTENDED. A journey that fails on main and passes on the retry
+      # reports this alert green, and nobody was watching the one signal that
+      # would have said otherwise. The reporter never exits non-zero.
+      - name: Name any test that only passed on a retry
+        id: flaky
+        if: always()
+        run: node scripts/e2e-flaky-summary.mjs
+
       - name: Upload Playwright report
-        if: failure()
+        if: failure() || steps.flaky.outputs.flaky == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-post-merge
-          path: playwright-report/
+          path: |
+            playwright-report/
+            e2e-results.json
           retention-days: 7
 
       - name: Say plainly what a red run here means
