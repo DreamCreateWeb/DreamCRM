@@ -16,8 +16,13 @@ describe('ActionButton', () => {
     const btn = screen.getByRole('button', { name: '+ Add patient' })
     // v3: the one primary per surface is the dream-blue gradient (the teal-*
     // ramp IS the brand ramp — the hue it resolves to lives in style.css).
-    expect(btn.className).toContain('from-teal-400')
-    expect(btn.className).toContain('to-teal-600')
+    // The span is teal-600 → teal-800 since batch 61: white has to read across
+    // ALL of it, and the old teal-400 light end was 2.42:1. The contrast is
+    // GRADED, not pinned — `tests/a11y/token-contrast.test.ts` rule 3 measures
+    // every stop, so this assertion is only here to keep the signature from
+    // silently becoming something else.
+    expect(btn.className).toContain('from-teal-600')
+    expect(btn.className).toContain('to-teal-800')
     expect(btn.className).not.toContain('bg-violet')
   })
 

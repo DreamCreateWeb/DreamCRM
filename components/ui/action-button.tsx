@@ -8,8 +8,16 @@ const VARIANT_CLASSES: Record<ActionButtonVariant, string> = {
   // The ONE primary action per surface — the dream-blue gradient bubble,
   // nothing else competes. White text holds contrast in BOTH themes (the
   // fill stays a saturated blue gradient at night; it just glows more).
+  //
+  // The span runs teal-600 → teal-800 because white has to read across ALL of
+  // it: 5.09 at the light end, 9.50 at the deep end, no point under AA. The
+  // original `from-teal-400 to-teal-600` was 2.42 → 5.09 and only the final
+  // pixel-column cleared — axe reports a gradient as INCOMPLETE rather than
+  // failing, so no automated gate ever saw it (measured by hand on
+  // DREAMCRM-28, owner-approved on DREAMCRM-39). Hover deepens the light end
+  // one step, as it always did; it must never lighten back over the floor.
   primary:
-    'bg-gradient-to-br from-teal-400 to-teal-600 hover:from-teal-500 hover:to-teal-600 text-white shadow-[0_8px_20px_rgb(76_125_240_/_0.35)] hover:shadow-[0_10px_26px_rgb(76_125_240_/_0.45)]',
+    'bg-gradient-to-br from-teal-600 to-teal-800 hover:from-teal-700 hover:to-teal-800 text-white shadow-[0_8px_20px_rgb(76_125_240_/_0.35)] hover:shadow-[0_10px_26px_rgb(76_125_240_/_0.45)]',
   secondary:
     'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-gray-800 dark:text-gray-300',
   danger: 'bg-rose-600 hover:bg-rose-700 text-white',
@@ -22,9 +30,15 @@ const VARIANT_CLASSES: Record<ActionButtonVariant, string> = {
  * keyframes drift across (~6s, compositor-only). Reserved for the page's
  * SINGLE primary (PageHeader sets `breath` on its primary action).
  * Reduced-motion stills it.
+ *
+ * Same teal-600 → teal-800 span as `primary` above, mirrored so the drift
+ * returns to where it started. This skin is what the page's most prominent
+ * button ACTUALLY renders, so grading only `primary` would have graded the
+ * button nobody sees; its old `teal-400 via teal-600` drifted white text
+ * between 2.42 and 5.09 twice every six seconds.
  */
 const BREATH_CLASSES =
-  'breath bg-gradient-to-r from-teal-400 via-teal-600 to-teal-400 text-white shadow-[0_8px_20px_rgb(76_125_240_/_0.35)] hover:shadow-[0_10px_26px_rgb(76_125_240_/_0.45)]'
+  'breath bg-gradient-to-r from-teal-600 via-teal-800 to-teal-600 text-white shadow-[0_8px_20px_rgb(76_125_240_/_0.35)] hover:shadow-[0_10px_26px_rgb(76_125_240_/_0.45)]'
 
 const SIZE_CLASSES = { sm: 'btn-sm', md: 'btn' } as const
 

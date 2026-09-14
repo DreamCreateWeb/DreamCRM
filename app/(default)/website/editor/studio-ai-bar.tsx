@@ -383,7 +383,7 @@ export default function StudioAiBar({
           <button
             type="submit"
             disabled={!value.trim() || working || outOfEdits}
-            className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-teal-400 text-white dark:text-gray-900 shadow-md transition hover:brightness-110 disabled:opacity-40 disabled:cursor-default"
+            className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-teal-600 to-teal-800 text-white shadow-md transition hover:brightness-110 disabled:opacity-40 disabled:cursor-default"
             aria-label="Send"
           >
             {working ? (

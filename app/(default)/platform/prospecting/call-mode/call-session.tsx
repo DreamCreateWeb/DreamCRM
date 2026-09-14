@@ -328,7 +328,7 @@ export default function CallSession({ items }: { items: CallQueueItem[] }) {
           {/* The number — the one tap that matters. */}
           <a
             href={`tel:+1${item.phone}`}
-            className="relative mt-4 block rounded-[var(--r-md)] bg-gradient-to-b from-teal-700 to-teal-600 px-4 py-4 text-center transition hover:from-teal-600 hover:to-teal-500"
+            className="relative mt-4 block rounded-[var(--r-md)] bg-gradient-to-b from-teal-700 to-teal-600 px-4 py-4 text-center transition hover:from-teal-800 hover:to-teal-700"
           >
             <span className="absolute right-3 top-2.5 h-2 w-2 animate-pulse rounded-full bg-teal-200" aria-hidden="true" />
             <span className="font-mono-num text-2xl font-extrabold tracking-tight text-white">
