@@ -46,6 +46,18 @@ describe('read-check catalog', () => {
     }
   })
 
+  it('every entry bounds its own result set', () => {
+    // The route's MAX_ROWS caps AFTER materialisation — `result.rows.slice(0,
+    // 100)` runs once the whole result set is in memory, so it bounds what is
+    // logged, not what the production primary has to build. The entry's own
+    // LIMIT is the bound that exists before that. (Capping a gate check is
+    // safe: `duplicate-stripe-accounts` is judged empty-or-not, and 100
+    // duplicates is already a catastrophe.)
+    for (const c of READ_CHECKS) {
+      expect(/\blimit\s+\d+\s*$/i.test(c.sql.trim()), `${c.id} does not end with a LIMIT`).toBe(true)
+    }
+  })
+
   it('every entry declares its output and its tenant scope', () => {
     for (const c of READ_CHECKS) {
       expect(c.returns.length, `${c.id} must declare what it returns (the no-PHI rule is reviewed against it)`)

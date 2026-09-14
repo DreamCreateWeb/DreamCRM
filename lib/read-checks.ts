@@ -120,7 +120,8 @@ export const READ_CHECKS: ReadonlyArray<ReadCheck> = [
   from shop_config
  where stripe_account_id is not null
  group by 1
-having count(*) > 1`,
+having count(*) > 1
+ limit 100`,
   },
   {
     id: 'readonly-role-privileges',
@@ -145,7 +146,8 @@ having count(*) > 1`,
   from (values
     ${privilegeValues}
   ) as v(tbl, col)
- where has_column_privilege(current_user, v.tbl, v.col, 'SELECT')`,
+ where has_column_privilege(current_user, v.tbl, v.col, 'SELECT')
+ limit 100`,
   },
 ]
 

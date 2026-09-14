@@ -110,7 +110,20 @@ the write protection is the missing grant.
 
 ## Setup (owner, one time)
 
-1. **Create the role** — run `scripts/readonly-role.sql` against production.
+1. **Create the role** — run `scripts/readonly-role.sql` against production:
+
+   ```bash
+   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v dbname=<database-name> \
+     -f scripts/readonly-role.sql
+   ```
+
+   Both flags matter. **`ON_ERROR_STOP=1`**: without it a failure partway
+   leaves the rest unapplied — blanket `SELECT` granted, some or all of the
+   `REVOKE`s skipped — which is exactly the partial-application failure the
+   script's own header warns about, and it is one flag away. **`-v dbname=`**:
+   the script uses `:"dbname"` twice, and unlike `:DBNAME` that is not a
+   built-in, so an unset one substitutes literally and those statements fail.
+
    Generate the password with `openssl rand -base64 32`, somewhere it will not
    land in shell history.
 2. **App Runner env** — set `DATABASE_URL_READONLY` (same host/database as

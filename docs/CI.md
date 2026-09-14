@@ -1,6 +1,6 @@
 # CI — what gates what
 
-Five workflows. Only two of them can stop anything; the other three are alarms
+Seven workflows. Only two of them can stop anything; the other five are alarms
 and advisories.
 
 This file covers what runs *before* a merge and on the way to production. What
@@ -14,6 +14,29 @@ loads, including the one real clinic site — is `docs/OPS.md`.
 | `.github/workflows/post-merge-e2e.yml` | `push` to `main` | `e2e-post-merge` | the tree that just shipped | no — alert only |
 | `.github/workflows/nightly.yml` | `schedule` 07:00 UTC nominal (lands ~5h later) + dispatch | `nightly-test`, `nightly-e2e`, `tz-canary` | finding clock/race failures before someone trips over them | no — signal only |
 | `.github/workflows/review-gate.yml` | `pull_request` | `review-gate` | the pre-merge review gate | no — advisory only |
+| `.github/workflows/read-check.yml` | `workflow_dispatch` + `schedule` 07:00 UTC | `read-check` | the read-only role's privileges in production | no — never runs on a PR |
+| `.github/workflows/error-scan.yml` | `schedule` every 30 min + dispatch | `scan` | noticing errors inside the product | no — warns only |
+
+**The two newest ones touch production but gate nothing** (DREAMCRM-42;
+`docs/PROD-READ-ACCESS.md` is their runbook). Neither runs on a `pull_request`,
+neither publishes a required context, and neither can stop a merge.
+
+- **`read-check.yml`** runs one named entry from the catalog in
+  `lib/read-checks.ts` against production under a `SELECT`-only role. Its
+  scheduled run is `readonly-role-privileges`, and **a red run means a
+  credential column is readable in production** — the one alarm here worth
+  interrupting someone for. It shares 07:00 UTC with `nightly.yml`; they
+  contend for nothing.
+- **`error-scan.yml`** scans the App Runner log groups every 30 minutes and
+  writes findings to the job summary. It warns, never fails, because an alarm
+  that goes red on a transient is one people stop opening.
+
+Both distinguish **not configured yet** from **something is wrong**: a missing
+secret, a 503 from the route, or an un-assumable IAM role is a `::warning::`
+and `exit 0`. That is deliberate — they merged before the owner-side setup
+existed, and a workflow that has been failing daily for a fortnight for an
+unrelated reason has already been trained into noise by the time it first
+matters.
 
 **Job names are load-bearing.** `test` and `e2e` are the required status-check
 contexts on `main`. Nothing outside `ci.yml` and `deploy.yml` may use those two

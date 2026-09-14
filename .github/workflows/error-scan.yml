@@ -42,13 +42,28 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
+      # NOT CONFIGURED YET is not a failure. The role does not exist until the
+      # owner creates it (docs/PROD-READ-ACCESS.md step 4), and this runs every
+      # 30 minutes — so without this, merging would produce 48 red runs a day,
+      # each one mailing the owner, until setup is done. A workflow that has
+      # been red for a fortnight for an unrelated reason is one nobody reads on
+      # the day it finally means something.
       - name: Configure AWS credentials (OIDC, keyless)
+        id: aws
+        continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::952078552817:role/DreamCRMGitHubActionsReadOnly
           aws-region: us-east-1
 
+      - name: Not configured yet
+        if: steps.aws.outcome == 'failure'
+        run: |
+          echo "::warning::Could not assume DreamCRMGitHubActionsReadOnly — error scanning is not set up yet. See docs/PROD-READ-ACCESS.md."
+          echo "Not configured yet (could not assume the read-only role) — skipped, not failed." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Scan App Runner logs for errors
+        if: steps.aws.outcome == 'success'
         env:
           # Overlaps the 30-minute schedule slightly so nothing can fall between
           # two runs. A repeated error is noise; a missed one is the whole point.

@@ -240,15 +240,45 @@ describe('the read-only role cannot read a credential', () => {
     }
   })
 
-  it('the two credential lists agree', () => {
+  it('the two credential lists agree, at COLUMN granularity', () => {
     // N2: a new credential column must reach BOTH lists, or the scheduled
     // production check silently stops asserting about it.
-    const inCatalog = new Set(CREDENTIAL_COLUMN_LIST.map(([t]) => t))
-    const missingFromCatalog = Array.from(revoked).filter((t) => !inCatalog.has(t))
-    const missingFromSql = Array.from(inCatalog).filter((t) => !revoked.has(t))
+    //
+    // Compared per COLUMN, not per table, and the difference is not academic.
+    // A table-level comparison is satisfied the moment the table appears
+    // anywhere, so a NEW credential column on an ALREADY-REVOKED table passes
+    // every assertion in this file — `every credential-looking column lives in
+    // a revoked table` sees `revoked.has('appointment')` and moves on — while
+    // never reaching CREDENTIAL_COLUMNS, and so never being asserted about by
+    // `readonly-role-privileges`. Ever.
+    //
+    // That is harmless only while the whole table is revoked. It stops being
+    // harmless at exactly the moment this design plans for: the first narrow
+    // `GRANT SELECT (col, ...)` on one of these 19 tables. From then on the
+    // column-level grant is the thing that can leak, and the daily check's
+    // assertion list would have a hole precisely on the tables where narrow
+    // grants happen.
+    const inCatalog = new Set(CREDENTIAL_COLUMN_LIST.map(([t, c]) => `${t}.${c}`))
+    const benign = new Set(BENIGN.map((b) => `${b.table}.${b.column}`))
+
+    const shouldBeListed = [
+      ...columns
+        .filter((c) => CREDENTIAL_NAME.test(c.column))
+        .filter((c) => !benign.has(`${c.table}.${c.column}`))
+        .map((c) => `${c.table}.${c.column}`),
+      ...NAME_INVISIBLE.filter((n) => n.verdict === 'revoked').map((n) => `${n.table}.${n.column}`),
+    ]
+
+    const missingFromCatalog = shouldBeListed.filter((k) => !inCatalog.has(k))
+    const missingFromSql = Array.from(new Set(CREDENTIAL_COLUMN_LIST.map(([t]) => t))).filter(
+      (t) => !revoked.has(t),
+    )
     expect(
       { missingFromCatalog, missingFromSql },
-      'scripts/readonly-role.sql and CREDENTIAL_COLUMNS in lib/read-checks.ts must name the same tables',
+      'Every credential column must appear in CREDENTIAL_COLUMNS (lib/read-checks.ts) so the ' +
+        'scheduled readonly-role-privileges check asserts about it, AND its table must be revoked ' +
+        'in scripts/readonly-role.sql. Two lists on purpose: one changes production, the other ' +
+        'notices when production and the script have drifted apart.',
     ).toEqual({ missingFromCatalog: [], missingFromSql: [] })
   })
 
@@ -268,7 +298,30 @@ describe('the read-only role cannot read a credential', () => {
 
   it('the role script never grants a write or re-opens the default', () => {
     const sql = readLf(ROLE_SQL).replace(/--.*$/gm, '')
-    expect(/GRANT\s+(INSERT|UPDATE|DELETE|TRUNCATE|ALL)\b/i.test(sql)).toBe(false)
+
+    // Parse the PRIVILEGE LIST — the part between GRANT and ON — rather than
+    // scanning the statement. Two failures this avoids, one in each direction:
+    //
+    //   * `/GRANT\s+(INSERT|UPDATE|...)/` only catches a write privilege
+    //     written FIRST. It misses `GRANT SELECT, INSERT ON ...`, which is the
+    //     shape the mistake will actually have: this file tells the next person
+    //     to add `GRANT SELECT (col, ...) ON <table>`, so their edit already
+    //     begins with `GRANT SELECT` and a comma is one keystroke away.
+    //   * Widening to `/GRANT\b[^;]*\b(...|ALL)\b/` catches that, and then
+    //     false-positives on the legitimate `GRANT SELECT ON ALL TABLES IN
+    //     SCHEMA public` — the `ALL` there is `ALL TABLES`, not the `ALL`
+    //     privilege. A guard that fails on the correct line is one somebody
+    //     loosens.
+    const WRITE_PRIVILEGE = /\b(INSERT|UPDATE|DELETE|TRUNCATE|ALL)\b/i
+    const writeGrants = sql
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((statement) => {
+        const privileges = /^GRANT\s+([\s\S]*?)\s+ON\b/i.exec(statement)
+        return privileges ? WRITE_PRIVILEGE.test(privileges[1]!) : false
+      })
+    expect(writeGrants, 'dreamcrm_readonly must never be granted a write privilege').toEqual([])
     // N1: ALTER DEFAULT PRIVILEGES would auto-grant SELECT on future tables,
     // so a credential table added later would be readable in production while
     // this guard stayed green. It was deliberately removed; keep it removed.

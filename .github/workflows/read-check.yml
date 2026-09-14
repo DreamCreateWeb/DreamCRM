@@ -39,6 +39,12 @@ concurrency:
   group: read-check
   cancel-in-progress: false
 
+# Checks out nothing and needs nothing. Declared rather than inherited: the
+# repo default is `read` today, but that is a repo setting somebody can change
+# without touching this file, and a workflow that calls production should not
+# depend on one.
+permissions: {}
+
 jobs:
   read-check:
     runs-on: ubuntu-latest
@@ -67,9 +73,22 @@ jobs:
           BASE_URL: https://www.dreamcreatestudio.com
         run: |
           set -euo pipefail
+          # NOT CONFIGURED YET and DRIFT DETECTED are different facts, and this
+          # workflow must not spend the second one's credibility on the first.
+          #
+          # The whole value of the scheduled run is that a red result means a
+          # credential column is readable in production. Between this merging
+          # and the owner finishing setup, the secret does not exist — and a
+          # workflow that has been failing daily for a fortnight for an
+          # unrelated reason has already trained everyone to ignore it by the
+          # time it first matters. (It also mails the owner on every failure.)
+          #
+          # So: missing secret or a 503 from the route => warn and exit 0.
+          # A real answer that is wrong => error and exit 1, below.
           if [ -z "${ADMIN_READ_SECRET}" ]; then
-            echo "::error::ADMIN_READ_SECRET is not set. See docs/PROD-READ-ACCESS.md."
-            exit 1
+            echo "::warning::ADMIN_READ_SECRET is not set yet — skipping. Setup: docs/PROD-READ-ACCESS.md."
+            echo "Not configured yet (no ADMIN_READ_SECRET) — skipped, not failed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           # --fail-with-body so a non-2xx still prints the body (the route's
           # error strings are fixed and carry nothing sensitive) and still fails.
@@ -87,6 +106,13 @@ jobs:
             echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          # 503 is the route's fail-closed answer for "DATABASE_URL_READONLY is
+          # not set" — the other half of not-configured-yet. Same reasoning.
+          if [ "$HTTP" = "503" ]; then
+            echo "::warning::The read-only database is not configured yet — skipping. See docs/PROD-READ-ACCESS.md."
+            echo "Not configured yet (route returned 503) — skipped, not failed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [ "$HTTP" != "200" ]; then
             echo "::error::read-check returned HTTP ${HTTP}"
             exit 1

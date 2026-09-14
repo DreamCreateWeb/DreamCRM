@@ -84,8 +84,14 @@ export async function POST(request: Request) {
       rows,
     })
   } catch (err) {
-    // Server-side only. The driver's message can quote the failing SQL, and the
-    // response is bound for a shared Actions log.
+    // Kept out of the RESPONSE: the driver's message can quote the failing SQL
+    // and the response is bound for a shared Actions log.
+    //
+    // Not "kept out of every shared log", which would be untrue. This lands in
+    // the App Runner log group that error-scan.yml filters on `?Error ?error:`
+    // and prints into a job summary. For SELECT-only catalog queries the
+    // message is unlikely to carry row data, but the honest claim is "not in
+    // the response", not "nowhere anyone can read".
     console.error(`[read-check] ${check.id} failed:`, err)
     return NextResponse.json({ error: 'check failed' }, { status: 500 })
   } finally {
