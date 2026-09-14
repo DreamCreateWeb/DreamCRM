@@ -150,7 +150,7 @@ export default function SettingsPanel({ accounts, configured, flash, patientSend
                 onClick={() => handleUseAsSender(a.id)}
                 disabled={senderPending}
               >
-                {senderPending ? 'Working…' : `Send as ${a.emailAddress}`}
+                {`Send as ${a.emailAddress}`}
               </ActionButton>
             ))}
           </div>

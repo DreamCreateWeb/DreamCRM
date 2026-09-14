@@ -115,7 +115,7 @@ export default function MyDayFollowups({
         const due = followupDueState(f.dueDate)
         return (
           <li key={f.id} className="flex items-start gap-3 py-2.5">
-            <TickButton pending={pending && active === `${f.id}:complete`} onToggle={() => complete(f)} className="mt-0.5" />
+            <TickButton pending={pending && active === `${f.id}:complete`} disabled={pending} onToggle={() => complete(f)} className="mt-0.5" />
             <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-800 dark:text-gray-100">{f.title}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">

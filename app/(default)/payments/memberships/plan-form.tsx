@@ -131,7 +131,7 @@ export default function PlanForm({ plan }: { plan?: PlanRow }) {
 
         <div className="flex items-center gap-3 pt-2">
           <ActionButton variant="primary" pending={isPending} onClick={submit}>
-            {isPending ? 'Saving…' : plan ? 'Save changes' : 'Create plan'}
+            {plan ? 'Save changes' : 'Create plan'}
           </ActionButton>
           <Link href="/payments/memberships" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">Cancel</Link>
         </div>

@@ -83,6 +83,10 @@ export default function FollowupsBoard({
   // and row ACTIONS must not veil the board.
   const [rowPending, startRowTransition] = useTransition()
   const [navPending, startNavTransition] = useTransition()
+  // ONE row's action, not the whole board: `rowPending` is shared by every
+  // Row, so ticking the first follow-up put a spinner on every tick-box and
+  // disabled every assignee picker. `activeRow` is the row actually working.
+  const [activeRow, setActiveRow] = useState<string | null>(null)
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString())
@@ -95,6 +99,7 @@ export default function FollowupsBoard({
     setItems((cur) =>
       filters.includeDone ? cur.map((x) => (x.id === f.id ? { ...x, status: 'done' } : x)) : cur.filter((x) => x.id !== f.id),
     )
+    setActiveRow(f.id)
     startRowTransition(async () => {
       const res = await completeFollowupAction(f.id, f.patientId)
       if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
@@ -103,6 +108,7 @@ export default function FollowupsBoard({
   }
   function reopen(f: PatientFollowupView) {
     setItems((cur) => cur.map((x) => (x.id === f.id ? { ...x, status: 'open' } : x)))
+    setActiveRow(f.id)
     startRowTransition(async () => {
       const res = await reopenFollowupAction(f.id, f.patientId)
       if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
@@ -121,6 +127,7 @@ export default function FollowupsBoard({
       if (filters.mine && userId !== currentUserId) return mapped.filter((x) => x.id !== f.id)
       return mapped
     })
+    setActiveRow(f.id)
     startRowTransition(async () => {
       const res = await updateFollowupAction(f.id, f.patientId, { assignedUserId: userId })
       if (!res.ok) { setItems(rows); setToast({ message: res.error, tone: 'urgent' }) }
@@ -250,7 +257,8 @@ export default function FollowupsBoard({
                       onReassign={(u) => reassign(f, u)}
                       staff={staff}
                       currentUserId={currentUserId}
-                      pending={rowPending}
+                      pending={rowPending && activeRow === f.id}
+                      disabled={rowPending}
                     />
                   ))}
                 </ul>
@@ -265,7 +273,7 @@ export default function FollowupsBoard({
               </h2>
               <ul className="v2-card divide-y divide-[color:var(--color-hairline)]">
                 {doneItems.map((f) => (
-                  <Row key={f.id} f={f} onReopen={() => reopen(f)} pending={rowPending} done />
+                  <Row key={f.id} f={f} onReopen={() => reopen(f)} pending={rowPending && activeRow === f.id} disabled={rowPending} done />
                 ))}
               </ul>
             </section>
@@ -286,6 +294,7 @@ function Row({
   staff = [],
   currentUserId = '',
   pending,
+  disabled,
   done = false,
 }: {
   f: PatientFollowupView
@@ -294,13 +303,16 @@ function Row({
   onReassign?: (userId: string | null) => void
   staff?: Array<{ userId: string; name: string }>
   currentUserId?: string
+  /** THIS row's action is running — the only row that shows a spinner. */
   pending: boolean
+  /** Some row's action is running; the whole board's controls are unavailable. */
+  disabled: boolean
   done?: boolean
 }) {
   const due = followupDueState(f.dueDate)
   return (
     <li className="flex items-center gap-3 px-4 py-2.5">
-      <TickButton done={done} pending={pending} onToggle={() => (done ? onReopen?.() : onComplete?.())} />
+      <TickButton done={done} pending={pending} disabled={disabled} onToggle={() => (done ? onReopen?.() : onComplete?.())} />
       <div className="min-w-0 flex-1">
         <p className={`text-sm ${done ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-800 dark:text-gray-100'}`}>
           {f.title}
@@ -319,7 +331,7 @@ function Row({
         <select
           value={f.assignedUserId ?? ''}
           onChange={(e) => onReassign(e.target.value || null)}
-          disabled={pending}
+          disabled={disabled}
           aria-label="Assign follow-up"
           title="Assign this follow-up"
           // Quiet until you reach for it: the assignee reads as text in a list

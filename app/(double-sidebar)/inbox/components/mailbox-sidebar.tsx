@@ -203,7 +203,7 @@ export default function MailboxSidebar({
                 <rect x="3" y="4" width="18" height="4" rx="1" />
                 <path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8M10 12h4" strokeLinecap="round" />
               </svg>
-              {archivingAll ? 'Archiving…' : `Archive all ${threads.length}`}
+              {`Archive all ${threads.length}`}
             </ActionButton>
           </div>
         )}

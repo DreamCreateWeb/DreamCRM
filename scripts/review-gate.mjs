@@ -136,6 +136,30 @@ export const GATE_RULES = [
       'lib/trial.ts',
       'app/api/webhooks/stripe/**',
       'app/api/webhooks/stripe-connect/**',
+      // THE MONEY UI (batch 60, found by Sentinel reviewing #559). Until now
+      // this rule was `lib/**` plus the two Stripe webhooks, so a diff could
+      // contain the button that FIRES a partner payout and be reported
+      // "merges on green". The author classified it by hand and requested the
+      // review, so the human half worked — but the machine half would have
+      // told the next author the opposite, which is the quiet-wrong case the
+      // gate exists to remove.
+      //
+      // Deliberately NOT `app/(default)/shop/**` or `payments/**` wholesale.
+      // Those trees are mostly presentation, and gating every UI-polish PR on
+      // them would put the gate in the way often enough to get it routed
+      // around. What is listed is where money is actually SET IN MOTION: the
+      // server actions, and the named client surfaces that call a payout or a
+      // charge directly.
+      'app/(default)/shop/**/actions.ts',
+      'app/(default)/payments/**/actions.ts',
+      'app/(default)/partners/**/admin-actions.ts',
+      'app/(partner)/**/actions.ts',
+      'app/(portal)/patient/invoices/**',
+      // Fires `archivePartnerAction({ resolve: 'pay' | 'void' })` — pays out
+      // or voids a partner's accrued commission from a button.
+      'app/(default)/partners/delete-partner-modal.tsx',
+      // The partner's own Stripe Connect onboarding entry point.
+      'app/(partner)/partner/partner-payout.tsx',
     ],
   },
   {

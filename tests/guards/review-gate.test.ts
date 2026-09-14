@@ -137,6 +137,13 @@ describe('the review-gate classifier', () => {
       'lib/services/clinics.ts': 'money',
       'lib/services/operations.ts': 'money',
       'lib/trial.ts': 'money',
+      // The money UI (batch 60). `lib/**` alone let the button that fires a
+      // partner payout through as "merges on green" — see the note on the
+      // money patterns in scripts/review-gate.mjs.
+      'app/(default)/partners/delete-partner-modal.tsx': 'money',
+      'app/(partner)/partner/partner-payout.tsx': 'money',
+      'app/(default)/partners/admin-actions.ts': 'money',
+      'app/(default)/shop/actions.ts': 'money',
       'lib/mrr.ts': 'money',
       'lib/stripe.ts': 'money',
       'app/api/webhooks/stripe/route.ts': 'money',

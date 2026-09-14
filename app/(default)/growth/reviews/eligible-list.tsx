@@ -34,12 +34,16 @@ function fmtCompletedAt(iso: string): string {
 export default function EligibleList({ rows }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  // One Send button per row off ONE flag put the spinner on every row in the
+  // list. `active` is the patient whose request is actually going out.
+  const [active, setActive] = useState<string | null>(null)
   const [sentIds, setSentIds] = useState<Set<string>>(new Set())
   const [errorByPatient, setErrorByPatient] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<{ message: string; tone: 'ok' | 'urgent' } | null>(null)
 
   function handleSend(row: EligibleRow) {
     if (sentIds.has(row.patientId)) return
+    setActive(row.patientId)
     startTransition(async () => {
       try {
         await sendReviewRequestAction({
@@ -100,7 +104,8 @@ export default function EligibleList({ rows }: Props) {
                   variant="primary"
                   size="sm"
                   onClick={() => handleSend(r)}
-                  pending={pending}
+                  pending={pending && active === r.patientId}
+                  disabled={pending}
                   className="shrink-0"
                 >
                   Send request

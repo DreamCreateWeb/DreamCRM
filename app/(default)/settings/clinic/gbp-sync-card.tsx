@@ -149,7 +149,7 @@ function PhotoGallery({
             disabled={busy || selected.size === 0}
             onClick={() => onImport(Array.from(selected))}
           >
-            {busy ? 'Importing…' : `Import ${selected.size || ''} to my gallery`.trim()}
+            {`Import ${selected.size || ''} to my gallery`.trim()}
           </ActionButton>
         )}
       </div>

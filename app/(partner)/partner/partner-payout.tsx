@@ -90,9 +90,7 @@ export default function PartnerPayout({
             disabled={pending || !canWithdraw}
             title={paused ? 'Your account is paused — withdrawals are on hold' : undefined}
           >
-            {pending
-              ? 'Sending…'
-              : accruedCents >= PAYOUT_MIN_CENTS
+            {accruedCents >= PAYOUT_MIN_CENTS
                 ? `Withdraw ${moneyExact(accruedCents)}`
                 : accruedCents > 0
                   ? `${moneyExact(accruedCents)} accrued`

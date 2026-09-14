@@ -205,7 +205,7 @@ export default function ProductForm({ product }: { product?: ProductRow }) {
 
         <div className="flex items-center gap-3 pt-2">
           <ActionButton variant="primary" disabled={isPending || uploading} onClick={submit}>
-            {isPending ? 'Saving…' : product ? 'Save changes' : 'Create product'}
+            {product ? 'Save changes' : 'Create product'}
           </ActionButton>
           <Link href="/shop" className="text-sm text-gray-500 dark:text-gray-400 hover:underline">Cancel</Link>
         </div>

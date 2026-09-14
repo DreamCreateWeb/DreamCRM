@@ -114,7 +114,7 @@ export default function NexHealthCard({
           pending={pending && active === 'bind'}
           disabled={pending}
         >
-          {pending && active === 'bind' ? 'Checking…' : current ? 'Rebind' : 'Bind + test'}
+          {current ? 'Rebind' : 'Bind + test'}
         </ActionButton>
       </div>
       {current && (

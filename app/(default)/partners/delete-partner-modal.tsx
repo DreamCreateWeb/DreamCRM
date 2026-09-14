@@ -87,17 +87,21 @@ export default function DeletePartnerModal({
     }
   }, [open, partnerId])
 
-  // Esc closes.
+  // Esc closes — but not mid-payout. All four exits (Cancel, ✕, the backdrop
+  // and this) agree now: Cancel was already `disabled={pending}` and the
+  // other three were not, so on a modal whose buttons pay out or void real
+  // money one exit said "wait" and three said "sure".
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape' && !pending) setOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, pending])
 
   function close() {
+    if (pending) return
     setOpen(false)
     setError(null)
   }
@@ -174,7 +178,8 @@ export default function DeletePartnerModal({
               <button
                 type="button"
                 onClick={close}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] text-gray-500 hover:text-gray-700 hover:bg-gray-500/10 dark:text-gray-400 dark:hover:text-gray-200 text-lg leading-none"
+                disabled={pending}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)] text-gray-500 hover:text-gray-700 hover:bg-gray-500/10 disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-200 text-lg leading-none"
                 aria-label="Close"
               >
                 ✕

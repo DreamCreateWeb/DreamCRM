@@ -473,7 +473,7 @@ export default function PatientDetail({
               disabled={archivePending || header.lifecycle === 'archived'}
               className="w-full justify-center"
             >
-              {archivePending ? 'Archiving…' : header.lifecycle === 'archived' ? 'Archived' : 'Archive patient'}
+              {header.lifecycle === 'archived' ? 'Archived' : 'Archive patient'}
             </ActionButton>
             {canMerge && (
               <MergeDuplicate

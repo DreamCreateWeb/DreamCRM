@@ -167,9 +167,30 @@ batch number.
   rules against the real shapes: the lead drawer's original ladder, a
   `pending=` written after an inline arrow (the shape the old regex could
   not see), a multi-line pure-state setter, a bare Cancel, and a stale
-  exemption. The rule holds at ZERO with five named exemptions and no
-  ceiling; a companion assertion fails if any exemption stops matching a
-  real group, so a rewritten surface cannot leave a hole behind].
+  exemption. The rule holds at ZERO with six named exemptions and no ceiling;
+  a companion assertion fails if any exemption stops matching a real group,
+  so a rewritten surface cannot leave a hole behind.
+  **The sibling rule alone was not enough, and Sentinel's review of the
+  second PR is what found it.** A group needs two or more SOURCE sites, and
+  one `<ActionButton pending={flag}>` written inside `rows.map(…)` is one
+  source site rendered N times — it can never have a sibling, so the rule was
+  structurally blind to the commonest form of the defect. Two sites survived
+  the sweep because of it, one of them `growth/reviews/eligible-list.tsx`,
+  which THIS ENTRY named by hand. A second rule now fires on a single in-map
+  site reading a flag destructured from `useTransition()` in the same scope.
+  The `useTransition` restriction is load-bearing rather than tidy: without
+  it the rule matches 10 in-map sites to catch 2, because the correct ones
+  (`partners-table`'s `pendingId === p.id`, `subscription-panel`'s
+  `pendingPlan === p.id`) have already been narrowed by whoever wrote them,
+  and a guard that reports eight right answers is one people switch off.
+  Its own first draft then reported CLEAN with both defects live: it walked
+  back to the NEAREST unclosed `(`, and a JSX ternary wraps its arms in
+  parens, so it found `) : (` and never reached the `.map(` two levels out.
+  The red run is what said so. Widening `LABEL_TERNARY` to key on the BUSY
+  arm alone surfaced 16 more rule-1 offenders on top of the four found by
+  hand — every one with a template literal on the idle arm — and moved the
+  raw-`<button>` ceiling 71 → 90, which is the same population measured with
+  an instrument that can see it rather than any regression].
 - ~~77 form fields have no accessible name~~ [BATCH 53, ALL 77, and
   `eslint-suppressions.json` is now EMPTY. A `<label>` that is a SIBLING of
   its input, with neither `htmlFor` nor nesting, connects nothing — to a

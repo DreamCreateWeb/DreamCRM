@@ -839,7 +839,7 @@ function DisconnectedActions({
           onClick={() => handlers.onSimulateConnect(def.id)}
           disabled={handlers.pending}
         >
-          {handlers.pending ? 'Connecting…' : isGbp ? 'Connect Google Business' : 'Connect'}
+          {isGbp ? 'Connect Google Business' : 'Connect'}
         </ActionButton>
       )
     }
