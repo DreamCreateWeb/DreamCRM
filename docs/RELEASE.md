@@ -667,7 +667,20 @@ binding are all correct. The payment-plan charger was the exception.
   "we only counted the first" shape as the pagination fix directly above it.
   Fix shape: sum `normalizedMonthlyCents` across every item rather than
   reading the head, which also makes `priceId`/`productName` on the row
-  explicitly "the primary item" rather than accidentally so. · OPEN.
+  explicitly "the primary item" rather than accidentally so. · **FIXED**
+  (DREAMCRM-32) — `AdminSubscription` now carries `items`, every recurring line
+  on the subscription, and `monthlyContributionCents` sums
+  `normalizedMonthlyCents` across them. Each line normalizes on its OWN cadence
+  and seat count, so an annually-billed add-on beside a three-seat monthly plan
+  is two correct numbers rather than one wrong one. The flattened head fields
+  survive as the documented PRIMARY item for the table columns and the
+  plan-mix grouping that render one line per subscription; MRR never reads
+  them. The head fields are also the FALLBACK for a caller holding a partial
+  row — an ABSENT `items` falls back, an EMPTY one means "no recurring lines"
+  and contributes nothing. Product names are now fetched for every item's
+  product, not just the head's, so an add-on line is named rather than blank.
+  The cadence + seat math stays single-homed in `lib/mrr.ts` (the one-MRR
+  guard still holds).
 - S3 · `lib/prospect-vendors.ts:108` — a FOURTH tier→price map
   (`PLAN_PRICE = { basic: 150, pro: 250, premium: 500 }`) whose comment says
   it mirrors `stripe-config` PLANS, and which has drifted: PLANS prices

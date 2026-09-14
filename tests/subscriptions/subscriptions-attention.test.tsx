@@ -15,6 +15,20 @@ function sub(overrides: Partial<AdminSubscription> = {}): AdminSubscription {
     customerName: 'X Clinic',
     clinicOrgId: 'org_x',
     clinicName: 'X Clinic',
+    // These panels render the PRIMARY line; the array is what MRR sums.
+    items: [
+      {
+        id: 'si_x',
+        priceId: 'price_pro_m',
+        productId: 'prod_pro',
+        productName: 'Pro',
+        unitAmountCents: 14_900,
+        currency: 'usd',
+        interval: 'month',
+        intervalCount: 1,
+        quantity: 1,
+      },
+    ],
     itemId: 'si_x',
     priceId: 'price_pro_m',
     productId: 'prod_pro',
