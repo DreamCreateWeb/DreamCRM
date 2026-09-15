@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, gte, inArray, isNotNull, lte } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { resolveTrialState, dueTrialReminder } from '@/lib/trial'
 import { sendTrialReminderEmail, sendBillingPastDueEmail, type TrialEmailMilestone } from '@/lib/email'
@@ -45,6 +45,45 @@ export interface TrialReminderSweepResult {
   sent: number
   skipped: number
   failed: number
+}
+
+/**
+ * THE MILESTONE CLAIM, IN ONE STATEMENT.
+ *
+ * `trial_reminders_sent` is a jsonb array of milestone keys. Appending to it
+ * from JavaScript (`[...sent, milestone]`) is a read-modify-write across a
+ * cron that is at-least-once and can overlap itself, and it was happening
+ * AFTER the email went out. Both halves of that hurt: two overlapping runs
+ * both passed the in-JS `dueTrialReminder` check and both emailed, and a
+ * send that succeeded followed by a stamp that failed re-emailed on the next
+ * tick. A trial reminder arriving twice reads as a dunning notice from a
+ * company that is not sure whether you paid.
+ *
+ * So the append and the not-already-sent test live in ONE statement. Postgres
+ * takes the row lock for the UPDATE, re-evaluates the WHERE against the
+ * committed row, and hands back a row to exactly one caller: the loser's
+ * `returning()` is empty and it never sends. Same claim-row shape as the
+ * scheduled-message flush, expressed against a jsonb array instead of a
+ * status column.
+ *
+ * EVERY BOUND PARAMETER CARRIES A CAST. `jsonb ||` and `jsonb -` are both
+ * overloaded, so an untyped `$n` fails at PARSE time with 42P18 — the whole
+ * sweep, on every clinic, with nothing to see in a JS-mocked test. That trap
+ * cost the autonomy write a production outage once already; see
+ * `tests/journey/autonomy-sql.test.ts`, and the sibling boundary test here.
+ */
+function appendMilestone(milestone: string) {
+  return sql`coalesce(${schema.clinicProfile.trialRemindersSent}, '[]'::jsonb) || ${JSON.stringify([milestone])}::jsonb`
+}
+
+/** True while this clinic's array does NOT already carry the milestone. */
+function milestoneNotYetSent(milestone: string) {
+  return sql`not (coalesce(${schema.clinicProfile.trialRemindersSent}, '[]'::jsonb) @> ${JSON.stringify([milestone])}::jsonb)`
+}
+
+/** Give the claim back so the next tick may retry it. */
+function removeMilestone(milestone: string) {
+  return sql`coalesce(${schema.clinicProfile.trialRemindersSent}, '[]'::jsonb) - ${milestone}::text`
 }
 
 /**
@@ -104,20 +143,59 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       result.skipped++
       continue
     }
+    // CLAIM, THEN SEND (see appendMilestone above). The `dueTrialReminder`
+    // check a few lines up is a cheap pre-filter against a snapshot; THIS is
+    // the authority. A run that loses the race sends nothing.
+    let claimed: Array<{ organizationId: string }>
+    try {
+      claimed = await db
+        .update(schema.clinicProfile)
+        .set({ trialRemindersSent: appendMilestone(milestone) })
+        .where(
+          and(
+            eq(schema.clinicProfile.organizationId, row.organizationId),
+            milestoneNotYetSent(milestone),
+          ),
+        )
+        .returning({ organizationId: schema.clinicProfile.organizationId })
+    } catch (err) {
+      console.warn('[billing-notifications] milestone claim failed for', row.organizationId, err)
+      result.failed++
+      continue
+    }
+    if (claimed.length === 0) {
+      // Another run got there first, or the milestone was already recorded.
+      result.skipped++
+      continue
+    }
+
     try {
       await sendTrialReminderEmail(owner.email, {
         firstName: owner.name,
         milestone: milestone as TrialEmailMilestone,
         billingUrl: billingUrl(row.pendingPlanId),
       })
-      await db
-        .update(schema.clinicProfile)
-        .set({ trialRemindersSent: [...sent, milestone] })
-        .where(eq(schema.clinicProfile.organizationId, row.organizationId))
       result.sent++
     } catch (err) {
       console.warn('[billing-notifications] trial reminder failed for', row.organizationId, err)
       result.failed++
+      // Hand the claim back. A Resend blip must not cost the owner the
+      // warning entirely — this is billing-critical mail, and the sweep runs
+      // again in six hours. If the release itself fails we keep the stamp and
+      // say so loudly: one lost reminder beats a claim nobody can clear.
+      try {
+        await db
+          .update(schema.clinicProfile)
+          .set({ trialRemindersSent: removeMilestone(milestone) })
+          .where(eq(schema.clinicProfile.organizationId, row.organizationId))
+      } catch (releaseErr) {
+        console.error(
+          '[billing-notifications] could not release the claimed milestone',
+          row.organizationId,
+          milestone,
+          releaseErr,
+        )
+      }
     }
   }
 

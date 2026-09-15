@@ -1308,6 +1308,20 @@ carrying its own. The eleventh entry is a gate hole the work turned up.
   **FIXED — awaiting merge (#599)** — added to the money patterns and pinned
   in `MUST_BE_GATED`. A pattern and not an area, so the count stays at nine
   and `rulebook-drift` stays green.
+- S3 · `deliver()` (`lib/email.ts:122`) has NO deadline — the Gmail token
+  fetch and send, or SES/Resend, run to the default socket timeout. That was
+  survivable while every patient-facing caller fired and forgot; #599 puts an
+  awaited send inside the public booking action, so a hung provider is now a
+  patient sitting on a spinner after their visit is already committed. Found
+  by Sentinel reviewing #599 and deliberately NOT taken there: changing the
+  timeout behaviour of the one shared send path deserves its own slice rather
+  than a rider on an approved diff. · **OPEN.**
+  What it is NOT: data loss. `insertAppointmentIfBookable`'s advisory
+  re-check means a resubmit cannot double-book, and the appointment row is
+  already committed before the send — the cost is the wait.
+  A bounded wait around the booking send would also make `not_sent` reachable
+  in bounded time instead of at the socket timeout, which is the state that
+  tells the patient to save their details.
 
 **S4 sweep CLOSED (2026-08-17):** 6 S2 fixed (3 client timeouts as one
 class, domain double-charge, trial-KILL leak ×2, 2 Guardian signals); the

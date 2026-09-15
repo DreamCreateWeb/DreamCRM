@@ -141,6 +141,24 @@ export class PmsWriteNotSupportedError extends Error {
   readonly notSupported = true as const
 }
 
+/**
+ * `runImport` stood down because a sync for this clinic is already running.
+ * Expected, benign, and says NOTHING about the connection's health — the
+ * cron's 15-minute cadence overlapping a manual "Sync now" produces it.
+ *
+ * It is a class rather than a message because the scheduled cron has to tell
+ * it apart from the OTHER things that throw before a `sync_run` row exists —
+ * a missing Customer Key, an incomplete NexHealth binding, a provider with no
+ * client. Those are a bridge that is DOWN, and since the failure-streak rule
+ * counts `sync_run` rows it could never see them: the Guardian went on
+ * reporting the practice `healthy` for as long as the connection stayed
+ * broken. Matching on the message would have made that distinction a string
+ * comparison against copy anyone is free to reword.
+ */
+export class PmsSyncInFlightError extends Error {
+  readonly inFlight = true as const
+}
+
 export interface PmsProviderClient {
   readonly id: PmsProviderId
   /** Cheap reachability + auth check; never throws (returns ok:false). */

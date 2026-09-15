@@ -6,6 +6,7 @@ import { runImport } from '@/lib/services/pms/sync'
 import { sendNotificationEmail } from '@/lib/email'
 import { notifyOrgMembers } from '@/lib/services/notifications'
 import { reportAutomationFailure } from '@/lib/services/engine-failures'
+import { PmsSyncInFlightError } from '@/lib/services/pms/provider'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -141,15 +142,37 @@ async function run(request: Request) {
         else failed++
         results.push({ organizationId: conn.organizationId, status: r.status, error: r.error, alerted, resuming: r.resumeAvailable })
       } catch (err) {
-        // A throw here means runImport bailed BEFORE writing a sync_run row —
-        // usually transient/benign (the concurrency guard saw an overlapping
-        // run) or a config issue (no Customer Key). We don't alert on it (the
-        // streak rule keys off real sync_run rows, and an overlap isn't a
-        // failure); just record it and keep the loop going so one bad org can't
-        // stop the rest.
-        failed++
+        // A throw here means runImport bailed BEFORE writing a sync_run row,
+        // so the failure-streak rule — which counts sync_run rows — can never
+        // see it. TWO very different things land here, and they used to get
+        // the same treatment:
+        //
+        //  - the concurrency guard stood down because a sync is already in
+        //    flight (the 15-min cadence overlapping a manual "Sync now").
+        //    Benign, expected, says nothing about the connection.
+        //  - the connection is UNUSABLE: no Open Dental Customer Key, an
+        //    incomplete NexHealth binding, a provider we cannot build a client
+        //    for. That is a bridge that is DOWN — and because nothing wrote a
+        //    sync_run row, the Guardian went on reporting that practice
+        //    `healthy` for as long as it stayed broken. A silently-broken sync
+        //    is the #1 reliability complaint in the integrations research, and
+        //    this was the shape of it we could not see.
+        //
+        // So the Guardian now hears about everything EXCEPT the stand-down.
+        // The clinic's streak EMAIL still doesn't fire: that rule keys off
+        // real sync_run rows and this failure produces none. Telling the
+        // Guardian is the right half — its whole job is noticing a practice
+        // whose machine has gone quiet.
+        const inFlight = err instanceof PmsSyncInFlightError
         const message = err instanceof Error ? err.message : 'unknown'
-        results.push({ organizationId: conn.organizationId, status: 'error', error: message, alerted: false })
+        if (inFlight) {
+          skipped++
+          results.push({ organizationId: conn.organizationId, status: 'skipped', error: message, alerted: false })
+        } else {
+          failed++
+          await reportAutomationFailure(conn.organizationId, 'pms_sync')
+          results.push({ organizationId: conn.organizationId, status: 'error', error: message, alerted: false })
+        }
       }
     }
 
