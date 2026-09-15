@@ -201,10 +201,18 @@ describe('the review-gate classifier', () => {
       // gate that can only ever make it looser — and it leaves no trace under
       // `.github/` at all. `scripts/review-gate.mjs` is this file's own
       // subject: the list that decides which PRs reach a reviewer.
+      //
+      // `scripts/rulebook-drift.mjs` joined them in #571 for the same reason
+      // one step further out: it holds the claims the daily drift check grades,
+      // and deleting one leaves that check reporting CLEAN about a fact it no
+      // longer looks at. It arrived on `ci-workflows` in that PR and moved here
+      // on contact with this rule, which is the better home — the point is not
+      // that it runs in a workflow, it is that it decides what gets asked.
       'vitest.config.ts': 'check-definitions',
       'playwright.config.ts': 'check-definitions',
       'e2e/axe.ts': 'check-definitions',
       'scripts/review-gate.mjs': 'check-definitions',
+      'scripts/rulebook-drift.mjs': 'check-definitions',
       // The post-deploy migration assertion (DREAMCRM-46). Pinned because it is
       // the thing that decides whether a deploy may report success, and a
       // "small tweak to a script" is exactly how such a check gets loosened
