@@ -398,10 +398,20 @@ describe('what could blind this sweep from outside', () => {
 
     // The instrument check on the instrument check: if that summary ever stops
     // carrying a verdict word, the assertion above is guarding nothing.
+    //
+    // MORE DURABLE THAN IT LOOKS, and worth writing down because a reader could
+    // draw the opposite conclusion from a green run (Sentinel, re-auditing
+    // #593). The summary carries a verdict word by TWO independent routes: the
+    // DREAMCRM-61 instruction block, and "on `REQUEST CHANGES`, fix and
+    // re-request", which predates it by forty PRs. Replacing every `APPROVE` in
+    // `scripts/review-gate.mjs` leaves this green; only removing both spellings
+    // makes it red. So deleting the newer block alone cannot silently vacate
+    // the guard above — this pairing does not rest on the sentence this PR
+    // added, which is the good news rather than a gap.
     expect(
       VERDICT_PATTERNS.some((p) => p.test(gateSummaryForAGatedPr())),
-      'the review-gate summary no longer carries a verdict word, so the guard above is vacuous — ' +
-        'either restore the instruction or delete this pair deliberately.',
+      'the review-gate summary no longer carries a verdict word by ANY route, so the guard above ' +
+        'is vacuous — restore a verdict word to that summary, or delete this pair deliberately.',
     ).toBe(true)
   })
 })
