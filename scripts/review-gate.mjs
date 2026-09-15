@@ -58,11 +58,14 @@ import { pathToFileURL } from 'node:url'
 export const GATE_RULES = [
   {
     id: 'ci-workflows',
-    area: 'CI workflow files',
+    area: 'CI workflow files and the scripts they run',
     why:
       'a workflow file decides which checks run at all, so it is the gate every other gate ' +
-      'stands on. #517 edited one review-free by riding along in a UI-polish PR.',
-    patterns: ['.github/workflows/**'],
+      'stands on. #517 edited one review-free by riding along in a UI-polish PR. The two ' +
+      'scripts are here for the same reason one level down: they ARE the gate machinery, and ' +
+      'until #571 a PR editing either of them — deleting a rule from this very list, or a ' +
+      'claim from the drift check — reported "merges on green".',
+    patterns: ['.github/workflows/**', 'scripts/review-gate.mjs', 'scripts/rulebook-drift.mjs'],
   },
   {
     id: 'deploy-path',

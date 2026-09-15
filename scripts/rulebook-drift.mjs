@@ -56,13 +56,12 @@
  * ------------------------------------------------------------------------
  *
  * Usage:
- *   node scripts/rulebook-drift.mjs                     # local claims only
- *   node scripts/rulebook-drift.mjs \
- *     --protection protection.json --repo repo.json     # every claim
+ *   node scripts/rulebook-drift.mjs --repo repo.json --no-protection-credential
+ *   node scripts/rulebook-drift.mjs --protection protection.json --repo repo.json
  *
- * Exit 0 only when every claim was CHECKED and every checked claim HELD.
- * A claim that could not be checked is a failure here, not a pass — see the
- * note above `main()`.
+ * Exit 0 when every claim that could be graded HELD and the only ungraded ones
+ * were skipped for a stated, temporary reason. A claim that could not be graded
+ * is never counted as a claim that held — see the note above `main()`.
  */
 import { readFileSync, readdirSync, appendFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -232,7 +231,11 @@ export const CLAIMS = [
   {
     id: 'workflow-census',
     needs: ['workflows'],
-    section: '§2, "There are seven workflow files and five of them gate nothing"',
+    // Hand-written, unlike `states` below, which is derived from the census and
+    // so cannot go stale. No guard can see this string — keep it moving with
+    // the prose it quotes. (It said "seven … five" for the length of one
+    // review, describing the count this very PR changed.)
+    section: '§2, "There are eight workflow files and six of them gate nothing"',
     states: `${Object.keys(WORKFLOW_CENSUS).length} workflow files: ${Object.keys(WORKFLOW_CENSUS).join(', ')}`,
     check: (live) => {
       const actual = Object.keys(live.workflows)
@@ -337,19 +340,45 @@ export const CLAIMS = [
  * satisfy the `test` requirement.
  *
  * A line-scanner rather than a YAML parser, deliberately: adding a parser
- * dependency during a feature freeze to read seven files we control is a worse
- * trade than a 20-line reader whose assumptions are written down. What it
+ * dependency during a feature freeze to read eight files we control is a worse
+ * trade than a short reader whose assumptions are written down. What it
  * assumes — GitHub's own canonical layout, which every file here follows: a
  * top-level `jobs:`, job keys at two spaces, job-level keys at four. Steps
  * live at six behind a `-`, so a step's `name:` cannot be mistaken for a job's.
+ *
+ * ── WHAT IT USED TO MISS, AND WHY EACH ONE MATTERED ────────────────────────
+ *
+ * Found in review of #571, by running them rather than reading for them. Every
+ * one was a FALSE NEGATIVE — a job that really can publish a required context
+ * and that this reader could not see — which is the dangerous direction here,
+ * because an invisible job satisfies the census and nothing goes red.
+ *
+ *   * `name: >-` (or `|`) with the value folded onto the next line returned
+ *     the indicator itself. A job named `test` that way was invisible.
+ *   * A job key with a trailing comment (`  evil: # shipped later`) did not
+ *     match `^ {2}key:\s*$` at all, so the WHOLE job vanished — key, name and
+ *     everything under it.
+ *   * `on: [pull_request]` in flow style read as "does not run on PRs", which
+ *     would have hidden a PR-triggered producer from the orphan check.
+ *
+ * All three are closed below. What remains unclosed and is worth saying out
+ * loud: anchors/aliases, a `jobs:` key carrying a trailing comment of its own,
+ * and reusable workflows called with `uses:` (whose published context is
+ * decided by the called file, which this reader never opens). A green run here
+ * is proof that nothing this reader can see publishes a required name — it is
+ * not proof that nothing does.
  */
+const FOLD_INDICATORS = /^[>|][-+]?\d*$/
+
 export function effectiveContexts(source) {
   const jobs = []
+  const lines = source.split(/\r?\n/)
   let inJobs = false
   let current = null
 
-  for (const line of source.split(/\r?\n/)) {
-    if (/^jobs:\s*$/.test(line)) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^jobs:\s*(#.*)?$/.test(line)) {
       inJobs = true
       continue
     }
@@ -357,7 +386,9 @@ export function effectiveContexts(source) {
     // Any non-indented, non-blank line ends the jobs block.
     if (/^\S/.test(line)) break
 
-    const key = line.match(/^ {2}([A-Za-z0-9_-]+):\s*$/)
+    // `\s*(#.*)?$` rather than `\s*$`: a trailing comment on a job key used to
+    // make the entire job invisible to this reader.
+    const key = line.match(/^ {2}([A-Za-z0-9_-]+):\s*(#.*)?$/)
     if (key) {
       current = { key: key[1], name: null }
       jobs.push(current)
@@ -365,16 +396,38 @@ export function effectiveContexts(source) {
     }
     const name = line.match(/^ {4}name:\s*(.+?)\s*$/)
     if (name && current && current.name === null) {
-      current.name = name[1].replace(/^['"]|['"]$/g, '')
+      let value = name[1].replace(/^['"]|['"]$/g, '')
+      // A block scalar (`>-`, `|`, `>2`) puts the value on the following
+      // lines. Take the first non-blank one that is indented past the key —
+      // enough to see a one-line folded name, which is the shape that hides a
+      // required-context producer.
+      if (FOLD_INDICATORS.test(value)) {
+        value = ''
+        for (let j = i + 1; j < lines.length; j++) {
+          if (!lines[j].trim()) continue
+          const folded = lines[j].match(/^ {5,}(.*\S)\s*$/)
+          value = folded ? folded[1].replace(/^['"]|['"]$/g, '') : ''
+          break
+        }
+      }
+      current.name = value
     }
   }
 
-  return jobs.map((j) => j.name ?? j.key)
+  return jobs.map((j) => (j.name ? j.name : j.key))
 }
 
-/** Does this workflow run on pull requests? Only those can gate a merge. */
+/**
+ * Does this workflow run on pull requests? Only those can gate a merge.
+ *
+ * Both spellings: the block form this repo uses, and the flow form
+ * (`on: [pull_request]`, `on: [push, pull_request]`) that a new file could
+ * perfectly well arrive in.
+ */
 export function runsOnPullRequest(source) {
-  return /^ {2}pull_request:/m.test(source)
+  if (/^ {2}pull_request:/m.test(source)) return true
+  const flow = source.match(/^on:\s*\[(.*?)\]/m)
+  return Boolean(flow && flow[1].split(',').some((t) => t.trim() === 'pull_request'))
 }
 
 /** Everything gradeable without the network. The guard test uses exactly this. */
@@ -438,40 +491,75 @@ function loadJson(flag) {
 }
 
 /**
- * A CLAIM THIS COULD NOT GRADE IS A FAILURE, NOT A PASS.
+ * A CLAIM THIS COULD NOT GRADE IS NEVER A CLAIM THAT HELD.
  *
- * `read-check.yml` makes the opposite call for good reasons — it warns and
- * exits 0 when its secret is missing, because it merged before the owner-side
- * setup existed and a workflow red for a fortnight for an unrelated reason is
- * noise by the time it first matters.
+ * It can, however, be a claim that was deliberately SKIPPED, and the first
+ * version of this file refused to draw that distinction — it treated every
+ * ungradeable claim as red, arguing that "there is no owner-side setup pending
+ * and nothing outside the repository to wait for."
  *
- * Nothing about that applies here. This job's inputs are the repo's own API
- * and its own checked-out files; there is no owner-side setup pending and
- * nothing outside the repository to wait for. If the protection read comes
- * back empty, the cause is inside this workflow — a permission it no longer
- * has, a renamed branch, a token change — and every one of those is a defect
- * in the check that must be fixed rather than tolerated. A drift detector that
- * reports green when it detected nothing is the failure mode it exists to
- * prevent, aimed at itself.
+ * The argument was sound and the premise was false. Branch protection is not
+ * readable with the workflow token at any scope, so the five protection claims
+ * need a credential this repository does not have yet. Shipped that way, the
+ * daily run would have been red every morning from day one for a reason that
+ * was not drift — which is precisely what `read-check.yml` warns and exits 0 to
+ * avoid, and precisely how an alarm gets ignored before it first matters.
+ *
+ * So there are three outcomes, and the summary never merges any two:
+ *
+ *   * NOT CONFIGURED YET (`--no-protection-credential`) — skipped, named, and
+ *     counted OUT of the graded total. Exit 0. Lasts exactly as long as the
+ *     secret is missing.
+ *   * COULD NOT BE GRADED — an input that should have been there was not. The
+ *     cause is inside this check (a revoked token, a renamed branch), so it is
+ *     a defect to fix rather than tolerate. Exit 1.
+ *   * DRIFT — the repo and the skill disagree. Exit 1.
+ *
+ * The rule the first version was reaching for survives all of this: a drift
+ * detector that reports green when it detected NOTHING is the failure it
+ * exists to catch, aimed at itself. Which is why every summary leads with
+ * "Graded N/8" instead of a tick, in all three cases.
  */
 function main() {
+  const credentialAbsent = process.argv.includes('--no-protection-credential')
   const live = { ...readLocalReality(), protection: loadJson('--protection'), repo: loadJson('--repo') }
   const { findings, unchecked } = drift(live)
-  const checked = CLAIMS.length - unchecked.length
+
+  // Only the protection reads are allowed to be "not configured yet". An
+  // ungraded `repo` or `workflows` claim has no pending credential to blame
+  // and stays red.
+  const skipped = credentialAbsent ? unchecked.filter((u) => u.missing.includes('protection')) : []
+  const broken = unchecked.filter((u) => !skipped.includes(u))
+  const graded = CLAIMS.length - unchecked.length
 
   const lines = ['### Rulebook drift check', '']
-  lines.push(`Graded ${checked}/${CLAIMS.length} claims the \`dreamcrm-conventions\` skill makes about this repo.`, '')
+  lines.push(`Graded ${graded}/${CLAIMS.length} claims the \`dreamcrm-conventions\` skill makes about this repo.`, '')
 
-  if (unchecked.length) {
+  if (skipped.length) {
+    lines.push('#### Not graded yet — no branch-protection credential', '')
+    for (const u of skipped) {
+      lines.push(`- **${u.id}** — ${u.section}: "${u.states}"`)
+    }
+    lines.push(
+      '',
+      'Skipped, not passed. `RULEBOOK_PROTECTION_TOKEN` (a fine-grained PAT with ' +
+        'Administration:read on this repo) is not set, and the workflow token cannot read branch ' +
+        'protection at any scope. Until it exists, the settings half of this check is off and ' +
+        'a settings change made in the GitHub UI reaches nobody. Setup: `docs/CI.md`.',
+      '',
+    )
+  }
+
+  if (broken.length) {
     lines.push('#### Could not be graded', '')
-    for (const u of unchecked) {
+    for (const u of broken) {
       lines.push(`- **${u.id}** — missing \`${u.missing.join('`, `')}\`. ${u.section}: "${u.states}"`)
     }
     lines.push(
       '',
-      'This is a failure, not a skip. These inputs are the repository\'s own API and files — ' +
-        'nothing external is pending — so an empty read means this workflow lost a permission or ' +
-        'is reading the wrong branch. Fix the check.',
+      'This is a failure, not a skip: an input that should have been here was not, and there is ' +
+        'no pending credential to blame. A revoked token, a renamed branch, a lost permission — ' +
+        'the cause is inside this check. Fix the check.',
       '',
     )
   }
@@ -492,12 +580,16 @@ function main() {
     )
   }
 
-  if (!findings.length && !unchecked.length) {
-    lines.push('Every claim held. The rulebook still describes this repo.')
+  if (!findings.length && !broken.length) {
+    lines.push(
+      skipped.length
+        ? `Every claim this run could grade held (${graded} of ${CLAIMS.length}). The rest are listed above; they were not checked.`
+        : 'Every claim held. The rulebook still describes this repo.',
+    )
   }
 
   summary(lines)
-  process.exitCode = findings.length || unchecked.length ? 1 : 0
+  process.exitCode = findings.length || broken.length ? 1 : 0
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

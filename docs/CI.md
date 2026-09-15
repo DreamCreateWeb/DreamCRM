@@ -298,15 +298,33 @@ gate — turns a required check **red until the claim is updated in the same PR*
 The schedule is the backstop for what changes with no diff at all: a branch
 protection setting flipped in the GitHub UI, most of all.
 
-**An ungradeable claim fails here; it does not skip.** `read-check.yml` makes
-the opposite call, and for good reasons — it merged ahead of the owner-side
-setup, and an alarm red for a fortnight for an unrelated reason is noise by the
-time it first matters. None of that applies here: the inputs are this
-repository's own API and its own files, with nothing external pending. If the
-protection read comes back empty the cause is inside the workflow — a lost
-permission, a renamed branch — and the run says which input was missing and
-goes red. A drift detector that reports green when it detected nothing is the
-failure it exists to catch, aimed at itself.
+**An ungradeable claim fails here; it does not skip — with one bounded
+exception.** The first version of this check had only two outcomes and argued
+that the `read-check.yml` treatment did not apply, "because there is no
+owner-side setup pending and nothing outside the repository to wait for". The
+argument was sound and the premise was false: **branch protection is not
+readable with the workflow token at any scope** (`administration` is not even a
+valid `permissions:` key — asking for it made GitHub reject the whole file,
+twice, in 0 seconds, publishing no check-run at all, which is why `gh pr checks`
+showed nothing). So there are three outcomes:
+
+| Outcome | Meaning | Run |
+| --- | --- | --- |
+| **not configured yet** | `RULEBOOK_PROTECTION_TOKEN` is unset; the five protection claims are skipped and named | green, `::warning::` |
+| **could not be graded** | the secret exists and the read still came back empty — a revoked token, a renamed branch | **red** |
+| **drift** | the repo and the skill disagree | **red** |
+
+A skipped claim is never counted as a claim that held: every summary leads with
+`Graded N/8` rather than with a tick, in all three cases. The exception lasts
+exactly as long as the secret is missing.
+
+**Owner setup (pending).** Until `RULEBOOK_PROTECTION_TOKEN` exists, the five
+settings claims are off — which is the half that catches a branch-protection
+change made in the GitHub UI, the one kind of change that leaves no diff
+anywhere. To turn it on: a fine-grained personal access token scoped to this
+repository alone, with **Repository permissions → Administration: Read-only**
+and nothing else, saved as a repository secret named
+`RULEBOOK_PROTECTION_TOKEN`. It reads settings; it can change none.
 
 **What this does not close.** The repo↔claim gap is now mechanical. The
 claim↔skill gap is not, and cannot be: a skill document cannot hold a pointer

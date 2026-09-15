@@ -152,6 +152,34 @@ describe('the rulebook drift check', () => {
     expect(Object.keys(PERTURBATIONS).sort()).toEqual(CLAIMS.map((c: { id: string }) => c.id).sort())
   })
 
+  it('still makes all eight claims, spelled out', () => {
+    // SPELLED OUT RATHER THAN COUNTED. The test above compares two lists that
+    // MOVE TOGETHER: delete a claim and its perturbation and it stays green,
+    // which makes the one edit that weakens this check the one edit nothing
+    // objects to. Sentinel found that reviewing #571. Same reasoning as
+    // `MUST_BE_GATED` in the review-gate guard — an enumeration's failure mode
+    // is a quiet one, so the expected list is written by hand.
+    expect(CLAIMS.map((c: { id: string }) => c.id).sort()).toEqual([
+      'enforce-admins',
+      'every-required-check-has-a-producer',
+      'force-push-and-deletion-bars',
+      'gate-areas',
+      'required-checks',
+      'strict-and-allow-update-branch',
+      'who-can-publish-a-required-check',
+      'workflow-census',
+    ])
+  })
+
+  it('pins the required-check set, which nothing local can otherwise grade', () => {
+    // `CLAIMED_REQUIRED_CHECKS` is graded only against branch protection, i.e.
+    // only on the daily run, i.e. only once a credential exists. Until then an
+    // edit here would change what the census means with nothing to notice. The
+    // pin does not make it TRUE — only the API can — it makes changing it a
+    // deliberate act with a second file to edit.
+    expect([...CLAIMED_REQUIRED_CHECKS].sort()).toEqual(['e2e', 'test'])
+  })
+
   it.each(Object.keys(PERTURBATIONS))('notices when "%s" stops being true', (id) => {
     // Each case starts from the REAL tree, so when the repo genuinely drifts
     // the first test above is the one that says so — and these do not pile
@@ -262,6 +290,26 @@ describe('the census and the tree', () => {
     ).toEqual(['scan'])
   })
 
+  // THE THREE SHAPES THAT USED TO HIDE A JOB (found in review of #571, by
+  // running them rather than reading for them). Every one was a FALSE
+  // NEGATIVE — a job that really can publish a required context and that the
+  // reader could not see — which is the dangerous direction, because an
+  // invisible job satisfies the census and nothing goes red.
+  it('sees a job whose name is a folded block scalar', () => {
+    expect(effectiveContexts('jobs:\n  sneaky:\n    name: >-\n      test\n    runs-on: ubuntu-latest\n')).toEqual(['test'])
+    expect(effectiveContexts('jobs:\n  sneaky:\n    name: |\n      e2e\n    runs-on: ubuntu-latest\n')).toEqual(['e2e'])
+  })
+
+  it('sees a job whose key carries a trailing comment', () => {
+    // This one lost the WHOLE job — key, name and everything under it.
+    expect(effectiveContexts('jobs:\n  sneaky: # added later\n    name: test\n    runs-on: ubuntu-latest\n')).toEqual(['test'])
+  })
+
+  it('reads a flow-style pull_request trigger', () => {
+    expect(runsOnPullRequest('on: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n')).toBe(true)
+    expect(runsOnPullRequest('on: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n')).toBe(false)
+  })
+
   it('knows which workflows run on pull requests', () => {
     const { workflows } = localReality()
     expect(
@@ -296,12 +344,49 @@ describe('the drift workflow', () => {
     ).toBe(false)
   })
 
-  it('asks for the administration read it needs, and nothing more', () => {
-    // Branch protection is an administration read; without the scope the two
-    // claims about who can bypass the gate silently become ungradeable, which
-    // is the one thing this check is not allowed to be quiet about.
-    expect(wf()).toMatch(/^ {2}administration: read$/m)
-    expect(wf(), 'this workflow reads settings and writes none').not.toMatch(/administration: write/)
+  it('asks only for permissions that exist', () => {
+    // THE DEFECT THIS FILE SHIPPED WITH, frozen. The first draft asked for
+    // `permissions: administration: read`, which is not a valid scope —
+    // GITHUB_TOKEN is never granted repository administration. GitHub rejected
+    // the whole file: two 0-second failures that published NO check-run, so
+    // `gh pr checks` showed nothing at all and the Actions tab listed them
+    // under the file path instead of the workflow name. Merged as-is, every
+    // push would have failed that way forever and the alarm would never have
+    // run once — an alarm whose silence looked exactly like "no problems".
+    //
+    // Nothing in CI validates workflow syntax before GitHub does, so the list
+    // is written out here. From GitHub's workflow-syntax documentation.
+    const VALID_SCOPES = [
+      'actions', 'artifact-metadata', 'attestations', 'checks', 'code-quality', 'contents',
+      'deployments', 'discussions', 'id-token', 'issues', 'packages', 'pages', 'pull-requests',
+      'security-events', 'statuses', 'vulnerability-alerts',
+    ]
+    const block = wf().match(/^permissions:\n((?: {2}\S.*\n)+)/m)
+    expect(block, 'rulebook-drift.yml must declare its permissions rather than inherit them').toBeTruthy()
+    // `.split` rather than spreading `matchAll` — this project's tsconfig
+    // target does not allow iterating a RegExpStringIterator.
+    const asked = block![1]
+      .split('\n')
+      .map((l) => l.match(/^ {2}([a-z-]+):/))
+      .filter((m): m is RegExpMatchArray => Boolean(m))
+      .map((m) => m[1])
+
+    expect(asked.filter((s) => !VALID_SCOPES.includes(s)), 'not a real permissions scope').toEqual([])
+    expect(asked, 'the checkout and the repo-settings read need nothing more').toEqual(['contents'])
+  })
+
+  it('reads branch protection through the optional secret, not the workflow token', () => {
+    // The workflow token cannot read branch protection at any scope, so this
+    // rides `RULEBOOK_PROTECTION_TOKEN`. When that secret is absent the run
+    // must SKIP those claims rather than go red — an alarm red for a fortnight
+    // waiting on a PAT nobody issued is ignored by the time it matters — and
+    // the script must be TOLD, so it can say "skipped" instead of "held".
+    expect(wf()).toContain('secrets.RULEBOOK_PROTECTION_TOKEN')
+    expect(wf()).toContain('--no-protection-credential')
+    expect(
+      wf().match(/branches\/main\/protection/g)?.length,
+      'the protection read belongs in the secret-gated step and nowhere else',
+    ).toBe(1)
   })
 
   it('carries no shebang, so this file can be imported on a Windows checkout', () => {

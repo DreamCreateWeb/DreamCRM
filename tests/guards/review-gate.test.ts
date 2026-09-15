@@ -171,6 +171,13 @@ describe('the review-gate classifier', () => {
       'middleware.ts': 'auth',
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
+      // THE GATE MACHINERY ITSELF (#571). Until Sentinel's review of that PR,
+      // a diff touching only one of these two scripts reported "merges on
+      // green" — so deleting a rule from the gate list, or a claim from the
+      // drift check, was the one edit in this repo that weakened a control
+      // AND told its author nothing was at stake.
+      'scripts/review-gate.mjs': 'ci-workflows',
+      'scripts/rulebook-drift.mjs': 'ci-workflows',
       'Dockerfile': 'deploy-path',
       // The production read-check catalog (DREAMCRM-42). Pinned because the
       // per-entry review is the ENTIRE control on "no PHI in a log anything
