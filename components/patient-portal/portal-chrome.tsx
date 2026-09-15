@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import type { PortalNavItem, PortalIconName } from './nav'
 import { brandTint } from '@/lib/brand-tint'
+import { PORTAL_MUTED } from './ui'
 
 /**
  * Client chrome for the patient portal: desktop header nav + mobile bottom
@@ -123,7 +124,7 @@ export function PortalDesktopNav({
             style={
               active
                 ? { backgroundColor: brand, color: '#FFFFFF' }
-                : { color: '#6B635A' }
+                : { color: PORTAL_MUTED }
             }
           >
             {item.label}
@@ -225,7 +226,7 @@ export function PortalTabBar({
                 <Link
                   href={item.href}
                   className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5"
-                  style={{ color: active ? brand : '#6B635A' }}
+                  style={{ color: active ? brand : PORTAL_MUTED }}
                   aria-current={active ? 'page' : undefined}
                 >
                   <span
@@ -254,7 +255,7 @@ export function PortalTabBar({
                 type="button"
                 onClick={() => setSheetOpen((v) => !v)}
                 className="flex min-h-[56px] w-full flex-col items-center justify-center gap-0.5 py-1.5"
-                style={{ color: moreActive ? brand : '#6B635A' }}
+                style={{ color: moreActive ? brand : PORTAL_MUTED }}
                 // The trigger both opens a sheet and stands in for whichever
                 // page inside it you're on — neither was announced.
                 aria-expanded={sheetOpen}
