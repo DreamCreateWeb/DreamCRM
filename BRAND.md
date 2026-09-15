@@ -1,8 +1,15 @@
-# DreamCRM Marketing-Site Brand Book — "Night Dream"
+# DreamCRM Marketing-Site Brand Book — "Daylight Dream"
 
 The binding personality language for the **public marketing site**
 (`app/(marketing)`, `components/marketing`). Owner-approved direction, agreed
-with Dustin Russenberger on DREAMCRM-43, 2026-09-14.
+with Dustin Russenberger on DREAMCRM-43 (2026-09-14) and reversed from a night
+hero to light throughout on DREAMCRM-67 (2026-09-15).
+
+> **The site does not look like this yet.** This document is the decided
+> direction; the homepage still renders the retired night band. Part 8 is the
+> build order that closes the gap. Where this file and the code disagree today,
+> this file is the target and the code is the backlog — deliberate, and true
+> only until Part 8 move 1 lands.
 
 **Scope boundary.** This file governs the marketing site only. It does not
 touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
@@ -14,11 +21,32 @@ touch `app/(default)` / `app/(double-sidebar)` (that is `DESIGN-SYSTEM.md` v3,
 | Doc | Owns |
 |---|---|
 | `DESIGN.md` | What the marketing site *says* — the identity-first positioning, the honesty tenets, the outbound-vs-website rule |
-| **This file** | What the marketing site *looks and feels like* — mood, palette energy, shape, type, emoji, motion |
+| **This file** | What the marketing site *looks and feels like* — mood, palette energy, shape, type, emoji, motion, scaling, imagery |
 | `DESIGN-SYSTEM.md` | The dashboard's language, and the token ramps both surfaces draw from |
 
 The tokens are shared; the language is not. Nothing here extends or re-points a
 ramp — every colour below already exists in `app/css/style.css`.
+
+**Where things are.** Part numbers 0–9 are load-bearing: comments in `app/`,
+`components/`, `tests/` and `scripts/` cite them by number. They keep their
+numbers and their topics across the light reversal, which is why Scaling and
+Imagery are appended as Parts 10 and 11 rather than slotted in where they would
+read best.
+
+| Part | Topic |
+|---|---|
+| 0 | The decision record |
+| 1 | Mood |
+| 2 | Palette energy |
+| 3 | Shape language |
+| 4 | Type |
+| 5 | Emoji and copy voice |
+| 6 | Motion, and the cinematic spine |
+| 7 | The contrast law |
+| 8 | Build order |
+| 9 | What still needs the owner |
+| 10 | Scaling |
+| 11 | Imagery |
 
 ---
 
@@ -37,7 +65,7 @@ descriptions (2026-09-14, DREAMCRM-43):
    *Night Dream* (all dark), *Daylight Techno* (all light), *Night hero,
    daylight body*.
 3. **Owner picked the third:** *"I like D the most, with only the hero in dark
-   mode."* That is this document.
+   mode."*
 
 **Implementation decisions since (append one block per batch):**
 
@@ -51,12 +79,12 @@ descriptions (2026-09-14, DREAMCRM-43):
    screenshot telling the truth about the app.** Decoration, chrome, headlines
    and copy stay clear of them.
 5. **The chrome is still daylight and that is not a defect** (same batch). The
-   sticky header sits above the night band at white/85, because shared chrome is
-   move 3 below and changing it now would re-skin every subpage in a batch that
-   is meant to cover one. The band's top edge is therefore drawn deliberately —
-   a resting hairline plus the one-shot scan sweep — so it reads as a surface
-   starting rather than as a header that forgot to change.
-
+   sticky header sat above the night band at white/85, because shared chrome was
+   a later move and changing it then would have re-skinned every subpage in a
+   batch meant to cover one. **Superseded by decision 7:** with the whole page
+   light, the header no longer sits on a ground it disagrees with, and the
+   deliberate band-edge treatment that existed to explain the seam goes away
+   with the seam.
 6. **The emoji ban is reversed — themed animated emoji, curated** (DREAMCRM-56,
    2026-09-15). Owner decision, relayed by Mika and authorized by Dustin's
    comment on DREAMCRM-56 granting Mika's relay his own authority: *"what would
@@ -71,63 +99,104 @@ descriptions (2026-09-14, DREAMCRM-43):
    different thing from decoration sprinkled through the chrome, and the
    distance between them is the whole rule.
 
-**Why hero-only dark is the right answer and not a compromise.** The pages that
-close the sale — pricing, comparisons, docs, blog — are long-form reading done
-on a bright operatory monitor by a practice owner in their fifties. Dark is a
-worse surface for those. And the product's own default theme is light, so a
-fully dark site would have recreated the round-1 mismatch in reverse. The night
-band buys the memorability; daylight keeps the reading.
+7. **THE HERO MOVES TO LIGHT — the reversal** (DREAMCRM-67, 2026-09-15). Three
+   more rounds, all rendered:
 
-The page already ended in the dark — the footer sits on `gray-950` in both
-themes. The night hero makes that deliberate: **the page opens and closes at
-night, and does its reading in daylight.**
+   - **The owner lived with the night hero and rejected it:** *"we had landed
+     on a dark hero, and honestly now that i've spent some time with it, i'm
+     not a fan. I think i want to move heavier into the white/light theme."*
+     In the same breath he named what he does want — *"cool effects and
+     animations, like when a picture zooms to fill the full viewport on scroll,
+     and then it switches from scrolling the page to scrolling popups over the
+     picture, and things like parallax effects"* — and two outright vetoes:
+     *"i'm not a big fan of thin black lines making up grids or bland check
+     marks as icons."*
+   - **Round A** offered three light directions — *Daylight Dream* (white
+     ground, the aurora surviving as light), *Cinematic* (the zoom-and-pin he
+     described), *Parallax Instrument* (asymmetric, panels drifting at
+     different speeds). Two were grounds and one was a behaviour, so it was put
+     as two questions. **Owner: "100% the right direction"** — but only halfway.
+     The concept was right and the intensity was short.
+   - **Round B dialled every dial up** — 86px headline hard left, a gradient
+     second line, saturated light instead of hinted, film grain, the product
+     bleeding off the right edge with pieces detached in front of it, the
+     ticker closing the fold. **Owner: "yeah i think we're there."**
+   - **Round C** turned his follow-up — *"the design and style is only half of
+     the climb, making sure the animations, scaling, the images, the actual
+     content etc are all up to par is hugely important"* — into the written
+     standards now in Parts 6, 10, 11 and 5.
+   - **The last two answers:** *"im not a fan of the big transparent editorial
+     '2' in the mockup, other than that i want to go with 1 — product only for
+     imagery."*
+
+   **What that settles.** Light ground, hero included. The cinematic
+   pin-and-scroll is the homepage spine (Part 6). Product-only imagery, no
+   photography (Part 11). The oversized outlined chapter numeral is **out** — it
+   was decoration duplicating a number that the chapter rail and the card
+   eyebrow both already carry, and it was the only element in the set carrying
+   its meaning in a `-webkit-text-stroke` that had to be hidden from screen
+   readers to be legal. Dropping it costs no information and removes that
+   wrinkle.
+
+   The night band is **retired**. The footer is not — see Part 7, which is the
+   half of the night-band discipline that does *not* retire with it.
+
+**Why light is the right answer and not a retreat.** The original case for a
+night band was memorability, and it was a real argument — but the pages that
+close the sale (pricing, comparisons, docs, blog) are long-form reading done on
+a bright operatory monitor by a practice owner in their fifties, and the
+product's own default theme is light. A dark opening asked every visitor to
+cross a seam twice. The saturated-light treatment in round B buys the
+memorability back without the seam: **the light is the signature now, not the
+dark.**
+
+The page still ends in the dark — the footer sits on `gray-950` in both themes,
+and it always did. What changed is that the dark is now the closing note rather
+than the opening one.
 
 ---
 
 ## Part 1 — Mood
 
-Derived from what the owner accepted and rejected across the three rounds, not
-from a word list picked in the abstract.
+Derived from what the owner accepted and rejected across six rounds, not from a
+word list picked in the abstract.
 
-**In order: electric · precise · dreamlike.**
+**In order: electric · precise · dreamlike.** Unchanged by the reversal — all
+three survived a full ground inversion, which is the evidence they were the
+right three.
 
-- **Electric** — the site should feel switched on. Glow, not gloss.
+- **Electric** — the site should feel switched on. Under the night band that
+  meant glow against dark. It now means **saturated light**: colour that is
+  present rather than hinted, with enough chroma that a thumbnail of the fold is
+  recognisable. Pale-wash "clean SaaS white" is the failure mode; it is what
+  round A's first pass was, and it is what *"only halfway"* meant.
 - **Precise** — the anti-childish word, and the one that does the most work.
-  Every choice answers *instrument* rather than *toy*: measured grids, 1px
-  strokes, monospace numerals, dead-straight alignment.
-- **Dreamlike** — what keeps it DreamCRM rather than a generic dev tool. Night
-  sky, aurora, stars, soft bloom. The brand is named Dream; the night is where
-  dreams happen.
+  Every choice answers *instrument* rather than *toy*: measured alignment,
+  monospace numerals, dead-straight type. Note that the 56px blueprint grid used
+  to carry this and no longer does (owner veto, Part 3) — precision now lives in
+  alignment and type, not in a grid drawn on the page.
+- **Dreamlike** — what keeps it DreamCRM rather than a generic dev tool. Not
+  night sky and stars any more: **wide soft blooms of teal, violet and fuchsia
+  light on white, with a fine film grain so the light has a surface.** The brand
+  is named Dream and the dream is now daylit.
 
-**Not us: cute. Also not us: corporate.** Cute was rejected explicitly. Corporate
-was rejected in round one, when the current site lost to every alternative.
+**Not us: cute. Also not us: corporate. Also not us: bland.** The third was
+added on DREAMCRM-67 — going light is the move most likely to drift into the
+default SaaS look, and "it went bland" is the specific way this direction fails.
 
 **Warmth moved from the pixels to the words.** This is the trade the direction
-makes and it must be honoured, or the site turns cold. The surfaces got sharper,
-so the copy carries all the humanity: *"3 still need a text,"* never *"3 records
-pending confirmation."* See Part 5.
+makes and it must be honoured, or the site turns cold. The copy carries the
+humanity: *"3 still need a text,"* never *"3 records pending confirmation."*
+See Part 5.
 
 ---
 
 ## Part 2 — Palette energy
 
-No new colours. Two grounds, one accent family, one celebration accent.
+No new colours. **One ground now** — light — plus the dark footer the page has
+always closed on.
 
-### The night band (hero, ticker, footer)
-
-| Role | Token / value |
-|---|---|
-| Ground | `#0C1226` → `#10182E` (the design system's `surface-sunk` / `canvas` dark values) |
-| Raised surface | `#161F3A`, `#1B2544` |
-| Hairline ("wire") | `rgb(124 165 255 / .13)`, soft `/ .055` |
-| Primary ink | `#FFFFFF` |
-| Body ink | `gray-300 #C3D0E8` |
-| Quiet ink | `gray-400 #93A0BC` — labels and captions only, never body copy |
-| Accent, luminous | `teal-300 #9DBDFF`, `teal-400 #7CA5FF` |
-| Second accent | `violet-300 #B7ACFF` — gradients only, never alone, never a status |
-| Primary action | `teal-300 → teal-400` fill carrying **dark ink `#0C1226`** |
-
-### The daylight body (everything else)
+### The daylight ground (the whole page)
 
 | Role | Token / value |
 |---|---|
@@ -136,7 +205,16 @@ No new colours. Two grounds, one accent family, one celebration accent.
 | Ink | `ink-900 #1A2440`, body `ink-600 #4C5A78`, quiet `ink-500 #5C6C89` |
 | Accent | `teal-600 #3A67D9`, `teal-700 #2F52B3` |
 | Second accent | `violet-700 #5D47DE` — **not** `violet-600`, which lands at 4.42:1 |
+| Signature gradient | `teal-600 → violet-700 → fuchsia-700`, every stop legal as ink (Part 7) |
 | Primary action | `teal-600 → teal-700` fill carrying white |
+| Bloom | wide, low-alpha teal / violet / fuchsia radial washes — **a light source, so keep text out of it** (Part 7) |
+| Grain | fine monochrome noise at low alpha, `aria-hidden`, never over a data surface |
+
+### The footer — the one dark surface left
+
+`bg-gray-950` (`#10182E`) carrying `gray-400` ink at 6.71, in both themes,
+exactly as it always was. This is the surface Part 7's night-band discipline
+continues to bind.
 
 ### Standing rules
 
@@ -144,37 +222,51 @@ No new colours. Two grounds, one accent family, one celebration accent.
   `DESIGN-SYSTEM.md` Part 1 and it binds here too. Status keeps the tone
   registry: emerald ok, amber needs-our-action, rose urgent, violet in-flight,
   fuchsia celebrated.
-- **Fuchsia is the celebration accent and appears nowhere else.** New patient
-  arriving, trial started, a real win. Never on pricing, never on an error.
-- **White text starts at `teal-600`.** `teal-400`/`teal-500` are identity
-  colours, not white-text fills — solid or gradient stop, hover included. On the
-  night band the relationship inverts: the luminous steps carry *dark* ink.
-- **Gradient used as text must have both stops legal.** Both ends are the ink.
-  This is the DREAMCRM-44 lesson and no automated check can see it (Part 7).
+- **Fuchsia is the celebration accent, and — new on DREAMCRM-67 — the terminal
+  stop of the signature headline gradient.** Those are its only two homes. It is
+  still never a status, never a standalone accent, never on pricing, never on an
+  error. The rule's purpose was to stop fuchsia being diluted into another
+  status colour; one terminal stop in a display-scale gradient does not dilute
+  it, and the owner approved that headline in round B. Use **`fuchsia-700`** —
+  see the trap in Part 7.
+- **White text starts at `teal-600`.** `teal-400` / `teal-500` are identity
+  colours, not white-text fills — solid or gradient stop, hover included. The
+  night band's inversion of this rule (the luminous steps carrying *dark* ink)
+  retires with the band.
+- **Gradient used as text must have every stop legal.** Every end is the ink.
+  This is the DREAMCRM-44 lesson, and on a white ground `class-pairs.ts` rule 4
+  now grades it correctly and automatically — see Part 7.
 
 ---
 
 ## Part 3 — Shape language
 
 - **Radii.** 10px controls and buttons · 12px small tiles · 14px cards ·
-  16px the product mock · `999px` reserved for eyebrow badges and status
-  chips. Nothing else is a pill; nothing is a square.
-- **Never:** rotation, organic blobs, hard offset shadows, 2px cartoon
-  outlines. Those four are what made the rejected version read as a toy.
-- **Depth is emission, not stacking.** Night: an object glows
-  (`0 6px 22px rgb(124 165 255/.34)` on the primary, bloom on the mock).
-  Daylight: one hairline plus a soft blue shadow. No hard-edged drop shadows
-  anywhere.
-- **The grid is visible and it is the point.** A 56px blueprint grid at
-  ≤5.5% alpha in the night band, radially masked so it fades before the edges.
-  Content locks to it.
-- **Geometry, chrome zones only.** Concentric orbit rings (1px, ≤13% alpha),
-  one soft orb behind the headline, an aurora wash, a star field. Never behind
-  reading text, never inside a data surface, always `aria-hidden` and
-  `pointer-events: none`.
-- **One grid-break per page, and it is a bleed.** Something crosses the
-  container edge — the mock, a ring, the ticker. Breaking the grid by *rotating*
-  something is banned; that was the childish move.
+  16px the product mock · `999px` reserved for eyebrow badges and status chips.
+  Nothing else is a pill; nothing is a square.
+- **Never:** rotation, organic blobs, hard offset shadows, 2px cartoon outlines.
+  Those four are what made the rejected version read as a toy.
+- **Depth is emission, not stacking.** One hairline plus a soft blue shadow, and
+  coloured light spilling out from under a raised object. No hard-edged drop
+  shadows anywhere.
+- **No drawn grid. Owner veto, DREAMCRM-67.** The 56px blueprint grid
+  (`NIGHT_GRID`) is deleted, not lightened — *"i'm not a big fan of thin black
+  lines making up grids."* Content still locks to a column rhythm; the rhythm is
+  no longer drawn on the page.
+- **No bland check marks. Owner veto, DREAMCRM-67.** `CheckIcon` is replaced
+  everywhere on the marketing site by a **tone-tile set**: a filled squircle
+  carrying a glyph that says what the line is actually about — a chart for
+  scheduling, a speech bubble for messaging, a currency glyph for payments.
+  Eleven identical ticks become eleven statements. The tile fill is a tone tint;
+  the glyph is that tone's deep ink.
+- **Geometry, chrome zones only.** Blooms and grain. Never behind reading text
+  (Part 7 is not advisory about this), never inside a data surface, always
+  `aria-hidden` and `pointer-events: none`.
+- **The grid-break is the product, and it is a bleed.** The product mock crosses
+  the container edge — off the right at every width — with pieces detached and
+  floating in front of it. This is the signature move and it survives the step
+  down to 390px (Part 10). Breaking the grid by *rotating* something is still
+  banned; that was the childish move.
 
 ---
 
@@ -183,6 +275,9 @@ No new colours. Two grounds, one accent family, one celebration accent.
 - **Inter stays the marketing face.** Self-hosted, already in
   `public/fonts/inter-latin-var.woff2`. Nunito is the dashboard's face and does
   not cross over; Fraunces belongs to the clinic sites.
+- **Display is big now.** The hero headline is 86px at 1440 and hard left, not
+  64px centred. Round B's *"only halfway"* was as much about type scale as about
+  colour. Part 10 has the step-down.
 - **Tracking is the technique.** Display `-0.035em`, headings `-0.02em`, body
   `0`. Tight tracking on a neutral grotesk is most of what reads as "modern
   tech."
@@ -199,6 +294,10 @@ No new colours. Two grounds, one accent family, one celebration accent.
   because the product mocks there imitate a real screen at 7px. Corrected on
   DREAMCRM-54 before the first mono label shipped; the recipe is single-homed as
   `MONO_LABEL` in `components/marketing/ui.tsx`.
+- **No oversized decorative numerals.** Owner veto, DREAMCRM-67. A chapter
+  number belongs in the eyebrow and the chapter rail, at reading size, where it
+  is real text. A 210px outlined ghost of it behind the card is decoration
+  pretending to be structure.
 
 ---
 
@@ -224,9 +323,10 @@ Google's **Noto Animated Emoji**, CC BY 4.0, re-encoded and self-hosted under
   is an edit to this table first.
 - **Still banned:** the chrome, the hero, product mocks, pricing, comparisons,
   ROI and grader numbers, error copy, billing copy, legal copy. Unchanged from
-  the ban, and for the same reason — the night band's job is *precise
-  instrument*, and a glossy 3D cartoon in the chrome is the round-2 note coming
-  back.
+  the ban, and for the same reason — the site's job is *precise instrument*, and
+  a glossy 3D cartoon in the chrome is the round-2 note coming back. The ground
+  going light does not soften this: a bright page is if anything a friendlier
+  host for clutter, so the ban carries over verbatim.
 - **Still banned: emoji as decoration.** Marking a moment is the permission. A
   glyph that is not marking anything is the sparkle that got rejected.
 - **No faces.** The only animated moon in the pack (🌛) has one, and it is cut
@@ -263,26 +363,40 @@ here.
   small print: the price is on the page, the gaps are marked, leaving is
   allowed.
 
+**Every number on the page is real, or visibly an example** (DREAMCRM-67). The
+round-B mockups are full of `94%`, `38`, `$14,200` and `2,418`, and every one of
+them is illustrative. They must not ship as implied claims about live customers.
+Testimonials, logos and named practices are only as real as the permission
+behind them — `Riverbend Dental` in the ticker is a placeholder, not a customer.
+A number inside a product mock is part of the mock; the same number in our own
+voice is a claim.
+
 ---
 
-## Part 6 — Motion
+## Part 6 — Motion, and the cinematic spine
 
-CSS only. No animation library. `prefers-reduced-motion: reduce` kills every
-item below except opacity/colour fades — non-negotiable, and the site's existing
-`MarketingMotionStyles` already establishes the pattern.
+CSS-driven, no animation library. `prefers-reduced-motion: reduce` is
+non-negotiable, and it is specified as a *layout* rather than as an absence —
+see the spine below. The site's existing `MarketingMotionStyles` establishes the
+pattern.
 
-- **Ambient, night band only, one loop per band:** aurora drift ~18s; star field
-  static or a very slow twinkle; the live dot pulses ~1.8s. Compositor-only
-  (transform/opacity), never layout properties.
-- **Once, on load:** the hairline scan sweep across the top of the night band;
-  the existing `mkt-fade-up` entrance stagger (0.65s, `cubic-bezier(.16,1,.3,1)`).
-- **Hover, pointer-fine only:** 1px lift and the glow deepens. 140ms.
+### The standing rules
+
+- **Ambient, one loop per band:** the bloom drifts slowly (~18s); the live dot
+  pulses ~1.8s. Compositor-only (transform/opacity), never layout properties.
+- **Once, on load:** the existing `mkt-fade-up` entrance stagger (0.65s,
+  `cubic-bezier(.16,1,.3,1)`).
+- **Hover, pointer-fine only:** 1px lift, the bloom deepens. 140ms.
 - **No spring overshoot on marketing.** `--spring-pop` is the dashboard's cute
-  register; here it reads as bounce. Ease-out only.
-- **Never animate:** text being read, anything on scroll beyond the one
-  entrance, the ticker's contents on hover (it pauses, as it already does).
+  register; here it reads as bounce. Ease-out only, and interaction springs live
+  in the 120–260ms band.
+- **Target 60fps on a mid-range laptop.** Transform and opacity only. Anything
+  that runs forever and is not ambient is a defect.
+- **Never animate text being read**, and never animate the ticker's contents on
+  hover (it pauses, as it already does).
 
-**Animated image assets (the emoji set) obey the same law, by markup not CSS.**
+### Animated image assets (the emoji set) obey the same law, by markup not CSS
+
 `animation: none` cannot reach inside an animated WebP, so the reduced-motion
 fallback is a `<picture>` with a `media="(prefers-reduced-motion: reduce)"`
 `<source>` pointing at a still frame — the browser never fetches the animated
@@ -300,165 +414,188 @@ file at all. That is the pattern; do not replace it with JS.
 - **Always emit `width`/`height`.** These load inside text runs, and an image
   that arrives late and reflows a paragraph is worse than no image.
 
+### The cinematic spine — the scroll-driven exception
+
+**This is an explicit amendment.** Before DREAMCRM-67 this Part banned
+scroll-driven animation beyond the one entrance stagger. The owner asked for the
+opposite by name and approved it rendered, so the ban is replaced by a
+specification. One such sequence per page, and on the homepage it is the spine:
+
+1. **At rest** — the product sits in its frame under the headline.
+2. **On scroll** — the frame grows toward full bleed; the headline fades behind
+   it; the first chapter card rises.
+3. **Pinned** — the page stops advancing and the chapter cards scroll *over* the
+   product, one at a time, while the schedule behind them keeps working. A
+   chapter rail tracks position.
+4. **Release** — after the last chapter the section unpins and the page scrolls
+   on normally.
+
+**The rules that make it shippable, all of them build-blocking:**
+
+- **One scroll position drives everything.** Not a chain of listeners, not a
+  queue. Derive every transform from a single normalised progress value.
+- **It is interruptible.** Reversing the wheel reverses the animation
+  immediately; nothing queues, and nothing finishes an animation the reader has
+  already scrolled away from.
+- **`prefers-reduced-motion` gets a real layout, not a disabled one.** The
+  section unpins and the chapter cards become ordinary stacked sections that
+  read top to bottom. Nobody gets a dead screen or a frozen viewport, and no
+  content is reachable only by animating.
+- **The pin never traps a keyboard or screen-reader user.** Tab order moves
+  through the chapters and out of the bottom; the section is escapable at any
+  point; focus moving into a chapter must not fight the scroll position.
+  **Vesper reviews this specifically, before merge.**
+- **It does not pin on touch.** On phones it degrades to the stacked reading
+  order (Part 10).
+- **A chapter card's copy is static once the card has arrived** — the
+  never-animate-text rule is not suspended inside the spine.
+
 ---
 
-## Part 7 — The contrast law for the night band
+## Part 7 — The contrast law
 
-**A dark band inside a light-mode page is the repo's most dangerous surface, and
-this direction adds a large one.** No `.dark` scope applies to it, so
-`tests/a11y/dark-mode-parity.test.ts` cannot see it — that guard only fires on
-elements whose `dark:` and light halves disagree. axe grades only the stops the
-browser suite walks, and reports gradients as `incomplete` rather than failing.
-This is not hypothetical: the marketing footer's column headings sat live at
-3.42:1 for exactly this reason, and the homepage headline's gradient ink sat at
-2.42:1 with every gate green (DREAMCRM-44).
+**Two things changed on DREAMCRM-67 and they pull in opposite directions. Read
+both before assuming this Part got smaller.**
 
-**So every pair in the night band is measured by hand and recorded here. A
-colour that is not in this table does not go in the night band.**
+### What retires
 
-| Foreground | Ground | Ratio | Use |
+The hero's night band is gone, and with it:
+
+- **The hand-graded ink-on-`#10182E` table for the hero.** Daylight pairs are
+  graded automatically by `class-pairs.ts` rules 1–4 against the white ground
+  they actually ride, so a hand-maintained table is no longer the only
+  instrument there.
+- **The `CLIPPED_TEXT_EXEMPTIONS` entry for the homepage headline — and it must
+  be DELETED rather than weakened.** Its entire justification was that the stops
+  ride a dark ground. On white, rule 4 grades `teal-300` at 1.88 and
+  `violet-300` at 2.03 and is simply right. `token-contrast.test.ts` asserts the
+  exemption's premise structurally — the exempted span must still sit inside a
+  `<section>` carrying `bg-gray-950` and rendering `NightSky` — so **moving the
+  hero to white turns that guard red on purpose, naming the exemption.** That
+  red run is the designed warning, not a regression. Delete the entry, delete
+  the assertions that exist to police it, and leave rule 4 exactly as it is.
+  Weakening rule 4 to get green would re-open the 2.42 headline DREAMCRM-44
+  closed.
+
+### What does NOT retire
+
+- **The footer is still `bg-gray-950`.** It is a dark band inside a light-mode
+  page, which is the exact shape this Part was written for:
+  `dark-mode-parity.test.ts` cannot see it (it only fires on elements whose
+  `dark:` and light halves disagree), axe grades only the stops the browser
+  suite walks, and gradients come back `incomplete` rather than failing. Every
+  ink that lands on the footer is still hand-graded, and the negative assertion
+  pinning `gray-500` — **3.32** on that ground, the pair that actually shipped
+  live for months at 3.42 — stays exactly where it is.
+- **The bloom-under-text risk inverts; it does not disappear.** On the night
+  band a bright wash walked pale ink down. On white, a saturated bloom walks the
+  *ground* down under **dark** ink, and the arithmetic is just as unforgiving.
+  `ink-600` body copy at 6.91 on pure white has real headroom; the same copy
+  sitting inside a violet bloom does not necessarily.
+- **`scripts/night-band-grade.mjs` re-points rather than retires.** Its
+  instrument is right and its extremum is now backwards: it renders the page,
+  hides the band's content, screenshots the decorative layers alone and takes
+  the **brightest** pixel under each run of glyphs — correct for pale ink on
+  dark. For dark ink on light it must take the **darkest** pixel under each run
+  and grade the ink against that. Rename it, flip the extremum, keep everything
+  else: screenshotting the decorative layers alone is what makes a
+  `background-image` visible to a guard at all, and axe reads only
+  `background-color`.
+
+### The rules that bind the new ground
+
+- **Keep blooms centred outside the reading column and horizontally apart.**
+  Lobes that stack under text do not have headroom. This was measured rather
+  than assumed on the night band: a single teal lobe at 16% alpha over the
+  ground already put the palest ink there at 5.05.
+- **A bloom is a light source, so keep text out of it.** On the night band a
+  caption first measured **3.40**, then **4.18**, then 6.58 once it was moved
+  out of the product mock's spill. **Note the middle number — 4.18 is a real
+  failure that reads as "nearly fine",** which is what this whole class of
+  surface is dangerous for.
+- **Grain counts.** A noise overlay over reading text is a contrast reduction
+  like any other. Keep it off the reading column, or grade the ratio with the
+  grain on rather than without it.
+
+### The signature gradient, graded
+
+Rule 4 grades every stop of a `bg-clip-text` gradient as ink on white, with a
+flat 4.5 cutoff and no large-text exception. On the light ground that is now the
+*correct* question rather than the wrong one, so the headline simply has to be
+legal. Measured from `tests/a11y/palette.ts`, the same resolver the guards use:
+
+| Stop | on white | on `surface-1 #F8FAFF` | Verdict |
 |---|---|---|---|
-| `#FFFFFF` | `#10182E` | 17.62 | headings, primary ink |
-| `gray-300 #C3D0E8` | `#10182E` | 11.33 | body copy |
-| `teal-300 #9DBDFF` | `#10182E` | 9.36 | headline gradient start, accent text |
-| `violet-300 #B7ACFF` | `#10182E` | 8.69 | headline gradient end |
-| `teal-400 #7CA5FF` | `#10182E` | 7.28 | eyebrows, icons, links |
-| `gray-400 #93A0BC` | `#10182E` | 6.71 | labels and captions only |
-| `#0C1226` ink | `teal-300 #9DBDFF` fill | 9.87 | the primary button, light end |
-| `#0C1226` ink | `teal-400 #7CA5FF` fill | 7.68 | the primary button, deep end |
-| `gray-300 #C3D0E8` | `surface-1 #161F3A` | 10.46 | copy on a raised card |
-| `teal-400 #7CA5FF` | `surface-1 #161F3A` | 6.72 | accents on a raised card |
+| `teal-600 #3A67D9` | 5.09 | 4.88 | legal — the shallowest legal blue |
+| `teal-700 #2F52B3` | 7.05 | 6.75 | legal, comfortable |
+| `violet-700 #5D47DE` | 6.14 | 5.88 | legal |
+| `fuchsia-700 #A800B7` | 6.27 | 6.01 | legal — **use this one** |
+| `teal-500 #4C7DF0` | 3.82 | 3.66 | **illegal as ink**; fill only |
+| `violet-600 #755FF8` | 4.42 | 4.23 | **illegal as ink** |
+| `fuchsia-600 #C800DE` | 4.66 | **4.46** | **trap — see below** |
 
-Measured with the WCAG relative-luminance formula. `teal-500 #4C7DF0` lands at
-4.61 on the canvas — legal for text but too dim to use as the luminous accent;
-it stays a fill and a dot colour on the night band.
+**`fuchsia-600` is the trap on this ground.** It clears on pure white by 0.16
+and *fails on `surface-1`*, the raised panel the same headline treatment will
+eventually sit on. Rule 4 grades against white, so it would pass the guard and
+fail the page. That is the 4.18 lesson in its light-ground costume: pin
+`fuchsia-700` and the question never arises.
 
-**Two corrections from the first implementation (DREAMCRM-54, 2026-09-15),
-because a table nobody re-measures is a list of numbers somebody typed once:**
+### Rule 5 and the tone tiles
 
-- The primary-button row read **7.28**, which is `teal-400`'s ratio as INK on
-  the ground one row up — the same number copied into the row below it. Dark
-  ink on the `teal-400` fill is **7.68**, and the button is a gradient, so both
-  ends are in the table now. No design changed; the transcription did.
-- `gray-500 #5C6C89` is **3.32** on this ground and must never appear in the
-  band. It is not in the table, so it was already banned — but it is the pair
-  that actually shipped (the marketing footer's headings, live at 3.42 for
-  months), so it is now pinned as a NEGATIVE assertion in
-  `tests/a11y/token-contrast.test.ts` rather than left implicit.
-
-### The table grades the FLAT ground. The band is not flat.
-
-Every ratio above is ink against `#10182E`. The band also paints a blueprint
-grid, an aurora wash, two orbit rings, an orb and a star field on top of it —
-and every one of those is a `background-image`, which **axe cannot see at all**
-(it reads `background-color`). So a wash that walks the ink under 4.5:1 would
-be invisible to the table, to every source rule, and to the browser suite at
-once.
-
-`scripts/night-band-grade.mjs` closes that: it renders the page, hides the
-band's content, screenshots the decorative layers alone, and takes the
-BRIGHTEST pixel under each run of glyphs. Run it against any URL that serves
-the page — `BASE_URL=… node scripts/night-band-grade.mjs` — and it fails when
-anything lands under AA. The homepage measured on DREAMCRM-54:
-
-| Text | Ink | Brightest ground under it | Rendered | Flat |
-|---|---|---|---|---|
-| eyebrow badge | `teal-400` | `rgb(32 45 78)` | **5.61** | 7.28 |
-| headline | `#FFFFFF` | `rgb(64 75 100)` | **8.72** | 17.62 |
-| body copy | `gray-300` | `rgb(37 50 85)` | **8.11** | 11.33 |
-| trust row | `gray-300` | `rgb(25 35 62)` | **10.00** | 11.33 |
-| caption | `gray-400` | `rgb(17 26 48)` | **6.58** | 6.71 |
-| ticker | `gray-400` | `rgb(16 24 46)` | **6.71** | 6.71 |
-
-Two rules fall out of that run and they bind the next batch:
-
-- **Keep every aurora lobe centred OUTSIDE the band and horizontally apart.**
-  A single teal lobe at 16% alpha over the ground already puts `gray-400` — the
-  palest ink here — at 5.05. Lobes that stack over the reading column do not
-  have that headroom.
-- **A bloom is a light source, so keep text out of it.** The caption first
-  measured **3.40**, then **4.18**: it was sitting in the spill from the product
-  mock's bloom and the phone mock's grey shadow. Pulling the bloom in and giving
-  the caption air took it to 6.58. Note the middle number — 4.18 is a real
-  failure that reads as "nearly fine", which is what this whole surface is
-  dangerous for.
-
-**This table is now asserted, not just written.** `token-contrast.test.ts`
-re-derives every row above from `app/css/style.css` on each run
-("every ink BRAND.md Part 7 allows on the night band clears AA there"), so
-re-pointing a ramp step re-grades the whole band instead of quietly
-invalidating a document. The table is still where the DECISION lives; the test
-is what stops it drifting away from the stylesheet.
-
-### The twin of `CLIPPED_TEXT_EXEMPTIONS` — read this before you write gradient text on the band
-
-`tests/a11y/class-pairs.ts` rule 4 grades the stops of a `bg-clip-text`
-gradient **as ink against plain white**, deliberately. That is not an oversight
-to route around: white was the ground under every `bg-clip-text` in the tree
-when the rule landed, and grading against it keeps rule 4's cutoff IDENTICAL to
-rule 2's rather than opening a third opinion about which teal step is legal.
-Its own module header says so.
-
-So **the night band's headline fails rule 4 correctly-in-form and
-wrongly-in-fact**, and this is what it looks like:
-
-| Stop | on white (what rule 4 grades) | on `#10182E` (what renders) |
-|---|---|---|
-| `teal-300 #9DBDFF` | 1.88 | **9.36** |
-| `violet-300 #B7ACFF` | 2.03 | **8.69** |
-
-The fix is a `CLIPPED_TEXT_EXEMPTIONS` entry carrying the measured dark
-ratios, **not a change to rule 4** — it is right about every other site in the
-tree, and weakening it to get green would re-open the 2.42 headline
-DREAMCRM-44 closed. The entry is keyed to the exact class string, and a second
-assertion checks its PREMISE structurally: the exempted span has to still be
-inside a `<section>` that carries the night ground and renders `NightSky`. Move
-the hero back to white and the guard goes red naming the exemption, which is
-the only warning anyone will get — the scanner reads one quoted string and has
-no ancestor to resolve.
-
-Rule 5 (`TONE_FILL`, the solid-fill registry) has **no opinion** about the
-band's chips, and that was checked rather than assumed: it only fires on an
-opaque `bg-<ramp>-<step>` paired with an opaque `text-*`, and the band's chips
-are translucent tints. Pinned in `token-contrast.test.ts` both ways — the tint
-stays quiet, a SOLID tone chip fires. If you ever need a solid tone chip on the
-night band, the answer is to extend the registry, not to write a local recipe:
-`TONE_PILL`'s ink steps are chosen for a light ground and do not read on this
-one.
+Rule 5 (`TONE_FILL`, the solid-fill registry) had **no opinion** about the night
+band's chips because they were translucent tints. **The Part 3 tone tiles are
+the same shape and the same answer** — a tone tint carrying that tone's deep ink
+— so they stay outside rule 5 by construction. If a tile ever needs a SOLID tone
+fill, extend the registry rather than writing a local recipe. On a light ground
+`TONE_PILL`'s ink steps are finally the ones they were chosen for, which is one
+thing that genuinely got easier.
 
 ---
 
-## Part 8 — First moves
+## Part 8 — Build order
 
-Ordered, each its own small PR, each verified in the real page before it lands:
+Ordered, each its own small PR, each verified in the real page at all three
+widths before it lands. Nothing merges without the three-size screenshots and
+the reduced-motion path in the same PR.
 
-1. **The homepage hero becomes the night band** — grid, aurora, orbit rings,
-   orb, star field, mono micro-labels, the product mock as instrument glass —
-   and the ticker goes with it. Fix the headline gradient in the same pass if
-   DREAMCRM-44 has not already landed it.
-2. **The rest of the homepage moves to daylight techno** — hairline cards at
-   14px, mono eyebrows, straight grid, glow-on-hover, no tilt.
-3. **Shared chrome** — `MarketingHeader`, `MarketingFooter` and `PageHero` in
+1. **The homepage hero becomes the daylight band** — saturated blooms, grain,
+   86px hard-left headline with the legal gradient, the product bleeding off the
+   right edge with detached pieces in front of it, the ticker closing the fold.
+   Delete `NIGHT_GRID`, `NightSky`, and the `CLIPPED_TEXT_EXEMPTIONS` entry with
+   its premise assertions in the same PR — the red run they produce is the
+   signal that move 1 is really happening.
+2. **The cinematic spine** — the pin-and-scroll sequence, its reduced-motion
+   stacked layout, and its keyboard path. Vesper reviews before merge. This is
+   the one move in the list that is not a re-skin.
+3. **The tone tiles replace `CheckIcon`** across the eleven marketing call sites
+   (homepage 4, compare 2, product 2, pricing 1, partner-program 1, plus one
+   inside `ui.tsx`). The two `CheckIcon`s in `app/(default)` are separate local
+   definitions in the dashboard's language and are out of scope.
+4. **Shared chrome** — `MarketingHeader`, `MarketingFooter` and `PageHero` in
    `components/marketing/` — so every subpage inherits the language for free
    instead of drifting page by page.
-4. **Then per page, in this order:** pricing (the honest test of whether the
+5. **Re-point the decorative-layer grader** per Part 7, and put it on the light
+   hero.
+6. **Then per page, in this order:** pricing (the honest test of whether the
    language survives a table), compare, product, why, resources.
 
-The site is light-only today (zero `dark:` classes under `app/(marketing)`).
-Nothing here changes that: the night band is a dark *band*, hand-graded per
-Part 7, not a theme. Whether the marketing site ever gets a real dark theme is a
-separate question and has not been decided.
+The site is light-only today (zero `dark:` classes under `app/(marketing)`) and
+nothing here changes that. Whether the marketing site ever gets a real dark
+theme is a separate question and has not been decided — a smaller question now
+that no hero band depends on hand-grading.
 
 ---
 
 ## Part 9 — What still needs the owner
 
-Everything in Parts 1–8 is settled and ships without another approval round.
-These do not:
+Everything in Parts 1–8, 10 and 11 is settled and ships without another approval
+round. These do not:
 
 - The logo, the mark, or the wordmark lockup.
 - Any change to a colour ramp — extending it, re-pointing it, adding a hue.
 - Anything that changes what the brand *is* rather than how loudly it speaks.
+- **Commissioning photography** — the Part 11 upgrade path is a funded project
+  with releases and a shoot, not a design decision.
 - Pricing, published external communications, money-moving behaviour, spending,
   and destructive operations — the studio's standing list, which outranks this
   document.
@@ -468,9 +605,76 @@ A contrast or accessibility fix that stays inside the existing colour family is
 
 ---
 
+## Part 10 — Scaling
+
+**Three widths are a deliverable for every surface, not an afterthought: 390,
+834, 1440.** A PR that shows one width has not shown the change.
+
+- **The signature moves survive the step down.** At 390 the product still breaks
+  the right edge, the headline still carries the gradient, the ticker still
+  closes the fold. What changes is scale and stacking — never identity. A phone
+  that drops the bleed is a phone showing a different brand.
+- **Type steps down; it does not reflow into a different design.** 86px display
+  at 1440, stepping through 834 to a size that still reads as display at 390.
+- **Buttons go full width at 390.** Side by side at 834 and up.
+- **Zero horizontal scroll at any width.** The full-bleed effect is achieved by
+  **clipping**, not by letting the document get wider. That bug appeared while
+  building round B and is exactly what ships if nobody checks — check it by
+  measuring `scrollWidth` against `clientWidth`, not by looking at it.
+- **The pinned scroll does not pin on touch.** Phones get the stacked reading
+  order, which is the same layout `prefers-reduced-motion` gets (Part 6).
+
+---
+
+## Part 11 — Imagery
+
+**Product-only. Owner decision, DREAMCRM-67:** *"product only for imagery."*
+
+The app is the picture. No stock photography, no licensed dental imagery, no
+photographs of practices. Every visual on the designed marketing pages is CSS,
+SVG and product mock — which is what they already are: nothing under
+`app/(marketing)` or `components/marketing` renders `next/image` or `<img>`
+except the blog's author-supplied cover slot, which is content rather than
+design.
+
+**Why this is a position and not a shortfall.** The honest version of this
+product's story is a Tuesday that runs itself, and a mock of the real screen
+tells that story better than a stock photograph of strangers in scrubs. The
+failure mode to watch is Part 1's third "not us": product-only plus pale washes
+is exactly how a site gets bland. The saturated light and the bleed are what
+keep this from being a screenshot gallery.
+
+**The bar, for every image that does exist** — the blog cover slot today, and
+anything added later:
+
+- AVIF/WebP with a raster fallback.
+- **Explicit width and height**, so nothing reflows on load. *The blog cover at
+  `app/(marketing)/blog/[slug]/page.tsx` has neither today — a real
+  layout-shift defect, and it belongs to whoever owns UI correctness rather than
+  to this document.*
+- `priority` on the one above-the-fold asset only; lazy everywhere else.
+- Real alt text. Decorative art gets `aria-hidden`; an empty `alt` on something
+  that carries meaning is a defect, not a shortcut. (The animated emoji set's
+  `alt=""`-by-default is the correct version of this: decorative unless given a
+  `label`, per Part 5.)
+
+**The upgrade path, if it is ever funded:** photographs of real DreamCRM
+practices — their teams, their front desks. It is the only imagery no competitor
+can copy. It needs releases, a shoot and willing customers, so it is a project
+rather than a task, and it sits in Part 9 until the owner starts it. Licensed
+stock is not the middle ground; it is the option that makes the site look like
+everyone else's.
+
+---
+
 ## Living document
 
 Update this file whenever an issue produces a brand decision — that is the
 point of it. Add the decision to Part 0 with its date and the issue key, and
 change the part it affects in the same commit. A decision that lives only in an
 issue thread has reached nobody.
+
+Part numbers 0–9 are cited by number from `app/`, `components/`, `tests/` and
+`scripts/`. Renumbering them silently breaks those citations, so append new
+parts at the end and leave the existing topics where they are — which is why
+Scaling and Imagery are 10 and 11.
