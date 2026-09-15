@@ -48,6 +48,11 @@ const OWNED_HEXES: Record<string, string> = {
   // "one tone in patient-portal/ui.tsx" was not true of the one tone the axe
   // baseline had been carrying a ceiling for on nine portal stops.
   '#6B635A': 'PORTAL_MUTED',
+  // The inset well — the skeleton's pulse and a taken time sit in it. Added
+  // 2026-09-15 with batch 64: a SURFACE is half of a contrast pair, and while
+  // it was spelled raw in the slot picker the label on it was never graded
+  // against anything. It was 1.85:1.
+  '#F3EEE7': 'PORTAL_WASH',
   '#B4231F': 'PORTAL_ERROR',
   '#FBF3E4': 'PORTAL_WARN_BG',
   '#8A6116': 'PORTAL_WARN_INK',

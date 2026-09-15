@@ -414,6 +414,18 @@ export const A11Y_BASELINE: Record<string, Record<string, number>> = {
   // with the footer line that produced all nine. A portal stop tolerates ZERO
   // now, which is the only state in which the next one fails on arrival; see
   // the note above for what the pair actually was.
+  //
+  // AND THE ONE THAT WOULD HAVE BROKEN THAT IS FIXED, batch 64 (DREAMCRM-62).
+  // The slot grid's "taken" time was 1.85:1 — a one-off warm grey on a one-off
+  // warm well, both spelled raw at the call site. No spec loads a day with a
+  // booked slot in it, so this file never counted it and never would have
+  // until a fixture changed; what it actually was, with the portal stops at
+  // zero, is a red `e2e` waiting on a seed. Worth saying plainly because it is
+  // the opposite of the usual reading: a stop at zero is not evidence the
+  // surface is clean, only that nothing has scanned the state that is dirty.
+  // The guard is `tests/a11y/portal-palette.test.ts` — every portal ink on
+  // every portal surface, in `test`, where it does not depend on a spec
+  // happening to walk past.
   'staff: add-patient dialog, filled in': { 'color-contrast': 1 },
   'staff: dream team, a proposal waiting on a yes': { 'color-contrast': 1 },
   'staff: patients list, brand-new empty clinic': { 'color-contrast': 1 },
