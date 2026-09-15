@@ -138,4 +138,38 @@ describe('upload route gate', () => {
     const res = await post(new File([], 'empty.png', { type: 'image/png' }))
     expect(res.status).toBe(400)
   })
+
+  // ── The unwrapped throws ──────────────────────────────────────────────────
+  //
+  // Every refusal on this route answers with `{ error }` and every caller
+  // reads `res.json().error` to tell the staff member what happened. Two
+  // things could throw instead — `request.formData()` on a truncated
+  // multipart body, and `uploadBlob` on an S3 or credential failure — and
+  // neither was wrapped, so the request became an unhandled rejection and
+  // Next answered with a framework 500 carrying no JSON at all. The one
+  // failure staff could do nothing about was the only one that told them
+  // nothing.
+
+  it('answers a storage failure with a readable JSON error, not a bodyless 500', async () => {
+    const { uploadBlob } = await import('@/lib/blob')
+    vi.mocked(uploadBlob).mockRejectedValueOnce(new Error('S3: AccessDenied'))
+    const res = await post(fileFrom(PNG, 'logo.png', 'image/png'))
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(typeof body.error).toBe('string')
+    expect(body.error.length).toBeGreaterThan(0)
+    // The raw provider error never reaches the staff member.
+    expect(body.error).not.toContain('AccessDenied')
+  })
+
+  it('answers a truncated multipart body with a readable JSON error', async () => {
+    const req = {
+      formData: async () => {
+        throw new TypeError('Failed to parse body as FormData.')
+      },
+    } as unknown as Request
+    const res = await POST(req)
+    expect(res.status).toBe(500)
+    expect(typeof (await res.json()).error).toBe('string')
+  })
 })
