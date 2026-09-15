@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { GATE_RULES, gateFindings, globToRegExp } from '../../scripts/review-gate.mjs'
+import { dirname, join, normalize } from 'node:path'
+import {
+  GATE_RULES,
+  INTAKE_RULES,
+  gateFindings,
+  globToRegExp,
+  intakeFindings,
+  renderSummary,
+} from '../../scripts/review-gate.mjs'
 
 /**
  * The pre-merge review gate, checked against the tree it claims to describe.
@@ -37,6 +44,10 @@ function areasFor(...files: string[]): string[] {
   return gateFindings(files).map((f: { id: string }) => f.id)
 }
 
+function intakeAreasFor(...files: string[]): string[] {
+  return intakeFindings(files).map((f: { id: string }) => f.id)
+}
+
 describe('the review-gate classifier', () => {
   it('flags a change in every area the review gate names', () => {
     // One real path per rule, spelled out rather than generated: if somebody
@@ -50,6 +61,7 @@ describe('the review-gate classifier', () => {
       'token-surfaces': 'app/b/[token]/page.tsx',
       'tenant-scoping': 'lib/db/index.ts',
       'read-checks': 'lib/read-checks.ts',
+      'check-definitions': 'vitest.config.ts',
     }
 
     expect(
@@ -65,16 +77,21 @@ describe('the review-gate classifier', () => {
   it('says nothing about a test-only or docs-only PR', () => {
     // The convention exempts these explicitly, and a check that cried review on
     // every PR would be one people stop reading inside a week.
-    expect(
-      areasFor(
-        'tests/guards/review-gate.test.ts',
-        'tests/payments/fees.test.ts',
-        'e2e/portal.spec.ts',
-        'docs/CI.md',
-        'docs/RELEASE.md',
-        'components/ui/action-button.tsx',
-      ),
-    ).toEqual([])
+    const ordinary = [
+      'tests/payments/fees.test.ts',
+      'e2e/portal.spec.ts',
+      'docs/CI.md',
+      'docs/RELEASE.md',
+      'components/ui/action-button.tsx',
+    ]
+
+    expect(areasFor(...ordinary)).toEqual([])
+
+    // NEITHER obligation, not just neither review (DREAMCRM-49). The intake
+    // rule sits next to the review rules and would be just as easy to widen
+    // into everything; `tests/**` holds ~6,900 tests that assert about one
+    // unit each and change nothing for anybody else.
+    expect(intakeAreasFor(...ordinary)).toEqual([])
   })
 
   it('flags the whole PR on one risky file among many exempt ones', () => {
@@ -172,6 +189,16 @@ describe('the review-gate classifier', () => {
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
       'Dockerfile': 'deploy-path',
+      // What the required checks actually run (DREAMCRM-49). `.github/` names
+      // the job; these name the work inside it. `e2e/axe.ts` carries the
+      // accessibility harness's EXCLUSIONS, which is the one kind of edit to a
+      // gate that can only ever make it looser — and it leaves no trace under
+      // `.github/` at all. `scripts/review-gate.mjs` is this file's own
+      // subject: the list that decides which PRs reach a reviewer.
+      'vitest.config.ts': 'check-definitions',
+      'playwright.config.ts': 'check-definitions',
+      'e2e/axe.ts': 'check-definitions',
+      'scripts/review-gate.mjs': 'check-definitions',
       // The production read-check catalog (DREAMCRM-42). Pinned because the
       // per-entry review is the ENTIRE control on "no PHI in a log anything
       // with repo read can open" and on the cross-tenant waiver — and because
@@ -247,11 +274,144 @@ describe('the review-gate classifier', () => {
     ).toEqual([])
   })
 
+  it('replays PR #566: no review owed, an intake owed, and the summary says both', () => {
+    // THE PR THIS RULE EXISTS FOR (DREAMCRM-49). #566 added rule 4 to
+    // `tests/a11y/class-pairs.ts` — a new class of blocking assertion inside
+    // the required `test` check — and this script printed "✅ No review-gate
+    // files in this PR ... merges on green". That was the RIGHT answer to the
+    // review question and no answer at all to the one that mattered.
+    //
+    // Both halves are asserted, because getting either backwards undoes the
+    // fix: widening the review rule instead would have put roughly a third of
+    // the repo's recent PRs into a review queue of one, which is how a gate
+    // gets routed around.
+    const pr566 = [
+      'DESIGN-SYSTEM.md',
+      'app/(marketing)/page.tsx',
+      'docs/RELEASE.md',
+      'docs/UI-BEST-VERSION.md',
+      'tests/a11y/class-pairs.ts',
+      'tests/a11y/token-contrast.test.ts',
+    ]
+
+    expect(
+      areasFor(...pr566),
+      'PR #566 was correctly exempt from review — a test-only diff plus conformant UI polish, ' +
+        'nothing on the §3 gate list. Widening a review rule to catch it would be the wrong fix.',
+    ).toEqual([])
+
+    expect(
+      intakeAreasFor(...pr566),
+      'PR #566 added a new blocking assertion class to the required `test` check. Something has ' +
+        'to say so on the run, or the next author is told "merges on green" by the one part of ' +
+        'the system that is supposed to know.',
+    ).toEqual(['blocking-assertions'])
+
+    const summary = renderSummary(gateFindings(pr566), pr566.length, intakeFindings(pr566))
+    expect(summary).toContain('No review-gate files in this PR')
+    expect(summary).toContain('may change what can merge')
+    expect(summary).toContain('mention://agent/187124c3-23a7-47f6-bdee-e90bfc3fa216')
+  })
+
+  it('puts every product-tree scanner in the suite on the intake list — derived, not remembered', () => {
+    // THE DIRECTION A PATH LIST CANNOT COVER BY ITSELF. `INTAKE_RULES` names
+    // the scanners that exist today. The shape that got #566 through is a
+    // scanner that does NOT exist yet: a brand-new file matches no pattern, so
+    // the enumeration is silent about it on exactly the day it arrives. That
+    // is not hypothetical — `dark-mode-parity.test.ts` (#555) and
+    // `shared-pending.ts` (#559) were both new files carrying a new zero.
+    //
+    // So this asks the tree instead, on the same terms as the `@/lib/stripe`
+    // test above: mechanical evidence, not a judgement. A suite file that
+    // WALKS A DIRECTORY (`readdirSync`, or `git ls-files`) and names a product
+    // root (`'app'`, `'components'`, `'lib'`) is reading source it did not
+    // name — its assertion is about the whole tree, and changing it changes
+    // what everyone else can merge. Modules that reach the walker through an
+    // import count too, which is how `class-pairs.ts` reaches
+    // `token-contrast.test.ts` and `jsx-attrs.ts` reaches `shared-pending.ts`.
+    //
+    // Failing here is cheap to fix and says what to do: add the file to
+    // `blocking-assertions` in scripts/review-gate.mjs. The point is that the
+    // author of the next tree-wide rule has to make that call consciously,
+    // rather than being told by a green tick that nobody needs to know.
+    const suite = trackedFiles().filter((f) => /^(tests|e2e)\/.*\.tsx?$/.test(f))
+    const src = new Map(suite.map((f) => [f, readFileSync(join(process.cwd(), f), 'utf8')]))
+
+    const localImports = (f: string): string[] =>
+      Array.from(src.get(f)!.matchAll(/from\s+'(\.[^']+)'/g)).flatMap((m) => {
+        const t = normalize(join(dirname(f), m[1])).split('\\').join('/')
+        return [t, `${t}.ts`, `${t}.tsx`, `${t}/index.ts`]
+      })
+
+    const WALKS = /readdirSync|'ls-files'/
+    const PRODUCT_ROOT = /(^|[^\w])'(app|components|lib)'/
+    const walkers = new Set(suite.filter((f) => WALKS.test(src.get(f)!)))
+
+    const scanners = new Set(
+      suite.filter(
+        (f) =>
+          PRODUCT_ROOT.test(src.get(f)!) &&
+          (walkers.has(f) || localImports(f).some((i) => walkers.has(i))),
+      ),
+    )
+    // Whoever imports a scanner is asserting with it.
+    for (let grew = true; grew; ) {
+      grew = false
+      for (const f of suite) {
+        if (scanners.has(f)) continue
+        if (localImports(f).some((i) => scanners.has(i))) {
+          scanners.add(f)
+          grew = true
+        }
+      }
+    }
+
+    // The instrument check the shared-pending guard taught us to write: a
+    // detector narrowed until it matches nothing reports CLEAN forever, and
+    // this one is built out of two regexes that a refactor could stop
+    // matching. `class-pairs.ts` is the file rule 4 landed in.
+    expect(
+      scanners.has('tests/a11y/class-pairs.ts'),
+      'the scanner detector stopped seeing tests/a11y/class-pairs.ts, so it is no longer ' +
+        'detecting anything and the assertion below is worth nothing',
+    ).toBe(true)
+    expect(scanners.size).toBeGreaterThan(10)
+
+    const unlisted = Array.from(scanners)
+      .filter((f) => intakeAreasFor(f).length === 0)
+      .sort()
+
+    expect(
+      unlisted,
+      'These files hold an assertion about the WHOLE product tree and are not on the intake list ' +
+        'in scripts/review-gate.mjs — so a PR that adds or loosens a rule in one of them would ' +
+        'be told, on the job summary, that it merges on green with nothing else to do. That is ' +
+        'exactly what PR #566 was told. Add each to the `blocking-assertions` patterns; if the ' +
+        'scan is genuinely bounded, narrow it to name the files it reads instead.',
+    ).toEqual([])
+  })
+
+  it('keeps the two obligations separately answerable', () => {
+    // A rule id appearing in both lists would make `areas` ambiguous on the
+    // workflow output and, worse, make "does this owe a review?" and "does
+    // this owe an intake?" answer each other.
+    const gate = GATE_RULES.map((r: { id: string }) => r.id)
+    const intake = INTAKE_RULES.map((r: { id: string }) => r.id)
+    expect(intake.filter((id: string) => gate.includes(id))).toEqual([])
+
+    // And every intake rule carries the same two fields the summary renders,
+    // so a new one cannot ship printing `undefined` at an author.
+    for (const rule of INTAKE_RULES) {
+      expect(rule.area, `intake rule '${rule.id}' needs an area`).toBeTruthy()
+      expect(rule.why, `intake rule '${rule.id}' needs a why`).toBeTruthy()
+    }
+  })
+
   it('every gate pattern still matches a real file in this tree', () => {
     const files = trackedFiles()
     const dead: string[] = []
 
-    for (const rule of GATE_RULES) {
+    for (const rule of [...GATE_RULES, ...INTAKE_RULES]) {
       for (const pattern of rule.patterns) {
         const re = globToRegExp(pattern)
         if (!files.some((f) => re.test(f))) dead.push(`${rule.id}: ${pattern}`)

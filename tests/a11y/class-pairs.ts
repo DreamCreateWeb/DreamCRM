@@ -613,6 +613,24 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  *     same exclusions rules 1 and 3 make.
  *   - A gradient and its `bg-clip-text` in DIFFERENT quoted strings. One
  *     quoted string is the unit, as everywhere else in this file.
+ *   - **CLIPPED TEXT OVER A SOLID FILL — a known open hole, not a bounded
+ *     cost.** `isGradientText` below requires a base-variant `from-`/`via-`/
+ *     `to-` stop, so `bg-teal-400 bg-clip-text text-transparent` is graded by
+ *     NOTHING: rule 4 wants a gradient, rule 2 wants `ink.word === 'white'`
+ *     and the ink here is `transparent`, rule 3 wants a `text-white` to anchor
+ *     on, and axe cannot see a clipped background at all. That chunk paints
+ *     teal-400 letterforms on white at 2.42 — the same number that started
+ *     DREAMCRM-44. Reproduce it by adding that className anywhere under `app/`,
+ *     `components/` or `lib/` and running `token-contrast.test.ts`: green.
+ *     ZERO instances exist today, so it is a hole rather than a live defect;
+ *     the fix is to grade a base `bg-<ramp>-<step>` as ink when
+ *     `bg-clip-text text-transparent` is present, with a watched red run on
+ *     the shape above. Filed in docs/RELEASE.md Part 5 (Sentinel, DREAMCRM-49,
+ *     the post-hoc review of #566). It is written here rather than only in the
+ *     ledger because this paragraph is where the next author will be standing —
+ *     and because rule 4's own lesson is that when you write a rule for a
+ *     shape, you write down what the shape's inverse would do to it. Rule 4
+ *     closed rule 3's inverse and left its own open.
  *
  * A site genuinely riding a DARK band — the marketing footer is the shape that
  * exists — would fail this rule correctly-in-form and wrongly-in-fact. That is
