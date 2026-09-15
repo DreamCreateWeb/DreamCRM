@@ -68,66 +68,114 @@ export async function customizePendingServices(): Promise<CustomizeServicesResul
   const bySlug = new Map(library.map((e) => [e.slug, e]))
 
   for (const row of rows) {
-    const services = Array.isArray(row.services) ? (row.services as ClinicService[]) : []
-    // Services that link to a library entry but have no customized blob yet.
-    const pending = services.filter(
-      (s) => s.librarySlug && bySlug.has(s.librarySlug) && !s.customized,
-    )
-    if (pending.length === 0) continue
-    result.scanned += pending.length
-
-    const clinicCtx: CustomizeClinicContext = {
-      name: row.displayName ?? '',
-      city: row.city,
-      tagline: row.tagline,
-      about: row.about,
-    }
-
-    let didForOrg = 0
-    const written: string[] = []
-    // Work on this org's own snapshot, then write once at the end so a single
-    // run touches the row a single time (avoids N read-modify-writes).
-    const next = [...services]
-    for (const svc of pending) {
-      if (didForOrg >= PER_ORG_CUSTOMIZE_BUDGET) break
-      const entry = bySlug.get(svc.librarySlug!)!
-      try {
-        const res = await customizeServiceForClinic(entry, clinicCtx)
-        if (!res.ok) {
-          result.errors += 1
-          continue
-        }
-        const idx = next.findIndex((s) => s.id === svc.id)
-        if (idx >= 0) {
-          next[idx] = { ...next[idx], customized: res.customization }
-          didForOrg += 1
-          written.push(next[idx].name || entry.name)
-        }
-      } catch {
-        result.errors += 1
-      }
-    }
-
-    if (didForOrg > 0) {
-      await db
-        .update(clinicProfile)
-        .set({ services: next, updatedAt: new Date() })
-        .where(eq(clinicProfile.organizationId, row.organizationId))
-      result.customized += didForOrg
-      result.orgsTouched += 1
-      // The machine just wrote public website copy — that's employee work the
-      // ledger must report (one entry per sweep, naming the pages).
-      await recordAction({
-        organizationId: row.organizationId,
-        capability: 'service_copywriting',
-        summary:
-          written.length === 1
-            ? `Wrote the ${written[0]} page copy for your website`
-            : `Wrote website copy for ${written.length} service pages (${written.join(', ')})`,
-        detail: { services: written },
-      })
+    // PER-ORG ISOLATION. Only the AI call used to be wrapped; the services
+    // write and the ledger entry ran bare in this loop, so one clinic's
+    // failing write threw out of the sweep and every clinic behind it was
+    // skipped — silently, because the cron reported a 500 rather than a
+    // failure count. One org's bad minute is one org's.
+    try {
+      await customizeOneOrg(row, bySlug, result)
+    } catch (err) {
+      result.errors += 1
+      console.warn('[customize-services] org sweep failed', row.organizationId, err)
     }
   }
 
   return result
+}
+
+type LibraryEntry = Awaited<ReturnType<typeof getServiceLibrary>>[number]
+
+/** One clinic's leg of the sweep. Extracted so the caller can wrap exactly one
+ *  org's work — see the isolation note at the call site. */
+async function customizeOneOrg(
+  row: {
+    organizationId: string
+    displayName: string | null
+    city: string | null
+    tagline: string | null
+    about: string | null
+    services: unknown
+  },
+  bySlug: Map<string, LibraryEntry>,
+  result: CustomizeServicesResult,
+): Promise<void> {
+  const services = Array.isArray(row.services) ? (row.services as ClinicService[]) : []
+  // Services that link to a library entry but have no customized blob yet.
+  const pending = services.filter(
+    (s) => s.librarySlug && bySlug.has(s.librarySlug) && !s.customized,
+  )
+  if (pending.length === 0) return
+  result.scanned += pending.length
+
+  const clinicCtx: CustomizeClinicContext = {
+    name: row.displayName ?? '',
+    city: row.city,
+    tagline: row.tagline,
+    about: row.about,
+  }
+
+  // Collect this org's new blobs keyed by service id. Deliberately NOT a
+  // patched copy of the snapshot: the snapshot was read at the top of the
+  // sweep and is minutes stale by the time the AI calls return.
+  const blobs = new Map<string, ClinicService['customized']>()
+  const fallbackNames = new Map<string, string>()
+  for (const svc of pending) {
+    if (blobs.size >= PER_ORG_CUSTOMIZE_BUDGET) break
+    const entry = bySlug.get(svc.librarySlug!)!
+    try {
+      const res = await customizeServiceForClinic(entry, clinicCtx)
+      if (!res.ok) {
+        result.errors += 1
+        continue
+      }
+      blobs.set(svc.id, res.customization)
+      fallbackNames.set(svc.id, svc.name || entry.name)
+    } catch {
+      result.errors += 1
+    }
+  }
+  if (blobs.size === 0) return
+
+  // NOT A READ-MODIFY-WRITE. Writing the sweep-time snapshot back reverted
+  // whatever the clinic changed in Website Studio while the AI calls were in
+  // flight — a new service, a rename, a deletion — from a cron they never saw.
+  // Re-read the row under a row lock and merge the blobs onto the CURRENT
+  // array instead: a service they deleted stays deleted, a service they edited
+  // keeps their edit, and a blob that arrived meanwhile wins over ours.
+  const written: string[] = []
+  await db.transaction(async (tx) => {
+    const [fresh] = await tx
+      .select({ services: clinicProfile.services })
+      .from(clinicProfile)
+      .where(eq(clinicProfile.organizationId, row.organizationId))
+      .for('update')
+      .limit(1)
+    const current = Array.isArray(fresh?.services) ? (fresh.services as ClinicService[]) : []
+    const merged = current.map((s) => {
+      if (!blobs.has(s.id) || s.customized) return s
+      written.push(s.name || fallbackNames.get(s.id) || 'a service')
+      return { ...s, customized: blobs.get(s.id) }
+    })
+    if (written.length === 0) return
+    await tx
+      .update(clinicProfile)
+      .set({ services: merged, updatedAt: new Date() })
+      .where(eq(clinicProfile.organizationId, row.organizationId))
+  })
+  if (written.length === 0) return
+
+  result.customized += written.length
+  result.orgsTouched += 1
+  // The machine just wrote public website copy — that's employee work the
+  // ledger must report (one entry per sweep, naming the pages that LANDED).
+  await recordAction({
+    organizationId: row.organizationId,
+    capability: 'service_copywriting',
+    summary:
+      written.length === 1
+        ? `Wrote the ${written[0]} page copy for your website`
+        : `Wrote website copy for ${written.length} service pages (${written.join(', ')})`,
+    detail: { services: written },
+  })
 }
