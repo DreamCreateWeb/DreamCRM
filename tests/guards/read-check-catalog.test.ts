@@ -63,7 +63,7 @@ describe('read-check catalog', () => {
       expect(c.returns.length, `${c.id} must declare what it returns (the no-PHI rule is reviewed against it)`)
         .toBeGreaterThan(10)
       expect(c.why.length).toBeGreaterThan(40)
-      expect(['cross-tenant-by-design', 'scoped']).toContain(c.tenantScope)
+      expect(['cross-tenant-by-design', 'scoped', 'no-tenant-data']).toContain(c.tenantScope)
     }
   })
 

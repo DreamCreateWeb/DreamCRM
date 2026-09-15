@@ -418,9 +418,28 @@ as confirmed defects yet.
   auth to add without breaking the middleware fetch it exists to serve. Not a
   defect — recorded here so the next sweep doesn't re-report it.
 - S3/housekeeping · `uploadPatientDocumentAction` writes the S3 blob before
-  the patient-in-org check (forged id orphans a blob; no row, no access);
-  `enterDemoMode` doesn't validate the target org (self-only, re-validated
-  downstream). · OPEN.
+  the patient-in-org check (forged id orphans a blob; no row, no access). ·
+  **FIXED** (DREAMCRM-47) — `patientBelongsToOrg` is exported from
+  `lib/services/patient-documents.ts` and asked BEFORE `uploadBlob`;
+  `addPatientDocument` still asks again on its own account, because a service
+  that trusts its caller to have checked is one caller away from not being
+  checked at all. The gate belongs in front of the one write here that cannot
+  be rolled back. `tests/patients/document-upload-order.test.ts` pins the
+  ORDER, not just the refusal.
+- S3/housekeeping · `enterDemoMode` doesn't validate the target org
+  (self-only, re-validated downstream). Unbundled from the upload defect
+  above: same sweep, different file, different fix. · **FIXED**
+  (DREAMCRM-47) — the org row was already being read (to decide whether to
+  run the demo seeder's self-heal), so the fix is to stop treating a missing
+  row as "not the demo clinic" and start treating it as "nothing to render
+  as". The cookie IS a tenant context — `getTenantContext` gives it
+  precedence over real org membership — so a wire-supplied `orgId` matching
+  no organization used to mint a seven-day cookie pointing at a tenant that
+  does not exist. `app/(default)/ecommerce/customers/admin-actions.ts` was
+  ALSO added to the `auth` rule in `scripts/review-gate.mjs` (and to
+  `MUST_BE_GATED`): the file that mints the tenant-context cookie matched
+  nothing on the gate list, so a PR changing which org a platform admin can
+  become reported "merges on green".
 
 Partitions audited CLEAN (no defect): appointments, patients, leads,
 intake-forms, followups, my-day, search, growth (outreach/reviews/social),
@@ -705,7 +724,69 @@ binding are all correct. The payment-plan charger was the exception.
   showing money returned that never left. Rare (mostly bank-level failures on
   older cards), and un-doing it needs an ordering rule the monotonic path
   deliberately does not have — a non-monotonic write would reopen the
-  out-of-order hazard the rule exists to close. · OPEN.
+  out-of-order hazard the rule exists to close. · **FIXED** (DREAMCRM-47,
+  migration 0163 `refund_synced_at` on the three money tables + the
+  `connect_refund` receipt). The ordering rule is a WATERMARK, not a
+  replacement: we now store WHEN the snapshot we applied was taken, and there
+  are THREE cases, not two — strictly newer wins outright (down as well as
+  up); strictly OLDER writes nothing at all, because a newer snapshot has
+  already decided this charge; and only the genuinely UNORDERABLE (no key, or
+  an exact tie) falls back to the old monotonic rule, unchanged. So the
+  out-of-order hazard stays closed in both directions.
+
+  The boundary between the last two cases is the whole correctness of this,
+  and the first version got it wrong — caught by Sentinel in review, not in
+  production. It sent everything "not strictly newer" to monotonic, and
+  monotonic RAISES: a failure recorded at t40 was undone by the original
+  refund redelivered from t10, putting the money straight back on the books
+  with the order flipped to 'refunded' and the watermark still at t40, so
+  nothing short of a genuinely newer event would ever correct it. Stripe is
+  at-least-once and retries for three days, so that needed no misordering at
+  all. **"Not newer" is a larger set than "cannot be ordered"; only the second
+  one may fall back.** The suite missed it because the stale-event case that
+  existed tested a stale event that would LOWER the total — accurate about
+  what it asserted, and named as though it covered stale events generally.
+
+  The ordering key is Stripe's own `event.created`, so there is exactly ONE
+  clock and it is not ours. A snapshot we FETCHED (the refund-object events
+  re-read the charge) is at least as fresh as the event that triggered the
+  fetch, so stamping it with that event's time only ever UNDER-claims its
+  freshness — and under-claiming degrades to the monotonic branch, which is
+  where we were before. There is no direction in which the new rule is worse
+  than the one it replaces. An equal timestamp is a redelivery and re-decides
+  nothing.
+
+  The sweep this needed: `recordConnectRefund` writes in FIVE places, and a
+  half-applied rule is a record that disagrees with itself. All five follow the
+  money down — the three money rows, the `connect_refund` receipt (the only
+  place a refunded MEMBERSHIP charge is ever visible, and it was monotonic for
+  the same reason), a shop order's `status` going back to 'paid' (this path is
+  the only writer of 'refunded', so it takes back its own claim), and the
+  LOYALTY ledger, where points clawed back for money that never left are
+  returned by `restoreLoyaltyForUnrefundedPayment`. The loyalty call also
+  stopped re-deriving the total with its own `Math.max` — a second copy of the
+  monotonic rule that would have kept reversing points the ordering rule had
+  just un-recorded.
+
+  The refund-UPDATE events are now handled, and — unlike `refund.created` —
+  are never skipped on the refund's status, because the status transition IS
+  the news. All THREE spellings are accepted (`charge.refund.updated`,
+  `refund.updated`, `refund.failed`): Stripe renamed the family and which name
+  a connected account emits depends on the API version pinned to it, so
+  betting on one would leave the whole fix inert for some accounts with
+  nothing saying so. **Ops: subscribe the Connect webhook endpoint to all
+  three in the Stripe dashboard — the table is in `docs/OPS.md` under "Stripe
+  Connect webhook events", which is where an operator will actually look.
+  Until that is done the code is correct and does nothing.**
+
+  Two smaller things the sweep turned up. `lib/net-collected.ts` justified its
+  zero-clamp partly on "`refunded_amount_cents` is monotonic by construction",
+  which this change makes false; the clamp never needed that premise and the
+  sentence is gone. And `listUnmatchedRefunds` now excludes zero-amount
+  receipts: the receipt keeps its `refunded_at` when a refund fails (recording
+  that a refunded charge was SEEN stays true), but the clinic's
+  reconciliation list answers "what left this account with nothing here to
+  match", and a refund that failed at the bank left nothing.
 - S2 · `referral-payouts.payoutPartner` · double-pay window — after a
   transfer succeeds but the ledger write fails, a manual retry >24h later
   (Stripe idempotency window lapsed) re-derives the same key and sends a
@@ -752,7 +833,14 @@ binding are all correct. The payment-plan charger was the exception.
   paid also lands there, so the shop success page would tell that shopper
   "your order is confirmed". Nothing is written and no money moves — a
   cosmetic lie on one page, in a state that needs a cancellation AFTER payment
-  to reach at all. Returning the row's real status closes it. · OPEN.
+  to reach at all. Returning the row's real status closes it. · **FIXED**
+  (DREAMCRM-47) — the lost-race branch re-reads the row inside the
+  organization and reports the status it finds. A row that vanished under us
+  falls back to what was read on the way in, never to 'paid': the whole point
+  is that this branch stops inventing an answer.
+  `tests/shop/finalize-lost-race-status.test.ts` models the compare-and-swap
+  for real (a claim whose status predicate misses the row matches no rows), so
+  the test exercises the lost-race branch rather than a stand-in for it.
 - S3 · `listAdminSubscriptions` reads `s.items.data[0]` only, so a
   subscription with more than one item (a plan plus the social add-on, say)
   contributes ONE line's worth to every MRR figure. Pre-dates the MRR work,
@@ -2827,6 +2915,79 @@ solid-fill inverse open. The fix is small — extend `gradeGradientTextClasses` 
 grade a base `bg-<ramp>-<step>` as ink when `bg-clip-text text-transparent` is
 present — and belongs to whoever next touches that file, with a watched red run
 on the shape above.
+### A failed migration deployed green (2026-09-14) · FIXED
+
+**The defect.** Nothing anywhere asserted that production had applied the
+migrations in the commit it was running. Three separately-defensible decisions
+added up to it: `Dockerfile:62` runs `(db-migrate && resync-demo) || true`
+*after* App Runner has already marked the container healthy, so the exit code is
+swallowed by design — taking the container down because a migration threw would
+turn a stuck schema into an outage; `deploy.yml` had no migration step at all;
+and `/api/admin/migrate` answers a 500 that nothing reads. A merge whose
+migration failed therefore showed a green tick and produced no other signal.
+
+It compounds, which is what makes it an S1-shaped problem rather than a one-off
+bad deploy. `PgDialect.migrate` applies a boot's pending migrations in ONE
+transaction and only ever considers journal entries whose `when` is GREATER than
+the newest ledger row. So a migration that throws rolls the whole batch back and
+every later migration is blocked behind it on every future boot — and, the other
+half of the same invisibility, a journal entry whose `when` lands at or below an
+already-applied row (what a rebase or a merge reordering two generated
+migrations produces) is skipped SILENTLY, FOREVER, and no redeploy fixes it.
+DREAMCRM-32's own catalog entry had already named this in passing: "on a
+duplicate the deploy goes GREEN and the migration is skipped silently, forever."
+
+**The verdict.** Fixed. `.github/workflows/migration-check.yml` +
+`scripts/migration-check.mjs` ask production which migrations it has actually
+applied — through the DREAMCRM-42 read path (catalog entry `migrations-applied`,
+the `SELECT`-only role), so no runner holds a database credential — and compare
+that against `lib/db/migrations/meta/_journal.json`. `deploy.yml` calls it with
+`needs: deploy`, NOT `continue-on-error`, so a merge whose migrations did not
+land turns the deploy run red. It also runs daily at 08:20 UTC, which is the
+timing-free reading and the only thing that would ever catch the silently-skipped
+case. Mechanics: `docs/CI.md`, "The deploy is not finished until the migrations
+are in".
+
+The `|| true` in the Dockerfile **stays**, deliberately. The failure mode here
+was never that the container kept serving; it was that nobody was told. Removing
+it would trade an invisible schema problem for a visible outage on every
+transient migration failure, and the assertion above is the thing that was
+actually missing.
+
+Second, weaker signal from the other end: every failure line
+`scripts/db-migrate.mjs` prints now starts with `ERROR`, so `error-scan.yml`
+picks it up within 30 minutes. Those two lines previously matched none of that
+workflow's filter terms — the one alarm already pointed at those logs read
+straight past a migration that never applied.
+
+**Honest about what it proves today.** The read path needs owner-side setup
+(DREAMCRM-42 steps 1–3) before this question is answerable at all, so until that
+lands every run prints `⚠️ NOT VERIFIED — nothing was checked` and exits 0. The
+alternative — an alarm red every day for an unrelated reason — is one nobody
+opens on the day it first means something. The summary says so on every run, and
+a guard asserts that the NOT VERIFIED wording can never read as a pass. A fifth
+verdict, `THE CHECK ITSELF IS BROKEN`, covers production rejecting the secret and
+exits 1: an alarm that cannot fire is not the same as one with nothing to report.
+
+**What the review changed.** Two blocking findings, both about placement rather
+than design. The two `drizzle` grants had been written into
+`scripts/readonly-role.sql` *above* the credential `REVOKE`s — and that script is
+run once, by hand, with `ON_ERROR_STOP=1` and no surrounding transaction, so an
+error on either line would have ended the run with `dreamcrm_readonly` created,
+holding blanket `SELECT` on all of `public`, and none of the 19 revokes applied.
+They are the first statements in that file to depend on an object nobody has
+looked at, and they had been put ahead of the only thing standing between that
+role and every stored password hash and session token. Moved below, as section
+4b. Nothing had run yet, so nothing was ever exposed. Second: the poll was inside
+`deploy.yml`'s workflow-level `deploy-main` concurrency group, which would have
+stalled the *next* merge's test-and-build behind it — up to 12 minutes, worst
+case on exactly the fix-forward merge. The group now sits on the `deploy` job,
+where the thing that genuinely cannot overlap lives. Three files had asserted the
+opposite; all three now state the real shape.
+
+**This changes what a deploy can report, and it edits `.github/workflows/**`,**
+so it is behind the review gate (done, Sentinel, 2026-09-14) and owes Forge
+intake per §2 of the conventions.
 
 ## Part 6 — The post-1.0 backlog
 Moved to `docs/POST-1.0.md` (2026-08-17) — the full seeded inventory:

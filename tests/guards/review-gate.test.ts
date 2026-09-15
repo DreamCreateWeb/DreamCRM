@@ -186,8 +186,14 @@ describe('the review-gate classifier', () => {
       'lib/session.ts': 'auth',
       'lib/auth/context.ts': 'auth',
       'middleware.ts': 'auth',
+      // The demo-context minter (DREAMCRM-47): `enterDemoMode` writes the
+      // cookie `getTenantContext` reads AHEAD of real org membership, so it
+      // decides which organization the whole app renders as. Pinned because
+      // its filename says "ecommerce customers" and nothing about auth.
+      'app/(default)/ecommerce/customers/admin-actions.ts': 'auth',
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
+      '.github/workflows/migration-check.yml': 'ci-workflows',
       'Dockerfile': 'deploy-path',
       // What the required checks actually run (DREAMCRM-49). `.github/` names
       // the job; these name the work inside it. `e2e/axe.ts` carries the
@@ -199,6 +205,11 @@ describe('the review-gate classifier', () => {
       'playwright.config.ts': 'check-definitions',
       'e2e/axe.ts': 'check-definitions',
       'scripts/review-gate.mjs': 'check-definitions',
+      // The post-deploy migration assertion (DREAMCRM-46). Pinned because it is
+      // the thing that decides whether a deploy may report success, and a
+      // "small tweak to a script" is exactly how such a check gets loosened
+      // review-free.
+      'scripts/migration-check.mjs': 'deploy-path',
       // The production read-check catalog (DREAMCRM-42). Pinned because the
       // per-entry review is the ENTIRE control on "no PHI in a log anything
       // with repo read can open" and on the cross-tenant waiver — and because
