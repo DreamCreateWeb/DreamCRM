@@ -383,7 +383,14 @@ describe('runOutreach', () => {
     expect(r).toMatchObject({ scanned: 0, sent: 0 })
   })
 
-  it('a Resend failure marks the touch failed (no advance, no counter)', async () => {
+  // Retitled 2026-09-15 (DREAMCRM-57). It used to read "(no advance, no
+  // counter)", which named the wedged-enrollment DEFECT as though it were the
+  // intended behaviour — and asserted no such thing: the two assertions below
+  // are the failed touch log and the un-bumped counter, both of which still
+  // hold. The non-advance is an OPEN entry in the RELEASE.md Part 5 ledger,
+  // and it is fixed in this batch; the advance is now pinned by its own tests
+  // directly beneath. Nothing here was relaxed.
+  it('a Resend failure marks the touch failed and spends no send from the daily cap', async () => {
     resendSendMock.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } } as never)
     queueHappyPath()
     const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
@@ -393,5 +400,74 @@ describe('runOutreach', () => {
     )
     expect(String(failed!.values.error)).toContain('rate limited')
     expect(bumpMock).not.toHaveBeenCalledWith('2026-07-07', 'outreach_send')
+  })
+  // ── DREAMCRM-57: a failed touch must not wedge the enrollment ──────────────
+
+  it('advances the enrollment past a touch whose send failed', async () => {
+    resendSendMock.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } } as never)
+    queueHappyPath()
+
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+
+    expect(r.errors).toBe(1)
+    expect(r.sent).toBe(0)
+    // THE FIX. Without it the enrollment kept currentStep=0 and a nextSendAt
+    // in the past, so it re-selected at the HEAD of the due queue on every
+    // tick — and the claim insert then conflicted with this failed touch's own
+    // (enrollmentId, stepNumber) row and skipped silently. The prospect never
+    // heard from us again and the row ate a slot out of limit(allowance),
+    // ordered oldest-first, starving live prospects behind it forever.
+    const enr = state.updates.find((u) => u.table === 'outreach_enrollment')
+    expect(enr, 'the enrollment pointer never moved — it is wedged').toBeTruthy()
+    expect(enr!.values.currentStep).toBe(1)
+    expect(enr!.values.nextSendAt).toBeInstanceOf(Date)
+    expect((enr!.values.nextSendAt as Date).getTime()).toBeGreaterThan(
+      TUESDAY_10AM_CHICAGO.getTime(),
+    )
+  })
+
+  it('uses the next template’s own gap for the failed touch, same as a sent one', async () => {
+    resendSendMock.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } } as never)
+    queueHappyPath()
+
+    await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+
+    // TEMPLATE_2.dayOffset 3 − TEMPLATE_1.dayOffset 0 = a 3-day gap. A missed
+    // touch does not shorten or lengthen the sequence's rhythm.
+    const enr = state.updates.find((u) => u.table === 'outreach_enrollment')!
+    const gapMs = (enr.values.nextSendAt as Date).getTime() - TUESDAY_10AM_CHICAGO.getTime()
+    expect(gapMs).toBe(3 * 24 * 60 * 60 * 1000)
+  })
+
+  it('COMPLETES the enrollment when the failed touch was the last step', async () => {
+    resendSendMock.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } } as never)
+    state.selectQueue.push([]) // paused sequences
+    state.selectQueue.push([ENROLLMENT]) // due enrollments
+    state.selectQueue.push([PROSPECT]) // prospect
+    state.selectQueue.push([TEMPLATE_1]) // this step's template
+    state.selectQueue.push([]) // NO next template — this was the last touch
+
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+
+    expect(r.errors).toBe(1)
+    expect(r.completed).toBe(1)
+    const enr = state.updates.find((u) => u.table === 'outreach_enrollment')!
+    expect(enr.values.status).toBe('completed')
+    expect(enr.values.nextSendAt).toBeNull()
+    expect(enr.values.stopReason).toBe('sequence_complete')
+  })
+
+  it('still does not credit a failed touch as a send', async () => {
+    resendSendMock.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } } as never)
+    queueHappyPath()
+
+    const r = await runOutreach({ now: TUESDAY_10AM_CHICAGO })
+
+    // Advancing the pointer must not quietly turn a miss into a hit: the
+    // prospect is not flipped to 'contacted', the daily warm-up cap is not
+    // spent, and `sent` stays 0.
+    expect(r.sent).toBe(0)
+    expect(bumpMock).not.toHaveBeenCalledWith('2026-07-07', 'outreach_send')
+    expect(state.updates.find((u) => u.table === 'prospect')).toBeUndefined()
   })
 })

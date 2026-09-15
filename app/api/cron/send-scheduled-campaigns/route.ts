@@ -47,6 +47,7 @@ async function run(request: Request) {
         due: 0,
         sent: 0,
         failed: 0,
+        requeued: 0,
       })),
     ])
     return NextResponse.json({ ok: true, ...result, requeuedCampaigns, messages })

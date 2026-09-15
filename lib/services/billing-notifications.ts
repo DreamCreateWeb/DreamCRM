@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, gte, inArray, isNotNull, lte } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { db, schema } from '@/lib/db'
 import { resolveTrialState, dueTrialReminder } from '@/lib/trial'
 import { sendTrialReminderEmail, sendBillingPastDueEmail, type TrialEmailMilestone } from '@/lib/email'
@@ -47,12 +47,84 @@ export interface TrialReminderSweepResult {
   failed: number
 }
 
+/** Where a milestone stamp lives. Named once so the CLAIM and the RELEASE
+ *  below cannot drift apart. */
+const REMINDERS_COL = schema.clinicProfile.trialRemindersSent
+
+/**
+ * Take this clinic's milestone, atomically, BEFORE the email goes out
+ * (DREAMCRM-57).
+ *
+ * Returns true if this run owns the send. Two things are load-bearing and both
+ * are the same statement:
+ *
+ *   • The guard and the append are ONE `UPDATE … WHERE NOT (… @> …) RETURNING`,
+ *     so of two overlapping cron runs exactly one gets a row back. The old code
+ *     stamped AFTER the send, and the array it read came from a select at the
+ *     TOP of the sweep — so run #2 starting while run #1 was mid-walk saw every
+ *     not-yet-reached clinic as un-stamped and mailed it a second time. At
+ *     at-least-once delivery on a 6-hourly schedule that is not a thin window,
+ *     it is minutes wide.
+ *   • The append happens in SQL against the CURRENT value, never against the
+ *     snapshot. `[...sent, milestone]` re-wrote the whole array from a read
+ *     that could be minutes old, so a run stamping 'day1' would DROP a 'day3'
+ *     another run had stamped meanwhile — and the next tick, seeing no 'day3',
+ *     would send that milestone again.
+ *
+ * Every bound parameter carries an explicit cast: drizzle binds interpolated
+ * values untyped, and Postgres cannot resolve an untyped parameter against
+ * `to_jsonb` or the overloaded jsonb `-`. Pinned by
+ * tests/billing/trial-reminder-claim-sql.test.ts through the real dialect.
+ */
+async function claimTrialMilestone(organizationId: string, milestone: string): Promise<boolean> {
+  const claimed = await db
+    .update(schema.clinicProfile)
+    .set({
+      trialRemindersSent: sql`coalesce(${REMINDERS_COL}, '[]'::jsonb) || to_jsonb(${milestone}::text)`,
+    })
+    .where(
+      and(
+        eq(schema.clinicProfile.organizationId, organizationId),
+        sql`NOT (coalesce(${REMINDERS_COL}, '[]'::jsonb) @> to_jsonb(${milestone}::text))`,
+      ),
+    )
+    .returning({ organizationId: schema.clinicProfile.organizationId })
+  return claimed.length > 0
+}
+
+/**
+ * Give the milestone back after a send that did not happen, so a later tick
+ * retries it.
+ *
+ * Claiming first trades one failure mode for another, and this is the half
+ * that keeps the trade honest: a missed "your trial ends in 3 days" means an
+ * owner hits the lock wall with no warning, which is worse than a duplicate
+ * email. The claim makes us the exclusive holder until we release — no other
+ * run can take a milestone the array already contains — so the release is safe
+ * to do unconditionally.
+ *
+ * What it does NOT cover, stated rather than hidden: a process that dies
+ * strictly between the claim committing and the send returning leaves the
+ * milestone stamped and unsent. That window is one API call wide, against a
+ * double-send window that was minutes wide, and the NEXT milestone still
+ * fires.
+ */
+async function releaseTrialMilestone(organizationId: string, milestone: string): Promise<void> {
+  await db
+    .update(schema.clinicProfile)
+    .set({
+      trialRemindersSent: sql`coalesce(${REMINDERS_COL}, '[]'::jsonb) - ${milestone}::text`,
+    })
+    .where(eq(schema.clinicProfile.organizationId, organizationId))
+}
+
 /**
  * Email every trialing clinic whose next reminder milestone is due (3 days /
- * 1 day / ends-today / ended) and hasn't been sent yet, then RECORD the
- * milestone so a re-run never re-emails it. Best-effort per clinic (one
- * failure never aborts the sweep). Bounded by a time window so the query never
- * scans the whole customer base. Meant to run a few times a day via cron.
+ * 1 day / ends-today / ended) and hasn't been sent yet. The milestone is
+ * CLAIMED before the send and released if the send fails, so overlapping runs
+ * cannot double-email (DREAMCRM-57). Best-effort per clinic (one failure never
+ * aborts the sweep). Bounded by a time window so the query never scans the
+ * whole customer base. Meant to run a few times a day via cron.
  */
 export async function sendDueTrialReminders(now: Date = new Date()): Promise<TrialReminderSweepResult> {
   // Only clinics within ~3 days of expiry (where the first reminder fires) and
@@ -104,19 +176,43 @@ export async function sendDueTrialReminders(now: Date = new Date()): Promise<Tri
       result.skipped++
       continue
     }
+    // CLAIM, then send. The JS check above is a cheap filter, not the guard —
+    // the guard is this statement, and a run that loses the race skips.
+    let owned: boolean
+    try {
+      owned = await claimTrialMilestone(row.organizationId, milestone)
+    } catch (err) {
+      console.warn('[billing-notifications] milestone claim failed for', row.organizationId, err)
+      result.failed++
+      continue
+    }
+    if (!owned) {
+      // A concurrent run already holds this milestone. Not an error.
+      result.skipped++
+      continue
+    }
+
     try {
       await sendTrialReminderEmail(owner.email, {
         firstName: owner.name,
         milestone: milestone as TrialEmailMilestone,
         billingUrl: billingUrl(row.pendingPlanId),
       })
-      await db
-        .update(schema.clinicProfile)
-        .set({ trialRemindersSent: [...sent, milestone] })
-        .where(eq(schema.clinicProfile.organizationId, row.organizationId))
       result.sent++
     } catch (err) {
       console.warn('[billing-notifications] trial reminder failed for', row.organizationId, err)
+      await releaseTrialMilestone(row.organizationId, milestone).catch((releaseErr) => {
+        // Nothing left to do but say so: the milestone stays stamped and this
+        // clinic misses this one reminder. Louder than the send failure,
+        // because it is the one that does not self-heal.
+        console.error(
+          '[billing-notifications] could not release milestone',
+          milestone,
+          'for',
+          row.organizationId,
+          releaseErr,
+        )
+      })
       result.failed++
     }
   }

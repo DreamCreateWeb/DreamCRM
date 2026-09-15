@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, lte, inArray, notInArray } from 'drizzle-orm'
+import { and, asc, eq, lte, notInArray } from 'drizzle-orm'
 import { listShutDownOrgIds } from './billing-state'
 import { db, schema } from '@/lib/db'
 import { randomBytes } from 'crypto'
@@ -138,6 +138,11 @@ export interface FlushResult {
   due: number
   sent: number
   failed: number
+  /** Rows this run claimed but did NOT send, because something re-armed them
+   *  mid-flush (the stuck requeue, almost always). A non-zero count here means
+   *  the flush is running long enough to collide with STUCK_AFTER_MS — worth
+   *  looking at, and previously the point at which a patient got texted twice. */
+  requeued: number
 }
 
 /**
@@ -175,7 +180,36 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
 
   let sent = 0
   let failed = 0
+  let requeued = 0
   for (const row of claimed) {
+    // RE-CLAIM BEFORE SENDING (DREAMCRM-57). The batch claim above stamps
+    // every row's updatedAt at t=0, but this loop then walks them one send at
+    // a time — a big flush is minutes long. `requeueStuckScheduledMessages`
+    // runs at the top of the NEXT tick and re-arms anything 'sending' older
+    // than STUCK_AFTER_MS, so it was flipping rows this run had claimed and
+    // was still about to send back to 'pending'. The next tick then claimed
+    // and sent them a SECOND time, and the patient got the text twice.
+    //
+    // The re-claim does two jobs in one statement: it proves the row is still
+    // ours (status is still 'sending'), and it refreshes updatedAt so the
+    // requeue's clock measures time since WE last touched this row rather than
+    // since the batch started. A row that lost the race is skipped, not sent —
+    // whoever re-armed it owns it now.
+    const stillOurs = await db
+      .update(schema.scheduledMessage)
+      .set({ updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.scheduledMessage.id, row.id),
+          eq(schema.scheduledMessage.status, 'sending'),
+        ),
+      )
+      .returning({ id: schema.scheduledMessage.id })
+    if (stillOurs.length === 0) {
+      requeued++
+      continue
+    }
+
     try {
       const result = await sendMessageToPatient({
         organizationId: row.organizationId,
@@ -185,10 +219,19 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
         sentByUserId: row.createdByUserId ?? '',
         attachments: sanitizeAttachments(row.attachments),
       })
+      // Terminal write CAS'd on 'sending' for the same reason as the re-claim:
+      // if the row WAS re-armed during the send, it now belongs to another run
+      // and stamping it 'sent' from here would silently cancel that run's
+      // delivery. The message did go out, so it still counts as sent.
       await db
         .update(schema.scheduledMessage)
         .set({ status: 'sent', sentMessageId: result.messageId, updatedAt: new Date() })
-        .where(eq(schema.scheduledMessage.id, row.id))
+        .where(
+          and(
+            eq(schema.scheduledMessage.id, row.id),
+            eq(schema.scheduledMessage.status, 'sending'),
+          ),
+        )
       sent++
       // Staff wrote it; the MACHINE delivered it at the chosen moment — the
       // delivery is the machine's work, so it reports (same actor line as
@@ -224,6 +267,8 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
         console.warn('[scheduled-messages] ledger bookkeeping failed (message already delivered):', err)
       }
     } catch (err) {
+      // Same CAS. A row re-armed mid-send must not be dragged to 'failed' out
+      // from under the run that now holds it.
       await db
         .update(schema.scheduledMessage)
         .set({
@@ -231,28 +276,50 @@ export async function sendDueScheduledMessages(now: Date = new Date()): Promise<
           lastError: err instanceof Error ? err.message.slice(0, 500) : 'unknown',
           updatedAt: new Date(),
         })
-        .where(eq(schema.scheduledMessage.id, row.id))
+        .where(
+          and(
+            eq(schema.scheduledMessage.id, row.id),
+            eq(schema.scheduledMessage.status, 'sending'),
+          ),
+        )
       failed++
     }
   }
-  return { due: claimed.length, sent, failed }
+  return { due: claimed.length, sent, failed, requeued }
 }
 
 /**
- * Re-arm scheduled rows that got stuck in 'sending' (e.g. the process died
- * mid-flush). Anything older than the threshold goes back to 'pending' so the
- * next run retries it. Defensive — should rarely match.
+ * How long a row may sit in 'sending' before it is treated as abandoned.
+ * The flush re-stamps `updatedAt` immediately before each send, so this is
+ * time since the last thing that TOUCHED the row — not time since the batch
+ * started, which is what made a long flush look stuck to itself.
  */
-export async function requeueStuckScheduledMessages(olderThanMs = 10 * 60 * 1000): Promise<number> {
+export const SCHEDULED_STUCK_AFTER_MS = 10 * 60 * 1000
+
+/**
+ * Re-arm scheduled rows that got stuck in 'sending' (e.g. the process died
+ * mid-flush). Anything untouched for longer than the threshold goes back to
+ * 'pending' so the next run retries it. Defensive — should rarely match.
+ *
+ * ONE statement (DREAMCRM-57). It used to SELECT the stuck ids and then UPDATE
+ * them by id with no status re-check, which is a TOCTOU wide enough to matter:
+ * a row that reached 'sent' between the two queries was dragged back to
+ * 'pending' and the next tick texted the patient again. The guard has to be in
+ * the same statement as the write.
+ */
+export async function requeueStuckScheduledMessages(
+  olderThanMs = SCHEDULED_STUCK_AFTER_MS,
+): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanMs)
-  const stuck = await db
-    .select({ id: schema.scheduledMessage.id })
-    .from(schema.scheduledMessage)
-    .where(and(eq(schema.scheduledMessage.status, 'sending'), lte(schema.scheduledMessage.updatedAt, cutoff)))
-  if (stuck.length === 0) return 0
-  await db
+  const requeued = await db
     .update(schema.scheduledMessage)
     .set({ status: 'pending', updatedAt: new Date() })
-    .where(inArray(schema.scheduledMessage.id, stuck.map((s) => s.id)))
-  return stuck.length
+    .where(
+      and(
+        eq(schema.scheduledMessage.status, 'sending'),
+        lte(schema.scheduledMessage.updatedAt, cutoff),
+      ),
+    )
+    .returning({ id: schema.scheduledMessage.id })
+  return requeued.length
 }

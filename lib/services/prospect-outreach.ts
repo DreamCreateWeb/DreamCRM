@@ -860,6 +860,55 @@ async function checkWatchdog(config: ProspectingConfig, now: Date): Promise<bool
   return true
 }
 
+/**
+ * Move an enrollment off `step` — to the next template's gap, or to
+ * `completed` when the sequence has no step after this one.
+ *
+ * Called on BOTH the sent and the failed path. Not advancing on failure is
+ * what wedged an enrollment forever (DREAMCRM-57); the touch log already
+ * records which of the two happened, so the pointer does not have to.
+ */
+async function advanceEnrollmentPastStep(
+  enrollment: { id: string; sequenceId: string },
+  template: { dayOffset: number },
+  step: number,
+  now: Date,
+  out: OutreachRunResult,
+): Promise<void> {
+  const [nextTemplate] = await db
+    .select({ dayOffset: schema.outreachTouchTemplate.dayOffset })
+    .from(schema.outreachTouchTemplate)
+    .where(
+      and(
+        eq(schema.outreachTouchTemplate.sequenceId, enrollment.sequenceId),
+        eq(schema.outreachTouchTemplate.stepNumber, step + 1),
+      ),
+    )
+    .limit(1)
+  if (nextTemplate) {
+    const gapDays = Math.max(1, nextTemplate.dayOffset - template.dayOffset)
+    await db
+      .update(schema.outreachEnrollment)
+      .set({
+        currentStep: step,
+        nextSendAt: new Date(now.getTime() + gapDays * 24 * 60 * 60 * 1000),
+      })
+      .where(eq(schema.outreachEnrollment.id, enrollment.id))
+  } else {
+    await db
+      .update(schema.outreachEnrollment)
+      .set({
+        currentStep: step,
+        status: 'completed',
+        nextSendAt: null,
+        stoppedAt: now,
+        stopReason: 'sequence_complete',
+      })
+      .where(eq(schema.outreachEnrollment.id, enrollment.id))
+    out.completed++
+  }
+}
+
 export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunResult> {
   const now = opts?.now ?? new Date()
   const config = await getProspectingConfig()
@@ -1120,43 +1169,27 @@ export async function runOutreach(opts?: { now?: Date }): Promise<OutreachRunRes
             error: sendErr instanceof Error ? sendErr.message.slice(0, 500) : 'unknown',
           })
           .where(eq(schema.outreachTouchLog.id, touchLogId))
+        // ADVANCE PAST THE FAILED TOUCH (DREAMCRM-57). This used to `continue`
+        // with the enrollment untouched, which left it permanently wedged:
+        // `nextSendAt` stayed in the past so it re-selected at the HEAD of the
+        // due queue on every tick, and the claim insert then conflicted with
+        // the failed touch's own (enrollmentId, stepNumber) row and skipped
+        // silently. So the prospect never heard from us again, and the
+        // enrollment went on eating a slot out of `limit(allowance)` — ordered
+        // oldest-first — starving live prospects behind it, forever, with
+        // nothing but an `errors` count to show for it.
+        //
+        // The prospect misses this ONE touch and the sequence carries on. That
+        // is the same call reviews.ts makes for a failed review request: the
+        // log row is the permanent record, and the cron does not re-fire on
+        // its own. Re-sending the step is not available anyway — the touch log
+        // row IS the idempotency key.
+        await advanceEnrollmentPastStep(enrollment, template, step, now, out)
         out.errors++
         continue
       }
 
-      // Advance the pointer: next template's dayOffset drives the gap.
-      const [nextTemplate] = await db
-        .select({ dayOffset: schema.outreachTouchTemplate.dayOffset })
-        .from(schema.outreachTouchTemplate)
-        .where(
-          and(
-            eq(schema.outreachTouchTemplate.sequenceId, enrollment.sequenceId),
-            eq(schema.outreachTouchTemplate.stepNumber, step + 1),
-          ),
-        )
-        .limit(1)
-      if (nextTemplate) {
-        const gapDays = Math.max(1, nextTemplate.dayOffset - template.dayOffset)
-        await db
-          .update(schema.outreachEnrollment)
-          .set({
-            currentStep: step,
-            nextSendAt: new Date(now.getTime() + gapDays * 24 * 60 * 60 * 1000),
-          })
-          .where(eq(schema.outreachEnrollment.id, enrollment.id))
-      } else {
-        await db
-          .update(schema.outreachEnrollment)
-          .set({
-            currentStep: step,
-            status: 'completed',
-            nextSendAt: null,
-            stoppedAt: now,
-            stopReason: 'sequence_complete',
-          })
-          .where(eq(schema.outreachEnrollment.id, enrollment.id))
-        out.completed++
-      }
+      await advanceEnrollmentPastStep(enrollment, template, step, now, out)
 
       // First touch flips the prospect to contacted.
       if (p.status === 'queued' || p.status === 'enriched') {
