@@ -390,7 +390,7 @@ re-pointing a ramp step re-grades the whole band instead of quietly
 invalidating a document. The table is still where the DECISION lives; the test
 is what stops it drifting away from the stylesheet.
 
-### The twin of `GRADIENT_TEXT_EXEMPTIONS` — read this before you write gradient text on the band
+### The twin of `CLIPPED_TEXT_EXEMPTIONS` — read this before you write gradient text on the band
 
 `tests/a11y/class-pairs.ts` rule 4 grades the stops of a `bg-clip-text`
 gradient **as ink against plain white**, deliberately. That is not an oversight
@@ -407,7 +407,7 @@ wrongly-in-fact**, and this is what it looks like:
 | `teal-300 #9DBDFF` | 1.88 | **9.36** |
 | `violet-300 #B7ACFF` | 2.03 | **8.69** |
 
-The fix is a `GRADIENT_TEXT_EXEMPTIONS` entry carrying the measured dark
+The fix is a `CLIPPED_TEXT_EXEMPTIONS` entry carrying the measured dark
 ratios, **not a change to rule 4** — it is right about every other site in the
 tree, and weakening it to get green would re-open the 2.42 headline
 DREAMCRM-44 closed. The entry is keyed to the exact class string, and a second
