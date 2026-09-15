@@ -595,6 +595,138 @@ async function seedBilling(pool) {
   console.log('seeded the billing clinic (payments on, $185.00 owed)')
 }
 
+// ---------------------------------------------------------------------------
+// `webhook` — THE CONNECT WEBHOOK BACKSTOP (DREAMCRM-48)
+//
+// Its own two clinics, for the same reason `billing` has one: this scope's
+// whole subject is org-level facts — a connected account on one clinic and
+// deliberately NONE on the other — plus balance-payment rows a webhook either
+// may or may not touch. Both are exactly the kind of fact another portal spec
+// reads, so neither can live in a shared clinic.
+//
+// THE TWO CLINICS ARE NOT SYMMETRY, THEY ARE THE TEST.
+// `e2e/stripe-webhook-backstop.spec.ts` posts a correctly signed event naming
+// `org_e2e_webhook` about a session id that belongs to
+// `org_e2e_webhook_rival`. Today `finalizeBalancePaymentFromSession` looks the
+// payment up by BOTH org and session, so it matches nothing and the route
+// simply acks. Drop the org half of that filter and it would match the
+// rival's PENDING row, reach for the connected account of the org named in
+// the event — which this clinic has — and call Stripe with the webhook
+// server's fake key, which fails and turns the route 500. That difference is
+// what the spec's assertion rests on, and it is why the rival owns a pending
+// row and no `shop_config` while this clinic owns a paid one and does.
+//
+// The paid row is the idempotency fixture: a second delivery of an event for
+// a payment already marked paid must change nothing a patient can see.
+//
+// $42.37 and not a whole dollar on purpose — `fmtMoney` drops the cents on a
+// round number and the billing spec's first run went red on exactly that.
+const WEBHOOK_PAID_CENTS = 4_237
+
+async function seedWebhook(pool) {
+  await pool.query(
+    `insert into organization (id, name, slug, type, is_demo)
+     values ('org_e2e_webhook', 'E2E Webhook', 'e2e-webhook', 'clinic', false)
+     on conflict (id) do update set name = excluded.name, slug = excluded.slug`,
+  )
+  await pool.query(
+    `insert into clinic_profile (organization_id, display_name, timezone, hours, chair_count, site_live_at, phone, portal_settings)
+     values ('org_e2e_webhook', 'E2E Webhook Dental', 'America/New_York', $1, 2, now(), '+15550100901', $2)
+     on conflict (organization_id) do update set
+       display_name = excluded.display_name,
+       timezone = excluded.timezone,
+       hours = excluded.hours,
+       chair_count = excluded.chair_count,
+       site_live_at = excluded.site_live_at,
+       phone = excluded.phone,
+       portal_settings = excluded.portal_settings`,
+    [JSON.stringify(HOURS), JSON.stringify({ features: { payments: true } })],
+  )
+  // The connected account the finalizer reads before it would reach Stripe. A
+  // SHAPE, not a credential — the webhook server carries a fake key precisely
+  // so a call that should never happen fails loudly rather than succeeding
+  // quietly against the real API.
+  await pool.query(
+    `insert into shop_config (organization_id, stripe_account_id, stripe_account_status, charges_enabled, currency)
+     values ('org_e2e_webhook', 'acct_e2e_webhook_not_a_real_account', 'active', 1, 'usd')
+     on conflict (organization_id) do update set
+       stripe_account_id = excluded.stripe_account_id,
+       stripe_account_status = excluded.stripe_account_status,
+       charges_enabled = excluded.charges_enabled`,
+  )
+  await pool.query(
+    `insert into "user" (id, name, email, email_verified)
+     values ('user_e2e_webhook', 'Pat Settled', 'pat.settled@example.com', true)
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into member (id, organization_id, user_id, role)
+     values ('mem_e2e_webhook', 'org_e2e_webhook', 'user_e2e_webhook', 'patient')
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into patient (id, organization_id, first_name, last_name, email, phone, user_id)
+     values ('pat_e2e_webhook', 'org_e2e_webhook', 'Pat', 'Settled', 'pat.settled@example.com', '+15550100006', 'user_e2e_webhook')
+     on conflict (id) do update set user_id = 'user_e2e_webhook'`,
+  )
+  await pool.query(
+    `insert into session (id, token, user_id, active_organization_id, expires_at)
+     values ('sess_e2e_webhook', 'e2e-webhook-session-token', 'user_e2e_webhook', 'org_e2e_webhook', now() + interval '7 days')
+     on conflict (id) do update set expires_at = now() + interval '7 days'`,
+  )
+  // RE-STAMPED on restore, never `do nothing`. A previous attempt may have
+  // moved this row — that is precisely the failure this spec exists to catch
+  // — and a restore that trusted it would hand the next attempt the last
+  // attempt's damage and call it a fixture.
+  await pool.query(
+    `insert into patient_balance_payment
+       (id, organization_id, patient_id, amount_cents, status, stripe_checkout_session_id, stripe_payment_intent_id, paid_at)
+     values ('bp_e2e_webhook_paid', 'org_e2e_webhook', 'pat_e2e_webhook', $1, 'paid', 'cs_e2e_webhook_paid', 'pi_e2e_webhook_paid', now() - interval '2 days')
+     on conflict (id) do update set
+       status = 'paid',
+       amount_cents = excluded.amount_cents,
+       stripe_checkout_session_id = excluded.stripe_checkout_session_id,
+       stripe_payment_intent_id = excluded.stripe_payment_intent_id,
+       refunded_amount_cents = 0,
+       refunded_at = null,
+       paid_at = excluded.paid_at`,
+    [WEBHOOK_PAID_CENTS],
+  )
+  // Anything else this patient owns is debris from an attempt that DID move
+  // something, and it would show up in the history the next attempt reads.
+  await pool.query(
+    `delete from patient_balance_payment
+      where patient_id = 'pat_e2e_webhook' and id <> 'bp_e2e_webhook_paid'`,
+  )
+
+  // The rival: a real clinic with a real pending payment and NO connected
+  // account, so even a finalizer that lost its org filter could not reach
+  // Stripe on this row's own behalf. No profile, user or session — the spec
+  // never signs in as it, and a second portal fixture would be a second thing
+  // to keep true for no assertion.
+  await pool.query(
+    `insert into organization (id, name, slug, type, is_demo)
+     values ('org_e2e_webhook_rival', 'E2E Webhook Rival', 'e2e-webhook-rival', 'clinic', false)
+     on conflict (id) do update set name = excluded.name, slug = excluded.slug`,
+  )
+  await pool.query(
+    `insert into patient (id, organization_id, first_name, last_name, email, phone)
+     values ('pat_e2e_webhook_rival', 'org_e2e_webhook_rival', 'Robin', 'Elsewhere', 'robin.elsewhere@example.com', '+15550100007')
+     on conflict (id) do nothing`,
+  )
+  await pool.query(
+    `insert into patient_balance_payment
+       (id, organization_id, patient_id, amount_cents, status, stripe_checkout_session_id)
+     values ('bp_e2e_webhook_rival', 'org_e2e_webhook_rival', 'pat_e2e_webhook_rival', 9900, 'pending', 'cs_e2e_webhook_rival_pending')
+     on conflict (id) do update set
+       status = 'pending',
+       stripe_checkout_session_id = excluded.stripe_checkout_session_id,
+       paid_at = null,
+       stripe_payment_intent_id = null`,
+  )
+  console.log('seeded the webhook backstop clinics (one paid payment, one rival pending)')
+}
+
 /**
  * Every scope, in the order a full seed applies them. `base` first because the
  * consumable scopes reference its patients; the rest are row-disjoint and so
@@ -609,6 +741,7 @@ export const SCOPES = {
   'sign-here': seedSignHere,
   'go-live': seedGoLive,
   billing: seedBilling,
+  webhook: seedWebhook,
 }
 
 /** Everything except `base` — the rows a spec can spend and a retry must get back. */
@@ -662,6 +795,19 @@ export const SCOPE_ROWS = {
     'mem_e2e_billing',
     'pat_e2e_billing',
     'sess_e2e_billing',
+  ],
+  webhook: [
+    'org_e2e_webhook',
+    'user_e2e_webhook',
+    'mem_e2e_webhook',
+    'pat_e2e_webhook',
+    'sess_e2e_webhook',
+    'bp_e2e_webhook_paid',
+    // The rival side. Same scope, because the two clinics only mean anything
+    // together — splitting them would let one be restored without the other.
+    'org_e2e_webhook_rival',
+    'pat_e2e_webhook_rival',
+    'bp_e2e_webhook_rival',
   ],
 }
 

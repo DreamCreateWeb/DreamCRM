@@ -170,6 +170,65 @@ what a parallel worker sees mid-run. What it consumes is easy to miss: every
 checkout attempt inserts a pending `patient_balance_payment` row before reaching
 Stripe and rolls it back best-effort, so the scope clears any leftovers.
 
+## The webhook backstop (`e2e/stripe-webhook-backstop.spec.ts`, added 2026-09-14, DREAMCRM-48)
+
+The other half of the money journey. The spec above walks a patient up to the
+Stripe hand-off and back from it; its own header names what it cannot reach —
+`finalizeBalancePaymentFromSession`, which the portal's success page calls with
+a swallowed `.catch` "with the webhook as the real backstop".
+
+The webhook is not the redundant path, it is the **reliable** one. The success
+page finalizes only if the patient's browser comes back; a patient who pays and
+closes the tab is finalized by `app/api/webhooks/stripe-connect/route.ts` or by
+nothing at all. Every unit test around it mocks Stripe, the database, or both,
+so nothing had ever put a real signature in front of the real handler.
+
+**What a green run earns**, stated exactly:
+
+- the route fails **closed** on every bad delivery — no secret configured
+  (500, so Stripe retries), no signature, a tampered body, a replayed
+  timestamp outside Stripe's five-minute tolerance (400 each);
+- a correctly signed `checkout.session.completed` carrying
+  `metadata.kind = 'balance_payment'` reaches the balance finalizer with the
+  org from the event's own metadata — rather than the shop-order finalizer,
+  which is what the same event without that key means;
+- an event about a session we hold no row for is **acked**, not retried
+  forever;
+- a redelivery for a payment already paid changes nothing the patient sees —
+  checked on the portal's own billing history, not with a query;
+- an event naming one clinic cannot touch another clinic's payment.
+
+**What it does NOT prove**: that a pending payment can be walked to paid. That
+step re-reads the session *from Stripe* on purpose — the webhook body is not
+trusted about whether money actually moved — and there is no Stripe here.
+Faking one would mean a test double inside the app's own runtime. The positive
+write keeps its coverage in `tests/shop/finalizer-notify.test.ts`.
+
+### The second server, and why the fake key is an assertion
+
+The harness starts a **second `next start`** on `E2E_WEBHOOK_BASE_URL` (default
+`E2E_PORT + 1`) — same build, same database, two environment variables
+different: a fake `STRIPE_SECRET_KEY` and `STRIPE_CONNECT_WEBHOOK_SECRET`.
+
+It cannot be one server. `stripe.webhooks.constructEvent` is an *instance*
+method, so with no key the lazy Proxy in `lib/stripe.ts` throws before any
+signature is checked and every delivery returns 400 — nothing past the
+signature could be walked. But a key on the MAIN server would break the
+contract `portal-billing.spec.ts` stands on: it asserts what a patient sees
+when Stripe is down, and a server holding a key answers that by opening a
+socket to api.stripe.com.
+
+**The fake key is the tripwire, not a risk.** Every case in the spec stops at
+one of the finalizer's pre-Stripe returns — no matching row, or a row already
+paid. A regression that walks past one reaches for a key that cannot work, and
+the route answers 500. So the spec's `toBe(200)` lines are what catch a lost
+idempotency check and a lost tenant filter, which is why the fixture is two
+clinics: the cross-tenant case aims an event naming the clinic that HAS a
+connected account at a session id belonging to the clinic that does not.
+
+**It owns the `webhook` scope** — both clinics, because they only mean anything
+together.
+
 **Row ownership matters**: spec files run in parallel workers, so every spec
 file owns its seeded rows outright (Casey belongs to portal + token specs,
 Morgan to portal-reschedule, Riley to staff-day, Robin/the proposal to
