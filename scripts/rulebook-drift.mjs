@@ -75,16 +75,26 @@ const WORKFLOW_DIR = '.github/workflows'
  *
  * `publishes` is the set of REQUIRED status-check contexts this workflow can
  * report. It is the only thing that decides whether a workflow gates anything,
- * and it is why the census is a map rather than a count: "six of eight gate
+ * and it is why the census is a map rather than a count: "six of nine gate
  * nothing" is a summary of this table, not a fact of its own.
  *
- * `gates` is what it gates when it does publish one, and the two values are
- * genuinely different things:
+ * `gates` is what it gates, and the three values are genuinely different:
  *   - 'merge'   — publishes a required context on a `pull_request`, so branch
  *                 protection will hold the merge until it is green.
- *   - 'deploy'  — publishes the same name on a push to `main`, AFTER the merge.
- *                 It cannot stop a merge; it stops a red `main` auto-shipping.
+ *   - 'deploy'  — can fail the deploy run. Either by publishing a required name
+ *                 on a push to `main`, or by being a required job INSIDE that
+ *                 run. Cannot stop a merge; stops a broken deploy shipping.
  *   - 'nothing' — reports, warns, labels. Cannot stop either.
+ *
+ * That second clause was added for `migration-check.yml` (#575), the first
+ * workflow here that gates something while publishing nothing: `deploy.yml`
+ * calls it with `uses:` under `needs: deploy` and no `continue-on-error`, so a
+ * failure fails the deploy run. Under the old wording — "publishes the same
+ * name on a push" — the honest answer would have been `'nothing'`, which is
+ * literally consistent and substantively false. §2's "N of nine gate nothing"
+ * sentence is DERIVED from this table, so the wrong value here writes a wrong
+ * sentence into the skill. `publishes` and `gates` are independent for a
+ * reason; this is the case that proves it.
  */
 export const WORKFLOW_CENSUS = {
   'ci.yml': {
@@ -96,6 +106,11 @@ export const WORKFLOW_CENSUS = {
     gates: 'deploy',
     publishes: ['test'],
     note: 'the same suite on push to main, so a red main cannot auto-ship; it is past the merge',
+  },
+  'migration-check.yml': {
+    gates: 'deploy',
+    publishes: [],
+    note: 'called by deploy.yml under needs: deploy with no continue-on-error, so it can fail the deploy run without publishing a check of its own',
   },
   'error-scan.yml': {
     gates: 'nothing',
@@ -244,7 +259,7 @@ export const CLAIMS = [
     // so cannot go stale. No guard can see this string — keep it moving with
     // the prose it quotes. (It said "seven … five" for the length of one
     // review, describing the count this very PR changed.)
-    section: '§2, "There are eight workflow files and six of them gate nothing"',
+    section: '§2, "There are nine workflow files and six of them gate nothing"',
     states: `${Object.keys(WORKFLOW_CENSUS).length} workflow files: ${Object.keys(WORKFLOW_CENSUS).join(', ')}`,
     check: (live) => {
       const actual = Object.keys(live.workflows)

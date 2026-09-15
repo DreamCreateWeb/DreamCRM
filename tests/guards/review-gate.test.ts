@@ -188,6 +188,7 @@ describe('the review-gate classifier', () => {
       'middleware.ts': 'auth',
       'lib/db/migrations/0161_connect_refund_records.sql': 'db-migrations',
       '.github/workflows/deploy.yml': 'ci-workflows',
+      '.github/workflows/migration-check.yml': 'ci-workflows',
       'Dockerfile': 'deploy-path',
       // What the required checks actually run (DREAMCRM-49). `.github/` names
       // the job; these name the work inside it. `e2e/axe.ts` carries the
@@ -207,6 +208,11 @@ describe('the review-gate classifier', () => {
       'e2e/axe.ts': 'check-definitions',
       'scripts/review-gate.mjs': 'check-definitions',
       'scripts/rulebook-drift.mjs': 'check-definitions',
+      // The post-deploy migration assertion (DREAMCRM-46). Pinned because it is
+      // the thing that decides whether a deploy may report success, and a
+      // "small tweak to a script" is exactly how such a check gets loosened
+      // review-free.
+      'scripts/migration-check.mjs': 'deploy-path',
       // The production read-check catalog (DREAMCRM-42). Pinned because the
       // per-entry review is the ENTIRE control on "no PHI in a log anything
       // with repo read can open" and on the cross-tenant waiver — and because
