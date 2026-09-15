@@ -5,7 +5,7 @@ import { formatCents, type CartLine } from '@/lib/types/shop'
 import { getCart, setQty, removeLine } from './cart-store'
 import { startCheckout, applyCoupon } from './actions'
 import { SITE_INK as INK, SITE_INK_MUTED as INK_MUTED, SITE_BORDER as BORDER } from '@/components/clinic-site/tokens'
-import { brandFill } from '@/lib/clinic-site-theme'
+import { brandFill, readableInk } from '@/lib/clinic-site-theme'
 import SiteImage from '@/components/clinic-site/site-image'
 import { BusyLabel } from '@/components/ui/busy-label'
 
@@ -51,7 +51,7 @@ export default function CartView({
     return (
       <div className="text-center py-16">
         <h1 className="text-2xl font-bold" style={{ color: INK }}>Your cart is empty</h1>
-        <a href={`${basePath}/shop`} className="inline-block mt-4 text-[15px] font-semibold underline" style={{ color: brand }}>
+        <a href={`${basePath}/shop`} className="inline-block mt-4 text-[15px] font-semibold underline" style={{ color: readableInk(brand) }}>
           Browse products →
         </a>
       </div>

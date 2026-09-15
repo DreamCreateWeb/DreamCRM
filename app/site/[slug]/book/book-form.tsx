@@ -580,7 +580,7 @@ export default function BookForm({
             onClick={() => scrollDays(-1)}
             aria-label="Previous days"
             className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--c-surface,#FFFFFF)] shadow-sm transition hover:shadow-md"
-            style={{ border: `1px solid ${BORDER}`, color: brand }}
+            style={{ border: `1px solid ${BORDER}`, color: brandInk }}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -636,7 +636,7 @@ export default function BookForm({
             onClick={() => scrollDays(1)}
             aria-label="More days"
             className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-10 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--c-surface,#FFFFFF)] shadow-sm transition hover:shadow-md"
-            style={{ border: `1px solid ${BORDER}`, color: brand }}
+            style={{ border: `1px solid ${BORDER}`, color: brandInk }}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
