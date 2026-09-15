@@ -2893,7 +2893,7 @@ instrument this wants is a monotonicity guard that reads the entry's value on
 be written down. That is a different defect from the routing hole and is filed
 separately rather than bundled into it.
 
-### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · OPEN
+### Clipped text over a SOLID brand fill is graded by no rule (2026-09-14) · FIXED — awaiting merge (#588)
 
 **The defect.** Rule 4 (#566) grades `bg-clip-text text-transparent` only when
 the ink is a *gradient* — `isGradientText` in `tests/a11y/class-pairs.ts`
@@ -2915,10 +2915,75 @@ the one fixed marketing headline), so this is a hole rather than a live defect �
 which is precisely the shape #566's own module header argues for writing down:
 *when you write a rule for a shape, write down what the shape's inverse would do
 to it.* Rule 4 was written for the gradient inverse of rule 3 and left its own
-solid-fill inverse open. The fix is small — extend `gradeGradientTextClasses` to
-grade a base `bg-<ramp>-<step>` as ink when `bg-clip-text text-transparent` is
-present — and belongs to whoever next touches that file, with a watched red run
-on the shape above.
+solid-fill inverse open.
+
+**The fix** (DREAMCRM-63, #588). `gradeClippedTextClasses` — rule 4's grader,
+renamed off "gradient" because it is no longer only about one — grades a base
+opaque `bg-<colour>` as the INK whenever the chunk is `bg-clip-text
+text-transparent` and has no gradient stop to clip instead. Where a chunk
+carries both, the GRADIENT wins: a `background-image` paints over a
+`background-color`, so grading the solid one would grade an ink the browser
+never renders. Closed at zero instances, which is the cheapest a hole ever gets.
+
+**The red run.** The reproduction above, planted verbatim in
+`components/marketing/ui.tsx`, now fails `token-contrast.test.ts` naming the
+file, the line and the ratio: *"the solid fill IS the ink here (bg-clip-text),
+and it is too pale to read (bg-teal-400) — light: teal-400 on white = 2.42"*.
+Because the fix removes nothing from the tree there is no live subject to prove
+it on, so the planted shapes in the test ARE the evidence — the same argument
+rule 5 made after its own sweep emptied its window.
+
+### Three dead-exemption detectors grade the match, never the reason (2026-09-15) · FIXED — awaiting merge (#588)
+
+**The defect.** This repo has four detectors whose job is to stop a narrow
+allowance outliving its subject — `deadBrandFillExemptions`,
+`deadGradientTextExemptions` and `deadToneFillExemptions` in
+`tests/a11y/class-pairs.ts`, and `deadExclusions` in `e2e/axe.ts`. Every one of
+them asked a single question: does this exemption still MATCH something. None
+asked whether the REASON it was written for is still true. #587 found it from
+the other end — moving the marketing hero off `bg-gray-950` left every assertion
+in `token-contrast.test.ts` green while the exemption went on pardoning stops
+that measure 1.88 and 2.03 on white — and closed it for the one entry it added.
+The other three stayed open. It is `public-action-tenancy` in new clothes: an
+exemption keyed per (file, string) is a door into the whole file.
+
+**Reproduction** (each left every other assertion in the suite GREEN):
+strip `aria-hidden="true"` from `RecallFunnelMock` and the brand-fill exemption
+goes on excusing a 2.42 bar that is now content; write a second
+`bg-teal-400 text-white` anywhere else in the same 1,100-line file and it is
+pardoned by an entry that was never about it — `scanForWhiteOnShallowBrand`
+stayed at zero with a real control planted in the tree; move
+`bg-rose-600 hover:bg-rose-700 text-white` out of `VARIANT_CLASSES` and the
+tone-fill exemption's whole argument ("already decided in the design system's
+single home") is false while the pardon stands; and in the harness, swap a mock
+for a readable panel keeping the wrapper and the `aria-hidden` and
+`deadExclusions` reports nothing while a subtree of real content drops out of a
+zero-ceiling scan.
+
+**The fix** (DREAMCRM-63, #588). Each of the three now asserts its own premise,
+in the shape #587 established — structural half plus numeric half, both
+directions:
+
+- **Brand fill.** The exempted bar is still inside `RecallFunnelMock`, that
+  component still renders `aria-hidden="true"` on its own root (the WCAG 1.4.3
+  claim), the string appears nowhere else in the file, and teal-400 under white
+  really is still below AA — the exemption argues applicability, never the
+  measurement.
+- **Tone fill.** The exempted pairing still lives inside `VARIANT_CLASSES` under
+  the `danger` key, appears exactly once in the file, and both fills it pardons
+  still clear AA (rose-600 4.53, rose-700 6.03). If rose ever moves under the
+  floor the entry has become a pardon for a contrast defect, which is a
+  different decision and needs a different reason.
+- **The harness exclusion.** `unjustifiedExclusions` in `e2e/axe.ts` grades what
+  the selector matches: a picture has no focusable element, no descendant marked
+  `aria-hidden="false"`, and no document heading. `expectNoA11yViolations` runs
+  it at every stop beside `deadExclusions`, and the self-test pins that wiring —
+  a detector nobody calls reports clean forever. A font-size floor was tried and
+  rejected: `PortalMock` renders a 16.8px greeting, so it would have failed on
+  the day it shipped, on the mocks it was written to bless.
+
+**Each assertion was watched red against the reproduction above**, with the rest
+of the suite green in every case — which is the finding, not a footnote.
 ### A failed migration deployed green (2026-09-14) · FIXED
 
 **The defect.** Nothing anywhere asserted that production had applied the

@@ -27,10 +27,13 @@ import {
   deadGradientTextExemptions,
   describeFinding,
   gradeGradientClasses,
-  gradeGradientTextClasses,
+  gradeClippedTextClasses,
   GRADIENT_TEXT_EXEMPTIONS,
-  gradientTextSites,
-  scanForUnreadableGradientText,
+  clippedTextSites,
+  isClippedSolidText,
+  isClippedText,
+  isGradientText,
+  scanForUnreadableClippedText,
   scanForWhiteOnShallowBrand,
   scanForWhiteOnShallowBrandGradient,
   scanForOffRegistryToneFills,
@@ -41,6 +44,42 @@ import {
   toneFillSites,
   TONE_FILL_EXEMPTIONS,
 } from './class-pairs'
+
+/**
+ * THE TWO SOURCE READERS THE EXEMPTION PREMISES ARE BUILT ON (DREAMCRM-63).
+ *
+ * Every dead-exemption detector in this repo asks whether an exemption still
+ * MATCHES something — bookkeeping. Until #587 not one of them asked whether its
+ * REASON is still true, which is how `public-action-tenancy` happened and why
+ * moving the hero off the night band left every assertion in this file GREEN
+ * over a 1.88 headline. #587 closed it for the one entry it added; DREAMCRM-63
+ * closes the other three, and the last of them lives in `e2e/axe.ts`
+ * (`unjustifiedExclusions`) because its subject is a rendered page.
+ *
+ * Checking a reason means reading the source the reason is ABOUT, and these are
+ * the two reads the premise tests below need.
+ *
+ * Deliberately crude — a regex, not a parser. A shape either of these cannot
+ * read (a component declared `export const X = () => …`, an opening tag
+ * containing a literal `>`) makes the premise test go RED rather than quietly
+ * pass, which is the correct direction for a check whose only job is to narrow
+ * an allowance. Fix the reader when that day comes; do not widen the exemption.
+ */
+function exportedFunctionSource(src: string, name: string): string | null {
+  // `(?![\w-])` rather than `\b` — the DREAMCRM-50 mutation pass paid twice for
+  // that trap, and a component name can be followed by a `<` type parameter.
+  const start = src.search(new RegExp(`^export function ${name}(?![\\w-])`, 'm'))
+  if (start < 0) return null
+  const after = src.slice(start + 1)
+  const next = after.search(/^export (?:default |async )?(?:function|const|class)(?![\w-])/m)
+  return next < 0 ? src.slice(start) : src.slice(start, start + 1 + next)
+}
+
+/** The first JSX opening tag a component renders — its root element. */
+function openingTagOf(componentSource: string): string {
+  const returned = componentSource.slice(componentSource.indexOf('return'))
+  return returned.match(/<[a-zA-Z][^>]*>/)?.[0] ?? ''
+}
 
 /**
  * THE SOURCE-LEVEL CONTRAST GUARD — the one the repo did not have.
@@ -239,6 +278,74 @@ describe('white-on-brand fills', () => {
       expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
     }
   })
+
+  /**
+   * THE EXEMPTION'S PREMISE, CHECKED RATHER THAN READ (DREAMCRM-63).
+   *
+   * `deadBrandFillExemptions` above asks one question — does the class string
+   * still MATCH somewhere — and that is bookkeeping, not the rule. The rule is
+   * the `why`: this bar is inside an `aria-hidden` illustration, and WCAG 1.4.3
+   * exempts text that is part of a picture. Take the `aria-hidden` off
+   * `RecallFunnelMock` and every assertion in this file stays GREEN while a
+   * 2.42 label becomes content somebody is meant to read. That is the
+   * `public-action-tenancy` lesson wearing marketing clothes, and it is the same
+   * gap #587 closed for `GRADIENT_TEXT_EXEMPTIONS`.
+   *
+   * The second half matters more than it looks. The exemption is keyed
+   * (file, class string), and `components/marketing/ui.tsx` is a 1,100-line file
+   * holding two dozen components — so a SECOND `bg-teal-400 text-white` written
+   * anywhere in it, on a real control, would be pardoned by an entry that was
+   * never about it. A file-wide exemption is a door; this one is meant to be a
+   * name.
+   *
+   * What it does NOT prove: that no descendant re-exposes itself with
+   * `aria-hidden={false}`, and that the bar is visually what the `why`
+   * describes. Both are the safe direction — a false negative in a check that
+   * only ever narrows an allowance.
+   */
+  it('the exempted bar is still inside an aria-hidden illustration', () => {
+    const exemption = BRAND_FILL_EXEMPTIONS[0]
+    expect(exemption.file).toBe('components/marketing/ui.tsx')
+
+    const src = readFileSync(join(ROOT, exemption.file), 'utf8')
+    const mock = exportedFunctionSource(src, 'RecallFunnelMock')
+    expect(
+      mock,
+      'RecallFunnelMock has gone from ' + exemption.file + '. The exemption ' +
+        'above pardons a bar that measures 2.42, and its entire justification ' +
+        'is that the bar is part of a picture. Re-derive it or delete it.',
+    ).not.toBeNull()
+
+    // Half one: the picture is still a picture. `aria-hidden` on the component's
+    // OWN outermost element is what takes the whole subtree out of the
+    // accessibility tree — which is the claim WCAG 1.4.3 is being read against.
+    expect(
+      openingTagOf(mock!),
+      'RecallFunnelMock no longer renders aria-hidden on its root, so its bars ' +
+        'are content now and the WCAG 1.4.3 picture exemption does not apply.',
+    ).toContain('aria-hidden="true"')
+
+    // Half two: nothing ELSE in this 1,100-line file rides the same pardon.
+    const everywhere = src.split(exemption.classes).length - 1
+    const insideTheMock = mock!.split(exemption.classes).length - 1
+    expect(insideTheMock, 'the exempted string is still inside the mock').toBeGreaterThan(0)
+    expect(
+      everywhere,
+      `"${exemption.classes}" now appears ${everywhere} times in ${exemption.file} but only ` +
+        `${insideTheMock} inside RecallFunnelMock. The exemption is keyed (file, class string), ` +
+        'so the extra one is being pardoned by an entry that was never about it. Move it off ' +
+        'teal-400/500, or give it its own exemption with its own reason.',
+    ).toBe(insideTheMock)
+
+    // Half three, the numeric one: rule 2 is RIGHT about the ratio. The
+    // exemption disputes whether WCAG applies to a picture, never the
+    // measurement — so if teal-400 ever clears AA under white, this entry has
+    // stopped being an exemption and should simply go.
+    expect(
+      contrast(hexToRgb('#ffffff'), token(LIGHT, 'teal-400')),
+      'white on teal-400 really is below AA — the exemption argues WCAG 1.4.3, not the number',
+    ).toBeLessThan(AA)
+  })
 })
 
 describe('white text on a brand GRADIENT', () => {
@@ -372,7 +479,7 @@ describe('gradient TEXT, where the gradient IS the ink', () => {
   })
 
   it('catches the real defect, in the real shape it shipped in', () => {
-    const found = gradeGradientTextClasses(
+    const found = gradeClippedTextClasses(
       '"bg-gradient-to-r from-teal-600 to-teal-400 bg-clip-text text-transparent"',
     )
     expect(found).not.toBeNull()
@@ -383,7 +490,7 @@ describe('gradient TEXT, where the gradient IS the ink', () => {
   })
 
   it('reads a via- stop, so a pale middle cannot hide between two dark ends', () => {
-    const found = gradeGradientTextClasses(
+    const found = gradeClippedTextClasses(
       '"bg-gradient-to-r from-teal-700 via-teal-400 to-teal-700 bg-clip-text text-transparent"',
     )
     expect(found).not.toBeNull()
@@ -393,40 +500,96 @@ describe('gradient TEXT, where the gradient IS the ink', () => {
   it('grades any pale ink, not only the brand ramp', () => {
     // The defect is "too pale to read on the page", and nothing about that is
     // teal-specific. A tone-ramp gradient headline fails identically.
-    const found = gradeGradientTextClasses(
+    const found = gradeClippedTextClasses(
       '"bg-gradient-to-r from-amber-400 to-amber-300 bg-clip-text text-transparent"',
     )
     expect(found).not.toBeNull()
     expect(found!.failures).toHaveLength(2)
   })
 
+  /**
+   * THE HOLE RULE 4 SHIPPED WITH, CLOSED (DREAMCRM-63).
+   *
+   * `bg-teal-400 bg-clip-text text-transparent` was graded by NOTHING for a
+   * batch: rule 4 required a `from-`/`via-`/`to-` stop, rule 2 required
+   * `text-white` and the ink here is `transparent`, rule 3 required a
+   * `text-white` to anchor on, and axe cannot see a clipped background at all.
+   * Four gates, four reasons to say nothing, 2.42 on the page.
+   *
+   * ZERO instances existed when this closed, so there is no product fix beside
+   * it and nothing in the tree can prove the rule works. The planted shapes
+   * below ARE the evidence — the module header's own point about a guard whose
+   * subjects its fix removed.
+   */
+  it('a solid fill clipped into text is graded as ink', () => {
+    const found = gradeClippedTextClasses('"bg-teal-400 bg-clip-text text-transparent"')
+    expect(found).not.toBeNull()
+    expect(found!.failures.map((f) => `${f.ink} ${f.ratio.toFixed(2)}`)).toEqual(['teal-400 2.42'])
+    expect(found!.note).toContain('solid fill IS the ink')
+  })
+
+  it('grades a solid clipped fill off the brand ramp too', () => {
+    // Same argument as the gradient half: the defect is "too pale to read on
+    // the page", and nothing about that is teal-specific.
+    const found = gradeClippedTextClasses('"bg-amber-300 bg-clip-text text-transparent"')
+    expect(found).not.toBeNull()
+    expect(found!.failures).toHaveLength(1)
+  })
+
+  it('grades the GRADIENT when a chunk carries both, because that is what renders', () => {
+    // A gradient is a `background-image` and a solid fill is a
+    // `background-color`, and the image paints OVER the colour — so the white
+    // here never shows and grading it would invent a pairing the browser never
+    // renders. The pale `to-` stop is the finding; `bg-white` is not.
+    const found = gradeClippedTextClasses(
+      '"bg-white bg-gradient-to-r from-teal-700 to-teal-400 bg-clip-text text-transparent"',
+    )
+    expect(found).not.toBeNull()
+    expect(found!.failures.map((f) => f.ink)).toEqual(['teal-400'])
+  })
+
   it('stays quiet on the things it must not fire on', () => {
+    // A solid clipped fill that READS is not a defect — teal-700 is 7.05 as
+    // ink on white, the same cutoff rule 2 uses for white as ink on teal.
+    expect(gradeClippedTextClasses('"bg-teal-700 bg-clip-text text-transparent"')).toBeNull()
+    // An alpha fill composites over an ancestor this scanner cannot resolve —
+    // the same exclusion every rule in the module makes.
+    expect(gradeClippedTextClasses('"bg-teal-400/60 bg-clip-text text-transparent"')).toBeNull()
+    // A `dark:` fill has no dark rendering to grade: every bg-clip-text in
+    // this tree is inside the marketing layout's hard-coded light ground.
+    expect(
+      gradeClippedTextClasses('"dark:bg-teal-400 bg-clip-text text-transparent"'),
+    ).toBeNull()
+    // A solid fill WITHOUT bg-clip-text is a surface, and `text-transparent`
+    // on it is invisible text rather than a contrast defect. Rules 1/2/5 own
+    // the surface case; this rule must not reach into it.
+    expect(gradeClippedTextClasses('"bg-teal-400 text-transparent"')).toBeNull()
     // The fix that shipped: teal-700 (7.05) → teal-600 (5.09).
     expect(
-      gradeGradientTextClasses(
+      gradeClippedTextClasses(
         '"bg-gradient-to-r from-teal-700 to-teal-600 bg-clip-text text-transparent"',
       ),
     ).toBeNull()
     // A gradient FILL under white text is rule 3's business, not this one's —
     // no `bg-clip-text`, so the stops are the surface.
     expect(
-      gradeGradientTextClasses('"bg-gradient-to-r from-teal-400 to-teal-600 text-white"'),
+      gradeClippedTextClasses('"bg-gradient-to-r from-teal-400 to-teal-600 text-white"'),
     ).toBeNull()
     // `bg-clip-text` without a transparent ink paints ordinary coloured text
     // over a clipped background nobody can see. Not this defect.
     expect(
-      gradeGradientTextClasses(
+      gradeClippedTextClasses(
         '"bg-gradient-to-r from-teal-400 to-teal-600 bg-clip-text text-gray-900"',
       ),
     ).toBeNull()
     // Alpha stops composite over an ancestor this scanner cannot resolve.
     expect(
-      gradeGradientTextClasses(
+      gradeClippedTextClasses(
         '"bg-gradient-to-r from-teal-400/60 to-teal-300/40 bg-clip-text text-transparent"',
       ),
     ).toBeNull()
     // The direction keyword is not a stop: `to-r` must not read as a colour.
-    expect(gradeGradientTextClasses('"bg-gradient-to-r bg-clip-text text-transparent"')).toBeNull()
+    expect(gradeClippedTextClasses('"bg-gradient-to-r bg-clip-text text-transparent"')).toBeNull()
   })
 
   it('still points at something — the rule has a live subject', () => {
@@ -434,27 +597,38 @@ describe('gradient TEXT, where the gradient IS the ink', () => {
     // one is narrow by construction: three utilities have to co-occur in one
     // quoted string. The zero assertion below is worth nothing without this
     // one beside it.
-    const sites = gradientTextSites()
+    const sites = clippedTextSites()
     expect(
       sites.map((site) => `${site.file}:${site.line}`),
-      'rule 4 matches no gradient text anywhere in the product. Either the ' +
+      'rule 4 matches no clipped text anywhere in the product. Either the ' +
         'headline changed shape or the scanner stopped seeing it — find out ' +
         'which before believing the zero below.',
     ).not.toEqual([])
     expect(sites.some((site) => site.file === 'app/(marketing)/page.tsx')).toBe(true)
+
+    // The SOLID half has no live subject and is not expected to — it was closed
+    // at zero instances (DREAMCRM-63). So the field of view is pinned against
+    // planted shapes instead: both halves of `isClippedText` have to answer,
+    // or a rule that has quietly stopped matching would look like a clean tree.
+    expect(isClippedText('"bg-teal-400 bg-clip-text text-transparent"')).toBe(true)
+    expect(isClippedSolidText('"bg-teal-400 bg-clip-text text-transparent"')).toBe(true)
+    expect(isClippedSolidText('"bg-teal-400 text-transparent"')).toBe(false)
+    expect(
+      isGradientText('"bg-gradient-to-r from-teal-700 to-teal-600 bg-clip-text text-transparent"'),
+    ).toBe(true)
   })
 
-  it('no gradient text in the product is too pale to read', () => {
+  it('no clipped text in the product is too pale to read', () => {
     // THE GATE. Zero, no ceiling — the reason rules 1 and 3 hold there, in a
     // sharper form: this is the one contrast shape where the browser gate AND
     // all three source rules above were blind at once, so a number here would
     // be room in the only room nothing else can see into.
     expect(
-      scanForUnreadableGradientText().map(describeFinding),
-      'with bg-clip-text the gradient IS the ink, so every stop has to read ' +
-        'as text on the page — teal-600 (5.09) or deeper on the brand ramp. ' +
-        'axe reports a gradient as incomplete, so this is the only gate that ' +
-        'will ever tell you.',
+      scanForUnreadableClippedText().map(describeFinding),
+      'with bg-clip-text the BACKGROUND is the ink, gradient or solid, so it ' +
+        'has to read as text on the page — teal-600 (5.09) or deeper on the ' +
+        'brand ramp. axe cannot grade a clipped background at all, so this is ' +
+        'the only gate that will ever tell you.',
     ).toEqual([])
   })
 
@@ -883,5 +1057,91 @@ describe('TONE_FILL — the one answer for a solid fill with a label on it', () 
     for (const e of TONE_FILL_EXEMPTIONS) {
       expect(e.why.length, 'every exemption states why in the source').toBeGreaterThan(80)
     }
+  })
+
+  /**
+   * THE EXEMPTION'S PREMISE, CHECKED RATHER THAN READ (DREAMCRM-63).
+   *
+   * Rule 5's whole argument is that a solid fill with a label on it has ONE
+   * home, and the one exemption is not an escape from that argument — it is the
+   * argument restated: `VARIANT_CLASSES` is the design system's own single home
+   * for a BUTTON fill, so `bg-rose-600 … text-white` is already decided in one
+   * place rather than being a fresh guess. Every word of that is a claim about
+   * WHERE the string lives, and `deadToneFillExemptions` above cannot see where
+   * anything lives — it asks only whether the string still appears in the file.
+   *
+   * So: hand-write that exact pairing on a one-off element somewhere else in
+   * `action-button.tsx` and you get precisely the defect rule 5 exists to catch,
+   * pardoned by an entry whose reason has nothing to do with it, with every
+   * assertion in this file green. That is the same shape as the night band's
+   * missing ground (#587) and as `public-action-tenancy`'s file-wide door.
+   *
+   * The numeric half is here for the reason the night band's is: the `why` says
+   * "it clears AA, but only at 4.53", and a claim in a comment is the thing
+   * `e2e/axe-baseline.ts` spent four days learning not to trust. Re-point the
+   * rose ramp and this exemption stops describing a pairing that clears — which
+   * makes it a pardon for a failing one, and a different decision entirely.
+   */
+  it('the exempted pairing still lives in the design system’s single home', () => {
+    const exemption = TONE_FILL_EXEMPTIONS[0]
+    expect(exemption.file).toBe('components/ui/action-button.tsx')
+
+    const src = readFileSync(join(ROOT, exemption.file), 'utf8')
+
+    // Half one: the single home still exists, and the exempted string is inside
+    // it. `VARIANT_CLASSES` being a record literal, its span runs from the
+    // declaration to the first line-start `}` — enough to tell "inside the
+    // registry" from "hand-written further down the file".
+    const declaration = src.search(/^const VARIANT_CLASSES(?![\w-])/m)
+    expect(
+      declaration,
+      'VARIANT_CLASSES has gone from ' + exemption.file + ', and it is the whole ' +
+        'reason this pairing is exempt. Re-derive the exemption or delete it.',
+    ).toBeGreaterThan(-1)
+    const body = src.slice(declaration)
+    const closing = body.slice(1).search(/^\}/m)
+    expect(closing, 'VARIANT_CLASSES no longer closes at a line-start brace').toBeGreaterThan(-1)
+    const registry = body.slice(0, closing + 1)
+
+    expect(
+      registry,
+      'the exempted pairing is no longer inside VARIANT_CLASSES. Its exemption ' +
+        'says it is already decided in the design system’s single home for a ' +
+        'button fill — if it has moved out, it is a fresh guess like any other ' +
+        'and rule 5 should grade it.',
+    ).toContain(exemption.classes)
+    expect(registry, 'it is still the danger variant the why names').toMatch(
+      /danger:\s*'[^']*bg-rose-600/,
+    )
+
+    // Half two: and nowhere ELSE in the file rides the same pardon. The
+    // exemption is keyed (file, class string), so a second hand-written copy
+    // would be excused by an entry that was never about it.
+    const everywhere = src.split(exemption.classes).length - 1
+    expect(
+      everywhere,
+      `"${exemption.classes}" appears ${everywhere} times in ${exemption.file}. The exemption ` +
+        'covers the VARIANT_CLASSES entry only — a second copy is a hand-written fill being ' +
+        'pardoned by somebody else’s reason. Interpolate VARIANT_CLASSES.danger instead.',
+    ).toBe(1)
+
+    // Half three, the numeric one, BOTH ends of the pardoned string: the resting
+    // fill and the hover fill this exemption also excuses.
+    const white = hexToRgb('#ffffff')
+    const resting = contrast(white, token(LIGHT, 'rose-600'))
+    const hovered = contrast(white, token(LIGHT, 'rose-700'))
+    expect(
+      resting,
+      'white on rose-600 no longer clears AA. The exemption’s argument is that ' +
+        'this pairing is DECIDED in one place and happens to clear; if it has ' +
+        'stopped clearing it is a pardon for a contrast defect, which is a ' +
+        'different decision and needs a different reason.',
+    ).toBeGreaterThanOrEqual(AA)
+    expect(
+      hovered,
+      'white on rose-700 (the hover half this exemption also covers) no longer clears AA',
+    ).toBeGreaterThanOrEqual(AA)
+    // The number the `why` and docs/UI-BEST-VERSION.md both quote.
+    expect(resting.toFixed(2)).toBe('4.53')
   })
 })

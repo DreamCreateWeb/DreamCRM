@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test, expect } from '@playwright/test'
 import {
   deadExclusions,
@@ -5,6 +7,7 @@ import {
   expectNoA11yViolations,
   findA11yViolations,
   rulesOverBaseline,
+  unjustifiedExclusions,
 } from './axe'
 
 /**
@@ -308,5 +311,111 @@ test.describe('an exemption cannot outlive what it describes', () => {
   test('a stop with no exclusions has nothing to go stale', async ({ page }) => {
     await page.setContent(CLEAN)
     expect(await deadExclusions(page)).toEqual([])
+  })
+})
+
+/**
+ * THE OTHER HALF: AN EXEMPTION CANNOT OUTLIVE ITS REASON EITHER (DREAMCRM-63).
+ *
+ * `deadExclusions` above asks whether the selector still MATCHES. That catches
+ * the illustration being deleted and nothing else. The exemption's actual
+ * justification is WCAG 1.4.3 — this subtree is a PICTURE — and a mock swapped
+ * for a readable panel that keeps the same wrapper and the same `aria-hidden`
+ * satisfies every check in this file while taking a whole subtree of real
+ * content out of a scan whose ceiling is ZERO.
+ *
+ * That is the shape #587 found on the night band from the other end, and the
+ * three dead-exemption detectors in `tests/a11y/class-pairs.ts` had it too. The
+ * documents below plant the two ways an `aria-hidden` subtree still reaches a
+ * person — a control inside it, and a part somebody has marked as content — plus
+ * the shape an exclusion takes once it has crept past its illustration.
+ */
+const HERO_WITH_A_CONTROL = hero('').replace(
+  '<span style="color:#93a0bc;font-size:8.3px">Your next visit</span>',
+  '<a href="/book" style="color:#111111;background:#ffffff">Book a visit</a>',
+)
+
+const HERO_WITH_RE_EXPOSED_CONTENT = hero('').replace(
+  '<span style="color:#93a0bc;font-size:7.7px">8:00 Mia Hayes - Cleaning</span>',
+  '<p aria-hidden="false" style="color:#93a0bc;background:#ffffff">Read me.</p>',
+)
+
+const HERO_WITH_A_HEADING = hero('').replace(
+  '<span style="color:#93a0bc;font-size:8.3px">Your next visit</span>',
+  '<h2 style="color:#111111;background:#ffffff">Your next visit</h2>',
+)
+
+test.describe('an exemption cannot outlive its REASON', () => {
+  test('the real illustrations are justified — nothing reachable inside them', async ({ page }) => {
+    // The control, and the half that makes every assertion below mean
+    // something: the mocks this exemption was written for pass it.
+    await page.setContent(HERO)
+    expect(await unjustifiedExclusions(page, DECORATIVE_MOCKS)).toEqual([])
+  })
+
+  test('a control inside the picture is what a readable panel brings with it', async ({ page }) => {
+    // The commonest way this rots: the mock is replaced by something a person
+    // operates. `deadExclusions` stays silent — the selector still matches —
+    // and the exclusion goes on hiding the subtree from a zero-ceiling scan.
+    // It also hides axe's own `aria-hidden-focus`, which would have caught
+    // this: the exclusion is precisely what stops it being reported.
+    await page.setContent(HERO_WITH_A_CONTROL)
+    expect(await deadExclusions(page, DECORATIVE_MOCKS)).toEqual([])
+
+    const found = await unjustifiedExclusions(page, DECORATIVE_MOCKS)
+    expect(found.map((u) => u.selector)).toEqual(['.mkt-float-slow > [aria-hidden="true"]'])
+    expect(found[0].why).toContain('focusable')
+    expect(found[0].why).toContain('<a>')
+  })
+
+  test('a part somebody marked as content is not part of a picture', async ({ page }) => {
+    await page.setContent(HERO_WITH_RE_EXPOSED_CONTENT)
+    expect(await deadExclusions(page, DECORATIVE_MOCKS)).toEqual([])
+
+    const found = await unjustifiedExclusions(page, DECORATIVE_MOCKS)
+    expect(found.map((u) => u.selector)).toEqual(['.mkt-float > [aria-hidden="true"]'])
+    expect(found[0].why).toContain('aria-hidden="false"')
+  })
+
+  test('a document heading means the exclusion has crept past the illustration', async ({
+    page,
+  }) => {
+    // The `main *` shape the test above this describe block verifies by hand.
+    // An illustration does not carry page structure.
+    await page.setContent(HERO_WITH_A_HEADING)
+    const found = await unjustifiedExclusions(page, DECORATIVE_MOCKS)
+    expect(found.map((u) => u.selector)).toEqual(['.mkt-float-slow > [aria-hidden="true"]'])
+    expect(found[0].why).toContain('<h2>')
+  })
+
+  test('a stop with no exclusions has no premise to fail', async ({ page }) => {
+    await page.setContent(CLEAN)
+    expect(await unjustifiedExclusions(page)).toEqual([])
+  })
+
+  test('the production path applies it, not just the helper', async () => {
+    // THE CLAIM THAT ACTUALLY GATES. The tests above prove the detector
+    // detects; this proves `expectNoA11yViolations` RUNS it at every stop,
+    // which is a different claim and the one `marketing: home`'s ceiling of
+    // zero rests on. A detector nobody calls reports clean forever — the
+    // headroom reporter's guard makes the same pin for the same reason.
+    //
+    // Asserted against the source rather than by catching the failure: a
+    // `expect.soft` failure is recorded on the test rather than thrown, so
+    // there is nothing to catch, and reaching into Playwright's own error
+    // bookkeeping to unfail a test is a trick that breaks on an upgrade and
+    // takes this whole spec's credibility with it.
+    const src = readFileSync(join(__dirname, 'axe.ts'), 'utf8')
+    const body = src.slice(src.indexOf('export async function expectNoA11yViolations'))
+    expect(
+      body,
+      'expectNoA11yViolations no longer calls unjustifiedExclusions, so no stop is ' +
+        'checking whether its exclusions still stand over a picture.',
+    ).toContain('await unjustifiedExclusions(page, options.exclude)')
+    expect(
+      body.indexOf('unjustifiedExclusions'),
+      'the premise check must run BEFORE the scan, beside deadExclusions — a stop ' +
+        'that returns early on a clean baseline would otherwise skip it',
+    ).toBeLessThan(body.indexOf('await findA11yViolations'))
   })
 })

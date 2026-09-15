@@ -5,8 +5,8 @@
  * carrying one each: `dark-mode-parity.test.ts` (the unpaired `dark:`
  * override), and `token-contrast.test.ts` three times over — white on the
  * shallow end of the brand ramp as a solid fill (rule 2), white on a GRADIENT
- * that runs through it (rule 3), and a gradient that IS the ink rather than the
- * fill (rule 4). A second copy of "which utility is the ink, which is the
+ * that runs through it (rule 3), and a background that IS the ink rather than
+ * the fill (rule 4). A second copy of "which utility is the ink, which is the
  * surface, and is either one a wash" is how two guards start disagreeing about
  * the same line — the same reason `./palette` is the one place the ratios are
  * computed.
@@ -614,24 +614,22 @@ export function scanForWhiteOnShallowBrandGradient(roots: string[] = UI_ROOTS): 
  *     same exclusions rules 1 and 3 make.
  *   - A gradient and its `bg-clip-text` in DIFFERENT quoted strings. One
  *     quoted string is the unit, as everywhere else in this file.
- *   - **CLIPPED TEXT OVER A SOLID FILL — a known open hole, not a bounded
- *     cost.** `isGradientText` below requires a base-variant `from-`/`via-`/
- *     `to-` stop, so `bg-teal-400 bg-clip-text text-transparent` is graded by
- *     NOTHING: rule 4 wants a gradient, rule 2 wants `ink.word === 'white'`
- *     and the ink here is `transparent`, rule 3 wants a `text-white` to anchor
- *     on, and axe cannot see a clipped background at all. That chunk paints
- *     teal-400 letterforms on white at 2.42 — the same number that started
- *     DREAMCRM-44. Reproduce it by adding that className anywhere under `app/`,
- *     `components/` or `lib/` and running `token-contrast.test.ts`: green.
- *     ZERO instances exist today, so it is a hole rather than a live defect;
- *     the fix is to grade a base `bg-<ramp>-<step>` as ink when
- *     `bg-clip-text text-transparent` is present, with a watched red run on
- *     the shape above. Filed in docs/RELEASE.md Part 5 (Sentinel, DREAMCRM-49,
- *     the post-hoc review of #566). It is written here rather than only in the
- *     ledger because this paragraph is where the next author will be standing —
- *     and because rule 4's own lesson is that when you write a rule for a
- *     shape, you write down what the shape's inverse would do to it. Rule 4
- *     closed rule 3's inverse and left its own open.
+ *   - ~~CLIPPED TEXT OVER A SOLID FILL~~ — **CLOSED 2026-09-15, DREAMCRM-63.**
+ *     Rule 4 shipped requiring a base-variant `from-`/`via-`/`to-` stop, so
+ *     `bg-teal-400 bg-clip-text text-transparent` was graded by NOTHING: rule 4
+ *     wanted a gradient, rule 2 wanted `ink.word === 'white'` and the ink here
+ *     is `transparent`, rule 3 wanted a `text-white` to anchor on, and axe
+ *     cannot see a clipped background at all. That chunk paints teal-400
+ *     letterforms on white at 2.42 — the same number that started DREAMCRM-44.
+ *     `gradeClippedTextClasses` now grades a base opaque `bg-<colour>` as the
+ *     ink whenever there is no gradient stop to clip instead; the red run is in
+ *     `token-contrast.test.ts` ("a solid fill clipped into text is graded as
+ *     ink"). It was closed at ZERO instances, which is the cheapest a hole ever
+ *     gets — the paragraph stays here rather than moving to the ledger because
+ *     this is where the next author will be standing, and because rule 4's own
+ *     lesson is that when you write a rule for a shape you write down what the
+ *     shape's inverse does to it. Rule 4 closed rule 3's inverse and left its
+ *     own open for one batch.
  *
  * A site genuinely riding a DARK band — the marketing footer is the shape that
  * exists — would fail this rule correctly-in-form and wrongly-in-fact. That is
@@ -709,15 +707,54 @@ export function deadGradientTextExemptions(roots: string[] = UI_ROOTS): Gradient
   return GRADIENT_TEXT_EXEMPTIONS.filter((e) => !alive.has(e))
 }
 
-/** Is this chunk gradient text at all? Exported so the test can assert the
- *  rule still points at something — a rule narrowed until it matches nothing
- *  reports CLEAN forever. */
+/** Is this chunk CLIPPED text at all — `bg-clip-text` with the ink turned
+ *  transparent — whatever is painting the letterforms? */
+function isClipped(classes: string): boolean {
+  return CLIP_TEXT.test(classes) && TRANSPARENT_INK.test(classes)
+}
+
+/** Is this chunk clipped text whose ink is a GRADIENT? Exported so the test can
+ *  assert the rule still points at something — a rule narrowed until it matches
+ *  nothing reports CLEAN forever. */
 export function isGradientText(classes: string): boolean {
-  return (
-    CLIP_TEXT.test(classes) &&
-    TRANSPARENT_INK.test(classes) &&
-    gradientStops(classes).some((s) => s.variant === '')
-  )
+  return isClipped(classes) && gradientStops(classes).some((s) => s.variant === '')
+}
+
+/**
+ * The base-variant opaque `bg-<colour>` of a clipped chunk — the SOLID half of
+ * rule 4, and the hole rule 4 shipped with.
+ *
+ * `bg-teal-400 bg-clip-text text-transparent` paints teal-400 letterforms on
+ * white at 2.42 — the same number that started DREAMCRM-44 — and until this
+ * existed it was graded by NOTHING. Rule 4 wanted a `from-`/`via-`/`to-` stop;
+ * rule 2 wanted `ink.word === 'white'` and the ink here is `transparent`; rule
+ * 3 wanted a `text-white` to anchor on; and axe cannot see a clipped background
+ * at all. Four gates, four reasons to say nothing — the rule 3 shape exactly,
+ * which is why the header above named it an OPEN HOLE rather than a bounded
+ * cost, and why closing it was worth doing while ZERO instances existed. This
+ * is the cheapest it was ever going to be. (DREAMCRM-63.)
+ *
+ * The exclusions are rule 4's, unchanged and for its reasons: an alpha fill
+ * (`bg-teal-400/40`) is composited over an ancestor this scanner cannot
+ * resolve, and a `dark:` fill has no dark rendering to grade — every
+ * `bg-clip-text` in this tree sits inside the marketing layout's hard-coded
+ * light ground, which has no `.dark` scope at all.
+ */
+function clippedSolidFill(classes: string): Utility | null {
+  if (!isClipped(classes)) return null
+  return utilities(classes, 'bg').find((u) => !u.dark && !u.alpha) ?? null
+}
+
+/** Is this chunk clipped text whose ink is a SOLID fill? Exported for the same
+ *  field-of-view reason as `isGradientText`. */
+export function isClippedSolidText(classes: string): boolean {
+  return clippedSolidFill(classes) !== null
+}
+
+/** Is this chunk clipped text of EITHER shape — the whole of what rule 4 now
+ *  grades? */
+export function isClippedText(classes: string): boolean {
+  return isGradientText(classes) || isClippedSolidText(classes)
 }
 
 /**
@@ -726,22 +763,37 @@ export function isGradientText(classes: string): boolean {
  * Exported for the same reason `gradeClasses` and `gradeGradientClasses` are:
  * the zero assertion cannot tell a scanner that is looking from one that has
  * quietly stopped, so the test feeds this every shape it claims to catch.
+ *
+ * WHICH INK IT GRADES WHEN A CHUNK CARRIES BOTH. A gradient is a
+ * `background-image` and a solid fill is a `background-color`, and the image
+ * paints OVER the colour — so `bg-white bg-gradient-to-r from-teal-400 …
+ * bg-clip-text` clips the GRADIENT and the white underneath never shows.
+ * Grading both would invent a pairing the browser never renders; grading the
+ * solid one would grade the wrong ink entirely. The gradient wins, exactly as
+ * the cascade resolves it, and the solid path runs only when there is no base
+ * stop at all.
  */
-export function gradeGradientTextClasses(
+export function gradeClippedTextClasses(
   classes: string,
 ): Omit<ParityFinding, 'file' | 'line'> | null {
-  if (!isGradientText(classes)) return null
+  if (!isClipped(classes)) return null
+
+  const stops = stopsFor(gradientStops(classes), [''])
+  const solid = stops.length === 0 ? clippedSolidFill(classes) : null
+  // Whatever paints the letterforms is the INK and white is the ground — the
+  // inverse of every other rule in this file, which is the whole point of rule
+  // 4 existing.
+  const inks = solid
+    ? [{ raw: solid.raw, word: solid.word }]
+    : stops.filter((s) => !s.alpha).map((s) => ({ raw: s.raw, word: s.word }))
 
   const failures: Pairing[] = []
   const participating = new Set<string>()
-  for (const stop of stopsFor(gradientStops(classes), [''])) {
-    if (stop.alpha) continue
-    // The stop is the INK and white is the ground — the inverse of every other
-    // rule in this file, which is the whole point of rule 4 existing.
-    const graded = grade(LIGHT, 'light', stop.word, 'white')
+  for (const ink of inks) {
+    const graded = grade(LIGHT, 'light', ink.word, 'white')
     if (!graded || graded.ratio >= AA) continue
     failures.push(graded)
-    participating.add(stop.raw)
+    participating.add(ink.raw)
   }
   if (failures.length === 0) return null
 
@@ -749,34 +801,36 @@ export function gradeGradientTextClasses(
     overridden: null,
     classes: Array.from(participating).join(' '),
     failures,
-    note: 'the gradient IS the ink here (bg-clip-text), and a stop is too pale to read',
+    note: solid
+      ? 'the solid fill IS the ink here (bg-clip-text), and it is too pale to read'
+      : 'the gradient IS the ink here (bg-clip-text), and a stop is too pale to read',
   }
 }
 
 /**
- * Every gradient-text site in the product whose stops include one too pale to
- * read on a light ground.
+ * Every clipped-text site in the product whose ink is too pale to read on a
+ * light ground — a gradient stop or a solid fill.
  *
  * Holds at ZERO with no ceiling, the same as rules 1 and 3 — and for a sharper
  * version of the same reason. This is the one contrast shape where BOTH the
  * browser gate and the three source rules above were structurally blind, so a
  * number here would be room in the only room nothing else can see into.
  */
-export function scanForUnreadableGradientText(roots: string[] = UI_ROOTS): ParityFinding[] {
+export function scanForUnreadableClippedText(roots: string[] = UI_ROOTS): ParityFinding[] {
   const found: ParityFinding[] = []
   eachClassString(roots, (file, line, chunk) => {
     if (GRADIENT_TEXT_EXEMPTIONS.some((e) => e.file === file && chunk.includes(e.classes))) return
-    const graded = gradeGradientTextClasses(chunk)
+    const graded = gradeClippedTextClasses(chunk)
     if (graded) found.push({ file, line, ...graded })
   })
   return found
 }
 
-/** Every gradient-text site, graded or clean — the instrument's field of view. */
-export function gradientTextSites(roots: string[] = UI_ROOTS): { file: string; line: number }[] {
+/** Every clipped-text site, graded or clean — the instrument's field of view. */
+export function clippedTextSites(roots: string[] = UI_ROOTS): { file: string; line: number }[] {
   const found: { file: string; line: number }[] = []
   eachClassString(roots, (file, line, chunk) => {
-    if (isGradientText(chunk)) found.push({ file, line })
+    if (isClippedText(chunk)) found.push({ file, line })
   })
   return found
 }

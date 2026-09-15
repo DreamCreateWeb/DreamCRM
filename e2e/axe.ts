@@ -86,6 +86,16 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
  * without that check: nothing gets excluded, the stop's ceiling is zero, and the
  * run goes red.
  *
+ * AND THE CASE WHERE IT ROTS WITHOUT GOING DEAD (DREAMCRM-63). The paragraph
+ * above assumes a replacement changes the markup enough to stop matching. It
+ * need not: keep the wrapper and the `aria-hidden` and swap the illustration
+ * for a panel, and `deadExclusions` sees nothing wrong while a subtree of real
+ * content drops out of a zero-ceiling scan. That is the gap #587 found on the
+ * night band from the other end — an exemption whose REASON has gone while its
+ * MATCH survives — so `unjustifiedExclusions` below grades the reason: a
+ * picture has no controls, no part somebody has marked as content, and no
+ * document headings.
+ *
  * Verified by narrowing it rather than asserted: the first baselined run
  * (actions/runs/34531475518) enumerated all 45 instances at this stop with
  * selectors and computed colours, and all 41 that remain after batch 55 resolve
@@ -101,10 +111,12 @@ type A11yOptions = {
   /** Scan only this subtree (CSS selector) instead of the whole page. */
   include?: string
   /**
-   * Subtrees to leave out of the scan (CSS selectors). Every one is asserted to
-   * still match something at the stop — see `deadExclusions`. An exclusion is
-   * the only thing in this harness that makes the gate looser, so it is not
-   * allowed to quietly stop describing anything.
+   * Subtrees to leave out of the scan (CSS selectors). Every one is asserted
+   * TWICE at the stop: that it still matches something (`deadExclusions`) and
+   * that what it matches is still a picture (`unjustifiedExclusions`). An
+   * exclusion is the only thing in this harness that makes the gate looser, so
+   * it is allowed neither to stop describing anything nor to go on describing
+   * something the reason no longer covers.
    */
   exclude?: string[]
 }
@@ -228,13 +240,16 @@ function report(prefix: string, v: Violation): void {
 /**
  * Which of a stop's exclusions no longer match anything on the page.
  *
- * AN EXCLUSION THAT MATCHES NOTHING IS A DEAD EXCLUSION, and it is the one way
- * an exemption rots into a blanket pardon: the selector keeps sitting in the
- * harness claiming a subtree is a picture long after the illustration it was
- * written for has been replaced by something a person is meant to read. Nothing
- * else in the suite would notice — the scan would carry on reporting the stop
- * clean, because the thing it stopped excluding is also the thing that stopped
- * existing.
+ * AN EXCLUSION THAT MATCHES NOTHING IS A DEAD EXCLUSION, and it is ONE of the
+ * two ways an exemption rots into a blanket pardon: the selector keeps sitting
+ * in the harness claiming a subtree is a picture long after the illustration it
+ * was written for has been deleted. Nothing else in the suite would notice —
+ * the scan would carry on reporting the stop clean, because the thing it
+ * stopped excluding is also the thing that stopped existing.
+ *
+ * The other way is the selector matching something that is no longer a picture,
+ * which this check cannot see by construction and `unjustifiedExclusions` below
+ * exists for. Read them as a pair: match, then reason.
  *
  * Returned rather than asserted so `e2e/axe-selftest.spec.ts` can pin BOTH
  * directions: a document containing the shape yields none, and a document
@@ -251,6 +266,93 @@ export async function deadExclusions(page: Page, exclude: string[] = []): Promis
     if ((await page.locator(selector).count()) === 0) dead.push(selector)
   }
   return dead
+}
+
+/** An exclusion whose subtree has stopped being a picture, and how. */
+export type UnjustifiedExclusion = { selector: string; why: string }
+
+/**
+ * Which of a stop's exclusions are still standing over something that is NOT a
+ * picture — the exclusion's PREMISE, as opposed to `deadExclusions`' bookkeeping.
+ *
+ * WHY THIS EXISTS (DREAMCRM-63). `deadExclusions` above asks one question: does
+ * the selector still MATCH something. That catches the illustration being
+ * DELETED and nothing else. It does not ask whether the thing it matches is
+ * still the thing the exemption was written about — and the whole justification
+ * here is WCAG 1.4.3, "text that is part of a picture containing significant
+ * other visual content". Replace the mock with a readable panel that happens to
+ * keep the same wrapper and `aria-hidden`, and `deadExclusions` reports nothing
+ * while a whole subtree of real content drops out of a scan whose ceiling is
+ * ZERO. That is the failure mode #587 found on the night band from the other
+ * end: an exemption that describes the ink but not the ground goes on pardoning
+ * its subject after the ground has gone. Four detectors in this repo asked only
+ * about the match; this is the third of the three that were left open.
+ *
+ * WHAT MAKES A SUBTREE A PICTURE, mechanically. Not "is it decorative" — that
+ * is the author's own claim and `aria-hidden` already states it. These are the
+ * two ways an `aria-hidden` subtree still REACHES a person, plus the shape an
+ * exclusion takes when it has crept past its illustration:
+ *
+ *   - **A focusable element inside it.** A picture has no controls. This is
+ *     also a real defect in its own right — axe's `aria-hidden-focus` — which
+ *     the exclusion itself is what stops the harness from ever reporting, so
+ *     nothing else in the suite is looking. A mock swapped for a readable panel
+ *     brings links and buttons with it; that is the usual way this happens.
+ *   - **A descendant re-exposing itself with `aria-hidden="false"`.** The
+ *     attribute does not un-hide a subtree in practice, but it is how somebody
+ *     SAYS "this part is content", and an exclusion has no business standing
+ *     over a part somebody has marked as content.
+ *   - **A document heading inside it.** `h1`–`h6` is page structure, not
+ *     illustration. This is the "widened to `main *`" shape the self-test
+ *     already verifies its selectors against by hand, made into a check.
+ *
+ * WHAT IT DOES NOT PROVE, so a clean result is not mistaken for one:
+ *
+ *   - That the text inside is illustration-SCALE. It is not: `PortalMock`
+ *     renders a 16.8px greeting, because a faithful miniature of a phone screen
+ *     has real-sized type on it. A size floor was tried and rejected for
+ *     exactly that reason — it would have failed the day it shipped, on the
+ *     mocks it was written to bless.
+ *   - That the subtree is visually a picture at all. Nothing static can know
+ *     that, which is why `aria-hidden` on the mock's own root — the author's
+ *     claim — is still load-bearing and still worth the self-test that pins it.
+ *
+ * Returned rather than asserted for the same reason `deadExclusions` is: the
+ * self-test pins BOTH directions off a `page.setContent()` document, so this
+ * keeps working when every page in the app is perfect.
+ */
+export async function unjustifiedExclusions(
+  page: Page,
+  exclude: string[] = [],
+): Promise<UnjustifiedExclusion[]> {
+  const FOCUSABLE =
+    'a[href], button, input, select, textarea, iframe, [contenteditable="true"], ' +
+    '[tabindex]:not([tabindex="-1"])'
+  const found: UnjustifiedExclusion[] = []
+  for (const selector of exclude) {
+    const reasons = await page.evaluate(
+      ({ selector, FOCUSABLE }) => {
+        const out: string[] = []
+        for (const root of Array.from(document.querySelectorAll(selector))) {
+          const focusable = root.querySelectorAll(FOCUSABLE)
+          if (focusable.length > 0) {
+            out.push(
+              `${focusable.length} focusable element(s) inside it (first: <${focusable[0].tagName.toLowerCase()}>)`,
+            )
+          }
+          if (root.querySelector('[aria-hidden="false"]')) {
+            out.push('a descendant marked aria-hidden="false" — somebody calls that part content')
+          }
+          const heading = root.querySelector('h1, h2, h3, h4, h5, h6')
+          if (heading) out.push(`a document heading inside it (<${heading.tagName.toLowerCase()}>)`)
+        }
+        return out
+      },
+      { selector, FOCUSABLE },
+    )
+    if (reasons.length > 0) found.push({ selector, why: Array.from(new Set(reasons)).join('; ') })
+  }
+  return found
 }
 
 /**
@@ -318,6 +420,22 @@ export async function expectNoA11yViolations(
         `more, so whatever they were written for has changed. Re-derive them against the ` +
         `current markup or delete them; do not leave an exemption standing over a subtree ` +
         `it no longer describes.`,
+    )
+    .toEqual([])
+
+  // AND THE OTHER HALF OF THE SAME QUESTION. The check above asks whether the
+  // exclusion still MATCHES; this one asks whether what it matches is still a
+  // picture. An exemption that outlives its REASON reports clean forever —
+  // `deadExclusions` could not see it, and neither could anything else here,
+  // because the exclusion is precisely what stops the scan from looking.
+  const unjustified = await unjustifiedExclusions(page, options.exclude)
+  expect
+    .soft(
+      unjustified.map((u) => `${u.selector} — ${u.why}`),
+      `UNJUSTIFIED exclusion at "${stop}" — these selectors still match, but what they match ` +
+        `is no longer a picture. The exemption rests on WCAG 1.4.3 (text that is part of a ` +
+        `picture), and the subtree now holds things a person can reach. Narrow the selector to ` +
+        `the illustration, or drop the exclusion and fix the contrast inside it.`,
     )
     .toEqual([])
 
