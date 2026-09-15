@@ -21,8 +21,16 @@ import * as realSchema from '@/lib/db/schema'
  *  · the conflict target is the (org, payment intent) unique index — the claim
  *    key that makes a redelivered webhook update its own row rather than mint
  *    a second receipt for the same charge;
- *  · both amounts go through `greatest`, so an out-of-order delivery cannot
- *    walk a receipt backwards;
+ *  · the recorded amount carries the SAME ordering rule as the three money
+ *    rows (DREAMCRM-47): a strictly newer `refund_synced_at` wins outright, so
+ *    a refund that later FAILED is un-recorded here too; a strictly OLDER one
+ *    is a stale delivery and keeps what is stored; and only the genuinely
+ *    UNORDERABLE — no key, or an exact tie — falls back to `greatest`. Without
+ *    this the receipt would be the last place still claiming a failed refund
+ *    came back, and for a membership charge it is the ONLY place the clinic
+ *    reads it;
+ *  · the charge's own total and the watermark stay plainly monotonic (a charge
+ *    amount never legitimately shrinks, and a watermark never goes back);
  *  · `attached_to` only ever moves UP, never from a real attachment back to
  *    'none' (the finalizer can stamp the PaymentIntent between two
  *    deliveries);
@@ -49,7 +57,7 @@ vi.mock('@/lib/db', async () => {
   return { schema, db: drizzle(client as never) }
 })
 vi.mock('@/lib/services/loyalty', () => ({
-  reverseLoyaltyForRefundedPayment: vi.fn(async () => false),
+  syncLoyaltyForRefundedPayment: vi.fn(async () => 'unchanged' as const),
 }))
 
 import { recordConnectRefund } from '@/lib/services/refunds'
@@ -82,13 +90,50 @@ describe('the connect_refund receipt, as Postgres will receive it', () => {
     expect(text).toContain('on conflict ("organization_id","stripe_payment_intent_id") do update set')
   })
 
-  it('raises both amounts rather than overwriting them', () => {
-    const text = receiptStatement()
-    expect(text).toContain(
-      '"refunded_amount_cents" = greatest("connect_refund"."refunded_amount_cents", excluded.refunded_amount_cents)',
+  it('believes a strictly NEWER snapshot, in either direction', () => {
+    // The failed-refund fix. An out-of-order delivery still cannot walk the
+    // receipt backwards — that is the `else` — but a snapshot Stripe stamped
+    // LATER may lower it, which is the only way a refund that failed at the
+    // bank ever stops being recorded as money returned.
+    expect(receiptStatement()).toContain(
+      '"refunded_amount_cents" = case ' +
+        // no key on the incoming event: unorderable, so monotonic
+        'when excluded.refund_synced_at is null then ' +
+        'greatest("connect_refund"."refunded_amount_cents", excluded.refunded_amount_cents) ' +
+        // never ordered before, or strictly newer: believed outright
+        'when "connect_refund"."refund_synced_at" is null or excluded.refund_synced_at > ' +
+        '"connect_refund"."refund_synced_at" then excluded.refunded_amount_cents ' +
+        // strictly older: stale, keep what is stored (see the next test)
+        'when excluded.refund_synced_at < "connect_refund"."refund_synced_at" then ' +
+        '"connect_refund"."refunded_amount_cents" ' +
+        // what is left is an exact tie: unorderable, so monotonic
+        'else greatest("connect_refund"."refunded_amount_cents", excluded.refunded_amount_cents) end',
     )
+  })
+
+  it('refuses a demonstrably STALE snapshot rather than falling to greatest()', () => {
+    // The receipt's half of the hole Sentinel found in #579: `else
+    // greatest(...)` was reached by strictly-older deliveries too, so a
+    // redelivered refund raised a receipt a newer failure had zeroed — and
+    // this row is the ONLY place a refunded membership charge is visible.
+    expect(receiptStatement()).toContain(
+      'when excluded.refund_synced_at < "connect_refund"."refund_synced_at" ' +
+        'then "connect_refund"."refunded_amount_cents"',
+    )
+  })
+
+  it('keeps the charge total and the watermark monotonic', () => {
+    const text = receiptStatement()
+    // A charge's own amount never legitimately shrinks...
     expect(text).toContain(
       '"charge_amount_cents" = greatest("connect_refund"."charge_amount_cents", excluded.charge_amount_cents)',
+    )
+    // ...and the watermark must never go BACKWARDS, or a stale delivery would
+    // make the next genuinely-newer one look older than it is. Postgres's
+    // `greatest` ignores NULLs, which is exactly the "never synced before"
+    // case.
+    expect(text).toContain(
+      '"refund_synced_at" = greatest("connect_refund"."refund_synced_at", excluded.refund_synced_at)',
     )
   })
 
@@ -116,11 +161,19 @@ describe('the connect_refund receipt, as Postgres will receive it', () => {
     // trusting a regex to stop at the right place — `[^)]*` happily runs past
     // `end` and into the next assignment.
     const greatests = Array.from(text.matchAll(/greatest\([^)]*\)/g)).map((m) => m[0])
-    expect(greatests.length, 'both amounts should be monotonic').toBe(2)
+    expect(
+      greatests.length,
+      'the amount fallback twice (no key, exact tie), the charge total and the watermark',
+    ).toBe(4)
     for (const g of greatests) expect(g).not.toMatch(/\$\d+/)
-    const caseExpr = text.slice(text.indexOf('case when'), text.indexOf(' end,'))
-    expect(caseExpr).toContain('excluded.attached_to')
-    expect(caseExpr).not.toMatch(/\$\d+/)
+    // Both CASE expressions, not just the first — the ordering rule added a
+    // second one, and a slice that stops at the first ` end,` would check the
+    // new expression and silently stop checking the old one.
+    const caseExprs = Array.from(text.matchAll(/case when .*? end/g)).map((m) => m[0])
+    expect(caseExprs.length, 'the ordering rule and the attachment rule').toBe(2)
+    for (const c of caseExprs) expect(c).not.toMatch(/\$\d+/)
+    expect(caseExprs.join(' ')).toContain('excluded.attached_to')
+    expect(caseExprs.join(' ')).toContain('excluded.refund_synced_at')
   })
 
   it('the table name is the real one, so a rename cannot leave this passing', () => {
